@@ -10,11 +10,11 @@ This repository owns the executable migration history for the physical Supabase 
 | --- | --- | --- |
 | `core` | Noel | canonical textual/manuscript evidence engine and related research infrastructure |
 | `atlas` | Atlas | operational management system |
-| `wnph` | Write Now Publishing House | publication custody, creator/corpus/work/recovery/publication state |
-| `wnph_api` | Write Now Publishing House | deliberately exposed views/RPCs for application access |
+| `wnph` | Write Now Publishing House | private canonical publication custody, creator/corpus/work/recovery/publication state |
+| `wnph_api` | Write Now Publishing House | deliberately exposed views/RPCs for application access; closed until individual surfaces are explicitly granted |
 | `public` | legacy/shared compatibility | older project surfaces requiring explicit adjudication before reuse |
 
-`wnph` and `wnph_api` were not present at the production cutover. Their first creation therefore belongs to the post-fence migration history in this repository.
+`wnph` and `wnph_api` were absent at the production cutover and were first created post-fence by `wnph_product_schema_membrane_v1`. Both schemas are owned by `postgres`; `anon`, `authenticated`, and `service_role` have no schema `USAGE` or `CREATE` privilege by default. Future application access must be granted deliberately through `wnph_api`; canonical `wnph` custody is not an application query surface.
 
 ## Inherited namespaces
 
@@ -31,6 +31,9 @@ The production database also contains older specialized schemas such as `backup`
 5. Write Now may reference governed/frozen Noel evidence through stable bridges; it must not consume provisional research as publication truth.
 6. Production migration history through `20260825203448` is inherited and frozen. It is not recopied here, renamed, or invalidated by the cutover.
 7. The `public` schema is not a default shared namespace. New product tables belong in their owning schema.
+8. `wnph` remains private canonical custody. Application roles do not receive direct schema access.
+9. `wnph_api` is deny-by-default. Each future view/function and role grant requires an explicit migration.
+10. A Write Now application surface may read or mutate `wnph` only through a governed `wnph_api` object or an explicitly documented server-side bridge; direct product-app coupling to canonical tables is forbidden.
 
 ## Future splitability
 
