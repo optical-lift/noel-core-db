@@ -2,137 +2,99 @@
 set -euo pipefail
 
 baseline="custody/production-baseline-v1.json"
+api_url="${NOEL_CORE_SUPABASE_URL:-}"
+publishable_key="${NOEL_CORE_SUPABASE_PUBLISHABLE_KEY:-}"
 
-if [ -z "${NOEL_CORE_DATABASE_URL:-}" ]; then
-  echo "NOEL_CORE_DATABASE_URL is required for live production custody verification."
+if [ -z "$api_url" ] || [ -z "$publishable_key" ]; then
+  echo "NOEL_CORE_SUPABASE_URL and NOEL_CORE_SUPABASE_PUBLISHABLE_KEY are required for live production custody verification."
   exit 2
 fi
 
-if ! command -v psql >/dev/null 2>&1; then
-  echo "psql is required for live production custody verification."
-  exit 2
-fi
-
-readarray -t expected < <(python3 - <<'PY'
-import json
-from pathlib import Path
-
-data = json.loads(Path('custody/production-baseline-v1.json').read_text())
-print(data['inheritedHistory']['migrationCount'])
-print(data['inheritedHistory']['firstVersion'])
-print(data['inheritedHistory']['throughVersion'])
-print(data['inheritedHistory']['ledgerSha256'])
-PY
-)
-
-expected_count="${expected[0]}"
-expected_first="${expected[1]}"
-fence_version="${expected[2]}"
-expected_prefix_hash="${expected[3]}"
-
-prefix_row="$({
-  psql "$NOEL_CORE_DATABASE_URL" -X -v ON_ERROR_STOP=1 -At -F '|' <<SQL
-with migrations as (
-  select
-    version,
-    name,
-    array_to_string(statements, E'\\n') as body
-  from supabase_migrations.schema_migrations
-  where version <= '$fence_version'
-),
-row_hashes as (
-  select
-    version,
-    name,
-    encode(extensions.digest(convert_to(body, 'UTF8'), 'sha256'), 'hex') as body_sha256
-  from migrations
-),
-ledger as (
-  select
-    count(*)::int as migration_count,
-    min(version) as first_version,
-    max(version) as latest_version,
-    encode(
-      extensions.digest(
-        convert_to(
-          string_agg(
-            version || E'\\t' || coalesce(name, '') || E'\\t' || body_sha256,
-            E'\\n'
-            order by version
-          ),
-          'UTF8'
-        ),
-        'sha256'
-      ),
-      'hex'
-    ) as ledger_sha256
-  from row_hashes
-)
-select migration_count, first_version, latest_version, ledger_sha256
-from ledger;
-SQL
+packet="$({
+  curl --fail --silent --show-error \
+    --request POST \
+    --header "apikey: $publishable_key" \
+    --header "Authorization: Bearer $publishable_key" \
+    --header "Content-Type: application/json" \
+    --data '{}' \
+    "$api_url/rest/v1/rpc/shared_db_custody_release_packet_v1"
 } | tr -d '\r')"
 
-IFS='|' read -r live_count live_first live_fence live_prefix_hash <<< "$prefix_row"
+PACKET_JSON="$packet" python3 - <<'PY'
+import json
+import os
+import subprocess
+from pathlib import Path
 
-if [ "$live_count" != "$expected_count" ] || \
-   [ "$live_first" != "$expected_first" ] || \
-   [ "$live_fence" != "$fence_version" ] || \
-   [ "$live_prefix_hash" != "$expected_prefix_hash" ]; then
-  echo "Inherited production migration fence no longer matches the frozen baseline."
-  echo "Expected: count=$expected_count first=$expected_first fence=$fence_version hash=$expected_prefix_hash"
-  echo "Live:     count=$live_count first=$live_first fence=$live_fence hash=$live_prefix_hash"
-  exit 1
-fi
+baseline = json.loads(Path('custody/production-baseline-v1.json').read_text())
+packet = json.loads(os.environ['PACKET_JSON'])
 
-bad=0
-while IFS='|' read -r version name production_blob_sha; do
-  [ -z "$version" ] && continue
+expected = baseline['inheritedHistory']
+fence = packet.get('fence') or {}
+current = packet.get('current') or {}
+post_fence = packet.get('postFence') or []
 
-  file="supabase/migrations/${version}_${name}.sql"
-  if [ ! -f "$file" ]; then
-    echo "Unauthorized or uncustodied live post-fence migration: ${version}_${name}"
-    echo "Expected canonical source file: $file"
-    bad=1
-    continue
-  fi
+errors = []
 
-  repository_blob_sha="$(git hash-object "$file")"
-  if [ "$repository_blob_sha" != "$production_blob_sha" ]; then
-    echo "Live post-fence migration bytes do not match canonical source: $file"
-    echo "Repository Git blob: $repository_blob_sha"
-    echo "Production Git blob: $production_blob_sha"
-    bad=1
-  fi
-done < <(
-  psql "$NOEL_CORE_DATABASE_URL" -X -v ON_ERROR_STOP=1 -At -F '|' <<SQL
-with migrations as (
-  select
-    version,
-    name,
-    array_to_string(statements, E'\\n') as body
-  from supabase_migrations.schema_migrations
-  where version > '$fence_version'
+if packet.get('contractVersion') != 1:
+    errors.append(f"Unexpected live custody contract version: {packet.get('contractVersion')!r}")
+if packet.get('projectRef') != baseline['physicalProject']['projectRef']:
+    errors.append(f"Live custody packet project mismatch: {packet.get('projectRef')!r}")
+
+checks = {
+    'migrationCount': expected['migrationCount'],
+    'firstVersion': expected['firstVersion'],
+    'throughVersion': expected['throughVersion'],
+    'ledgerSha256': expected['ledgerSha256'],
+}
+for key, value in checks.items():
+    if fence.get(key) != value:
+        errors.append(f"Inherited fence mismatch for {key}: expected {value!r}, live {fence.get(key)!r}")
+
+versions = []
+for row in post_fence:
+    version = str(row.get('version') or '')
+    name = str(row.get('name') or '')
+    production_blob = str(row.get('gitBlobSha1') or '')
+    versions.append(version)
+
+    path = Path('supabase/migrations') / f'{version}_{name}.sql'
+    if not path.is_file():
+        errors.append(f"Unauthorized or uncustodied live post-fence migration: {version}_{name}; expected {path}")
+        continue
+
+    repository_blob = subprocess.check_output(['git', 'hash-object', str(path)], text=True).strip()
+    if repository_blob != production_blob:
+        errors.append(
+            f"Live post-fence migration bytes do not match canonical source: {path}; "
+            f"repository={repository_blob} production={production_blob}"
+        )
+
+if versions != sorted(versions) or len(versions) != len(set(versions)):
+    errors.append('Live post-fence migration versions are not strictly ordered and unique.')
+
+expected_current_count = expected['migrationCount'] + len(post_fence)
+if current.get('migrationCount') != expected_current_count:
+    errors.append(
+        f"Current migration count is inconsistent with the frozen prefix plus post-fence rows: "
+        f"expected {expected_current_count}, live {current.get('migrationCount')!r}"
+    )
+
+expected_latest = versions[-1] if versions else expected['throughVersion']
+if current.get('latestVersion') != expected_latest:
+    errors.append(
+        f"Current latest migration is inconsistent with the post-fence ledger: "
+        f"expected {expected_latest!r}, live {current.get('latestVersion')!r}"
+    )
+
+if errors:
+    print('Live production migration custody FAILED:')
+    for error in errors:
+        print(f'- {error}')
+    raise SystemExit(1)
+
+print(
+    'Live production custody passed: inherited fence is unchanged and '
+    f'{len(post_fence)} post-fence migration(s) have exact canonical source in noel-core-db.'
 )
-select
-  version,
-  name,
-  encode(
-    extensions.digest(
-      convert_to('blob ' || octet_length(convert_to(body, 'UTF8'))::text, 'UTF8')
-      || decode('00', 'hex')
-      || convert_to(body, 'UTF8'),
-      'sha1'
-    ),
-    'hex'
-  ) as git_blob_sha1
-from migrations
-order by version;
-SQL
-)
-
-if [ "$bad" -ne 0 ]; then
-  exit 1
-fi
-
-echo "Live production custody passed: inherited fence is unchanged and every post-fence live migration has exact canonical source in noel-core-db."
+PY
