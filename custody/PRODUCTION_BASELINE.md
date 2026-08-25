@@ -40,4 +40,6 @@ Sharing one physical Supabase project does not merge product semantics. Cross-sc
 
 `custody/production-baseline-v1.json` is the machine-readable fence. `scripts/read-production-baseline.sql` recomputes its production-ledger evidence. `scripts/check-custody.sh` prevents this repository from silently importing pre-fence migrations or accepting unowned post-fence migrations.
 
+`scripts/check-live-production-custody.sh` verifies the other direction: the inherited production-ledger prefix must still reproduce the frozen fence, and every live post-fence migration must have an exact same-version, same-name, byte-identical canonical migration file in this repository. GitHub Actions runs this live check when the repository secret `NOEL_CORE_DATABASE_URL` is configured; without that secret CI reports the missing live enforcement explicitly rather than pretending it ran.
+
 The fence itself makes no production DDL change. The first database architecture change after this baseline must originate as a migration in this repository.
