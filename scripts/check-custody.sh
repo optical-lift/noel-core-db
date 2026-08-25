@@ -77,6 +77,7 @@ expected = {
     '20260825224131_drop_redundant_corpus_indexes.sql': '22f480f99c3d7c72548805ff2ffc3a35b50fb7b5',
     '20260825224151_retire_unconsumed_corpus_stage_tables.sql': '9d6121325f867d52ebddb5d0ff650beb7b43a799',
     '20260825224705_evict_rebuildable_dss_parsed_caches.sql': '96ded2fd718d44b170069f65fc454b562c201241',
+    '20260825224836_evict_rebuildable_lxx_span_candidate_cache.sql': 'e9fbff6b1541d796e60cbcbe2f61e311f5dd6208',
 }
 recoveries = data['recoveries']
 actual = {}
@@ -137,4 +138,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; four sealed retrospective recoveries preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; five sealed retrospective recoveries preserve exact live bytes."
