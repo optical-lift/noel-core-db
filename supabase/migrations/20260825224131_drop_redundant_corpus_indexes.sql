@@ -1,0 +1,10 @@
+drop index if exists draft.vulgate_clementine_token_stage_ref_idx;
+drop index if exists core.token_annotation_units_occurrence_idx;
+drop index if exists core.token_annotation_units_external_lookup_idx;
+drop index if exists draft.n1904_tf_words_stage_ref_idx;
+drop index if exists draft.vulgate_clementine_verse_stage_ref_idx;
+drop index if exists draft.external_witness_source_lines_text_idx;
+drop index if exists draft.canon_external_entity_records_key_idx;
+drop index if exists draft.pattern_stage_columns_pattern_idx;
+drop index if exists draft.canon_discovery_derivation_run_idx;
+drop index if exists core.text_annotation_book_map_source_idx;

@@ -1,0 +1,1 @@
+truncate table draft.lxx_alignment_span_candidates;
