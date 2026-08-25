@@ -1,0 +1,62 @@
+{
+  "contractVersion": 1,
+  "physicalProject": {
+    "name": "noel-core",
+    "projectRef": "zirqkouammpwxlqfbsvf",
+    "postgresVersion": "17.6"
+  },
+  "inheritedHistory": {
+    "authority": "production-migration-ledger",
+    "migrationCount": 2022,
+    "firstVersion": "20260702172540",
+    "throughVersion": "20260825203448",
+    "throughName": "state_progression_sales_inventory_version_drift_adjudication_v1",
+    "throughBodyGitBlobSha1": "d5907872292f8ad4bbe8c6b2b4bc282ce4dbea1b",
+    "throughBodySha256": "dbb10d84cb54ab6d6781c441e515fe53d63afbfe3208468c005a7d5ca6c9250c",
+    "ledgerFingerprintAlgorithm": "sha256(sorted(version<TAB>name<TAB>sha256(body)) joined by LF)",
+    "ledgerSha256": "f13deaef601b17928c14859d08367a790f6f1a12b717cd06784f45686baf4d6d"
+  },
+  "cutover": {
+    "effectiveAfterVersion": "20260825203448",
+    "newExecutableMigrationAuthority": "optical-lift/noel-core-db",
+    "legacyHistoryDisposition": "inherited_frozen",
+    "legacyFilesCopiedIntoThisRepository": false,
+    "productRepositoriesMayOwnNewCanonicalMigrations": false,
+    "requiredOwnerPrefixes": ["core", "atlas", "wnph", "shared", "project"]
+  },
+  "atlasAnchor": {
+    "repository": "optical-lift/farm-atlas",
+    "mainSha": "1a20a40eb2067b4d610179674b59a4a3fb8c5e5d",
+    "governedArtifactCount": 4396,
+    "families": [
+      {"familyKey":"constraints","artifactCount":2152,"fingerprintSha256":"cc2b6a51ab2f402794f211fdb8afbc1acea2454c9a058804259ce04225a3412e"},
+      {"familyKey":"functions","artifactCount":1209,"fingerprintSha256":"5135530687acec9f10a2bf1abab84bd83beed59ce7757e6c3744f3ca759094cf"},
+      {"familyKey":"rls_policies","artifactCount":166,"fingerprintSha256":"6c7044484f941fca4da8f185217c39e07636e750a1d53f10be0bd84664bf809a"},
+      {"familyKey":"rpc_privileges","artifactCount":484,"fingerprintSha256":"eac0c91bf153f439ac49863ab5c407bb20349fd034b59673aa9a4b85e2759eb9"},
+      {"familyKey":"triggers","artifactCount":385,"fingerprintSha256":"48dbec65f81f0369bfb5f81ccc749ae199a664f45d0e5f2f0022654a8096a56d"}
+    ]
+  },
+  "schemaCensusAtCutover": {
+    "applicationAndLegacySchemasObserved": [
+      "atlas",
+      "backup",
+      "core",
+      "draft",
+      "fundraising",
+      "instrument",
+      "intelligence",
+      "lab",
+      "local_intel",
+      "practice",
+      "public",
+      "reader",
+      "registry",
+      "snail",
+      "snail_read",
+      "staging",
+      "titus"
+    ],
+    "extensionManagedSchemasObserved": ["cron", "net"],
+    "plannedProductSchemasAbsentAtCutover": ["wnph", "wnph_api"]
+  }
+}

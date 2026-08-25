@@ -2,7 +2,9 @@
 
 Executable database custody for the shared `noel-core` Supabase project.
 
-This repository will own the canonical migration history, database tests, schema ownership boundaries, and generated database types for the physical Supabase project used by Noel, Atlas, and Write Now.
+This repository owns canonical database migrations, database custody tests, schema ownership boundaries, and generated database contracts for the physical Supabase project used by Noel, Atlas, and Write Now.
+
+The inherited production history is now fenced in `custody/production-baseline-v1.json`. Everything in the production migration ledger through version `20260825203448` is frozen inherited history; it is not recopied into this repository. Canonical migrations after that fence originate here.
 
 Planned schema ownership:
 
@@ -11,6 +13,6 @@ Planned schema ownership:
 - `wnph` — Write Now publishing custody
 - `wnph_api` — governed Write Now application surface
 
-Application repositories must not become competing migration authorities for the shared Supabase project.
+Application repositories may retain pre-fence migration files as provenance and may propose new database requirements, but they must not become competing post-fence migration authorities for the shared Supabase project.
 
-Current phase: custody bootstrap only. Existing Atlas migration history has not yet been moved or re-adjudicated into this repository.
+See `custody/PRODUCTION_BASELINE.md` for the cutover contract and `schemas/OWNERSHIP.md` for logical schema boundaries.
