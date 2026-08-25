@@ -1,0 +1,2 @@
+truncate table draft.dss_tf_feature_values_stage;
+truncate table draft.dss_tf_node_slots_stage;
