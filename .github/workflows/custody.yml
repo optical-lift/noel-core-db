@@ -8,8 +8,28 @@ on:
 jobs:
   custody:
     runs-on: ubuntu-latest
+    env:
+      NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Verify custody boundaries
+
+      - name: Verify static custody boundaries
         run: bash scripts/check-custody.sh
+
+      - name: Ensure PostgreSQL client is available
+        if: ${{ env.NOEL_CORE_DATABASE_URL != '' }}
+        shell: bash
+        run: |
+          if ! command -v psql >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y postgresql-client
+          fi
+
+      - name: Verify live production migration authority
+        if: ${{ env.NOEL_CORE_DATABASE_URL != '' }}
+        run: bash scripts/check-live-production-custody.sh
+
+      - name: Report live custody check not configured
+        if: ${{ env.NOEL_CORE_DATABASE_URL == '' }}
+        run: echo "::warning::Live production-ledger custody is not active in GitHub Actions until the NOEL_CORE_DATABASE_URL repository secret is configured. Static custody remains enforced."
