@@ -18,5 +18,8 @@ jobs:
       - name: Verify static custody boundaries
         run: bash scripts/check-custody.sh
 
+      - name: Verify WNPH product schema membrane
+        run: bash scripts/check-wnph-membrane.sh
+
       - name: Verify live production migration authority
         run: bash scripts/check-live-production-custody.sh
