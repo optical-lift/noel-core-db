@@ -118,52 +118,9 @@ BEGIN
     RAISE EXCEPTION 'BB10 treatment-family repair expected 3 canonical tasks; found %.', v_task_count;
   END IF;
 
-  INSERT INTO atlas.task_resource_requirements (
-    id,
-    task_id,
-    resource_id,
-    template_id,
-    requirement_role,
-    requirement_source,
-    quantity_needed,
-    unit,
-    status,
-    note,
-    metadata,
-    move_role
-  )
-  SELECT
-    gen_random_uuid(),
-    t.id,
-    v_resource_id,
-    v_template_id,
-    'required',
-    'template',
-    1,
-    'sprayer',
-    'available',
-    'Use the owner-confirmed black jug with electric sprayer attachment.',
-    jsonb_build_object(
-      'source','owner_instruction_20260826',
-      'method_contract_key','bb10_bermuda_spray_method_v1',
-      'product_identity_asserted',false
-    ),
-    'equipment'
-  FROM atlas.tasks t
-  WHERE t.id = ANY(ARRAY[
-    '1405c7a2-270f-494a-8e1c-59884a8b4fc9'::uuid,
-    '14bd6679-d764-4feb-a275-dbe96ddd03a0'::uuid,
-    'd19b9a69-e2ee-4860-b768-a30f95e44414'::uuid
-  ])
-  AND NOT EXISTS (
-    SELECT 1
-    FROM atlas.task_resource_requirements trr
-    WHERE trr.task_id = t.id
-      AND trr.resource_id = v_resource_id
-      AND trr.template_id = v_template_id
-      AND trr.requirement_role = 'required'
-  );
-
+  -- Set the canonical resource key on the tasks first. The existing Atlas
+  -- resource-key synchronizer owns creation of task_resource_requirements;
+  -- do not create a competing requirement row here.
   UPDATE atlas.tasks
   SET metadata = coalesce(metadata,'{}'::jsonb) || jsonb_build_object(
         'execution_how', jsonb_build_array(
@@ -190,6 +147,44 @@ BEGIN
     '14bd6679-d764-4feb-a275-dbe96ddd03a0'::uuid,
     'd19b9a69-e2ee-4860-b768-a30f95e44414'::uuid
   ]);
+
+  -- Attach the reusable method template to the single canonical requirement
+  -- created by required_resource_keys. This preserves one resource authority.
+  UPDATE atlas.task_resource_requirements trr
+  SET template_id = v_template_id,
+      requirement_source = 'template',
+      quantity_needed = 1,
+      unit = 'sprayer',
+      note = 'Use the owner-confirmed black jug with electric sprayer attachment.',
+      metadata = coalesce(trr.metadata,'{}'::jsonb) || jsonb_build_object(
+        'source','owner_instruction_20260826',
+        'method_contract_key','bb10_bermuda_spray_method_v1',
+        'product_identity_asserted',false
+      ),
+      move_role = 'equipment',
+      updated_at = now()
+  WHERE trr.task_id = ANY(ARRAY[
+    '1405c7a2-270f-494a-8e1c-59884a8b4fc9'::uuid,
+    '14bd6679-d764-4feb-a275-dbe96ddd03a0'::uuid,
+    'd19b9a69-e2ee-4860-b768-a30f95e44414'::uuid
+  ])
+    AND trr.resource_id = v_resource_id
+    AND trr.requirement_role = 'required';
+
+  SELECT count(*) INTO v_task_count
+  FROM atlas.task_resource_requirements trr
+  WHERE trr.task_id = ANY(ARRAY[
+    '1405c7a2-270f-494a-8e1c-59884a8b4fc9'::uuid,
+    '14bd6679-d764-4feb-a275-dbe96ddd03a0'::uuid,
+    'd19b9a69-e2ee-4860-b768-a30f95e44414'::uuid
+  ])
+    AND trr.resource_id = v_resource_id
+    AND trr.template_id = v_template_id
+    AND trr.requirement_role = 'required';
+
+  IF v_task_count <> 3 THEN
+    RAISE EXCEPTION 'BB10 treatment-family repair expected 3 canonical method/resource requirements; found %.', v_task_count;
+  END IF;
 END
 $block$;
 
