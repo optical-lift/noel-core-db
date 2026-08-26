@@ -1,0 +1,1 @@
+Deno.serve(() => new Response(JSON.stringify({ error: "retired", replacement: "wnph-source-batch-intake" }), { status: 410, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } }));
