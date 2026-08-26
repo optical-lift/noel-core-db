@@ -97,8 +97,6 @@ set crop_label = excluded.crop_label,
     metadata = coalesce(atlas.crop_profiles.metadata, '{}'::jsonb) || excluded.metadata,
     updated_at = now();
 
--- Resolver aliases are deliberately specific to Double Sweet William rather than
--- introducing a high-priority generic alias that could later override a distinct F1 profile.
 insert into atlas.crop_profile_aliases (crop_profile_id, alias_label, alias_variety, priority, active, note)
 select p.id, a.alias_label, a.alias_variety, 10, true, 'Owner-confirmed Double Sweet William identity'
 from atlas.crop_profiles p
@@ -117,11 +115,6 @@ where p.stable_key = 'sweet_william_double_overwinter_2026'
       and atlas.identity_token(coalesce(existing.alias_variety, '')) = atlas.identity_token(coalesce(a.alias_variety, ''))
   );
 
--- The current pot-up task is already canonically linked to BOTH July 11 Sweet William
--- source cycles. Box 1 / Box 2 are the source-container identities that keep those
--- simultaneously active crop bodies distinct. Attach the botanical profile explicitly
--- while preserving those cycle identities; record Double Sweet William as canonical
--- variety metadata rather than collapsing two live cycles into one identity.
 update atlas.crop_cycles cc
 set crop_profile_id = p.id,
     metadata = coalesce(cc.metadata, '{}'::jsonb) || jsonb_build_object(
