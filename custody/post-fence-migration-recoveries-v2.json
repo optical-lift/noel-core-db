@@ -1,0 +1,62 @@
+{
+  "contractVersion": 2,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "rule": "These six migrations were deployed after the shared database fence without approved owner-prefixed filenames. Preserve their exact production filenames and bytes as historical custody evidence. This registry is a sealed exception only for these six rows and does not authorize future unprefixed migrations.",
+  "recoveries": [
+    {
+      "version": "20260825223950",
+      "name": "retire_rebuild_staging_and_backup_artifacts",
+      "filename": "20260825223950_retire_rebuild_staging_and_backup_artifacts.sql",
+      "gitBlobSha1": "67494243146fef19ba6b95287b6c6098ce362347",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260825224131",
+      "name": "drop_redundant_corpus_indexes",
+      "filename": "20260825224131_drop_redundant_corpus_indexes.sql",
+      "gitBlobSha1": "22f480f99c3d7c72548805ff2ffc3a35b50fb7b5",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260825224151",
+      "name": "retire_unconsumed_corpus_stage_tables",
+      "filename": "20260825224151_retire_unconsumed_corpus_stage_tables.sql",
+      "gitBlobSha1": "9d6121325f867d52ebddb5d0ff650beb7b43a799",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260825224705",
+      "name": "evict_rebuildable_dss_parsed_caches",
+      "filename": "20260825224705_evict_rebuildable_dss_parsed_caches.sql",
+      "gitBlobSha1": "96ded2fd718d44b170069f65fc454b562c201241",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260825224836",
+      "name": "evict_rebuildable_lxx_span_candidate_cache",
+      "filename": "20260825224836_evict_rebuildable_lxx_span_candidate_cache.sql",
+      "gitBlobSha1": "e9fbff6b1541d796e60cbcbe2f61e311f5dd6208",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260827002345",
+      "name": "phone_outreach_intelligence_bridge_v1",
+      "filename": "20260827002345_phone_outreach_intelligence_bridge_v1.sql",
+      "gitBlobSha1": "ce558a225f3fed2845c445012ab763bbe444628c",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
