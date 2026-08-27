@@ -12,9 +12,12 @@ This repository owns the executable migration history for the physical Supabase 
 | `atlas` | Atlas | operational management system |
 | `wnph` | Write Now Publishing House | private canonical publication custody, creator/corpus/work/recovery/publication state |
 | `wnph_api` | Write Now Publishing House | deliberately exposed views/RPCs for application access; closed until individual surfaces are explicitly granted |
+| `reporting` | Reporting | private source-custodied newsroom memory for sources, passages, entities, claims, events, money, actions, votes, quotes and continuing story topics |
 | `public` | legacy/shared compatibility | older project surfaces requiring explicit adjudication before reuse |
 
 `wnph` and `wnph_api` were absent at the production cutover and were first created post-fence by `wnph_product_schema_membrane_v1`. Both schemas are owned by `postgres`; `anon`, `authenticated`, and `service_role` have no schema `USAGE` or `CREATE` privilege by default. Future application access must be granted deliberately through `wnph_api`; canonical `wnph` custody is not an application query surface.
+
+`reporting` was established post-cutover as a private newsroom schema. The frozen cutover baseline is not rewritten to pretend Reporting existed then; current custody explicitly recognizes the `reporting` migration-owner prefix. `public`, `anon`, and `authenticated` receive no Reporting schema access in v1, and unpublished interviews, transcripts, notes or other reporter-private source material must never be committed to this public repository.
 
 ## Inherited namespaces
 
@@ -34,6 +37,7 @@ The production database also contains older specialized schemas such as `backup`
 8. `wnph` remains private canonical custody. Application roles do not receive direct schema access.
 9. `wnph_api` is deny-by-default. Each future view/function and role grant requires an explicit migration.
 10. A Write Now application surface may read or mutate `wnph` only through a governed `wnph_api` object or an explicitly documented server-side bridge; direct product-app coupling to canonical tables is forbidden.
+11. `reporting` remains private newsroom custody. Public application access, if ever needed, must be introduced through a separately governed surface rather than direct grants to canonical Reporting tables.
 
 ## Future splitability
 
