@@ -18,6 +18,9 @@ jobs:
       - name: Verify static custody boundaries
         run: bash scripts/check-custody.sh
 
+      - name: Verify Atlas biological kernel membrane
+        run: bash scripts/check-atlas-biological-kernel-membrane.sh
+
       - name: Verify WNPH product schema membrane
         run: bash scripts/check-wnph-membrane.sh
 
