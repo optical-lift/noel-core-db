@@ -57,7 +57,9 @@ PY
 )
 
 fence_version="${baseline_values[0]}"
-owner_prefixes="${baseline_values[1]}"
+# The baseline list records owners known at cutover. Reporting Core was created
+# post-cutover, so extend current ownership without rewriting the frozen baseline.
+owner_prefixes="${baseline_values[1]}|reporting"
 
 declare -A recovered_sha=()
 while IFS='|' read -r filename sha; do
