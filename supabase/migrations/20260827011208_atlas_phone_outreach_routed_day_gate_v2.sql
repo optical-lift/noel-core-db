@@ -100,6 +100,7 @@ begin
   update atlas.tasks set metadata=coalesce(metadata,'{}'::jsonb)||jsonb_build_object('phone_outreach_result',v_result,'checklist_status','done','result_storage','local_intel.campaign_contacts','last_phone_outreach_idempotency_key',p_idempotency_key),updated_at=now() where id=v_task.id;
 
   v_summary := concat_ws(E'\n','Result: '||p_contact_result,case when nullif(btrim(coalesce(p_reached_name,'')),'') is not null then 'Reached: '||btrim(p_reached_name) end,case when nullif(btrim(coalesce(p_notes,'')),'') is not null then 'Said: '||btrim(p_notes) end);
+
   v_transition := atlas.record_task_transition_v1(v_task.id,'checklist_done',p_idempotency_key,null,v_summary,null,'network','phone_call_result',jsonb_build_object('completion_source','phone_outreach_atomic_v2','parent_task_id',v_parent.id,'local_intel_entity_id',v_entity_id,'local_intel_campaign_contact_id',v_campaign_contact_id,'local_intel_contact_point_id',v_contact_point_id,'contact_result',p_contact_result,'actor_membership_id',p_effective_membership_id,'actor_role',v_role),null);
 
   return jsonb_build_object('ok',true,'taskId',v_task.id,'entityId',v_entity_id,'campaignId',v_campaign_contact.campaign_id,'campaignContactId',v_campaign_contact_id,'contactPointId',v_contact_point_id,'contactState',v_contact_state,'deduplicated',false,'result',v_result,'transition',v_transition);
