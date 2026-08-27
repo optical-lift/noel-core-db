@@ -2,7 +2,7 @@
 set -euo pipefail
 
 baseline="custody/production-baseline-v1.json"
-recovery_registry="custody/post-fence-migration-recoveries-v1.json"
+recovery_registry="custody/post-fence-migration-recoveries-v2.json"
 
 for required in \
   "schemas/OWNERSHIP.md" \
@@ -66,35 +66,37 @@ done < <(python3 - <<'PY'
 import json, re
 from pathlib import Path
 
-path = Path('custody/post-fence-migration-recoveries-v1.json')
+path = Path('custody/post-fence-migration-recoveries-v2.json')
 data = json.loads(path.read_text())
-assert data['contractVersion'] == 1
+assert data['contractVersion'] == 2
 assert data['sealed'] is True
 assert data['classification'] == 'retrospective_post_fence_custody_recovery'
 
 expected = {
-    '20260825223950_retire_rebuild_staging_and_backup_artifacts.sql': '67494243146fef19ba6b95287b6c6098ce362347',
-    '20260825224131_drop_redundant_corpus_indexes.sql': '22f480f99c3d7c72548805ff2ffc3a35b50fb7b5',
-    '20260825224151_retire_unconsumed_corpus_stage_tables.sql': '9d6121325f867d52ebddb5d0ff650beb7b43a799',
-    '20260825224705_evict_rebuildable_dss_parsed_caches.sql': '96ded2fd718d44b170069f65fc454b562c201241',
-    '20260825224836_evict_rebuildable_lxx_span_candidate_cache.sql': 'e9fbff6b1541d796e60cbcbe2f61e311f5dd6208',
+    '20260825223950_retire_rebuild_staging_and_backup_artifacts.sql': ('67494243146fef19ba6b95287b6c6098ce362347', 'core'),
+    '20260825224131_drop_redundant_corpus_indexes.sql': ('22f480f99c3d7c72548805ff2ffc3a35b50fb7b5', 'core'),
+    '20260825224151_retire_unconsumed_corpus_stage_tables.sql': ('9d6121325f867d52ebddb5d0ff650beb7b43a799', 'core'),
+    '20260825224705_evict_rebuildable_dss_parsed_caches.sql': ('96ded2fd718d44b170069f65fc454b562c201241', 'core'),
+    '20260825224836_evict_rebuildable_lxx_span_candidate_cache.sql': ('e9fbff6b1541d796e60cbcbe2f61e311f5dd6208', 'core'),
+    '20260827002345_phone_outreach_intelligence_bridge_v1.sql': ('159e4ef8595fd90f5bb52ec9d1a2a077faadf453', 'atlas'),
 }
 recoveries = data['recoveries']
 actual = {}
 for row in recoveries:
-    assert row['logicalOwner'] == 'core'
     assert row['disposition'] == 'recovered_exact_live_bytes'
     assert row['reason'] == 'post_fence_live_migration_bypassed_source_custody'
     filename = row['filename']
     sha = row['gitBlobSha1']
+    owner = row['logicalOwner']
     assert re.fullmatch(r'[0-9a-f]{40}', sha)
+    assert owner in ('core', 'atlas')
     assert filename == f"{row['version']}_{row['name']}.sql"
     assert filename not in actual
-    actual[filename] = sha
+    actual[filename] = (sha, owner)
 
 assert actual == expected
 for filename in sorted(actual):
-    print(f"{filename}|{actual[filename]}")
+    print(f"{filename}|{actual[filename][0]}")
 PY
 )
 
@@ -138,4 +140,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; five sealed retrospective recoveries preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; six sealed retrospective recoveries preserve exact live bytes."
