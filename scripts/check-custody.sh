@@ -2,7 +2,7 @@
 set -euo pipefail
 
 baseline="custody/production-baseline-v1.json"
-recovery_registry="custody/post-fence-migration-recoveries-v2.json"
+recovery_registry="custody/post-fence-migration-recoveries-v3.json"
 
 for required in \
   "schemas/OWNERSHIP.md" \
@@ -66,9 +66,9 @@ done < <(python3 - <<'PY'
 import json, re
 from pathlib import Path
 
-path = Path('custody/post-fence-migration-recoveries-v2.json')
+path = Path('custody/post-fence-migration-recoveries-v3.json')
 data = json.loads(path.read_text())
-assert data['contractVersion'] == 2
+assert data['contractVersion'] == 3
 assert data['sealed'] is True
 assert data['classification'] == 'retrospective_post_fence_custody_recovery'
 
@@ -78,6 +78,8 @@ expected = {
     '20260825224151_retire_unconsumed_corpus_stage_tables.sql': ('9d6121325f867d52ebddb5d0ff650beb7b43a799', 'core'),
     '20260825224705_evict_rebuildable_dss_parsed_caches.sql': ('96ded2fd718d44b170069f65fc454b562c201241', 'core'),
     '20260825224836_evict_rebuildable_lxx_span_candidate_cache.sql': ('e9fbff6b1541d796e60cbcbe2f61e311f5dd6208', 'core'),
+    '20260826224150_setup_known_growing_object_checklist_v1.sql': ('8b95b4c83d797022d2a358c0b1d33eb76ba2010f', 'atlas'),
+    '20260826224303_revert_redundant_setup_unit_materializer_v1.sql': ('d79ae51cdbc0b0367b322ea547d17cf39d2b7676', 'atlas'),
     '20260827002345_phone_outreach_intelligence_bridge_v1.sql': ('159e4ef8595fd90f5bb52ec9d1a2a077faadf453', 'atlas'),
 }
 recoveries = data['recoveries']
@@ -140,4 +142,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; six sealed retrospective recoveries preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; eight sealed retrospective recoveries preserve exact live bytes."

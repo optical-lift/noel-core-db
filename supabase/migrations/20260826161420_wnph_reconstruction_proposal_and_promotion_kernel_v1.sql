@@ -390,6 +390,7 @@ grant execute on function public.wnph_commit_reconstruction_batch_v1(text,text,j
 comment on function public.wnph_commit_reconstruction_batch_v1(text,text,jsonb,jsonb) is
   'Atomic, idempotent reconstruction admission boundary. Records immutable observation-backed semantic proposals and automatically promotes only proposals explicitly classified auto_admit into candidate/usable publication source blocks.';
 
+-- Prove promotion is usable without weakening verified custody; rollback every fixture row.
 do $verify$
 declare
   v_pkg uuid;
