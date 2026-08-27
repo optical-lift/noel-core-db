@@ -30,6 +30,7 @@ create table atlas.biological_work_requirements (
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  constraint biological_work_requirements_id_farm_key unique(id,farm_id),
   constraint biological_work_requirements_requirement_key_nonempty
     check (btrim(requirement_key) <> ''),
   constraint biological_work_requirements_operation_key_nonempty
@@ -75,15 +76,21 @@ comment on column atlas.biological_work_requirements.projected_task_id is
   'Current authoritative human execution projection when one exists; task state does not own requirement existence.';
 
 alter table atlas.tasks
-  add column biological_requirement_id uuid references atlas.biological_work_requirements(id),
+  add column biological_requirement_id uuid,
   add column biological_requirement_role text;
 
 alter table atlas.tasks
-  add constraint tasks_biological_requirement_role_check
+  add constraint tasks_biological_requirement_pair_check
   check (
-    biological_requirement_role is null
-    or biological_requirement_role in ('execution','decision','preparation','observation')
-  );
+    (biological_requirement_id is null and biological_requirement_role is null)
+    or (
+      biological_requirement_id is not null
+      and biological_requirement_role in ('execution','decision','preparation','observation')
+    )
+  ),
+  add constraint tasks_biological_requirement_farm_fk
+  foreign key (biological_requirement_id,farm_id)
+  references atlas.biological_work_requirements(id,farm_id);
 
 create index tasks_biological_requirement_idx
   on atlas.tasks(biological_requirement_id, biological_requirement_role)
@@ -108,7 +115,10 @@ comment on column atlas.tasks.biological_requirement_role is
   'Role of this task relative to the biological requirement: execution, decision, preparation, or observation.';
 
 alter table atlas.planned_work_occurrences
-  add column biological_requirement_id uuid references atlas.biological_work_requirements(id);
+  add column biological_requirement_id uuid,
+  add constraint planned_work_occurrences_biological_requirement_farm_fk
+  foreign key (biological_requirement_id,farm_id)
+  references atlas.biological_work_requirements(id,farm_id);
 
 create index planned_work_occurrences_biological_requirement_idx
   on atlas.planned_work_occurrences(biological_requirement_id)
@@ -142,6 +152,7 @@ begin
         from atlas.crop_cycles cycle
         where cycle.id=p_subject_id
           and cycle.farm_id=p_farm_id
+          and cycle.lifecycle_status in ('active','planned')
       ) into v_exists;
     when 'production_lot' then
       select exists(
@@ -149,6 +160,7 @@ begin
         from atlas.production_lots lot
         where lot.id=p_subject_id
           and lot.farm_id=p_farm_id
+          and lot.lifecycle_status in ('active','planned')
       ) into v_exists;
     when 'production_succession' then
       select exists(
@@ -157,13 +169,14 @@ begin
         join atlas.production_plans plan on plan.id=succession.production_plan_id
         where succession.id=p_subject_id
           and plan.farm_id=p_farm_id
+          and succession.state not in ('skipped','cancelled','completed','complete','terminated','archived')
       ) into v_exists;
     else
       raise exception 'Unsupported biological requirement subject kind: %', p_subject_kind using errcode='22023';
   end case;
 
   if not v_exists then
-    raise exception 'Biological requirement subject is missing or belongs to another farm.' using errcode='23503';
+    raise exception 'Biological requirement subject is missing, terminal, or belongs to another farm.' using errcode='23503';
   end if;
 end;
 $$;
@@ -189,6 +202,35 @@ create trigger biological_work_requirements_subject_guard
 before insert or update of farm_id,subject_kind,subject_id
 on atlas.biological_work_requirements
 for each row execute function atlas.enforce_biological_requirement_subject_v1();
+
+create or replace function atlas.enforce_biological_requirement_projected_task_v1()
+returns trigger
+language plpgsql
+security definer
+set search_path = pg_catalog, atlas
+as $$
+begin
+  if new.projected_task_id is null then return new; end if;
+  if not exists(
+    select 1
+    from atlas.tasks task
+    where task.id=new.projected_task_id
+      and task.farm_id=new.farm_id
+      and task.biological_requirement_id=new.id
+      and task.biological_requirement_role='execution'
+  ) then
+    raise exception 'Projected task must be the execution task linked back to this biological requirement.' using errcode='23503';
+  end if;
+  return new;
+end;
+$$;
+
+revoke all on function atlas.enforce_biological_requirement_projected_task_v1() from public, anon, authenticated, service_role;
+
+create trigger biological_work_requirements_projected_task_guard
+before insert or update of farm_id,projected_task_id
+on atlas.biological_work_requirements
+for each row execute function atlas.enforce_biological_requirement_projected_task_v1();
 
 create trigger biological_work_requirements_set_updated_at
 before update on atlas.biological_work_requirements
@@ -224,7 +266,7 @@ begin
   if p_operation_key is null or btrim(p_operation_key)='' then
     raise exception 'Biological operation key is required.' using errcode='22023';
   end if;
-  if p_protection_class not in ('protected','standard','resilient') then
+  if p_protection_class is null or p_protection_class not in ('protected','standard','resilient') then
     raise exception 'Unsupported biological protection class: %',p_protection_class using errcode='22023';
   end if;
 
@@ -237,7 +279,34 @@ begin
     and requirement.requirement_key=v_key
   for update;
 
-  if v_requirement.id is not null then
+  if v_requirement.id is null then
+    insert into atlas.biological_work_requirements(
+      farm_id,requirement_key,subject_kind,subject_id,operation_key,status,protection_class,
+      visibility_start_date,earliest_lawful_date,preferred_start_date,preferred_end_date,
+      latest_safe_date,recheck_date,source_policy_key,metadata
+    ) values (
+      p_farm_id,v_key,p_subject_kind,p_subject_id,btrim(p_operation_key),'active',p_protection_class,
+      p_visibility_start_date,p_earliest_lawful_date,p_preferred_start_date,p_preferred_end_date,
+      p_latest_safe_date,p_recheck_date,nullif(btrim(p_source_policy_key),''),coalesce(p_metadata,'{}'::jsonb)
+    )
+    on conflict (farm_id,requirement_key) do nothing
+    returning * into v_requirement;
+
+    if v_requirement.id is not null then
+      v_created:=true;
+    else
+      select * into v_requirement
+      from atlas.biological_work_requirements requirement
+      where requirement.farm_id=p_farm_id
+        and requirement.requirement_key=v_key
+      for update;
+    end if;
+  end if;
+
+  if not v_created then
+    if v_requirement.id is null then
+      raise exception 'Biological requirement could not be established.' using errcode='P0001';
+    end if;
     if v_requirement.subject_kind<>p_subject_kind
        or v_requirement.subject_id<>p_subject_id
        or v_requirement.operation_key<>btrim(p_operation_key) then
@@ -274,17 +343,6 @@ begin
         metadata=coalesce(metadata,'{}'::jsonb)||coalesce(p_metadata,'{}'::jsonb)
     where id=v_requirement.id
     returning * into v_requirement;
-  else
-    insert into atlas.biological_work_requirements(
-      farm_id,requirement_key,subject_kind,subject_id,operation_key,status,protection_class,
-      visibility_start_date,earliest_lawful_date,preferred_start_date,preferred_end_date,
-      latest_safe_date,recheck_date,source_policy_key,metadata
-    ) values (
-      p_farm_id,v_key,p_subject_kind,p_subject_id,btrim(p_operation_key),'active',p_protection_class,
-      p_visibility_start_date,p_earliest_lawful_date,p_preferred_start_date,p_preferred_end_date,
-      p_latest_safe_date,p_recheck_date,nullif(btrim(p_source_policy_key),''),coalesce(p_metadata,'{}'::jsonb)
-    ) returning * into v_requirement;
-    v_created:=true;
   end if;
 
   return jsonb_build_object(
@@ -345,9 +403,10 @@ declare
   v_due date;
   v_priority text;
   v_visibility text;
+  v_execution_ready boolean:=coalesce(p_execution_ready,true);
   v_created boolean:=false;
 begin
-  if p_role not in ('execution','decision','preparation','observation') then
+  if p_role is null or p_role not in ('execution','decision','preparation','observation') then
     raise exception 'Unsupported biological task projection role: %',p_role using errcode='22023';
   end if;
   if p_title is null or btrim(p_title)='' or p_task_type is null or btrim(p_task_type)='' then
@@ -380,10 +439,14 @@ begin
 
   v_projection_key:=coalesce(nullif(btrim(p_projection_key),''),p_role);
   v_series_key:='bwr:'||v_requirement.id::text||':'||p_role||':'||v_projection_key;
-  v_status:=case when p_execution_ready then 'open' else 'blocked' end;
-  v_due:=coalesce(p_due_date,v_requirement.preferred_start_date,v_requirement.earliest_lawful_date,v_requirement.visibility_start_date);
+  v_status:=case when v_execution_ready then 'open' else 'blocked' end;
+  v_due:=coalesce(p_due_date,v_requirement.recheck_date,v_requirement.preferred_start_date,v_requirement.earliest_lawful_date,v_requirement.visibility_start_date,v_requirement.latest_safe_date);
   v_priority:=coalesce(nullif(btrim(p_priority),''),case when v_requirement.protection_class='protected' then 'high' else 'normal' end);
   v_visibility:=coalesce(nullif(btrim(p_visibility_scope),''),case when p_role='decision' then 'management' else 'assigned_worker' end);
+
+  if p_role='execution' and v_visibility='system_internal' then
+    raise exception 'Biological execution projections may not be system_internal.' using errcode='22023';
+  end if;
 
   if p_role='execution' then
     select * into v_task
@@ -414,7 +477,7 @@ begin
       work_lane,commitment_kind,task_scope,biological_requirement_id,biological_requirement_role
     ) values (
       v_requirement.farm_id,v_organization_id,btrim(p_title),btrim(p_task_type),v_status,v_priority,v_due,
-      case when p_execution_ready then null else coalesce(nullif(btrim(p_blocker_text),''),'Execution requirements are not yet satisfied.') end,
+      case when v_execution_ready then null else coalesce(nullif(btrim(p_blocker_text),''),'Execution requirements are not yet satisfied.') end,
       p_note,
       coalesce(p_metadata,'{}'::jsonb)||jsonb_build_object(
         'biological_requirement_id',v_requirement.id,
@@ -422,7 +485,7 @@ begin
         'biological_operation_key',v_requirement.operation_key,
         'biological_protection_class',v_requirement.protection_class,
         'bwr_projection',true,
-        'bwr_execution_ready',p_execution_ready,
+        'bwr_execution_ready',v_execution_ready,
         'bwr_truth_boundary','Task state may block/hold without resolving the biological requirement.'
       ),
       'biological_work_requirement',v_requirement.id,p_action_key,p_operation_class,
@@ -439,7 +502,7 @@ begin
         status=v_status,
         priority=v_priority,
         due_date=coalesce(v_due,due_date),
-        blocker_text=case when p_execution_ready then null else coalesce(nullif(btrim(p_blocker_text),''),'Execution requirements are not yet satisfied.') end,
+        blocker_text=case when v_execution_ready then null else coalesce(nullif(btrim(p_blocker_text),''),'Execution requirements are not yet satisfied.') end,
         note=coalesce(p_note,note),
         metadata=coalesce(metadata,'{}'::jsonb)||coalesce(p_metadata,'{}'::jsonb)||jsonb_build_object(
           'biological_requirement_id',v_requirement.id,
@@ -447,7 +510,7 @@ begin
           'biological_operation_key',v_requirement.operation_key,
           'biological_protection_class',v_requirement.protection_class,
           'bwr_projection',true,
-          'bwr_execution_ready',p_execution_ready,
+          'bwr_execution_ready',v_execution_ready,
           'bwr_truth_boundary','Task state may block/hold without resolving the biological requirement.'
         ),
         action_key=coalesce(p_action_key,action_key),
@@ -477,7 +540,7 @@ begin
     'taskId',v_task.id,
     'role',p_role,
     'status',v_task.status,
-    'executionReady',p_execution_ready,
+    'executionReady',v_execution_ready,
     'created',v_created,
     'taskSeriesKey',v_task.task_series_key,
     'truthBoundary','This task is a projection of durable biological requirement truth.'
@@ -549,7 +612,7 @@ begin
 
   update atlas.tasks
   set status=case when v_ready then 'open' else 'blocked' end,
-      due_date=coalesce(due_date,v_requirement.preferred_start_date,v_requirement.earliest_lawful_date,v_requirement.visibility_start_date),
+      due_date=coalesce(due_date,v_requirement.recheck_date,v_requirement.preferred_start_date,v_requirement.earliest_lawful_date,v_requirement.visibility_start_date,v_requirement.latest_safe_date),
       blocker_text=case when v_ready then null else coalesce(nullif(btrim(p_blocker_text),''),'Execution requirements are not yet satisfied.') end,
       visibility_scope=case when visibility_scope='system_internal' then 'assigned_worker' else visibility_scope end,
       metadata=coalesce(metadata,'{}'::jsonb)||jsonb_build_object(
