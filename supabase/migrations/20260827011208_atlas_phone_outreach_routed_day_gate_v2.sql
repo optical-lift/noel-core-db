@@ -61,7 +61,8 @@ begin
     v_service_date := (now() at time zone coalesce(v_timezone,'America/Chicago'))::date;
     v_readiness := atlas.task_execution_readiness_v1(v_parent.id);
     v_transition_card := atlas.worker_state_transition_card_v2(v_parent.farm_id,p_effective_membership_id,v_parent.id,v_service_date);
-    if not coalesce((v_readiness->>'ready')::boolean,false) or coalesce(v_transition_card#>>'{transition,state}','') <> 'authorized_for_routed_day' then
+    if not coalesce((v_readiness->>'ready')::boolean,false)
+       or coalesce(v_transition_card#>>'{transition,state}','') <> 'authorized_for_routed_day' then
       raise exception using errcode='23514', message='This phone-outreach work is not authorized for the worker today.';
     end if;
   end if;
