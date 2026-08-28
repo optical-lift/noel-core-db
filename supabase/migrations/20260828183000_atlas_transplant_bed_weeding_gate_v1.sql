@@ -223,13 +223,19 @@ end;
 $function$;
 
 drop trigger if exists reconcile_bed_weeding_gate_from_dependency_v1 on atlas.maintenance_dependencies;
-create trigger reconcile_bed_weeding_gate_from_dependency_v1
-after insert or update of active,satisfied_at or delete on atlas.maintenance_dependencies
+drop trigger if exists reconcile_bed_weeding_gate_from_dependency_insert_update_v1 on atlas.maintenance_dependencies;
+drop trigger if exists reconcile_bed_weeding_gate_from_dependency_delete_v1 on atlas.maintenance_dependencies;
+
+create trigger reconcile_bed_weeding_gate_from_dependency_insert_update_v1
+after insert or update of active,satisfied_at on atlas.maintenance_dependencies
 for each row
-when (
-  (tg_op='DELETE')
-  or (new.metadata->>'source'='automatic_bed_readiness')
-)
+when (new.metadata->>'source'='automatic_bed_readiness')
+execute function atlas.reconcile_bed_weeding_gate_from_dependency_v1();
+
+create trigger reconcile_bed_weeding_gate_from_dependency_delete_v1
+after delete on atlas.maintenance_dependencies
+for each row
+when (old.metadata->>'source'='automatic_bed_readiness')
 execute function atlas.reconcile_bed_weeding_gate_from_dependency_v1();
 
 create or replace function atlas.sync_bed_weeding_dependency_from_maintenance_v1()
@@ -368,6 +374,23 @@ begin
           ),
           updated_at=now()
       where id=v_existing_task_id;
+      continue;
+    end if;
+
+    -- Repeated dependency sync must not retire an urgent blocker that has already
+    -- entered the serial Weed Card queue and is waiting its turn there.
+    if exists(
+      select 1
+      from atlas.task_release_queue_items qi
+      join atlas.planned_work_occurrences o on o.id=qi.planned_occurrence_id
+      where qi.farm_id=p_farm_id
+        and qi.queue_key='anna_weeding_rotation'
+        and qi.maintenance_object_id=r.maintenance_object_id
+        and qi.state in ('active','queued')
+        and o.source_kind='maintenance_weeding_bed_readiness'
+        and o.source_id=r.maintenance_object_id
+        and o.state in ('planned','eligible','released')
+    ) then
       continue;
     end if;
 
