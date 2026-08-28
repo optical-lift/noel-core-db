@@ -1,5 +1,3 @@
-begin;
-
 do $do$
 declare
   v_definition text;
@@ -17,20 +15,10 @@ declare
     '  end if;' || chr(10) || chr(10) ||
     v_anchor;
 begin
-  select pg_get_functiondef('atlas.worker_record_task_transition_v1(uuid,text,text,text,text,jsonb,date,text,text,uuid)'::regprocedure)
-  into v_definition;
-
-  if position('flower_preparation_directive_final_tally_v1' in v_definition) > 0 then
-    return;
-  end if;
-
-  if position(v_anchor in v_definition) = 0 then
-    raise exception 'Expected worker transition completion anchor was not found.';
-  end if;
-
-  v_definition := replace(v_definition, v_anchor, v_insert);
+  select pg_get_functiondef('atlas.worker_record_task_transition_v1(uuid,text,text,text,text,jsonb,date,text,text,uuid)'::regprocedure) into v_definition;
+  if position('flower_preparation_directive_final_tally_v1' in v_definition) > 0 then return; end if;
+  if position(v_anchor in v_definition)=0 then raise exception 'Expected worker transition completion anchor was not found.'; end if;
+  v_definition := replace(v_definition,v_anchor,v_insert);
   execute v_definition;
 end;
 $do$;
-
-commit;
