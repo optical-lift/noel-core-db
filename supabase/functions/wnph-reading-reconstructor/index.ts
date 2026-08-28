@@ -29,10 +29,27 @@ type Surface = {
   observations: Observation[];
 };
 
+type SourceSpan = {
+  id: string;
+  span_key: string;
+  start_asset_id: string;
+  start_asset_key: string;
+  start_observation_id: string | null;
+  start_boundary: "asset_start" | "at_observation" | "after_observation";
+  end_asset_id: string;
+  end_asset_key: string;
+  end_observation_id: string | null;
+  end_boundary: "asset_end" | "at_observation" | "before_observation";
+  boundary_authority: string;
+  derivation_method: string;
+  evidence: Json;
+};
+
 type SourcePacket = {
   source_package_key: string;
   source_package_id: string;
   target_parent_block: { id: string; block_key: string; block_type: string; semantic_role: string | null; properties: Json };
+  source_span: SourceSpan | null;
   existing_child_count: number;
   existing_max_ordinal: number;
   surfaces: Surface[];
@@ -198,6 +215,38 @@ function lineUnits(surface: Surface, surfaceIndex: number): Unit[] {
   return out;
 }
 
+function applySourceSpan(packet: SourcePacket, surfaceUnits: Unit[][]): Unit[][] {
+  const span = packet.source_span;
+  if (!span) return surfaceUnits;
+  const bounded = surfaceUnits.map((units) => [...units]);
+
+  const startSurfaceIndex = packet.surfaces.findIndex((s) => s.asset_key === span.start_asset_key);
+  if (startSurfaceIndex >= 0 && span.start_boundary !== "asset_start") {
+    const anchorId = span.start_observation_id;
+    const anchorIndex = bounded[startSurfaceIndex].findIndex((unit) => !!anchorId && unit.observationIds.includes(anchorId));
+    if (anchorIndex < 0) {
+      throw new Error(`Governed source-span start observation ${anchorId ?? "(missing)"} was not present in the selected reconstruction evidence mode`);
+    }
+    bounded[startSurfaceIndex] = span.start_boundary === "after_observation"
+      ? bounded[startSurfaceIndex].slice(anchorIndex + 1)
+      : bounded[startSurfaceIndex].slice(anchorIndex);
+  }
+
+  const endSurfaceIndex = packet.surfaces.findIndex((s) => s.asset_key === span.end_asset_key);
+  if (endSurfaceIndex >= 0 && span.end_boundary !== "asset_end") {
+    const anchorId = span.end_observation_id;
+    const anchorIndex = bounded[endSurfaceIndex].findIndex((unit) => !!anchorId && unit.observationIds.includes(anchorId));
+    if (anchorIndex < 0) {
+      throw new Error(`Governed source-span end observation ${anchorId ?? "(missing)"} was not present in the selected reconstruction evidence mode`);
+    }
+    bounded[endSurfaceIndex] = span.end_boundary === "before_observation"
+      ? bounded[endSurfaceIndex].slice(0, anchorIndex)
+      : bounded[endSurfaceIndex].slice(0, anchorIndex + 1);
+  }
+
+  return bounded;
+}
+
 function addUnit(draft: ParagraphDraft, unit: Unit) {
   const t = cleanText(unit.text);
   if (!draft.text) draft.text = t;
@@ -228,7 +277,7 @@ function dedupeLocators(locators: Json[]) {
 }
 
 function buildDrafts(packet: SourcePacket): ParagraphDraft[] {
-  const surfaceUnits = packet.surfaces.map((s, i) => lineUnits(s, i));
+  const surfaceUnits = applySourceSpan(packet, packet.surfaces.map((s, i) => lineUnits(s, i)));
   const drafts: ParagraphDraft[] = [];
   let current: ParagraphDraft | null = null;
   let previousUnit: Unit | null = null;
@@ -337,23 +386,32 @@ Deno.serve(async (req: Request) => {
     const assetKeys = Array.isArray(body.asset_keys) ? body.asset_keys.map(String) : null;
     const desiredState = body.proposed_reading_state === "usable" ? "usable" : "candidate";
     const allowUsableAutoAdmit = body.allow_usable_auto_admit === true;
-    const packet = await rpc("wnph_reconstruction_source_packet_v1", {
+    const packet = await rpc("wnph_reconstruction_source_packet_v2", {
       p_source_package_key: sourcePackageKey,
       p_target_parent_block_key: targetParentBlockKey,
       p_asset_keys: assetKeys,
     }) as SourcePacket;
 
+    if (packet.target_parent_block.semantic_role === "paragraph_stream" && !packet.source_span) {
+      return response(422, {
+        error: "A governed semantic source span is required before reconstructing a paragraph stream",
+        source_package_key: sourcePackageKey,
+        target_parent_block_key: targetParentBlockKey,
+      });
+    }
+
     const drafts = buildDrafts(packet);
-    if (!drafts.length) return response(422, { error: "No text-bearing observations were available for reconstruction", source_package_key: sourcePackageKey });
+    if (!drafts.length) return response(422, { error: "No text-bearing observations were available inside the governed source span", source_package_key: sourcePackageKey });
 
     const prefix = String(body.proposed_block_key_prefix ?? inferPrefix(targetParentBlockKey));
     let ordinal = Number.isInteger(body.start_ordinal) ? Number(body.start_ordinal) : Number(packet.existing_max_ordinal ?? 0) + 1;
     const sourceFingerprint = await sha256Hex(JSON.stringify({
       source_package_key: sourcePackageKey,
       target_parent_block_key: targetParentBlockKey,
+      source_span: packet.source_span,
       asset_keys: packet.surfaces.map((s) => s.asset_key),
       observation_ids: packet.surfaces.flatMap((s) => s.observations.map((o) => o.id)),
-      algorithm: "deterministic-layout-v1",
+      algorithm: "deterministic-layout-v2",
     }));
     const reconstructionKey = String(body.reconstruction_key ?? `reconstruction:${sourceFingerprint.slice(0, 24)}`);
 
@@ -413,27 +471,29 @@ Deno.serve(async (req: Request) => {
           reconstruction_kind: draft.kind,
           reconstruction_source_modes: [...draft.sourceModes],
           source_surface_keys: [...draft.assetKeys],
+          semantic_source_span_key: packet.source_span?.span_key ?? null,
           machine_structural_confidence: structuralConfidence,
           machine_source_confidence_floor: sourceConfidence,
         },
         proposed_source_provenance: {
           text_authority: "machine_reconstruction_from_source_observations",
-          derivation_method: "deterministic_layout_reconstruction_v1",
+          derivation_method: "deterministic_layout_reconstruction_v2",
           verification_status: "machine_derived_not_source_verified",
           source_locators: locators,
         },
         algorithm: {
           engine: "wnph-reading-reconstructor",
-          version: "1",
-          auto_admit_rule: "candidate paragraph only when no structural review reason survives; headings always require parentage review; usable auto-admit additionally requires explicit override, confidence floor >=0.98, and at least two processor bases",
+          version: "2",
+          auto_admit_rule: "governed semantic source span is applied before reconstruction; candidate paragraph only when no structural review reason survives; headings always require parentage review; usable auto-admit additionally requires explicit override, confidence floor >=0.98, and at least two processor bases",
         },
       });
     }
 
     const runMetadata: Json = {
       worker: "wnph-reading-reconstructor",
-      worker_version: 1,
+      worker_version: 2,
       source_fingerprint_sha256: sourceFingerprint,
+      semantic_source_span_key: packet.source_span?.span_key ?? null,
       selected_surface_count: packet.surfaces.length,
       proposal_count: proposals.length,
       proposed_reading_state: desiredState,
@@ -448,7 +508,7 @@ Deno.serve(async (req: Request) => {
       paragraphs: proposals.filter((p) => p.proposed_block_type === "paragraph").length,
     };
 
-    if (body.dry_run === true) return response(200, { dry_run: true, reconstruction_key: reconstructionKey, stats, run_metadata: runMetadata, proposals });
+    if (body.dry_run === true) return response(200, { dry_run: true, reconstruction_key: reconstructionKey, stats, source_span: packet.source_span, run_metadata: runMetadata, proposals });
 
     const committed = await rpc("wnph_commit_reconstruction_batch_v1", {
       p_source_package_key: sourcePackageKey,
@@ -456,7 +516,7 @@ Deno.serve(async (req: Request) => {
       p_proposals: proposals,
       p_run_metadata: runMetadata,
     });
-    return response(200, { ok: true, reconstruction_key: reconstructionKey, stats, database: committed });
+    return response(200, { ok: true, reconstruction_key: reconstructionKey, stats, source_span: packet.source_span, database: committed });
   } catch (e) {
     return response(500, { error: e instanceof Error ? e.message : String(e) });
   }
