@@ -15,4 +15,6 @@ Planned schema ownership:
 
 Application repositories may retain pre-fence migration files as provenance and may propose new database requirements, but they must not become competing post-fence migration authorities for the shared Supabase project.
 
+Post-fence Atlas migrations use the `atlas_` logical-owner prefix, including incident repairs whose live migration identity is normalized to the canonical source filename before custody verification.
+
 See `custody/PRODUCTION_BASELINE.md` for the cutover contract and `schemas/OWNERSHIP.md` for logical schema boundaries.
