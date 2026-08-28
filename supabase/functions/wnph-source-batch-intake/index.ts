@@ -1,8 +1,30 @@
 import { PDFDocument } from "npm:pdf-lib@1.17.1";
 
 type Json = Record<string, unknown>;
-type NormalizedSurface = { asset_key: string; storage_uri?: string; media_type?: string; source_locator: Json; metadata?: Json; observations?: Json[] };
-type ParsedOcr = { pageText: string; sourceFormat: string; coordinateUnit: string; lines: { text: string; x?: number; y?: number; width?: number; height?: number; confidence?: number | null }[] };
+type NormalizedSurface = {
+  asset_key: string;
+  storage_uri?: string;
+  media_type?: string;
+  source_locator: Json;
+  metadata?: Json;
+  observations?: Json[];
+};
+type OcrUnit = {
+  text: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  confidence?: number | null;
+};
+type OcrRegion = OcrUnit & { lineCount: number };
+type ParsedOcr = {
+  pageText: string;
+  sourceFormat: string;
+  coordinateUnit: string;
+  regions: OcrRegion[];
+  lines: OcrUnit[];
+};
 
 const MAX_MANIFEST_BYTES = 8_000_000;
 const MAX_PDF_BYTES = 40_000_000;
@@ -11,15 +33,21 @@ const MAX_SURFACES = 5000;
 const MAX_LINE_OBSERVATIONS = 25_000;
 
 function json(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
+  });
 }
 
 function decodeJwtPayload(token: string): Json | null {
   try {
-    const part = token.split(".")[1]; if (!part) return null;
+    const part = token.split(".")[1];
+    if (!part) return null;
     const normalized = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
     return JSON.parse(atob(normalized));
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function sha256Hex(input: string | Uint8Array) {
@@ -28,136 +56,502 @@ async function sha256Hex(input: string | Uint8Array) {
   return Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function asArray<T = unknown>(v: unknown): T[] { return Array.isArray(v) ? v as T[] : v == null ? [] : [v as T]; }
+function asArray<T = unknown>(v: unknown): T[] {
+  return Array.isArray(v) ? v as T[] : v == null ? [] : [v as T];
+}
+
 function labelText(label: unknown): string | null {
   if (typeof label === "string") return label;
   if (!label || typeof label !== "object") return null;
   const o = label as Record<string, unknown>;
-  for (const key of ["en", "none", "@value"]) { const v = o[key]; if (typeof v === "string") return v; if (Array.isArray(v) && typeof v[0] === "string") return v[0]; }
-  for (const v of Object.values(o)) { if (typeof v === "string") return v; if (Array.isArray(v) && typeof v[0] === "string") return v[0]; }
+  for (const key of ["en", "none", "@value"]) {
+    const v = o[key];
+    if (typeof v === "string") return v;
+    if (Array.isArray(v) && typeof v[0] === "string") return v[0];
+  }
+  for (const v of Object.values(o)) {
+    if (typeof v === "string") return v;
+    if (Array.isArray(v) && typeof v[0] === "string") return v[0];
+  }
   return null;
 }
+
 function serviceId(service: unknown): string | null {
-  for (const s of asArray<Record<string, unknown>>(service)) { if (!s || typeof s !== "object") continue; const id = s.id ?? s["@id"]; if (typeof id === "string" && id) return id.replace(/\/$/, ""); }
+  for (const s of asArray<Record<string, unknown>>(service)) {
+    if (!s || typeof s !== "object") continue;
+    const id = s.id ?? s["@id"];
+    if (typeof id === "string" && id) return id.replace(/\/$/, "");
+  }
   return null;
 }
+
 function findV3Image(canvas: Record<string, unknown>) {
-  for (const page of asArray<Record<string, unknown>>(canvas.items)) for (const ann of asArray<Record<string, unknown>>(page?.items)) for (const body of asArray<Record<string, unknown>>(ann?.body)) {
-    if (!body || typeof body !== "object") continue; const type = body.type; const format = body.format;
-    if (type === "Image" || (typeof format === "string" && format.startsWith("image/"))) return { image_uri: typeof body.id === "string" ? body.id : null, media_type: typeof format === "string" ? format : "image/jpeg", service_uri: serviceId(body.service) };
+  for (const page of asArray<Record<string, unknown>>(canvas.items)) {
+    for (const ann of asArray<Record<string, unknown>>(page?.items)) {
+      for (const body of asArray<Record<string, unknown>>(ann?.body)) {
+        if (!body || typeof body !== "object") continue;
+        const type = body.type;
+        const format = body.format;
+        if (type === "Image" || (typeof format === "string" && format.startsWith("image/"))) {
+          return {
+            image_uri: typeof body.id === "string" ? body.id : null,
+            media_type: typeof format === "string" ? format : "image/jpeg",
+            service_uri: serviceId(body.service),
+          };
+        }
+      }
+    }
   }
   return { image_uri: null, media_type: "image/jpeg", service_uri: null };
 }
+
 function findV2Image(canvas: Record<string, unknown>) {
-  for (const ann of asArray<Record<string, unknown>>(canvas.images)) { const body = ann?.resource as Record<string, unknown> | undefined; if (!body) continue; const id = body["@id"] ?? body.id; return { image_uri: typeof id === "string" ? id : null, media_type: typeof body.format === "string" ? body.format : "image/jpeg", service_uri: serviceId(body.service) }; }
+  for (const ann of asArray<Record<string, unknown>>(canvas.images)) {
+    const body = ann?.resource as Record<string, unknown> | undefined;
+    if (!body) continue;
+    const id = body["@id"] ?? body.id;
+    return {
+      image_uri: typeof id === "string" ? id : null,
+      media_type: typeof body.format === "string" ? body.format : "image/jpeg",
+      service_uri: serviceId(body.service),
+    };
+  }
   return { image_uri: null, media_type: "image/jpeg", service_uri: null };
 }
+
 function seeAlsoRefs(resource: Record<string, unknown>): { uri: string; format: string }[] {
   const out: { uri: string; format: string }[] = [];
-  for (const ref of asArray<Record<string, unknown>>(resource.seeAlso)) { if (!ref || typeof ref !== "object") continue; const uri = ref.id ?? ref["@id"]; if (typeof uri === "string" && typeof ref.format === "string") out.push({ uri, format: ref.format }); }
-  return out;
-}
-function embeddedTextObservationsV3(canvas: Record<string, unknown>, manifestUri: string): Json[] {
-  const out: Json[] = []; let ordinal = 0;
-  for (const annPage of asArray<Record<string, unknown>>(canvas.annotations)) for (const ann of asArray<Record<string, unknown>>(annPage?.items)) for (const body of asArray<Record<string, unknown>>(ann?.body)) {
-    if (!body || typeof body !== "object" || body.type !== "TextualBody" || typeof body.value !== "string" || !body.value.trim()) continue;
-    ordinal += 1; const obs: Json = { observation_key: `iiif-text:${String(ordinal).padStart(5, "0")}`, observation_kind: "region", ordinal, text_candidate: body.value, coordinate_unit: "surface", derivation_method: "iiif_presentation_textual_annotation_import", source_format: "iiif_textual_body", processor: { provider: "iiif_manifest", engine: "textual_annotation", version: "presentation_3" }, external_locator: { manifest_uri: manifestUri, annotation_id: ann?.id ?? null, motivation: ann?.motivation ?? null }, metadata: { canonical_text_asserted: false } };
-    if (typeof ann?.target === "string") { const m = ann.target.match(/#xywh=(?:pixel:)?([0-9.]+),([0-9.]+),([0-9.]+),([0-9.]+)/); if (m) Object.assign(obs, { coordinate_unit: "pixel", x: Number(m[1]), y: Number(m[2]), width: Number(m[3]), height: Number(m[4]) }); }
-    out.push(obs);
+  for (const ref of asArray<Record<string, unknown>>(resource.seeAlso)) {
+    if (!ref || typeof ref !== "object") continue;
+    const uri = ref.id ?? ref["@id"];
+    if (typeof uri === "string" && typeof ref.format === "string") out.push({ uri, format: ref.format });
   }
   return out;
 }
 
-function decodeXml(s: string) { return s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&"); }
-function attr(attrs: string, name: string) { const m = attrs.match(new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)')`, "i")); return m ? decodeXml(m[1] ?? m[2] ?? "") : null; }
-function numAttr(attrs: string, name: string) { const v = attr(attrs, name); if (v == null || v === "") return undefined; const n = Number(v); return Number.isFinite(n) ? n : undefined; }
-function altoCoordinateUnit(xml: string) {
-  const m = xml.match(/<MeasurementUnit>\s*([^<]+)\s*<\/MeasurementUnit>/i); const v = (m?.[1] ?? "pixel").trim().toLowerCase();
-  if (v === "inch1200") return "alto_1_1200in"; if (v === "mm10") return "alto_1_10mm"; return "pixel";
-}
-function parseAlto(xml: string): ParsedOcr {
-  const lines: ParsedOcr["lines"] = []; const lineRe = /<TextLine\b([^>]*)>([\s\S]*?)<\/TextLine>/gi; let lm: RegExpExecArray | null;
-  while ((lm = lineRe.exec(xml))) {
-    const lineAttrs = lm[1] ?? ""; const inner = lm[2] ?? ""; const words: string[] = []; const confs: number[] = [];
-    const stringRe = /<String\b([^>]*?)(?:\/?>)/gi; let sm: RegExpExecArray | null;
-    while ((sm = stringRe.exec(inner))) { const a = sm[1] ?? ""; const content = attr(a, "CONTENT"); if (content) words.push(content); const wc = numAttr(a, "WC"); if (typeof wc === "number" && wc >= 0 && wc <= 1) confs.push(wc); }
-    const text = words.join(" ").replace(/\s+/g, " ").trim(); if (!text) continue;
-    lines.push({ text, x: numAttr(lineAttrs, "HPOS"), y: numAttr(lineAttrs, "VPOS"), width: numAttr(lineAttrs, "WIDTH"), height: numAttr(lineAttrs, "HEIGHT"), confidence: confs.length ? confs.reduce((a, b) => a + b, 0) / confs.length : null });
+function embeddedTextObservationsV3(canvas: Record<string, unknown>, manifestUri: string): Json[] {
+  const out: Json[] = [];
+  let ordinal = 0;
+  for (const annPage of asArray<Record<string, unknown>>(canvas.annotations)) {
+    for (const ann of asArray<Record<string, unknown>>(annPage?.items)) {
+      for (const body of asArray<Record<string, unknown>>(ann?.body)) {
+        if (!body || typeof body !== "object" || body.type !== "TextualBody" || typeof body.value !== "string" || !body.value.trim()) continue;
+        ordinal += 1;
+        const obs: Json = {
+          observation_key: `iiif-text:${String(ordinal).padStart(5, "0")}`,
+          observation_kind: "region",
+          ordinal,
+          text_candidate: body.value,
+          coordinate_unit: "surface",
+          derivation_method: "iiif_presentation_textual_annotation_import",
+          source_format: "iiif_textual_body",
+          processor: { provider: "iiif_manifest", engine: "textual_annotation", version: "presentation_3" },
+          external_locator: { manifest_uri: manifestUri, annotation_id: ann?.id ?? null, motivation: ann?.motivation ?? null },
+          metadata: { canonical_text_asserted: false },
+        };
+        if (typeof ann?.target === "string") {
+          const m = ann.target.match(/#xywh=(?:pixel:)?([0-9.]+),([0-9.]+),([0-9.]+),([0-9.]+)/);
+          if (m) Object.assign(obs, { coordinate_unit: "pixel", x: Number(m[1]), y: Number(m[2]), width: Number(m[3]), height: Number(m[4]) });
+        }
+        out.push(obs);
+      }
+    }
   }
-  return { pageText: lines.map((l) => l.text).join("\n"), sourceFormat: "alto_xml", coordinateUnit: altoCoordinateUnit(xml), lines };
+  return out;
 }
+
+function decodeXml(s: string) {
+  return s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+}
+
+function attr(attrs: string, name: string) {
+  const m = attrs.match(new RegExp(`\\b${name}=(?:"([^"]*)"|'([^']*)')`, "i"));
+  return m ? decodeXml(m[1] ?? m[2] ?? "") : null;
+}
+
+function numAttr(attrs: string, name: string) {
+  const v = attr(attrs, name);
+  if (v == null || v === "") return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function altoCoordinateUnit(xml: string) {
+  const m = xml.match(/<MeasurementUnit>\s*([^<]+)\s*<\/MeasurementUnit>/i);
+  const v = (m?.[1] ?? "pixel").trim().toLowerCase();
+  if (v === "inch1200") return "alto_1_1200in";
+  if (v === "mm10") return "alto_1_10mm";
+  return "pixel";
+}
+
+function startsLower(text: string) {
+  const m = text.trim().match(/[A-Za-z]/);
+  return !!m && m[0] === m[0].toLowerCase();
+}
+
+function joinPhysicalLines(lines: OcrUnit[]) {
+  let out = "";
+  for (const line of lines) {
+    const t = line.text.trim();
+    if (!t) continue;
+    if (!out) out = t;
+    else if (/-$/.test(out) && startsLower(t)) out = out.slice(0, -1) + t;
+    else out += ` ${t}`;
+  }
+  return out.replace(/\s+/g, " ").trim();
+}
+
+function parseAltoLines(fragment: string): OcrUnit[] {
+  const lines: OcrUnit[] = [];
+  const lineRe = /<TextLine\b([^>]*)>([\s\S]*?)<\/TextLine>/gi;
+  let lm: RegExpExecArray | null;
+  while ((lm = lineRe.exec(fragment))) {
+    const lineAttrs = lm[1] ?? "";
+    const inner = lm[2] ?? "";
+    const words: string[] = [];
+    const confs: number[] = [];
+    const stringRe = /<String\b([^>]*?)(?:\/?>)/gi;
+    let sm: RegExpExecArray | null;
+    while ((sm = stringRe.exec(inner))) {
+      const a = sm[1] ?? "";
+      const content = attr(a, "CONTENT");
+      if (content) words.push(content);
+      const wc = numAttr(a, "WC");
+      if (typeof wc === "number" && wc >= 0 && wc <= 1) confs.push(wc);
+    }
+    const text = words.join(" ").replace(/\s+/g, " ").trim();
+    if (!text) continue;
+    lines.push({
+      text,
+      x: numAttr(lineAttrs, "HPOS"),
+      y: numAttr(lineAttrs, "VPOS"),
+      width: numAttr(lineAttrs, "WIDTH"),
+      height: numAttr(lineAttrs, "HEIGHT"),
+      confidence: confs.length ? confs.reduce((a, b) => a + b, 0) / confs.length : null,
+    });
+  }
+  return lines;
+}
+
+function regionBox(blockAttrs: string, lines: OcrUnit[]) {
+  const direct = {
+    x: numAttr(blockAttrs, "HPOS"),
+    y: numAttr(blockAttrs, "VPOS"),
+    width: numAttr(blockAttrs, "WIDTH"),
+    height: numAttr(blockAttrs, "HEIGHT"),
+  };
+  if (direct.x !== undefined && direct.y !== undefined && direct.width !== undefined && direct.height !== undefined) return direct;
+  const boxed = lines.filter((l) => l.x !== undefined && l.y !== undefined && l.width !== undefined && l.height !== undefined);
+  if (!boxed.length) return {};
+  const x = Math.min(...boxed.map((l) => l.x!));
+  const y = Math.min(...boxed.map((l) => l.y!));
+  const right = Math.max(...boxed.map((l) => l.x! + l.width!));
+  const bottom = Math.max(...boxed.map((l) => l.y! + l.height!));
+  return { x, y, width: right - x, height: bottom - y };
+}
+
+function parseAlto(xml: string): ParsedOcr {
+  const regions: OcrRegion[] = [];
+  const lines: OcrUnit[] = [];
+  const blockRe = /<TextBlock\b([^>]*)>([\s\S]*?)<\/TextBlock>/gi;
+  let bm: RegExpExecArray | null;
+  while ((bm = blockRe.exec(xml))) {
+    const blockAttrs = bm[1] ?? "";
+    const blockLines = parseAltoLines(bm[2] ?? "");
+    if (!blockLines.length) continue;
+    lines.push(...blockLines);
+    const sourceConfidences = blockLines.map((l) => l.confidence).filter((v): v is number => typeof v === "number");
+    regions.push({
+      text: joinPhysicalLines(blockLines),
+      ...regionBox(blockAttrs, blockLines),
+      confidence: sourceConfidences.length ? Math.min(...sourceConfidences) : null,
+      lineCount: blockLines.length,
+    });
+  }
+  if (!lines.length) lines.push(...parseAltoLines(xml));
+  return {
+    pageText: lines.map((l) => l.text).join("\n"),
+    sourceFormat: "alto_xml",
+    coordinateUnit: altoCoordinateUnit(xml),
+    regions,
+    lines,
+  };
+}
+
 function parsePoints(points: string | null) {
-  if (!points) return null; const coords = points.trim().split(/\s+/).map((p) => p.split(",").map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite)); if (!coords.length) return null;
-  const xs = coords.map((p) => p[0]), ys = coords.map((p) => p[1]); const x = Math.min(...xs), y = Math.min(...ys); return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
+  if (!points) return null;
+  const coords = points.trim().split(/\s+/).map((p) => p.split(",").map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite));
+  if (!coords.length) return null;
+  const xs = coords.map((p) => p[0]);
+  const ys = coords.map((p) => p[1]);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, width: Math.max(...xs) - x, height: Math.max(...ys) - y };
 }
+
 function parsePageXml(xml: string): ParsedOcr {
-  const lines: ParsedOcr["lines"] = []; const lineRe = /<TextLine\b[^>]*>([\s\S]*?)<\/TextLine>/gi; let lm: RegExpExecArray | null;
+  const lines: OcrUnit[] = [];
+  const lineRe = /<TextLine\b[^>]*>([\s\S]*?)<\/TextLine>/gi;
+  let lm: RegExpExecArray | null;
   while ((lm = lineRe.exec(xml))) {
-    const inner = lm[1] ?? ""; const unicode = [...inner.matchAll(/<Unicode>([\s\S]*?)<\/Unicode>/gi)].map((m) => decodeXml((m[1] ?? "").replace(/<[^>]+>/g, "")).trim()).filter(Boolean).pop(); if (!unicode) continue;
+    const inner = lm[1] ?? "";
+    const unicode = [...inner.matchAll(/<Unicode>([\s\S]*?)<\/Unicode>/gi)]
+      .map((m) => decodeXml((m[1] ?? "").replace(/<[^>]+>/g, "")).trim())
+      .filter(Boolean)
+      .pop();
+    if (!unicode) continue;
     const coords = parsePoints(inner.match(/<Coords\b[^>]*\bpoints=(?:"([^"]*)"|'([^']*)')/i)?.slice(1).find(Boolean) ?? null);
-    const confMatch = inner.match(/<TextEquiv\b[^>]*\bconf=(?:"([^"]*)"|'([^']*)')/i); const conf = confMatch ? Number(confMatch[1] ?? confMatch[2]) : NaN;
+    const confMatch = inner.match(/<TextEquiv\b[^>]*\bconf=(?:"([^"]*)"|'([^']*)')/i);
+    const conf = confMatch ? Number(confMatch[1] ?? confMatch[2]) : NaN;
     lines.push({ text: unicode, ...(coords ?? {}), confidence: Number.isFinite(conf) && conf >= 0 && conf <= 1 ? conf : null });
   }
-  return { pageText: lines.map((l) => l.text).join("\n"), sourceFormat: "page_xml", coordinateUnit: "pixel", lines };
+  return { pageText: lines.map((l) => l.text).join("\n"), sourceFormat: "page_xml", coordinateUnit: "pixel", regions: [], lines };
 }
+
+function resolveExternalOcrUri(uri: string, format: string) {
+  const f = `${format} ${uri}`.toLowerCase();
+  if (!f.includes("alto")) return uri;
+  try {
+    const u = new URL(uri);
+    if (u.hostname !== "tile.loc.gov" || u.pathname !== "/text-services/word-coordinates-service") return uri;
+    const segment = u.searchParams.get("segment");
+    if (!segment || !segment.startsWith("/public/") || !/\.alto\.xml$/i.test(segment) || segment.includes("..") || segment.includes("\\")) return uri;
+    return `https://tile.loc.gov/storage-services${segment}`;
+  } catch {
+    return uri;
+  }
+}
+
 async function fetchTextLimited(uri: string, maxBytes: number) {
-  const r = await fetch(uri, { headers: { "user-agent": "WNPH-source-intake/2.0", accept: "application/xml,text/xml,text/plain,*/*" } });
-  if (!r.ok) throw new Error(`OCR upstream ${r.status} for ${uri}`); const bytes = new Uint8Array(await r.arrayBuffer()); if (bytes.byteLength > maxBytes) throw new Error(`OCR upstream too large (${bytes.byteLength}) for ${uri}`); return new TextDecoder("utf-8").decode(bytes);
+  const r = await fetch(uri, {
+    headers: { "user-agent": "WNPH-source-intake/3.0", accept: "application/xml,text/xml,text/plain,*/*" },
+  });
+  if (!r.ok) throw new Error(`OCR upstream ${r.status} for ${uri}`);
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  if (bytes.byteLength > maxBytes) throw new Error(`OCR upstream too large (${bytes.byteLength}) for ${uri}`);
+  return new TextDecoder("utf-8").decode(bytes);
 }
+
 async function attachExternalOcr(surfaces: NormalizedSurface[]) {
   const jobs: { surface: NormalizedSurface; ref: { uri: string; format: string } }[] = [];
-  for (const surface of surfaces) for (const ref of asArray<{ uri: string; format: string }>(surface.metadata?.upstream_text_refs ?? [])) if (ref?.uri && ref?.format) jobs.push({ surface, ref });
+  for (const surface of surfaces) {
+    for (const ref of asArray<{ uri: string; format: string }>(surface.metadata?.upstream_text_refs ?? [])) {
+      if (ref?.uri && ref?.format) jobs.push({ surface, ref });
+    }
+  }
   if (jobs.length > 1000) throw new Error(`too many external OCR resources (${jobs.length}); max 1000 per intake`);
-  let cursor = 0; let totalLines = 0;
+  let cursor = 0;
+  let totalLines = 0;
   const workers = Array.from({ length: Math.min(8, jobs.length) }, async () => {
     while (cursor < jobs.length) {
-      const job = jobs[cursor++]; const xml = await fetchTextLimited(job.ref.uri, MAX_OCR_BYTES); const f = `${job.ref.format} ${job.ref.uri}`.toLowerCase();
-      let parsed: ParsedOcr | null = null; if (f.includes("alto")) parsed = parseAlto(xml); else if (f.includes("page") || f.includes("pagexml") || f.includes("page.xml")) parsed = parsePageXml(xml); else continue;
+      const job = jobs[cursor++];
+      const resolvedUri = resolveExternalOcrUri(job.ref.uri, job.ref.format);
+      const xml = await fetchTextLimited(resolvedUri, MAX_OCR_BYTES);
+      const f = `${job.ref.format} ${job.ref.uri}`.toLowerCase();
+      let parsed: ParsedOcr | null = null;
+      if (f.includes("alto")) parsed = parseAlto(xml);
+      else if (f.includes("page") || f.includes("pagexml") || f.includes("page.xml")) parsed = parsePageXml(xml);
+      else continue;
       if (!parsed.pageText) throw new Error(`recognized OCR resource produced no text: ${job.ref.uri}`);
-      totalLines += parsed.lines.length; if (totalLines > MAX_LINE_OBSERVATIONS) throw new Error(`external OCR expands to more than ${MAX_LINE_OBSERVATIONS} line observations; split the intake into smaller batches`);
-      const keyHash = (await sha256Hex(job.ref.uri)).slice(0, 16); const processor = { provider: new URL(job.ref.uri).hostname, engine: "upstream_ocr", version: "unknown" }; job.surface.observations ??= [];
-      job.surface.observations.push({ observation_key: `upstream-ocr:${keyHash}:page:v2`, observation_kind: "page_text", ordinal: 0, text_candidate: parsed.pageText, coordinate_unit: "surface", derivation_method: "external_ocr_resource_import_preserving_line_structure", source_format: parsed.sourceFormat, processor, external_locator: { uri: job.ref.uri }, metadata: { canonical_text_asserted: false, line_observation_count: parsed.lines.length } });
-      parsed.lines.forEach((line, i) => job.surface.observations!.push({ observation_key: `upstream-ocr:${keyHash}:line:v2:${String(i + 1).padStart(5, "0")}`, observation_kind: "line", ordinal: i + 1, text_candidate: line.text, coordinate_unit: line.x !== undefined && line.y !== undefined && line.width !== undefined && line.height !== undefined ? parsed!.coordinateUnit : "surface", ...(line.x !== undefined && line.y !== undefined && line.width !== undefined && line.height !== undefined ? { x: line.x, y: line.y, width: line.width, height: line.height } : {}), confidence: line.confidence ?? undefined, derivation_method: "external_ocr_line_import_without_semantic_normalization", source_format: parsed!.sourceFormat, processor, external_locator: { uri: job.ref.uri, line_index: i + 1 }, metadata: { canonical_text_asserted: false } }));
+      if (f.includes("alto") && !/<(?:[A-Za-z0-9_]+:)?alto\b/i.test(xml)) {
+        throw new Error(`ALTO OCR resource did not resolve to raw ALTO XML: ${job.ref.uri}`);
+      }
+      totalLines += parsed.lines.length;
+      if (totalLines > MAX_LINE_OBSERVATIONS) throw new Error(`external OCR expands to more than ${MAX_LINE_OBSERVATIONS} line observations; split the intake into smaller batches`);
+      const keyHash = (await sha256Hex(job.ref.uri)).slice(0, 16);
+      const processor = { provider: new URL(job.ref.uri).hostname, engine: "upstream_ocr", version: "unknown" };
+      const commonLocator = resolvedUri === job.ref.uri ? { uri: job.ref.uri } : { uri: job.ref.uri, resolved_uri: resolvedUri };
+      job.surface.observations ??= [];
+      job.surface.observations.push({
+        observation_key: `upstream-ocr:${keyHash}:page:v2`,
+        observation_kind: "page_text",
+        ordinal: 0,
+        text_candidate: parsed.pageText,
+        coordinate_unit: "surface",
+        derivation_method: "external_ocr_resource_import_preserving_line_structure",
+        source_format: parsed.sourceFormat,
+        processor,
+        external_locator: commonLocator,
+        metadata: { canonical_text_asserted: false, line_observation_count: parsed.lines.length, layout_region_observation_count: parsed.regions.length },
+      });
+      parsed.regions.forEach((region, i) => job.surface.observations!.push({
+        observation_key: `upstream-ocr:${keyHash}:region:v3:${String(i + 1).padStart(5, "0")}`,
+        observation_kind: "region",
+        ordinal: i + 1,
+        text_candidate: region.text,
+        coordinate_unit: region.x !== undefined && region.y !== undefined && region.width !== undefined && region.height !== undefined ? parsed!.coordinateUnit : "surface",
+        ...(region.x !== undefined && region.y !== undefined && region.width !== undefined && region.height !== undefined ? { x: region.x, y: region.y, width: region.width, height: region.height } : {}),
+        confidence: region.confidence ?? undefined,
+        derivation_method: "external_ocr_layout_region_import_without_semantic_normalization",
+        source_format: parsed!.sourceFormat,
+        processor,
+        external_locator: { ...commonLocator, region_index: i + 1 },
+        metadata: { canonical_text_asserted: false, source_layout_element: "TextBlock", child_line_count: region.lineCount },
+      }));
+      parsed.lines.forEach((line, i) => job.surface.observations!.push({
+        observation_key: `upstream-ocr:${keyHash}:line:v2:${String(i + 1).padStart(5, "0")}`,
+        observation_kind: "line",
+        ordinal: i + 1,
+        text_candidate: line.text,
+        coordinate_unit: line.x !== undefined && line.y !== undefined && line.width !== undefined && line.height !== undefined ? parsed!.coordinateUnit : "surface",
+        ...(line.x !== undefined && line.y !== undefined && line.width !== undefined && line.height !== undefined ? { x: line.x, y: line.y, width: line.width, height: line.height } : {}),
+        confidence: line.confidence ?? undefined,
+        derivation_method: "external_ocr_line_import_without_semantic_normalization",
+        source_format: parsed!.sourceFormat,
+        processor,
+        external_locator: { ...commonLocator, line_index: i + 1 },
+        metadata: { canonical_text_asserted: false },
+      }));
     }
   });
   await Promise.all(workers);
 }
 
 async function normalizeIiif(manifestUri: string, importExternalOcr: boolean) {
-  const r = await fetch(manifestUri, { headers: { accept: "application/ld+json, application/json", "user-agent": "WNPH-source-intake/2.0" } }); if (!r.ok) throw new Error(`manifest upstream ${r.status}`);
-  const bytes = new Uint8Array(await r.arrayBuffer()); if (bytes.byteLength > MAX_MANIFEST_BYTES) throw new Error(`manifest too large: ${bytes.byteLength}`); const manifest = JSON.parse(new TextDecoder("utf-8").decode(bytes)) as Record<string, unknown>;
-  const isV3 = manifest.type === "Manifest" && Array.isArray(manifest.items); const canvases: Record<string, unknown>[] = isV3 ? asArray(manifest.items) : asArray(((asArray<Record<string, unknown>>(manifest.sequences)[0] ?? {}).canvases));
-  if (!canvases.length) throw new Error("IIIF manifest contains no canvases"); if (canvases.length > MAX_SURFACES) throw new Error(`manifest has ${canvases.length} canvases; max ${MAX_SURFACES}`); const surfaces: NormalizedSurface[] = [];
+  const r = await fetch(manifestUri, { headers: { accept: "application/ld+json, application/json", "user-agent": "WNPH-source-intake/3.0" } });
+  if (!r.ok) throw new Error(`manifest upstream ${r.status}`);
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  if (bytes.byteLength > MAX_MANIFEST_BYTES) throw new Error(`manifest too large: ${bytes.byteLength}`);
+  const manifest = JSON.parse(new TextDecoder("utf-8").decode(bytes)) as Record<string, unknown>;
+  const isV3 = manifest.type === "Manifest" && Array.isArray(manifest.items);
+  const canvases: Record<string, unknown>[] = isV3 ? asArray(manifest.items) : asArray(((asArray<Record<string, unknown>>(manifest.sequences)[0] ?? {}).canvases));
+  if (!canvases.length) throw new Error("IIIF manifest contains no canvases");
+  if (canvases.length > MAX_SURFACES) throw new Error(`manifest has ${canvases.length} canvases; max ${MAX_SURFACES}`);
+  const surfaces: NormalizedSurface[] = [];
   for (let i = 0; i < canvases.length; i++) {
-    const canvas = canvases[i]; const canvasId = String(canvas.id ?? canvas["@id"] ?? `${manifestUri}#canvas-${i + 1}`); const image = isV3 ? findV3Image(canvas) : findV2Image(canvas); if (!image.image_uri && !image.service_uri) throw new Error(`canvas ${i + 1} has no image body/service`);
-    const hash = (await sha256Hex(canvasId)).slice(0, 20); const refs = [...seeAlsoRefs(manifest), ...seeAlsoRefs(canvas)].filter((ref) => { const x = `${ref.format} ${ref.uri}`.toLowerCase(); return x.includes("alto") || x.includes("page+xml") || x.includes("pagexml") || x.includes("page.xml"); });
-    const locator: Json = { iiif_manifest_uri: manifestUri, iiif_canvas_uri: canvasId, image_uri: image.image_uri, iiif_image_service_uri: image.service_uri, sequence_index: i + 1, pixel_width: typeof canvas.width === "number" ? canvas.width : null, pixel_height: typeof canvas.height === "number" ? canvas.height : null, label: labelText(canvas.label) }; if (refs.length) locator.upstream_text_uris = refs.map((x) => x.uri);
-    surfaces.push({ asset_key: `iiif:canvas:${hash}`, media_type: image.media_type, source_locator: locator, metadata: { addressing_standard: `iiif_presentation_${isV3 ? "3" : "2"}`, remote_custody: true, byte_copy_required: false, upstream_text_refs: refs }, observations: isV3 ? embeddedTextObservationsV3(canvas, manifestUri) : [] });
+    const canvas = canvases[i];
+    const canvasId = String(canvas.id ?? canvas["@id"] ?? `${manifestUri}#canvas-${i + 1}`);
+    const image = isV3 ? findV3Image(canvas) : findV2Image(canvas);
+    if (!image.image_uri && !image.service_uri) throw new Error(`canvas ${i + 1} has no image body/service`);
+    const hash = (await sha256Hex(canvasId)).slice(0, 20);
+    const refs = [...seeAlsoRefs(manifest), ...seeAlsoRefs(canvas)].filter((ref) => {
+      const x = `${ref.format} ${ref.uri}`.toLowerCase();
+      return x.includes("alto") || x.includes("page+xml") || x.includes("pagexml") || x.includes("page.xml");
+    });
+    const locator: Json = {
+      iiif_manifest_uri: manifestUri,
+      iiif_canvas_uri: canvasId,
+      image_uri: image.image_uri,
+      iiif_image_service_uri: image.service_uri,
+      sequence_index: i + 1,
+      pixel_width: typeof canvas.width === "number" ? canvas.width : null,
+      pixel_height: typeof canvas.height === "number" ? canvas.height : null,
+      label: labelText(canvas.label),
+    };
+    if (refs.length) locator.upstream_text_uris = refs.map((x) => x.uri);
+    surfaces.push({
+      asset_key: `iiif:canvas:${hash}`,
+      media_type: image.media_type,
+      source_locator: locator,
+      metadata: { addressing_standard: `iiif_presentation_${isV3 ? "3" : "2"}`, remote_custody: true, byte_copy_required: false, upstream_text_refs: refs },
+      observations: isV3 ? embeddedTextObservationsV3(canvas, manifestUri) : [],
+    });
   }
   if (importExternalOcr) await attachExternalOcr(surfaces);
-  return { sourceRef: manifestUri, surfaces, metadata: { manifest_sha256: await sha256Hex(bytes), presentation_version: isV3 ? 3 : 2, canvas_count: surfaces.length, external_ocr_imported: importExternalOcr, line_geometry_preserved: importExternalOcr } };
+  return {
+    sourceRef: manifestUri,
+    surfaces,
+    metadata: {
+      manifest_sha256: await sha256Hex(bytes),
+      presentation_version: isV3 ? 3 : 2,
+      canvas_count: surfaces.length,
+      external_ocr_imported: importExternalOcr,
+      line_geometry_preserved: importExternalOcr,
+      layout_regions_preserved: importExternalOcr,
+    },
+  };
 }
+
 async function normalizePdf(pdfUri: string) {
-  const r = await fetch(pdfUri, { headers: { "user-agent": "WNPH-source-intake/2.0", accept: "application/pdf" } }); if (!r.ok) throw new Error(`PDF upstream ${r.status}`); const bytes = new Uint8Array(await r.arrayBuffer()); if (bytes.byteLength > MAX_PDF_BYTES) throw new Error(`PDF too large: ${bytes.byteLength}`); const pdf = await PDFDocument.load(bytes, { updateMetadata: false }); const pages = pdf.getPages(); if (!pages.length || pages.length > MAX_SURFACES) throw new Error(`PDF page count ${pages.length} outside supported range`); const sourceHash = (await sha256Hex(pdfUri)).slice(0, 16);
-  const surfaces = pages.map((page, i): NormalizedSurface => ({ asset_key: `pdf:${sourceHash}:page:${String(i + 1).padStart(5, "0")}`, storage_uri: pdfUri, media_type: "application/pdf", source_locator: { pdf_uri: pdfUri, pdf_page: i + 1, pdf_page_width_points: page.getWidth(), pdf_page_height_points: page.getHeight() }, metadata: { remote_custody: true, byte_copy_required: false, addressing_standard: "pdf_page_index", needs_raster_or_direct_pdf_ocr: true } })); return { sourceRef: pdfUri, surfaces, metadata: { pdf_sha256: await sha256Hex(bytes), pdf_bytes: bytes.byteLength, page_count: pages.length } };
+  const r = await fetch(pdfUri, { headers: { "user-agent": "WNPH-source-intake/3.0", accept: "application/pdf" } });
+  if (!r.ok) throw new Error(`PDF upstream ${r.status}`);
+  const bytes = new Uint8Array(await r.arrayBuffer());
+  if (bytes.byteLength > MAX_PDF_BYTES) throw new Error(`PDF too large: ${bytes.byteLength}`);
+  const pdf = await PDFDocument.load(bytes, { updateMetadata: false });
+  const pages = pdf.getPages();
+  if (!pages.length || pages.length > MAX_SURFACES) throw new Error(`PDF page count ${pages.length} outside supported range`);
+  const sourceHash = (await sha256Hex(pdfUri)).slice(0, 16);
+  const surfaces = pages.map((page, i): NormalizedSurface => ({
+    asset_key: `pdf:${sourceHash}:page:${String(i + 1).padStart(5, "0")}`,
+    storage_uri: pdfUri,
+    media_type: "application/pdf",
+    source_locator: { pdf_uri: pdfUri, pdf_page: i + 1, pdf_page_width_points: page.getWidth(), pdf_page_height_points: page.getHeight() },
+    metadata: { remote_custody: true, byte_copy_required: false, addressing_standard: "pdf_page_index", needs_raster_or_direct_pdf_ocr: true },
+  }));
+  return { sourceRef: pdfUri, surfaces, metadata: { pdf_sha256: await sha256Hex(bytes), pdf_bytes: bytes.byteLength, page_count: pages.length } };
 }
+
 function normalizeImageList(input: Record<string, unknown>) {
-  const sourceRef = String(input.source_ref ?? "").trim(); if (!sourceRef) throw new Error("image/photo list requires source_ref"); const raw = asArray<Record<string, unknown>>(input.surfaces); if (!raw.length || raw.length > MAX_SURFACES) throw new Error(`surface count ${raw.length} outside supported range`);
-  const surfaces = raw.map((s, i): NormalizedSurface => { const imageUri = typeof s.image_uri === "string" ? s.image_uri : null; const storageUri = typeof s.storage_uri === "string" ? s.storage_uri : undefined; const serviceUri = typeof s.iiif_image_service_uri === "string" ? s.iiif_image_service_uri : null; if (!imageUri && !storageUri && !serviceUri) throw new Error(`surface ${i + 1} lacks image_uri, storage_uri or iiif_image_service_uri`); return { asset_key: typeof s.asset_key === "string" && s.asset_key.trim() ? s.asset_key.trim() : `image:${String(i + 1).padStart(5, "0")}`, storage_uri: storageUri, media_type: typeof s.media_type === "string" ? s.media_type : "image/jpeg", source_locator: { ...(s.source_locator && typeof s.source_locator === "object" ? s.source_locator as Json : {}), image_uri: imageUri, iiif_image_service_uri: serviceUri, sequence_index: i + 1 }, metadata: s.metadata && typeof s.metadata === "object" ? s.metadata as Json : {}, observations: Array.isArray(s.observations) ? s.observations as Json[] : [] }; }); return { sourceRef, surfaces, metadata: { surface_count: surfaces.length } };
+  const sourceRef = String(input.source_ref ?? "").trim();
+  if (!sourceRef) throw new Error("image/photo list requires source_ref");
+  const raw = asArray<Record<string, unknown>>(input.surfaces);
+  if (!raw.length || raw.length > MAX_SURFACES) throw new Error(`surface count ${raw.length} outside supported range`);
+  const surfaces = raw.map((s, i): NormalizedSurface => {
+    const imageUri = typeof s.image_uri === "string" ? s.image_uri : null;
+    const storageUri = typeof s.storage_uri === "string" ? s.storage_uri : undefined;
+    const serviceUri = typeof s.iiif_image_service_uri === "string" ? s.iiif_image_service_uri : null;
+    if (!imageUri && !storageUri && !serviceUri) throw new Error(`surface ${i + 1} lacks image_uri, storage_uri or iiif_image_service_uri`);
+    return {
+      asset_key: typeof s.asset_key === "string" && s.asset_key.trim() ? s.asset_key.trim() : `image:${String(i + 1).padStart(5, "0")}`,
+      storage_uri: storageUri,
+      media_type: typeof s.media_type === "string" ? s.media_type : "image/jpeg",
+      source_locator: { ...(s.source_locator && typeof s.source_locator === "object" ? s.source_locator as Json : {}), image_uri: imageUri, iiif_image_service_uri: serviceUri, sequence_index: i + 1 },
+      metadata: s.metadata && typeof s.metadata === "object" ? s.metadata as Json : {},
+      observations: Array.isArray(s.observations) ? s.observations as Json[] : [],
+    };
+  });
+  return { sourceRef, surfaces, metadata: { surface_count: surfaces.length } };
 }
+
 async function callAtomicRpc(packageKey: string, inputKind: string, sourceRef: string, surfaces: NormalizedSurface[], batchMetadata: Json) {
-  const base = Deno.env.get("SUPABASE_URL"), serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"); if (!base || !serviceKey) throw new Error("Supabase runtime credentials unavailable"); const r = await fetch(`${base}/rest/v1/rpc/wnph_ingest_source_surface_batch_v1`, { method: "POST", headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, "content-type": "application/json", accept: "application/json" }, body: JSON.stringify({ p_source_package_key: packageKey, p_input_kind: inputKind, p_source_ref: sourceRef, p_surfaces: surfaces, p_batch_metadata: batchMetadata }) }); const text = await r.text(); if (!r.ok) throw new Error(`atomic intake RPC ${r.status}: ${text.slice(0, 2000)}`); return text ? JSON.parse(text) : null;
+  const base = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!base || !serviceKey) throw new Error("Supabase runtime credentials unavailable");
+  const r = await fetch(`${base}/rest/v1/rpc/wnph_ingest_source_surface_batch_v1`, {
+    method: "POST",
+    headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}`, "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ p_source_package_key: packageKey, p_input_kind: inputKind, p_source_ref: sourceRef, p_surfaces: surfaces, p_batch_metadata: batchMetadata }),
+  });
+  const text = await r.text();
+  if (!r.ok) throw new Error(`atomic intake RPC ${r.status}: ${text.slice(0, 2000)}`);
+  return text ? JSON.parse(text) : null;
 }
 
 Deno.serve(async (req: Request) => {
-  if (req.method !== "POST") return json(405, { error: "POST required" }); const claims = decodeJwtPayload((req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "")); if (!claims || claims.role !== "service_role") return json(403, { error: "WNPH source intake currently requires service-role authorization" });
+  if (req.method !== "POST") return json(405, { error: "POST required" });
+  const claims = decodeJwtPayload((req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, ""));
+  if (!claims || claims.role !== "service_role") return json(403, { error: "WNPH source intake currently requires service-role authorization" });
   try {
-    const body = await req.json() as Record<string, unknown>; const sourcePackageKey = String(body.source_package_key ?? "").trim(); if (!sourcePackageKey) return json(400, { error: "source_package_key is required" }); const input = body.input as Record<string, unknown> | undefined; if (!input || typeof input !== "object") return json(400, { error: "input object is required" }); const kind = String(input.kind ?? ""); let normalized: any; let rpcKind: string;
-    if (kind === "iiif_manifest") { const uri = String(input.url ?? "").trim(); if (!uri) return json(400, { error: "IIIF input requires url" }); normalized = await normalizeIiif(uri, input.import_external_ocr === true); rpcKind = "iiif_manifest"; }
-    else if (kind === "pdf") { const uri = String(input.url ?? "").trim(); if (!uri) return json(400, { error: "PDF input requires url" }); normalized = await normalizePdf(uri); rpcKind = "pdf_pages"; }
-    else if (kind === "image_list" || kind === "photo_batch") { normalized = normalizeImageList(input); rpcKind = kind; }
-    else return json(400, { error: `unsupported input kind ${kind}` });
-    const fingerprint = await sha256Hex(JSON.stringify({ source_package_key: sourcePackageKey, input_kind: rpcKind, source_ref: normalized.sourceRef, surfaces: normalized.surfaces })); const batchMetadata: Json = { ...normalized.metadata, intake_adapter: "wnph-source-batch-intake", adapter_version: 2, normalized_batch_sha256: fingerprint };
-    if (body.dry_run === true) return json(200, { dry_run: true, source_package_key: sourcePackageKey, input_kind: rpcKind, source_ref: normalized.sourceRef, batch_metadata: batchMetadata, surfaces: normalized.surfaces }); const result = await callAtomicRpc(sourcePackageKey, rpcKind, normalized.sourceRef, normalized.surfaces, batchMetadata); return json(200, { ok: true, batch_sha256: fingerprint, normalization: normalized.metadata, database: result });
-  } catch (e) { return json(500, { error: e instanceof Error ? e.message : String(e) }); }
+    const body = await req.json() as Record<string, unknown>;
+    const sourcePackageKey = String(body.source_package_key ?? "").trim();
+    if (!sourcePackageKey) return json(400, { error: "source_package_key is required" });
+    const input = body.input as Record<string, unknown> | undefined;
+    if (!input || typeof input !== "object") return json(400, { error: "input object is required" });
+    const kind = String(input.kind ?? "");
+    let normalized: any;
+    let rpcKind: string;
+    if (kind === "iiif_manifest") {
+      const uri = String(input.url ?? "").trim();
+      if (!uri) return json(400, { error: "IIIF input requires url" });
+      normalized = await normalizeIiif(uri, input.import_external_ocr === true);
+      rpcKind = "iiif_manifest";
+    } else if (kind === "pdf") {
+      const uri = String(input.url ?? "").trim();
+      if (!uri) return json(400, { error: "PDF input requires url" });
+      normalized = await normalizePdf(uri);
+      rpcKind = "pdf_pages";
+    } else if (kind === "image_list" || kind === "photo_batch") {
+      normalized = normalizeImageList(input);
+      rpcKind = kind;
+    } else {
+      return json(400, { error: `unsupported input kind ${kind}` });
+    }
+    const fingerprint = await sha256Hex(JSON.stringify({ source_package_key: sourcePackageKey, input_kind: rpcKind, source_ref: normalized.sourceRef, surfaces: normalized.surfaces }));
+    const batchMetadata: Json = { ...normalized.metadata, intake_adapter: "wnph-source-batch-intake", adapter_version: 3, normalized_batch_sha256: fingerprint };
+    if (body.dry_run === true) return json(200, { dry_run: true, source_package_key: sourcePackageKey, input_kind: rpcKind, source_ref: normalized.sourceRef, batch_metadata: batchMetadata, surfaces: normalized.surfaces });
+    const result = await callAtomicRpc(sourcePackageKey, rpcKind, normalized.sourceRef, normalized.surfaces, batchMetadata);
+    return json(200, { ok: true, batch_sha256: fingerprint, normalization: normalized.metadata, database: result });
+  } catch (e) {
+    return json(500, { error: e instanceof Error ? e.message : String(e) });
+  }
 });
