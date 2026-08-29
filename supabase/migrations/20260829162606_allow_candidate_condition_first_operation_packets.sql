@@ -1,0 +1,4 @@
+alter table draft.canon_condition_first_operation_packets drop constraint if exists canon_condition_first_operation_packets_status_check;
+alter table draft.canon_condition_first_operation_packets add constraint canon_condition_first_operation_packets_status_check check (status = any (array['candidate'::text,'working'::text,'retired'::text]));
+alter table draft.canon_condition_first_operation_steps drop constraint if exists canon_condition_first_operation_steps_status_check;
+alter table draft.canon_condition_first_operation_steps add constraint canon_condition_first_operation_steps_status_check check (status = any (array['candidate'::text,'working'::text,'retired'::text]));
