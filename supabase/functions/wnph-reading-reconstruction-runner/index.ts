@@ -48,14 +48,13 @@ async function rpc(name: string, body: Json) {
   return text ? JSON.parse(text) : null;
 }
 
-async function authenticateRunner(req: Request) {
-  const token = (req.headers.get("x-wnph-runner-token") ?? "").trim();
+async function authenticateRunner(token: string) {
   if (!token) return false;
   const valid = await rpc("wnph_validate_reconstruction_runner_token_v1", { p_token: token });
   return valid === true;
 }
 
-async function invokeReconstructor(claim: Claim) {
+async function invokeReconstructor(claim: Claim, runnerToken: string) {
   const base = Deno.env.get("SUPABASE_URL");
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!base || !key) throw new Error("Supabase runtime credentials unavailable");
@@ -77,6 +76,7 @@ async function invokeReconstructor(claim: Claim) {
     headers: {
       apikey: key,
       authorization: `Bearer ${key}`,
+      "x-wnph-runner-token": runnerToken,
       "content-type": "application/json",
       accept: "application/json",
     },
@@ -121,8 +121,9 @@ async function finishJob(
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return jsonResponse(405, { error: "POST required" });
 
+  const runnerToken = (req.headers.get("x-wnph-runner-token") ?? "").trim();
   try {
-    if (!(await authenticateRunner(req))) {
+    if (!(await authenticateRunner(runnerToken))) {
       return jsonResponse(403, { error: "Invalid WNPH reconstruction runner credential" });
     }
   } catch (error) {
@@ -142,7 +143,7 @@ Deno.serve(async (req: Request) => {
   }
   const maxJobs = Math.max(1, Math.min(5, requestedMax));
   const invocationId = crypto.randomUUID();
-  const runnerId = `wnph-reading-reconstruction-runner:v1:${invocationId}`;
+  const runnerId = `wnph-reading-reconstruction-runner:v2:${invocationId}`;
   const results: unknown[] = [];
 
   for (let i = 0; i < maxJobs; i++) {
@@ -165,7 +166,7 @@ Deno.serve(async (req: Request) => {
     if (!claim?.job_id) break;
 
     try {
-      const worker = await invokeReconstructor(claim);
+      const worker = await invokeReconstructor(claim, runnerToken);
       if (worker.ok) {
         const finished = await finishJob(claim, true, false, worker.status, worker.body, null);
         results.push({
@@ -213,7 +214,7 @@ Deno.serve(async (req: Request) => {
   return jsonResponse(200, {
     ok: true,
     runner: "wnph-reading-reconstruction-runner",
-    runner_version: 1,
+    runner_version: 2,
     invocation_id: invocationId,
     processed_jobs: results.length,
     results,
