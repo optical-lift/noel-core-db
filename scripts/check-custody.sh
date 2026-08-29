@@ -94,7 +94,7 @@ declare -A sealed_registry_sha=(
   ["$recovery_registry_v11"]="1223d87c0bc04ff0cadd58d728b5ca2ebdc91f21"
   ["$recovery_registry_v12"]="4b1073cc1716317587430b5397cef6c071413028"
   ["$recovery_registry_v13"]="c2b736c60890f2df965e9dce0a1fd4a4072f4cfa"
-  ["$recovery_registry_v14"]="e8fc13b4154e26830637888fe5c7dbdb1f3dbe9f"
+  ["$recovery_registry_v14"]="4dfadad688241cb2ba17b358715a9902e88099a5"
 )
 for registry in "$recovery_registry_v4" "$recovery_registry_v5" "$recovery_registry_v6" "$recovery_registry_v7" "$recovery_registry_v8" "$recovery_registry_v9" "$recovery_registry_v10" "$recovery_registry_v11" "$recovery_registry_v12" "$recovery_registry_v13" "$recovery_registry_v14"; do
   actual_registry_sha="$(git hash-object "$registry")"
