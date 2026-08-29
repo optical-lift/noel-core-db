@@ -1,0 +1,45 @@
+{
+  "contractVersion": 6,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v5.json",
+  "rule": "These four additional core migrations were deployed after the shared database fence without approved owner-prefixed filenames. Preserve their exact production filenames and bytes as historical custody evidence. This sealed tail extends v5 only for these four rows and does not authorize future unprefixed migrations.",
+  "recoveries": [
+    {
+      "version": "20260829153055",
+      "name": "add_dss_manuscript_dating_evidence",
+      "filename": "20260829153055_add_dss_manuscript_dating_evidence.sql",
+      "gitBlobSha1": "602d27a7d9efdb0f26017296bfc88a4763cef5f0",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829153434",
+      "name": "add_canon_manuscript_image_collation_custody",
+      "filename": "20260829153434_add_canon_manuscript_image_collation_custody.sql",
+      "gitBlobSha1": "9d387dade2591ec10954a152a38798ac6df6e245",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829162340",
+      "name": "expand_appointed_state_input_kinds_from_blind_feast_run",
+      "filename": "20260829162340_expand_appointed_state_input_kinds_from_blind_feast_run.sql",
+      "gitBlobSha1": "acafc18c7758f1c239578ea887eca2c7178b51af",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829162606",
+      "name": "allow_candidate_condition_first_operation_packets",
+      "filename": "20260829162606_allow_candidate_condition_first_operation_packets.sql",
+      "gitBlobSha1": "0117676174851314c4e734530638095426b0e550",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
