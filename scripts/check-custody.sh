@@ -7,6 +7,7 @@ recovery_registry_v5="custody/post-fence-migration-recoveries-v5.json"
 recovery_registry_v6="custody/post-fence-migration-recoveries-v6.json"
 recovery_registry_v7="custody/post-fence-migration-recoveries-v7.json"
 recovery_registry_v8="custody/post-fence-migration-recoveries-v8.json"
+recovery_registry_v9="custody/post-fence-migration-recoveries-v9.json"
 
 for required in \
   "schemas/OWNERSHIP.md" \
@@ -16,6 +17,7 @@ for required in \
   "$recovery_registry_v6" \
   "$recovery_registry_v7" \
   "$recovery_registry_v8" \
+  "$recovery_registry_v9" \
   "custody/PRODUCTION_BASELINE.md" \
   "scripts/read-production-baseline.sql"; do
   if [ ! -f "$required" ]; then
@@ -77,8 +79,9 @@ declare -A sealed_registry_sha=(
   ["$recovery_registry_v6"]="8551ea9f754f4d2067f393bc1b6681751fc2976a"
   ["$recovery_registry_v7"]="b7a9a9dd9ec777978afac9a390f62007eb443b84"
   ["$recovery_registry_v8"]="a268cc00ebcc0cc6ecb2380d88217e2e0c7fc49f"
+  ["$recovery_registry_v9"]="ad418e6d9b1bc2360168d5d0e669b8672f145b29"
 )
-for registry in "$recovery_registry_v4" "$recovery_registry_v5" "$recovery_registry_v6" "$recovery_registry_v7" "$recovery_registry_v8"; do
+for registry in "$recovery_registry_v4" "$recovery_registry_v5" "$recovery_registry_v6" "$recovery_registry_v7" "$recovery_registry_v8" "$recovery_registry_v9"; do
   actual_registry_sha="$(git hash-object "$registry")"
   if [[ "$actual_registry_sha" != "${sealed_registry_sha[$registry]}" ]]; then
     echo "Sealed recovery registry changed: $registry; expected=${sealed_registry_sha[$registry]} actual=$actual_registry_sha"
@@ -99,6 +102,7 @@ specs = [
     (Path('custody/post-fence-migration-recoveries-v6.json'), 6, 'post-fence-migration-recoveries-v5.json'),
     (Path('custody/post-fence-migration-recoveries-v7.json'), 7, 'post-fence-migration-recoveries-v6.json'),
     (Path('custody/post-fence-migration-recoveries-v8.json'), 8, 'post-fence-migration-recoveries-v7.json'),
+    (Path('custody/post-fence-migration-recoveries-v9.json'), 9, 'post-fence-migration-recoveries-v8.json'),
 ]
 
 seen = {}
@@ -121,7 +125,7 @@ for path, contract_version, inherits in specs:
         assert filename not in seen
         seen[filename] = sha
 
-assert len(seen) == 50
+assert len(seen) == 52
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
@@ -167,4 +171,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 50 sealed retrospective recoveries preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 52 sealed retrospective recoveries preserve exact live bytes."
