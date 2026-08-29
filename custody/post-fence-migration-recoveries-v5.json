@@ -1,0 +1,54 @@
+{
+  "contractVersion": 5,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v4.json",
+  "rule": "These five additional Atlas migrations were deployed after the shared database fence without approved owner-prefixed filenames. Preserve their exact production filenames and bytes as historical custody evidence. This sealed tail extends v4 only for these five rows and does not authorize future unprefixed migrations.",
+  "recoveries": [
+    {
+      "version": "20260829014355",
+      "name": "block_unknown_propagation_before_advancement_v1",
+      "filename": "20260829014355_block_unknown_propagation_before_advancement_v1.sql",
+      "gitBlobSha1": "a02bb301d45728a7ca35d6ec101c1115706e9caf",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829014520",
+      "name": "production_succession_reservoir_custody_v1",
+      "filename": "20260829014520_production_succession_reservoir_custody_v1.sql",
+      "gitBlobSha1": "6230be57f00ad283ab740504ebc9525541423628",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829014549",
+      "name": "author_production_succession_sowing_via_reservoir_v1",
+      "filename": "20260829014549_author_production_succession_sowing_via_reservoir_v1.sql",
+      "gitBlobSha1": "cfededc76ec7b822f304200e0ce36ed495b81dc4",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829014654",
+      "name": "backfill_production_succession_occurrence_pointers_v1",
+      "filename": "20260829014654_backfill_production_succession_occurrence_pointers_v1.sql",
+      "gitBlobSha1": "a6044f73497714baf2f1374420cfa47534eb4773",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829014710",
+      "name": "respect_production_succession_missed_strategy_v1",
+      "filename": "20260829014710_respect_production_succession_missed_strategy_v1.sql",
+      "gitBlobSha1": "aaa064a2a7484e45465380a51fbcbcc1fe8d8e51",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
