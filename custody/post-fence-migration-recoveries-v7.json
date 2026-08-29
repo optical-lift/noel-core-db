@@ -1,0 +1,27 @@
+{
+  "contractVersion": 7,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v6.json",
+  "rule": "These two Atlas Worker Day repair migrations were deployed after the shared database fence without the required atlas owner-prefixed filenames. Preserve their exact production filenames and bytes as historical custody evidence. This sealed tail extends v6 only for these two rows and does not authorize future unprefixed migrations.",
+  "recoveries": [
+    {
+      "version": "20260829183504",
+      "name": "worker_day_overdue_visibility_and_effective_completion",
+      "filename": "20260829183504_worker_day_overdue_visibility_and_effective_completion.sql",
+      "gitBlobSha1": "63fb03532c58f705735a40396a3061c2451acbeb",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829183544",
+      "name": "worker_day_card_assignment_parity",
+      "filename": "20260829183544_worker_day_card_assignment_parity.sql",
+      "gitBlobSha1": "33aca9cc259ad7d371ee567c794559851d90390f",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
