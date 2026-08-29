@@ -334,7 +334,7 @@ with rf as (
     (select count(*) from atlas.reference_company_fixture_registry r join rf on rf.id=r.farm_id) as fixture_objects,
     (select count(*) from atlas.task_notification_plans np join rf on rf.id=np.farm_id where np.active) as active_notification_plans,
     (select count(*) from atlas.reference_company_runs r join rf on rf.id=r.farm_id where r.status='failed' and r.started_at>=now()-interval '30 days') as failed_runs_30d
-) 
+)
 select jsonb_build_object(
   'contractVersion','reference_company_health_v1',
   'farmId',rf.id,
