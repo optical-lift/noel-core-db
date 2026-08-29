@@ -1,0 +1,27 @@
+{
+  "contractVersion": 9,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v8.json",
+  "rule": "These two Elm Local public-calendar repair migrations were deployed after the shared database fence without approved owner-prefixed filenames. Preserve their exact production filenames and bytes as historical custody evidence. This sealed tail extends v8 only for these two rows and does not authorize future unprefixed migrations or assign a new product owner prefix.",
+  "recoveries": [
+    {
+      "version": "20260829204234",
+      "name": "elm_local_public_calendar_atlas_status_and_privacy_fix_v1",
+      "filename": "20260829204234_elm_local_public_calendar_atlas_status_and_privacy_fix_v1.sql",
+      "gitBlobSha1": "4e41c55c74c8e2ae2a2c61e341daaadecf0d55a7",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260829204420",
+      "name": "elm_local_public_calendar_status_contract_repair_v1",
+      "filename": "20260829204420_elm_local_public_calendar_status_contract_repair_v1.sql",
+      "gitBlobSha1": "c4f9b68a51ed43f802192854712a0897a6aa8046",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
