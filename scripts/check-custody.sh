@@ -5,6 +5,7 @@ baseline="custody/production-baseline-v1.json"
 recovery_registry_v4="custody/post-fence-migration-recoveries-v4.json"
 recovery_registry_v5="custody/post-fence-migration-recoveries-v5.json"
 recovery_registry_v6="custody/post-fence-migration-recoveries-v6.json"
+recovery_registry_v7="custody/post-fence-migration-recoveries-v7.json"
 
 for required in \
   "schemas/OWNERSHIP.md" \
@@ -12,6 +13,7 @@ for required in \
   "$recovery_registry_v4" \
   "$recovery_registry_v5" \
   "$recovery_registry_v6" \
+  "$recovery_registry_v7" \
   "custody/PRODUCTION_BASELINE.md" \
   "scripts/read-production-baseline.sql"; do
   if [ ! -f "$required" ]; then
@@ -71,8 +73,9 @@ declare -A sealed_registry_sha=(
   ["$recovery_registry_v4"]="846d0d72267db4b1d129cf257e60f0f8b1f3dc74"
   ["$recovery_registry_v5"]="09302e333c32223b37badad95506d61695100676"
   ["$recovery_registry_v6"]="8551ea9f754f4d2067f393bc1b6681751fc2976a"
+  ["$recovery_registry_v7"]="b7a9a9dd9ec777978afac9a390f62007eb443b84"
 )
-for registry in "$recovery_registry_v4" "$recovery_registry_v5" "$recovery_registry_v6"; do
+for registry in "$recovery_registry_v4" "$recovery_registry_v5" "$recovery_registry_v6" "$recovery_registry_v7"; do
   actual_registry_sha="$(git hash-object "$registry")"
   if [[ "$actual_registry_sha" != "${sealed_registry_sha[$registry]}" ]]; then
     echo "Sealed recovery registry changed: $registry; expected=${sealed_registry_sha[$registry]} actual=$actual_registry_sha"
@@ -91,6 +94,7 @@ specs = [
     (Path('custody/post-fence-migration-recoveries-v4.json'), 4, None),
     (Path('custody/post-fence-migration-recoveries-v5.json'), 5, 'post-fence-migration-recoveries-v4.json'),
     (Path('custody/post-fence-migration-recoveries-v6.json'), 6, 'post-fence-migration-recoveries-v5.json'),
+    (Path('custody/post-fence-migration-recoveries-v7.json'), 7, 'post-fence-migration-recoveries-v6.json'),
 ]
 
 seen = {}
@@ -113,7 +117,7 @@ for path, contract_version, inherits in specs:
         assert filename not in seen
         seen[filename] = sha
 
-assert len(seen) == 47
+assert len(seen) == 49
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
@@ -159,4 +163,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 47 sealed retrospective recoveries preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 49 sealed retrospective recoveries preserve exact live bytes."
