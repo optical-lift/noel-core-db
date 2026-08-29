@@ -4,12 +4,14 @@ set -euo pipefail
 baseline="custody/production-baseline-v1.json"
 recovery_registry_v4="custody/post-fence-migration-recoveries-v4.json"
 recovery_registry_v5="custody/post-fence-migration-recoveries-v5.json"
+recovery_registry_v6="custody/post-fence-migration-recoveries-v6.json"
 
 for required in \
   "schemas/OWNERSHIP.md" \
   "$baseline" \
   "$recovery_registry_v4" \
   "$recovery_registry_v5" \
+  "$recovery_registry_v6" \
   "custody/PRODUCTION_BASELINE.md" \
   "scripts/read-production-baseline.sql"; do
   if [ ! -f "$required" ]; then
@@ -68,8 +70,9 @@ owner_prefixes="${baseline_values[1]}|reporting"
 declare -A sealed_registry_sha=(
   ["$recovery_registry_v4"]="846d0d72267db4b1d129cf257e60f0f8b1f3dc74"
   ["$recovery_registry_v5"]="09302e333c32223b37badad95506d61695100676"
+  ["$recovery_registry_v6"]="6ac08982bcb1e7964e85a040c96344c6a0463d70"
 )
-for registry in "$recovery_registry_v4" "$recovery_registry_v5"; do
+for registry in "$recovery_registry_v4" "$recovery_registry_v5" "$recovery_registry_v6"; do
   actual_registry_sha="$(git hash-object "$registry")"
   if [[ "$actual_registry_sha" != "${sealed_registry_sha[$registry]}" ]]; then
     echo "Sealed recovery registry changed: $registry; expected=${sealed_registry_sha[$registry]} actual=$actual_registry_sha"
@@ -87,6 +90,7 @@ from pathlib import Path
 specs = [
     (Path('custody/post-fence-migration-recoveries-v4.json'), 4, None),
     (Path('custody/post-fence-migration-recoveries-v5.json'), 5, 'post-fence-migration-recoveries-v4.json'),
+    (Path('custody/post-fence-migration-recoveries-v6.json'), 6, 'post-fence-migration-recoveries-v5.json'),
 ]
 
 seen = {}
@@ -109,7 +113,7 @@ for path, contract_version, inherits in specs:
         assert filename not in seen
         seen[filename] = sha
 
-assert len(seen) == 42
+assert len(seen) == 46
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
@@ -155,4 +159,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 42 sealed retrospective recoveries preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 46 sealed retrospective recoveries preserve exact live bytes."
