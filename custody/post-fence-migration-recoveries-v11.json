@@ -1,0 +1,18 @@
+{
+  "contractVersion": 11,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v10.json",
+  "rule": "This Atlas buyer-identity follow-up hardening migration was deployed after the shared database fence without an approved owner-prefixed filename. Preserve its exact production filename and bytes as historical custody evidence. This sealed tail extends v10 only for this row and does not authorize future unprefixed migrations.",
+  "recoveries": [
+    {
+      "version": "20260829204847",
+      "name": "harden_buyer_identity_and_followup_memory_v1",
+      "filename": "20260829204847_harden_buyer_identity_and_followup_memory_v1.sql",
+      "gitBlobSha1": "9f0fe5b6dec938c312664b55f92b86d32a2d8e6d",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
