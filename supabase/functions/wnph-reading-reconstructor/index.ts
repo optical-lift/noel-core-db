@@ -1,3 +1,5 @@
+declare const Deno: any;
+
 type Json = Record<string, unknown>;
 
 type Observation = {
@@ -17,6 +19,17 @@ type Observation = {
   processor: Json;
   external_locator: Json;
   metadata: Json;
+};
+
+type ObservationRelation = {
+  id: string;
+  source_asset_id: string;
+  container_observation_id: string;
+  child_observation_id: string;
+  relation_kind: string;
+  ordinal: number | null;
+  derivation_method: string;
+  evidence: Json;
 };
 
 type Surface = {
@@ -50,10 +63,13 @@ type SourcePacket = {
   source_package_id: string;
   target_parent_block: { id: string; block_key: string; block_type: string; semantic_role: string | null; properties: Json };
   source_span: SourceSpan | null;
+  observation_relations: ObservationRelation[];
   existing_child_count: number;
   existing_max_ordinal: number;
   surfaces: Surface[];
 };
+
+type SourceMode = "region" | "region_fragment" | "line" | "page_text";
 
 type Unit = {
   text: string;
@@ -67,7 +83,9 @@ type Unit = {
   height: number | null;
   confidence: number | null;
   explicitBoundaryBefore: boolean;
-  sourceMode: "region" | "line" | "page_text";
+  sourceMode: SourceMode;
+  continuesForward?: boolean;
+  continuesBackward?: boolean;
 };
 
 type ParagraphDraft = {
@@ -167,6 +185,18 @@ function makeLocator(surface: Surface): Json {
   return out;
 }
 
+function joinPhysicalLines(lines: Observation[]) {
+  let out = "";
+  for (const line of lines) {
+    const t = cleanText(line.text_candidate ?? "");
+    if (!t) continue;
+    if (!out) out = t;
+    else if (/-$/.test(out) && startsLower(t)) out = out.slice(0, -1) + t;
+    else out += ` ${t}`;
+  }
+  return cleanText(out);
+}
+
 function lineUnits(surface: Surface, surfaceIndex: number): Unit[] {
   const obs = surface.observations ?? [];
   const regions = obs.filter((o) => (o.observation_kind === "region" || o.observation_kind === "layout_region") && cleanText(o.text_candidate ?? ""));
@@ -215,33 +245,107 @@ function lineUnits(surface: Surface, surfaceIndex: number): Unit[] {
   return out;
 }
 
+function fragmentRegionUnit(
+  packet: SourcePacket,
+  surface: Surface,
+  unit: Unit,
+  anchorId: string,
+  boundary: "at_observation" | "after_observation" | "before_observation",
+  isStart: boolean,
+): Unit[] | null {
+  const anchorRelation = (packet.observation_relations ?? []).find(
+    (r) => r.relation_kind === "contains" && r.child_observation_id === anchorId && unit.observationIds.includes(r.container_observation_id),
+  );
+  if (!anchorRelation) return null;
+
+  const childRelations = (packet.observation_relations ?? [])
+    .filter((r) => r.relation_kind === "contains" && r.container_observation_id === anchorRelation.container_observation_id)
+    .sort((a, b) => (a.ordinal ?? 1e9) - (b.ordinal ?? 1e9));
+
+  if (!childRelations.length) throw new Error(`Governed boundary container ${anchorRelation.container_observation_id} has no active child observations`);
+  const byId = new Map(surface.observations.map((o) => [o.id, o]));
+  const children = childRelations.map((r) => byId.get(r.child_observation_id)).filter((o): o is Observation => !!o);
+  if (children.length !== childRelations.length) {
+    throw new Error(`Governed boundary container ${anchorRelation.container_observation_id} has child observations missing from the selected source surface`);
+  }
+  const anchorIndex = childRelations.findIndex((r) => r.child_observation_id === anchorId);
+  if (anchorIndex < 0) throw new Error(`Governed boundary child ${anchorId} disappeared from its active containment relation`);
+
+  let kept: Observation[];
+  if (isStart) {
+    kept = boundary === "after_observation" ? children.slice(anchorIndex + 1) : children.slice(anchorIndex);
+  } else {
+    kept = boundary === "before_observation" ? children.slice(0, anchorIndex) : children.slice(0, anchorIndex + 1);
+  }
+  if (!kept.length) return [];
+
+  const boxed = kept.filter((o) => o.x !== null && o.y !== null && o.width !== null && o.height !== null);
+  const x = boxed.length ? Math.min(...boxed.map((o) => o.x!)) : unit.x;
+  const y = boxed.length ? Math.min(...boxed.map((o) => o.y!)) : unit.y;
+  const right = boxed.length ? Math.max(...boxed.map((o) => o.x! + o.width!)) : null;
+  const bottom = boxed.length ? Math.max(...boxed.map((o) => o.y! + o.height!)) : null;
+  const confs = kept.map((o) => o.confidence).filter((v): v is number => typeof v === "number");
+
+  return [{
+    text: joinPhysicalLines(kept),
+    observationIds: kept.map((o) => o.id),
+    locator: unit.locator,
+    assetKey: unit.assetKey,
+    surfaceIndex: unit.surfaceIndex,
+    x,
+    y,
+    width: right !== null && x !== null ? right - x : unit.width,
+    height: bottom !== null && y !== null ? bottom - y : unit.height,
+    confidence: confs.length ? Math.min(...confs) : unit.confidence,
+    explicitBoundaryBefore: unit.explicitBoundaryBefore,
+    sourceMode: "region_fragment",
+    continuesForward: isStart,
+    continuesBackward: !isStart,
+  }];
+}
+
 function applySourceSpan(packet: SourcePacket, surfaceUnits: Unit[][]): Unit[][] {
   const span = packet.source_span;
   if (!span) return surfaceUnits;
   const bounded = surfaceUnits.map((units) => [...units]);
 
+  const applyBoundary = (
+    surfaceIndex: number,
+    anchorId: string | null,
+    boundary: "at_observation" | "after_observation" | "before_observation",
+    isStart: boolean,
+  ) => {
+    const units = bounded[surfaceIndex];
+    if (!anchorId) throw new Error("Governed source-span observation boundary is missing its observation id");
+
+    const directIndex = units.findIndex((unit) => unit.observationIds.includes(anchorId));
+    if (directIndex >= 0) {
+      bounded[surfaceIndex] = isStart
+        ? (boundary === "after_observation" ? units.slice(directIndex + 1) : units.slice(directIndex))
+        : (boundary === "before_observation" ? units.slice(0, directIndex) : units.slice(0, directIndex + 1));
+      return;
+    }
+
+    const relation = (packet.observation_relations ?? []).find((r) => r.relation_kind === "contains" && r.child_observation_id === anchorId);
+    if (!relation) throw new Error(`Governed source-span ${isStart ? "start" : "end"} observation ${anchorId} was not present in the selected reconstruction evidence mode or an active containment relation`);
+    const containerIndex = units.findIndex((unit) => unit.observationIds.includes(relation.container_observation_id));
+    if (containerIndex < 0) throw new Error(`Governed source-span ${isStart ? "start" : "end"} observation ${anchorId} belongs to container ${relation.container_observation_id}, but that container was not present in the selected reconstruction evidence mode`);
+
+    const fragment = fragmentRegionUnit(packet, packet.surfaces[surfaceIndex], units[containerIndex], anchorId, boundary, isStart);
+    if (fragment === null) throw new Error(`Governed source-span ${isStart ? "start" : "end"} observation ${anchorId} could not be resolved through active containment`);
+    bounded[surfaceIndex] = isStart
+      ? [...fragment, ...units.slice(containerIndex + 1)]
+      : [...units.slice(0, containerIndex), ...fragment];
+  };
+
   const startSurfaceIndex = packet.surfaces.findIndex((s) => s.asset_key === span.start_asset_key);
   if (startSurfaceIndex >= 0 && span.start_boundary !== "asset_start") {
-    const anchorId = span.start_observation_id;
-    const anchorIndex = bounded[startSurfaceIndex].findIndex((unit) => !!anchorId && unit.observationIds.includes(anchorId));
-    if (anchorIndex < 0) {
-      throw new Error(`Governed source-span start observation ${anchorId ?? "(missing)"} was not present in the selected reconstruction evidence mode`);
-    }
-    bounded[startSurfaceIndex] = span.start_boundary === "after_observation"
-      ? bounded[startSurfaceIndex].slice(anchorIndex + 1)
-      : bounded[startSurfaceIndex].slice(anchorIndex);
+    applyBoundary(startSurfaceIndex, span.start_observation_id, span.start_boundary, true);
   }
 
   const endSurfaceIndex = packet.surfaces.findIndex((s) => s.asset_key === span.end_asset_key);
   if (endSurfaceIndex >= 0 && span.end_boundary !== "asset_end") {
-    const anchorId = span.end_observation_id;
-    const anchorIndex = bounded[endSurfaceIndex].findIndex((unit) => !!anchorId && unit.observationIds.includes(anchorId));
-    if (anchorIndex < 0) {
-      throw new Error(`Governed source-span end observation ${anchorId ?? "(missing)"} was not present in the selected reconstruction evidence mode`);
-    }
-    bounded[endSurfaceIndex] = span.end_boundary === "before_observation"
-      ? bounded[endSurfaceIndex].slice(0, anchorIndex)
-      : bounded[endSurfaceIndex].slice(0, anchorIndex + 1);
+    applyBoundary(endSurfaceIndex, span.end_observation_id, span.end_boundary, false);
   }
 
   return bounded;
@@ -274,6 +378,10 @@ function dedupeLocators(locators: Json[]) {
     if (!seen.has(key)) { seen.add(key); out.push(loc); }
   }
   return out;
+}
+
+function isRegionMode(unit: Unit) {
+  return unit.sourceMode === "region" || unit.sourceMode === "region_fragment";
 }
 
 function buildDrafts(packet: SourcePacket): ParagraphDraft[] {
@@ -321,10 +429,6 @@ function buildDrafts(packet: SourcePacket): ParagraphDraft[] {
 
       if (!current || !previousUnit) {
         breakBefore = true; score = 1;
-      } else if (unit.sourceMode === "region") {
-        breakBefore = unit.explicitBoundaryBefore; score = 0.96;
-      } else if (unit.explicitBoundaryBefore) {
-        breakBefore = true; score = 0.98;
       } else if (unit.surfaceIndex !== previousUnit.surfaceIndex) {
         if (/-$/.test(previousUnit.text) || (!terminal(previousUnit.text) && startsLower(unit.text))) {
           breakBefore = false; score = 0.95;
@@ -335,6 +439,24 @@ function buildDrafts(packet: SourcePacket): ParagraphDraft[] {
           breakBefore = true; score = 0.60;
           reason = "page_boundary_paragraph_break_ambiguous";
         }
+      } else if (previousUnit.continuesForward && isRegionMode(unit)) {
+        if (!terminal(previousUnit.text) || startsLower(unit.text)) {
+          breakBefore = false; score = 0.95;
+        } else {
+          breakBefore = true; score = 0.62;
+          reason = "boundary_fragment_adjacent_region_continuity_ambiguous";
+        }
+      } else if (unit.continuesBackward && isRegionMode(previousUnit)) {
+        if (!terminal(previousUnit.text) || startsLower(unit.text)) {
+          breakBefore = false; score = 0.95;
+        } else {
+          breakBefore = true; score = 0.62;
+          reason = "boundary_fragment_adjacent_region_continuity_ambiguous";
+        }
+      } else if (isRegionMode(unit)) {
+        breakBefore = unit.explicitBoundaryBefore; score = 0.96;
+      } else if (unit.explicitBoundaryBefore) {
+        breakBefore = true; score = 0.98;
       } else {
         const indentThreshold = pageWidth ? Math.max(8, pageWidth * 0.015) : 16;
         const indented = typeof baselineX === "number" && typeof unit.x === "number" && unit.x > baselineX + indentThreshold;
@@ -386,7 +508,7 @@ Deno.serve(async (req: Request) => {
     const assetKeys = Array.isArray(body.asset_keys) ? body.asset_keys.map(String) : null;
     const desiredState = body.proposed_reading_state === "usable" ? "usable" : "candidate";
     const allowUsableAutoAdmit = body.allow_usable_auto_admit === true;
-    const packet = await rpc("wnph_reconstruction_source_packet_v2", {
+    const packet = await rpc("wnph_reconstruction_source_packet_v3", {
       p_source_package_key: sourcePackageKey,
       p_target_parent_block_key: targetParentBlockKey,
       p_asset_keys: assetKeys,
@@ -411,7 +533,8 @@ Deno.serve(async (req: Request) => {
       source_span: packet.source_span,
       asset_keys: packet.surfaces.map((s) => s.asset_key),
       observation_ids: packet.surfaces.flatMap((s) => s.observations.map((o) => o.id)),
-      algorithm: "deterministic-layout-v2",
+      observation_relation_ids: (packet.observation_relations ?? []).map((r) => r.id),
+      algorithm: "deterministic-layout-v3",
     }));
     const reconstructionKey = String(body.reconstruction_key ?? `reconstruction:${sourceFingerprint.slice(0, 24)}`);
 
@@ -477,24 +600,25 @@ Deno.serve(async (req: Request) => {
         },
         proposed_source_provenance: {
           text_authority: "machine_reconstruction_from_source_observations",
-          derivation_method: "deterministic_layout_reconstruction_v2",
+          derivation_method: "deterministic_layout_reconstruction_v3",
           verification_status: "machine_derived_not_source_verified",
           source_locators: locators,
         },
         algorithm: {
           engine: "wnph-reading-reconstructor",
-          version: "2",
-          auto_admit_rule: "governed semantic source span is applied before reconstruction; candidate paragraph only when no structural review reason survives; headings always require parentage review; usable auto-admit additionally requires explicit override, confidence floor >=0.98, and at least two processor bases",
+          version: "3",
+          auto_admit_rule: "governed semantic source span is applied before reconstruction; boundaries may fragment a coarse source container only through governed active containment relations; candidate paragraph only when no structural review reason survives; headings always require parentage review; usable auto-admit additionally requires explicit override, confidence floor >=0.98, and at least two processor bases",
         },
       });
     }
 
     const runMetadata: Json = {
       worker: "wnph-reading-reconstructor",
-      worker_version: 2,
+      worker_version: 3,
       source_fingerprint_sha256: sourceFingerprint,
       semantic_source_span_key: packet.source_span?.span_key ?? null,
       selected_surface_count: packet.surfaces.length,
+      observation_relation_count: (packet.observation_relations ?? []).length,
       proposal_count: proposals.length,
       proposed_reading_state: desiredState,
       allow_usable_auto_admit: allowUsableAutoAdmit,
