@@ -70,7 +70,7 @@ owner_prefixes="${baseline_values[1]}|reporting"
 declare -A sealed_registry_sha=(
   ["$recovery_registry_v4"]="846d0d72267db4b1d129cf257e60f0f8b1f3dc74"
   ["$recovery_registry_v5"]="09302e333c32223b37badad95506d61695100676"
-  ["$recovery_registry_v6"]="6ac08982bcb1e7964e85a040c96344c6a0463d70"
+  ["$recovery_registry_v6"]="8551ea9f754f4d2067f393bc1b6681751fc2976a"
 )
 for registry in "$recovery_registry_v4" "$recovery_registry_v5" "$recovery_registry_v6"; do
   actual_registry_sha="$(git hash-object "$registry")"
@@ -113,7 +113,7 @@ for path, contract_version, inherits in specs:
         assert filename not in seen
         seen[filename] = sha
 
-assert len(seen) == 46
+assert len(seen) == 47
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
@@ -159,4 +159,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 46 sealed retrospective recoveries preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 47 sealed retrospective recoveries preserve exact live bytes."
