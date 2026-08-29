@@ -1,0 +1,64 @@
+name: Recover canonical production reconciler migration
+
+on:
+  push:
+    branches:
+      - atlas/reconciler-custody-assembly-20260829
+
+permissions:
+  contents: write
+
+jobs:
+  recover:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: atlas/reconciler-custody-assembly-20260829
+          fetch-depth: 0
+      - name: Assemble and verify canonical migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='supabase/migrations/20260829032941_atlas_state_derived_production_reconciler_v1.sql'
+          mkdir -p "$(dirname "$target")"
+          cat \
+            tmp/reconciler-b64/part01.b64 \
+            tmp/reconciler-b64/part02.b64 \
+            tmp/reconciler-b64/part03.b64 \
+            tmp/reconciler-b64/part04.b64 \
+            tmp/reconciler-b64/part05.b64 \
+            tmp/reconciler-b64/part06.b64 \
+            tmp/reconciler-b64/part07.b64 \
+            tmp/reconciler-b64/part08.b64 \
+            tmp/reconciler-b64/part09.b64 \
+            tmp/reconciler-b64/part10.b64 \
+            tmp/reconciler-b64/tail41.b64 \
+            tmp/reconciler-b64/tail42.b64 \
+            tmp/reconciler-b64/tail43a.b64 \
+            tmp/reconciler-b64/tail43b.b64 \
+            tmp/reconciler-b64/tail43c.b64 \
+            tmp/reconciler-b64/tail43d.b64 \
+            tmp/reconciler-b64/tail44.b64 \
+            tmp/reconciler-b64/tail45.b64 \
+            tmp/reconciler-b64/tail46.b64 \
+            tmp/reconciler-b64/tail47.b64 \
+            tmp/reconciler-b64/tail48.b64 \
+            tmp/reconciler-b64/tail49.b64 \
+            | tr -d '\n\r ' | base64 -d > "$target"
+          actual="$(git hash-object "$target")"
+          expected='95afacaf5ef17f6e9a6d642135f4044d448f69ec'
+          test "$actual" = "$expected" || { echo "canonical blob mismatch: $actual"; exit 1; }
+          test "$(wc -c < "$target" | tr -d ' ')" = '36700'
+      - name: Commit canonical file and remove recovery scaffolding
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git rm -r tmp/reconciler-b64
+          git rm .github/workflows/recover-reconciler-custody.yml
+          git add supabase/migrations/20260829032941_atlas_state_derived_production_reconciler_v1.sql
+          git commit -m 'Recover canonical state-derived production reconciler migration'
+          git push origin HEAD:atlas/reconciler-custody-assembly-20260829
