@@ -414,7 +414,7 @@ Deno.serve(async(req:Request)=>{
     const assetKeys=Array.isArray(body.asset_keys)?body.asset_keys.map(String):null;
     const desiredState=body.proposed_reading_state==="usable"?"usable":"candidate";
     const allowUsableAutoAdmit=body.allow_usable_auto_admit===true;
-    const packet=await rpc("wnph_reconstruction_source_packet_v5",{p_source_package_key:sourcePackageKey,p_target_parent_block_key:targetParentBlockKey,p_asset_keys:assetKeys}) as SourcePacket;
+    const packet=await rpc("wnph_reconstruction_source_packet_v6",{p_source_package_key:sourcePackageKey,p_target_parent_block_key:targetParentBlockKey,p_asset_keys:assetKeys}) as SourcePacket;
     if(packet.target_parent_block.semantic_role==="paragraph_stream"&&!packet.source_span){
       return response(422,{error:"A governed semantic source span is required before reconstructing a paragraph stream",source_package_key:sourcePackageKey,target_parent_block_key:targetParentBlockKey});
     }
@@ -483,7 +483,7 @@ Deno.serve(async(req:Request)=>{
     }
     const appliedAdjudicationIds=[...new Set(drafts.flatMap((d)=>[...d.readingAdjudicationIds]))];
     const runMetadata:Json={
-      worker:"wnph-reading-reconstructor",worker_version:5,source_fingerprint_sha256:sourceFingerprint,
+      worker:"wnph-reading-reconstructor",worker_version:5,source_packet_version:6,source_fingerprint_sha256:sourceFingerprint,
       semantic_source_span_key:packet.source_span?.span_key??null,selected_surface_count:packet.surfaces.length,
       observation_relation_count:(packet.observation_relations??[]).length,
       observation_classification_count:(packet.observation_classifications??[]).length,
