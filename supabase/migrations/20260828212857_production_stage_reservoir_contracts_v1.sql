@@ -38,7 +38,6 @@ begin
 end;
 $function$;
 
-
 do $$
 declare v_def text; v_oid oid;
 begin
