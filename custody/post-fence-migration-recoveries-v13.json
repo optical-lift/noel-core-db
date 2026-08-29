@@ -1,0 +1,18 @@
+{
+  "contractVersion": 13,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v12.json",
+  "rule": "This Elm fall public-rhythm migration was deployed after the shared database fence with an unapproved elm owner prefix. Preserve its exact production filename and bytes as historical custody evidence. This sealed tail extends v12 only for this row and does not authorize elm as a future migration owner prefix.",
+  "recoveries": [
+    {
+      "version": "20260829220646",
+      "name": "elm_fall_public_rhythm_alignment_v1",
+      "filename": "20260829220646_elm_fall_public_rhythm_alignment_v1.sql",
+      "gitBlobSha1": "c33e618489e5985a11caff259ea2e752980586d4",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
