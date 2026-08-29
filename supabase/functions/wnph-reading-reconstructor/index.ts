@@ -83,6 +83,17 @@ async function rpc(name:string, body:Json){
   if(!r.ok)throw new Error(`${name} ${r.status}: ${text.slice(0,2000)}`);
   return text?JSON.parse(text):null;
 }
+async function authorized(req:Request){
+  const claims=decodeJwtPayload((req.headers.get("authorization")??"").replace(/^Bearer\s+/i,""));
+  if(claims?.role==="service_role")return true;
+  const runnerToken=(req.headers.get("x-wnph-runner-token")??"").trim();
+  if(!runnerToken)return false;
+  try{
+    return await rpc("wnph_validate_reconstruction_runner_token_v1",{p_token:runnerToken})===true;
+  }catch{
+    return false;
+  }
+}
 function median(values:number[]){
   if(!values.length)return null;
   const a=[...values].sort((x,y)=>x-y); const m=Math.floor(a.length/2);
@@ -404,8 +415,7 @@ function inferPrefix(parentBlockKey:string){
 
 Deno.serve(async(req:Request)=>{
   if(req.method!=="POST")return response(405,{error:"POST required"});
-  const claims=decodeJwtPayload((req.headers.get("authorization")??"").replace(/^Bearer\s+/i,""));
-  if(!claims||claims.role!=="service_role")return response(403,{error:"WNPH reading reconstruction currently requires service-role authorization"});
+  if(!(await authorized(req)))return response(403,{error:"WNPH reading reconstruction requires a valid service-role JWT or governed reconstruction runner credential"});
   try{
     const body=await req.json() as Record<string,unknown>;
     const sourcePackageKey=String(body.source_package_key??"").trim();
@@ -476,14 +486,14 @@ Deno.serve(async(req:Request)=>{
           source_locators:locators,governed_reading_adjudication_ids:[...draft.readingAdjudicationIds]
         },
         algorithm:{
-          engine:"wnph-reading-reconstructor",version:"5",
+          engine:"wnph-reading-reconstructor",version:"6",
           auto_admit_rule:"governed semantic source span is applied before reconstruction; coarse containers may fragment only through active source containment; only verified/adjudicated page-furniture classifications with reading_disposition=exclude may remove source observations; governed reading adjudications may replace semantic reading text or decide cross-surface paragraph continuity without rewriting source observations; candidate paragraphs auto-admit only when no structural review reason survives; headings always require parentage review; usable auto-admit additionally requires explicit override, confidence floor >=0.98, and at least two processor bases"
         }
       });
     }
     const appliedAdjudicationIds=[...new Set(drafts.flatMap((d)=>[...d.readingAdjudicationIds]))];
     const runMetadata:Json={
-      worker:"wnph-reading-reconstructor",worker_version:5,source_packet_version:6,source_fingerprint_sha256:sourceFingerprint,
+      worker:"wnph-reading-reconstructor",worker_version:6,source_packet_version:6,source_fingerprint_sha256:sourceFingerprint,
       semantic_source_span_key:packet.source_span?.span_key??null,selected_surface_count:packet.surfaces.length,
       observation_relation_count:(packet.observation_relations??[]).length,
       observation_classification_count:(packet.observation_classifications??[]).length,
@@ -491,7 +501,8 @@ Deno.serve(async(req:Request)=>{
       applied_reading_adjudication_count:appliedAdjudicationIds.length,
       applied_reading_adjudication_ids:appliedAdjudicationIds,
       governed_reading_exclusion_count:exclusionIds.length,proposal_count:proposals.length,
-      proposed_reading_state:desiredState,allow_usable_auto_admit:allowUsableAutoAdmit
+      proposed_reading_state:desiredState,allow_usable_auto_admit:allowUsableAutoAdmit,
+      authorization_bridge:"service_role_jwt_or_governed_runner_token_v1"
     };
     const stats={
       total:proposals.length,auto_admit:proposals.filter((p)=>p.disposition==="auto_admit").length,
