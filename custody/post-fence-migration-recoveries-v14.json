@@ -9,7 +9,7 @@
       "version": "20260829233419",
       "name": "elm_local_regional_calendar_coverage_v1",
       "filename": "20260829233419_elm_local_regional_calendar_coverage_v1.sql",
-      "gitBlobSha1": "3e50d6d2c142543ecee2c04f2a273c53690d3df3",
+      "gitBlobSha1": "3e50d6d272c856e29c46ed8ef24eb8273d0d3df3",
       "logicalOwner": "atlas",
       "disposition": "recovered_exact_live_bytes",
       "reason": "post_fence_live_migration_bypassed_source_custody"
