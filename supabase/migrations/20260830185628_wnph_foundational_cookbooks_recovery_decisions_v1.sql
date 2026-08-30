@@ -68,6 +68,7 @@ begin
     'verified_1575_witness_reading_expression','high',v_old_brief
   ) returning id into v_new_brief;
 
+  -- Commit the three already-proposed modes to the qualified scope through append-only supersession.
   select m.id into strict v_mode from wnph.recovery_case_modes m where m.recovery_case_id=v_case and m.recovery_mode='text' and not exists(select 1 from wnph.recovery_case_modes n where n.supersedes_mode_id=m.id);
   insert into wnph.recovery_case_modes(recovery_case_id,recovery_mode,intent_status,rationale,supersedes_mode_id)
   values(v_case,'text','committed','Recover a verified reading text of the exact governed 1575 witness without silently importing readings from other early editions.',v_mode) returning id into v_new_mode;
