@@ -1,0 +1,18 @@
+{
+  "contractVersion": 16,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v15.json",
+  "rule": "This Elm Local service search migration was deployed after the shared database fence with an unapproved elm owner prefix. Preserve its exact production filename and bytes as historical custody evidence. This sealed tail extends v15 only for this row and does not authorize elm as a future migration owner prefix.",
+  "recoveries": [
+    {
+      "version": "20260830020538",
+      "name": "elm_local_service_search_bridge_v1",
+      "filename": "20260830020538_elm_local_service_search_bridge_v1.sql",
+      "gitBlobSha1": "111b6c4b908c9cd7a6a3348a60cfb774a2b577ab",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
