@@ -1,0 +1,27 @@
+{
+  "contractVersion": 15,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v14.json",
+  "rule": "These Elm Local discovery migrations were deployed after the shared database fence with an unapproved local_intel owner prefix. Preserve their exact production filenames and bytes as historical custody evidence. This sealed tail extends v14 only for these rows and does not authorize local_intel as a future migration owner prefix.",
+  "recoveries": [
+    {
+      "version": "20260830002740",
+      "name": "local_intel_elm_local_discovery_contract_v1",
+      "filename": "20260830002740_local_intel_elm_local_discovery_contract_v1.sql",
+      "gitBlobSha1": "c530e1c63de8c857bfbe1eae494982f09edf45d5",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260830002805",
+      "name": "local_intel_elm_local_discovery_category_refinement_v1",
+      "filename": "20260830002805_local_intel_elm_local_discovery_category_refinement_v1.sql",
+      "gitBlobSha1": "c9e196508de0b22ef5dbc84ce6a0e521ce3466c8",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
