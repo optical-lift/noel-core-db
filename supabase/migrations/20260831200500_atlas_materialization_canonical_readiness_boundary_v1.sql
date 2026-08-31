@@ -161,7 +161,7 @@ begin
   -- after occurrence relations have been restored. An unmet requirement keeps
   -- the work obligation alive but blocks execution instead of emitting open work.
   v_execution_readiness:=atlas.task_execution_readiness_v1(v_task_id);
-  if not coalesce((v_execution_readiness->>'executable')::boolean,false) then
+  if not coalesce((v_execution_readiness->>'executionReady')::boolean,false) then
     update atlas.tasks
     set status='blocked',updated_at=now()
     where id=v_task_id and status='open';
@@ -210,7 +210,7 @@ begin
       'executionDate',v_execution_date,
       'materializedBy','materialize_specific_work_occurrence_v1',
       'materializedTaskStatus',v_materialized_status,
-      'canonicalExecutionReadiness',coalesce((v_execution_readiness->>'executable')::boolean,false)
+      'canonicalExecutionReadiness',coalesce((v_execution_readiness->>'executionReady')::boolean,false)
     )
   ) on conflict(occurrence_id,task_id) do nothing;
 
@@ -221,7 +221,7 @@ begin
     'occurrenceId',v_occ.id,
     'taskId',v_task_id,
     'taskStatus',v_materialized_status,
-    'executable',coalesce((v_execution_readiness->>'executable')::boolean,false),
+    'executable',coalesce((v_execution_readiness->>'executionReady')::boolean,false),
     'workLane',v_occ.work_lane,
     'commitmentKind',v_occ.commitment_kind,
     'executionDate',v_execution_date
