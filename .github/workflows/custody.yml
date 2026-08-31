@@ -4,6 +4,12 @@ on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   custody:
@@ -14,6 +20,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Verify custody trigger contract
+        run: bash scripts/check-custody-trigger.sh
 
       - name: Verify static custody boundaries
         run: bash scripts/check-custody.sh
