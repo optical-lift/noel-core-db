@@ -1,0 +1,100 @@
+name: Production Database Release Request
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      startsWith(github.event.issue.title, 'Production release request:')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve governed release request
+        id: request
+        shell: bash
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          title = os.environ.get('ISSUE_TITLE', '')
+          body = os.environ.get('ISSUE_BODY', '')
+          fields = {}
+          for raw in body.splitlines():
+              match = re.fullmatch(r'([a-z_]+):\s*([^\s]+)\s*', raw)
+              if match:
+                  key, value = match.groups()
+                  if key in fields and fields[key] != value:
+                      raise SystemExit(f'duplicate conflicting field: {key}')
+                  fields[key] = value
+
+          required = ('migration_version', 'release_lane', 'production_target', 'source_branch')
+          missing = [key for key in required if key not in fields]
+          if missing:
+              raise SystemExit('missing required release-request field(s): ' + ', '.join(missing))
+
+          version = fields['migration_version']
+          lane = fields['release_lane']
+          target = fields['production_target']
+          source_branch = fields['source_branch']
+
+          if not re.fullmatch(r'\d{14}', version):
+              raise SystemExit('migration_version must be exactly 14 digits')
+          if lane not in {'atlas', 'wnph', 'shared'}:
+              raise SystemExit('release_lane must be atlas, wnph, or shared')
+          if target != 'zirqkouammpwxlqfbsvf':
+              raise SystemExit('production_target does not match noel-core production')
+          if source_branch != 'main':
+              raise SystemExit('source_branch must be main')
+
+          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'shared': 'Shared'}[lane]
+          expected_title = f'Production release request: {title_lane} {version}'
+          if title != expected_title:
+              raise SystemExit(f'issue title must be exactly: {expected_title}')
+
+          output = Path(os.environ['GITHUB_OUTPUT'])
+          with output.open('a', encoding='utf-8') as handle:
+              handle.write(f'migration_version={version}\n')
+              handle.write(f'release_lane={lane}\n')
+              handle.write(f'production_target={target}\n')
+          PY
+
+      - name: Checkout canonical main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Verify request against canonical source
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-migration-release-lane.sh \
+            "${{ steps.request.outputs.migration_version }}" \
+            "${{ steps.request.outputs.release_lane }}"
+          bash scripts/check-production-release-contract.sh
+
+      - name: Dispatch protected production release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh workflow run production-db-release.yml \
+            --ref main \
+            -f release_lane="${{ steps.request.outputs.release_lane }}" \
+            -f migration_version="${{ steps.request.outputs.migration_version }}" \
+            -f confirm_project_ref="${{ steps.request.outputs.production_target }}"
