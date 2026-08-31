@@ -1,9 +1,9 @@
 -- Atlas Life Engine Packets v1
 --
 -- Pure JSON compatibility packets for Rhythm, Goal, and State Consequence.
--- These functions deliberately do not reference or mutate the uncustodied live
--- generic engine tables. They let domain adapters prove shared semantics while
--- preserving the existing Atlas truth boundary:
+-- These functions deliberately do not reference or mutate the live
+-- institution-bound engine persistence. They let domain adapters prove shared
+-- semantics while preserving the existing Atlas truth boundary:
 --
 --   requirement != carrier != placement
 --
