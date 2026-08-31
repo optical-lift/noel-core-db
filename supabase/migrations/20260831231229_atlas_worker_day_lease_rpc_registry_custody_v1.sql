@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Reconcile authenticated RPC registry custody for the Worker Day execution-lease
 -- cutover. These routines were already deployed with explicit authenticated and
 -- service_role EXECUTE, no anonymous/PUBLIC execution, SECURITY DEFINER, and a
@@ -86,3 +88,5 @@ begin
   end if;
 end
 $$;
+
+COMMIT;
