@@ -37,7 +37,7 @@ jobs:
           comm -23 /tmp/source_versions.txt /tmp/live_versions.txt > /tmp/source_only.txt
           comm -13 /tmp/source_versions.txt /tmp/live_versions.txt > /tmp/live_only_all.txt
 
-          awk '$1 >= "20260825203448"' /tmp/live_only_all.txt > /tmp/live_only_post_fence.txt
+          awk '$1 > "20260825203448"' /tmp/live_only_all.txt > /tmp/live_only_post_fence.txt
 
           echo "source_unique_versions=$(wc -l < /tmp/source_versions.txt)"
           echo "production_versions=$(wc -l < /tmp/live_versions.txt)"
