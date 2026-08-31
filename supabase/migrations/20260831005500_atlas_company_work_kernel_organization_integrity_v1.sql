@@ -82,12 +82,13 @@ alter table atlas.work_planning_conflicts
     references atlas.work_items (organization_id, id)
     on delete cascade;
 
+-- Deliberately RESTRICT deletion of an allocation referenced by a planning conflict.
+-- Allocation is custody history and should not disappear; resolving a conflict does not erase its provenance.
 alter table atlas.work_planning_conflicts
   drop constraint if exists work_planning_conflicts_allocation_org_fk,
   add constraint work_planning_conflicts_allocation_org_fk
     foreign key (organization_id, allocation_id)
-    references atlas.work_allocations (organization_id, id)
-    on delete set null;
+    references atlas.work_allocations (organization_id, id);
 
 alter table atlas.work_planning_conflicts
   drop constraint if exists work_planning_conflicts_resolver_org_fk,
