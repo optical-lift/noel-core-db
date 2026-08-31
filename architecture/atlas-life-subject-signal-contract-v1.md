@@ -6,7 +6,7 @@ Atlas life domains may use different vocabularies without receiving different re
 
 This contract defines the minimum envelope required for a domain fact to travel into shared Atlas intelligence without surrendering domain truth, provenance, custody, or uncertainty.
 
-The contract is intentionally conceptual in v1. It does not change Rhythm, Goal, State Consequence, Composition, or Clock tables while live database custody is unresolved.
+The Life Signal is now an implemented normalization contract used by Composition and by extracted pure Goal, State Consequence, and lease-Rhythm evaluators. It does not require person-owned facts to be persisted into farm-bound engine tables.
 
 ## Four independent identities
 
@@ -144,6 +144,8 @@ It may update an independently defined current state when the domain has a warra
 
 It does not automatically create work.
 
+Event-triggered capture remains Observation logic unless a separate cadence is independently defined. For example, “record a dream when one is remembered” does not become Rhythm merely because dreams may recur.
+
 ### ConditionSignal
 
 Reports a present condition already supported by evidence.
@@ -159,15 +161,34 @@ Clock placement may never originate a ConditionSignal.
 
 ### RhythmSignal
 
-States that an already-authorized repeated condition has a cadence or renewal boundary.
+States that an already-authorized recurring condition has a specifically established cadence/renewal strategy.
 
-It should express:
+A RhythmSignal must identify its strategy explicitly. v1 supports:
+
+```text
+rhythmModel = lease
+```
+
+The extracted lease model means:
+
+```text
+qualifying satisfaction
+  -> validity interval
+  -> optional warning boundary
+  -> due boundary
+  -> optional grace/failure boundary
+```
+
+No prior qualifying satisfaction means `uninitialized`, not failed.
+
+A RhythmSignal should express:
 - what constitutes a qualifying satisfaction;
+- its explicit rhythm model;
 - validity interval or recurrence boundary;
 - warning/due/failure behavior only where warranted;
-- recovery behavior if the rhythm is missed.
+- recovery behavior if separately established.
 
-A RhythmSignal must not convert absence of evidence into failure. Example: a dream-recording rhythm cannot fail merely because no dream was remembered.
+A bounded quota is not automatically Rhythm. “Do this four times before Friday” is a finite requirement/Goal structure unless an independent ongoing cadence is also established.
 
 ### GoalSignal
 
@@ -175,17 +196,21 @@ States an explicit desired end and any independently warranted requirements for 
 
 A GoalSignal does not let Atlas invent requirements simply because they are customary for a domain.
 
+Requirement provider results remain separate inputs. Missing result evidence remains unknown rather than being silently classified unmet.
+
 ### ConsequenceSignal
 
 States what an established condition now requires.
 
-The shared consequence-role vocabulary should preserve the existing Atlas distinction among at least:
+The shared consequence-role vocabulary preserves the existing Atlas distinction among at least:
 - `operation_requirement`
 - `truth_acquisition`
 - `repair`
 - `preparation`
 
 A consequence may have no human task carrier.
+
+A consequence role must be warranted by explicit domain evidence or an explicit condition-to-consequence policy; mere Thread co-occurrence is insufficient.
 
 ### CompositionSignal
 
@@ -198,7 +223,7 @@ It may carry:
 - constraints;
 - ambiguities;
 - candidate evidence;
-- delegated composition authority.
+- delegated composition authority only when separately granted by the existing Composition request membrane.
 
 The Composition core chooses among warranted operations and bounded discretion. It does not infer new domain semantics from natural-language labels.
 
@@ -232,7 +257,8 @@ Every domain adapter must:
 7. label inferred or proposed relationships as such;
 8. avoid causal or interpretive promotion without a separate warrant;
 9. translate only into shared contracts whose semantics actually fit;
-10. leave unsupported downstream fields empty rather than manufacturing completeness.
+10. leave unsupported downstream fields empty rather than manufacturing completeness;
+11. choose the correct engine by semantics rather than by the fact that something repeats or has a date.
 
 ## Shared engine responsibilities
 
@@ -244,10 +270,11 @@ Shared Atlas engines must:
 4. never convert a Journal/Thread relationship into causality by itself;
 5. never convert a Clock placement into evidence that a condition exists;
 6. preserve tie/null/unresolved outcomes;
-7. preserve the difference between a requirement and its possible task carrier;
+7. preserve the difference between requirement, carrier, execution readiness, and placement;
 8. route protected/private scopes through explicit authorization membranes;
 9. fail open in presentation where appropriate without fabricating domain truth;
-10. allow a later domain adapter or adjudication to refine a signal without rewriting historical evidence.
+10. allow a later domain adapter or adjudication to refine a signal without rewriting historical evidence;
+11. avoid forcing generic person subjects through farm/organization persistence identities merely to reuse an evaluator.
 
 ## One observation may support several conversations
 
@@ -287,18 +314,27 @@ Future practitioner access must be implemented as an explicit relationship/conse
 
 Role names such as practitioner, employer, family member, or organization member never grant access by themselves.
 
-## Compatibility direction for existing engines
+## Current compatibility direction
 
-The intended future extraction is adapter-first:
+The extraction is adapter-first:
 
 ```text
 LifeSubjectRef / LifeSignal
         |
-        +--> existing Rhythm engine
-        +--> existing Goal engine
-        +--> existing State Consequence engine
-        +--> existing Composition engine
-        +--> existing Clock candidate/arbitration engine
+        +--> Composition compatibility adapter
+        |
+        +--> Goal packet --> generic Goal reducer
+        |
+        +--> Consequence snapshot/policies --> generic State Consequence matcher
+        |
+        +--> Rhythm packet (explicit strategy)
+                 +--> lease Rhythm reducer (v1)
+        |
+        +--> eligible established claims --> future Clock adapter
 ```
 
-Existing engines should not be rewritten merely because their current persistence includes `farm_id` or older institutional vocabulary. First establish adapters and compatibility projections; only then move identity/custody columns when exact production schema and migration custody can be verified.
+Existing farm engines remain intact as domain-specific persistence/provider adapters.
+
+Live inspection confirms that current Rhythm, Goal, and State Consequence persistence still contains institutional identity such as non-null `farm_id`, `organization_id`, or UUID-only subjects. Those tables should not be repurposed as generic person identity by inserting fake institutional records.
+
+Shared reasoning is extracted first. Person-owned persistence/custody can then be added deliberately without rewriting the validated farm behavior.
