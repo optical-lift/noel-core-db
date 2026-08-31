@@ -105,6 +105,4 @@ set
   reviewed_at = excluded.reviewed_at,
   anonymous_execute_expected = excluded.anonymous_execute_expected;
 
-select atlas.assert_authenticated_rpc_registry_complete_v1();
-
 commit;
