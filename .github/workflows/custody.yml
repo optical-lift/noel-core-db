@@ -32,3 +32,29 @@ jobs:
 
       - name: Verify live production migration authority
         run: bash scripts/check-live-production-custody.sh
+
+      - name: Probe live Company Work RPC
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(mktemp)"
+          status="$(curl --silent --show-error \
+            --output "$body" \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header "apikey: ${NOEL_CORE_SUPABASE_PUBLISHABLE_KEY}" \
+            --header "Authorization: Bearer ${NOEL_CORE_SUPABASE_PUBLISHABLE_KEY}" \
+            --header "Content-Type: application/json" \
+            --header "Accept-Profile: atlas" \
+            --header "Content-Profile: atlas" \
+            --data '{"p_organization_id":"52afd94a-25e8-4532-a3c6-6aeeb2654297"}' \
+            "${NOEL_CORE_SUPABASE_URL}/rest/v1/rpc/company_work_position_api_v1")"
+          response="$(cat "$body")"
+          rm -f "$body"
+          echo "COMPANY_WORK_PROBE_STATUS=$status"
+          echo "COMPANY_WORK_PROBE_BODY=$response"
+          if [ "$status" = "404" ] || printf '%s' "$response" | grep -q 'PGRST202'; then
+            echo "Company Work RPC is not live." >&2
+            exit 1
+          fi
+          echo "COMPANY_WORK_RPC_LIVE"
