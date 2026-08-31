@@ -1,9 +1,9 @@
 -- Atlas Life Signal -> Shared Composition adapter v1
 --
 -- This migration deliberately does not touch Rhythm, Goal, or State Consequence
--- persistence. Their generic production foundations are not yet source-custodied
--- on the current main ledger. It adds a pure JSON contract membrane into the
--- already source-custodied shared Composition signal contract.
+-- persistence. Their reusable logic is extracted separately; current live
+-- persistence remains institution/farm-bound. This migration adds a pure JSON
+-- contract membrane into the already shared Composition signal contract.
 
 begin;
 
