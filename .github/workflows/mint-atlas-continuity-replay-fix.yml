@@ -1,0 +1,21 @@
+name: Mint Atlas Continuity replay fix migration
+
+on:
+  push:
+    branches:
+      - fix/atlas-communication-replay-idempotency-v1
+
+permissions:
+  contents: read
+
+jobs:
+  mint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mint migration identity with Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes supabase@2.116.0 migration new atlas_communication_replay_idempotency_fix_v1
+          find supabase/migrations -maxdepth 1 -type f -name '*_atlas_communication_replay_idempotency_fix_v1.sql' -printf '%f\n'
