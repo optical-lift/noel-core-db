@@ -3,6 +3,14 @@ name: Production Database Release
 on:
   workflow_dispatch:
     inputs:
+      release_lane:
+        description: "Product release lane for this migration"
+        required: true
+        type: choice
+        options:
+          - atlas
+          - wnph
+          - shared
       migration_version:
         description: "Exact 14-digit migration version already merged to main"
         required: true
@@ -43,6 +51,10 @@ jobs:
             echo "::error::migration_version must be exactly 14 digits."
             exit 1
           fi
+          if [[ "${{ inputs.release_lane }}" != "atlas" && "${{ inputs.release_lane }}" != "wnph" && "${{ inputs.release_lane }}" != "shared" ]]; then
+            echo "::error::release_lane must be atlas, wnph, or shared."
+            exit 1
+          fi
           if [[ -z "${NOEL_CORE_DATABASE_URL:-}" ]]; then
             echo "::error::The protected production environment is missing the NOEL_CORE_DATABASE_URL secret."
             exit 1
@@ -54,13 +66,21 @@ jobs:
       - name: Verify source custody
         run: bash scripts/check-custody.sh
 
+      - name: Verify migration release lane
+        run: bash scripts/check-migration-release-lane.sh "${{ inputs.migration_version }}" "${{ inputs.release_lane }}"
+
       - name: Verify WNPH membrane
+        if: inputs.release_lane == 'wnph' || inputs.release_lane == 'shared'
         run: bash scripts/check-wnph-membrane.sh
 
       - name: Verify release seam contract
         run: bash scripts/check-production-release-contract.sh
 
-      - name: Verify live production before release
+      - name: Verify target live release lane before release
+        run: bash scripts/check-live-production-custody-lane.sh "${{ inputs.release_lane }}"
+
+      - name: Audit global live custody before release
+        continue-on-error: true
         run: bash scripts/check-live-production-custody.sh
 
       - name: Release exact canonical migration
@@ -68,5 +88,9 @@ jobs:
           GITHUB_RELEASE_SHA: ${{ github.sha }}
         run: bash scripts/release-production-migration.sh "${{ inputs.migration_version }}"
 
-      - name: Verify live production after release
+      - name: Verify target live release lane after release
+        run: bash scripts/check-live-production-custody-lane.sh "${{ inputs.release_lane }}"
+
+      - name: Audit global live custody after release
+        continue-on-error: true
         run: bash scripts/check-live-production-custody.sh

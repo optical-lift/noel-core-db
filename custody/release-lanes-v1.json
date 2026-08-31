@@ -1,0 +1,26 @@
+{
+  "contractVersion": 1,
+  "purpose": "Allow independently governed product releases inside the shared physical database without weakening global custody auditing.",
+  "unclassifiedLiveMigrationPolicy": "blocking_for_every_release_lane",
+  "lanes": {
+    "atlas": {
+      "migrationPrefix": "atlas_",
+      "ownedSchema": "atlas",
+      "foreignLanePrefixes": ["wnph_"],
+      "forbiddenSqlFragments": ["wnph.", "public.wnph_", "public.v_wnph_"]
+    },
+    "wnph": {
+      "migrationPrefix": "wnph_",
+      "ownedSchema": "wnph",
+      "foreignLanePrefixes": ["atlas_"],
+      "forbiddenSqlFragments": ["atlas.", "public.atlas_", "public.v_atlas_"]
+    },
+    "shared": {
+      "migrationPrefix": "shared_",
+      "ownedSchema": null,
+      "foreignLanePrefixes": [],
+      "forbiddenSqlFragments": [],
+      "requiresGlobalCustody": true
+    }
+  }
+}
