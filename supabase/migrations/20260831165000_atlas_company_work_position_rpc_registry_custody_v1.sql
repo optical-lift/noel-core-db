@@ -1,3 +1,5 @@
+begin;
+
 insert into atlas.authenticated_rpc_registry (
   signature,
   classification,
@@ -61,3 +63,5 @@ on conflict (signature) do update set
   evidence=excluded.evidence,
   anonymous_execute_expected=excluded.anonymous_execute_expected,
   reviewed_at=now();
+
+commit;
