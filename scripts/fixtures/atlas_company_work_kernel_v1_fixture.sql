@@ -6,7 +6,7 @@ begin;
 
 do $$
 declare
-  v_org uuid := '52afd94a-25e8-4532-a3c6-6aeeb2654297'::uuid;
+  v_org uuid;
   v_member_a uuid;
   v_member_b uuid;
   v_req_ops uuid;
@@ -30,6 +30,22 @@ declare
   v_history_count bigint;
   v_active_count bigint;
 begin
+  -- The fixture tests organization invariants, not one historical company UUID.
+  -- Choose any current organization with two active memberships; all fixture rows
+  -- remain inside this transaction and are rolled back at the end.
+  select organization_id
+    into v_org
+  from atlas.organization_memberships
+  where active
+  group by organization_id
+  having count(*) >= 2
+  order by count(*) desc, organization_id
+  limit 1;
+
+  if v_org is null then
+    raise exception 'Fixture requires an organization with at least two active memberships';
+  end if;
+
   select id
     into v_member_a
   from atlas.organization_memberships
