@@ -75,7 +75,7 @@ begin
   -- Once leases exist for this day, their original commitment generation is
   -- the frozen bootstrap authority. A later planner generation cannot silently
   -- become the source of new leases.
-  select min(nullif(l.metadata->>'commitmentGenerationId','')::uuid),
+  select (array_agg(distinct nullif(l.metadata->>'commitmentGenerationId','')::uuid))[1],
          count(distinct nullif(l.metadata->>'commitmentGenerationId','')::uuid)
     into v_existing_generation_id,v_existing_generation_count
   from atlas.execution_leases l
