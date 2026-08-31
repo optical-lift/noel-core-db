@@ -173,30 +173,9 @@ create trigger normalize_new_flower_ready_inventory_vocabulary_v1
 before insert on atlas.flower_ready_inventory_lots
 for each row execute function atlas.normalize_new_flower_ready_inventory_vocabulary_v1();
 
--- Every existing bunch except the known 30-stem DIY Bucket exception carries
--- direct preparation-result evidence that it was actually recorded as a bundle
--- of 5, 10, or 20 stems. Correct those rows without changing quantity or lineage.
-update atlas.flower_ready_inventory_lots
-set inventory_kind = 'bundle',
-    unit = 'bundle',
-    metadata = coalesce(metadata,'{}'::jsonb) || jsonb_build_object(
-      'vocabularyMigration','flower_harvest_vocabulary_v1',
-      'vocabularyNormalizedFrom','bunch',
-      'canonicalInventoryKind','bundle'
-    )
-where inventory_kind = 'bunch'
-  and coalesce(metadata->>'outputKind','') = 'bundle'
-  and coalesce(metadata->>'stemsPerUnit','') in ('5','10','20');
-
-update atlas.flower_ready_inventory_lots
-set metadata = coalesce(metadata,'{}'::jsonb) || jsonb_build_object(
-      'legacyVocabularyException','noncanonical_bundle_size',
-      'flowerVocabularyVersion',1
-    )
-where inventory_kind = 'bunch'
-  and coalesce(metadata->>'outputKind','') = 'bundle'
-  and coalesce(metadata->>'stemsPerUnit','') not in ('5','10','20');
-
+-- Existing Ready birth records are append-only source evidence. Keep historical
+-- bunch/lobby_arrangement rows byte-for-byte in their original vocabulary; new
+-- writes normalize at the insertion membrane and read compatibility remains below.
 create or replace function atlas.flower_demand_line_unit_v1(p_inventory_kind text)
 returns text
 language sql
