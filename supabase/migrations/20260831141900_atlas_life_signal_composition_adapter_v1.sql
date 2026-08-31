@@ -110,6 +110,12 @@ begin
           'key','invalid_relation',
           'message','each relation must be an object with relationKind'
         ));
+      elsif v_relation ? 'causal' and jsonb_typeof(v_relation->'causal') <> 'boolean' then
+        v_violations := v_violations || jsonb_build_array(jsonb_build_object(
+          'key','invalid_relation_causal_flag',
+          'relation',v_relation,
+          'message','relation.causal must be boolean when supplied'
+        ));
       elsif coalesce((v_relation->>'causal')::boolean,false) then
         v_violations := v_violations || jsonb_build_array(jsonb_build_object(
           'key','causal_promotion_not_allowed_in_generic_relation',
