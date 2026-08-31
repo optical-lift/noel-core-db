@@ -35,8 +35,23 @@ grep -Fq 'run: bash scripts/check-production-release-contract.sh' "$workflow" ||
 }
 
 grep -Fq 'run: bash scripts/check-live-production-custody.sh' "$workflow" || {
-  echo "Custody workflow must execute the exact live production source verifier."
+  echo "Custody workflow must retain the exact global live production source auditor."
   exit 1
 }
 
-echo "Custody trigger contract passed: Git events, 15-minute production watch, manual verification, and the governed production release seam are all enabled."
+grep -Fq 'continue-on-error: true' "$workflow" || {
+  echo "Global/live product health diagnostics must not collapse independent product release lanes."
+  exit 1
+}
+
+grep -Fq 'run: bash scripts/check-live-production-custody-lane.sh atlas' "$workflow" || {
+  echo "Custody workflow must audit the Atlas production release lane."
+  exit 1
+}
+
+grep -Fq 'run: bash scripts/check-live-production-custody-lane.sh wnph' "$workflow" || {
+  echo "Custody workflow must audit the WNPH production release lane."
+  exit 1
+}
+
+echo "Custody trigger contract passed: Git events, 15-minute production watch, manual verification, global health auditing, and independent product release-lane diagnostics are enabled."

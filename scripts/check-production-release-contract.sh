@@ -3,8 +3,11 @@ set -euo pipefail
 
 workflow=".github/workflows/production-db-release.yml"
 releaser="scripts/release-production-migration.sh"
+lane_checker="scripts/check-migration-release-lane.sh"
+live_lane_checker="scripts/check-live-production-custody-lane.sh"
+manifest="custody/release-lanes-v1.json"
 
-for required in "$workflow" "$releaser"; do
+for required in "$workflow" "$releaser" "$lane_checker" "$live_lane_checker" "$manifest"; do
   if [ ! -f "$required" ]; then
     echo "Missing $required"
     exit 1
@@ -30,13 +33,24 @@ required_workflow_fragments = [
     'environment: production',
     'NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}',
     'zirqkouammpwxlqfbsvf',
+    'release_lane:',
+    'type: choice',
+    '- atlas',
+    '- wnph',
+    '- shared',
     'bash scripts/check-custody.sh',
-    'bash scripts/check-live-production-custody.sh',
+    'bash scripts/check-migration-release-lane.sh',
+    'bash scripts/check-live-production-custody-lane.sh',
     'bash scripts/release-production-migration.sh',
+    'continue-on-error: true',
+    'bash scripts/check-live-production-custody.sh',
 ]
 for fragment in required_workflow_fragments:
     if fragment not in workflow:
         errors.append(f'Missing governed workflow requirement: {fragment}')
+
+if "if: inputs.release_lane == 'wnph' || inputs.release_lane == 'shared'" not in workflow:
+    errors.append('WNPH membrane must block WNPH/shared releases without blocking Atlas releases.')
 
 required_releaser_fragments = [
     'git hash-object',
@@ -63,5 +77,5 @@ if errors:
         print(f'- {error}')
     raise SystemExit(1)
 
-print('Production database release contract passed: manual main-only release, protected DB secret, canonical-byte receipt, and live custody verification are all required.')
+print('Production database release contract passed: manual main-only release, protected DB secret, canonical-byte receipt, target-lane custody enforcement, and nonblocking global health audit are all required.')
 PY
