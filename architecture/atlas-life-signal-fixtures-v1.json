@@ -1,0 +1,222 @@
+{
+  "contractVersion": "atlas_life_signal_fixture_v1",
+  "fixtures": [
+    {
+      "fixtureKey": "training_5k_run_with_body_observation",
+      "purpose": "A training result may support both a training goal and a body conversation without asserting that either caused the other.",
+      "canonicalSources": [
+        {
+          "sourceDomain": "training",
+          "sourceKind": "run_result",
+          "sourceId": "run-2026-09-05-01",
+          "facts": {
+            "distanceMiles": 2.0,
+            "completed": true
+          }
+        },
+        {
+          "sourceDomain": "body",
+          "sourceKind": "person_condition_observation",
+          "sourceId": "body-observation-2026-09-05-01",
+          "facts": {
+            "bodyRegion": "left_hip",
+            "reportedState": "tight_after_run"
+          }
+        }
+      ],
+      "normalizedSignals": [
+        {
+          "scope": {"kind": "person", "id": "person-custody-a"},
+          "subject": {"domain": "training", "kind": "training_goal", "id": "springfield_5k"},
+          "signalKind": "observation",
+          "state": {"trainingEvent": "run_completed", "distanceMiles": 2.0},
+          "requirements": [],
+          "constraints": [],
+          "ambiguities": [],
+          "source": {"domain": "training", "kind": "run_result", "id": "run-2026-09-05-01"},
+          "epistemic": {"factClass": "observed", "interpretationAuthority": "none"}
+        },
+        {
+          "scope": {"kind": "person", "id": "person-custody-a"},
+          "subject": {"domain": "body", "kind": "body_region", "id": "left_hip"},
+          "signalKind": "condition",
+          "state": {"reportedState": "tight_after_run"},
+          "requirements": [],
+          "constraints": [],
+          "ambiguities": ["cause_not_established"],
+          "relations": [
+            {
+              "relationKind": "occurs_during",
+              "target": {"domain": "training", "kind": "run_result", "id": "run-2026-09-05-01"},
+              "relationBasis": "same reported event context",
+              "relationStatus": "observed_context",
+              "causal": false
+            }
+          ],
+          "source": {"domain": "body", "kind": "person_condition_observation", "id": "body-observation-2026-09-05-01"},
+          "epistemic": {"factClass": "reported_observation", "interpretationAuthority": "none"}
+        }
+      ],
+      "expectedSharedEngineBehavior": {
+        "journal": "one or both canonical events may be linked to the 5K and left-hip conversations without duplication",
+        "stateConsequence": "no automatic treatment or training cancellation is warranted from the fixture alone",
+        "composition": "may preserve the active training goal and body ambiguity; may request more evidence if a future run decision depends on hip capacity",
+        "clock": "must not infer body state from the existence of a scheduled run"
+      }
+    },
+    {
+      "fixtureKey": "practitioner_homework_received_then_accepted",
+      "purpose": "A practitioner recommendation and the person's accepted care requirement remain distinct authority events before Clock placement.",
+      "canonicalSources": [
+        {
+          "sourceDomain": "care_relationship",
+          "sourceKind": "practitioner_recommendation",
+          "sourceId": "recommendation-01",
+          "facts": {
+            "practiceKey": "hip_mobility_a",
+            "targetCount": 4,
+            "beforeDate": "2026-09-12"
+          }
+        },
+        {
+          "sourceDomain": "care_relationship",
+          "sourceKind": "person_acceptance",
+          "sourceId": "acceptance-01",
+          "facts": {
+            "accepted": true,
+            "recommendationId": "recommendation-01"
+          }
+        }
+      ],
+      "normalizedSignals": [
+        {
+          "scope": {"kind": "person", "id": "person-custody-b"},
+          "subject": {"domain": "care", "kind": "care_requirement", "id": "hip_mobility_a_before_2026_09_12"},
+          "signalKind": "rhythm",
+          "state": {"authorizationState": "accepted"},
+          "timing": {"mustBeSatisfiedBefore": "2026-09-12", "targetCount": 4},
+          "requirements": [
+            {"requirementKind": "qualifying_satisfaction", "operationKey": "hip_mobility_a", "count": 4}
+          ],
+          "constraints": [],
+          "ambiguities": [],
+          "relations": [
+            {
+              "relationKind": "result_of",
+              "target": {"domain": "care_relationship", "kind": "practitioner_recommendation", "id": "recommendation-01"},
+              "relationBasis": "explicit person acceptance",
+              "relationStatus": "established",
+              "causal": false
+            }
+          ],
+          "source": {"domain": "care_relationship", "kind": "person_acceptance", "id": "acceptance-01"},
+          "epistemic": {"factClass": "authorized_requirement", "interpretationAuthority": "explicit_relationship"}
+        }
+      ],
+      "expectedSharedEngineBehavior": {
+        "rhythm": "track four qualifying satisfactions before the stated boundary; do not duplicate the practitioner recommendation as four tasks",
+        "stateConsequence": "an accepted care requirement may create operation requirements, while the recommendation alone does not silently seize the person's Clock",
+        "composition": "may propose fitting opportunities inside the person's actual constraints",
+        "clock": "may place accepted care claims only after upstream authorization; practitioner does not choose exact placement by default"
+      }
+    },
+    {
+      "fixtureKey": "dream_record_without_interpretation",
+      "purpose": "A remembered dream is canonical as a remembered experience without an automatically required interpretation, task, or causal link.",
+      "canonicalSources": [
+        {
+          "sourceDomain": "dream",
+          "sourceKind": "dream_record",
+          "sourceId": "dream-2026-09-08-01",
+          "facts": {
+            "rawRecollection": "I was trying to find the road home.",
+            "rememberedAt": "2026-09-08T06:40:00-05:00"
+          }
+        }
+      ],
+      "normalizedSignals": [
+        {
+          "scope": {"kind": "person", "id": "person-custody-c"},
+          "subject": {"domain": "dream", "kind": "dream_record", "id": "dream-2026-09-08-01"},
+          "signalKind": "observation",
+          "state": {"recorded": true},
+          "requirements": [],
+          "constraints": [],
+          "ambiguities": ["meaning_unresolved", "cause_unresolved"],
+          "relations": [],
+          "source": {"domain": "dream", "kind": "dream_record", "id": "dream-2026-09-08-01"},
+          "epistemic": {"factClass": "remembered_experience", "interpretationAuthority": "none"}
+        }
+      ],
+      "expectedSharedEngineBehavior": {
+        "journal": "record the dream in the lived timeline and permit later explicit links",
+        "rhythm": "a dream-capture practice may be satisfied when a remembered dream is recorded; absence of a remembered dream is not failure",
+        "stateConsequence": "no automatic operation requirement",
+        "composition": "if the person explicitly asks a research question, compose research inside evidence boundaries rather than inventing meaning",
+        "clock": "no claim is created merely because a dream exists"
+      }
+    },
+    {
+      "fixtureKey": "sky_observation_with_separate_person_timeline",
+      "purpose": "External sky state may coexist on the same timeline as human observations without being used to diagnose hidden human state.",
+      "canonicalSources": [
+        {
+          "sourceDomain": "sky_research",
+          "sourceKind": "external_sky_observation",
+          "sourceId": "sky-2026-09-10-01",
+          "facts": {
+            "observedState": "research_marker_x",
+            "observedAt": "2026-09-10T21:00:00-05:00"
+          }
+        },
+        {
+          "sourceDomain": "journal",
+          "sourceKind": "person_reflection",
+          "sourceId": "journal-2026-09-10-01",
+          "facts": {
+            "rawLanguage": "I slept poorly last night."
+          }
+        }
+      ],
+      "normalizedSignals": [
+        {
+          "scope": {"kind": "person", "id": "person-custody-d"},
+          "subject": {"domain": "sky_research", "kind": "external_observation", "id": "sky-2026-09-10-01"},
+          "signalKind": "observation",
+          "state": {"observedState": "research_marker_x"},
+          "requirements": [],
+          "constraints": [],
+          "ambiguities": [],
+          "source": {"domain": "sky_research", "kind": "external_sky_observation", "id": "sky-2026-09-10-01"},
+          "epistemic": {"factClass": "external_observation", "interpretationAuthority": "none"}
+        },
+        {
+          "scope": {"kind": "person", "id": "person-custody-d"},
+          "subject": {"domain": "journal", "kind": "person_reflection", "id": "journal-2026-09-10-01"},
+          "signalKind": "observation",
+          "state": {"reportedSleep": "poor"},
+          "requirements": [],
+          "constraints": [],
+          "ambiguities": ["cause_not_established"],
+          "relations": [
+            {
+              "relationKind": "candidate_related",
+              "target": {"domain": "sky_research", "kind": "external_observation", "id": "sky-2026-09-10-01"},
+              "relationBasis": "same research window only",
+              "relationStatus": "candidate",
+              "causal": false
+            }
+          ],
+          "source": {"domain": "journal", "kind": "person_reflection", "id": "journal-2026-09-10-01"},
+          "epistemic": {"factClass": "reported_observation", "interpretationAuthority": "none"}
+        }
+      ],
+      "expectedSharedEngineBehavior": {
+        "journal": "permit both records on the same timeline/research spread",
+        "stateConsequence": "do not derive a human condition or required operation from sky state alone",
+        "composition": "may compare recurrence only when an explicit research question delegates that work; null/unresolved outcomes survive",
+        "clock": "external sky evidence affects scheduling only if a separately warranted timing rule establishes relevance"
+      }
+    }
+  ]
+}
