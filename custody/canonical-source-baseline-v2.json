@@ -1,0 +1,32 @@
+{
+  "contractVersion": 2,
+  "classification": "canonical_source_baseline",
+  "sealed": true,
+  "physicalProject": {
+    "name": "noel-core",
+    "projectRef": "zirqkouammpwxlqfbsvf"
+  },
+  "repositoryAuthority": "optical-lift/noel-core-db",
+  "inheritedHistoryFence": "20260825203448",
+  "canonicalSource": {
+    "firstVersion": "20260825212415",
+    "throughVersion": "20260830220912",
+    "postFenceMigrationCount": 310,
+    "manifestAlgorithm": "sha256(version|name|git_blob_sha1 joined by LF in ascending version order)",
+    "manifestSha256": "e743ee43f54dde1a397d4dea9426d346fbf75860ff46de0abd7529bc3aecee5a",
+    "byteAuthority": "supabase_migrations.schema_migrations.statements[1]",
+    "gitBlobIdentity": "sha1(blob <byte_length>\\0<exact_utf8_sql_bytes>)"
+  },
+  "forwardPolicy": {
+    "authority": "git_first",
+    "canonicalRepository": "optical-lift/noel-core-db",
+    "productionMayNotLeadCanonicalGit": true,
+    "newMigrationFilesMayExistInGitBeforeProduction": true,
+    "retrospectiveRecoveryRegistriesAreHistoricalOnly": true
+  },
+  "notes": [
+    "The v1 inherited-history fence remains immutable and is not rewritten by this baseline.",
+    "This baseline seals the exact post-fence production source set through 20260830220912 as canonical Git custody.",
+    "Migrations newer than this baseline are forward Git-first source and must never require a retrospective recovery registry."
+  ]
+}

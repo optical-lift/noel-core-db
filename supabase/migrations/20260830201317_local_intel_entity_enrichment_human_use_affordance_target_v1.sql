@@ -1,0 +1,2 @@
+alter table local_intel.entity_enrichment_targets drop constraint entity_enrichment_targets_target_kind_check;
+alter table local_intel.entity_enrichment_targets add constraint entity_enrichment_targets_target_kind_check check (target_kind = any (array['classification'::text,'official_site_contact'::text,'leadership_people'::text,'public_professional_email'::text,'employer_resolution'::text,'role_detail'::text,'exact_address_geocode'::text,'relationship_enrichment'::text,'hierarchy_resolution'::text,'contact_validation'::text,'human_use_affordance'::text]));
