@@ -8,45 +8,79 @@ declare
   v_signal jsonb;
   v_packet jsonb;
 begin
-  -- Accepted practitioner homework is a bounded rhythm requirement, not four
-  -- pre-created tasks and not an automatic Clock placement.
+  -- Accepted practitioner homework expressed as four satisfactions before a date
+  -- is a finite Goal requirement. It is not automatically a Rhythm and does not
+  -- become four pre-created tasks or an automatic Clock placement.
   v_signal := jsonb_build_object(
     'contractVersion','atlas_life_signal_v1',
-    'scope',jsonb_build_object('kind','person','id','fixture-person-rhythm'),
-    'subject',jsonb_build_object('domain','care','kind','care_requirement','id','fixture-mobility-rhythm'),
-    'signalKind','rhythm',
-    'state',jsonb_build_object('authorizationState','accepted'),
-    'timing',jsonb_build_object('mustBeSatisfiedBefore','2026-09-12','targetCount',4),
+    'scope',jsonb_build_object('kind','person','id','fixture-person-care-goal'),
+    'subject',jsonb_build_object('domain','care','kind','care_goal','id','fixture-mobility-goal'),
+    'signalKind','goal',
+    'state',jsonb_build_object(
+      'authorizationState','accepted',
+      'explicitUserEnd','Complete the accepted hip mobility practice four times before 2026-09-12'
+    ),
+    'timing',jsonb_build_object('mustBeSatisfiedBefore','2026-09-12'),
     'requirements',jsonb_build_array(jsonb_build_object(
-      'requirementKind','qualifying_satisfaction',
+      'requirementKey','hip_mobility_a_count',
+      'requirementKind','qualifying_satisfaction_count',
+      'phase','realize',
       'operationKey','hip_mobility_a',
-      'count',4
+      'targetCount',4
     )),
     'constraints','[]'::jsonb,
     'ambiguities','[]'::jsonb,
     'relations','[]'::jsonb,
-    'source',jsonb_build_object('domain','care_relationship','kind','person_acceptance','id','fixture-acceptance-rhythm'),
+    'source',jsonb_build_object('domain','care_relationship','kind','person_acceptance','id','fixture-acceptance-goal'),
     'epistemic',jsonb_build_object('factClass','authorized_requirement','interpretationAuthority','explicit_relationship')
   );
 
-  v_packet := atlas.life_signal_to_rhythm_packet_v1(v_signal);
+  v_packet := atlas.life_signal_to_goal_packet_v1(v_signal);
   if v_packet->>'definitionState' <> 'bounded' then
-    raise exception 'accepted care rhythm should be bounded';
+    raise exception 'accepted finite care goal should be bounded';
   end if;
-  if v_packet->>'authorizationState' <> 'accepted' then
-    raise exception 'rhythm authorization state must survive';
-  end if;
-  if jsonb_array_length(v_packet->'qualifyingRequirements') <> 1 then
-    raise exception 'rhythm qualifying requirement must survive without task fanout';
-  end if;
-  if v_packet->>'satisfactionState' <> 'not_evaluated' or v_packet->>'missState' <> 'unknown' then
-    raise exception 'packet must not invent satisfaction or miss state';
+  if (v_packet->>'requirementCount')::integer <> 1 then
+    raise exception 'accepted finite care goal must preserve one bounded requirement';
   end if;
   if coalesce((v_packet->'truthBoundary'->>'taskGenerationAuthority')::boolean,true) then
-    raise exception 'rhythm packet must not generate tasks';
+    raise exception 'finite care goal packet must not generate task fanout';
   end if;
   if coalesce((v_packet->'truthBoundary'->>'clockPlacementAuthority')::boolean,true) then
-    raise exception 'rhythm packet must not place Clock claims';
+    raise exception 'finite care goal packet must not place Clock claims';
+  end if;
+end
+$$;
+
+do $$
+declare
+  v_signal jsonb;
+  v_failed boolean := false;
+begin
+  -- Record-when-remembered is event-triggered Observation capture. It may not be
+  -- silently routed through Rhythm merely because the behavior can recur.
+  v_signal := jsonb_build_object(
+    'contractVersion','atlas_life_signal_v1',
+    'scope',jsonb_build_object('kind','person','id','fixture-person-dream-observation'),
+    'subject',jsonb_build_object('domain','dream','kind','dream_record','id','fixture-dream-record'),
+    'signalKind','observation',
+    'state',jsonb_build_object('recorded',true),
+    'timing','{}'::jsonb,
+    'requirements','[]'::jsonb,
+    'constraints','[]'::jsonb,
+    'ambiguities',jsonb_build_array('meaning_unresolved','cause_unresolved'),
+    'relations','[]'::jsonb,
+    'source',jsonb_build_object('domain','dream','kind','dream_record','id','fixture-dream-record'),
+    'epistemic',jsonb_build_object('factClass','remembered_experience','interpretationAuthority','none')
+  );
+
+  begin
+    perform atlas.life_signal_to_rhythm_packet_v1(v_signal);
+  exception when sqlstate '22023' then
+    v_failed := true;
+  end;
+
+  if not v_failed then
+    raise exception 'dream observation must not be silently promoted to Rhythm';
   end if;
 end
 $$;
@@ -55,34 +89,69 @@ do $$
 declare
   v_signal jsonb;
   v_packet jsonb;
+  v_eval jsonb;
+  v_last_satisfied timestamptz := '2026-09-01T09:00:00-05:00'::timestamptz;
 begin
-  -- A dream-capture rhythm may remain bounded by a conditional timing rule; lack
-  -- of a remembered dream is not inferred to be a failure from missing evidence.
+  -- An actual recurring cadence uses the explicit lease strategy. Each qualifying
+  -- satisfaction renews a seven-day validity interval. The generic evaluator
+  -- derives state only; it does not create tasks, transitions, or Clock slots.
   v_signal := jsonb_build_object(
     'contractVersion','atlas_life_signal_v1',
-    'scope',jsonb_build_object('kind','person','id','fixture-person-dream-rhythm'),
-    'subject',jsonb_build_object('domain','dream','kind','capture_practice','id','remembered-dream-capture'),
+    'scope',jsonb_build_object('kind','person','id','fixture-person-weekly-review'),
+    'subject',jsonb_build_object('domain','journal','kind','practice','id','weekly_review'),
     'signalKind','rhythm',
-    'state',jsonb_build_object('authorizationState','self_selected'),
-    'timing',jsonb_build_object('condition','when_a_dream_is_remembered'),
+    'state',jsonb_build_object('authorizationState','self_selected','rhythmModel','lease'),
+    'timing',jsonb_build_object(
+      'boundaryMode','exact_timestamp',
+      'validityIntervalSeconds',604800,
+      'warningWindowSeconds',86400,
+      'graceWindowSeconds',86400
+    ),
     'requirements',jsonb_build_array(jsonb_build_object(
       'requirementKind','qualifying_satisfaction',
-      'operationKey','record_remembered_dream',
-      'entryCondition','a dream is actually remembered'
+      'operationKey','complete_weekly_review'
     )),
     'constraints','[]'::jsonb,
     'ambiguities','[]'::jsonb,
     'relations','[]'::jsonb,
-    'source',jsonb_build_object('domain','dream','kind','practice_definition','id','remembered-dream-capture'),
+    'source',jsonb_build_object('domain','journal','kind','practice_definition','id','weekly-review-practice'),
     'epistemic',jsonb_build_object('factClass','explicit_practice','interpretationAuthority','person')
   );
 
   v_packet := atlas.life_signal_to_rhythm_packet_v1(v_signal);
-  if v_packet->>'missState' <> 'unknown' then
-    raise exception 'absence of a remembered dream may not be promoted to rhythm failure';
+  if v_packet->>'definitionState' <> 'bounded' or v_packet->>'rhythmModel' <> 'lease' or v_packet->>'strategyState' <> 'supported' then
+    raise exception 'explicit lease Rhythm must produce a supported bounded packet';
   end if;
-  if not coalesce((v_packet->'truthBoundary'->>'absenceOfSatisfactionEvidenceDoesNotProveFailure')::boolean,false) then
-    raise exception 'rhythm absence/failure boundary missing';
+
+  v_eval := atlas.evaluate_life_lease_rhythm_v1(v_packet,null,'2026-09-10T09:00:00-05:00'::timestamptz);
+  if v_eval->>'state' <> 'uninitialized' then
+    raise exception 'no prior satisfaction must remain uninitialized, not failed';
+  end if;
+
+  v_eval := atlas.evaluate_life_lease_rhythm_v1(v_packet,v_last_satisfied,'2026-09-07T08:59:00-05:00'::timestamptz);
+  if v_eval->>'state' <> 'resting' then
+    raise exception 'lease Rhythm should be resting before warning boundary';
+  end if;
+
+  v_eval := atlas.evaluate_life_lease_rhythm_v1(v_packet,v_last_satisfied,'2026-09-07T10:00:00-05:00'::timestamptz);
+  if v_eval->>'state' <> 'coming_due' then
+    raise exception 'lease Rhythm should become coming_due after warning boundary';
+  end if;
+
+  v_eval := atlas.evaluate_life_lease_rhythm_v1(v_packet,v_last_satisfied,'2026-09-08T10:00:00-05:00'::timestamptz);
+  if v_eval->>'state' <> 'due' then
+    raise exception 'lease Rhythm should become due after validity boundary';
+  end if;
+
+  v_eval := atlas.evaluate_life_lease_rhythm_v1(v_packet,v_last_satisfied,'2026-09-09T10:00:00-05:00'::timestamptz);
+  if v_eval->>'state' <> 'fallen_out_of_rhythm' then
+    raise exception 'lease Rhythm should cross failure boundary after grace interval';
+  end if;
+  if not coalesce((v_eval->'truthBoundary'->>'doesNotCreateTask')::boolean,false) then
+    raise exception 'generic lease evaluator must not create a task';
+  end if;
+  if not coalesce((v_eval->'truthBoundary'->>'doesNotArbitrateClock')::boolean,false) then
+    raise exception 'generic lease evaluator must not arbitrate Clock';
   end if;
 end
 $$;
