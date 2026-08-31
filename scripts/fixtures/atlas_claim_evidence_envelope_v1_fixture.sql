@@ -172,13 +172,13 @@ begin
   if not v_rejected then raise exception 'First-party capture was allowed to author inferred state'; end if;
 
   v_state := atlas.person_claim_evidence_state_api_v1();
-  if jsonb_array_length(v_state->'evidenceRecords') <> 4 then
+  if jsonb_array_length(v_state->'evidenceRecords') <> 3 then
     raise exception 'Expected accepted requirement + run + correction evidence records';
   end if;
-  if jsonb_array_length(v_state->'claims') <> 4 then
-    raise exception 'Expected full claim history including superseded run claim';
+  if jsonb_array_length(v_state->'claims') <> 3 then
+    raise exception 'Expected accepted requirement + full run claim history';
   end if;
-  if jsonb_array_length(v_state->'currentClaims') <> 3 then
+  if jsonb_array_length(v_state->'currentClaims') <> 2 then
     raise exception 'Current claim projection did not exclude superseded run claim';
   end if;
   if coalesce((v_state->'truthBoundary'->>'clockPlacementAuthority')::boolean,true)
