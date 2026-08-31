@@ -27,7 +27,7 @@ jobs:
     env:
       NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
       NOEL_CORE_SUPABASE_URL: https://zirqkouammpwxlqfbsvf.supabase.co
-      NOEL_CORE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_gslxsmYCJtt-f0RC9mIozw_uY8_Ztv1
+      NOEL_CORE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_3UCb5b3USJD24c2uX6B_4A_0XWDT6si
     steps:
       - uses: actions/checkout@v4
 
