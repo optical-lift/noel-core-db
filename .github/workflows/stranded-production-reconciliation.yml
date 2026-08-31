@@ -1,0 +1,62 @@
+name: One-Time Stranded Production Reconciliation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/stranded-production-reconciliation.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noel-core-production-database-release
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+      NOEL_CORE_SUPABASE_URL: https://zirqkouammpwxlqfbsvf.supabase.co
+      NOEL_CORE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_3UCb5b3USJD24c2uX6B_4A_0XWDT6si
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm governed production prerequisites
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NOEL_CORE_DATABASE_URL:-}" || {
+            echo "::error::The protected production environment is missing NOEL_CORE_DATABASE_URL."
+            exit 1
+          }
+          bash scripts/check-custody-trigger.sh
+          bash scripts/check-custody.sh
+          bash scripts/check-wnph-membrane.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-live-production-custody.sh
+
+      - name: Reconcile exact stranded canonical migrations
+        shell: bash
+        env:
+          GITHUB_RELEASE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          for version in \
+            20260831033500 \
+            20260831033600 \
+            20260831033700 \
+            20260831033800 \
+            20260831033900 \
+            20260831034938 \
+            20260831041000
+          do
+            bash scripts/release-production-migration.sh "$version"
+          done
+
+      - name: Verify live production after reconciliation
+        run: bash scripts/check-live-production-custody.sh
