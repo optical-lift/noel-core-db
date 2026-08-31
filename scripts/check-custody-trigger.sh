@@ -2,9 +2,15 @@
 set -euo pipefail
 
 workflow=".github/workflows/custody.yml"
+release_workflow=".github/workflows/production-db-release.yml"
 
 if [ ! -f "$workflow" ]; then
   echo "Missing $workflow"
+  exit 1
+fi
+
+if [ ! -f "$release_workflow" ]; then
+  echo "Missing $release_workflow"
   exit 1
 fi
 
@@ -23,9 +29,14 @@ grep -Fq '  workflow_dispatch:' "$workflow" || {
   exit 1
 }
 
+grep -Fq 'run: bash scripts/check-production-release-contract.sh' "$workflow" || {
+  echo "Custody workflow must guard the production database release seam."
+  exit 1
+}
+
 grep -Fq 'run: bash scripts/check-live-production-custody.sh' "$workflow" || {
   echo "Custody workflow must execute the exact live production source verifier."
   exit 1
 }
 
-echo "Custody trigger contract passed: Git events, 15-minute production watch, and manual verification are all enabled."
+echo "Custody trigger contract passed: Git events, 15-minute production watch, manual verification, and the governed production release seam are all enabled."
