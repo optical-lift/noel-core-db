@@ -30,5 +30,8 @@ jobs:
       - name: Verify WNPH product schema membrane
         run: bash scripts/check-wnph-membrane.sh
 
+      - name: Verify production release seam contract
+        run: bash scripts/check-production-release-contract.sh
+
       - name: Verify live production migration authority
         run: bash scripts/check-live-production-custody.sh
