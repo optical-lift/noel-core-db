@@ -183,8 +183,7 @@ set inventory_kind = 'bundle',
       'vocabularyMigration','flower_harvest_vocabulary_v1',
       'vocabularyNormalizedFrom','bunch',
       'canonicalInventoryKind','bundle'
-    ),
-    updated_at = now()
+    )
 where inventory_kind = 'bunch'
   and coalesce(metadata->>'outputKind','') = 'bundle'
   and coalesce(metadata->>'stemsPerUnit','') in ('5','10','20');
@@ -193,8 +192,7 @@ update atlas.flower_ready_inventory_lots
 set metadata = coalesce(metadata,'{}'::jsonb) || jsonb_build_object(
       'legacyVocabularyException','noncanonical_bundle_size',
       'flowerVocabularyVersion',1
-    ),
-    updated_at = now()
+    )
 where inventory_kind = 'bunch'
   and coalesce(metadata->>'outputKind','') = 'bundle'
   and coalesce(metadata->>'stemsPerUnit','') not in ('5','10','20');
