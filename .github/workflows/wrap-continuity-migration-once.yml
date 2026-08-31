@@ -1,0 +1,51 @@
+name: Wrap Continuity Migration Once
+
+on:
+  push:
+    branches:
+      - fix/continuity-migration-transaction-wrapper
+
+permissions:
+  contents: write
+
+jobs:
+  wrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/continuity-migration-transaction-wrapper
+          fetch-depth: 1
+
+      - name: Add governed transaction wrapper
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            architecture/atlas-communication-ledger-v1.sql
+            supabase/migrations/20260831193803_atlas_communication_ledger_v1.sql
+          )
+          changed=0
+          for file in "${files[@]}"; do
+            if [[ "$(head -n 1 "$file")" == "BEGIN;" ]]; then
+              continue
+            fi
+            tmp="$(mktemp)"
+            {
+              printf 'BEGIN;\n\n'
+              cat "$file"
+              printf '\n\nCOMMIT;\n'
+            } > "$tmp"
+            mv "$tmp" "$file"
+            changed=1
+          done
+          if [[ "$changed" -eq 0 ]]; then
+            echo 'Continuity migration already wrapped.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add architecture/atlas-communication-ledger-v1.sql supabase/migrations/20260831193803_atlas_communication_ledger_v1.sql
+          git commit -m 'Wrap Atlas Communication Ledger migration transaction'
+          git push origin HEAD:fix/continuity-migration-transaction-wrapper
