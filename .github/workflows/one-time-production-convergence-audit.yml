@@ -1,0 +1,61 @@
+name: One-Time Production Convergence Audit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/one-time-production-convergence-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare every canonical migration version with production
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NOEL_CORE_DATABASE_URL:-}"
+
+          find supabase/migrations -maxdepth 1 -type f -regextype posix-extended \
+            -regex '.*/[0-9]{14}_[A-Za-z0-9_]+\.sql' -printf '%f\n' \
+            | sed -E 's/^([0-9]{14})_.*/\1/' \
+            | sort -u > /tmp/source_versions.txt
+
+          psql "$NOEL_CORE_DATABASE_URL" -X -v ON_ERROR_STOP=1 -A -t \
+            -c "select version from supabase_migrations.schema_migrations order by version" \
+            | sort -u > /tmp/live_versions.txt
+
+          comm -23 /tmp/source_versions.txt /tmp/live_versions.txt > /tmp/source_only.txt
+          comm -13 /tmp/source_versions.txt /tmp/live_versions.txt > /tmp/live_only_all.txt
+
+          awk '$1 >= "20260825203448"' /tmp/live_only_all.txt > /tmp/live_only_post_fence.txt
+
+          echo "source_unique_versions=$(wc -l < /tmp/source_versions.txt)"
+          echo "production_versions=$(wc -l < /tmp/live_versions.txt)"
+          echo "source_only_count=$(wc -l < /tmp/source_only.txt)"
+          echo "live_only_post_fence_count=$(wc -l < /tmp/live_only_post_fence.txt)"
+          echo "source_latest=$(tail -1 /tmp/source_versions.txt)"
+          echo "production_latest=$(tail -1 /tmp/live_versions.txt)"
+
+          if [[ -s /tmp/source_only.txt ]]; then
+            echo "::error::Canonical source migration versions absent from production:"
+            cat /tmp/source_only.txt
+            exit 1
+          fi
+
+          if [[ -s /tmp/live_only_post_fence.txt ]]; then
+            echo "::error::Post-fence production migration versions absent from canonical source:"
+            cat /tmp/live_only_post_fence.txt
+            exit 1
+          fi
+
+          echo "Production convergence passed: every canonical migration version is represented in production, and every post-fence production version has canonical source custody."
