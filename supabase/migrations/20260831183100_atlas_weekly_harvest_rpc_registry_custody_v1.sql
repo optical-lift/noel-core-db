@@ -86,5 +86,3 @@ set
 select atlas.assert_authenticated_rpc_registry_complete_v1();
 
 commit;
-
-select pg_notify('pgrst', 'reload schema');
