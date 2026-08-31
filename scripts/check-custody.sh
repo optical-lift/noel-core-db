@@ -81,9 +81,10 @@ PY
 )
 
 fence_version="${baseline_values[0]}"
-# The baseline list records owners known at cutover. Reporting Core was created
-# post-cutover, so extend current ownership without rewriting the frozen baseline.
-owner_prefixes="${baseline_values[1]}|reporting"
+# The baseline list records owners known at cutover. These namespaces were
+# established post-cutover inside the same shared database authority. Extend
+# current ownership without rewriting the frozen production baseline.
+owner_prefixes="${baseline_values[1]}|reporting|local|canon|worker|composition"
 
 # Recovery registries are sealed historical exceptions. Pin the registry blobs
 # themselves so changing a recovery row requires an explicit new registry version.
