@@ -2,9 +2,9 @@
 
 ## Purpose
 
-Atlas should generalize intelligence by adapting domain truth into shared engines, not by cloning those engines per life domain and not by rewriting existing institutional machinery before its exact production custody is available.
+Atlas should generalize intelligence by adapting domain truth into shared engines, not by cloning those engines per life domain and not by forcing person-owned reality through farm-shaped persistence merely to reuse existing code.
 
-This document records the extraction status and required adapter boundaries for:
+This document records the extracted shared cores and the remaining persistence boundaries for:
 
 - Composition;
 - Rhythm;
@@ -12,19 +12,56 @@ This document records the extraction status and required adapter boundaries for:
 - State Consequence;
 - Clock.
 
-It is intentionally strict about what is implemented versus what is only specified.
+The constitutional rule remains:
+
+```text
+requirement != carrier != placement
+```
+
+A second rule is now explicit:
+
+```text
+shared reasoning != shared persistence identity
+```
+
+The live production catalog confirms that several existing engines contain reusable state logic while their current storage envelopes still require institutional identity such as `farm_id` and `organization_id`. Atlas must extract the reasoning without making a person masquerade as a farm.
+
+---
 
 ## Status summary
 
-| Engine | Current source-custody status | Life adapter status | Rule |
+| Engine | Live/source finding | Generic Life status | Persistence status |
 | --- | --- | --- | --- |
-| Composition | source-custodied on current repo ledger | **implemented** as pure JSON compatibility adapter | life requirements may become active claims; no invented carriers, sequence, causation, or delegation |
-| Rhythm | visible source includes farm-specific `rhythm_templates`; generic production foundation is not yet safely source-custodied here | **specified, not persisted** | do not universalize farm schedule-template schema |
-| Goal | generic production foundation known architecturally but not safely source-custodied on current ledger | **specified, not persisted** | desired end and requirements remain independent truths |
-| State Consequence | farm-specific consequence use is source-visible; generic production foundation is not safely source-custodied on current ledger | **specified, not persisted** | established condition may require operation/truth/repair/preparation; carrier remains separate |
-| Clock | existing Atlas arbitration machinery is downstream of established claims | **contract specified; no life-specific Clock write added** | Clock arbitrates truth; it cannot manufacture it |
+| Composition | shared Composition runtime is source-custodied and already accepts normalized signals | **implemented** | no new domain persistence needed |
+| Rhythm | live engine has versioned rules, bindings, satisfactions, state, transitions, and Clock resolution, but current storage is organization/farm-bound | **lease strategy extracted** | person persistence adapter not implemented |
+| Goal | live Goal state logic is reusable, but current `goals` / evaluations are farm-bound and requirement providers are domain-specific | **generic reducer extracted** | person persistence adapter not implemented |
+| State Consequence | live policy/reconciliation logic is reusable, but instances/events require farm identity | **generic matcher extracted** | person persistence adapter not implemented |
+| Clock | existing Atlas Clock/arbitration machinery is downstream of established claims | **contract specified** | no life-specific Clock writer added |
 
-The source-custody gap is tracked by the existing production-tail convergence work. This branch must not invent table/function signatures merely to make the architecture look complete.
+No generic Life migration on this branch inserts person-owned state into farm-bound engine tables.
+
+---
+
+## Engine-routing rule
+
+Not every repeated or time-adjacent fact is a Rhythm.
+
+Use the smallest engine whose semantics are actually established:
+
+| Reality | Primary engine |
+| --- | --- |
+| something happened / was remembered / was observed | Observation / Journal |
+| a bounded outcome is desired | Goal |
+| a finite quota must be satisfied before a boundary | Goal requirement |
+| a qualifying satisfaction renews validity for a recurring interval | Rhythm (`lease` strategy in v1) |
+| an established state warrants truth acquisition, preparation, repair, or another operation | State Consequence |
+| multiple established claims need temporal arbitration | Clock |
+
+Examples:
+
+- “Complete this accepted exercise four times before Friday” is a finite requirement. It is not automatically Rhythm.
+- “Record a dream if one is remembered” is event-triggered Observation capture. A night with no remembered dream is not Rhythm failure.
+- “Perform a weekly household review; each completed review renews the cadence for seven days” is a lease Rhythm.
 
 ---
 
@@ -42,8 +79,6 @@ Functions:
 atlas.validate_life_signal_v1(jsonb)
 atlas.life_signal_to_composition_signals_v1(jsonb)
 ```
-
-The adapter targets the already source-custodied `composition_signals_v1` contract used by shared Composition.
 
 ### Mapping
 
@@ -72,9 +107,7 @@ composition_signals_v1
   provenance
 ```
 
-Each supplied requirement may become an `active_claim`.
-
-The adapter does not create a carrier when none was established by the source domain. This is important because shared Composition can preserve an active/protected claim without being allowed to fabricate a concrete journey step.
+Each supplied requirement may become an active claim. The adapter cannot invent a carrier when none was established by the source domain.
 
 ### Authority boundaries
 
@@ -91,58 +124,108 @@ The adapter cannot:
 
 Composition delegation remains owned by the existing request-envelope epistemic firewall.
 
-A goal enters Composition as `explicit_user_end` only when the domain adapter has explicitly supplied `state.explicitUserEnd`.
+A Goal enters Composition as `explicit_user_end` only when the domain explicitly supplies `state.explicitUserEnd`.
 
 ---
 
-## Rhythm adapter — specified, not persisted
+## Rhythm — lease strategy extracted
 
-### Why no database bridge is added yet
-
-The source-visible `atlas.rhythm_templates` usage is an Elm/farm schedule-template surface. It contains seasonal/public-calendar vocabulary such as farm, season, weekday, work key, zones, and default duration.
-
-That shape is useful for its current domain. It is not sufficient evidence that it is the universal Rhythm identity or state machine Atlas should use for a person's body care, dream capture, household maintenance, study, or training.
-
-The generic Rhythm foundation must therefore be adapted only after its exact production schema/function custody is available in source.
-
-### Required Rhythm input contract
-
-A life Rhythm adapter must accept only an already-authorized RhythmSignal containing enough evidence to establish:
+Migrations:
 
 ```text
-scope
-subject
-source/provenance
-authorization state
-qualifying satisfaction definition
-timing/cadence boundary
-miss semantics, if independently warranted
-recovery semantics, if independently warranted
+20260831144000_atlas_life_engine_packets_v1.sql
+20260831152000_atlas_life_rhythm_lease_core_v1.sql
 ```
 
-### Required distinctions
+Functions:
 
-Rhythm must distinguish:
+```text
+atlas.life_signal_to_rhythm_packet_v1(jsonb)
+atlas.evaluate_life_lease_rhythm_v1(jsonb, timestamptz, timestamptz)
+```
 
-1. **cadence exists** from **a qualifying satisfaction happened**;
-2. **no satisfaction evidence** from **known failure**;
-3. **missed boundary** from **moral/productivity debt**;
-4. **requirement exists** from **a task/carrier has been selected**;
-5. **ordinary cadence** from **condition-triggered reassessment**.
+### What live Atlas Rhythm actually does
 
-Example: a dream-capture practice may define “record a remembered dream when one is remembered.” A night with no remembered dream cannot be classified as rhythm failure merely because no Journal event exists.
+The live engine is not merely a recurring-task table. It has:
 
-Example: accepted practitioner homework may establish four qualifying satisfactions before a date. Rhythm should count proven satisfactions; it should not manufacture four recurring tasks as the canonical truth of the requirement.
+- versioned Rhythm rules;
+- bindings to subjects;
+- qualifying satisfactions;
+- state and transition history;
+- warning, due, and failure boundaries;
+- Clock-time resolution;
+- legacy task creation at due/failure boundaries.
 
-### Future adapter output
+The reusable state-machine center is a **lease** model:
 
-The generic Rhythm bridge should produce normalized rhythm state/claims that can later feed Composition/Clock, while retaining the originating Life Subject and source provenance.
+```text
+qualifying satisfaction
+        ↓
+validity interval begins / renews
+        ↓
+resting
+        ↓ warning boundary
+coming_due
+        ↓ due boundary
+due
+        ↓ grace/failure boundary
+fallen_out_of_rhythm
+```
 
-It must not require farm identity as a semantic prerequisite. If the existing generic production engine still contains institutional custody columns, those should be crossed through an explicit compatibility adapter rather than silently treating a person as a farm.
+If no qualifying satisfaction has ever been established, the generic state is:
+
+```text
+uninitialized
+```
+
+—not failure.
+
+### Generic extraction
+
+`atlas.evaluate_life_lease_rhythm_v1` reproduces only the state reduction. It deliberately removes:
+
+- task creation;
+- planned occurrence creation;
+- transition persistence;
+- farm membership assumptions;
+- Clock arbitration.
+
+The packet must explicitly declare:
+
+```json
+{"rhythmModel":"lease"}
+```
+
+v1 does not guess a Rhythm strategy from words such as “weekly,” “practice,” or “routine.”
+
+### Current persistence boundary
+
+The live Rhythm storage envelope requires institutional columns including non-null `organization_id` and `farm_id`, and current state identity expects UUID subjects. Those are not faithful generic identities for person-owned Life Subjects such as:
+
+```text
+body/body_region/left_hip
+journal/practice/weekly_review
+```
+
+Therefore this branch does not persist person Rhythm into live farm Rhythm tables.
 
 ---
 
-## Goal adapter — specified, not persisted
+## Goal — generic reducer extracted
+
+Migrations:
+
+```text
+20260831144000_atlas_life_engine_packets_v1.sql
+20260831150000_atlas_life_goal_consequence_core_v1.sql
+```
+
+Functions:
+
+```text
+atlas.life_signal_to_goal_packet_v1(jsonb)
+atlas.evaluate_life_goal_state_v1(jsonb, jsonb)
+```
 
 ### Core contract
 
@@ -153,12 +236,10 @@ explicit desired end
 +
 independently warranted requirements
 +
-current evidence of requirement satisfaction / unresolved state
+independently evaluated requirement results
 ```
 
 Those are separate truths.
-
-A GoalSignal must never allow Atlas to infer customary domain requirements merely from the goal label.
 
 For example:
 
@@ -166,53 +247,73 @@ For example:
 Goal: Complete a 5K
 ```
 
-may establish the desired end because the person explicitly chose it.
+may establish the desired end because the person explicitly chose it. It does not by itself prove:
 
-It does **not** by itself prove:
+- training frequency;
+- weekly mileage;
+- pace target;
+- strength plan;
+- diet plan;
+- recovery protocol;
+- race date;
+- any specific training method.
 
-- a training frequency;
-- a weekly mileage target;
-- a pace target;
-- a strength plan;
-- a diet plan;
-- a recovery protocol;
-- a race date;
-- that any specific training method is required.
+### Generic state reducer
 
-Those requirements need their own source/warrant.
-
-### Requirement satisfaction
-
-A result may satisfy a Goal requirement only through a separately established mapping between:
+The extracted reducer consumes requirement results supplied by domain-owned providers and derives:
 
 ```text
-canonical result
-→ qualifying requirement condition
+defined
+locked
+tracking
+playable
+in_production
+realized
 ```
 
-Temporal proximity, matching words, or membership in the same Journal Thread are not enough.
+Requirement phases remain:
 
-### Goal -> Composition
+```text
+gate
+progress
+realize
+```
 
-An explicit desired end may be supplied as `explicitUserEnd`.
+Missing provider evidence becomes:
 
-Independently warranted unsatisfied requirements may become active Composition claims.
+```text
+unknown
+```
 
-Unresolved requirement truth remains unresolved. Composition is not allowed to fill missing Goal structure for convenience.
+—not unmet.
+
+The generic reducer does not query farms or tasks, apply Elm-specific near-threshold display policy, select a next task, release work, or arbitrate Clock.
+
+### Current persistence boundary
+
+Live Goal storage requires non-null `farm_id`, and live requirement providers include farm/task/crop/resource-specific predicates. Those providers may remain valid farm adapters. Person-owned goals need a separate custody adapter into the generic reducer rather than fake farm identity.
 
 ---
 
-## State Consequence adapter — specified, not persisted
+## State Consequence — generic matcher extracted
 
-### Existing evidence
+Migrations:
 
-Source-visible farm migrations already demonstrate consequence classification in specific operational contexts, such as bed-readiness work whose delay keeps downstream planting blocked.
+```text
+20260831144000_atlas_life_engine_packets_v1.sql
+20260831150000_atlas_life_goal_consequence_core_v1.sql
+```
 
-That proves consequence reasoning is useful, but it does not make farm queue fields the universal consequence API.
+Functions:
+
+```text
+atlas.life_signal_to_consequence_packet_v1(jsonb)
+atlas.evaluate_life_state_consequence_policies_v1(jsonb, jsonb)
+```
 
 ### Generic consequence roles
 
-The shared Life Signal contract preserves at least these consequence roles:
+v1 preserves these shared roles:
 
 ```text
 operation_requirement
@@ -221,16 +322,14 @@ repair
 preparation
 ```
 
-The role describes what the established state requires next.
-
-It is not the same thing as a task type.
+The role describes what an established state requires next. It is not a task type.
 
 ### Required flow
 
 ```text
 established condition
       ↓
-condition-to-consequence rule with provenance
+explicit condition-to-consequence policy
       ↓
 required consequence role
       ↓
@@ -243,24 +342,13 @@ possibly a Clock claim
 
 Every arrow is a separate authority seam.
 
-### Human task is optional
+The generic matcher uses explicit JSON snapshot containment against explicit policy predicates. It creates no consequence instance, task, carrier, execution warrant, or Clock placement.
 
-A consequence may be real without a current human task carrier.
+A carrier survives only when the policy explicitly supplies one.
 
-Examples:
+### Current persistence boundary
 
-- `truth_acquisition`: more evidence is required before a run decision, but no exact reassessment carrier/time has been selected;
-- `repair`: a body condition requires an independently authorized care operation, but Atlas has not selected who performs it;
-- `preparation`: a state requires preparation before an event, while the exact task decomposition remains unresolved;
-- `operation_requirement`: a known operation is required, but current capability/jurisdiction may leave it in a hold/handoff pool.
-
-This distinction is essential for existing Atlas capability-hold behavior as well as person/body domains.
-
-### Causation boundary
-
-A state consequence rule needs its own warrant.
-
-Journal linkage, Thread co-occurrence, bodily proximity, date proximity, or external sky state cannot establish the rule by themselves.
+Live State Consequence policies can be broader than one farm, but live consequence instances/events still require non-null `farm_id`. Person-owned consequences therefore remain generic evaluator output on this branch rather than farm-bound persisted instances.
 
 ---
 
@@ -285,23 +373,21 @@ miss/displacement consequence
 provenance
 ```
 
-Clock may decide *where* competing established claims fit.
+Clock may decide where competing established claims fit.
 
 Clock may not decide:
 
 - that a body condition exists because a recovery block was scheduled;
 - that a Goal requirement exists because a training session was placed;
 - that a Rhythm failed because nothing was placed;
-- that practitioner advice is authorized because it appeared in the calendar;
+- that practitioner advice is authorized because it appeared in a calendar;
 - that two observations are causally related because they occurred in the same window.
 
-A placement is an output of arbitration, never retroactive evidence for the originating truth.
+A placement is an output of arbitration, never retroactive evidence for originating truth.
 
 ---
 
 ## Cross-engine invariant: requirement != carrier != placement
-
-This is the most important extraction rule in the tranche.
 
 ```text
 REQUIREMENT
@@ -314,9 +400,9 @@ PLACEMENT
 when/where Clock chooses to execute it
 ```
 
-They may eventually all be known, but they must never collapse into one database row merely because a task UI wants a convenient card.
+They may eventually all be known, but they must never collapse into one row merely because a UI wants a convenient task card.
 
-This rule allows Atlas to represent:
+This allows Atlas to represent:
 
 - required work waiting for a specialist;
 - care requiring person acceptance before scheduling;
@@ -329,27 +415,33 @@ This rule allows Atlas to represent:
 
 ## Cross-domain fixture expectations
 
-The current life fixtures establish the expected adapter behavior:
-
 ### 5K + body observation
 
 - run result and body observation remain separate canonical sources;
 - both may join the same Journal conversation;
-- the body observation does not automatically cancel or schedule training;
-- a later consequence rule may request truth acquisition if independently warranted.
+- body observation does not automatically cancel or schedule training;
+- a later explicit consequence policy may request truth acquisition if independently warranted.
 
 ### Practitioner homework
 
 - recommendation and person acceptance remain separate events;
-- only accepted/authorized requirement crosses into person Rhythm;
-- qualifying satisfactions are counted from evidence;
-- exact placement remains downstream of Rhythm/Composition/Clock.
+- accepted “four times before Friday” work is modeled as a bounded Goal requirement, not automatically Rhythm;
+- qualifying evidence may satisfy the requirement without manufacturing four task rows;
+- exact placement remains downstream of Goal / Composition / Clock.
 
 ### Dream
 
 - canonical remembered experience may enter Journal;
 - no interpretation or operation requirement is mandatory;
-- a capture rhythm does not classify absence of remembered content as failure.
+- “record when remembered” is event-triggered Observation capture, not a Rhythm failure model;
+- a separate explicit cadence could be added later if the person actually defines one.
+
+### Lease Rhythm
+
+- an explicit recurring cadence declares `rhythmModel=lease`;
+- no prior satisfaction remains `uninitialized`;
+- after satisfaction, state moves through resting / coming_due / due / fallen_out_of_rhythm according to explicit interval parameters;
+- the generic evaluator creates no task and no Clock placement.
 
 ### Sky research + person timeline
 
@@ -359,18 +451,17 @@ The current life fixtures establish the expected adapter behavior:
 
 ---
 
-## Implementation order after production custody convergence
-
-Once the exact live generic schemas are source-custodied, implement in this order:
+## Next implementation order
 
 ```text
-1. LifeSubjectRef compatibility keying
-2. RhythmSignal -> existing generic Rhythm adapter
-3. GoalSignal -> existing generic Goal adapter
-4. Condition/ConsequenceSignal -> existing State Consequence adapter
-5. project those established claims into Composition
+1. finish fixture coverage for extracted Rhythm / Goal / Consequence cores
+2. keep farm providers and persistence unchanged
+3. define person-owned persistence/custody envelopes without fake farm identity
+4. adapt person Goal/Rhythm/Consequence state into the shared reducers
+5. project eligible established claims into Composition
 6. project eligible claims into Clock
 7. verify Journal/result observations close the loop without circular inference
+8. only then project the shared truth graph into Bullet Journal UI
 ```
 
-Do not begin by changing Bullet Journal UI or creating domain-specific task tables. The UI should become a projection over the shared truth graph after the engine seams are proven.
+Do not create domain-specific task engines for health, fitness, dreams, household care, or study. The product surface should remain a projection over shared Life Subjects, evidence, requirements, reducers, and Clock arbitration.
