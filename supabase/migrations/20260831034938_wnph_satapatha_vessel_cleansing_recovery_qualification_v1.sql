@@ -1,3 +1,5 @@
+begin;
+
 -- WNPH Satapatha Brahmana / Eggeling 1882 vessel-cleansing recovery qualification v1.
 -- Append-only correction: the immutable intake shorthand pp. 68-71 is superseded
 -- by governed evidence/briefing establishing I.3.1.1-11 on printed pp. 67-71.
@@ -262,3 +264,5 @@ begin
       'blocked_on','exact Internet Archive scan-image mapping and page-image verification'),
     jsonb_build_object('text_authority','none_yet','ocr_role','locating_aid_only','modern_transcription_role','comparison_only','canonical_text_admitted',false));
 end $$;
+
+commit;
