@@ -17,6 +17,11 @@ declare
   v_work_d uuid;
   v_alloc_a_old uuid;
   v_alloc_d uuid;
+  v_base_total bigint;
+  v_base_unassigned bigint;
+  v_base_allocated bigint;
+  v_base_waiting bigint;
+  v_base_conflict bigint;
   v_total bigint;
   v_unassigned bigint;
   v_allocated bigint;
@@ -25,15 +30,30 @@ declare
   v_history_count bigint;
   v_active_count bigint;
 begin
-  select min(id), max(id)
-    into v_member_a, v_member_b
+  select id
+    into v_member_a
   from atlas.organization_memberships
   where organization_id = v_org
-    and active;
+    and active
+  order by id
+  limit 1;
 
-  if v_member_a is null or v_member_b is null or v_member_a = v_member_b then
+  select id
+    into v_member_b
+  from atlas.organization_memberships
+  where organization_id = v_org
+    and active
+    and id <> v_member_a
+  order by id
+  limit 1;
+
+  if v_member_a is null or v_member_b is null then
     raise exception 'Fixture requires at least two active memberships in organization %', v_org;
   end if;
+
+  select total_open, unassigned, allocated, waiting_dependency, planning_conflict
+    into v_base_total, v_base_unassigned, v_base_allocated, v_base_waiting, v_base_conflict
+  from atlas.company_open_work_accounting_v1(v_org);
 
   insert into atlas.work_requirements (
     organization_id,
@@ -193,8 +213,13 @@ begin
     into v_total, v_unassigned, v_allocated, v_waiting, v_conflict
   from atlas.company_open_work_accounting_v1(v_org);
 
-  if (v_total, v_unassigned, v_allocated, v_waiting, v_conflict) <> (4::bigint, 1::bigint, 1::bigint, 1::bigint, 1::bigint) then
-    raise exception 'Unexpected company work accounting: total %, unassigned %, allocated %, waiting %, conflict %',
+  if v_total <> v_base_total + 4
+     or v_unassigned <> v_base_unassigned + 1
+     or v_allocated <> v_base_allocated + 1
+     or v_waiting <> v_base_waiting + 1
+     or v_conflict <> v_base_conflict + 1 then
+    raise exception 'Unexpected company work accounting delta: baseline (%,%,%,%,%), after (%,%,%,%,%)',
+      v_base_total, v_base_unassigned, v_base_allocated, v_base_waiting, v_base_conflict,
       v_total, v_unassigned, v_allocated, v_waiting, v_conflict;
   end if;
 
@@ -238,7 +263,7 @@ begin
     raise exception 'Reassignment changed or erased Work Item identity';
   end if;
 
-  raise notice 'PASS atlas_company_work_kernel_v1: 4/4 accounted; dependency visible; planning conflict explicit; reassignment preserved identity';
+  raise notice 'PASS atlas_company_work_kernel_v1: +4 work accounted; dependency visible; planning conflict explicit; reassignment preserved identity';
 end
 $$;
 
