@@ -162,9 +162,11 @@ begin
   ) d;
 
   v_cards:=atlas.worker_day_operational_task_cards_v3(p_farm_id,p_membership_id,p_day,v_task_ids);
-  select coalesce(jsonb_agg(card-'move_context' order by array_position(v_task_ids,nullif(card->>'task_id','')::uuid)),'[]'::jsonb)
-    into v_safe_cards
-  from jsonb_array_elements(v_cards) card;
+  select coalesce(
+    jsonb_agg(cards.card-'move_context' order by array_position(v_task_ids,nullif(cards.card->>'task_id','')::uuid)),
+    '[]'::jsonb
+  ) into v_safe_cards
+  from jsonb_array_elements(v_cards) as cards(card);
 
   return jsonb_build_object(
     'contractVersion','worker_self_day_bundle_execution_lease_v1',
