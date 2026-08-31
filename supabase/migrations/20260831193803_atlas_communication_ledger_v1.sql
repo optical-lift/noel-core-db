@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Atlas Communication Ledger v1 schema proof.
 --
 -- Executable reviewed source only. This is NOT a canonical migration.
@@ -600,3 +602,6 @@ $function$;
 
 revoke all on function atlas.communication_source_health_self_api_v1() from public, anon;
 grant execute on function atlas.communication_source_health_self_api_v1() to authenticated, service_role;
+
+
+COMMIT;
