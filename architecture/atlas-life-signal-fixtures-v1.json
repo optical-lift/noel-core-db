@@ -66,7 +66,7 @@
     },
     {
       "fixtureKey": "practitioner_homework_received_then_accepted",
-      "purpose": "A practitioner recommendation and the person's accepted care requirement remain distinct authority events before Clock placement.",
+      "purpose": "A practitioner recommendation and the person's accepted finite care requirement remain distinct authority events before Goal evaluation and Clock placement.",
       "canonicalSources": [
         {
           "sourceDomain": "care_relationship",
@@ -91,12 +91,21 @@
       "normalizedSignals": [
         {
           "scope": {"kind": "person", "id": "person-custody-b"},
-          "subject": {"domain": "care", "kind": "care_requirement", "id": "hip_mobility_a_before_2026_09_12"},
-          "signalKind": "rhythm",
-          "state": {"authorizationState": "accepted"},
-          "timing": {"mustBeSatisfiedBefore": "2026-09-12", "targetCount": 4},
+          "subject": {"domain": "care", "kind": "care_goal", "id": "hip_mobility_a_before_2026_09_12"},
+          "signalKind": "goal",
+          "state": {
+            "authorizationState": "accepted",
+            "explicitUserEnd": "Complete the accepted hip mobility practice four times before 2026-09-12"
+          },
+          "timing": {"mustBeSatisfiedBefore": "2026-09-12"},
           "requirements": [
-            {"requirementKind": "qualifying_satisfaction", "operationKey": "hip_mobility_a", "count": 4}
+            {
+              "requirementKey": "hip_mobility_a_count",
+              "requirementKind": "qualifying_satisfaction_count",
+              "phase": "realize",
+              "operationKey": "hip_mobility_a",
+              "targetCount": 4
+            }
           ],
           "constraints": [],
           "ambiguities": [],
@@ -114,15 +123,16 @@
         }
       ],
       "expectedSharedEngineBehavior": {
-        "rhythm": "track four qualifying satisfactions before the stated boundary; do not duplicate the practitioner recommendation as four tasks",
+        "goal": "track independently proven qualifying satisfactions toward the finite four-before-date requirement without manufacturing four tasks",
+        "rhythm": "no Rhythm is inferred from the finite quota; a separate ongoing cadence would need its own explicit Rhythm definition",
         "stateConsequence": "an accepted care requirement may create operation requirements, while the recommendation alone does not silently seize the person's Clock",
-        "composition": "may propose fitting opportunities inside the person's actual constraints",
+        "composition": "may preserve the accepted finite requirement and propose fitting opportunities inside the person's actual constraints",
         "clock": "may place accepted care claims only after upstream authorization; practitioner does not choose exact placement by default"
       }
     },
     {
       "fixtureKey": "dream_record_without_interpretation",
-      "purpose": "A remembered dream is canonical as a remembered experience without an automatically required interpretation, task, or causal link.",
+      "purpose": "A remembered dream is canonical as a remembered experience without an automatically required interpretation, task, causal link, or Rhythm state.",
       "canonicalSources": [
         {
           "sourceDomain": "dream",
@@ -150,10 +160,58 @@
       ],
       "expectedSharedEngineBehavior": {
         "journal": "record the dream in the lived timeline and permit later explicit links",
-        "rhythm": "a dream-capture practice may be satisfied when a remembered dream is recorded; absence of a remembered dream is not failure",
+        "rhythm": "none is inferred; record-when-remembered is event-triggered observation capture unless the person separately defines a cadence",
         "stateConsequence": "no automatic operation requirement",
         "composition": "if the person explicitly asks a research question, compose research inside evidence boundaries rather than inventing meaning",
         "clock": "no claim is created merely because a dream exists"
+      }
+    },
+    {
+      "fixtureKey": "weekly_review_lease_rhythm",
+      "purpose": "An explicitly recurring practice may use the extracted lease Rhythm model when each qualifying satisfaction renews a bounded validity interval.",
+      "canonicalSources": [
+        {
+          "sourceDomain": "journal",
+          "sourceKind": "practice_definition",
+          "sourceId": "weekly-review-practice-01",
+          "facts": {
+            "practiceKey": "weekly_review",
+            "validityIntervalSeconds": 604800,
+            "warningWindowSeconds": 86400,
+            "graceWindowSeconds": 86400
+          }
+        }
+      ],
+      "normalizedSignals": [
+        {
+          "scope": {"kind": "person", "id": "person-custody-rhythm-a"},
+          "subject": {"domain": "journal", "kind": "practice", "id": "weekly_review"},
+          "signalKind": "rhythm",
+          "state": {"authorizationState": "self_selected", "rhythmModel": "lease"},
+          "timing": {
+            "boundaryMode": "exact_timestamp",
+            "validityIntervalSeconds": 604800,
+            "warningWindowSeconds": 86400,
+            "graceWindowSeconds": 86400
+          },
+          "requirements": [
+            {
+              "requirementKind": "qualifying_satisfaction",
+              "operationKey": "complete_weekly_review"
+            }
+          ],
+          "constraints": [],
+          "ambiguities": [],
+          "relations": [],
+          "source": {"domain": "journal", "kind": "practice_definition", "id": "weekly-review-practice-01"},
+          "epistemic": {"factClass": "explicit_practice", "interpretationAuthority": "person"}
+        }
+      ],
+      "expectedSharedEngineBehavior": {
+        "rhythm": "without prior satisfaction state remains uninitialized; after satisfaction the explicit lease parameters alone determine resting, coming_due, due, and fallen_out_of_rhythm",
+        "stateConsequence": "Rhythm state alone does not select a carrier or task unless a separate consequence policy warrants one",
+        "composition": "may receive an established due claim without inventing the originating cadence",
+        "clock": "may arbitrate an eligible due claim downstream, but placement cannot retroactively prove Rhythm satisfaction or failure"
       }
     },
     {
