@@ -743,7 +743,7 @@ values
   ),
   (
     'atlas.person_rhythm_opportunities_self_api_v1(integer)',
-    'app_read','verified','active',true,true,true,0,0,
+    'app_endpoint','verified','active',true,true,true,0,0,
     jsonb_build_object(
       'purpose','Read the signed-in person upcoming Rhythm opportunity projection.',
       'authorizationBoundary','SECURITY DEFINER fixes custody to auth.uid(); read only.',
