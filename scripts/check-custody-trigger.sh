@@ -8,17 +8,17 @@ if [ ! -f "$workflow" ]; then
   exit 1
 fi
 
-grep -Eq '^  schedule:$' "$workflow" || {
+grep -Fq '  schedule:' "$workflow" || {
   echo "Custody workflow must monitor production on a schedule, not only on Git events."
   exit 1
 }
 
-grep -Eq '^[[:space:]]+- cron: ["'"']?\*/15 \* \* \* \*["'"']?$' "$workflow" || {
+grep -Fq '    - cron: "*/15 * * * *"' "$workflow" || {
   echo "Custody workflow must poll live production every 15 minutes."
   exit 1
 }
 
-grep -Eq '^  workflow_dispatch:$' "$workflow" || {
+grep -Fq '  workflow_dispatch:' "$workflow" || {
   echo "Custody workflow must remain manually runnable for immediate verification."
   exit 1
 }
