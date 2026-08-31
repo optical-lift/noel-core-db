@@ -1,0 +1,72 @@
+name: Production Database Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      migration_version:
+        description: "Exact 14-digit migration version already merged to main"
+        required: true
+        type: string
+      confirm_project_ref:
+        description: "Type the production project ref to confirm the target"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noel-core-production-database-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+      NOEL_CORE_SUPABASE_URL: https://zirqkouammpwxlqfbsvf.supabase.co
+      NOEL_CORE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_3UCb5b3USJD24c2uX6B_4A_0XWDT6si
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Confirm production target
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ inputs.confirm_project_ref }}" != "zirqkouammpwxlqfbsvf" ]]; then
+            echo "::error::Production target confirmation did not match noel-core."
+            exit 1
+          fi
+          if [[ ! "${{ inputs.migration_version }}" =~ ^[0-9]{14}$ ]]; then
+            echo "::error::migration_version must be exactly 14 digits."
+            exit 1
+          fi
+          if [[ -z "${NOEL_CORE_DATABASE_URL:-}" ]]; then
+            echo "::error::The protected production environment is missing the NOEL_CORE_DATABASE_URL secret."
+            exit 1
+          fi
+
+      - name: Verify repository custody contract
+        run: bash scripts/check-custody-trigger.sh
+
+      - name: Verify source custody
+        run: bash scripts/check-custody.sh
+
+      - name: Verify WNPH membrane
+        run: bash scripts/check-wnph-membrane.sh
+
+      - name: Verify release seam contract
+        run: bash scripts/check-production-release-contract.sh
+
+      - name: Verify live production before release
+        run: bash scripts/check-live-production-custody.sh
+
+      - name: Release exact canonical migration
+        env:
+          GITHUB_RELEASE_SHA: ${{ github.sha }}
+        run: bash scripts/release-production-migration.sh "${{ inputs.migration_version }}"
+
+      - name: Verify live production after release
+        run: bash scripts/check-live-production-custody.sh
