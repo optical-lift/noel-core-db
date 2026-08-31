@@ -734,7 +734,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.create_person_life_definition_api_v1(p_payload jsonb)',
+    'atlas.create_person_life_definition_api_v1(jsonb)',
     'app_endpoint','verified','active',true,true,true,0,0,
     jsonb_build_object(
       'purpose','Persist a first-party Goal, explicit Rhythm, or State Consequence definition from a validated Life Signal.',
@@ -743,7 +743,7 @@ values
     ),now(),false
   ),
   (
-    'atlas.record_person_life_state_api_v1(p_definition_id uuid, p_payload jsonb)',
+    'atlas.record_person_life_state_api_v1(uuid, jsonb)',
     'app_endpoint','verified','active',true,true,true,0,0,
     jsonb_build_object(
       'purpose','Record first-party evidence and reducer evaluations for an owned life definition.',
@@ -773,6 +773,12 @@ on conflict (signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-select atlas.assert_authenticated_rpc_registry_complete_v1();
+do $$
+begin
+  if exists (select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
+    raise exception 'Authenticated RPC registry remains incomplete after person-life persistence registration.';
+  end if;
+end
+$$;
 
 commit;
