@@ -1,0 +1,2 @@
+grant execute on function atlas.get_worker_day_composition_signals_v4(uuid,date) to service_role;
+revoke execute on function atlas.get_worker_day_composition_signals_v4(uuid,date) from anon,authenticated;

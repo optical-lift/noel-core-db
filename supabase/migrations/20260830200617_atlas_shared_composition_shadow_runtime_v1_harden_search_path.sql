@@ -1,0 +1,1 @@
+alter function atlas.create_shadow_composition_run_v1(uuid,text,text,jsonb,text[]) set search_path = pg_catalog;
