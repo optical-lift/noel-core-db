@@ -407,6 +407,16 @@ begin
 end
 $$;
 
+create or replace function mark.guard_append_only_v1()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, mark
+as $$
+begin
+  raise exception 'MARK_APPEND_ONLY: %.% does not permit %', tg_table_schema, tg_table_name, lower(tg_op);
+end
+$$;
+
 create or replace function mark.touch_updated_at_v1()
 returns trigger
 language plpgsql
@@ -431,6 +441,10 @@ begin
   end loop;
 end
 $$;
+
+create trigger guard_append_only_record_supersessions_v1
+before update or delete on mark.record_supersessions
+for each row execute function mark.guard_append_only_v1();
 
 create index surfaces_source_object_idx on mark.surfaces(source_object_id);
 create index capture_surfaces_surface_idx on mark.capture_surfaces(surface_id);
