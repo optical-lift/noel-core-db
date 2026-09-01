@@ -2,13 +2,22 @@
 -- Reviewed migration-source SQL only; not a generated Supabase migration.
 --
 -- This tranche must be assembled AFTER atlas-money-collection-kernel-v1-domain-adapters.sql.
--- It replaces the provisional adapter definitions there so Registration price truth
--- cannot drift when an offering fee changes after a family has registered.
+-- That prior tranche asserts the clean Registration cutover (zero registrations and
+-- zero legacy payment rows). This tranche then makes accepted fee truth explicit on
+-- the Registration birth row and replaces the provisional adapter definitions.
 --
 -- Governing rule:
---   offering fee at Registration birth -> immutable Registration metadata snapshot
+--   offering fee at Registration birth -> typed immutable Registration snapshot
 --   Registration snapshot -> participation_fee obligation
---   later offering edits do NOT rewrite an existing Registration receivable.
+--   later offering edits DO NOT rewrite an existing family receivable.
+
+alter table atlas.community_registrations
+  add column fee_amount_at_submission numeric(14,2) not null
+    check (fee_amount_at_submission >= 0),
+  add column fee_currency_at_submission text not null
+    check (fee_currency_at_submission ~ '^[A-Z]{3}$'),
+  add column fee_basis_at_submission text not null
+    check (btrim(fee_basis_at_submission) <> '');
 
 create or replace function atlas.ensure_community_registration_money_obligation_v1(
   p_registration_id uuid
@@ -23,8 +32,6 @@ declare
   v_offering atlas.community_registration_offerings%rowtype;
   v_organization_id uuid;
   v_coverage atlas.money_source_adapter_coverage%rowtype;
-  v_fee_amount numeric(14,2);
-  v_fee_currency text;
 begin
   if p_registration_id is null then
     raise exception 'Registration id is required.' using errcode='22023';
@@ -48,21 +55,7 @@ begin
     raise exception 'Community Registration source custody is incomplete.' using errcode='23503';
   end if;
 
-  begin
-    v_fee_amount := round((v_registration.metadata->>'fee_amount_at_submission')::numeric,2);
-  exception when others then
-    raise exception 'Covered Community Registration is missing a valid fee snapshot.' using errcode='23514';
-  end;
-  v_fee_currency := upper(nullif(btrim(v_registration.metadata->>'fee_currency_at_submission'),''));
-
-  if v_fee_amount is null
-     or v_fee_amount<0
-     or v_fee_currency is null
-     or v_fee_currency !~ '^[A-Z]{3}$' then
-    raise exception 'Covered Community Registration fee snapshot is incomplete.' using errcode='23514';
-  end if;
-
-  if v_fee_amount=0 then
+  if v_registration.fee_amount_at_submission=0 then
     return null;
   end if;
 
@@ -96,8 +89,8 @@ begin
     'registration',
     v_registration.id::text,
     'participation_fee',
-    v_fee_amount,
-    v_fee_currency,
+    v_registration.fee_amount_at_submission,
+    v_registration.fee_currency_at_submission,
     null,
     'community_registration:'||v_registration.id::text||':participation_fee',
     auth.uid(),
@@ -105,8 +98,8 @@ begin
       'adapterContract',v_coverage.adapter_contract,
       'coverageId',v_coverage.id,
       'offeringId',v_registration.offering_id,
-      'feeSnapshotAuthority','community_registrations.metadata',
-      'feeSnapshotVersion',coalesce(v_registration.metadata->>'fee_snapshot_version','community_registration_fee_snapshot_v1')
+      'feeSnapshotAuthority','community_registrations',
+      'feeSnapshotVersion','community_registration_fee_snapshot_v1'
     )
   );
 end;
@@ -125,8 +118,6 @@ declare
   v_registration atlas.community_registrations%rowtype;
   v_offering atlas.community_registration_offerings%rowtype;
   v_organization_id uuid;
-  v_first_coverage timestamptz;
-  v_fee_amount numeric(14,2);
 begin
   select r.* into v_registration
   from atlas.community_registrations r
@@ -145,52 +136,6 @@ begin
     raise exception 'Community Registration source custody is incomplete.' using errcode='23503';
   end if;
 
-  select min(c.coverage_started_at) into v_first_coverage
-  from atlas.money_source_adapter_coverage c
-  where c.source_domain='community_registration'
-    and c.source_kind='registration'
-    and c.obligation_kind='participation_fee';
-
-  if not (v_registration.metadata ? 'fee_amount_at_submission') then
-    if v_first_coverage is null or v_registration.created_at<v_first_coverage then
-      return jsonb_build_object(
-        'coverageState','pre_kernel_unknown',
-        'sourceDomain','community_registration',
-        'sourceKind','registration',
-        'sourceId',v_registration.id::text,
-        'obligationId',null,
-        'effectiveState',null,
-        'openAmount',null,
-        'truthBoundary','registration_predates_fee_snapshot_contract'
-      );
-    end if;
-    return jsonb_build_object(
-      'coverageState','invariant_gap',
-      'sourceDomain','community_registration',
-      'sourceKind','registration',
-      'sourceId',v_registration.id::text,
-      'obligationId',null,
-      'effectiveState',null,
-      'openAmount',null,
-      'truthBoundary','covered_registration_missing_fee_snapshot'
-    );
-  end if;
-
-  begin
-    v_fee_amount := round((v_registration.metadata->>'fee_amount_at_submission')::numeric,2);
-  exception when others then
-    return jsonb_build_object(
-      'coverageState','invariant_gap',
-      'sourceDomain','community_registration',
-      'sourceKind','registration',
-      'sourceId',v_registration.id::text,
-      'obligationId',null,
-      'effectiveState',null,
-      'openAmount',null,
-      'truthBoundary','covered_registration_invalid_fee_snapshot'
-    );
-  end;
-
   return atlas.money_source_coverage_state_core_v1(
     v_organization_id,
     'community_registration',
@@ -198,7 +143,7 @@ begin
     v_registration.id::text,
     'participation_fee',
     v_registration.created_at,
-    v_fee_amount
+    v_registration.fee_amount_at_submission
   );
 end;
 $$;
@@ -271,18 +216,17 @@ begin
   insert into atlas.community_registrations(
     offering_id,registration_number,registrant_type,status,
     primary_name,primary_email,primary_phone,household_name,
+    fee_amount_at_submission,fee_currency_at_submission,fee_basis_at_submission,
     submitted_at,confirmed_at,metadata
   ) values (
     v_offering.id,v_registration_number,'household',v_registration_status,
     v_name,v_email,v_phone,v_household,
+    round(v_offering.fee_amount,2),upper(v_offering.fee_currency),v_offering.fee_basis,
     now(),case when v_offering.fee_amount=0 then now() else null end,
     jsonb_build_object(
       'source','public_registration_v1',
       'terms_version',v_offering.terms_version,
       'terms_accepted_at',now(),
-      'fee_amount_at_submission',v_offering.fee_amount,
-      'fee_currency_at_submission',v_offering.fee_currency,
-      'fee_basis_at_submission',v_offering.fee_basis,
       'fee_snapshot_version','community_registration_fee_snapshot_v1'
     )
   ) returning * into v_registration;
@@ -309,11 +253,11 @@ begin
     'registration_id',v_registration.id,
     'registration_number',v_registration.registration_number,
     'status',v_registration.status,
-    'payment_status',case when v_offering.fee_amount>0 then 'pending' else 'not_required' end,
-    'amount_due',v_offering.fee_amount,
-    'currency',v_offering.fee_currency,
+    'payment_status',case when v_registration.fee_amount_at_submission>0 then 'pending' else 'not_required' end,
+    'amount_due',v_registration.fee_amount_at_submission,
+    'currency',v_registration.fee_currency_at_submission,
     'message',case
-      when v_offering.fee_amount>0 then 'Registration received. Payment instructions will follow.'
+      when v_registration.fee_amount_at_submission>0 then 'Registration received. Payment instructions will follow.'
       else 'Registration confirmed.'
     end
   );
