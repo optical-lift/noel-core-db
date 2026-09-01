@@ -20,6 +20,8 @@ jobs:
 
       - name: Assemble canonical migration from reviewed tranches
         shell: bash
+        env:
+          ACTIVATION_SQL_B64: LS0gQWN0aXZhdGUgYm90aCBnbG9iYWxseSBpbnN0YWxsZWQgc291cmNlIGFkYXB0ZXJzIG9ubHkgYWZ0ZXIgZXZlcnkgZ292ZXJuZWQKLS0gd3JpdGVyIHJlcGxhY2VtZW50L2ZlbmNlIGFib3ZlIGlzIGluc3RhbGxlZC4gVXNlIG9uZSBhY3R1YWwgcG9zdC1sb2NrIHdhbGwKLS0gY2xvY2sgdmFsdWUgc28gbGVnYWN5IHdyaXRlcnMgdGhhdCBjb21wbGV0ZWQgd2hpbGUgdGhpcyB0cmFuc2FjdGlvbiB3YWl0ZWQKLS0gZm9yIHRoZSBjdXRvdmVyIGxvY2tzIGFyZSBuZXZlciBtaXNjbGFzc2lmaWVkIGFzIGtlcm5lbC1jb3ZlcmVkLgpkbyAkJApkZWNsYXJlCiAgdl9jdXRvdmVyX2F0IHRpbWVzdGFtcHR6IDo9IGNsb2NrX3RpbWVzdGFtcCgpOwpiZWdpbgogIHBlcmZvcm0gYXRsYXMuYWN0aXZhdGVfbW9uZXlfc291cmNlX2FkYXB0ZXJfY292ZXJhZ2VfY29yZV92MSgKICAgICdjb21tdW5pdHlfcmVnaXN0cmF0aW9uJywKICAgICdyZWdpc3RyYXRpb24nLAogICAgJ3BhcnRpY2lwYXRpb25fZmVlJywKICAgICdjb21tdW5pdHlfcmVnaXN0cmF0aW9uX21vbmV5X3YxJywKICAgIHZfY3V0b3Zlcl9hdCwKICAgICcyMDI2MDkwMTE2MTMwNF9hdGxhc19tb25leV9jb2xsZWN0aW9uX2tlcm5lbF92MScsCiAgICBudWxsLAogICAgJ3siY2xlYW5DdXRvdmVyIjp0cnVlfSc6Ompzb25iCiAgKTsKCiAgcGVyZm9ybSBhdGxhcy5hY3RpdmF0ZV9tb25leV9zb3VyY2VfYWRhcHRlcl9jb3ZlcmFnZV9jb3JlX3YxKAogICAgJ2Zsb3dlcl9jb21tZXJjZScsCiAgICAnZmxvd2VyX3NhbGVfb3JkZXInLAogICAgJ3NhbGVfdG90YWwnLAogICAgJ2Zsb3dlcl9zYWxlX21vbmV5X3YxJywKICAgIHZfY3V0b3Zlcl9hdCwKICAgICcyMDI2MDkwMTE2MTMwNF9hdGxhc19tb25leV9jb2xsZWN0aW9uX2tlcm5lbF92MScsCiAgICBudWxsLAogICAgJ3siaGlzdG9yaWNhbEFic2VuY2VNZWFucyI6InBheW1lbnRfdHJ1dGhfdW5rbm93bl9wcmVfa2VybmVsIn0nOjpqc29uYgogICk7CmVuZDsKJCQ7CgpDT01NSVQ7Cg==
         run: |
           set -euo pipefail
           target='supabase/migrations/20260901161304_atlas_money_collection_kernel_v1.sql'
@@ -42,9 +44,6 @@ jobs:
             cat architecture/atlas-money-collection-kernel-v1-cutover-fence.sql
             printf '%s\n' ''
 
-            # The original foundation file is an executable proof wrapped in
-            # BEGIN/ROLLBACK. Preserve its SQL byte-for-byte except those two
-            # proof-only transaction sentinels; this migration owns the transaction.
             sed -e '/^BEGIN;$/d' -e '/^ROLLBACK;$/d' \
               architecture/atlas-money-collection-kernel-v1.sql
             printf '%s\n' ''
@@ -67,42 +66,7 @@ jobs:
             printf '%s\n' ''
             cat architecture/atlas-money-collection-kernel-v1-retire-obsolete-coverage-reader.sql
             printf '%s\n' ''
-
-            cat <<'SQL'
--- Activate both globally installed source adapters only after every governed
--- writer replacement/fence above is installed. Use one actual post-lock wall
--- clock value so legacy writers that completed while this transaction waited
--- for the cutover locks are never misclassified as kernel-covered.
-do $$
-declare
-  v_cutover_at timestamptz := clock_timestamp();
-begin
-  perform atlas.activate_money_source_adapter_coverage_core_v1(
-    'community_registration',
-    'registration',
-    'participation_fee',
-    'community_registration_money_v1',
-    v_cutover_at,
-    '20260901161304_atlas_money_collection_kernel_v1',
-    null,
-    '{"cleanCutover":true}'::jsonb
-  );
-
-  perform atlas.activate_money_source_adapter_coverage_core_v1(
-    'flower_commerce',
-    'flower_sale_order',
-    'sale_total',
-    'flower_sale_money_v1',
-    v_cutover_at,
-    '20260901161304_atlas_money_collection_kernel_v1',
-    null,
-    '{"historicalAbsenceMeans":"payment_truth_unknown_pre_kernel"}'::jsonb
-  );
-end;
-$$;
-
-COMMIT;
-SQL
+            printf '%s' "$ACTIVATION_SQL_B64" | base64 --decode
           } > "$tmp"
 
           mv "$tmp" "$target"
