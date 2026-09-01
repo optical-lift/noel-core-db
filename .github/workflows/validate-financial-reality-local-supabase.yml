@@ -1,0 +1,98 @@
+name: Validate Financial Reality on Local Supabase
+
+on:
+  push:
+    branches:
+      - design/financial-reality-kernel-v1
+  pull_request:
+    paths:
+      - 'architecture/atlas-financial-reality-kernel-v1*'
+      - 'architecture/atlas-organization-connected-source-commands-v1.sql'
+      - 'architecture/atlas-connected-source-secret-custody-v1.sql'
+      - 'architecture/atlas-financial-source-delivery-custody-v1.sql'
+      - '.github/workflows/validate-financial-reality-local-supabase.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+
+      - name: Initialize disposable local project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase init --force
+
+      - name: Start disposable local database
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db start
+
+      - name: Replay canonical migration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db reset --local --no-seed
+
+      - name: Assemble transactional Financial Reality proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='architecture/atlas-financial-reality-kernel-v1.sql'
+          out='/tmp/financial-reality-proof.sql'
+          python3 - "$base" "$out" <<'PY'
+          from pathlib import Path
+          import sys
+          base = Path(sys.argv[1]).read_text(encoding='utf-8')
+          marker = '\nROLLBACK;\n'
+          if marker not in base:
+              raise SystemExit('base Financial Reality proof must end in ROLLBACK')
+          base = base.rsplit(marker, 1)[0] + '\n'
+          parts = [
+              base,
+              Path('architecture/atlas-financial-reality-kernel-v1-idempotency-correction.sql').read_text(encoding='utf-8'),
+              Path('architecture/atlas-organization-connected-source-commands-v1.sql').read_text(encoding='utf-8'),
+              Path('architecture/atlas-connected-source-secret-custody-v1.sql').read_text(encoding='utf-8'),
+              Path('architecture/atlas-financial-source-delivery-custody-v1.sql').read_text(encoding='utf-8'),
+              '\nROLLBACK;\n',
+          ]
+          Path(sys.argv[2]).write_text('\n'.join(parts), encoding='utf-8')
+          PY
+          grep -q '^BEGIN;$' "$out"
+          [[ "$(grep -c '^ROLLBACK;$' "$out")" -eq 1 ]]
+
+      - name: Execute Financial Reality proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
+            -v ON_ERROR_STOP=1 \
+            -f /tmp/financial-reality-proof.sql
+
+      - name: Verify rollback left no proof schema behind
+        shell: bash
+        run: |
+          set -euo pipefail
+          count="$(psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -Atc "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='atlas' and c.relname in ('financial_source_observations','financial_economic_events','connected_source_secret_refs','financial_source_delivery_events')")"
+          [[ "$count" -eq 0 ]]
+
+      - name: Stop disposable local database
+        if: always()
+        shell: bash
+        run: supabase stop --no-backup || true
