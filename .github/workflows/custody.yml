@@ -33,6 +33,9 @@ jobs:
       - name: Verify production release seam contract
         run: bash scripts/check-production-release-contract.sh
 
+      - name: Verify production schema validation contract
+        run: bash scripts/check-production-schema-validation-contract.sh
+
       - name: Audit global live production custody
         continue-on-error: true
         run: bash scripts/check-live-production-custody.sh
