@@ -40,31 +40,43 @@ Fulfillment is not payment evidence. Cancellation is not refund evidence. An unc
 
 ## Canonical coverage marker
 
-The executable kernel should carry a machine-readable source-coverage boundary rather than relying on deploy folklore.
+The executable kernel should carry a machine-readable **source-adapter activation boundary** rather than relying on deploy folklore.
 
-Conceptually, a coverage record answers:
+Coverage answers:
 
-> From what canonical point does Atlas guarantee that this source adapter emits Money Collection obligations for every positive-value receivable transaction?
+> From what canonical point does this shared source adapter guarantee Money Collection obligations for every positive-value receivable transaction of this source kind?
 
-Minimum identity:
+Because Atlas installs the source adapter in the shared database for all organizations at once, v1 coverage is **global to the adapter contract**, not repeated per organization.
+
+Minimum logical identity:
 
 ```text
-organization_id
-+ source_domain
+source_domain
 + source_kind
 + obligation_kind
++ adapter_contract/version
 ```
 
 Minimum evidence:
 
-- coverage/activation timestamp;
+- activation timestamp;
 - adapter contract/version;
 - migration/release provenance;
-- optional source-specific lower-bound identity if timestamp ordering alone is not sufficient;
+- optional source-specific lower-bound identity if timestamp ordering alone is insufficient;
 - status such as `active` or `retired`;
 - metadata explaining the pre-boundary truth limitation.
 
-The exact executable relation/function names belong to migration implementation custody.
+The source transaction still resolves its own organization custody. A global coverage row does not make money cross organizations and does not replace organization identity on obligations, receipts, collection attempts, or connected sources.
+
+### Why coverage is not per organization in v1
+
+A per-organization activation record would create a false setup obligation for every future company even though the same canonical Registration or Flower adapter is already installed globally.
+
+New organizations should inherit reliable forward money truth automatically when they use an already-active source adapter.
+
+If Atlas later introduces a genuinely organization-specific adapter rollout, that is a different scope model and should be represented explicitly rather than overloading v1’s global activation record.
+
+Provider connection status is also unrelated to source coverage. An organization can be inside Money Collection coverage without Stripe connected because obligations may exist before collection and manual receipts are allowed.
 
 ## Why a coverage marker is necessary
 
@@ -83,56 +95,60 @@ After this boundary is installed, the effective money read can say exactly:
 source value = 0
   -> payment_not_required
 
-source predates money coverage
+source predates source-adapter activation
 + no obligation
   -> payment_truth_unknown_pre_kernel
 
-source is inside money coverage
+source is inside source-adapter coverage
 + positive value
 + no obligation
   -> invariant_gap
 
-source is inside money coverage
+source is inside source-adapter coverage
 + obligation exists
   -> derive open/partial/paid/etc. from Money Collection evidence
 ```
 
-The `invariant_gap` state should be treated as an architecture/custody failure, not displayed as ordinary unpaid receivable truth.
+The `invariant_gap` state is an architecture/custody failure, not ordinary unpaid receivable truth.
 
 ## Community Registration coverage
 
 Because production has zero Registration rows at this boundary, Community Registration can begin with complete v1 coverage.
 
-The Registration adapter release should establish coverage **before or atomically with** enabling the first paid Registration write path.
+The Registration adapter release should establish global coverage **before or atomically with** enabling the first paid Registration write path.
 
-After activation:
+After activation, for every organization using that adapter:
 
 - free offering / zero fee -> `payment_not_required`, no obligation;
 - positive fee -> exactly one `participation_fee` obligation;
 - positive-fee Registration with no obligation -> `invariant_gap`.
 
-The migration must assert that production still has zero legacy `community_registration_payments` rows and zero registrations requiring reconciliation. If that assertion becomes false before release, the clean-cutover plan must abort.
+The release must assert that production still has no legacy Registration/payment rows requiring reconciliation. If that assertion becomes false before release, the clean-cutover plan must abort.
+
+The separately governed Community Registration lifecycle authority remains responsible for confirmation/cancellation/refund state. Coverage proves only that the money adapter is in force.
 
 ## Flower Sale coverage
 
 Existing Flower Sales remain outside v1 canonical collection coverage unless separately reconciled from admissible evidence.
 
-The Flower adapter activation point must be explicit.
+The Flower adapter activation point must be explicit and atomic with the current Sale-writer fence.
 
 After activation:
 
 - zero-total Sale -> `payment_not_required`, no receivable obligation required;
-- positive noncancelled Sale -> exactly one effective `sale_total` obligation;
-- positive Sale missing its obligation -> `invariant_gap`;
+- positive Sale -> exactly one effective `sale_total` obligation at canonical Sale birth;
+- positive covered Sale missing its obligation -> `invariant_gap`;
 - cancellation is handled through the Flower-domain cancellation adapter and Money obligation transition evidence, not by deleting the obligation.
 
-Pre-activation positive Sales with no obligation must return:
+Pre-activation positive Sales with no obligation return:
 
 ```text
 payment_truth_unknown_pre_kernel
 ```
 
 not `unpaid`.
+
+The current Flower design further requires `record_flower_sale_core_v1` to be fenced/retired so `record_flower_sale_core_v2` is the sole current Sale birth core carrying this postcondition.
 
 ## No heuristic backfill
 
@@ -164,24 +180,25 @@ That command should create canonical obligation/receipt/reversal evidence as app
 
 It must never silently rewrite the original Sale or pretend the evidence existed at Sale time.
 
-No such broad reconciliation UI or workflow is required to launch v1 if historical payment reporting is not yet needed.
+No broad reconciliation UI or workflow is required to launch v1 if historical payment reporting is not yet needed.
 
-## Source-relation invariant versus wrapper invariant
+## Source-domain invariant
 
-Flower Sale coverage cannot be guaranteed merely by modifying `record_flower_sale_core_v2`.
+Coverage cannot be guaranteed by an application route.
 
-Current production still contains both:
+The postcondition belongs at the canonical domain command boundary:
 
-- `record_flower_sale_core_v2`, used by current governed Sale wrappers including Demand and prospect conversion;
-- `record_flower_sale_core_v1`, which can independently insert `flower_sale_orders`.
+```text
+Community Registration birth command
+  -> participation_fee obligation postcondition
 
-Therefore the receivable postcondition must be enforced at the canonical Flower Sale domain boundary, not just one app route or one wrapper.
+Flower Sale current birth core (v2)
+  -> sale_total obligation postcondition
+```
 
-A narrow Flower-domain trigger or equally strong database invariant may call the internal Money obligation core after a canonical positive-value Sale birth row exists.
+The shared Money core remains provider-neutral. The domain adapter derives organization, source identity, amount, and currency from trusted source rows rather than accepting them from callers.
 
-The trigger is a **source adapter**, not generic polymorphic money creation: it derives organization, source id, amount, and currency from the trusted Sale row and farm custody rather than accepting them from the caller.
-
-This also means Demand -> Sale, direct Ready -> Sale, and prospect -> Sale can share the same money postcondition without changing their distinct lineage rules.
+The Flower release must fence the obsolete service-role v1 Sale writer rather than introduce a generic trigger solely to preserve dual cores.
 
 ## Zero-dollar transactions
 
@@ -218,7 +235,7 @@ Conceptual fields:
 }
 ```
 
-Only `covered` obligations may produce ordinary derived states such as open, partially paid, paid, or reversed/refunded.
+Only a source transaction inside coverage with a canonical obligation may produce ordinary derived states such as open, partially paid, paid, or reversed/refunded.
 
 ## Architecture truth catalog
 
@@ -230,14 +247,16 @@ Question:
 
 Canonical owner:
 
-- the source-coverage boundary plus the source-specific obligation adapter.
+- global source-adapter activation evidence plus the source-specific obligation adapter.
 
 Known competitors to reject:
 
-- assuming every Sale in the historical domain is covered;
+- assuming every historical Sale/Registration is covered;
 - treating missing obligation as unpaid;
 - using fulfillment/cancellation status to infer payment history;
-- app deployment time stored only in prose.
+- tying coverage to whether a provider account is connected;
+- app deployment time stored only in prose;
+- per-organization setup flags for a globally installed adapter.
 
 ## Release assertions
 
@@ -246,21 +265,22 @@ The first executable releases should prove:
 ### Registration
 
 1. no pre-cutover Registrations/payment rows require reconciliation;
-2. coverage marker exists before first positive-fee Registration is accepted;
+2. global Registration adapter coverage exists before first positive-fee Registration is accepted;
 3. every covered positive-fee Registration has exactly one obligation;
-4. zero-fee Registrations create none.
+4. zero-fee Registrations create none;
+5. a newly onboarded organization automatically receives the same source-adapter coverage without a per-company activation write.
 
 ### Flower
 
-5. existing five Sales remain explicitly outside canonical money coverage unless reconciled;
-6. no historical Sale is backfilled as unpaid or paid without evidence;
-7. Flower coverage marker is established at adapter activation;
-8. every covered positive Sale has exactly one sale-total obligation;
-9. covered zero-total Sales are `payment_not_required`;
-10. a post-boundary positive Sale without an obligation fails invariant checks rather than appearing as normal unpaid truth.
+6. existing five Sales remain explicitly outside canonical money coverage unless reconciled;
+7. no historical Sale is backfilled as unpaid or paid without evidence;
+8. global Flower Sale adapter coverage is established atomically with the v1-writer fence/v2 obligation postcondition;
+9. every covered positive Sale has exactly one sale-total obligation;
+10. covered zero-total Sales are `payment_not_required`;
+11. a post-boundary positive Sale without an obligation fails invariant checks rather than appearing as normal unpaid truth.
 
 ## Governing principle
 
 **Coverage is itself truth.**
 
-A system that knows a Sale occurred but does not know its historical payment state must say exactly that. The new Money Collection Kernel begins reliable forward truth at an explicit boundary; it does not manufacture a past to make the database look complete.
+A system that knows a Sale occurred but does not know its historical payment state must say exactly that. The new Money Collection Kernel begins reliable forward truth at an explicit shared adapter boundary; it does not manufacture a past or require every company to re-enable an adapter that is already canonical.
