@@ -1,6 +1,6 @@
 # Production Schema Clone Validation
 
-This repository validates candidate database migrations against the current production Atlas schema without applying candidate DDL to production and without requiring a paid Supabase development branch.
+This repository validates candidate database migrations against the current production user-schema graph without applying candidate DDL to production and without requiring a paid Supabase development branch.
 
 ## Authority boundary
 
@@ -21,7 +21,9 @@ The issue body must contain exactly resolved single-token fields for:
 
 ## Production read boundary
 
-The job uses the protected `production` environment only so one step can read `NOEL_CORE_DATABASE_URL` and run `supabase db dump --schema atlas`.
+The job uses the protected `production` environment only so one step can read `NOEL_CORE_DATABASE_URL` and run the default schema-only `supabase db dump`.
+
+The dump intentionally does not filter to only `atlas`. Atlas objects can depend on other user-owned schemas, so the disposable clone must preserve the complete user-schema dependency graph. Supabase-managed schemas remain excluded by the CLI's schema-dump contract, and no production data or custom roles are requested.
 
 That step is schema-only. It does not execute candidate SQL, `psql`, migration push/reset/up, or any production mutation command.
 
@@ -31,7 +33,7 @@ The production URL is not passed to candidate checkout, schema restore, migratio
 
 After the schema snapshot is complete, the workflow checks out the immutable candidate SHA, resolves exactly one migration for the requested version, and verifies its release-lane ownership against canonical `main`.
 
-It then starts a disposable local Supabase database, restores the production Atlas schema snapshot into `127.0.0.1:54322`, applies the candidate migration only to that local database, runs any canonical `validation/migrations/<version>_*.sql` postconditions already present on `main`, and runs Atlas schema lint.
+It then starts a disposable local Supabase database, restores the production user-schema graph into `127.0.0.1:54322`, applies the candidate migration only to that local database, runs any canonical `validation/migrations/<version>_*.sql` postconditions already present on `main`, and runs Atlas schema lint.
 
 The disposable database is stopped without backup at the end of the job.
 

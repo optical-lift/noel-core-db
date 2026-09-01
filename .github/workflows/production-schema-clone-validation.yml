@@ -102,7 +102,7 @@ jobs:
           supabase db start --help >/dev/null
           supabase db lint --help >/dev/null
 
-      - name: Snapshot Atlas production schema read-only
+      - name: Snapshot production user schemas read-only
         shell: bash
         env:
           NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
@@ -114,10 +114,9 @@ jobs:
           fi
           supabase db dump \
             --db-url "$NOEL_CORE_DATABASE_URL" \
-            --schema atlas \
-            --file "$RUNNER_TEMP/atlas-production-schema.sql"
-          test -s "$RUNNER_TEMP/atlas-production-schema.sql"
-          sha256sum "$RUNNER_TEMP/atlas-production-schema.sql"
+            --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/production-user-schema.sql"
 
       - name: Checkout immutable candidate
         uses: actions/checkout@v4
@@ -164,13 +163,13 @@ jobs:
           supabase init --force
           supabase db start
 
-      - name: Restore production Atlas schema locally
+      - name: Restore production user schemas locally
         shell: bash
         run: |
           set -euo pipefail
           psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
             -v ON_ERROR_STOP=1 \
-            -f "$RUNNER_TEMP/atlas-production-schema.sql"
+            -f "$RUNNER_TEMP/production-user-schema.sql"
 
       - name: Apply candidate migration only to local clone
         shell: bash

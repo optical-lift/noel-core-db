@@ -30,8 +30,8 @@ required = [
     "re.fullmatch(r'[0-9a-f]{40}', candidate_sha)",
     'NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}',
     'supabase db dump',
-    '--schema atlas',
     '--db-url "$NOEL_CORE_DATABASE_URL"',
+    '--file "$RUNNER_TEMP/production-user-schema.sql"',
     'ref: ${{ steps.request.outputs.candidate_sha }}',
     'bash scripts/check-migration-release-lane.sh',
     "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
@@ -56,7 +56,7 @@ for forbidden in [
     if forbidden.lower() in workflow.lower():
         errors.append(f'Forbidden production-schema-validation behavior: {forbidden}')
 
-snapshot_marker = '- name: Snapshot Atlas production schema read-only'
+snapshot_marker = '- name: Snapshot production user schemas read-only'
 candidate_marker = '- name: Checkout immutable candidate'
 apply_marker = '- name: Apply candidate migration only to local clone'
 if snapshot_marker not in workflow or candidate_marker not in workflow or apply_marker not in workflow:
@@ -67,6 +67,9 @@ else:
     apply_pos = workflow.index(apply_marker)
     if not snapshot_pos < candidate_pos < apply_pos:
         errors.append('Production schema must be snapshotted before candidate checkout, and candidate DDL must execute only after the local clone exists.')
+    snapshot_block = workflow[snapshot_pos:candidate_pos]
+    if '--schema ' in snapshot_block:
+        errors.append('Production schema clone must not filter to one user schema; cross-schema dependencies require the complete user-schema graph.')
 
 secret_occurrences = workflow.count('NOEL_CORE_DATABASE_URL')
 if secret_occurrences != 5:
@@ -78,5 +81,5 @@ if errors:
         print(f'- {error}')
     raise SystemExit(1)
 
-print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, schema-only production read, local-only candidate execution, and no production DDL path.')
+print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, dependency-complete schema-only production read, local-only candidate execution, and no production DDL path.')
 PY
