@@ -31,10 +31,14 @@ required = [
     'NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}',
     'supabase db dump',
     '--db-url "$NOEL_CORE_DATABASE_URL"',
+    '--role-only',
+    '--file "$RUNNER_TEMP/production-custom-roles.sql"',
     '--file "$RUNNER_TEMP/production-user-schema.sql"',
     'ref: ${{ steps.request.outputs.candidate_sha }}',
     'bash scripts/check-migration-release-lane.sh',
     "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    '-f "$RUNNER_TEMP/production-custom-roles.sql"',
+    '-f "$RUNNER_TEMP/production-user-schema.sql"',
     'supabase db lint --local --schema atlas --level error --fail-on error',
     'supabase stop --no-backup',
 ]
@@ -58,22 +62,33 @@ for forbidden in [
 
 snapshot_marker = '- name: Snapshot production user schemas read-only'
 candidate_marker = '- name: Checkout immutable candidate'
+start_marker = '- name: Start disposable migration target'
+roles_restore_marker = '- name: Restore production custom roles locally'
+schema_restore_marker = '- name: Restore production user schemas locally'
 apply_marker = '- name: Apply candidate migration only to local clone'
-if snapshot_marker not in workflow or candidate_marker not in workflow or apply_marker not in workflow:
+markers = [snapshot_marker, candidate_marker, start_marker, roles_restore_marker, schema_restore_marker, apply_marker]
+if any(marker not in workflow for marker in markers):
     errors.append('Schema validation step ordering markers are incomplete.')
 else:
     snapshot_pos = workflow.index(snapshot_marker)
     candidate_pos = workflow.index(candidate_marker)
+    start_pos = workflow.index(start_marker)
+    roles_restore_pos = workflow.index(roles_restore_marker)
+    schema_restore_pos = workflow.index(schema_restore_marker)
     apply_pos = workflow.index(apply_marker)
-    if not snapshot_pos < candidate_pos < apply_pos:
-        errors.append('Production schema must be snapshotted before candidate checkout, and candidate DDL must execute only after the local clone exists.')
+    if not snapshot_pos < candidate_pos < start_pos < roles_restore_pos < schema_restore_pos < apply_pos:
+        errors.append('Production custom roles and user schemas must be snapshotted before candidate checkout, then restored into the disposable local target before candidate DDL executes.')
     snapshot_block = workflow[snapshot_pos:candidate_pos]
     if '--schema ' in snapshot_block:
         errors.append('Production schema clone must not filter to one user schema; cross-schema dependencies require the complete user-schema graph.')
+    if '--role-only' not in snapshot_block or 'production-custom-roles.sql' not in snapshot_block:
+        errors.append('Production clone must snapshot custom roles so schema ACL targets exist in the disposable database.')
 
-secret_occurrences = workflow.count('NOEL_CORE_DATABASE_URL')
-if secret_occurrences != 5:
-    errors.append(f'Expected the production DB secret token exactly 5 times inside the single snapshot step; found {secret_occurrences}.')
+if snapshot_marker in workflow and candidate_marker in workflow:
+    snapshot_pos = workflow.index(snapshot_marker)
+    candidate_pos = workflow.index(candidate_marker)
+    if 'NOEL_CORE_DATABASE_URL' in workflow[:snapshot_pos] or 'NOEL_CORE_DATABASE_URL' in workflow[candidate_pos:]:
+        errors.append('The protected production DB secret may only appear inside the read-only snapshot step.')
 
 if errors:
     print('Production schema validation contract FAILED:')
@@ -81,5 +96,5 @@ if errors:
         print(f'- {error}')
     raise SystemExit(1)
 
-print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, dependency-complete schema-only production read, local-only candidate execution, and no production DDL path.')
+print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, dependency-complete schema plus password-free custom-role production reads, local-only candidate execution, and no production DDL path.')
 PY
