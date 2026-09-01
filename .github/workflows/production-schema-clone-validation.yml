@@ -114,8 +114,14 @@ jobs:
           fi
           supabase db dump \
             --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only \
+            --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
             --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
           test -s "$RUNNER_TEMP/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/production-custom-roles.sql"
           sha256sum "$RUNNER_TEMP/production-user-schema.sql"
 
       - name: Remove restore-only trigger toggles from schema clone
@@ -200,6 +206,14 @@ jobs:
           mkdir -p supabase/migrations
           supabase init --force
           supabase db start
+
+      - name: Restore production custom roles locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
+            -v ON_ERROR_STOP=1 \
+            -f "$RUNNER_TEMP/production-custom-roles.sql"
 
       - name: Restore production user schemas locally
         shell: bash
