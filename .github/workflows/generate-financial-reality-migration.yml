@@ -112,7 +112,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- supabase/migrations; then
+          if [ -z "$(git status --porcelain -- supabase/migrations)" ]; then
             echo 'No generated migration to commit.'
             exit 0
           fi
