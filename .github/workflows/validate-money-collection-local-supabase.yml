@@ -1,0 +1,101 @@
+name: Validate Money Collection on Local Supabase
+
+on:
+  push:
+    branches:
+      - design/money-collection-kernel-v1
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: design/money-collection-kernel-v1
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+
+      - name: Initialize disposable local project
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase init --force
+
+      - name: Start disposable local database
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db start
+
+      - name: Replay complete canonical migration history
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db reset --local --no-seed
+
+      - name: Verify Money Collection postconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if to_regclass('atlas.money_obligations') is null
+               or to_regclass('atlas.money_receipts') is null
+               or to_regclass('atlas.money_source_adapter_coverage') is null then
+              raise exception 'Money Collection canonical relations are missing after replay.';
+            end if;
+            if to_regclass('atlas.community_registration_payments') is not null then
+              raise exception 'Legacy community_registration_payments survived cutover.';
+            end if;
+            if to_regprocedure('atlas.money_source_coverage_state_core_v1(uuid,text,text,text,text,timestamp with time zone,numeric,text)') is null then
+              raise exception 'Canonical source-currency coverage reader is missing.';
+            end if;
+            if to_regprocedure('atlas.money_source_coverage_state_core_v1(uuid,text,text,text,text,timestamp with time zone,numeric)') is not null then
+              raise exception 'Obsolete seven-argument coverage reader survived cutover.';
+            end if;
+            if to_regprocedure('atlas.record_flower_sale_core_v2_domain_impl(uuid,uuid,text,uuid,text,text,text,jsonb,numeric,numeric,text,date,time without time zone,uuid,uuid,text,text,boolean)') is null then
+              raise exception 'Flower Sale v2 subordinate implementation is missing.';
+            end if;
+          end;
+          $$;
+
+          select source_domain,source_kind,obligation_kind,adapter_contract,status,release_provenance
+          from atlas.money_source_adapter_coverage
+          order by source_domain,source_kind,obligation_kind;
+SQL
+
+      - name: Lint migrated Atlas schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase db lint --local --schema atlas --level error --fail-on error
+
+      - name: Discover and run local advisors when supported
+        shell: bash
+        run: |
+          set -euo pipefail
+          help="$(supabase db advisors --help 2>&1 || true)"
+          printf '%s\n' "$help"
+          if printf '%s\n' "$help" | grep -q -- '--local'; then
+            supabase db advisors --local
+          else
+            echo 'This pinned CLI does not expose local db advisors; local execution + plpgsql_check lint completed.'
+          fi
+
+      - name: Stop disposable local database
+        if: always()
+        shell: bash
+        run: supabase stop --no-backup || true
