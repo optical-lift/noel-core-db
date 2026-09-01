@@ -266,7 +266,7 @@ select
   l.product_label,
   l.quantity,
   l.unit,
-  atlas.flower_demand_line_effective_unit_price_v1(l.id) as target_unit_price,
+  atlas.flower_demand_line_effective_unit_price_v1(l.id)::numeric(12,2) as target_unit_price,
   l.currency,
   case when c.id is not null then 'cancelled' else 'open' end as demand_state,
   case
@@ -312,7 +312,7 @@ select
   l.product_label,
   l.quantity as demanded_quantity,
   l.unit,
-  atlas.flower_demand_line_effective_unit_price_v1(l.id) as target_unit_price,
+  atlas.flower_demand_line_effective_unit_price_v1(l.id)::numeric(12,2) as target_unit_price,
   case when dc.id is null then coalesce(a.quantity,0::numeric) else 0::numeric end as reserved_quantity,
   case when dc.id is null then coalesce(s.sold_quantity,0::numeric) else 0::numeric end as sold_quantity,
   case when dc.id is null then coalesce(s.fulfilled_quantity,0::numeric) else 0::numeric end as fulfilled_quantity,
