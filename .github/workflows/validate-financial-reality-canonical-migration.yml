@@ -1,0 +1,185 @@
+name: Validate Financial Reality Canonical Migration
+
+on:
+  push:
+    branches:
+      - design/financial-reality-kernel-v1
+  pull_request:
+    paths:
+      - 'supabase/migrations/*_atlas_financial_reality_kernel_v1.sql'
+      - '.github/workflows/validate-financial-reality-canonical-migration.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+
+      - name: Start disposable Supabase without replaying frozen inherited history
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv supabase/migrations /tmp/noel-canonical-migrations
+          mkdir -p supabase/migrations
+          supabase init --force
+          supabase db start
+          rm -rf supabase/migrations
+          mv /tmp/noel-canonical-migrations supabase/migrations
+
+      - name: Install minimal inherited Atlas dependency fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          create extension if not exists pgcrypto;
+          create extension if not exists supabase_vault with schema vault;
+          create schema if not exists atlas;
+
+          create table atlas.organizations (
+            id uuid primary key default gen_random_uuid()
+          );
+
+          create table atlas.organization_memberships (
+            id uuid primary key default gen_random_uuid(),
+            organization_id uuid not null references atlas.organizations(id) on delete cascade,
+            user_id uuid not null,
+            role text not null,
+            active boolean not null default true
+          );
+
+          create table atlas.organization_onboarding_actors (
+            organization_id uuid not null references atlas.organizations(id) on delete cascade,
+            human_user_id uuid not null,
+            actor_kind text not null default 'setup_actor',
+            active boolean not null default true,
+            started_at timestamptz not null default now(),
+            ended_at timestamptz,
+            metadata jsonb not null default '{}'::jsonb
+          );
+
+          create table atlas.connected_sources (
+            id uuid primary key default gen_random_uuid(),
+            custodian_user_id uuid,
+            custodian_organization_id uuid references atlas.organizations(id) on delete cascade,
+            provider_key text not null,
+            provider_account_key text not null,
+            display_label text,
+            account_hint text,
+            authorization_state text not null default 'connected'
+              check (authorization_state in ('pending','connected','reauthorization_required','revoked','error')),
+            granted_scopes text[] not null default '{}'::text[],
+            capabilities jsonb not null default '{}'::jsonb,
+            last_sync_at timestamptz,
+            revoked_at timestamptz,
+            metadata jsonb not null default '{}'::jsonb,
+            created_at timestamptz not null default now(),
+            updated_at timestamptz not null default now(),
+            check ((custodian_user_id is not null)::integer + (custodian_organization_id is not null)::integer = 1)
+          );
+          create unique index connected_sources_org_provider_account_uq
+            on atlas.connected_sources(custodian_organization_id,provider_key,provider_account_key)
+            where custodian_organization_id is not null;
+
+          create or replace function atlas.is_organization_owner(p_organization_id uuid)
+          returns boolean
+          language sql
+          stable
+          security definer
+          set search_path=pg_catalog,atlas
+          as $function$
+            select exists(
+              select 1 from atlas.organization_memberships om
+              where om.organization_id=p_organization_id
+                and om.user_id=auth.uid()
+                and om.active=true
+                and om.role='owner'
+            );
+          $function$;
+
+          revoke all on atlas.connected_sources from public,anon,authenticated;
+          grant select,insert,update,delete on atlas.connected_sources to service_role;
+          SQL
+
+      - name: Parse canonical migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          target='supabase/migrations/20260901173456_atlas_financial_reality_kernel_v1.sql'
+          test -s "$target"
+          python3 -m pip install --disable-pip-version-check --quiet 'pglast>=7,<8'
+          python3 - "$target" <<'PY'
+          import sys
+          from pathlib import Path
+          from pglast import parse_sql
+          p = Path(sys.argv[1])
+          sql = p.read_text(encoding='utf-8')
+          parse_sql(sql)
+          assert sql.startswith('BEGIN;')
+          assert sql.rstrip().endswith('COMMIT;')
+          assert 'ROLLBACK;' not in sql
+          assert '20260901173456_atlas_financial_reality_kernel_v1' in sql
+          print(f'Canonical migration parser accepted {len(sql.splitlines())} lines')
+          PY
+
+      - name: Execute exact canonical migration bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
+            -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/20260901173456_atlas_financial_reality_kernel_v1.sql
+
+      - name: Verify canonical postconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if to_regclass('atlas.financial_source_observations') is null
+               or to_regclass('atlas.financial_economic_events') is null
+               or to_regclass('atlas.financial_event_evidence_links') is null
+               or to_regclass('atlas.financial_event_relations') is null
+               or to_regclass('atlas.financial_classification_assertions') is null
+               or to_regclass('atlas.connected_source_secret_refs') is null
+               or to_regclass('atlas.financial_source_delivery_events') is null then
+              raise exception 'Financial Reality canonical relations are missing.';
+            end if;
+
+            if to_regprocedure('atlas.record_financial_source_observation_core_v1(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,numeric,numeric,numeric,text,text,text,text,text,jsonb,text,jsonb)') is null
+               or to_regprocedure('atlas.ensure_financial_economic_event_core_v1(uuid,text,text,text,numeric,text,timestamp with time zone,text,text,text,text,text,text,text,text,jsonb)') is null
+               or to_regprocedure('atlas.register_organization_connected_source_api_v1(uuid,text,text,text,text,text,text[],jsonb,jsonb)') is null
+               or to_regprocedure('atlas.put_connected_source_secret_core_v1(uuid,text,text,text,jsonb)') is null
+               or to_regprocedure('atlas.record_financial_source_delivery_core_v1(uuid,text,text,text,timestamp with time zone,jsonb)') is null then
+              raise exception 'Financial Reality canonical command surface is incomplete.';
+            end if;
+          end;
+          $$;
+          SQL
+
+      - name: Verify repository release lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-migration-release-lane.sh 20260901173456 atlas
+          bash scripts/check-production-release-contract.sh
+
+      - name: Stop disposable local database
+        if: always()
+        shell: bash
+        run: supabase stop --no-backup || true
