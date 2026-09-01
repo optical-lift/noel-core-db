@@ -32,52 +32,285 @@ jobs:
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
           supabase --version
 
-      - name: Initialize disposable local project
+      - name: Start disposable Supabase without replaying frozen inherited history
         shell: bash
         run: |
           set -euo pipefail
+          # noel-core-db intentionally does not contain the 2,022 frozen pre-fence
+          # migrations. Starting a blank database with post-fence migrations in
+          # place would therefore test an impossible history. Hide the canonical
+          # ledger while booting and restore it immediately afterward.
+          mv supabase/migrations /tmp/noel-canonical-migrations
+          mkdir -p supabase/migrations
           supabase init --force
-
-      - name: Start disposable local database
-        shell: bash
-        run: |
-          set -euo pipefail
           supabase db start
+          rm -rf supabase/migrations
+          mv /tmp/noel-canonical-migrations supabase/migrations
 
-      - name: Replay canonical migration history
+      - name: Install minimal inherited Atlas dependency fixture
         shell: bash
         run: |
           set -euo pipefail
-          supabase db reset --local --no-seed
+          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
+          create extension if not exists pgcrypto;
+          create extension if not exists supabase_vault with schema vault;
+          create schema if not exists atlas;
+
+          create table atlas.organizations (
+            id uuid primary key default gen_random_uuid()
+          );
+
+          create table atlas.organization_memberships (
+            id uuid primary key default gen_random_uuid(),
+            organization_id uuid not null references atlas.organizations(id) on delete cascade,
+            user_id uuid not null,
+            role text not null,
+            active boolean not null default true
+          );
+
+          create table atlas.organization_onboarding_actors (
+            organization_id uuid not null references atlas.organizations(id) on delete cascade,
+            human_user_id uuid not null,
+            actor_kind text not null default 'setup_actor',
+            active boolean not null default true,
+            started_at timestamptz not null default now(),
+            ended_at timestamptz,
+            metadata jsonb not null default '{}'::jsonb
+          );
+
+          create table atlas.connected_sources (
+            id uuid primary key default gen_random_uuid(),
+            custodian_user_id uuid,
+            custodian_organization_id uuid references atlas.organizations(id) on delete cascade,
+            provider_key text not null,
+            provider_account_key text not null,
+            display_label text,
+            account_hint text,
+            authorization_state text not null default 'connected'
+              check (authorization_state in ('pending','connected','reauthorization_required','revoked','error')),
+            granted_scopes text[] not null default '{}'::text[],
+            capabilities jsonb not null default '{}'::jsonb,
+            last_sync_at timestamptz,
+            revoked_at timestamptz,
+            metadata jsonb not null default '{}'::jsonb,
+            created_at timestamptz not null default now(),
+            updated_at timestamptz not null default now(),
+            check ((custodian_user_id is not null)::integer + (custodian_organization_id is not null)::integer = 1)
+          );
+          create unique index connected_sources_org_provider_account_uq
+            on atlas.connected_sources(custodian_organization_id,provider_key,provider_account_key)
+            where custodian_organization_id is not null;
+
+          create or replace function atlas.is_organization_owner(p_organization_id uuid)
+          returns boolean
+          language sql
+          stable
+          security definer
+          set search_path=pg_catalog,atlas
+          as $function$
+            select exists(
+              select 1 from atlas.organization_memberships om
+              where om.organization_id=p_organization_id
+                and om.user_id=auth.uid()
+                and om.active=true
+                and om.role='owner'
+            );
+          $function$;
+
+          revoke all on atlas.connected_sources from public,anon,authenticated;
+          grant select,insert,update,delete on atlas.connected_sources to service_role;
+          SQL
 
       - name: Assemble transactional Financial Reality proof
         shell: bash
         run: |
           set -euo pipefail
-          base='architecture/atlas-financial-reality-kernel-v1.sql'
-          out='/tmp/financial-reality-proof.sql'
-          python3 - "$base" "$out" <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
-          import sys
-          base = Path(sys.argv[1]).read_text(encoding='utf-8')
-          marker = '\nROLLBACK;\n'
-          if marker not in base:
+
+          base = Path('architecture/atlas-financial-reality-kernel-v1.sql').read_text(encoding='utf-8')
+          if not base.startswith('BEGIN;'):
+              raise SystemExit('base Financial Reality proof must begin with BEGIN')
+          if '\nROLLBACK;' not in base:
               raise SystemExit('base Financial Reality proof must end in ROLLBACK')
-          base = base.rsplit(marker, 1)[0] + '\n'
+          base = base.rsplit('\nROLLBACK;', 1)[0] + '\n'
+
+          exercises = r'''
+          -- Behavioral execution proof. The UUIDs are fixture identities only.
+          insert into atlas.organizations(id) values
+            ('10000000-0000-0000-0000-000000000001'),
+            ('10000000-0000-0000-0000-000000000002');
+          insert into atlas.organization_memberships(organization_id,user_id,role,active) values
+            ('10000000-0000-0000-0000-000000000001','20000000-0000-0000-0000-000000000001','owner',true);
+          select set_config('request.jwt.claim.sub','20000000-0000-0000-0000-000000000001',true);
+
+          do $exercise$
+          declare
+            v_source jsonb;
+            v_source_id uuid;
+            v_obs jsonb;
+            v_obs2 jsonb;
+            v_obs_id uuid;
+            v_event jsonb;
+            v_event2 jsonb;
+            v_event_id uuid;
+            v_fee jsonb;
+            v_fee_id uuid;
+            v_link jsonb;
+            v_link2 jsonb;
+            v_delivery jsonb;
+            v_delivery2 jsonb;
+            v_secret jsonb;
+            v_secret_text text;
+          begin
+            v_source := atlas.register_organization_connected_source_api_v1(
+              '10000000-0000-0000-0000-000000000001','stripe','acct_fixture','Stripe Fixture','acct_fixture',
+              'connected',array['read_only'],
+              '{"financialObservation":true,"financialReconciliationEvidence":true,"moneyCollection":false}'::jsonb,
+              '{"fixture":true}'::jsonb
+            );
+            v_source_id := (v_source->>'sourceId')::uuid;
+            if v_source_id is null then raise exception 'source registration proof failed'; end if;
+
+            v_obs := atlas.record_financial_source_observation_core_v1(
+              '10000000-0000-0000-0000-000000000001',v_source_id,
+              'balance_transaction','txn_fixture','fingerprint_fixture','evt_fixture',now(),now(),
+              'inflow',1000.00,29.30,970.70,'usd','Fixture Customer','INV-184','Fixture payment','available',
+              '{"sourceObjectId":"ch_fixture"}'::jsonb,'payload_fixture','{}'::jsonb
+            );
+            v_obs_id := (v_obs->>'observationId')::uuid;
+            v_obs2 := atlas.record_financial_source_observation_core_v1(
+              '10000000-0000-0000-0000-000000000001',v_source_id,
+              'balance_transaction','txn_fixture','fingerprint_fixture','evt_fixture',now(),now(),
+              'inflow',1000.00,29.30,970.70,'usd','Fixture Customer','INV-184','Fixture payment','available',
+              '{"sourceObjectId":"ch_fixture"}'::jsonb,'payload_fixture','{}'::jsonb
+            );
+            if (v_obs2->>'observationId')::uuid is distinct from v_obs_id
+               or coalesce((v_obs2->>'deduplicated')::boolean,false) is not true then
+              raise exception 'observation idempotency proof failed';
+            end if;
+
+            v_event := atlas.ensure_financial_economic_event_core_v1(
+              '10000000-0000-0000-0000-000000000001','stripe:txn_fixture:payment','customer_payment','inflow',
+              1000.00,'usd',now(),null,null,'Fixture Customer',null,null,null,
+              'stripe_balance_transaction','txn_fixture','{}'::jsonb
+            );
+            v_event_id := (v_event->>'economicEventId')::uuid;
+            v_event2 := atlas.ensure_financial_economic_event_core_v1(
+              '10000000-0000-0000-0000-000000000001','stripe:txn_fixture:payment','customer_payment','inflow',
+              1000.00,'usd',(select occurred_at from atlas.financial_economic_events where id=v_event_id),null,null,'Fixture Customer',null,null,null,
+              'stripe_balance_transaction','txn_fixture','{}'::jsonb
+            );
+            if (v_event2->>'economicEventId')::uuid is distinct from v_event_id
+               or coalesce((v_event2->>'deduplicated')::boolean,false) is not true then
+              raise exception 'economic event idempotency proof failed';
+            end if;
+
+            v_fee := atlas.ensure_financial_economic_event_core_v1(
+              '10000000-0000-0000-0000-000000000001','stripe:txn_fixture:fee','processor_fee','outflow',
+              29.30,'usd',(select occurred_at from atlas.financial_economic_events where id=v_event_id),null,null,'Stripe',null,null,null,
+              'stripe_balance_transaction','txn_fixture','{}'::jsonb
+            );
+            v_fee_id := (v_fee->>'economicEventId')::uuid;
+
+            v_link := atlas.link_financial_observation_to_event_core_v1(
+              '10000000-0000-0000-0000-000000000001',v_event_id,v_obs_id,
+              'establishes','stripe_balance_transaction','txn_fixture',1.0,'{}'::jsonb
+            );
+            v_link2 := atlas.link_financial_observation_to_event_core_v1(
+              '10000000-0000-0000-0000-000000000001',v_event_id,v_obs_id,
+              'establishes','stripe_balance_transaction','txn_fixture',1.0,'{}'::jsonb
+            );
+            if (v_link2->>'evidenceLinkId')::uuid is distinct from (v_link->>'evidenceLinkId')::uuid then
+              raise exception 'append-only evidence-link idempotency proof failed';
+            end if;
+
+            perform atlas.relate_financial_economic_events_core_v1(
+              '10000000-0000-0000-0000-000000000001',v_fee_id,v_event_id,
+              'fee_on','stripe_balance_transaction','txn_fixture',1.0,'{}'::jsonb
+            );
+
+            perform atlas.assert_financial_classification_core_v1(
+              '10000000-0000-0000-0000-000000000001',v_fee_id,
+              'bookkeeping_category','processor_fees','Processor fees','provider_hint','stripe',10,0.95,null,'{}'::jsonb
+            );
+
+            v_delivery := atlas.record_financial_source_delivery_core_v1(
+              v_source_id,'evt_fixture','charge.succeeded','delivery_hash',now(),'{"fixture":true}'::jsonb
+            );
+            perform atlas.record_financial_source_delivery_processing_core_v1(
+              (v_delivery->>'deliveryEventId')::uuid,'succeeded','stripe_financial_adapter_v1','{}'::jsonb
+            );
+            v_delivery2 := atlas.record_financial_source_delivery_core_v1(
+              v_source_id,'evt_fixture','charge.succeeded','delivery_hash',now(),'{"fixture":true}'::jsonb
+            );
+            if coalesce((v_delivery2->>'alreadySucceeded')::boolean,false) is not true then
+              raise exception 'provider delivery replay proof failed';
+            end if;
+
+            v_secret := atlas.put_connected_source_secret_core_v1(
+              v_source_id,'oauth_access_token','fixture-secret-value','fixture proof','{}'::jsonb
+            );
+            v_secret_text := atlas.read_connected_source_secret_core_v1(v_source_id,'oauth_access_token');
+            if v_secret_text is distinct from 'fixture-secret-value' then
+              raise exception 'Vault credential read proof failed';
+            end if;
+            perform atlas.put_connected_source_secret_core_v1(
+              v_source_id,'oauth_access_token','fixture-secret-value-v2','fixture rotation','{}'::jsonb
+            );
+            if atlas.read_connected_source_secret_core_v1(v_source_id,'oauth_access_token') is distinct from 'fixture-secret-value-v2' then
+              raise exception 'Vault credential rotation proof failed';
+            end if;
+
+            begin
+              update atlas.financial_economic_events set amount=1 where id=v_event_id;
+              raise exception 'append-only mutation unexpectedly succeeded';
+            exception when sqlstate '55000' then
+              null;
+            end;
+
+            begin
+              perform atlas.record_financial_source_observation_core_v1(
+                '10000000-0000-0000-0000-000000000002',v_source_id,
+                'balance_transaction','txn_cross_org','fingerprint_cross',null,now(),now(),
+                'inflow',1,0,1,'usd',null,null,null,'available','{}'::jsonb,null,'{}'::jsonb
+              );
+              raise exception 'cross-organization observation unexpectedly succeeded';
+            exception when insufficient_privilege then
+              null;
+            end;
+          end;
+          $exercise$;
+          '''
+
           parts = [
               base,
               Path('architecture/atlas-financial-reality-kernel-v1-idempotency-correction.sql').read_text(encoding='utf-8'),
               Path('architecture/atlas-organization-connected-source-commands-v1.sql').read_text(encoding='utf-8'),
               Path('architecture/atlas-connected-source-secret-custody-v1.sql').read_text(encoding='utf-8'),
               Path('architecture/atlas-financial-source-delivery-custody-v1.sql').read_text(encoding='utf-8'),
+              exercises,
               '\nROLLBACK;\n',
           ]
-          Path(sys.argv[2]).write_text('\n'.join(parts), encoding='utf-8')
+          Path('/tmp/financial-reality-proof.sql').write_text('\n'.join(parts), encoding='utf-8')
           PY
-          grep -q '^BEGIN;$' "$out"
-          [[ "$(grep -c '^ROLLBACK;$' "$out")" -eq 1 ]]
+          grep -q '^BEGIN;$' /tmp/financial-reality-proof.sql
+          [[ "$(grep -c '^ROLLBACK;$' /tmp/financial-reality-proof.sql)" -eq 1 ]]
 
-      - name: Execute Financial Reality proof
+      - name: Parse assembled SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet 'pglast>=7,<8'
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          sql = Path('/tmp/financial-reality-proof.sql').read_text(encoding='utf-8')
+          parse_sql(sql)
+          print(f'PostgreSQL parser accepted {len(sql.splitlines())} Financial Reality proof lines')
+          PY
+
+      - name: Execute Financial Reality proof and behavioral invariants
         shell: bash
         run: |
           set -euo pipefail
@@ -85,7 +318,7 @@ jobs:
             -v ON_ERROR_STOP=1 \
             -f /tmp/financial-reality-proof.sql
 
-      - name: Verify rollback left no proof schema behind
+      - name: Verify rollback left no Financial Reality schema behind
         shell: bash
         run: |
           set -euo pipefail
