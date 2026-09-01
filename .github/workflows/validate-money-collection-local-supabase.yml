@@ -47,35 +47,11 @@ jobs:
 
       - name: Verify Money Collection postconditions
         shell: bash
+        env:
+          POSTCONDITION_SQL_B64: ZG8gJCQKYmVnaW4KICBpZiB0b19yZWdjbGFzcygnYXRsYXMubW9uZXlfb2JsaWdhdGlvbnMnKSBpcyBudWxsCiAgICAgb3IgdG9fcmVnY2xhc3MoJ2F0bGFzLm1vbmV5X3JlY2VpcHRzJykgaXMgbnVsbAogICAgIG9yIHRvX3JlZ2NsYXNzKCdhdGxhcy5tb25leV9zb3VyY2VfYWRhcHRlcl9jb3ZlcmFnZScpIGlzIG51bGwgdGhlbgogICAgcmFpc2UgZXhjZXB0aW9uICdNb25leSBDb2xsZWN0aW9uIGNhbm9uaWNhbCByZWxhdGlvbnMgYXJlIG1pc3NpbmcgYWZ0ZXIgcmVwbGF5Lic7CiAgZW5kIGlmOwogIGlmIHRvX3JlZ2NsYXNzKCdhdGxhcy5jb21tdW5pdHlfcmVnaXN0cmF0aW9uX3BheW1lbnRzJykgaXMgbm90IG51bGwgdGhlbgogICAgcmFpc2UgZXhjZXB0aW9uICdMZWdhY3kgY29tbXVuaXR5X3JlZ2lzdHJhdGlvbl9wYXltZW50cyBzdXJ2aXZlZCBjdXRvdmVyLic7CiAgZW5kIGlmOwogIGlmIHRvX3JlZ3Byb2NlZHVyZSgnYXRsYXMubW9uZXlfc291cmNlX2NvdmVyYWdlX3N0YXRlX2NvcmVfdjEodXVpZCx0ZXh0LHRleHQsdGV4dCx0ZXh0LHRpbWVzdGFtcCB3aXRoIHRpbWUgem9uZSxudW1lcmljLHRleHQpJykgaXMgbnVsbCB0aGVuCiAgICByYWlzZSBleGNlcHRpb24gJ0Nhbm9uaWNhbCBzb3VyY2UtY3VycmVuY3kgY292ZXJhZ2UgcmVhZGVyIGlzIG1pc3NpbmcuJzsKICBlbmQgaWY7CiAgaWYgdG9fcmVncHJvY2VkdXJlKCdhdGxhcy5tb25leV9zb3VyY2VfY292ZXJhZ2Vfc3RhdGVfY29yZV92MSh1dWlkLHRleHQsdGV4dCx0ZXh0LHRleHQsdGltZXN0YW1wIHdpdGggdGltZSB6b25lLG51bWVyaWMpJykgaXMgbm90IG51bGwgdGhlbgogICAgcmFpc2UgZXhjZXB0aW9uICdPYnNvbGV0ZSBzZXZlbi1hcmd1bWVudCBjb3ZlcmFnZSByZWFkZXIgc3Vydml2ZWQgY3V0b3Zlci4nOwogIGVuZCBpZjsKICBpZiB0b19yZWdwcm9jZWR1cmUoJ2F0bGFzLnJlY29yZF9mbG93ZXJfc2FsZV9jb3JlX3YyX2RvbWFpbl9pbXBsKHV1aWQsdXVpZCx0ZXh0LHV1aWQsdGV4dCx0ZXh0LHRleHQsanNvbmIsbnVtZXJpYyxudW1lcmljLHRleHQsZGF0ZSx0aW1lIHdpdGhvdXQgdGltZSB6b25lLHV1aWQsdXVpZCx0ZXh0LHRleHQsYm9vbGVhbiknKSBpcyBudWxsIHRoZW4KICAgIHJhaXNlIGV4Y2VwdGlvbiAnRmxvd2VyIFNhbGUgdjIgc3Vib3JkaW5hdGUgaW1wbGVtZW50YXRpb24gaXMgbWlzc2luZy4nOwogIGVuZCBpZjsKZW5kOwokJDsKCnNlbGVjdCBzb3VyY2VfZG9tYWluLHNvdXJjZV9raW5kLG9ibGlnYXRpb25fa2luZCxhZGFwdGVyX2NvbnRyYWN0LHN0YXR1cyxyZWxlYXNlX3Byb3ZlbmFuY2UKZnJvbSBhdGxhcy5tb25leV9zb3VyY2VfYWRhcHRlcl9jb3ZlcmFnZQpvcmRlciBieSBzb3VyY2VfZG9tYWluLHNvdXJjZV9raW5kLG9ibGlnYXRpb25fa2luZDsK
         run: |
           set -euo pipefail
-          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1 <<'SQL'
-          do $$
-          begin
-            if to_regclass('atlas.money_obligations') is null
-               or to_regclass('atlas.money_receipts') is null
-               or to_regclass('atlas.money_source_adapter_coverage') is null then
-              raise exception 'Money Collection canonical relations are missing after replay.';
-            end if;
-            if to_regclass('atlas.community_registration_payments') is not null then
-              raise exception 'Legacy community_registration_payments survived cutover.';
-            end if;
-            if to_regprocedure('atlas.money_source_coverage_state_core_v1(uuid,text,text,text,text,timestamp with time zone,numeric,text)') is null then
-              raise exception 'Canonical source-currency coverage reader is missing.';
-            end if;
-            if to_regprocedure('atlas.money_source_coverage_state_core_v1(uuid,text,text,text,text,timestamp with time zone,numeric)') is not null then
-              raise exception 'Obsolete seven-argument coverage reader survived cutover.';
-            end if;
-            if to_regprocedure('atlas.record_flower_sale_core_v2_domain_impl(uuid,uuid,text,uuid,text,text,text,jsonb,numeric,numeric,text,date,time without time zone,uuid,uuid,text,text,boolean)') is null then
-              raise exception 'Flower Sale v2 subordinate implementation is missing.';
-            end if;
-          end;
-          $$;
-
-          select source_domain,source_kind,obligation_kind,adapter_contract,status,release_provenance
-          from atlas.money_source_adapter_coverage
-          order by source_domain,source_kind,obligation_kind;
-SQL
+          printf '%s' "$POSTCONDITION_SQL_B64" | base64 --decode | psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' -v ON_ERROR_STOP=1
 
       - name: Lint migrated Atlas schema
         shell: bash
