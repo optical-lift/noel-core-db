@@ -9,11 +9,14 @@ This repository owns the executable migration history for the physical Supabase 
 | Schema | Logical owner | Purpose |
 | --- | --- | --- |
 | `core` | Noel | canonical textual/manuscript evidence engine and related research infrastructure |
+| `mark` | Noel | private culture-agnostic physical mark evidence custody: source objects, surfaces, captures, regions, components, topology/junctions, anonymous sequence position and source-truth freeze state |
 | `atlas` | Atlas | operational management system |
 | `wnph` | Write Now Publishing House | private canonical publication custody, creator/corpus/work/recovery/publication state |
 | `wnph_api` | Write Now Publishing House | deliberately exposed views/RPCs for application access; closed until individual surfaces are explicitly granted |
 | `reporting` | Reporting | private source-custodied newsroom memory for sources, passages, entities, claims, events, money, actions, votes, quotes and continuing story topics |
 | `public` | legacy/shared compatibility | older project surfaces requiring explicit adjudication before reuse |
+
+`mark` is Noel-owned physical evidence custody, introduced post-cutover by `core_mark_physical_evidence_kernel_v1`. It is deliberately more general than `core.manuscript_registry`: a sign-bearing object may be a manuscript leaf, tablet, bone, seal, textile, tally, diagram or another durable physical carrier without requiring a language, Unicode identity, canonical passage, or inherited character boundary. `mark` is private by default; `public`, `anon`, `authenticated`, and `service_role` receive no direct schema access in v1. Analytical engines may reference frozen `mark` evidence through explicit cross-schema contracts, but their predictions and interpretations never mutate physical source truth.
 
 `wnph` and `wnph_api` were absent at the production cutover and were first created post-fence by `wnph_product_schema_membrane_v1`. Both schemas are owned by `postgres`; `anon`, `authenticated`, and `service_role` have no schema `USAGE` or `CREATE` privilege by default. Future application access must be granted deliberately through `wnph_api`; canonical `wnph` custody is not an application query surface.
 
@@ -38,6 +41,7 @@ The production database also contains older specialized schemas such as `backup`
 9. `wnph_api` is deny-by-default. Each future view/function and role grant requires an explicit migration.
 10. A Write Now application surface may read or mutate `wnph` only through a governed `wnph_api` object or an explicitly documented server-side bridge; direct product-app coupling to canonical tables is forbidden.
 11. `reporting` remains private newsroom custody. Public application access, if ever needed, must be introduced through a separately governed surface rather than direct grants to canonical Reporting tables.
+12. `mark` physical source truth is downstream-immutable after freeze. Corrections create new physical records plus explicit supersession lineage; recurrence engines, recovery predictions, linguistic readings, and scholarship may reference but must never rewrite frozen observations.
 
 ## Future splitability
 
