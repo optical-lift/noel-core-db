@@ -69,8 +69,8 @@ else:
         errors.append('Production schema must be snapshotted before candidate checkout, and candidate DDL must execute only after the local clone exists.')
 
 secret_occurrences = workflow.count('NOEL_CORE_DATABASE_URL')
-if secret_occurrences != 4:
-    errors.append(f'Expected the production DB secret token exactly 4 times inside the single snapshot step; found {secret_occurrences}.')
+if secret_occurrences != 5:
+    errors.append(f'Expected the production DB secret token exactly 5 times inside the single snapshot step; found {secret_occurrences}.')
 
 if errors:
     print('Production schema validation contract FAILED:')
