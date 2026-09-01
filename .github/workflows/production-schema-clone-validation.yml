@@ -118,6 +118,44 @@ jobs:
           test -s "$RUNNER_TEMP/production-user-schema.sql"
           sha256sum "$RUNNER_TEMP/production-user-schema.sql"
 
+      - name: Remove restore-only trigger toggles from schema clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path(os.environ['RUNNER_TEMP']) / 'production-user-schema.sql'
+          lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
+          pattern = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
+          kept = []
+          disabled = 0
+          enabled = 0
+
+          for line in lines:
+              match = pattern.match(line)
+              if not match:
+                  kept.append(line)
+                  continue
+              if match.group(1) == 'DISABLE':
+                  disabled += 1
+              else:
+                  enabled += 1
+
+          if disabled != enabled:
+              raise SystemExit(
+                  f'unbalanced restore-only trigger toggles in production schema dump: '
+                  f'{disabled} disable vs {enabled} enable'
+              )
+
+          path.write_text(''.join(kept), encoding='utf-8')
+          print(f'removed {disabled + enabled} restore-only trigger toggle statement(s)')
+          PY
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/production-user-schema.sql"
+
       - name: Checkout immutable candidate
         uses: actions/checkout@v4
         with:
