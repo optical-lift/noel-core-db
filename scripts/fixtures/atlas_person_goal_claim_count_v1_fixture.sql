@@ -49,7 +49,7 @@ begin
     ),
     'evidence',jsonb_build_object(
       'kind','human_expression',
-      'observedAt','2026-09-01T08:00:00-05:00',
+      'observedAt','2026-08-31T18:00:00-05:00',
       'value',jsonb_build_object('rawLanguage','I accept completing 12 books as this goal requirement.'),
       'provenance',jsonb_build_object('capture','fixture')
     ),
@@ -95,7 +95,7 @@ begin
       'subject',jsonb_build_object('domain','learning','kind','book_completion','id','reading:12-books'),
       'evidence',jsonb_build_object(
         'kind','completion_observation',
-        'observedAt','2026-09-01T09:00:00-05:00',
+        'observedAt','2026-08-31T18:15:00-05:00',
         'value',jsonb_build_object('bookKey','fixture-book-' || i::text)
       ),
       'claim',jsonb_build_object(
@@ -121,7 +121,7 @@ begin
     'subject',jsonb_build_object('domain','learning','kind','book_completion','id','reading:12-books'),
     'evidence',jsonb_build_object(
       'kind','human_correction',
-      'observedAt','2026-09-01T09:15:00-05:00',
+      'observedAt','2026-08-31T18:30:00-05:00',
       'value',jsonb_build_object('bookKey','fixture-book-1-corrected')
     ),
     'claim',jsonb_build_object(
@@ -144,7 +144,7 @@ begin
       'subject',jsonb_build_object('domain','learning','kind','book_completion','id','reading:12-books'),
       'evidence',jsonb_build_object(
         'kind','completion_observation',
-        'observedAt','2026-09-01T10:00:00-05:00',
+        'observedAt','2026-08-31T18:45:00-05:00',
         'value',jsonb_build_object('bookKey','fixture-book-' || i::text)
       ),
       'claim',jsonb_build_object(
@@ -189,7 +189,7 @@ begin
     'subject',jsonb_build_object('domain','training','kind','training_goal','id','fixture-5k'),
     'evidence',jsonb_build_object(
       'kind','human_expression',
-      'observedAt','2026-09-01T11:00:00-05:00',
+      'observedAt','2026-08-31T19:00:00-05:00',
       'value',jsonb_build_object('rawLanguage','I accept completing five kilometers as the goal requirement.')
     ),
     'claim',jsonb_build_object(
@@ -204,7 +204,7 @@ begin
     'subject',jsonb_build_object('domain','training','kind','activity','id','fixture-5k-progress'),
     'evidence',jsonb_build_object(
       'kind','activity_observation',
-      'observedAt','2026-09-01T11:30:00-05:00',
+      'observedAt','2026-08-31T19:15:00-05:00',
       'value',jsonb_build_object('distance',4,'unit','km')
     ),
     'claim',jsonb_build_object(
