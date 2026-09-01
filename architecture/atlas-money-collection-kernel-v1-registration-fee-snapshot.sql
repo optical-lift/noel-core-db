@@ -100,7 +100,7 @@ begin
     v_fee_currency,
     null,
     'community_registration:'||v_registration.id::text||':participation_fee',
-    v_registration.metadata->>'accepted_by_user_id'::text,
+    auth.uid(),
     jsonb_build_object(
       'adapterContract',v_coverage.adapter_contract,
       'coverageId',v_coverage.id,
