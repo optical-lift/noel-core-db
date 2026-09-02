@@ -1,0 +1,130 @@
+name: Mark Source Custody Acquisition
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noel-mark-source-custody-acquisition
+  cancel-in-progress: false
+
+jobs:
+  acquire:
+    if: >-
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      startsWith(github.event.issue.title, 'Mark source custody request:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Resolve governed custody request
+        id: request
+        shell: bash
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re, urllib.parse
+          from pathlib import Path
+          title = os.environ.get('ISSUE_TITLE','')
+          body = os.environ.get('ISSUE_BODY','')
+          fields = {}
+          for raw in body.splitlines():
+              m = re.fullmatch(r'([a-z0-9_]+):\s*(\S+)\s*', raw)
+              if m:
+                  k,v = m.groups()
+                  if k in fields and fields[k] != v:
+                      raise SystemExit(f'duplicate conflicting field: {k}')
+                  fields[k] = v
+          required = ['batch_key','w001_capture_key','w001_url','w002_capture_key','w002_url','w003_capture_key','w003_url']
+          missing = [k for k in required if k not in fields]
+          if missing:
+              raise SystemExit('missing required field(s): ' + ', '.join(missing))
+          expected_title = f"Mark source custody request: {fields['batch_key']}"
+          if title != expected_title:
+              raise SystemExit(f'issue title must be exactly: {expected_title}')
+          expected_captures = {'w001_capture_key':'mark_w001_c0_remote','w002_capture_key':'mark_w002_c0_remote','w003_capture_key':'mark_w003_c0_remote'}
+          for key, expected in expected_captures.items():
+              if fields[key] != expected:
+                  raise SystemExit(f'{key} must be exactly {expected}')
+          allowed_hosts = {'coleccion.museolarco.org','cdli.earth','collectionapi.metmuseum.org'}
+          for key in ('w001_url','w002_url','w003_url'):
+              parsed = urllib.parse.urlparse(fields[key])
+              if parsed.scheme != 'https' or parsed.hostname not in allowed_hosts:
+                  raise SystemExit(f'{key} host is outside the governed allowlist')
+              if parsed.username or parsed.password or parsed.fragment:
+                  raise SystemExit(f'{key} contains disallowed URL credentials/fragment')
+          request = {'batch_key': fields['batch_key'], 'captures': [
+              {'capture_key': fields['w001_capture_key'], 'url': fields['w001_url']},
+              {'capture_key': fields['w002_capture_key'], 'url': fields['w002_url']},
+              {'capture_key': fields['w003_capture_key'], 'url': fields['w003_url']},
+          ]}
+          path = Path(os.environ['RUNNER_TEMP']) / 'mark-source-request.json'
+          path.write_text(json.dumps(request, indent=2), encoding='utf-8')
+          with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as out:
+              out.write(f"request_path={path}\n")
+          print(json.dumps(request, indent=2))
+          PY
+      - name: Acquire exact remote bytes
+        shell: bash
+        env:
+          REQUEST_PATH: ${{ steps.request.outputs.request_path }}
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet 'Pillow==11.3.0'
+          out="$RUNNER_TEMP/mark-source-custody"
+          mkdir -p "$out/files" "$out/headers"
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          req = json.load(open(os.environ['REQUEST_PATH'], encoding='utf-8'))
+          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'mark-source-custody'
+          for i, item in enumerate(req['captures'], start=1):
+              dest = out / 'files' / f"{item['capture_key']}.source"
+              headers = out / 'headers' / f"{item['capture_key']}.headers.txt"
+              cmd = ['curl','--fail-with-body','--location','--proto','=https','--max-redirs','5','--retry','3','--retry-all-errors','--connect-timeout','20','--max-time','120','--dump-header',str(headers),'--output',str(dest),'--write-out','%{url_effective}\n',item['url']]
+              effective = subprocess.check_output(cmd, text=True).strip()
+              (out / f"effective_{i}.txt").write_text(effective + '\n', encoding='utf-8')
+          PY
+      - name: Build custody manifest
+        shell: bash
+        env:
+          REQUEST_PATH: ${{ steps.request.outputs.request_path }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, mimetypes, os, pathlib, re
+          from PIL import Image
+          req = json.load(open(os.environ['REQUEST_PATH'], encoding='utf-8'))
+          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'mark-source-custody'
+          rows = []
+          for i, item in enumerate(req['captures'], start=1):
+              path = out / 'files' / f"{item['capture_key']}.source"
+              data = path.read_bytes()
+              with Image.open(path) as im:
+                  width, height = im.size
+                  fmt = im.format
+                  mime = Image.MIME.get(fmt) or mimetypes.guess_type(item['url'])[0] or 'application/octet-stream'
+              header_text = (out / 'headers' / f"{item['capture_key']}.headers.txt").read_text(errors='replace')
+              etags = re.findall(r'(?im)^etag:\s*(.+?)\s*$', header_text)
+              modified = re.findall(r'(?im)^last-modified:\s*(.+?)\s*$', header_text)
+              effective = (out / f"effective_{i}.txt").read_text(encoding='utf-8').strip()
+              rows.append({'capture_key':item['capture_key'],'requested_url':item['url'],'effective_url':effective,'sha256':hashlib.sha256(data).hexdigest(),'byte_length':len(data),'width_px':width,'height_px':height,'image_format':fmt,'mime_type':mime,'etag':etags[-1] if etags else None,'last_modified':modified[-1] if modified else None})
+          manifest = {'manifest_version':'mark-source-custody-v1','batch_key':req['batch_key'],'captures':rows}
+          p = out / 'manifest.json'
+          p.write_text(json.dumps(manifest, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+          print('MARK_SOURCE_CUSTODY_MANIFEST_BEGIN')
+          print(json.dumps(manifest, sort_keys=True))
+          print('MARK_SOURCE_CUSTODY_MANIFEST_END')
+          PY
+      - name: Upload byte custody artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mark-source-custody-${{ github.event.issue.number }}
+          path: ${{ runner.temp }}/mark-source-custody
+          if-no-files-found: error
+          retention-days: 30
