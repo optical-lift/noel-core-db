@@ -124,44 +124,6 @@ jobs:
           sha256sum "$RUNNER_TEMP/production-custom-roles.sql"
           sha256sum "$RUNNER_TEMP/production-user-schema.sql"
 
-      - name: Remove restore-only trigger toggles from schema clone
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import os
-          import re
-          from pathlib import Path
-
-          path = Path(os.environ['RUNNER_TEMP']) / 'production-user-schema.sql'
-          lines = path.read_text(encoding='utf-8').splitlines(keepends=True)
-          pattern = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
-          kept = []
-          disabled = 0
-          enabled = 0
-
-          for line in lines:
-              match = pattern.match(line)
-              if not match:
-                  kept.append(line)
-                  continue
-              if match.group(1) == 'DISABLE':
-                  disabled += 1
-              else:
-                  enabled += 1
-
-          if disabled != enabled:
-              raise SystemExit(
-                  f'unbalanced restore-only trigger toggles in production schema dump: '
-                  f'{disabled} disable vs {enabled} enable'
-              )
-
-          path.write_text(''.join(kept), encoding='utf-8')
-          print(f'removed {disabled + enabled} restore-only trigger toggle statement(s)')
-          PY
-          test -s "$RUNNER_TEMP/production-user-schema.sql"
-          sha256sum "$RUNNER_TEMP/production-user-schema.sql"
-
       - name: Checkout immutable candidate
         uses: actions/checkout@v4
         with:
@@ -184,93 +146,60 @@ jobs:
             exit 1
           fi
           candidate_migration="${matches[0]}"
-          base="$(basename "$candidate_migration")"
 
-          if compgen -G "supabase/migrations/${MIGRATION_VERSION}_*.sql" >/dev/null; then
-            echo '::error::Candidate migration version already exists on canonical main.'
+          mapfile -t canonical_matches < <(find supabase/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print)
+          if [[ "${#canonical_matches[@]}" -gt 1 ]]; then
+            echo "::error::Canonical main contains multiple migrations for ${MIGRATION_VERSION}."
             exit 1
           fi
+          if [[ "${#canonical_matches[@]}" -eq 1 ]]; then
+            if ! cmp -s "${canonical_matches[0]}" "$candidate_migration"; then
+              echo '::error::Candidate migration version already exists on canonical main with different bytes.'
+              exit 1
+            fi
+            echo 'Candidate preserves the exact migration bytes already staged on main and corrects only governed path ownership.'
+          fi
 
-          cp "$candidate_migration" "supabase/migrations/$base"
-          bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE"
-          rm "supabase/migrations/$base"
+          bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"
           echo "path=$candidate_migration" >> "$GITHUB_OUTPUT"
 
-      - name: Start disposable migration target
-        shell: bash
-        run: |
-          set -euo pipefail
-          mv supabase/migrations "$RUNNER_TEMP/canonical-main-migrations"
-          mkdir -p supabase/migrations
-          supabase init --force
-          supabase db start
-
-      - name: Restore production custom roles locally
-        shell: bash
-        run: |
-          set -euo pipefail
-          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
-            -v ON_ERROR_STOP=1 \
-            -f "$RUNNER_TEMP/production-custom-roles.sql"
-
-      - name: Restore production user schemas locally
-        shell: bash
-        run: |
-          set -euo pipefail
-          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
-            -v ON_ERROR_STOP=1 \
-            -f "$RUNNER_TEMP/production-user-schema.sql"
-
-      - name: Apply candidate migration only to local clone
-        shell: bash
-        env:
-          CANDIDATE_MIGRATION: ${{ steps.migration.outputs.path }}
-        run: |
-          set -euo pipefail
-          psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
-            -v ON_ERROR_STOP=1 \
-            -f "$CANDIDATE_MIGRATION"
-
-      - name: Run canonical migration postconditions when defined
+      - name: Validate candidate through canonical local harness
+        id: validation
         shell: bash
         env:
           MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+          CANDIDATE_MIGRATION: ${{ steps.migration.outputs.path }}
         run: |
           set -euo pipefail
-          mapfile -t validations < <(find validation/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print 2>/dev/null || true)
-          if [[ "${#validations[@]}" -gt 1 ]]; then
-            echo "::error::Expected at most one canonical postcondition file for ${MIGRATION_VERSION}; found ${#validations[@]}."
-            exit 1
-          fi
-          if [[ "${#validations[@]}" -eq 1 ]]; then
-            psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
-              -v ON_ERROR_STOP=1 \
-              -f "${validations[0]}"
-          else
-            echo "No canonical migration-specific postcondition file is defined for ${MIGRATION_VERSION}."
-          fi
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "$MIGRATION_VERSION" \
+            --release-lane "$RELEASE_LANE" \
+            --candidate-migration "$CANDIDATE_MIGRATION" \
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/production-schema-validation-artifacts"
 
-      - name: Lint migrated Atlas schema
-        shell: bash
-        run: |
-          set -euo pipefail
-          supabase db lint --local --schema atlas --level error --fail-on error
-
-      - name: Run local database advisors when supported
-        shell: bash
-        run: |
-          set -euo pipefail
-          help="$(supabase db advisors --help 2>&1 || true)"
-          printf '%s\n' "$help"
-          if printf '%s\n' "$help" | grep -q -- '--local'; then
-            supabase db advisors --local
-          else
-            echo 'Pinned Supabase CLI does not expose local db advisors; migration execution and plpgsql_check lint completed.'
-          fi
-
-      - name: Stop disposable local database
+      - name: Publish validation summary
         if: always()
         shell: bash
-        run: supabase stop --no-backup || true
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/production-schema-validation-artifacts/summary.md"
+          if [[ -s "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '::error::The validation harness did not produce its required summary artifact.'
+            exit 1
+          fi
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-schema-validation-${{ steps.request.outputs.migration_version }}
+          path: ${{ runner.temp }}/production-schema-validation-artifacts
+          if-no-files-found: error
+          retention-days: 30

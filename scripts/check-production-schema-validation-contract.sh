@@ -12,6 +12,8 @@ python3 - <<'PY'
 from pathlib import Path
 
 workflow = Path('.github/workflows/production-schema-clone-validation.yml').read_text()
+harness = Path('scripts/validate-production-schema-clone.sh').read_text()
+comparator = Path('scripts/compare-schema-lint.py').read_text()
 errors = []
 
 on_block = workflow.split('on:', 1)[1].split('\npermissions:', 1)[0] if 'on:' in workflow and '\npermissions:' in workflow else ''
@@ -36,15 +38,40 @@ required = [
     '--file "$RUNNER_TEMP/production-user-schema.sql"',
     'ref: ${{ steps.request.outputs.candidate_sha }}',
     'bash scripts/check-migration-release-lane.sh',
-    "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
-    '-f "$RUNNER_TEMP/production-custom-roles.sql"',
-    '-f "$RUNNER_TEMP/production-user-schema.sql"',
-    'supabase db lint --local --schema atlas --level error --fail-on error',
-    'supabase stop --no-backup',
+    'bash scripts/validate-production-schema-clone.sh',
+    '--roles-dump "$RUNNER_TEMP/production-custom-roles.sql"',
+    '--schema-dump "$RUNNER_TEMP/production-user-schema.sql"',
+    'Publish validation summary',
+    'actions/upload-artifact@v4',
+    'if-no-files-found: error',
 ]
 for fragment in required:
     if fragment not in workflow:
         errors.append(f'Missing governed schema-validation requirement: {fragment}')
+
+harness_required = [
+    "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    'supabase db lint --local --schema atlas --level error --fail-on error',
+    'run_lint baseline',
+    'run_lint candidate',
+    'scripts/compare-schema-lint.py',
+    'supabase stop --no-backup',
+    'psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$roles_dump"',
+    'psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$schema_clone"',
+]
+for fragment in harness_required:
+    if fragment not in harness:
+        errors.append(f'Missing canonical local-harness requirement: {fragment}')
+
+comparator_required = [
+    'candidate_by_key.keys() - baseline_by_key.keys()',
+    'schema-lint-delta.json',
+    'summary.md',
+    'return 1 if introduced else 0',
+]
+for fragment in comparator_required:
+    if fragment not in comparator:
+        errors.append(f'Missing lint-delta requirement: {fragment}')
 
 for forbidden in [
     'psql "$NOEL_CORE_DATABASE_URL"',
@@ -62,22 +89,18 @@ for forbidden in [
 
 snapshot_marker = '- name: Snapshot production user schemas read-only'
 candidate_marker = '- name: Checkout immutable candidate'
-start_marker = '- name: Start disposable migration target'
-roles_restore_marker = '- name: Restore production custom roles locally'
-schema_restore_marker = '- name: Restore production user schemas locally'
-apply_marker = '- name: Apply candidate migration only to local clone'
-markers = [snapshot_marker, candidate_marker, start_marker, roles_restore_marker, schema_restore_marker, apply_marker]
+resolve_marker = '- name: Resolve exact candidate migration'
+validate_marker = '- name: Validate candidate through canonical local harness'
+markers = [snapshot_marker, candidate_marker, resolve_marker, validate_marker]
 if any(marker not in workflow for marker in markers):
     errors.append('Schema validation step ordering markers are incomplete.')
 else:
     snapshot_pos = workflow.index(snapshot_marker)
     candidate_pos = workflow.index(candidate_marker)
-    start_pos = workflow.index(start_marker)
-    roles_restore_pos = workflow.index(roles_restore_marker)
-    schema_restore_pos = workflow.index(schema_restore_marker)
-    apply_pos = workflow.index(apply_marker)
-    if not snapshot_pos < candidate_pos < start_pos < roles_restore_pos < schema_restore_pos < apply_pos:
-        errors.append('Production custom roles and user schemas must be snapshotted before candidate checkout, then restored into the disposable local target before candidate DDL executes.')
+    resolve_pos = workflow.index(resolve_marker)
+    validate_pos = workflow.index(validate_marker)
+    if not snapshot_pos < candidate_pos < resolve_pos < validate_pos:
+        errors.append('Production custom roles and user schemas must be snapshotted before immutable candidate resolution and canonical local validation.')
     snapshot_block = workflow[snapshot_pos:candidate_pos]
     if '--schema ' in snapshot_block:
         errors.append('Production schema clone must not filter to one user schema; cross-schema dependencies require the complete user-schema graph.')
@@ -96,5 +119,5 @@ if errors:
         print(f'- {error}')
     raise SystemExit(1)
 
-print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, dependency-complete schema plus password-free custom-role production reads, local-only candidate execution, and no production DDL path.')
+print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, dependency-complete schema plus custom-role production reads, one local/CI harness, baseline-aware Atlas lint deltas, durable failure artifacts, local-only candidate execution, and no production DDL path.')
 PY

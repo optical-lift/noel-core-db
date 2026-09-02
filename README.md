@@ -18,3 +18,5 @@ Application repositories may retain pre-fence migration files as provenance and 
 Post-fence Atlas migrations use the `atlas_` logical-owner prefix, including incident repairs whose live migration identity is normalized to the canonical source filename before custody verification.
 
 See `custody/PRODUCTION_BASELINE.md` for the cutover contract and `schemas/OWNERSHIP.md` for logical schema boundaries.
+
+Production-shaped candidate migrations are validated through the same inspectable local/CI command documented in `docs/PRODUCTION_SCHEMA_CLONE_VALIDATION.md`. The gate records baseline and post-candidate Atlas lint reports, blocks only candidate-introduced errors, and uploads durable diagnostics for every run.
