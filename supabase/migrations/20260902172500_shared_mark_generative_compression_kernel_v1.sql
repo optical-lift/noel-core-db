@@ -7,12 +7,18 @@ begin;
 -- not a semantic layer. No culture, language, reading, sign name, conventional
 -- meaning, chronology, geography, or historical system identity is admitted.
 --
--- The primary score is minimum-description-length-like and pays for:
---   1. the learned grammar/codebook,
---   2. the encoded program for every evaluated graph,
---   3. any residual graph needed for exact reconstruction.
--- A claimed compression result is authoritative only when every member of the
--- evaluated corpus is exactly reconstructed.
+-- V1 is deliberately simple and auditable: a canonical blind graph is serialized
+-- into a deterministic token stream. Learned anonymous dictionary rules replace
+-- recurring contiguous token subsequences. The database itself expands every rule
+-- invocation and requires byte-for-byte token equality before a compression result
+-- may become reviewed or frozen.
+--
+-- The primary standalone score pays for:
+--   1. every learned dictionary rule once, and
+--   2. the encoded program for every evaluated graph.
+-- Literal program tokens are the residual representation, so there is no unpriced
+-- residual channel. A one-off special-case rule therefore costs more than simply
+-- leaving its source tokens literal.
 
 create table mark.compression_codec_registry (
   codec_key text primary key,
@@ -25,7 +31,7 @@ create table mark.compression_codec_registry (
   created_at timestamptz not null default now(),
   check (btrim(codec_key) <> ''),
   check (btrim(codec_name) <> ''),
-  check (objective in ('minimum_description_length')),
+  check (objective='minimum_description_length'),
   check (cost_unit='bits')
 );
 
@@ -33,10 +39,10 @@ insert into mark.compression_codec_registry(
   codec_key,codec_name,objective,structural_definition
 )
 values (
-  'MDL_JSON_GRAPH_V1',
-  'Canonical graph minimum description length v1',
+  'MDL_TOKEN_DICTIONARY_V1',
+  'Reversible blind graph token dictionary v1',
   'minimum_description_length',
-  'Costs are UTF-8 serialized byte length multiplied by eight. Raw cost is the canonical blind graph snapshot. Grammar cost is the serialized anonymous rule key plus its pattern graph. Program cost is the serialized rule-invocation program. Residual cost is any remaining blind graph required for exact reconstruction. Standalone score charges grammar once; transfer score reports program plus residual after a grammar has been learned independently.'
+  'Canonical blind graphs are deterministically serialized to UTF-8 tokens. Raw cost is token-stream byte length times eight. A grammar rule is an anonymous R#### key plus an exact contiguous token subsequence observed in its training corpus; grammar cost is the serialized key and sequence. An encoded program contains literal source tokens and/or @R#### invocations. The database expands invocations and reviewed/frozen encodings must reproduce the original token stream exactly. Standalone score charges grammar once; transfer score charges only the program after independently learning a grammar.'
 )
 on conflict (codec_key) do nothing;
 
@@ -299,6 +305,50 @@ where exists (
 );
 $$;
 
+create or replace function mark.compression_graph_tokens_v1(p_graph jsonb)
+returns text[]
+language sql
+immutable
+set search_path = pg_catalog, mark
+as $$
+select coalesce(array_agg(token order by section_order,item_order),array[]::text[])
+from (
+  select 0::int as section_order,0::bigint as item_order,
+         'REP=' || coalesce(p_graph->>'representation','') as token
+  union all
+  select 1,ord::bigint,'M=' || value::text
+  from jsonb_array_elements(coalesce(p_graph->'members','[]'::jsonb)) with ordinality a(value,ord)
+  union all
+  select 2,ord::bigint,'N=' || value::text
+  from jsonb_array_elements(coalesce(p_graph->'nodes','[]'::jsonb)) with ordinality a(value,ord)
+  union all
+  select 3,ord::bigint,'E=' || value::text
+  from jsonb_array_elements(coalesce(p_graph->'edges','[]'::jsonb)) with ordinality a(value,ord)
+) s;
+$$;
+
+create or replace function mark.text_array_contains_subsequence_v1(
+  p_haystack text[],
+  p_needle text[]
+)
+returns boolean
+language plpgsql
+immutable
+set search_path = pg_catalog, mark
+as $$
+declare
+  h integer := coalesce(cardinality(p_haystack),0);
+  n integer := coalesce(cardinality(p_needle),0);
+  i integer;
+begin
+  if n=0 or h<n then return false; end if;
+  for i in 1..(h-n+1) loop
+    if p_haystack[i:i+n-1]=p_needle then return true; end if;
+  end loop;
+  return false;
+end
+$$;
+
 create table mark.compression_corpora (
   compression_corpus_id bigint generated always as identity primary key,
   corpus_key text not null unique,
@@ -328,8 +378,12 @@ create table mark.compression_corpora (
   check ((record_status='frozen') = (frozen_at is not null))
 );
 
+create index compression_corpora_representation_idx
+  on mark.compression_corpora(representation_key);
 create index compression_corpora_source_idx
   on mark.compression_corpora(source_corpus_id);
+create index compression_corpora_run_idx
+  on mark.compression_corpora(generated_by_run_id);
 
 create table mark.compression_corpus_members (
   compression_corpus_member_id bigint generated always as identity primary key,
@@ -338,10 +392,16 @@ create table mark.compression_corpus_members (
   source_unit_id bigint null references mark.compression_units(compression_unit_id),
   graph_snapshot jsonb not null,
   graph_hash text generated always as (
-    encode(extensions.digest(graph_snapshot::text,'sha256'),'hex')
+    encode(
+      extensions.digest(
+        array_to_string(mark.compression_graph_tokens_v1(graph_snapshot),E'\n'),
+        'sha256'
+      ),
+      'hex'
+    )
   ) stored,
   raw_cost_bits bigint generated always as (
-    octet_length(graph_snapshot::text)::bigint * 8
+    octet_length(array_to_string(mark.compression_graph_tokens_v1(graph_snapshot),E'\n'))::bigint * 8
   ) stored,
   record_status text not null default 'draft',
   frozen_at timestamptz null,
@@ -416,8 +476,14 @@ create table mark.compression_models (
   check ((record_status='frozen') = (frozen_at is not null))
 );
 
+create index compression_models_codec_idx
+  on mark.compression_models(codec_key);
+create index compression_models_representation_idx
+  on mark.compression_models(representation_key);
 create index compression_models_training_corpus_idx
   on mark.compression_models(training_corpus_id);
+create index compression_models_run_idx
+  on mark.compression_models(learned_by_run_id);
 
 create or replace function mark.validate_compression_model_v1()
 returns trigger
@@ -426,13 +492,18 @@ set search_path = pg_catalog, mark
 as $$
 declare
   corpus_rep text;
+  blind_codec boolean;
 begin
   select representation_key into corpus_rep
   from mark.compression_corpora
   where compression_corpus_id=new.training_corpus_id;
 
-  if corpus_rep is distinct from new.representation_key then
-    raise exception 'MARK_COMPRESSION_MODEL_REJECTED: training corpus representation mismatch';
+  select strict_blind_allowed into blind_codec
+  from mark.compression_codec_registry
+  where codec_key=new.codec_key;
+
+  if corpus_rep is distinct from new.representation_key or not coalesce(blind_codec,false) then
+    raise exception 'MARK_COMPRESSION_MODEL_REJECTED: training representation or codec mismatch';
   end if;
 
   return new;
@@ -447,10 +518,9 @@ create table mark.compression_rules (
   compression_rule_id bigint generated always as identity primary key,
   compression_model_id bigint not null references mark.compression_models(compression_model_id),
   rule_key text not null,
-  rule_kind text not null default 'macro',
-  pattern_graph jsonb not null,
+  token_sequence text[] not null,
   definition_cost_bits bigint generated always as (
-    octet_length(rule_key || '=' || pattern_graph::text)::bigint * 8
+    octet_length(rule_key || E'\n' || array_to_string(token_sequence,E'\n'))::bigint * 8
   ) stored,
   record_status text not null default 'draft',
   frozen_at timestamptz null,
@@ -458,7 +528,7 @@ create table mark.compression_rules (
   updated_at timestamptz not null default now(),
   unique(compression_model_id,rule_key),
   check (rule_key ~ '^R[0-9]{4,}$'),
-  check (rule_kind in ('primitive','composition','macro')),
+  check (cardinality(token_sequence) >= 1),
   check (record_status in ('draft','reviewed','frozen')),
   check ((record_status='frozen') = (frozen_at is not null))
 );
@@ -472,14 +542,33 @@ language plpgsql
 set search_path = pg_catalog, mark
 as $$
 declare
-  rep text;
+  training_id bigint;
+  t text;
 begin
-  select representation_key into rep
+  select training_corpus_id into training_id
   from mark.compression_models
   where compression_model_id=new.compression_model_id;
 
-  if rep is null or not mark.graph_payload_is_valid_v1(new.pattern_graph,rep) then
-    raise exception 'MARK_COMPRESSION_RULE_REJECTED: pattern is not a blind graph in model representation';
+  if training_id is null then
+    raise exception 'MARK_COMPRESSION_RULE_REJECTED: unknown model';
+  end if;
+
+  foreach t in array new.token_sequence loop
+    if t is null or btrim(t)='' or t ~ '^@R[0-9]{4,}$' then
+      raise exception 'MARK_COMPRESSION_RULE_REJECTED: rule definitions may contain only literal training tokens';
+    end if;
+  end loop;
+
+  if not exists (
+    select 1
+    from mark.compression_corpus_members cm
+    where cm.compression_corpus_id=training_id
+      and mark.text_array_contains_subsequence_v1(
+        mark.compression_graph_tokens_v1(cm.graph_snapshot),
+        new.token_sequence
+      )
+  ) then
+    raise exception 'MARK_COMPRESSION_RULE_REJECTED: rule sequence does not occur contiguously in training corpus';
   end if;
 
   return new;
@@ -490,19 +579,49 @@ create trigger validate_compression_rule_v1
 before insert or update on mark.compression_rules
 for each row execute function mark.validate_compression_rule_v1();
 
+create or replace function mark.decompress_program_v1(
+  p_compression_model_id bigint,
+  p_program_tokens text[]
+)
+returns text[]
+language plpgsql
+stable
+set search_path = pg_catalog, mark
+as $$
+declare
+  out_tokens text[] := array[]::text[];
+  t text;
+  rk text;
+  expansion text[];
+begin
+  foreach t in array coalesce(p_program_tokens,array[]::text[]) loop
+    if t ~ '^@R[0-9]{4,}$' then
+      rk := substr(t,2);
+      select token_sequence into expansion
+      from mark.compression_rules
+      where compression_model_id=p_compression_model_id
+        and rule_key=rk;
+      if expansion is null then
+        raise exception 'MARK_COMPRESSION_DECODE_REJECTED: unknown rule %',rk;
+      end if;
+      out_tokens := out_tokens || expansion;
+    else
+      out_tokens := out_tokens || t;
+    end if;
+  end loop;
+  return out_tokens;
+end
+$$;
+
 create table mark.compression_encodings (
   compression_encoding_id bigint generated always as identity primary key,
   compression_model_id bigint not null references mark.compression_models(compression_model_id),
   compression_corpus_member_id bigint not null references mark.compression_corpus_members(compression_corpus_member_id),
-  encoded_program jsonb null,
-  residual_graph jsonb null,
-  encoding_cost_bits bigint generated always as (
-    case when encoded_program is null then 0 else octet_length(encoded_program::text)::bigint * 8 end
+  program_tokens text[] not null,
+  program_cost_bits bigint generated always as (
+    octet_length(array_to_string(program_tokens,E'\n'))::bigint * 8
   ) stored,
-  residual_cost_bits bigint generated always as (
-    case when residual_graph is null then 0 else octet_length(residual_graph::text)::bigint * 8 end
-  ) stored,
-  reconstructed_graph_hash text not null,
+  reconstructed_token_hash text null,
   reconstruction_exact boolean not null default false,
   encoded_by_run_id bigint null references instrument.runs(instrument_run_id),
   record_status text not null default 'draft',
@@ -510,32 +629,36 @@ create table mark.compression_encodings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique(compression_model_id,compression_corpus_member_id),
-  check (reconstructed_graph_hash ~ '^[0-9a-f]{64}$'),
+  check (reconstructed_token_hash is null or reconstructed_token_hash ~ '^[0-9a-f]{64}$'),
   check (record_status in ('draft','reviewed','frozen')),
   check ((record_status='frozen') = (frozen_at is not null))
 );
 
 create index compression_encodings_member_idx
   on mark.compression_encodings(compression_corpus_member_id);
+create index compression_encodings_run_idx
+  on mark.compression_encodings(encoded_by_run_id);
 
 create or replace function mark.validate_compression_encoding_v1()
 returns trigger
 language plpgsql
-set search_path = pg_catalog, mark
+set search_path = pg_catalog, mark, extensions
 as $$
 declare
   model_rep text;
   corpus_rep text;
+  expected_tokens text[];
+  reconstructed_tokens text[];
   expected_hash text;
-  step jsonb;
-  k text;
-  rk text;
 begin
   select m.representation_key into model_rep
   from mark.compression_models m
   where m.compression_model_id=new.compression_model_id;
 
-  select c.representation_key,cm.graph_hash into corpus_rep,expected_hash
+  select c.representation_key,
+         mark.compression_graph_tokens_v1(cm.graph_snapshot),
+         cm.graph_hash
+    into corpus_rep,expected_tokens,expected_hash
   from mark.compression_corpus_members cm
   join mark.compression_corpora c on c.compression_corpus_id=cm.compression_corpus_id
   where cm.compression_corpus_member_id=new.compression_corpus_member_id;
@@ -544,51 +667,16 @@ begin
     raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: model/member representation mismatch';
   end if;
 
-  if new.residual_graph is not null
-     and not mark.graph_payload_is_valid_v1(new.residual_graph,model_rep) then
-    raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: residual is not a blind graph';
-  end if;
-
-  if new.encoded_program is not null then
-    if jsonb_typeof(new.encoded_program) <> 'array' then
-      raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: encoded_program must be an array';
-    end if;
-
-    for step in select value from jsonb_array_elements(new.encoded_program) loop
-      if jsonb_typeof(step) <> 'object' or not (step ? 'rule') then
-        raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: every program step requires rule';
-      end if;
-      for k in select jsonb_object_keys(step) loop
-        if k not in ('rule','anchor_member','anchor_node','repeat') then
-          raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: program field % is not blind-grammar authority',k;
-        end if;
-      end loop;
-      rk := step->>'rule';
-      if rk !~ '^R[0-9]{4,}$' or not exists (
-        select 1 from mark.compression_rules r
-        where r.compression_model_id=new.compression_model_id
-          and r.rule_key=rk
-      ) then
-        raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: unknown model rule %',rk;
-      end if;
-      if step ? 'anchor_member' and coalesce(step->>'anchor_member','') !~ '^[0-9]+$' then
-        raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: anchor_member must be a positive integer';
-      end if;
-      if step ? 'anchor_node' and coalesce(step->>'anchor_node','') !~ '^[0-9]+$' then
-        raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: anchor_node must be a positive integer';
-      end if;
-      if step ? 'repeat' and (
-        coalesce(step->>'repeat','') !~ '^[0-9]+$' or (step->>'repeat')::bigint < 1
-      ) then
-        raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: repeat must be a positive integer';
-      end if;
-    end loop;
-  end if;
-
-  new.reconstruction_exact := new.reconstructed_graph_hash = expected_hash;
+  reconstructed_tokens := mark.decompress_program_v1(new.compression_model_id,new.program_tokens);
+  new.reconstructed_token_hash := encode(
+    extensions.digest(array_to_string(reconstructed_tokens,E'\n'),'sha256'),
+    'hex'
+  );
+  new.reconstruction_exact := reconstructed_tokens=expected_tokens
+                              and new.reconstructed_token_hash=expected_hash;
 
   if new.record_status in ('reviewed','frozen') and not new.reconstruction_exact then
-    raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: reviewed/frozen encoding must exactly reconstruct corpus member';
+    raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: reviewed/frozen program must exactly reconstruct source token stream';
   end if;
 
   return new;
@@ -625,8 +713,7 @@ encoded as (
     cm.compression_corpus_id,
     count(*)::bigint as encoded_member_count,
     sum(cm.raw_cost_bits)::bigint as raw_cost_bits,
-    sum(e.encoding_cost_bits)::bigint as program_cost_bits,
-    sum(e.residual_cost_bits)::bigint as residual_cost_bits,
+    sum(e.program_cost_bits)::bigint as program_cost_bits,
     count(*) filter (where e.reconstruction_exact)::bigint as exact_member_count
   from mark.compression_encodings e
   join mark.compression_corpus_members cm
@@ -650,13 +737,12 @@ select
   g.grammar_cost_bits,
   g.rule_count,
   e.program_cost_bits,
-  e.residual_cost_bits,
-  (g.grammar_cost_bits + e.program_cost_bits + e.residual_cost_bits)::bigint as standalone_total_bits,
-  (e.program_cost_bits + e.residual_cost_bits)::bigint as transfer_total_bits,
+  (g.grammar_cost_bits + e.program_cost_bits)::bigint as standalone_total_bits,
+  e.program_cost_bits::bigint as transfer_total_bits,
   case when e.raw_cost_bits=0 then null
-       else (g.grammar_cost_bits + e.program_cost_bits + e.residual_cost_bits)::numeric/e.raw_cost_bits::numeric end as standalone_ratio,
+       else (g.grammar_cost_bits + e.program_cost_bits)::numeric/e.raw_cost_bits::numeric end as standalone_ratio,
   case when e.raw_cost_bits=0 then null
-       else (e.program_cost_bits + e.residual_cost_bits)::numeric/e.raw_cost_bits::numeric end as transfer_ratio
+       else e.program_cost_bits::numeric/e.raw_cost_bits::numeric end as transfer_ratio
 from encoded e
 join mark.compression_models m on m.compression_model_id=e.compression_model_id
 join mark.compression_corpora c on c.compression_corpus_id=e.compression_corpus_id
@@ -702,31 +788,32 @@ with (security_invoker = true)
 as
 select
   e.compression_model_id,
-  step->>'rule' as rule_key,
+  substr(t,2) as rule_key,
   count(*)::bigint as invocation_count,
   count(distinct e.compression_corpus_member_id)::bigint as distinct_member_count,
   count(distinct cm.compression_corpus_id)::bigint as distinct_corpus_count
 from mark.compression_encodings e
 join mark.compression_corpus_members cm
   on cm.compression_corpus_member_id=e.compression_corpus_member_id
-cross join lateral jsonb_array_elements(coalesce(e.encoded_program,'[]'::jsonb)) step
+cross join lateral unnest(e.program_tokens) t
 where e.record_status in ('reviewed','frozen')
-group by e.compression_model_id,step->>'rule';
+  and t ~ '^@R[0-9]{4,}$'
+group by e.compression_model_id,substr(t,2);
 
 comment on table mark.compression_units is
   'Blind analysis units composed from one or more physical Mark instances. Unit membership carries no historical system identity.';
 comment on table mark.compression_corpora is
   'Blind evidence or matched-control corpora for generative compression experiments.';
 comment on table mark.compression_models is
-  'Candidate blind generative grammars trained on a declared compression corpus.';
+  'Candidate blind reversible dictionary grammars trained on a declared compression corpus.';
 comment on table mark.compression_rules is
-  'Anonymous reusable blind graph patterns. Rule identity carries no conventional meaning.';
+  'Anonymous recurring token subsequences drawn directly from the model training corpus. Rule identity carries no conventional meaning.';
 comment on table mark.compression_encodings is
-  'Rule programs plus residual blind graph sufficient to reconstruct an evaluated graph; reviewed/frozen rows must reconstruct exactly.';
+  'Literal blind graph tokens and anonymous rule invocations. The database expands the program; reviewed/frozen rows must exactly reconstruct the source token stream.';
 comment on view mark.blind_compression_complete_scores_v1 is
   'Authoritative complete-corpus description-length scores. Lower ratios indicate shorter descriptions; all members must be exactly reconstructed.';
 comment on view mark.blind_compression_control_delta_v1 is
-  'Difference between real-evidence and matched-control compression ratios under the same blind model. Positive control-minus-evidence values mean the evidence compressed more efficiently.';
+  'Difference between evidence and matched-control compression ratios under the same blind model. Positive control-minus-evidence values mean the evidence compressed more efficiently.';
 
 -- Freeze/correction behavior.
 do $$
@@ -791,11 +878,17 @@ revoke all on function mark.graph_payload_is_valid_v1(jsonb,text)
 from public, anon, authenticated, service_role;
 revoke all on function mark.canonical_compression_unit_v1(bigint,text)
 from public, anon, authenticated, service_role;
+revoke all on function mark.compression_graph_tokens_v1(jsonb)
+from public, anon, authenticated, service_role;
+revoke all on function mark.text_array_contains_subsequence_v1(text[],text[])
+from public, anon, authenticated, service_role;
 revoke all on function mark.validate_compression_corpus_member_v1()
 from public, anon, authenticated, service_role;
 revoke all on function mark.validate_compression_model_v1()
 from public, anon, authenticated, service_role;
 revoke all on function mark.validate_compression_rule_v1()
+from public, anon, authenticated, service_role;
+revoke all on function mark.decompress_program_v1(bigint,text[])
 from public, anon, authenticated, service_role;
 revoke all on function mark.validate_compression_encoding_v1()
 from public, anon, authenticated, service_role;
