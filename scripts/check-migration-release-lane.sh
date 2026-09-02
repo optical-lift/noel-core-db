@@ -3,6 +3,7 @@ set -euo pipefail
 
 version="${1:-}"
 lane="${2:-}"
+migration_override="${3:-}"
 manifest="custody/release-lanes-v1.json"
 
 if [[ ! "$version" =~ ^[0-9]{14}$ ]]; then
@@ -18,15 +19,28 @@ if [ ! -f "$manifest" ]; then
   exit 1
 fi
 
-shopt -s nullglob
-matches=(supabase/migrations/"${version}"_*.sql)
-shopt -u nullglob
-if [ "${#matches[@]}" -ne 1 ]; then
-  echo "Expected exactly one canonical migration for version $version; found ${#matches[@]}." >&2
-  exit 1
+if [ -n "$migration_override" ]; then
+  if [ ! -f "$migration_override" ]; then
+    echo "Migration override does not exist: $migration_override" >&2
+    exit 1
+  fi
+  migration="$migration_override"
+  override_base="$(basename "$migration")"
+  if [[ "$override_base" != "${version}_"*.sql ]]; then
+    echo "Migration override does not belong to version $version: $override_base" >&2
+    exit 1
+  fi
+else
+  shopt -s nullglob
+  matches=(supabase/migrations/"${version}"_*.sql)
+  shopt -u nullglob
+  if [ "${#matches[@]}" -ne 1 ]; then
+    echo "Expected exactly one canonical migration for version $version; found ${#matches[@]}." >&2
+    exit 1
+  fi
+  migration="${matches[0]}"
 fi
 
-migration="${matches[0]}"
 base="$(basename "$migration")"
 name="${base#${version}_}"
 name="${name%.sql}"
