@@ -1,0 +1,1 @@
+The source-byte acquisition workflow is issue-triggered and restricted to repository-owner requests. It is intentionally separate from production writes: the resulting manifest is reviewed first, then production capture custody is advanced in a distinct step.
