@@ -1,5 +1,4 @@
 -- Immediate Atlas security hardening before multi-customer rebuild.
--- Applied to noel-core at Supabase migration version 20260902223739.
 -- 1) Internalize the source-custody release packet.
 -- 2) Remove direct authenticated reads from four legacy definer-semantic views.
 
