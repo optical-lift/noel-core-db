@@ -327,6 +327,27 @@ from (
 ) s;
 $$;
 
+create or replace function mark.text_tokens_join_v1(p_tokens text[])
+returns text
+language plpgsql
+immutable
+strict
+set search_path = pg_catalog, mark
+as $$
+declare
+  out_text text := '';
+  i integer;
+  n integer := cardinality(p_tokens);
+begin
+  if n=0 then return ''; end if;
+  for i in 1..n loop
+    if i>1 then out_text := out_text || E'\n'; end if;
+    out_text := out_text || coalesce(p_tokens[i],'');
+  end loop;
+  return out_text;
+end
+$$;
+
 create or replace function mark.text_array_contains_subsequence_v1(
   p_haystack text[],
   p_needle text[]
@@ -394,14 +415,14 @@ create table mark.compression_corpus_members (
   graph_hash text generated always as (
     encode(
       extensions.digest(
-        array_to_string(mark.compression_graph_tokens_v1(graph_snapshot),E'\n'),
+        mark.text_tokens_join_v1(mark.compression_graph_tokens_v1(graph_snapshot)),
         'sha256'
       ),
       'hex'
     )
   ) stored,
   raw_cost_bits bigint generated always as (
-    octet_length(array_to_string(mark.compression_graph_tokens_v1(graph_snapshot),E'\n'))::bigint * 8
+    octet_length(mark.text_tokens_join_v1(mark.compression_graph_tokens_v1(graph_snapshot)))::bigint * 8
   ) stored,
   record_status text not null default 'draft',
   frozen_at timestamptz null,
@@ -537,7 +558,7 @@ create table mark.compression_rules (
   rule_key text not null,
   token_sequence text[] not null,
   definition_cost_bits bigint generated always as (
-    octet_length(rule_key || E'\n' || array_to_string(token_sequence,E'\n'))::bigint * 8
+    octet_length(rule_key || E'\n' || mark.text_tokens_join_v1(token_sequence))::bigint * 8
   ) stored,
   record_status text not null default 'draft',
   frozen_at timestamptz null,
@@ -642,7 +663,7 @@ create table mark.compression_encodings (
   compression_corpus_member_id bigint not null references mark.compression_corpus_members(compression_corpus_member_id),
   program_tokens text[] not null,
   program_cost_bits bigint generated always as (
-    octet_length(array_to_string(program_tokens,E'\n'))::bigint * 8
+    octet_length(mark.text_tokens_join_v1(program_tokens))::bigint * 8
   ) stored,
   reconstructed_token_hash text null,
   reconstruction_exact boolean not null default false,
@@ -713,7 +734,7 @@ begin
 
   reconstructed_tokens := mark.decompress_program_v1(new.compression_model_id,new.program_tokens);
   new.reconstructed_token_hash := encode(
-    extensions.digest(array_to_string(reconstructed_tokens,E'\n'),'sha256'),
+    extensions.digest(mark.text_tokens_join_v1(reconstructed_tokens),'sha256'),
     'hex'
   );
   new.reconstruction_exact := reconstructed_tokens=expected_tokens
@@ -923,6 +944,8 @@ from public, anon, authenticated, service_role;
 revoke all on function mark.canonical_compression_unit_v1(bigint,text)
 from public, anon, authenticated, service_role;
 revoke all on function mark.compression_graph_tokens_v1(jsonb)
+from public, anon, authenticated, service_role;
+revoke all on function mark.text_tokens_join_v1(text[])
 from public, anon, authenticated, service_role;
 revoke all on function mark.text_array_contains_subsequence_v1(text[],text[])
 from public, anon, authenticated, service_role;
