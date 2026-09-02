@@ -8,10 +8,13 @@ begin;
 -- meaning, chronology, geography, or historical system identity is admitted.
 --
 -- V1 is deliberately simple and auditable: a canonical blind graph is serialized
--- into a deterministic token stream. Learned anonymous dictionary rules replace
--- recurring contiguous token subsequences. The database itself expands every rule
--- invocation and requires byte-for-byte token equality before a compression result
--- may become reviewed or frozen.
+-- into a deterministic lossless token stream. The structural stream comes first
+-- (member component counts, physical morphologies, physical relation kinds), while
+-- local reconstruction parameters (member numbers, node ids, edge endpoints) are
+-- carried later and always charged. Learned anonymous dictionary rules may replace
+-- only contiguous structural token subsequences, never ids or reconstruction
+-- parameters. The database itself expands every rule invocation and requires
+-- byte-for-byte token equality before a result may become reviewed or frozen.
 --
 -- The primary standalone score pays for:
 --   1. every learned dictionary rule once, and
@@ -42,7 +45,7 @@ values (
   'MDL_TOKEN_DICTIONARY_V1',
   'Reversible blind graph token dictionary v1',
   'minimum_description_length',
-  'Canonical blind graphs are deterministically serialized to UTF-8 tokens. Raw cost is token-stream byte length times eight. A grammar rule is an anonymous R#### key plus an exact contiguous token subsequence observed in its training corpus; grammar cost is the serialized key and sequence. An encoded program contains literal source tokens and/or @R#### invocations. The database expands invocations and reviewed/frozen encodings must reproduce the original token stream exactly. Standalone score charges grammar once; transfer score charges only the program after independently learning a grammar.'
+  'Canonical blind graphs are deterministically serialized to a lossless UTF-8 token stream. Structural tokens (member component counts, anonymous morphology observations, and physical relation kinds) precede and are distinct from reconstruction parameter tokens (member numbers, node ids, edge endpoints). Raw cost is the full token-stream byte length times eight. A grammar rule is an anonymous R#### key plus an exact contiguous structural token subsequence observed in its training corpus; grammar cost is the serialized key and sequence. Programs contain literal source tokens and/or @R#### invocations. Reconstruction parameters remain literal and are always charged. The database expands invocations and reviewed/frozen encodings must reproduce the original full token stream exactly. Standalone score charges grammar once; transfer score charges only the program after independently learning a grammar.'
 )
 on conflict (codec_key) do nothing;
 
@@ -313,16 +316,34 @@ set search_path = pg_catalog, mark
 as $$
 select coalesce(array_agg(token order by section_order,item_order),array[]::text[])
 from (
+  -- Representation is lossless authority but is not rule-learnable.
   select 0::int as section_order,0::bigint as item_order,
          'REP=' || coalesce(p_graph->>'representation','') as token
+
+  -- Structural stream: dictionary rules may use only these sections.
   union all
-  select 1,ord::bigint,'M=' || value::text
+  select 1,ord::bigint,'MC=' || coalesce(value->>'component_count','')
   from jsonb_array_elements(coalesce(p_graph->'members','[]'::jsonb)) with ordinality a(value,ord)
   union all
-  select 2,ord::bigint,'N=' || value::text
+  select 2,ord::bigint,
+         case when p_graph->>'representation'='REP_TOPOLOGY_MORPHOLOGY_V1'
+              then 'NM=' || coalesce(value->>'morphology','')
+              else 'N'
+         end
   from jsonb_array_elements(coalesce(p_graph->'nodes','[]'::jsonb)) with ordinality a(value,ord)
   union all
-  select 3,ord::bigint,'E=' || value::text
+  select 3,ord::bigint,'R=' || coalesce(value->>'relation','')
+  from jsonb_array_elements(coalesce(p_graph->'edges','[]'::jsonb)) with ordinality a(value,ord)
+
+  -- Parameter stream: remains literal and charged, preserving exact graph identity.
+  union all
+  select 4,ord::bigint,'PM=' || coalesce(value->>'member','')
+  from jsonb_array_elements(coalesce(p_graph->'members','[]'::jsonb)) with ordinality a(value,ord)
+  union all
+  select 5,ord::bigint,'PN=' || coalesce(value->>'id','') || ':' || coalesce(value->>'member','')
+  from jsonb_array_elements(coalesce(p_graph->'nodes','[]'::jsonb)) with ordinality a(value,ord)
+  union all
+  select 6,ord::bigint,'PE=' || coalesce(value->>'from','') || ':' || coalesce(value->>'to','')
   from jsonb_array_elements(coalesce(p_graph->'edges','[]'::jsonb)) with ordinality a(value,ord)
 ) s;
 $$;
@@ -600,6 +621,9 @@ begin
     if t is null or btrim(t)='' or t ~ '^@R[0-9]{4,}$' then
       raise exception 'MARK_COMPRESSION_RULE_REJECTED: rule definitions may contain only literal training tokens';
     end if;
+    if not (t='N' or t like 'MC=%' or t like 'NM=%' or t like 'R=%') then
+      raise exception 'MARK_COMPRESSION_RULE_REJECTED: grammar rules may contain only structural tokens, not representation or reconstruction parameters';
+    end if;
   end loop;
 
   if not exists (
@@ -872,9 +896,9 @@ comment on table mark.compression_corpora is
 comment on table mark.compression_models is
   'Candidate blind reversible dictionary grammars trained on a declared compression corpus.';
 comment on table mark.compression_rules is
-  'Anonymous recurring token subsequences drawn directly from the model training corpus. Rule identity carries no conventional meaning.';
+  'Anonymous recurring structural token subsequences drawn directly from the model training corpus. Rule identity carries no conventional meaning and cannot encode reconstruction ids.';
 comment on table mark.compression_encodings is
-  'Literal blind graph tokens and anonymous rule invocations. The database expands the program; reviewed/frozen rows must exactly reconstruct the source token stream.';
+  'Literal blind graph tokens and anonymous structural-rule invocations. The database expands the program; reviewed/frozen rows must exactly reconstruct the full lossless source token stream.';
 comment on view mark.blind_compression_complete_scores_v1 is
   'Authoritative complete-corpus description-length scores. Lower ratios indicate shorter descriptions; all members must be exactly reconstructed.';
 comment on view mark.blind_compression_control_delta_v1 is
