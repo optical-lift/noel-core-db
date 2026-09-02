@@ -1,0 +1,48 @@
+{
+  "manifest_version": "mark-source-custody-v1",
+  "batch_key": "origin_triplet_witness_v1",
+  "github_run_id": 33652840075,
+  "github_artifact_id": 9855466128,
+  "artifact_zip_sha256": "8c92344bd6cf58a74358f972493b141111251ae5360a8f374027cf2fadc75b9d",
+  "captures": [
+    {
+      "capture_key": "mark_w001_c0_remote",
+      "requested_url": "https://coleccion.museolarco.org/public/uploads/ML600130/ML600130_KO3_1738182936.webp",
+      "effective_url": "https://coleccion.museolarco.org/public/uploads/ML600130/ML600130_KO3_1738182936.webp",
+      "sha256": "301c7e4e3919202b7e3e8d340f437ab04a7490561e7a5d74cd224ff4bc9f61cd",
+      "byte_length": 298896,
+      "width_px": 5616,
+      "height_px": 3744,
+      "image_format": "WEBP",
+      "mime_type": "image/webp",
+      "etag": null,
+      "last_modified": "Wed, 29 Jan 2025 20:35:36 GMT"
+    },
+    {
+      "capture_key": "mark_w002_c0_remote",
+      "requested_url": "https://cdli.earth/pubs/daily_tablets/msvo3_04-5161b6ca065f7-5e13d41a71a7d-5e13d557e8324.jpg",
+      "effective_url": "https://cdli.earth/pubs/daily_tablets/msvo3_04-5161b6ca065f7-5e13d41a71a7d-5e13d557e8324.jpg",
+      "sha256": "0196f489581812a594890eb7e36a4ca9509d0ec003c5e0718bb7d1c7005cffc4",
+      "byte_length": 1354227,
+      "width_px": 2048,
+      "height_px": 1536,
+      "image_format": "JPEG",
+      "mime_type": "image/jpeg",
+      "etag": "\"640b99d4-14a9f3\"",
+      "last_modified": "Fri, 10 Mar 2023 20:57:56 GMT"
+    },
+    {
+      "capture_key": "mark_w003_c0_remote",
+      "requested_url": "https://collectionapi.metmuseum.org/api/collection/v1/iiif/562008/1219388/main-image",
+      "effective_url": "https://collectionapi.metmuseum.org/api/collection/v1/iiif/562008/1219388/main-image",
+      "sha256": "ee145b085b83d6b285bfaebf52c9fede8e5f5a6eb5cf8c0da2d2e186bad16478",
+      "byte_length": 180508,
+      "width_px": 1200,
+      "height_px": 857,
+      "image_format": "JPEG",
+      "mime_type": "image/jpeg",
+      "etag": "883f2f12db5c814a7c771be37acd558b",
+      "last_modified": null
+    }
+  ]
+}
