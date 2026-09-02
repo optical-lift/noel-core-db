@@ -1,0 +1,7 @@
+batch_key: origin_triplet_witness_v1
+w001_capture_key: mark_w001_c0_remote
+w001_url: https://coleccion.museolarco.org/public/uploads/ML600130/ML600130_KO3_1738182936.webp
+w002_capture_key: mark_w002_c0_remote
+w002_url: https://cdli.earth/pubs/daily_tablets/msvo3_04-5161b6ca065f7-5e13d41a71a7d-5e13d557e8324.jpg
+w003_capture_key: mark_w003_c0_remote
+w003_url: https://collectionapi.metmuseum.org/api/collection/v1/iiif/562008/1219388/main-image
