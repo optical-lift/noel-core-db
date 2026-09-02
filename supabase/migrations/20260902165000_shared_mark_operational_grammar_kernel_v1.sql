@@ -51,7 +51,7 @@ create table mark.transformation_registry (
   transformation_key text primary key,
   transformation_family text not null,
   transformation_name text not null,
-  operator_key text null references mark.operator_registry(operator_key),
+  operator_key text null,
   direction_mode text not null,
   structural_definition text not null,
   evidence_requirements jsonb not null default '{}'::jsonb,
@@ -86,6 +86,28 @@ values
   ('TX_MOVE_RELATIVE','position','Move relative position',null,'directed','A homologous element changes its relative physical position with respect to a carrier or comparison frame.','{"delta_key":"D_RELATIVE_POSITION_STATE"}'::jsonb),
   ('TX_GEOMETRIC_VARIANT','invariance','Geometric variant',null,'symmetric','Paired states preserve declared topology and morphology while differing only in continuous geometry such as scale or aspect.','{"requires_topology_invariance":true,"requires_morphology_invariance":true}'::jsonb)
 on conflict (transformation_key) do nothing;
+
+-- The production-schema clone intentionally contains registry schema but not
+-- seeded registry rows. Create the cross-registry FK without scanning existing
+-- seed rows, then validate it when the parent operator registry is populated.
+alter table mark.transformation_registry
+  add constraint transformation_registry_operator_key_fkey
+  foreign key (operator_key) references mark.operator_registry(operator_key)
+  not valid;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from mark.transformation_registry t
+    left join mark.operator_registry o on o.operator_key=t.operator_key
+    where t.operator_key is not null and o.operator_key is null
+  ) then
+    alter table mark.transformation_registry
+      validate constraint transformation_registry_operator_key_fkey;
+  end if;
+end
+$$;
 
 create table mark.contrast_pairs (
   contrast_pair_id bigint generated always as identity primary key,
