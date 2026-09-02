@@ -492,9 +492,10 @@ set search_path = pg_catalog, mark
 as $$
 declare
   corpus_rep text;
+  corpus_status text;
   blind_codec boolean;
 begin
-  select representation_key into corpus_rep
+  select representation_key,record_status into corpus_rep,corpus_status
   from mark.compression_corpora
   where compression_corpus_id=new.training_corpus_id;
 
@@ -504,6 +505,22 @@ begin
 
   if corpus_rep is distinct from new.representation_key or not coalesce(blind_codec,false) then
     raise exception 'MARK_COMPRESSION_MODEL_REJECTED: training representation or codec mismatch';
+  end if;
+
+  if new.record_status in ('reviewed','frozen') then
+    if corpus_status not in ('reviewed','frozen') then
+      raise exception 'MARK_COMPRESSION_MODEL_REJECTED: authoritative model requires reviewed/frozen training corpus';
+    end if;
+    if not exists (
+      select 1 from mark.compression_corpus_members cm
+      where cm.compression_corpus_id=new.training_corpus_id
+    ) or exists (
+      select 1 from mark.compression_corpus_members cm
+      where cm.compression_corpus_id=new.training_corpus_id
+        and cm.record_status not in ('reviewed','frozen')
+    ) then
+      raise exception 'MARK_COMPRESSION_MODEL_REJECTED: authoritative model requires a nonempty fully reviewed training corpus';
+    end if;
   end if;
 
   return new;
@@ -543,14 +560,19 @@ set search_path = pg_catalog, mark
 as $$
 declare
   training_id bigint;
+  model_status text;
   t text;
 begin
-  select training_corpus_id into training_id
+  select training_corpus_id,record_status into training_id,model_status
   from mark.compression_models
   where compression_model_id=new.compression_model_id;
 
   if training_id is null then
     raise exception 'MARK_COMPRESSION_RULE_REJECTED: unknown model';
+  end if;
+
+  if new.record_status in ('reviewed','frozen') and model_status not in ('reviewed','frozen') then
+    raise exception 'MARK_COMPRESSION_RULE_REJECTED: authoritative rule requires reviewed/frozen model';
   end if;
 
   foreach t in array new.token_sequence loop
@@ -563,12 +585,13 @@ begin
     select 1
     from mark.compression_corpus_members cm
     where cm.compression_corpus_id=training_id
+      and (new.record_status='draft' or cm.record_status in ('reviewed','frozen'))
       and mark.text_array_contains_subsequence_v1(
         mark.compression_graph_tokens_v1(cm.graph_snapshot),
         new.token_sequence
       )
   ) then
-    raise exception 'MARK_COMPRESSION_RULE_REJECTED: rule sequence does not occur contiguously in training corpus';
+    raise exception 'MARK_COMPRESSION_RULE_REJECTED: rule sequence does not occur contiguously in eligible training corpus';
   end if;
 
   return new;
@@ -646,25 +669,46 @@ set search_path = pg_catalog, mark, extensions
 as $$
 declare
   model_rep text;
+  model_status text;
   corpus_rep text;
+  member_status text;
   expected_tokens text[];
   reconstructed_tokens text[];
   expected_hash text;
+  t text;
 begin
-  select m.representation_key into model_rep
+  select m.representation_key,m.record_status into model_rep,model_status
   from mark.compression_models m
   where m.compression_model_id=new.compression_model_id;
 
   select c.representation_key,
+         cm.record_status,
          mark.compression_graph_tokens_v1(cm.graph_snapshot),
          cm.graph_hash
-    into corpus_rep,expected_tokens,expected_hash
+    into corpus_rep,member_status,expected_tokens,expected_hash
   from mark.compression_corpus_members cm
   join mark.compression_corpora c on c.compression_corpus_id=cm.compression_corpus_id
   where cm.compression_corpus_member_id=new.compression_corpus_member_id;
 
   if model_rep is null or corpus_rep is null or model_rep is distinct from corpus_rep then
     raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: model/member representation mismatch';
+  end if;
+
+  if new.record_status in ('reviewed','frozen') then
+    if model_status not in ('reviewed','frozen') or member_status not in ('reviewed','frozen') then
+      raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: authoritative encoding requires reviewed/frozen model and corpus member';
+    end if;
+    foreach t in array new.program_tokens loop
+      if t ~ '^@R[0-9]{4,}$' and not exists (
+        select 1
+        from mark.compression_rules r
+        where r.compression_model_id=new.compression_model_id
+          and r.rule_key=substr(t,2)
+          and r.record_status in ('reviewed','frozen')
+      ) then
+        raise exception 'MARK_COMPRESSION_ENCODING_REJECTED: authoritative encoding cannot use unreviewed rule %',substr(t,2);
+      end if;
+    end loop;
   end if;
 
   reconstructed_tokens := mark.decompress_program_v1(new.compression_model_id,new.program_tokens);
