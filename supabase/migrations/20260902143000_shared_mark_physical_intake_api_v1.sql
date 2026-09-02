@@ -3,7 +3,8 @@ begin;
 -- Mark Engine physical intake v1.
 -- This layer deliberately accepts physical custody, geometry, channel, topology,
 -- and anonymous sequence order only. It does not accept linguistic labels,
--- readings, culture assignments, semantic glosses, or arbitrary metadata.
+-- readings, culture assignments, semantic glosses, free-text category labels,
+-- or arbitrary metadata.
 
 create index if not exists source_objects_parent_source_object_idx
   on mark.source_objects(parent_source_object_id);
@@ -158,7 +159,6 @@ declare
   v_instance jsonb;
   v_component jsonb;
   v_relation jsonb;
-  v_bbox jsonb;
   v_source mark.source_objects%rowtype;
   v_surface mark.surfaces%rowtype;
   v_capture mark.captures%rowtype;
@@ -175,7 +175,6 @@ declare
   v_instance_region_id bigint;
   v_component_region_id bigint;
   v_evidence_region_id bigint;
-  v_parent_region_id bigint;
   v_sequence_zone_id bigint;
   v_instance_id bigint;
   v_component_id bigint;
@@ -202,19 +201,23 @@ begin
   v_witness := p_payload->'witness';
   v_zone := p_payload->'zone';
 
+  -- The caller may identify the physical witness and its bytes, but may not
+  -- assign free-text object/surface/capture categories through this intake.
   perform mark.assert_json_keys_v1(
     v_witness,
     array[
-      'object_key','object_kind','surface_key','surface_role','physical_order',
-      'capture_key','capture_kind','source_uri','original_filename','mime_type',
+      'object_key','surface_key','physical_order',
+      'capture_key','source_uri','original_filename','mime_type',
       'width_px','height_px','sha256','surface_bbox'
     ],
     'witness'
   );
 
+  -- Likewise, sequence-zone classification is mechanism-owned. The caller
+  -- supplies only physical region geometry, ordering, and flow geometry.
   perform mark.assert_json_keys_v1(
     v_zone,
-    array['region_key','region_kind','bbox','zone_key','zone_kind','flow_direction','physical_order','confidence'],
+    array['region_key','bbox','zone_key','flow_direction','physical_order','confidence'],
     'zone'
   );
 
@@ -224,11 +227,9 @@ begin
   end if;
 
   if nullif(btrim(v_witness->>'object_key'), '') is null
-     or nullif(btrim(v_witness->>'object_kind'), '') is null
      or nullif(btrim(v_witness->>'surface_key'), '') is null
-     or nullif(btrim(v_witness->>'capture_key'), '') is null
-     or nullif(btrim(v_witness->>'capture_kind'), '') is null then
-    raise exception 'MARK_INTAKE_REQUIRED_FIELD: witness object_key/object_kind/surface_key/capture_key/capture_kind are required';
+     or nullif(btrim(v_witness->>'capture_key'), '') is null then
+    raise exception 'MARK_INTAKE_REQUIRED_FIELD: witness object_key/surface_key/capture_key are required';
   end if;
 
   select * into v_source
@@ -236,13 +237,13 @@ begin
   where object_key = v_witness->>'object_key';
 
   if found then
-    if v_source.object_kind <> v_witness->>'object_kind' then
-      raise exception 'MARK_INTAKE_KEY_CONFLICT: object_key % already has object_kind %', v_source.object_key, v_source.object_kind;
+    if v_source.object_kind <> 'physical_witness' then
+      raise exception 'MARK_INTAKE_KEY_CONFLICT: object_key % is not owned by the neutral physical intake class', v_source.object_key;
     end if;
     v_source_id := v_source.source_object_id;
   else
     insert into mark.source_objects(object_key, object_kind)
-    values (v_witness->>'object_key', v_witness->>'object_kind')
+    values (v_witness->>'object_key', 'physical_witness')
     returning source_object_id into v_source_id;
   end if;
 
@@ -252,7 +253,7 @@ begin
 
   if found then
     if v_surface.source_object_id <> v_source_id
-       or v_surface.surface_role <> coalesce(nullif(v_witness->>'surface_role',''), 'unspecified')
+       or v_surface.surface_role <> 'unspecified'
        or v_surface.physical_order is distinct from nullif(v_witness->>'physical_order','')::numeric then
       raise exception 'MARK_INTAKE_KEY_CONFLICT: surface_key % already names different physical evidence', v_surface.surface_key;
     end if;
@@ -262,7 +263,7 @@ begin
     values (
       v_source_id,
       v_witness->>'surface_key',
-      coalesce(nullif(v_witness->>'surface_role',''), 'unspecified'),
+      'unspecified',
       nullif(v_witness->>'physical_order','')::numeric
     )
     returning surface_id into v_surface_id;
@@ -273,7 +274,7 @@ begin
   where capture_key = v_witness->>'capture_key';
 
   if found then
-    if v_capture.capture_kind <> v_witness->>'capture_kind'
+    if v_capture.capture_kind <> 'raster_capture'
        or v_capture.source_uri is distinct from nullif(v_witness->>'source_uri','')
        or v_capture.original_filename is distinct from nullif(v_witness->>'original_filename','')
        or v_capture.mime_type is distinct from nullif(v_witness->>'mime_type','')
@@ -290,7 +291,7 @@ begin
       capture_status
     ) values (
       v_witness->>'capture_key',
-      v_witness->>'capture_kind',
+      'raster_capture',
       nullif(v_witness->>'source_uri',''),
       nullif(v_witness->>'original_filename',''),
       nullif(v_witness->>'mime_type',''),
@@ -338,7 +339,7 @@ begin
   v_confidence := coalesce(nullif(v_zone->>'confidence','')::numeric, 1.0);
   v_zone_region_id := mark.ensure_region_v1(
     v_zone->>'region_key', v_capture_id, v_surface_id, null,
-    coalesce(nullif(v_zone->>'region_kind',''), 'sequence_zone'),
+    'sequence_zone',
     v_zone->'bbox', 'observed_visible', 'human', v_confidence
   );
 
@@ -348,7 +349,7 @@ begin
 
   if found then
     if v_zone_row.region_id <> v_zone_region_id
-       or v_zone_row.zone_kind <> v_zone->>'zone_kind'
+       or v_zone_row.zone_kind <> 'ordered_physical_region'
        or v_zone_row.flow_direction <> coalesce(nullif(v_zone->>'flow_direction',''), 'undetermined')
        or v_zone_row.physical_order is distinct from nullif(v_zone->>'physical_order','')::numeric
        or v_zone_row.confidence <> v_confidence then
@@ -356,14 +357,14 @@ begin
     end if;
     v_sequence_zone_id := v_zone_row.sequence_zone_id;
   else
-    if nullif(btrim(v_zone->>'zone_key'),'') is null or nullif(btrim(v_zone->>'zone_kind'),'') is null then
-      raise exception 'MARK_INTAKE_REQUIRED_FIELD: zone.zone_key and zone.zone_kind are required';
+    if nullif(btrim(v_zone->>'zone_key'),'') is null then
+      raise exception 'MARK_INTAKE_REQUIRED_FIELD: zone.zone_key is required';
     end if;
     insert into mark.sequence_zones(region_id, zone_key, zone_kind, flow_direction, physical_order, confidence)
     values (
       v_zone_region_id,
       v_zone->>'zone_key',
-      v_zone->>'zone_kind',
+      'ordered_physical_region',
       coalesce(nullif(v_zone->>'flow_direction',''), 'undetermined'),
       nullif(v_zone->>'physical_order','')::numeric,
       v_confidence
@@ -573,7 +574,7 @@ end
 $$;
 
 comment on function mark.ingest_physical_sequence_v1(jsonb) is
-  'Atomic governed intake for physical witness custody, capture/surface registration, anonymous mark instances, physical components, topology relations, and sequence order. Unapproved fields are rejected to preserve the semantic membrane.';
+  'Atomic governed semantic-blind intake for physical witness custody, capture/surface registration, anonymous mark instances, physical components, junction/topology relations, and sequence order. Caller-authored category labels and arbitrary metadata are rejected.';
 
 revoke all on function mark.assert_json_keys_v1(jsonb, text[], text) from public, anon, authenticated, service_role;
 revoke all on function mark.require_bbox_v1(jsonb, text) from public, anon, authenticated, service_role;
