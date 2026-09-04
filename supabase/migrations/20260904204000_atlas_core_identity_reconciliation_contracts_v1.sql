@@ -7,6 +7,8 @@
 -- This migration deliberately does NOT bulk-copy buyer reconstruction or
 -- local_intel rows into a canonical directory.
 
+BEGIN;
+
 create table if not exists atlas.identity_subjects (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references atlas.organizations(id) on delete cascade,
@@ -1010,3 +1012,5 @@ on conflict (signature) do update set
   policy_reference_count=excluded.policy_reference_count,
   evidence=excluded.evidence,
   reviewed_at=now();
+
+COMMIT;
