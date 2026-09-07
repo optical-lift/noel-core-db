@@ -19,10 +19,11 @@ with positioned as (
     o.name as organization_name,
     om.user_id as allocated_user_id,
     om.active as assignee_membership_active,
+    responsibility_conflict.id as responsibility_conflict_id,
+    responsibility_conflict.reason as responsibility_conflict_reason,
     case
-      when p.open_planning_conflict_kind = 'no_eligible_assignee'
-       and pc.metadata->>'assignedUserId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
-      then (pc.metadata->>'assignedUserId')::uuid
+      when responsibility_conflict.metadata->>'assignedUserId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+      then (responsibility_conflict.metadata->>'assignedUserId')::uuid
       else null::uuid
     end as unresolved_candidate_user_id,
     plan.id as execution_plan_id,
@@ -41,9 +42,17 @@ with positioned as (
   left join atlas.organization_memberships om
     on om.id = p.assignee_membership_id
    and om.organization_id = p.organization_id
-  left join atlas.work_planning_conflicts pc
-    on pc.organization_id = p.organization_id
-   and pc.id = p.open_planning_conflict_id
+  left join lateral (
+    select pc.id,pc.reason,pc.metadata,pc.detected_at
+    from atlas.work_planning_conflicts pc
+    where pc.organization_id=p.organization_id
+      and pc.work_item_id=p.work_item_id
+      and pc.state='open'
+      and pc.conflict_kind='no_eligible_assignee'
+      and pc.metadata->>'assignedUserId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+    order by pc.detected_at desc,pc.id desc
+    limit 1
+  ) responsibility_conflict on true
   left join lateral (
     select ep.*
     from atlas.work_execution_plans ep
@@ -90,6 +99,8 @@ select
   r.responsibility_position,
   r.responsibility_user_id,
   responsibility_profile.display_name as responsibility_display_name,
+  r.responsibility_conflict_id,
+  r.responsibility_conflict_reason,
   (r.responsibility_position = 'unresolved_named') as has_unresolved_responsibility,
   r.time_contract_id,
   r.earliest_lawful_at,
@@ -141,7 +152,7 @@ left join atlas.user_profiles responsibility_profile
   on responsibility_profile.user_id = r.responsibility_user_id;
 
 comment on view atlas.company_work_ledger_v1 is
-  'Canonical organization-level Company Work Ledger read surface. One row per canonical work_item. Responsibility distinguishes allocated, unresolved_named, and unassigned. Assignment, time, dependency, planning conflict, and execution-plan state are overlays; Worker Day/Week delivery does not determine existence.';
+  'Canonical organization-level Company Work Ledger read surface. One row per canonical work_item. Responsibility distinguishes allocated, unresolved_named, and unassigned and reads named responsibility independently of the general management-conflict slot. Assignment, time, dependency, planning conflict, and execution-plan state are overlays; Worker Day/Week delivery does not determine existence.';
 
 create or replace view atlas.legacy_company_work_canonicalization_audit_v1
 with (security_invoker = true)
@@ -316,7 +327,7 @@ insert into atlas.architecture_truth_authorities (
   array['Employee Ledger','Atlas Work retrieval','management work search','person responsibility queries','unassigned work queries','planning and capacity inspection'],
   array['atlas.tasks as current Company Work authority','atlas.worker_week_projection as Company Work existence authority','Worker Day delivery as Company Work existence authority','consumer-specific reconstruction of responsibility or planning state'],
   'optical-lift/noel-core-db:supabase/migrations',
-  'Company Work identity exists independently of assignment, planning, Day admission, Clock placement, or worker exposure. The Ledger delegates current management position to company_work_position_v2 and adds only side-effect-free responsibility, execution-plan, and filter lenses. Legacy tasks remain reconciliation evidence only.',
+  'Company Work identity exists independently of assignment, planning, Day admission, Clock placement, or worker exposure. The Ledger delegates general management position to company_work_position_v2 while reading canonical no_eligible_assignee conflict truth independently for responsibility-person lenses. Legacy tasks remain reconciliation evidence only.',
   now()
 )
 on conflict (authority_key) do update set
