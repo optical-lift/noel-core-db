@@ -6,7 +6,6 @@ select
   (select count(*) from atlas.work_items) as work_items,
   (select count(*) from atlas.company_work_ledger_v1) as ledger_rows,
   (select count(distinct work_item_id) from atlas.company_work_ledger_v1) as distinct_ledger_work_items;
-
 -- Expected: all three counts equal.
 
 -- 2. No duplicate work identities.
@@ -14,72 +13,129 @@ select work_item_id, count(*)
 from atlas.company_work_ledger_v1
 group by work_item_id
 having count(*) <> 1;
-
 -- Expected: zero rows.
 
--- 3. Assignment lenses partition current work without changing population.
+-- 3. Responsibility positions partition open work exactly once.
 select
   count(*) filter (where is_open) as open_total,
-  count(*) filter (where is_open and is_assigned) as open_assigned,
-  count(*) filter (where is_open and is_unassigned) as open_unassigned
+  count(*) filter (where is_open and responsibility_position='allocated') as open_allocated,
+  count(*) filter (where is_open and responsibility_position='unresolved_named') as open_unresolved_named,
+  count(*) filter (where is_open and responsibility_position='unassigned') as open_unassigned
 from atlas.company_work_ledger_v1;
+-- Expected: open_total = allocated + unresolved_named + unassigned.
 
--- Expected: open_total = open_assigned + open_unassigned.
-
--- 4. Person lens is resolvable from canonical allocation identity.
-select
-  assignee_display_name,
-  count(*) filter (where is_open) as open_work
+-- 4. Unresolved named responsibility is not silently labeled Unassigned.
+select work_item_id, title, responsibility_display_name,
+       responsibility_position, open_planning_conflict_kind,
+       open_planning_conflict_reason
 from atlas.company_work_ledger_v1
-where is_assigned
-group by assignee_display_name
-order by assignee_display_name;
+where responsibility_position='unresolved_named'
+order by responsibility_display_name, title;
+-- Expected: each row has a responsibility_user_id and does not have is_unassigned=true.
 
--- 5. Unscheduled work remains discoverable.
-select work_item_id, title, assignee_display_name, management_position
+-- 5. Person lenses work for both active allocation and unresolved named responsibility.
+select responsibility_display_name, responsibility_position, count(*) as open_work
+from atlas.company_work_ledger_v1
+where is_open and responsibility_user_id is not null
+group by responsibility_display_name, responsibility_position
+order by responsibility_display_name, responsibility_position;
+
+-- 6. Unscheduled work remains discoverable regardless of responsibility position.
+select work_item_id, title, responsibility_display_name,
+       responsibility_position, management_position
 from atlas.company_work_ledger_v1
 where is_open and is_unscheduled
-order by assignee_display_name nulls first, title;
+order by responsibility_display_name nulls first, title;
 
--- 6. Dependency and planning-conflict positions remain distinct from assignment.
-select management_position, is_assigned, count(*)
+-- 7. Dependency and planning-conflict positions remain distinct from responsibility.
+select management_position, responsibility_position, count(*)
 from atlas.company_work_ledger_v1
 where is_open
-group by management_position, is_assigned
-order by management_position, is_assigned;
+group by management_position, responsibility_position
+order by management_position, responsibility_position;
 
--- 7. Time semantics remain distinct.
+-- 8. Time semantics remain distinct.
 select work_item_id, title,
        preferred_start_at, preferred_end_at,
        latest_lawful_at, hard_finish_at,
        is_overdue, is_hard_finish_missed
 from atlas.company_work_ledger_v1
 where is_open
-  and (latest_lawful_at is not null or hard_finish_at is not null)
-order by coalesce(hard_finish_at, latest_lawful_at);
+  and (preferred_end_at is not null or latest_lawful_at is not null or hard_finish_at is not null)
+order by coalesce(hard_finish_at, latest_lawful_at, preferred_end_at);
 
--- 8. Legacy-current canonicalization coverage.
+-- 9. Current legacy reconciliation is classified across independent dimensions.
+select company_scope_position,
+       work_identity_position,
+       execution_structure_position,
+       assignment_position,
+       time_position,
+       count(*) as rows
+from atlas.legacy_company_work_canonicalization_audit_v1
+where legacy_status in ('open','blocked')
+group by 1,2,3,4,5
+order by 1,2,3,4,5;
+
+-- 10. Current Company Work identity cutover gate.
 select
-  count(*) filter (where legacy_status not in ('done','archived','skipped')) as relevant_nonterminal,
   count(*) filter (
-    where legacy_status not in ('done','archived','skipped')
-      and audit_disposition = 'already_mapped'
-  ) as already_mapped,
+    where legacy_status in ('open','blocked')
+      and company_scope_position='current_company_work'
+  ) as current_company_rows,
   count(*) filter (
-    where legacy_status not in ('done','archived','skipped')
-      and audit_disposition <> 'already_mapped'
-  ) as unresolved_nonterminal
+    where legacy_status in ('open','blocked')
+      and company_scope_position='current_company_work'
+      and work_identity_position in ('already_mapped','map_existing_work_item')
+      and resolved_work_item_id is not null
+  ) as already_has_identity,
+  count(*) filter (
+    where legacy_status in ('open','blocked')
+      and company_scope_position='current_company_work'
+      and work_identity_position='execution_only'
+  ) as execution_only_rows,
+  count(*) filter (
+    where legacy_status in ('open','blocked')
+      and company_scope_position='current_company_work'
+      and work_identity_position='create_work_item'
+  ) as identities_to_create,
+  count(*) filter (
+    where legacy_status in ('open','blocked')
+      and company_scope_position='scope_review'
+  ) as scope_review_rows
 from atlas.legacy_company_work_canonicalization_audit_v1;
 
--- Current-work cutover gate: unresolved_nonterminal must reach zero before
--- the Employee Ledger is allowed to claim complete current-work coverage.
+-- 11. No current company-work row may remain without either canonical identity,
+-- explicit execution-only classification, or an identified create-work action.
+select legacy_task_id, legacy_title, work_identity_position,
+       execution_structure_position, assignment_position, time_position
+from atlas.legacy_company_work_canonicalization_audit_v1
+where legacy_status in ('open','blocked')
+  and company_scope_position='current_company_work'
+  and work_identity_position not in (
+    'already_mapped','map_existing_work_item','create_work_item','execution_only'
+  );
+-- Expected: zero rows.
 
--- 9. No ambiguous multiple active adapters for one legacy task.
+-- 12. No ambiguous multiple non-retired adapters for one legacy task.
 select task_id, count(*)
 from atlas.work_execution_adapters
 where task_id is not null
   and state <> 'retired'
 group by task_id
 having count(*) > 1;
-
 -- Expected: zero rows.
+
+-- 13. Active allocations must point at active Organization Memberships.
+select wa.id as allocation_id, wa.work_item_id, wa.assignee_membership_id
+from atlas.work_allocations wa
+left join atlas.organization_memberships om
+  on om.organization_id=wa.organization_id
+ and om.id=wa.assignee_membership_id
+where wa.state='active'
+  and wa.allocation_role='responsible'
+  and coalesce(om.active,false)=false;
+-- Expected: zero rows.
+
+-- 14. No ledger implementation dependency on legacy tasks.
+select pg_get_viewdef('atlas.company_work_ledger_v1'::regclass, true) ilike '%atlas.tasks%' as reads_legacy_tasks;
+-- Expected: false.
