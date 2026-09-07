@@ -1,0 +1,243 @@
+{
+  "contractVersion": 17,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v16.json",
+  "rule": "These live post-fence rows bypassed canonical source custody. Preserve their exact production filenames and bytes as historical evidence only; this registry does not authorize their historical unclassified prefixes for future migrations.",
+  "recoveries": [
+    {
+      "version": "20260907163306",
+      "name": "create_v39_hebrew_relational_experiment_tables",
+      "filename": "20260907163306_create_v39_hebrew_relational_experiment_tables.sql",
+      "gitBlobSha1": "cdc3fdffb69e23ea059c4222f0a77732a9b54d81",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907163903",
+      "name": "create_v39_hebrew_training_count_tables",
+      "filename": "20260907163903_create_v39_hebrew_training_count_tables.sql",
+      "gitBlobSha1": "507adf309ef3a827cb5c487d81cbb76052a29382",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907163916",
+      "name": "create_v39_h4_training_counts",
+      "filename": "20260907163916_create_v39_h4_training_counts.sql",
+      "gitBlobSha1": "ad069e6989fffec33b64f4d271ac936d3830f173",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907164541",
+      "name": "create_v39_context_totals",
+      "filename": "20260907164541_create_v39_context_totals.sql",
+      "gitBlobSha1": "fd157ad8e9360957846335d6d3f3af92388f97da",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907165424",
+      "name": "create_v39_external_witness_table",
+      "filename": "20260907165424_create_v39_external_witness_table.sql",
+      "gitBlobSha1": "6ef4a49df22810614dd14a1e4868046f71e47425",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907165509",
+      "name": "create_v39_witness_training_counts",
+      "filename": "20260907165509_create_v39_witness_training_counts.sql",
+      "gitBlobSha1": "e0e54269f5f71dd204f30bf455f0f51b212ae2a4",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907173356",
+      "name": "create_v40_hebrew_only_carrier",
+      "filename": "20260907173356_create_v40_hebrew_only_carrier.sql",
+      "gitBlobSha1": "163f5397142a4680b68367b2bb8deffff2d89a81",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907173436",
+      "name": "create_v40_center_blind_windows",
+      "filename": "20260907173436_create_v40_center_blind_windows.sql",
+      "gitBlobSha1": "c67fdbf67616b658dca84ccb4c67485bd49c65c2",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907173630",
+      "name": "freeze_v40_bins_targets_and_features",
+      "filename": "20260907173630_freeze_v40_bins_targets_and_features.sql",
+      "gitBlobSha1": "50adf443db01e69e7194cba4121bac0482abcee4",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907173644",
+      "name": "create_v40_naive_bayes_counts",
+      "filename": "20260907173644_create_v40_naive_bayes_counts.sql",
+      "gitBlobSha1": "ee6a4548f7d5d48986502303f68cab41fe0342c6",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907185313",
+      "name": "create_v40_nb_logprob",
+      "filename": "20260907185313_create_v40_nb_logprob.sql",
+      "gitBlobSha1": "dda62f387eaffdeefd2b23e8ba7d2916bcf2105d",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907185610",
+      "name": "create_v40_compact_nb_params",
+      "filename": "20260907185610_create_v40_compact_nb_params.sql",
+      "gitBlobSha1": "73d152f09f4cc127380a8ad6cc7aeb013d4cbaaf",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907190102",
+      "name": "create_v40_context_null_features",
+      "filename": "20260907190102_create_v40_context_null_features.sql",
+      "gitBlobSha1": "83d9ff882263bd1d0b1dad954d20adfd01ae6b9c",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907190203",
+      "name": "bin_v40_context_null_features",
+      "filename": "20260907190203_bin_v40_context_null_features.sql",
+      "gitBlobSha1": "329c4caeca0377035d21beb8c426c3e92d72374c",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907194502",
+      "name": "materialize_v40_witness_centers",
+      "filename": "20260907194502_materialize_v40_witness_centers.sql",
+      "gitBlobSha1": "c09a6452f01692396ff633bffde6da14762ab78f",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907194606",
+      "name": "materialize_v40_witness_models_v2",
+      "filename": "20260907194606_materialize_v40_witness_models_v2.sql",
+      "gitBlobSha1": "c49c59f0fb59c8a9684558bdaa7f2d8c5d70b418",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907194628",
+      "name": "materialize_v40_witness_scores",
+      "filename": "20260907194628_materialize_v40_witness_scores.sql",
+      "gitBlobSha1": "9f1d3172aa9c1f56a6236413a15479c41ec33bd4",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907195104",
+      "name": "materialize_v41_hebrew_windows",
+      "filename": "20260907195104_materialize_v41_hebrew_windows.sql",
+      "gitBlobSha1": "780f9aa73a83a29e5121c2b1c4749cdc8a0d4d32",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907195157",
+      "name": "materialize_v41_phase_a_models",
+      "filename": "20260907195157_materialize_v41_phase_a_models.sql",
+      "gitBlobSha1": "c3dddb52f74c990f63fa0fe83c1a082269552aed",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907195546",
+      "name": "create_v41_p1_score_store",
+      "filename": "20260907195546_create_v41_p1_score_store.sql",
+      "gitBlobSha1": "0662c47c344a708a2ff9180b1c4786eabea26068",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907200543",
+      "name": "materialize_v41_component_lookups",
+      "filename": "20260907200543_materialize_v41_component_lookups.sql",
+      "gitBlobSha1": "5716a73cacef603fc46ab872f7afba9c669a0682",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907200820",
+      "name": "create_v41_batched_score_store",
+      "filename": "20260907200820_create_v41_batched_score_store.sql",
+      "gitBlobSha1": "317e742efc3e7f0effb342d9beedd67917f4e1c9",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907200840",
+      "name": "create_v41_p1_batch_scorer",
+      "filename": "20260907200840_create_v41_p1_batch_scorer.sql",
+      "gitBlobSha1": "e5080b9a813b42f7b4db7f75e1f2f424d52e4d98",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907213046",
+      "name": "v41_add_frozen_control_scorers",
+      "filename": "20260907213046_v41_add_frozen_control_scorers.sql",
+      "gitBlobSha1": "0a60b99a870389fd6ee94a1d09ec35e2be2b70ca",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907224927",
+      "name": "v41_frozen_order_null_runner",
+      "filename": "20260907224927_v41_frozen_order_null_runner.sql",
+      "gitBlobSha1": "8b121a8ed34937a8e7d1cfeea0bff79d54ae4a30",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260907224940",
+      "name": "v41_fix_null_feature_center_id",
+      "filename": "20260907224940_v41_fix_null_feature_center_id.sql",
+      "gitBlobSha1": "b0d600c490b0f5d659f2cfda0f689bfa3dd5a392",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
