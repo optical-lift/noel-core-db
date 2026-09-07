@@ -15,8 +15,8 @@ jobs:
   recover:
     if: >-
       github.event.issue.user.login == 'optical-lift' &&
-      github.event.issue.title == 'Custody recovery: 20260907-v2 live post-fence rows' &&
-      contains(github.event.issue.body, 'custody_recovery: 20260907-v2')
+      github.event.issue.title == 'Custody recovery: 20260907-v3 live post-fence rows' &&
+      contains(github.event.issue.body, 'custody_recovery: 20260907-v3')
     runs-on: ubuntu-latest
     environment: production
     env:
