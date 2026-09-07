@@ -50,10 +50,12 @@ versions=(
   20260907200820
   20260907200840
   20260907213046
+  20260907224927
+  20260907224940
 )
 
-if [[ ${#versions[@]} -ne 43 ]]; then
-  echo "::error::Recovery manifest must contain exactly 43 migrations."
+if [[ ${#versions[@]} -ne 45 ]]; then
+  echo "::error::Recovery manifest must contain exactly 45 migrations."
   exit 1
 fi
 
@@ -93,7 +95,7 @@ for version in "${versions[@]}"; do
   printf '%s\t%s\t%s\n' "$version" "$name" "$expected_sha" >> /tmp/recovered.tsv
 done
 
-test "$(wc -l < /tmp/recovered.tsv | tr -d ' ')" = "43"
+test "$(wc -l < /tmp/recovered.tsv | tr -d ' ')" = "45"
 
 python3 - <<'PY'
 import json
@@ -115,8 +117,8 @@ for line in Path('/tmp/recovered.tsv').read_text().splitlines():
         'reason': 'post_fence_live_migration_bypassed_source_custody',
     })
 
-if len(rows) != 24:
-    raise SystemExit(f'Expected 24 unclassified historical rows, got {len(rows)}')
+if len(rows) != 26:
+    raise SystemExit(f'Expected 26 unclassified historical rows, got {len(rows)}')
 
 payload = {
     'contractVersion': 17,
@@ -158,8 +160,8 @@ replacements = [
         "    (Path('custody/post-fence-migration-recoveries-v16.json'), 16, 'post-fence-migration-recoveries-v15.json'),\n]",
         "    (Path('custody/post-fence-migration-recoveries-v16.json'), 16, 'post-fence-migration-recoveries-v15.json'),\n    (Path('custody/post-fence-migration-recoveries-v17.json'), 17, 'post-fence-migration-recoveries-v16.json'),\n]",
     ),
-    ('assert len(seen) == 60', 'assert len(seen) == 84'),
-    ('60 sealed retrospective recoveries preserve exact live bytes.', '84 sealed retrospective recoveries preserve exact live bytes.'),
+    ('assert len(seen) == 60', 'assert len(seen) == 86'),
+    ('60 sealed retrospective recoveries preserve exact live bytes.', '86 sealed retrospective recoveries preserve exact live bytes.'),
 ]
 for old, new in replacements:
     if s.count(old) != 1:
