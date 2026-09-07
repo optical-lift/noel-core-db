@@ -16,7 +16,9 @@ The Ledger exists so authorized management can inspect the whole field of compan
 
 Work identity belongs to `atlas.work_items`.
 
-Assignment is custody layered onto work through `atlas.work_allocations`.
+Assignment is lawful custody layered onto work through `atlas.work_allocations`.
+
+Unresolved named responsibility is canonical management-conflict truth, not an allocation and not ordinary unassigned work.
 
 Time truth belongs to `atlas.work_time_contracts`.
 
@@ -34,6 +36,18 @@ One Ledger row equals one canonical `atlas.work_items.id`.
 
 The Ledger must not duplicate one work item because it has multiple historical allocations, planning events, legacy task carriers, worker projections, or execution adapters.
 
+## Responsibility vocabulary
+
+The Employee Ledger must distinguish three current responsibility positions:
+
+1. `allocated` — an active `responsible` work allocation lawfully names an Organization Membership;
+2. `unresolved_named` — canonical conflict evidence names an intended/responsibility candidate, but Atlas cannot lawfully create an active allocation yet;
+3. `unassigned` — no active responsible allocation and no canonical named-responsibility candidate exists.
+
+This distinction is critical. A membership problem may prevent allocation without erasing the evidence that management intended Anna to own the work. Such work belongs in the Anna management lens with a visible unresolved-responsibility state; it must not be silently mixed into ordinary Unassigned.
+
+The canonical named candidate for `unresolved_named` must come from canonical Company Work conflict truth (for example a `no_eligible_assignee` planning conflict), never directly from the legacy task table in the finished Ledger.
+
 ## Required read fields
 
 The canonical Ledger read should expose at least:
@@ -41,13 +55,15 @@ The canonical Ledger read should expose at least:
 - work identity: `work_item_id`, title, instructions, work state;
 - organization and organization-unit custody;
 - canonical work classification: operation class, jurisdiction, work definition/source where lawful;
-- current responsible allocation and resolved assignee identity;
+- active responsible allocation identity where one exists;
+- effective responsibility position: allocated / unresolved_named / unassigned;
+- responsibility person identity usable by employee lenses even when custody is unresolved;
 - current management position from `company_work_position_v2`;
 - current active time contract;
 - dependency count;
 - open planning conflict;
 - current active execution plan where one exists;
-- stable derived lenses such as assigned/unassigned, planned/unscheduled, overdue, hard-date missed;
+- stable derived lenses such as allocated/unassigned/unresolved responsibility, planned/unscheduled, overdue, hard-date missed;
 - created/updated/completed/cancelled timestamps;
 - source provenance sufficient to trace the work back to its originating domain object.
 
@@ -61,11 +77,11 @@ Time lenses must preserve temporal vocabulary. A preferred date is not a hard fi
 
 Employee Ledger tabs are filters over one company-work population:
 
-- All: no assignee restriction;
-- Unassigned: no active responsible allocation;
-- Person: active responsible allocation resolves to that organization member/person.
+- All: no responsibility-person restriction;
+- Unassigned: `responsibility_position = 'unassigned'`;
+- Person: `responsibility_user_id` resolves to that person, whether responsibility is `allocated` or `unresolved_named`.
 
-No person-specific task table or person-specific ledger is permitted.
+A person lens must visibly distinguish lawful allocation from unresolved responsibility. No person-specific task table or person-specific ledger is permitted.
 
 ## Planning lenses
 
@@ -92,11 +108,11 @@ The finished Ledger must not `UNION` legacy `atlas.tasks` into canonical work.
 
 Legacy tasks are ingestion/reconciliation inputs only. They must cross an explicit canonicalization boundary into Company Work before the Ledger may treat them as current company work.
 
-The Ledger therefore knows only canonical work identities. Legacy provenance may remain traceable through adapters/source metadata, but legacy schema semantics do not become Ledger semantics.
+The Ledger therefore knows only canonical work identities and canonical responsibility evidence. Legacy provenance may remain traceable through adapters/source metadata, but legacy schema semantics do not become Ledger semantics.
 
 ## Read-authority rule
 
-Downstream applications, agents, reports, and management screens must consume the Ledger/current-position authority rather than reimplementing assignment, dependency, planning-conflict, or time-state precedence independently.
+Downstream applications, agents, reports, and management screens must consume the Ledger/current-position authority rather than reimplementing responsibility, dependency, planning-conflict, or time-state precedence independently.
 
 ## Initial consumers
 
@@ -117,15 +133,16 @@ Those systems may consume canonical work facts where appropriate but remain sepa
 
 ## Acceptance tests
 
-1. Open unassigned work appears in All and Unassigned.
-2. Open assigned work appears in All and the correct employee lens.
-3. Assigned but unscheduled work remains discoverable.
-4. Removing work from a Worker Day or Worker Week does not remove it from the Ledger.
-5. Planning conflict is visible without changing work identity.
-6. Waiting dependency is visible without pretending the work is unassigned.
-7. Completed/cancelled/superseded work can be filtered without contaminating open-work counts.
-8. Preferred time and lawful/hard limits are distinguishable.
-9. One canonical work item produces one Ledger row.
-10. Worker delivery state does not determine Ledger existence.
-11. Ordinary delegated work does not become Principal Clock work merely because management can inspect it.
-12. No finished Ledger query reads legacy `atlas.tasks` directly.
+1. Open truly unassigned work appears in All and Unassigned.
+2. Open allocated work appears in All and the correct employee lens.
+3. Named-but-unallocatable responsibility appears in the correct employee lens and does not appear as ordinary Unassigned.
+4. Assigned or unresolved-named but unscheduled work remains discoverable.
+5. Removing work from a Worker Day or Worker Week does not remove it from the Ledger.
+6. Planning conflict is visible without changing work identity.
+7. Waiting dependency is visible without pretending the work is unassigned.
+8. Completed/cancelled/superseded work can be filtered without contaminating open-work counts.
+9. Preferred time and lawful/hard limits are distinguishable.
+10. One canonical work item produces one Ledger row.
+11. Worker delivery state does not determine Ledger existence.
+12. Ordinary delegated work does not become Principal Clock work merely because management can inspect it.
+13. No finished Ledger query reads legacy `atlas.tasks` directly.
