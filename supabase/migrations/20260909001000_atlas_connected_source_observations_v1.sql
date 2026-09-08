@@ -1,13 +1,11 @@
 -- Atlas connected-source provider observation custody v1.
 --
--- This is source evidence only. A Stripe Checkout Session, customer, payment intent,
--- or any future provider record does not become Money, Registration, Work, identity,
--- or other Atlas domain truth merely because it was observed here.
+-- Provider records preserved here remain source evidence. They do not become Money,
+-- Registration, Work, identity, or other Atlas domain truth merely by being observed.
 
 create table if not exists atlas.connected_source_observations (
   id uuid primary key default gen_random_uuid(),
-  connected_source_id uuid not null
-    references atlas.connected_sources(id) on delete cascade,
+  connected_source_id uuid not null references atlas.connected_sources(id) on delete cascade,
   provider_object_kind text not null,
   provider_object_key text not null,
   provider_created_at timestamptz,
@@ -25,7 +23,6 @@ create table if not exists atlas.connected_source_observations (
 
 create index if not exists connected_source_observations_source_time_idx
   on atlas.connected_source_observations (connected_source_id, observed_at desc, id);
-
 create index if not exists connected_source_observations_object_idx
   on atlas.connected_source_observations (connected_source_id, provider_object_kind, provider_object_key, observed_at desc);
 
@@ -56,51 +53,30 @@ declare
   v_hash text;
   v_observation_id uuid;
   v_inserted boolean := false;
-  v_source atlas.connected_sources%rowtype;
 begin
   if p_connected_source_id is null or v_kind = '' or v_key = '' then
     raise exception 'Connected source and provider object identity are required.' using errcode = '22023';
   end if;
-
   if jsonb_typeof(v_payload) <> 'object' or jsonb_typeof(v_provenance) <> 'object' then
     raise exception 'Provider payload and provenance must be JSON objects.' using errcode = '22023';
   end if;
-
-  select source.* into v_source
-  from atlas.connected_sources source
-  where source.id = p_connected_source_id;
-
-  if v_source.id is null then
-    raise exception 'Connected source is unavailable.' using errcode = '22023';
-  end if;
-
-  if v_source.authorization_state <> 'connected' then
+  if not exists (
+    select 1 from atlas.connected_sources source
+    where source.id = p_connected_source_id and source.authorization_state = 'connected'
+  ) then
     raise exception 'Provider observations require a connected source.' using errcode = '55000';
   end if;
 
   v_hash := encode(extensions.digest(convert_to(v_payload::text, 'utf8'), 'sha256'), 'hex');
 
   insert into atlas.connected_source_observations (
-    connected_source_id,
-    provider_object_kind,
-    provider_object_key,
-    provider_created_at,
-    observed_at,
-    payload,
-    payload_sha256,
-    provenance
+    connected_source_id, provider_object_kind, provider_object_key,
+    provider_created_at, observed_at, payload, payload_sha256, provenance
   ) values (
-    p_connected_source_id,
-    v_kind,
-    v_key,
-    p_provider_created_at,
-    v_observed_at,
-    v_payload,
-    v_hash,
-    v_provenance
+    p_connected_source_id, v_kind, v_key,
+    p_provider_created_at, v_observed_at, v_payload, v_hash, v_provenance
   )
-  on conflict (connected_source_id, provider_object_kind, provider_object_key, payload_sha256)
-    do nothing
+  on conflict (connected_source_id, provider_object_kind, provider_object_key, payload_sha256) do nothing
   returning id into v_observation_id;
 
   if v_observation_id is null then
@@ -126,6 +102,85 @@ begin
 end;
 $function$;
 
+create or replace function atlas.record_connected_source_observation_batch_service_v1(
+  p_connected_source_id uuid,
+  p_provider_object_kind text,
+  p_records jsonb,
+  p_observed_at timestamptz default now(),
+  p_provenance jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, atlas, extensions
+as $function$
+declare
+  v_kind text := btrim(coalesce(p_provider_object_kind, ''));
+  v_records jsonb := coalesce(p_records, '[]'::jsonb);
+  v_provenance jsonb := coalesce(p_provenance, '{}'::jsonb);
+  v_observed_at timestamptz := coalesce(p_observed_at, now());
+  v_record jsonb;
+  v_key text;
+  v_payload jsonb;
+  v_created_at timestamptz;
+  v_hash text;
+  v_inserted integer := 0;
+  v_total integer := 0;
+begin
+  if p_connected_source_id is null or v_kind = '' or jsonb_typeof(v_records) <> 'array' then
+    raise exception 'Connected source, provider object kind, and record array are required.' using errcode = '22023';
+  end if;
+  if jsonb_array_length(v_records) > 500 then
+    raise exception 'A provider observation batch may contain at most 500 records.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(v_provenance) <> 'object' then
+    raise exception 'Provider provenance must be a JSON object.' using errcode = '22023';
+  end if;
+  if not exists (
+    select 1 from atlas.connected_sources source
+    where source.id = p_connected_source_id and source.authorization_state = 'connected'
+  ) then
+    raise exception 'Provider observations require a connected source.' using errcode = '55000';
+  end if;
+
+  for v_record in select value from jsonb_array_elements(v_records)
+  loop
+    v_total := v_total + 1;
+    v_key := btrim(coalesce(v_record->>'key',''));
+    v_payload := coalesce(v_record->'payload','{}'::jsonb);
+    v_created_at := case
+      when nullif(v_record->>'providerCreatedAt','') is null then null
+      else (v_record->>'providerCreatedAt')::timestamptz
+    end;
+
+    if v_key = '' or jsonb_typeof(v_payload) <> 'object' then
+      raise exception 'Each provider record requires a key and object payload.' using errcode = '22023';
+    end if;
+
+    v_hash := encode(extensions.digest(convert_to(v_payload::text, 'utf8'), 'sha256'), 'hex');
+
+    insert into atlas.connected_source_observations (
+      connected_source_id, provider_object_kind, provider_object_key,
+      provider_created_at, observed_at, payload, payload_sha256, provenance
+    ) values (
+      p_connected_source_id, v_kind, v_key,
+      v_created_at, v_observed_at, v_payload, v_hash, v_provenance
+    )
+    on conflict (connected_source_id, provider_object_kind, provider_object_key, payload_sha256) do nothing;
+
+    if found then v_inserted := v_inserted + 1; end if;
+  end loop;
+
+  return jsonb_build_object(
+    'connectedSourceId',p_connected_source_id,
+    'providerObjectKind',v_kind,
+    'recordCount',v_total,
+    'insertedCount',v_inserted,
+    'duplicateCount',v_total-v_inserted
+  );
+end;
+$function$;
+
 create or replace function atlas.connected_source_observation_summary_service_v1(
   p_connected_source_id uuid
 )
@@ -135,33 +190,36 @@ stable
 security definer
 set search_path = pg_catalog, atlas
 as $function$
+  with scoped as (
+    select observation.*
+    from atlas.connected_source_observations observation
+    where observation.connected_source_id = p_connected_source_id
+  ), kind_counts as (
+    select provider_object_kind, count(distinct provider_object_key) as object_count
+    from scoped
+    group by provider_object_kind
+  )
   select jsonb_build_object(
     'connectedSourceId',p_connected_source_id,
-    'observationCount',count(*),
-    'objectCount',count(distinct (observation.provider_object_kind, observation.provider_object_key)),
-    'latestObservedAt',max(observation.observed_at),
-    'kinds',coalesce(
-      jsonb_object_agg(kind_row.provider_object_kind, kind_row.object_count)
-        filter (where kind_row.provider_object_kind is not null),
-      '{}'::jsonb
-    )
-  )
-  from atlas.connected_source_observations observation
-  left join lateral (
-    select observation.provider_object_kind, count(distinct observation.provider_object_key) as object_count
-  ) kind_row on true
-  where observation.connected_source_id = p_connected_source_id;
+    'observationCount',(select count(*) from scoped),
+    'objectCount',(select count(distinct (provider_object_kind,provider_object_key)) from scoped),
+    'latestObservedAt',(select max(observed_at) from scoped),
+    'kinds',coalesce((select jsonb_object_agg(provider_object_kind,object_count) from kind_counts),'{}'::jsonb)
+  );
 $function$;
 
 comment on table atlas.connected_source_observations is
 'Append-only snapshots of external provider records observed through a governed connected source. Source evidence only; not canonical domain truth.';
-
 comment on function atlas.record_connected_source_observation_service_v1(uuid,text,text,jsonb,timestamptz,timestamptz,jsonb) is
 'Service-only append-only provider observation intake. Identical snapshots are idempotent by source/object/payload hash.';
+comment on function atlas.record_connected_source_observation_batch_service_v1(uuid,text,jsonb,timestamptz,jsonb) is
+'Service-only bounded batch provider observation intake for one source/object kind.';
 
 revoke all on function atlas.record_connected_source_observation_service_v1(uuid,text,text,jsonb,timestamptz,timestamptz,jsonb) from public, anon, authenticated;
+revoke all on function atlas.record_connected_source_observation_batch_service_v1(uuid,text,jsonb,timestamptz,jsonb) from public, anon, authenticated;
 revoke all on function atlas.connected_source_observation_summary_service_v1(uuid) from public, anon, authenticated;
 grant execute on function atlas.record_connected_source_observation_service_v1(uuid,text,text,jsonb,timestamptz,timestamptz,jsonb) to service_role;
+grant execute on function atlas.record_connected_source_observation_batch_service_v1(uuid,text,jsonb,timestamptz,jsonb) to service_role;
 grant execute on function atlas.connected_source_observation_summary_service_v1(uuid) to service_role;
 
 insert into atlas.authenticated_rpc_registry (
@@ -172,22 +230,17 @@ insert into atlas.authenticated_rpc_registry (
 (
   'atlas.record_connected_source_observation_service_v1(uuid,text,text,jsonb,timestamptz,timestamptz,jsonb)',
   'service_internal','verified','active',false,true,true,1,1,
-  jsonb_build_object(
-    'source','atlas_connected_source_observations_v1',
-    'purpose','Preserve append-only external provider record snapshots behind a connected source.',
-    'boundary','Service-role provider adapters only. Browser callers cannot write raw provider observations.',
-    'truthBoundary','A provider observation remains source evidence and cannot itself establish Money, Registration, Work, identity, or other Atlas domain truth.'
-  ),false
+  jsonb_build_object('source','atlas_connected_source_observations_v1','purpose','Preserve one append-only external provider record snapshot behind a connected source.','boundary','Service-role provider adapters only.','truthBoundary','Provider observation remains source evidence, not Atlas domain truth.'),false
+),
+(
+  'atlas.record_connected_source_observation_batch_service_v1(uuid,text,jsonb,timestamptz,jsonb)',
+  'service_internal','verified','active',false,true,true,1,1,
+  jsonb_build_object('source','atlas_connected_source_observations_v1','purpose','Preserve a bounded batch of provider records behind one connected source.','boundary','Service-role provider adapters only; batches are limited to 500 records.','truthBoundary','Provider observations remain source evidence, not Atlas domain truth.'),false
 ),
 (
   'atlas.connected_source_observation_summary_service_v1(uuid)',
   'service_internal','verified','active',false,true,true,1,1,
-  jsonb_build_object(
-    'source','atlas_connected_source_observations_v1',
-    'purpose','Summarize provider observation coverage for server-side implementation/read adapters.',
-    'boundary','Service-role only; raw payload access remains contained.',
-    'truthBoundary','Coverage statistics describe acquired provider evidence only.'
-  ),false
+  jsonb_build_object('source','atlas_connected_source_observations_v1','purpose','Summarize acquired provider evidence coverage.','boundary','Service-role only.','truthBoundary','Coverage statistics describe source evidence only.'),false
 )
 on conflict (signature) do update
 set classification=excluded.classification,
