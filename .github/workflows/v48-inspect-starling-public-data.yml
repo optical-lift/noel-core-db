@@ -20,15 +20,26 @@ jobs:
           python-version: '3.12'
       - name: Install inspection runtime
         run: python -m pip install --disable-pip-version-check pandas numpy
-      - name: Download public AVGN projection archive
+      - name: Resolve and download public AVGN projection archive through Zenodo API
         run: |
-          curl -fL --retry 3 'https://zenodo.org/records/3775893/files/projections_comparison.zip?download=1' -o projections_comparison.zip
+          set -euo pipefail
+          curl -fsSL --retry 3 'https://zenodo.org/api/records/3775893' -o zenodo-record.json
+          python - <<'PY' > file_url.txt
+          import json
+          r=json.load(open('zenodo-record.json'))
+          f=next(x for x in r['files'] if x['key']=='projections_comparison.zip')
+          print(f['links']['self'])
+          print('EXPECTED',f['checksum'],f['size'],file=open('/dev/stderr'))
+          PY
+          URL=$(cat file_url.txt)
+          echo "Downloading through API file object"
+          curl -fL --retry 3 --connect-timeout 20 --max-time 600 "$URL" -o projections_comparison.zip
           echo "md5=$(md5sum projections_comparison.zip | awk '{print $1}')"
           test "$(md5sum projections_comparison.zip | awk '{print $1}')" = '3286361174de5e6a2ca50986101df2fb'
       - name: Inventory archive and inspect starling pandas objects
         run: |
           python - <<'PY'
-          import zipfile, pathlib, json, pickle, pandas as pd, numpy as np
+          import zipfile, pathlib, pandas as pd, numpy as np
           z=zipfile.ZipFile('projections_comparison.zip')
           names=z.namelist()
           print('ARCHIVE_FILES', len(names))
