@@ -77,10 +77,12 @@ jobs:
           V46_SEED: ${{ matrix.seed }}
         run: |
           python - <<'PY'
-          import importlib.util, json, os
+          import importlib.util, json, os, sys
           from pathlib import Path
           spec=importlib.util.spec_from_file_location('v46fast','validation/v46-fit-regimes-fast.py')
-          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          m=importlib.util.module_from_spec(spec)
+          sys.modules[spec.name]=m
+          spec.loader.exec_module(m)
           m.self_test()
           blocks=m.load_blocks(Path('v46-development.csv'))
           train=[b for b in blocks if m.stable_bucket(b.book,b.block_index,460046,10)>=2]
