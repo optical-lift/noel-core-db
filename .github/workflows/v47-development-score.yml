@@ -83,7 +83,7 @@ jobs:
           github-token: ${{ github.token }}
           repository: optical-lift/noel-core-db
           run-id: 34248489879
-      - name: Run frozen V47 development scorer
+      - name: Run frozen V47 development scorer with frozen-geometry integrity gate
         env:
           OMP_NUM_THREADS: '2'
           MKL_NUM_THREADS: '2'
