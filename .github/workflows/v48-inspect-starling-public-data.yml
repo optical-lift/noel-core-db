@@ -18,20 +18,28 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Resolve Zenodo object-store metadata only
+      - name: Resolve Zenodo file object through public text proxy
         run: |
           set -euo pipefail
+          curl -fsSL --retry 3 --connect-timeout 20 --max-time 120 \
+            'https://r.jina.ai/http://zenodo.org/api/records/3775893' \
+            -o zenodo-proxy.txt
           python - <<'PY'
-          import json, urllib.request
-          url='https://zenodo.org/api/records/3775893'
-          with urllib.request.urlopen(url, timeout=30) as r:
-              rec=json.load(r)
-          f=next(x for x in rec['files'] if x['key']=='projections_comparison.zip')
-          print('KEY',f['key'])
-          print('SIZE',f['size'])
-          print('CHECKSUM',f['checksum'])
-          print('BUCKET',f.get('bucket'))
-          for k,v in sorted(f.get('links',{}).items()):
-              print('LINK',k,v)
-          print('RECORD_BUCKET',rec.get('links',{}).get('bucket'))
+          import re, pathlib
+          s=pathlib.Path('zenodo-proxy.txt').read_text(errors='ignore')
+          print('PROXY_BYTES',len(s))
+          print('HAS_FILENAME','projections_comparison.zip' in s)
+          # Print only matching metadata lines / object URLs, not the entire record.
+          for line in s.splitlines():
+              if ('projections_comparison.zip' in line or
+                  '3286361174de5e6a2ca50986101df2fb' in line or
+                  'api/files/' in line):
+                  print(line[:2000])
+          urls=re.findall(r'https?://zenodo\.org/api/files/[A-Za-z0-9-]+/projections_comparison\.zip',s)
+          if urls:
+              print('OBJECT_URL',urls[0])
+          else:
+              # Some renderers escape slashes or quote the bucket separately.
+              uuids=re.findall(r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})',s,re.I)
+              print('UUID_CANDIDATES',sorted(set(uuids))[:50])
           PY
