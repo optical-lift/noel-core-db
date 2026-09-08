@@ -23,7 +23,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install frozen numerical runtime
-        run: python -m pip install --disable-pip-version-check numpy scipy scikit-learn
+        run: python -m pip install --disable-pip-version-check numpy scipy scikit-learn numba
 
       - name: Acquire GitHub OIDC identity
         shell: bash
@@ -91,7 +91,7 @@ jobs:
 
       - name: Compute target-blind geometry and holdouts
         run: |
-          python validation/v47-geometry-holdouts.py v46-development.csv \
+          python validation/v47-geometry-holdouts-fast.py v46-development.csv \
             --p46 frozen/seed46/k12_seed46.npz \
             --p460 frozen/seed460/k12_seed460.npz \
             --p4600 frozen/seed4600/k12_seed4600.npz \
