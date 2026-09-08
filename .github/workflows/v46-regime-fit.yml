@@ -1,0 +1,140 @@
+name: V46 frozen regime selection
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v46-regime-fit.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  fit:
+    strategy:
+      fail-fast: false
+      matrix:
+        k: [4, 6, 8, 12, 16]
+        seed: [46, 460, 4600]
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install numerical runtime
+        run: python -m pip install --disable-pip-version-check numpy numba
+
+      - name: Acquire GitHub OIDC identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESP=$(curl -fsS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=v46-noel")
+          TOKEN=$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$RESP")
+          echo "V46_OIDC_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Fetch frozen anonymous development corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS \
+            -H "Authorization: Bearer ${V46_OIDC_TOKEN}" \
+            "https://zirqkouammpwxlqfbsvf.supabase.co/functions/v1/v46-github-oidc-export" \
+            -o v46-development.csv
+
+      - name: Verify corpus custody checksum
+        run: |
+          python - <<'PY'
+          import csv, hashlib
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~'
+          rows=[]; tokens=0
+          with open('v46-development.csv', newline='', encoding='utf-8') as f:
+              for r in csv.DictReader(f):
+                  states=[int(x) for x in r['state_sequence'].split(',')]
+                  n=int(r['n_tokens'])
+                  assert len(states)==n
+                  enc=''.join(alphabet[s-1] for s in states)
+                  rows.append(f"{r['book']}|{r['block_index']}|{n}|{enc}")
+                  tokens += n
+          payload='\n'.join(rows)
+          digest=hashlib.md5(payload.encode()).hexdigest()
+          assert len(rows)==110, len(rows)
+          assert tokens==158503, tokens
+          assert digest=='bd96b60afa631d02dc7031e0a398a9dc', digest
+          print({'blocks':len(rows),'tokens':tokens,'payload_md5':digest})
+          PY
+
+      - name: Run mandatory equation-equivalence self-test
+        run: python validation/v46-fit-regimes-fast.py --self-test
+
+      - name: Fit one frozen K/seed combination
+        env:
+          V46_K: ${{ matrix.k }}
+          V46_SEED: ${{ matrix.seed }}
+        run: |
+          python - <<'PY'
+          import importlib.util, json, os
+          from pathlib import Path
+          spec=importlib.util.spec_from_file_location('v46fast','validation/v46-fit-regimes-fast.py')
+          m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          m.self_test()
+          blocks=m.load_blocks(Path('v46-development.csv'))
+          train=[b for b in blocks if m.stable_bucket(b.book,b.block_index,460046,10)>=2]
+          valid=[b for b in blocks if m.stable_bucket(b.book,b.block_index,460046,10)<2]
+          k=int(os.environ['V46_K']); seed=int(os.environ['V46_SEED'])
+          p,h=m.fit(train,k,seed)
+          tr_ll,tr_n=m.score(train,p); va_ll,va_n=m.score(valid,p)
+          meta={
+            'k':k,'seed':seed,'train_ll':tr_ll,'train_n':tr_n,
+            'valid_ll':va_ll,'valid_n':va_n,
+            'valid_nll_per_token':-va_ll/va_n,'iters':len(h),
+            'train_blocks':len(train),'valid_blocks':len(valid),
+            'train_tokens':sum(len(b.x) for b in train),
+            'valid_tokens':sum(len(b.x) for b in valid),
+          }
+          Path('meta.json').write_text(json.dumps(meta,indent=2,sort_keys=True)+'\n')
+          m.save_params(Path(f'k{k}_seed{seed}.npz'),p,meta)
+          print(json.dumps(meta,sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v46-k${{ matrix.k }}-seed${{ matrix.seed }}
+          path: |
+            meta.json
+            k${{ matrix.k }}_seed${{ matrix.seed }}.npz
+          retention-days: 7
+
+  select:
+    needs: fit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: v46-k*-seed*
+          path: results
+
+      - name: Freeze K selection result
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          rows=[json.loads(p.read_text()) for p in Path('results').glob('*/meta.json')]
+          assert len(rows)==15, len(rows)
+          ks=(4,6,8,12,16)
+          byk={k:sum(r['valid_nll_per_token'] for r in rows if r['k']==k)/3 for k in ks}
+          selected=min(byk,key=byk.get)
+          out={'selected_k':selected,'mean_validation_nll_per_token':byk,'rows':sorted(rows,key=lambda r:(r['k'],r['seed']))}
+          Path('selection.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps({'selected_k':selected,'by_k':byk},sort_keys=True))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v46-development-selection
+          path: selection.json
+          retention-days: 30
