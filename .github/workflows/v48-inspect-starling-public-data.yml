@@ -12,53 +12,26 @@ permissions:
 jobs:
   inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install inspection runtime
-        run: python -m pip install --disable-pip-version-check pandas numpy
-      - name: Download public AVGN projection archive through direct Zenodo content endpoint
+      - name: Resolve Zenodo object-store metadata only
         run: |
           set -euo pipefail
-          URL='https://zenodo.org/api/records/3775893/files/projections_comparison.zip/content'
-          curl -fL --retry 2 --connect-timeout 20 --max-time 300 "$URL" -o projections_comparison.zip
-          echo "size=$(stat -c%s projections_comparison.zip)"
-          echo "md5=$(md5sum projections_comparison.zip | awk '{print $1}')"
-          test "$(md5sum projections_comparison.zip | awk '{print $1}')" = '3286361174de5e6a2ca50986101df2fb'
-      - name: Inventory archive and inspect starling pandas objects
-        run: |
           python - <<'PY'
-          import zipfile, pathlib, pandas as pd, numpy as np
-          z=zipfile.ZipFile('projections_comparison.zip')
-          names=z.namelist()
-          print('ARCHIVE_FILES', len(names))
-          stars=[n for n in names if 'starling' in n.lower()]
-          print('STARLING_PATHS')
-          for n in stars: print(n)
-          pathlib.Path('unpacked').mkdir(exist_ok=True)
-          for n in stars:
-              if n.endswith('/'):
-                  continue
-              p=pathlib.Path('unpacked')/pathlib.Path(n).name
-              p.write_bytes(z.read(n))
-              print('EXTRACTED',p,p.stat().st_size)
-              if p.suffix in ('.pickle','.pkl'):
-                  try:
-                      obj=pd.read_pickle(p)
-                      print('PICKLE_TYPE',p.name,type(obj).__name__)
-                      if hasattr(obj,'shape'): print('SHAPE',obj.shape)
-                      if hasattr(obj,'columns'): print('COLUMNS',list(map(str,obj.columns)))
-                      if isinstance(obj,pd.DataFrame):
-                          for col in ['bird','bird_name','indv','individual','labels','syllable_time','syll_length_s','sequence','syllables']:
-                              if col in obj.columns:
-                                  vals=obj[col]
-                                  if col in ['bird','bird_name','indv','individual']:
-                                      print('UNIQUE',col,sorted(map(str,pd.unique(vals)))[:100])
-                                  else:
-                                      print('COL',col,'N',len(vals),'NONNULL',int(vals.notna().sum()))
-                  except Exception as e:
-                      print('PICKLE_ERROR',p.name,repr(e))
+          import json, urllib.request
+          url='https://zenodo.org/api/records/3775893'
+          with urllib.request.urlopen(url, timeout=30) as r:
+              rec=json.load(r)
+          f=next(x for x in rec['files'] if x['key']=='projections_comparison.zip')
+          print('KEY',f['key'])
+          print('SIZE',f['size'])
+          print('CHECKSUM',f['checksum'])
+          print('BUCKET',f.get('bucket'))
+          for k,v in sorted(f.get('links',{}).items()):
+              print('LINK',k,v)
+          print('RECORD_BUCKET',rec.get('links',{}).get('bucket'))
           PY
