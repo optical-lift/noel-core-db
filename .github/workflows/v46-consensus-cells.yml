@@ -1,0 +1,115 @@
+name: V46 frozen consensus and cell eligibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/v46-consensus-cells.yml'
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  consensus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install frozen numerical runtime
+        run: python -m pip install --disable-pip-version-check numpy numba scipy
+
+      - name: Acquire GitHub OIDC identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESP=$(curl -fsS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=v46-noel")
+          TOKEN=$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$RESP")
+          echo "V46_OIDC_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      - name: Fetch frozen anonymous development corpus
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsS \
+            -H "Authorization: Bearer ${V46_OIDC_TOKEN}" \
+            "https://zirqkouammpwxlqfbsvf.supabase.co/functions/v1/v46-github-oidc-export" \
+            -o v46-development.csv
+
+      - name: Verify corpus custody checksum
+        run: |
+          python - <<'PY'
+          import csv, hashlib
+          alphabet='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_~'
+          rows=[]; tokens=0
+          with open('v46-development.csv', newline='', encoding='utf-8') as f:
+              for r in csv.DictReader(f):
+                  states=[int(x) for x in r['state_sequence'].split(',')]
+                  n=int(r['n_tokens']); assert len(states)==n
+                  enc=''.join(alphabet[s-1] for s in states)
+                  rows.append(f"{r['book']}|{r['block_index']}|{n}|{enc}")
+                  tokens += n
+          payload='\n'.join(rows); digest=hashlib.md5(payload.encode()).hexdigest()
+          assert len(rows)==110, len(rows)
+          assert tokens==158503, tokens
+          assert digest=='bd96b60afa631d02dc7031e0a398a9dc', digest
+          print({'blocks':len(rows),'tokens':tokens,'payload_md5':digest})
+          PY
+
+      - name: Download frozen K12 seed46 parameters
+        uses: actions/download-artifact@v4
+        with:
+          name: v46-k12-seed46
+          path: frozen/seed46
+          github-token: ${{ github.token }}
+          repository: optical-lift/noel-core-db
+          run-id: 34230388044
+
+      - name: Download frozen K12 seed460 parameters
+        uses: actions/download-artifact@v4
+        with:
+          name: v46-k12-seed460
+          path: frozen/seed460
+          github-token: ${{ github.token }}
+          repository: optical-lift/noel-core-db
+          run-id: 34230388044
+
+      - name: Download frozen K12 seed4600 parameters
+        uses: actions/download-artifact@v4
+        with:
+          name: v46-k12-seed4600
+          path: frozen/seed4600
+          github-token: ${{ github.token }}
+          repository: optical-lift/noel-core-db
+          run-id: 34230388044
+
+      - name: Download frozen K selection
+        uses: actions/download-artifact@v4
+        with:
+          name: v46-development-selection
+          path: frozen/selection
+          github-token: ${{ github.token }}
+          repository: optical-lift/noel-core-db
+          run-id: 34230388044
+
+      - name: Compute consensus regimes and eligible cells
+        run: |
+          python validation/v46-consensus-cells.py \
+            --csv v46-development.csv \
+            --seed46 frozen/seed46/k12_seed46.npz \
+            --seed460 frozen/seed460/k12_seed460.npz \
+            --seed4600 frozen/seed4600/k12_seed4600.npz \
+            --selection frozen/selection/selection.json \
+            --out v46_consensus_cells
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v46-consensus-cells
+          path: v46_consensus_cells/
+          retention-days: 30
