@@ -88,7 +88,7 @@ jobs:
           OMP_NUM_THREADS: '2'
           MKL_NUM_THREADS: '2'
         run: |
-          python validation/v47-development-score.py \
+          python validation/v47-development-score-run.py \
             --csv v46-development.csv \
             --p46 frozen/seed46/k12_seed46.npz \
             --p460 frozen/seed460/k12_seed460.npz \
