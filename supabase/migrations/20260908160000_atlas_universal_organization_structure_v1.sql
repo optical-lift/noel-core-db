@@ -1,3 +1,5 @@
+begin;
+
 -- Atlas universal organization structure v1
 -- Separates institutional structure from portfolio and domain reality.
 -- Organization employee seats remain organization-wide billing/access objects.
@@ -120,7 +122,6 @@ declare
   v_anna_subject_id uuid;
   v_anna_membership_id uuid;
   v_position_id uuid;
-  v_resp_id uuid;
 begin
   select id into strict v_org_id
   from atlas.organizations
@@ -311,32 +312,31 @@ as $function$
      and u.organization_id = e.organization_id
      and u.status = 'active'
   )
-  select coalesce(
-    jsonb_build_object(
-      'ok', true,
-      'contractVersion','organization_employee_appointments_by_auth_user_v1',
-      'items', coalesce(jsonb_agg(jsonb_build_object(
-        'credentialId',credential_id,
-        'employeeSeatId',employee_seat_id,
-        'organizationId',organization_id,
-        'organizationMembershipId',organization_membership_id,
-        'identitySubjectId',identity_subject_id,
-        'appointmentId',appointment_id,
-        'appointmentKind',appointment_kind,
-        'positionId',position_id,
-        'positionKey',position_key,
-        'displayTitle',display_title,
-        'positionKind',position_kind,
-        'organizationUnitId',organization_unit_id,
-        'organizationUnitKey',organization_unit_key,
-        'organizationUnitName',organization_unit_name,
-        'organizationUnitKind',organization_unit_kind
-      ) order by appointment_kind, position_key), '[]'::jsonb)
-    ),
-    jsonb_build_object('ok',true,'contractVersion','organization_employee_appointments_by_auth_user_v1','items','[]'::jsonb)
+  select jsonb_build_object(
+    'ok', true,
+    'contractVersion','organization_employee_appointments_by_auth_user_v1',
+    'items', coalesce(jsonb_agg(jsonb_build_object(
+      'credentialId',credential_id,
+      'employeeSeatId',employee_seat_id,
+      'organizationId',organization_id,
+      'organizationMembershipId',organization_membership_id,
+      'identitySubjectId',identity_subject_id,
+      'appointmentId',appointment_id,
+      'appointmentKind',appointment_kind,
+      'positionId',position_id,
+      'positionKey',position_key,
+      'displayTitle',display_title,
+      'positionKind',position_kind,
+      'organizationUnitId',organization_unit_id,
+      'organizationUnitKey',organization_unit_key,
+      'organizationUnitName',organization_unit_name,
+      'organizationUnitKind',organization_unit_kind
+    ) order by appointment_kind, position_key), '[]'::jsonb)
   )
   from appts;
 $function$;
 
 revoke all on function atlas.organization_employee_appointments_by_auth_user_v1(uuid,uuid) from public, anon, authenticated;
 grant execute on function atlas.organization_employee_appointments_by_auth_user_v1(uuid,uuid) to postgres, service_role;
+
+commit;
