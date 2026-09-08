@@ -8,46 +8,53 @@
 --   3. Measure exact motif support under the frozen motif lengths/support rules.
 --
 -- This script must not alter state definitions, holdout membership, or source data.
+--
+-- IMPORTANT CORRECTION BEFORE MODEL FITTING:
+--   `block_index` is only unique within book. The preserved block identifier is
+--   therefore `(book, block_index)`. The original first execution incorrectly
+--   aggregated repeated block_index values across books. The preregistered hash
+--   rule itself remains unchanged in substance: it is applied to the complete
+--   preserved block identifier as `book:block_index`.
 
 \echo 'V46 lineage and split check'
-with base as (
-  select block_index, holdout, rn, y
+with blocks as (
+  select book,
+         block_index,
+         holdout,
+         count(*) as n,
+         mod(abs(hashtextextended(book||':'||block_index::text,46)),10) as bucket
   from instrument.v42_token_index
-), blocks as (
-  select block_index,
-         count(*) filter (where holdout = false) as nonholdout_tokens,
-         count(*) filter (where holdout = true) as holdout_tokens,
-         mod(abs(hashtextextended(block_index::text,46)),10) as bucket
-  from base
-  group by block_index
+  group by book, block_index, holdout
 )
 select
-  count(*) as blocks_total,
-  count(*) filter (where nonholdout_tokens > 0) as nonholdout_blocks,
-  sum(nonholdout_tokens) as nonholdout_tokens,
-  sum(nonholdout_tokens) filter (where bucket < 7) as development_tokens,
-  sum(nonholdout_tokens) filter (where bucket >= 7) as internal_replication_tokens,
-  sum(holdout_tokens) as outer_holdout_tokens
+  count(*) filter (where holdout=false) as nonholdout_blocks,
+  count(*) filter (where holdout=false and bucket<7) as development_blocks,
+  count(*) filter (where holdout=false and bucket>=7) as internal_replication_blocks,
+  sum(n) filter (where holdout=false) as nonholdout_tokens,
+  sum(n) filter (where holdout=false and bucket<7) as development_tokens,
+  sum(n) filter (where holdout=false and bucket>=7) as internal_replication_tokens,
+  count(*) filter (where holdout=true) as outer_holdout_blocks,
+  sum(n) filter (where holdout=true) as outer_holdout_tokens
 from blocks;
 
 \echo 'V46 motif support check on development partition'
 with s as (
-  select t.block_index,t.holdout,t.rn,
+  select t.book,t.block_index,t.holdout,t.rn,
          coalesce(i.rank,65) as st,
-         mod(abs(hashtextextended(t.block_index::text,46)),10) as bucket
+         mod(abs(hashtextextended(t.book||':'||t.block_index::text,46)),10) as bucket
   from instrument.v42_token_index t
   left join instrument.v41_target_inventory i on i.target=t.y
 ), w as (
   select *,
-    lag(st,1) over(partition by block_index order by rn) p1,
-    lag(st,2) over(partition by block_index order by rn) p2,
-    lag(st,3) over(partition by block_index order by rn) p3,
-    lag(st,4) over(partition by block_index order by rn) p4,
-    lag(st,5) over(partition by block_index order by rn) p5
+    lag(st,1) over(partition by book,block_index order by rn) p1,
+    lag(st,2) over(partition by book,block_index order by rn) p2,
+    lag(st,3) over(partition by book,block_index order by rn) p3,
+    lag(st,4) over(partition by book,block_index order by rn) p4,
+    lag(st,5) over(partition by book,block_index order by rn) p5
   from s
   where holdout=false
 ), motifs as (
-  select block_index,bucket,
+  select book,block_index,bucket,
     array[p1,st]::text as m2,
     array[p2,p1,st]::text as m3,
     array[p3,p2,p1,st]::text as m4,
@@ -56,13 +63,13 @@ with s as (
   where p5 is not null
     and bucket < 7
 ), c2 as (
-  select m2,count(*) n,count(distinct block_index) blocks from motifs group by m2
+  select m2,count(*) n,count(distinct (book,block_index)) blocks from motifs group by m2
 ), c3 as (
-  select m3,count(*) n,count(distinct block_index) blocks from motifs group by m3
+  select m3,count(*) n,count(distinct (book,block_index)) blocks from motifs group by m3
 ), c4 as (
-  select m4,count(*) n,count(distinct block_index) blocks from motifs group by m4
+  select m4,count(*) n,count(distinct (book,block_index)) blocks from motifs group by m4
 ), c6 as (
-  select m6,count(*) n,count(distinct block_index) blocks from motifs group by m6
+  select m6,count(*) n,count(distinct (book,block_index)) blocks from motifs group by m6
 )
 select 2 as motif_length,count(*) distinct_motifs,
        count(*) filter(where n>=100) supported_100,
@@ -77,23 +84,21 @@ union all
 select 6,count(*),count(*) filter(where n>=100),count(*) filter(where n>=300),max(n) from c6
 order by motif_length;
 
--- Expected first execution (2026-09-07):
--- blocks_total=30
--- nonholdout_blocks=26
+-- Corrected first execution before any V46 model fitting/scoring (2026-09-07):
+-- nonholdout_blocks=160
+-- development_blocks=110
+-- internal_replication_blocks=50
 -- nonholdout_tokens=235209
--- development_tokens=117630
--- internal_replication_tokens=117579
+-- development_tokens=158503
+-- internal_replication_tokens=76706
+-- outer_holdout_blocks=41
 -- outer_holdout_tokens=71576
 --
--- Note: the preregistered 70/30 hash rule produces an approximately 50/50
--- token split because intact blocks are highly unequal in size. The rule is
--- retained unchanged after freezing.
---
--- Motif support on first execution:
--- length 2: distinct=2502, >=100=184, >=300=80, max=3678
--- length 3: distinct=19165, >=100=164, >=300=33, max=670
--- length 4: distinct=56851, >=100=16, >=300=0, max=130
--- length 6: distinct=113289, >=100=0, >=300=0, max=11
+-- Corrected motif support on development:
+-- length 2: distinct=2645, >=100=216, >=300=100, max=5071
+-- length 3: distinct=21543, >=100=236, >=300=54, max=958
+-- length 4: distinct=66681, >=100=53, >=300=0, max=211
+-- length 6: distinct=145550, >=100=0, >=300=0, max=30
 --
 -- Consequence under the frozen rules:
 -- length-4 contexts can participate in variable-order prediction when support
