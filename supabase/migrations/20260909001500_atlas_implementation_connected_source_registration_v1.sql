@@ -1,0 +1,145 @@
+begin;
+
+create or replace function atlas.implementation_source_authorized_self_v1(p_implementation_case_source_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path to 'pg_catalog','atlas','auth'
+as $function$
+  select auth.uid() is not null and exists (
+    select 1
+    from atlas.implementation_case_sources s
+    join atlas.implementation_case_participants sponsor
+      on sponsor.implementation_case_id=s.implementation_case_id
+     and sponsor.relationship_kind='setup_sponsor'
+     and sponsor.active
+     and sponsor.human_user_id=auth.uid()
+    join atlas.implementation_cases c on c.id=s.implementation_case_id
+    where s.id=p_implementation_case_source_id
+      and s.source_state<>'removed'
+      and c.state not in ('closed','cancelled')
+  );
+$function$;
+
+create or replace function atlas.register_implementation_connected_source_self_api_v1(
+  p_implementation_case_source_id uuid,
+  p_provider_key text,
+  p_provider_account_key text,
+  p_display_label text,
+  p_account_hint text,
+  p_authorization_state text,
+  p_granted_scopes text[],
+  p_capabilities jsonb,
+  p_metadata jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog','atlas','auth'
+as $function$
+declare
+  v_source_id uuid;
+  v_case_provider text;
+begin
+  if not atlas.implementation_source_authorized_self_v1(p_implementation_case_source_id) then
+    raise exception 'Setup-sponsor authority required.' using errcode='42501';
+  end if;
+  select provider_key into v_case_provider from atlas.implementation_case_sources where id=p_implementation_case_source_id;
+  if lower(btrim(p_provider_key))<>v_case_provider then
+    raise exception 'Provider does not match the implementation source.' using errcode='22023';
+  end if;
+  if p_authorization_state not in ('pending','connected','reauthorization_required','error') then
+    raise exception 'Invalid authorization state.' using errcode='22023';
+  end if;
+  if btrim(coalesce(p_provider_account_key,''))='' then
+    raise exception 'Provider account key required.' using errcode='22023';
+  end if;
+
+  insert into atlas.connected_sources(
+    custodian_user_id,custodian_organization_id,provider_key,provider_account_key,
+    display_label,account_hint,authorization_state,granted_scopes,capabilities,metadata
+  ) values (
+    auth.uid(),null,lower(btrim(p_provider_key)),btrim(p_provider_account_key),
+    nullif(btrim(coalesce(p_display_label,'')),''),nullif(btrim(coalesce(p_account_hint,'')),''),
+    p_authorization_state,coalesce(p_granted_scopes,'{}'::text[]),coalesce(p_capabilities,'{}'::jsonb),
+    jsonb_build_object('custodyBasis','implementation_setup_sponsor','implementationCaseSourceId',p_implementation_case_source_id) || coalesce(p_metadata,'{}'::jsonb)
+  )
+  on conflict (custodian_user_id,provider_key,provider_account_key) where custodian_user_id is not null
+  do update set
+    display_label=excluded.display_label,
+    account_hint=excluded.account_hint,
+    authorization_state=excluded.authorization_state,
+    granted_scopes=excluded.granted_scopes,
+    capabilities=excluded.capabilities,
+    revoked_at=null,
+    metadata=atlas.connected_sources.metadata || excluded.metadata,
+    updated_at=now()
+  returning id into v_source_id;
+
+  update atlas.implementation_case_sources
+  set connected_source_id=v_source_id,
+      authorized_by_user_id=auth.uid(),
+      source_state=case when p_authorization_state='connected' then 'connected' else 'authorization_pending' end,
+      usable_at=case when p_authorization_state='connected' then now() else usable_at end,
+      authorization_context=authorization_context || jsonb_build_object('providerAccountKey',p_provider_account_key,'authorizedBy',auth.uid()),
+      updated_at=now()
+  where id=p_implementation_case_source_id;
+
+  return jsonb_build_object('ok',true,'sourceId',v_source_id,'authorizationState',p_authorization_state,'organizationBindingCreated',false,'ledgerBindingCreated',false);
+end;
+$function$;
+
+create or replace function atlas.update_implementation_connected_source_sync_checkpoint_self_api_v1(
+  p_source_id uuid,
+  p_synced_at timestamptz,
+  p_metadata jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path to 'pg_catalog','atlas','auth'
+as $function$
+begin
+  if auth.uid() is null or not exists (
+    select 1 from atlas.connected_sources s
+    where s.id=p_source_id and s.custodian_user_id=auth.uid()
+  ) then
+    raise exception 'Connected source custody required.' using errcode='42501';
+  end if;
+  update atlas.connected_sources
+  set last_sync_at=coalesce(p_synced_at,now()),metadata=metadata||coalesce(p_metadata,'{}'::jsonb),updated_at=now()
+  where id=p_source_id;
+  return jsonb_build_object('ok',true,'sourceId',p_source_id,'syncedAt',coalesce(p_synced_at,now()));
+end;
+$function$;
+
+create or replace function public.implementation_source_authorized_self_v1(p_implementation_case_source_id uuid)
+returns boolean language sql stable security invoker set search_path to 'pg_catalog','atlas','public'
+as $function$ select atlas.implementation_source_authorized_self_v1(p_implementation_case_source_id); $function$;
+
+create or replace function public.register_implementation_connected_source_self_api_v1(
+  p_implementation_case_source_id uuid,p_provider_key text,p_provider_account_key text,p_display_label text,p_account_hint text,
+  p_authorization_state text,p_granted_scopes text[],p_capabilities jsonb,p_metadata jsonb default '{}'::jsonb
+)
+returns jsonb language sql security invoker set search_path to 'pg_catalog','atlas','public'
+as $function$ select atlas.register_implementation_connected_source_self_api_v1(p_implementation_case_source_id,p_provider_key,p_provider_account_key,p_display_label,p_account_hint,p_authorization_state,p_granted_scopes,p_capabilities,p_metadata); $function$;
+
+create or replace function public.update_implementation_connected_source_sync_checkpoint_self_api_v1(p_source_id uuid,p_synced_at timestamptz,p_metadata jsonb default '{}'::jsonb)
+returns jsonb language sql security invoker set search_path to 'pg_catalog','atlas','public'
+as $function$ select atlas.update_implementation_connected_source_sync_checkpoint_self_api_v1(p_source_id,p_synced_at,p_metadata); $function$;
+
+revoke all on function atlas.implementation_source_authorized_self_v1(uuid) from public;
+revoke all on function atlas.register_implementation_connected_source_self_api_v1(uuid,text,text,text,text,text,text[],jsonb,jsonb) from public;
+revoke all on function atlas.update_implementation_connected_source_sync_checkpoint_self_api_v1(uuid,timestamptz,jsonb) from public;
+revoke all on function public.implementation_source_authorized_self_v1(uuid) from public,anon;
+revoke all on function public.register_implementation_connected_source_self_api_v1(uuid,text,text,text,text,text,text[],jsonb,jsonb) from public,anon;
+revoke all on function public.update_implementation_connected_source_sync_checkpoint_self_api_v1(uuid,timestamptz,jsonb) from public,anon;
+grant execute on function atlas.implementation_source_authorized_self_v1(uuid) to authenticated;
+grant execute on function atlas.register_implementation_connected_source_self_api_v1(uuid,text,text,text,text,text,text[],jsonb,jsonb) to authenticated;
+grant execute on function atlas.update_implementation_connected_source_sync_checkpoint_self_api_v1(uuid,timestamptz,jsonb) to authenticated;
+grant execute on function public.implementation_source_authorized_self_v1(uuid) to authenticated;
+grant execute on function public.register_implementation_connected_source_self_api_v1(uuid,text,text,text,text,text,text[],jsonb,jsonb) to authenticated;
+grant execute on function public.update_implementation_connected_source_sync_checkpoint_self_api_v1(uuid,timestamptz,jsonb) to authenticated;
+
+commit;
