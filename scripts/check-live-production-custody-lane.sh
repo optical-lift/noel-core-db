@@ -46,6 +46,30 @@ lanes = manifest['lanes']
 errors = []
 ignored = []
 
+# Historical post-fence migrations may have been recovered after they reached production.
+# A sealed recovery registry is evidence of the exact live Git blob identity. It does not
+# authorize future migrations, prefixes, or byte drift; it only keeps known historical debt
+# from permanently blocking an otherwise clean product release lane.
+recovered = set()
+for recovery_path in sorted(Path('custody').glob('post-fence-migration-recoveries-v*.json')):
+    try:
+        recovery_doc = json.loads(recovery_path.read_text())
+    except Exception as exc:
+        errors.append(f"Invalid custody recovery registry {recovery_path}: {exc}")
+        continue
+    if recovery_doc.get('sealed') is not True:
+        errors.append(f"Custody recovery registry is not sealed: {recovery_path}")
+        continue
+    for entry in recovery_doc.get('recoveries') or []:
+        version = str(entry.get('version') or '')
+        name = str(entry.get('name') or '')
+        blob = str(entry.get('gitBlobSha1') or '')
+        filename = str(entry.get('filename') or '')
+        if not version or not name or not blob or filename != f'{version}_{name}.sql':
+            errors.append(f"Malformed custody recovery entry in {recovery_path}: {entry!r}")
+            continue
+        recovered.add((version, name, blob))
+
 if manifest.get('contractVersion') != 1:
     errors.append(f"Unexpected release-lane contract version: {manifest.get('contractVersion')!r}")
 if packet.get('contractVersion') != 1:
@@ -82,8 +106,9 @@ for row in post_fence:
     if path.is_file():
         repository_blob = subprocess.check_output(['git', 'hash-object', str(path)], text=True).strip()
 
-    exact = path.is_file() and repository_blob == production_blob
-    if exact:
+    exact_repository = path.is_file() and repository_blob == production_blob
+    exact_recovery = (version, name, production_blob) in recovered
+    if exact_repository or exact_recovery:
         continue
 
     foreign = owner_lane not in (lane, 'unclassified', 'shared')
@@ -94,12 +119,12 @@ for row in post_fence:
     if not path.is_file():
         errors.append(
             f"{lane} release lane blocked by uncustodied {owner_lane} live migration: "
-            f"{version}_{name}; expected {path}"
+            f"{version}_{name}; expected {path} or a sealed exact-live-byte recovery"
         )
     else:
         errors.append(
             f"{lane} release lane blocked by byte drift in {owner_lane} live migration: {path}; "
-            f"repository={repository_blob} production={production_blob}"
+            f"repository={repository_blob} production={production_blob}; no sealed matching recovery"
         )
 
 if versions != sorted(versions) or len(versions) != len(set(versions)):
