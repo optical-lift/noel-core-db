@@ -1,1 +1,0 @@
-drop function if exists public.v46_export_development();
