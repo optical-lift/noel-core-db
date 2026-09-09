@@ -25,17 +25,12 @@ create table atlas.external_relationship_commercial_profiles (
   metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata)='object'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  constraint external_relationship_commercial_profiles_spend_check
-    check (typical_spend_min is null or typical_spend_max is null or typical_spend_max>=typical_spend_min),
-  constraint external_relationship_commercial_profiles_currency_check
-    check (spend_currency is null or spend_currency ~ '^[A-Z]{3}$'),
-  constraint external_relationship_commercial_profiles_order_days_check
-    check (preferred_order_days <@ array[0,1,2,3,4,5,6]::smallint[]),
-  constraint external_relationship_commercial_profiles_fulfillment_days_check
-    check (preferred_fulfillment_days <@ array[0,1,2,3,4,5,6]::smallint[])
+  constraint external_relationship_commercial_profiles_spend_check check (typical_spend_min is null or typical_spend_max is null or typical_spend_max>=typical_spend_min),
+  constraint external_relationship_commercial_profiles_currency_check check (spend_currency is null or spend_currency ~ '^[A-Z]{3}$'),
+  constraint external_relationship_commercial_profiles_order_days_check check (preferred_order_days <@ array[0,1,2,3,4,5,6]::smallint[]),
+  constraint external_relationship_commercial_profiles_fulfillment_days_check check (preferred_fulfillment_days <@ array[0,1,2,3,4,5,6]::smallint[])
 );
-comment on table atlas.external_relationship_commercial_profiles is
-  'Current reusable commercial-behavior projection for an external relationship: stage, cadence, purchasing windows, fulfillment preferences, use cases, and observed spend range. Domain-specific route or product facts remain extension metadata.';
+comment on table atlas.external_relationship_commercial_profiles is 'Current reusable commercial-behavior projection for an external relationship: stage, cadence, purchasing windows, fulfillment preferences, use cases, and observed spend range. Domain-specific route or product facts remain extension metadata.';
 
 create table atlas.external_relationship_item_preferences (
   id uuid primary key default gen_random_uuid(),
@@ -60,12 +55,9 @@ create table atlas.external_relationship_item_preferences (
   constraint external_relationship_item_preferences_price_check check (accepted_unit_price is null or accepted_unit_price>=0),
   constraint external_relationship_item_preferences_currency_check check (currency is null or currency ~ '^[A-Z]{3}$')
 );
-create index external_relationship_item_preferences_relationship_idx
-  on atlas.external_relationship_item_preferences(external_relationship_id,preference_state,item_label);
-create index external_relationship_item_preferences_offering_idx
-  on atlas.external_relationship_item_preferences(offering_id) where offering_id is not null;
-comment on table atlas.external_relationship_item_preferences is
-  'Observed item/offering preference for an external relationship. The universal preference can point to a canonical commercial offering when resolved; unresolved or domain-specific item identity remains labeled and evidenced in metadata.';
+create index external_relationship_item_preferences_relationship_idx on atlas.external_relationship_item_preferences(external_relationship_id,preference_state,item_label);
+create index external_relationship_item_preferences_offering_idx on atlas.external_relationship_item_preferences(offering_id) where offering_id is not null;
+comment on table atlas.external_relationship_item_preferences is 'Observed item/offering preference for an external relationship. The universal preference can point to a canonical commercial offering when resolved; unresolved or domain-specific item identity remains labeled and evidenced in metadata.';
 
 create table atlas.flower_buyer_profile_commercial_extensions (
   flower_buyer_buying_profile_id uuid primary key references atlas.flower_buyer_buying_profiles(id) on delete restrict,
@@ -73,7 +65,6 @@ create table atlas.flower_buyer_profile_commercial_extensions (
   farm_id uuid not null references atlas.farms(id) on delete restrict,
   created_at timestamptz not null default now()
 );
-
 create table atlas.flower_buyer_preference_commercial_extensions (
   flower_buyer_product_preference_id uuid primary key references atlas.flower_buyer_product_preferences(id) on delete restrict,
   external_relationship_item_preference_id uuid not null unique references atlas.external_relationship_item_preferences(id) on delete restrict,
@@ -88,22 +79,17 @@ begin
   if not exists(select 1 from atlas.external_relationships r where r.id=new.external_relationship_id and r.organization_id=new.organization_id) then
     raise exception 'Commercial profile/preference relationship must belong to the same organization.' using errcode='23514';
   end if;
-  if tg_table_name='external_relationship_item_preferences' and new.offering_id is not null
-     and not exists(select 1 from atlas.commercial_offerings o where o.id=new.offering_id and o.organization_id=new.organization_id) then
-    raise exception 'Commercial preference offering must belong to the same organization.' using errcode='23514';
+  if tg_table_name='external_relationship_item_preferences' then
+    if new.offering_id is not null and not exists(select 1 from atlas.commercial_offerings o where o.id=new.offering_id and o.organization_id=new.organization_id) then
+      raise exception 'Commercial preference offering must belong to the same organization.' using errcode='23514';
+    end if;
   end if;
   return new;
 end;
 $function$;
-create trigger external_relationship_commercial_profiles_scope_guard_v1
-before insert or update of organization_id,external_relationship_id on atlas.external_relationship_commercial_profiles
-for each row execute function atlas.guard_external_relationship_commercial_profile_scope_v1();
-create trigger external_relationship_item_preferences_scope_guard_v1
-before insert or update of organization_id,external_relationship_id,offering_id on atlas.external_relationship_item_preferences
-for each row execute function atlas.guard_external_relationship_commercial_profile_scope_v1();
+create trigger external_relationship_commercial_profiles_scope_guard_v1 before insert or update of organization_id,external_relationship_id on atlas.external_relationship_commercial_profiles for each row execute function atlas.guard_external_relationship_commercial_profile_scope_v1();
+create trigger external_relationship_item_preferences_scope_guard_v1 before insert or update of organization_id,external_relationship_id,offering_id on atlas.external_relationship_item_preferences for each row execute function atlas.guard_external_relationship_commercial_profile_scope_v1();
 
--- Promote the current reusable projection. The old flower-specific buyer lane and
--- route-planning fields are intentionally retained only in extension metadata.
 insert into atlas.external_relationship_commercial_profiles(
   organization_id,external_relationship_id,commercial_stage,engagement_cadence,purchasing_window_class,
   preferred_order_days,preferred_fulfillment_days,preferred_fulfillment_start_time,preferred_fulfillment_end_time,
@@ -112,11 +98,7 @@ insert into atlas.external_relationship_commercial_profiles(
 select f.organization_id,m.external_relationship_id,b.buying_stage,b.buying_cadence,b.purchasing_window_class,
   b.preferred_order_days,b.preferred_delivery_days,b.preferred_delivery_start_time,b.preferred_delivery_end_time,
   b.commercial_use_cases,b.typical_weekly_spend_min,b.typical_weekly_spend_max,null,b.purchasing_window_notes,b.last_observed_at,b.source_note,
-  jsonb_build_object(
-    'sourceDomain','flower_buyer_buying_profile','legacyFlowerBuyerBuyingProfileId',b.id,
-    'buyerLane',b.buyer_lane,'routeState',b.route_state,'routePriority',b.route_priority,'routeNotes',b.route_notes,
-    'spendPeriod','week','legacyMetadata',b.metadata
-  ),b.created_at,b.updated_at
+  jsonb_build_object('sourceDomain','flower_buyer_buying_profile','legacyFlowerBuyerBuyingProfileId',b.id,'buyerLane',b.buyer_lane,'routeState',b.route_state,'routePriority',b.route_priority,'routeNotes',b.route_notes,'spendPeriod','week','legacyMetadata',b.metadata),b.created_at,b.updated_at
 from atlas.flower_buyer_buying_profiles b
 join atlas.farms f on f.id=b.farm_id
 join atlas.legacy_buyer_relationship_external_mappings m on m.buyer_relationship_id=b.buyer_relationship_id
@@ -129,9 +111,6 @@ join atlas.legacy_buyer_relationship_external_mappings m on m.buyer_relationship
 join atlas.external_relationship_commercial_profiles p on p.external_relationship_id=m.external_relationship_id
 on conflict do nothing;
 
--- Promote item preference semantics without pretending every historic flower label is
--- already a canonical offering. Source contact/order provenance is mapped to the new
--- universal interaction/order ids when available.
 insert into atlas.external_relationship_item_preferences(
   organization_id,external_relationship_id,offering_id,item_label,preference_state,usual_quantity,unit,
   accepted_unit_price,currency,note,source_interaction_id,source_commercial_order_id,last_observed_at,metadata,created_at,updated_at
@@ -150,9 +129,7 @@ insert into atlas.flower_buyer_preference_commercial_extensions(flower_buyer_pro
 select p.id,g.id,p.farm_id,p.crop_profile_id
 from atlas.flower_buyer_product_preferences p
 join atlas.legacy_buyer_relationship_external_mappings m on m.buyer_relationship_id=p.buyer_relationship_id
-join atlas.external_relationship_item_preferences g
-  on g.external_relationship_id=m.external_relationship_id
- and (g.metadata->>'legacyFlowerBuyerProductPreferenceId')::uuid=p.id
+join atlas.external_relationship_item_preferences g on g.external_relationship_id=m.external_relationship_id and (g.metadata->>'legacyFlowerBuyerProductPreferenceId')::uuid=p.id
 on conflict do nothing;
 
 alter table atlas.external_relationship_commercial_profiles enable row level security;
