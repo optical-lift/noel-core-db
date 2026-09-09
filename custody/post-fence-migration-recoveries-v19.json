@@ -1,0 +1,27 @@
+{
+  "contractVersion": 19,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v18.json",
+  "rule": "These live post-fence rows bypassed canonical source custody. Preserve their exact production filenames and Git blob identities as historical evidence only; this registry does not authorize their historical prefixes or future out-of-band production writes.",
+  "recoveries": [
+    {
+      "version": "20260909001306",
+      "name": "atlas_implementation_connected_source_registration_v1",
+      "filename": "20260909001306_atlas_implementation_connected_source_registration_v1.sql",
+      "gitBlobSha1": "7e067b03171dab77138008e298458f883215f74b",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260909001809",
+      "name": "atlas_implementation_source_connection_transition_v1",
+      "filename": "20260909001809_atlas_implementation_source_connection_transition_v1.sql",
+      "gitBlobSha1": "a9d8cea2b85e44896af4b87ecc1ed104af7cc69f",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
