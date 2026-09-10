@@ -46,9 +46,10 @@ declare
   v_block_kind text;
   v_starts_at timestamptz;
   v_ends_at timestamptz;
-  v_reason text;
+  v_context text;
   v_source_evidence_id uuid;
   v_metadata jsonb;
+  v_expected_metadata jsonb;
   v_row atlas.principal_capacity_blocks%rowtype;
   v_existing atlas.principal_capacity_blocks%rowtype;
   v_created boolean:=false;
@@ -69,7 +70,7 @@ begin
   v_block_kind:=nullif(btrim(p_input->>'blockKind'),'');
   v_starts_at:=nullif(btrim(p_input->>'startsAt'),'')::timestamptz;
   v_ends_at:=nullif(btrim(p_input->>'endsAt'),'')::timestamptz;
-  v_reason:=nullif(btrim(p_input->>'reason'),'');
+  v_context:=nullif(btrim(p_input->>'context'),'');
   v_source_evidence_id:=nullif(btrim(p_input->>'sourceEvidenceId'),'')::uuid;
   v_metadata:=coalesce(case when jsonb_typeof(p_input->'metadata')='object' then p_input->'metadata' end,'{}'::jsonb);
 
@@ -90,6 +91,23 @@ begin
     raise exception 'sourceEvidenceId must identify evidence owned by the signed-in person.' using errcode='42501';
   end if;
 
+  v_expected_metadata:=v_metadata
+    || case when v_source_evidence_id is null then '{}'::jsonb else jsonb_build_object('sourceEvidenceId',v_source_evidence_id) end
+    || case when v_context is null then '{}'::jsonb else jsonb_build_object('userContext',v_context) end
+    || jsonb_build_object(
+      'authoringContract','principal_capacity_self_writer_v1',
+      'truthBoundary',jsonb_build_object(
+        'intervalExplicitlyConfirmed',true,
+        'diagnosisNotInferred',true,
+        'causeNotInferred',true,
+        'contextIsNotConsequence',true,
+        'priorityScoreNotCreated',true,
+        'taskNotCreated',true,
+        'clockPlacementNotCreated',true,
+        'unavailableMinutesAreNotDiscretionaryCapacity',true
+      )
+    );
+
   select * into v_existing
   from atlas.principal_capacity_blocks b
   where b.principal_id=v_principal.id
@@ -105,9 +123,8 @@ begin
       or v_existing.protection_level is distinct from 'critical'
       or v_existing.interruptibility is distinct from 'should_not_interrupt'
       or v_existing.reason_for_floor is distinct from 'User-confirmed fixed interval in which Principal capacity is unavailable.'
-      or v_existing.consequence is distinct from v_reason
-      or coalesce(v_existing.metadata->>'sourceEvidenceId','') is distinct from coalesce(v_source_evidence_id::text,'')
-      or (v_existing.metadata - 'sourceEvidenceId' - 'authoringContract' - 'truthBoundary') is distinct from v_metadata then
+      or v_existing.consequence is not null
+      or v_existing.metadata is distinct from v_expected_metadata then
       raise exception 'sourceKey retry does not match existing Principal capacity block.' using errcode='23505';
     end if;
     v_row:=v_existing;
@@ -120,29 +137,19 @@ begin
       v_principal.id,v_title,v_block_kind,v_starts_at,v_ends_at,true,
       1,'critical','should_not_interrupt',
       'User-confirmed fixed interval in which Principal capacity is unavailable.',
-      'principal_self_capacity_v1',v_source_key,v_reason,
-      v_metadata
-        || case when v_source_evidence_id is null then '{}'::jsonb else jsonb_build_object('sourceEvidenceId',v_source_evidence_id) end
-        || jsonb_build_object(
-          'authoringContract','principal_capacity_self_writer_v1',
-          'truthBoundary',jsonb_build_object(
-            'intervalExplicitlyConfirmed',true,
-            'diagnosisNotInferred',true,
-            'causeNotInferred',true,
-            'priorityScoreNotCreated',true,
-            'taskNotCreated',true,
-            'clockPlacementNotCreated',true,
-            'unavailableMinutesAreNotDiscretionaryCapacity',true
-          )
-        )
+      'principal_self_capacity_v1',v_source_key,null,v_expected_metadata
     ) returning * into v_row;
     v_created:=true;
 
     insert into atlas.principal_capacity_block_events(
       capacity_block_id,principal_id,actor_user_id,event_kind,from_blocks_capacity,to_blocks_capacity,reason,metadata
     ) values(
-      v_row.id,v_principal.id,v_user_id,'recorded',null,true,v_reason,
-      jsonb_build_object('sourceKey',v_source_key,'authoringContract','principal_capacity_self_writer_v1')
+      v_row.id,v_principal.id,v_user_id,'recorded',null,true,null,
+      jsonb_strip_nulls(jsonb_build_object(
+        'sourceKey',v_source_key,
+        'userContext',v_context,
+        'authoringContract','principal_capacity_self_writer_v1'
+      ))
     );
   end if;
 
@@ -157,6 +164,7 @@ begin
       'startsAt',v_row.starts_at,
       'endsAt',v_row.ends_at,
       'blocksCapacity',v_row.blocks_capacity,
+      'context',nullif(v_row.metadata->>'userContext',''),
       'sourceKey',v_row.source_id,
       'sourceEvidenceId',nullif(v_row.metadata->>'sourceEvidenceId','')
     ),
@@ -164,6 +172,7 @@ begin
     'truthBoundary',jsonb_build_object(
       'writerOwnsOnlyExplicitTemporaryUnavailability',true,
       'fixedTimeTreatmentIsStructuralNotPriorityScoring',true,
+      'userContextDoesNotBecomeConsequence',true,
       'doesNotDiagnose',true,
       'doesNotCreateTask',true,
       'doesNotCreateOwnerObligation',true,
@@ -224,11 +233,6 @@ begin
 
     update atlas.principal_capacity_blocks
     set blocks_capacity=v_target,
-        metadata=metadata||jsonb_strip_nulls(jsonb_build_object(
-          'lastTransition',v_transition,
-          'lastTransitionReason',v_reason,
-          'lastTransitionAt',now()
-        )),
         updated_at=now()
     where id=v_row.id
     returning * into v_row;
@@ -244,7 +248,9 @@ begin
     'transition',v_transition,
     'truthBoundary',jsonb_build_object(
       'cancelDoesNotDeleteHistory',true,
+      'transitionHistoryLivesInEvents',true,
       'reopenRestoresOnlyCapacityBlockingState',true,
+      'transitionDoesNotRewriteOriginalContext',true,
       'transitionDoesNotCreateTask',true,
       'transitionDoesNotCreateClockPlacement',true
     )
@@ -282,7 +288,7 @@ begin
     'startsAt',b.starts_at,
     'endsAt',b.ends_at,
     'blocksCapacity',b.blocks_capacity,
-    'reason',b.consequence,
+    'context',nullif(b.metadata->>'userContext',''),
     'sourceKey',b.source_id,
     'sourceEvidenceId',nullif(b.metadata->>'sourceEvidenceId',''),
     'createdAt',b.created_at,
@@ -304,6 +310,7 @@ begin
     'items',v_items,
     'truthBoundary',jsonb_build_object(
       'listIsCapacityTruthNotPriorityOrder',true,
+      'contextIsNotConsequence',true,
       'inactiveRowsRemainHistoricalEvidence',true
     )
   );
@@ -356,7 +363,7 @@ values
     jsonb_build_object(
       'purpose','Allow the authenticated Principal to record an explicit fixed interval of temporary unavailability.',
       'canonicalOwner','atlas.principal_capacity_blocks',
-      'boundary','No diagnosis, task, Owner Obligation, generic priority score, or Clock placement is created.'
+      'boundary','No diagnosis, cause, task, Owner Obligation, generic priority score, or Clock placement is created; optional user context remains context rather than consequence.'
     ),now()
   ),
   (
