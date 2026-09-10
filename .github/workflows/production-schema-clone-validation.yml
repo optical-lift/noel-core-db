@@ -132,7 +132,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Resolve exact candidate migration
+      - name: Resolve exact candidate migration package
         id: migration
         shell: bash
         env:
@@ -160,10 +160,30 @@ jobs:
             echo 'Candidate preserves the exact migration bytes already staged on main and corrects only governed path ownership.'
           fi
 
+          mapfile -t fixtures < <(find candidate/validation/fixtures -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print 2>/dev/null || true)
+          if [[ "${#fixtures[@]}" -gt 1 ]]; then
+            echo "::error::Expected at most one candidate validation fixture for ${MIGRATION_VERSION}; found ${#fixtures[@]}."
+            exit 1
+          fi
+
+          mapfile -t validations < <(find candidate/validation/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print 2>/dev/null || true)
+          if [[ "${#validations[@]}" -gt 1 ]]; then
+            echo "::error::Expected at most one candidate postcondition file for ${MIGRATION_VERSION}; found ${#validations[@]}."
+            exit 1
+          fi
+
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"
           echo "path=$candidate_migration" >> "$GITHUB_OUTPUT"
+          if [[ "${#fixtures[@]}" -eq 1 ]]; then
+            sha256sum "${fixtures[0]}"
+            echo "fixture_path=${fixtures[0]}" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${#validations[@]}" -eq 1 ]]; then
+            sha256sum "${validations[0]}"
+            echo "validation_path=${validations[0]}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Validate candidate through canonical local harness
         id: validation
@@ -172,15 +192,25 @@ jobs:
           MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
           RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
           CANDIDATE_MIGRATION: ${{ steps.migration.outputs.path }}
+          CANDIDATE_FIXTURE: ${{ steps.migration.outputs.fixture_path }}
+          CANDIDATE_VALIDATION: ${{ steps.migration.outputs.validation_path }}
         run: |
           set -euo pipefail
-          bash scripts/validate-production-schema-clone.sh \
-            --migration-version "$MIGRATION_VERSION" \
-            --release-lane "$RELEASE_LANE" \
-            --candidate-migration "$CANDIDATE_MIGRATION" \
-            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql" \
-            --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
+          args=(
+            --migration-version "$MIGRATION_VERSION"
+            --release-lane "$RELEASE_LANE"
+            --candidate-migration "$CANDIDATE_MIGRATION"
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql"
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql"
             --artifacts-dir "$RUNNER_TEMP/production-schema-validation-artifacts"
+          )
+          if [[ -n "${CANDIDATE_FIXTURE:-}" ]]; then
+            args+=(--candidate-fixture "$CANDIDATE_FIXTURE")
+          fi
+          if [[ -n "${CANDIDATE_VALIDATION:-}" ]]; then
+            args+=(--candidate-validation "$CANDIDATE_VALIDATION")
+          fi
+          bash scripts/validate-production-schema-clone.sh "${args[@]}"
 
       - name: Publish validation summary
         if: always()
