@@ -27,7 +27,14 @@
           "amountMXN",
           "adjustedRate",
           "amountUSD"
-        ]
+        ],
+        "presentation": {
+          "primarySort": "expense_category",
+          "groupBy": ["expense_category"],
+          "showGroupSubtotal": true,
+          "preserveDetailRows": true,
+          "secondarySort": ["dateFromOrOn", "sequence"]
+        }
       },
       {
         "key": "travel",
@@ -58,6 +65,31 @@
           "voiceOrOther"
         ]
       }
+    ]
+  },
+  "accountingHandoff": {
+    "destinationSystem": "QuickBooks",
+    "destinationSystemRole": "adapter_not_canonical_model",
+    "operatorRole": "treasurer",
+    "currentOperatorName": "Kirk",
+    "postingGrain": "expense_category_subtotal",
+    "groupBy": ["expense_category"],
+    "amountField": "amountUSD",
+    "retainDetailedReport": true,
+    "documentaryProof": {
+      "artifactKind": "full_expense_report",
+      "downstreamUse": "upload_as_supporting_documentation",
+      "state": "current_manual_workflow"
+    },
+    "reconciliationRules": [
+      "sum_detail_rows_equals_category_subtotal",
+      "sum_category_subtotals_equals_report_expense_total"
+    ],
+    "unresolved": [
+      "quickbooks_transaction_form",
+      "posting_date_convention",
+      "account_or_code_mapping",
+      "one_multiline_transaction_vs_separate_transactions"
     ]
   },
   "categories": [
@@ -200,6 +232,7 @@
     "travel_destination_missing",
     "travel_distance_basis_missing",
     "impact_age_breakdown_missing",
-    "impact_voice_or_other_missing"
+    "impact_voice_or_other_missing",
+    "category_subtotal_reconciliation_failed"
   ]
 }
