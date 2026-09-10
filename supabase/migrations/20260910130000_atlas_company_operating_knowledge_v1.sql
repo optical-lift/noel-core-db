@@ -10,17 +10,9 @@ create table atlas.company_operating_knowledge (
   stable_key text not null,
   version integer not null default 1 check (version > 0),
   knowledge_kind text not null check (knowledge_kind in (
-    'standard',
-    'procedure',
-    'expected_condition',
-    'substitution',
-    'completion_semantics',
-    'quality_requirement',
-    'escalation_rule',
-    'role_boundary',
-    'local_terminology',
-    'handling_instruction',
-    'policy'
+    'standard', 'procedure', 'expected_condition', 'substitution',
+    'completion_semantics', 'quality_requirement', 'escalation_rule',
+    'role_boundary', 'local_terminology', 'handling_instruction', 'policy'
   )),
   title text not null,
   statement text not null,
@@ -28,11 +20,7 @@ create table atlas.company_operating_knowledge (
   effect jsonb not null default '{}'::jsonb,
   precedence integer not null default 0,
   status text not null default 'candidate' check (status in (
-    'candidate',
-    'established',
-    'disputed',
-    'superseded',
-    'retired'
+    'candidate', 'established', 'disputed', 'superseded', 'retired'
   )),
   confidence numeric(5,4) null check (confidence is null or (confidence >= 0 and confidence <= 1)),
   effective_from timestamptz null,
@@ -75,28 +63,16 @@ create index company_operating_knowledge_unit_idx
   on atlas.company_operating_knowledge (organization_unit_id)
   where organization_unit_id is not null;
 
-create index company_operating_knowledge_scope_gin_idx
-  on atlas.company_operating_knowledge using gin (scope_match jsonb_path_ops);
-
 create table atlas.company_operating_knowledge_evidence (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references atlas.organizations(id),
   knowledge_id uuid not null references atlas.company_operating_knowledge(id),
   evidence_kind text not null check (evidence_kind in (
-    'document',
-    'interview',
-    'connected_source_observation',
-    'canonical_record',
-    'transaction_history',
-    'human_observation',
-    'model_inference',
-    'other'
+    'document', 'interview', 'connected_source_observation', 'canonical_record',
+    'transaction_history', 'human_observation', 'model_inference', 'other'
   )),
   interpretation_kind text not null default 'supports' check (interpretation_kind in (
-    'originates',
-    'supports',
-    'contradicts',
-    'qualifies'
+    'originates', 'supports', 'contradicts', 'qualifies'
   )),
   source_locator jsonb not null default '{}'::jsonb,
   evidence_snapshot jsonb not null default '{}'::jsonb,
@@ -119,12 +95,7 @@ create table atlas.company_operating_knowledge_adjudications (
   organization_id uuid not null references atlas.organizations(id),
   knowledge_id uuid not null references atlas.company_operating_knowledge(id),
   decision_kind text not null check (decision_kind in (
-    'establish',
-    'reject',
-    'dispute',
-    'supersede',
-    'retire',
-    'reopen'
+    'establish', 'reject', 'dispute', 'supersede', 'retire', 'reopen'
   )),
   basis text not null,
   evidence_snapshot jsonb not null default '{}'::jsonb,
@@ -139,6 +110,95 @@ comment on table atlas.company_operating_knowledge_adjudications is
 
 create index company_operating_knowledge_adjudications_knowledge_idx
   on atlas.company_operating_knowledge_adjudications (knowledge_id, created_at);
+
+-- Keep every scoped reference inside the owning organization.
+create or replace function atlas.guard_company_operating_knowledge_scope_v1()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, atlas
+as $$
+declare
+  v_organization_id uuid;
+begin
+  if tg_table_name = 'company_operating_knowledge' then
+    if new.organization_unit_id is not null and not exists (
+      select 1 from atlas.organization_units u
+      where u.id = new.organization_unit_id
+        and u.organization_id = new.organization_id
+    ) then
+      raise exception 'organization unit does not belong to Company Operating Knowledge organization';
+    end if;
+
+    if new.supersedes_id is not null and not exists (
+      select 1 from atlas.company_operating_knowledge k
+      where k.id = new.supersedes_id
+        and k.organization_id = new.organization_id
+        and k.family_key = new.family_key
+    ) then
+      raise exception 'superseded Company Operating Knowledge item must belong to the same organization and family';
+    end if;
+
+    return new;
+  end if;
+
+  select k.organization_id into v_organization_id
+  from atlas.company_operating_knowledge k
+  where k.id = new.knowledge_id;
+
+  if v_organization_id is null or v_organization_id <> new.organization_id then
+    raise exception 'Company Operating Knowledge history must belong to the same organization as its knowledge item';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger company_operating_knowledge_scope_guard
+before insert or update on atlas.company_operating_knowledge
+for each row execute function atlas.guard_company_operating_knowledge_scope_v1();
+
+create trigger company_operating_knowledge_evidence_scope_guard
+before insert on atlas.company_operating_knowledge_evidence
+for each row execute function atlas.guard_company_operating_knowledge_scope_v1();
+
+create trigger company_operating_knowledge_adjudications_scope_guard
+before insert on atlas.company_operating_knowledge_adjudications
+for each row execute function atlas.guard_company_operating_knowledge_scope_v1();
+
+-- Established semantics are versioned rather than rewritten in place.
+create or replace function atlas.guard_established_company_operating_knowledge_mutation_v1()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, atlas
+as $$
+begin
+  if old.status = 'established' and (
+    new.organization_id is distinct from old.organization_id
+    or new.organization_unit_id is distinct from old.organization_unit_id
+    or new.family_key is distinct from old.family_key
+    or new.stable_key is distinct from old.stable_key
+    or new.version is distinct from old.version
+    or new.knowledge_kind is distinct from old.knowledge_kind
+    or new.title is distinct from old.title
+    or new.statement is distinct from old.statement
+    or new.scope_match is distinct from old.scope_match
+    or new.effect is distinct from old.effect
+    or new.precedence is distinct from old.precedence
+    or new.effective_from is distinct from old.effective_from
+    or new.established_by_user_id is distinct from old.established_by_user_id
+    or new.established_by_label is distinct from old.established_by_label
+    or new.established_at is distinct from old.established_at
+  ) then
+    raise exception 'established Company Operating Knowledge semantics are immutable; create a new version and supersede the prior item';
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger company_operating_knowledge_established_semantics_guard
+before update on atlas.company_operating_knowledge
+for each row execute function atlas.guard_established_company_operating_knowledge_mutation_v1();
 
 -- Prevent evidence/adjudication history from being rewritten in place.
 create or replace function atlas.prevent_company_operating_knowledge_history_mutation_v1()
@@ -268,6 +328,8 @@ revoke all on function atlas.resolve_company_operating_knowledge_v1(uuid,text,js
 revoke all on function atlas.resolve_company_operating_knowledge_v1(uuid,text,jsonb,timestamptz) from anon;
 grant execute on function atlas.resolve_company_operating_knowledge_v1(uuid,text,jsonb,timestamptz) to authenticated;
 
+revoke all on function atlas.guard_company_operating_knowledge_scope_v1() from public, anon, authenticated;
+revoke all on function atlas.guard_established_company_operating_knowledge_mutation_v1() from public, anon, authenticated;
 revoke all on function atlas.prevent_company_operating_knowledge_history_mutation_v1() from public, anon, authenticated;
 
 grant usage on schema atlas to authenticated, service_role;
