@@ -1,3 +1,5 @@
+begin;
+
 -- Deepen the adaptive Reality Discovery hierarchy after the first graph/residence proof.
 -- Broad household/place-shape answers are discovery evidence used to choose better questions;
 -- they do not create unnamed household members or inferred equipment/animals.
@@ -84,8 +86,6 @@ insert into atlas.reality_discovery_edges(question_key,signal_key,operator,compa
 ('laundry.location','context.dense_urban_renter','eq','true'::jsonb,'boost',35,'Dense-city rental context raises the value of learning whether laundry is in-unit, shared, or external.')
 on conflict do nothing;
 
--- Rebuild context so broad household-shape testimony can guide later questions without pretending
--- unnamed people already exist as canonical household members.
 create or replace function atlas.reality_discovery_context_self_api_v1()
 returns jsonb
 language plpgsql
@@ -145,28 +145,35 @@ begin
     else null end;
 
   select count(*)::integer,
-         count(*) filter(
-           where lower(coalesce(relationship,'')) ~ '(child|daughter|son|kid)'
-         )::integer
+         count(*) filter(where lower(coalesce(relationship,'')) ~ '(child|daughter|son|kid)')::integer
   into v_member_count,v_named_child_count
   from atlas.household_members
   where household_id=v_household.id and active;
 
   v_answers:=atlas.reality_discovery_latest_answers_v1(v_principal.id);
 
+  -- Only confirmed/promoted generic discovery evidence may become branch-driving context.
+  -- Source candidates remain proposals. Purchase address/phone are separately admitted below because
+  -- they are explicitly candidate evidence used to ask for confirmation, not trusted context.
   select coalesce(jsonb_object_agg(signal_key,candidate_value),'{}'::jsonb)
   into v_candidates
   from (
     select distinct on(signal_key) signal_key,candidate_value
     from atlas.reality_discovery_evidence_candidates
-    where principal_id=v_principal.id and epistemic_state in ('source_candidate','human_confirmed','promoted')
+    where principal_id=v_principal.id
+      and epistemic_state in ('human_confirmed','promoted')
     order by signal_key,
-      case epistemic_state when 'promoted' then 1 when 'human_confirmed' then 2 else 3 end,
+      case epistemic_state when 'promoted' then 1 else 2 end,
       updated_at desc,id desc
   ) c;
 
-  if v_purchase_address is not null then v_candidates:=v_candidates||jsonb_build_object('purchase.billing_address',v_purchase_address); end if;
-  if v_purchase_phone is not null then v_candidates:=v_candidates||jsonb_build_object('purchase.phone',v_purchase_phone); end if;
+  if v_purchase_address is not null
+     and coalesce(v_answers#>>'{home.confirm_purchase_address}','') <> 'no' then
+    v_candidates:=v_candidates||jsonb_build_object('purchase.billing_address',v_purchase_address);
+  end if;
+  if v_purchase_phone is not null then
+    v_candidates:=v_candidates||jsonb_build_object('purchase.phone',v_purchase_phone);
+  end if;
 
   v_people_shape:=v_answers#>>'{household.people_shape}';
   v_child_count_answer:=v_answers#>>'{household.child_count}';
@@ -218,7 +225,8 @@ begin
       'householdShapeCanGuideQuestionsWithoutCreatingPeople',true,
       'purchaseContactIsCandidateEvidence',true,
       'canonicalResidenceOutranksDiscoveryAnswer',true,
-      'placeSettingMayBeHumanOrSourceClassified',true,
+      'unconfirmedSourceContextDoesNotDriveQuestions',true,
+      'placeSettingMayBeHumanOrConfirmedSourceClassified',true,
       'inferenceIsNotDomainTruth',true,
       'candidateEvidenceRequiresConfirmationOrPromotion',true,
       'sensitiveTraitsNotInferred',true
@@ -226,3 +234,5 @@ begin
   );
 end;
 $function$;
+
+commit;
