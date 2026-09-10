@@ -1,3 +1,5 @@
+begin;
+
 -- Human Reality Library v1.
 -- These world-kernel definitions describe ordinary recurring human realities and their lifecycle shape.
 -- Their existence in the library is NOT a claim that they apply to any particular Principal/household.
@@ -12,7 +14,7 @@ values
   'nonClaims',jsonb_build_array('vehicle_exists','vehicle_owned','registration_required','registration_jurisdiction','renewal_date','inspection_required','tax_due','fee_amount'),
   'autoplayGoal','Keep lawful vehicle registration from depending on human memory while asking for the smallest missing fact before the next real renewal consequence.',
   'contractVersion','human_reality_vehicle_registration_v1'
-),'true'),
+),true),
 ('household.vehicle_maintenance',1,'household','Vehicle maintenance',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('vehicle_exists','vehicle_identified','maintenance_basis_known','attention_window','service_path','service_result','usage_or_mileage_update','next_attention'),
@@ -20,7 +22,7 @@ values
   'nonClaims',jsonb_build_array('vehicle_exists','vehicle_make','vehicle_model','vehicle_year','mileage','oil_interval','service_due','service_provider'),
   'autoplayGoal','Advance each confirmed vehicle from service evidence to the next appropriate maintenance attention without recreating the cycle as tasks.',
   'contractVersion','human_reality_vehicle_maintenance_v1'
-),'true'),
+),true),
 ('household.residence_maintenance',1,'household','Residence maintenance',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('residence_exists','responsibility_boundary','systems_discovered','care_requirements','attention_windows','care_or_escalation','result','next_attention'),
@@ -28,7 +30,7 @@ values
   'nonClaims',jsonb_build_array('home_owned','major_repairs_are_principal_responsibility','hvac_exists','water_heater_type','well_exists','septic_exists','yard_exists','specific_cadence'),
   'autoplayGoal','Carry only the home systems this household is actually responsible for, and route landlord/property-manager issues differently from owner maintenance.',
   'contractVersion','human_reality_residence_maintenance_v1'
-),'true'),
+),true),
 ('household.property_tax_administration',1,'household','Property tax administration',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('taxable_property_relationship','jurisdiction','obligation_applicability','assessment_or_notice','review','payment_or_dispute','receipt','next_cycle'),
@@ -36,7 +38,7 @@ values
   'nonClaims',jsonb_build_array('property_owned','property_tax_due','personal_property_tax_due','jurisdiction','amount','due_date'),
   'autoplayGoal','Recognize and carry confirmed property-tax cycles without treating home ownership alone as proof of a specific tax obligation.',
   'contractVersion','human_reality_property_tax_v1'
-),'true'),
+),true),
 ('person.income_tax_filing',1,'person','Income tax filing',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('filing_context','documents_expected','documents_received','prepare_or_provider','review','file','pay_or_refund','confirmation','retain_records','next_tax_year'),
@@ -44,7 +46,7 @@ values
   'nonClaims',jsonb_build_array('filing_required','filing_status','income_source','tax_due','refund_due','deadline_extension','provider'),
   'autoplayGoal','Carry the administrative tax cycle from expected records through filing evidence without inventing tax advice or liability.',
   'contractVersion','human_reality_income_tax_v1'
-),'true'),
+),true),
 ('person.identity_document_renewal',1,'person','Identity document renewal',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('document_exists','document_identity','expiration_or_validity_rule','renewal_window','requirements','renewal_action','new_document_evidence','next_cycle'),
@@ -52,7 +54,7 @@ values
   'nonClaims',jsonb_build_array('driver_license_exists','passport_exists','document_expiration','renewal_eligibility','required_documents','fee_amount'),
   'autoplayGoal','Ask for document details only when they let Atlas prevent a renewal from becoming an emergency.',
   'contractVersion','human_reality_identity_document_renewal_v1'
-),'true'),
+),true),
 ('household.hvac_filter_care',1,'household','HVAC filter care',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('system_exists','responsibility_boundary','filter_present','filter_identity','replacement_basis','supply_ready','replace','result','next_attention'),
@@ -60,7 +62,7 @@ values
   'nonClaims',jsonb_build_array('hvac_exists','filter_exists','filter_size','replacement_interval','household_responsible'),
   'autoplayGoal','Carry filter replacement only after the actual system, filter, responsibility, and useful replacement basis are established.',
   'contractVersion','human_reality_hvac_filter_v1'
-),'true'),
+),true),
 ('household.water_heater_care',1,'household','Water heater care',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('system_exists','responsibility_boundary','system_type','care_guidance','attention_window','care_or_provider','result','next_attention'),
@@ -68,7 +70,7 @@ values
   'nonClaims',jsonb_build_array('water_heater_exists','tank_or_tankless','household_responsible','flush_required','specific_interval'),
   'autoplayGoal','Keep water-heater care with the responsible party and never turn ordinary homeowner advice into a claimed requirement for a renter.',
   'contractVersion','human_reality_water_heater_v1'
-),'true'),
+),true),
 ('household.smoke_co_safety',1,'household','Smoke and carbon-monoxide safety',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('devices_or_requirement_discovered','responsibility_boundary','device_identity_or_location','test_or_replacement_basis','attention','result','next_attention'),
@@ -76,7 +78,7 @@ values
   'nonClaims',jsonb_build_array('device_exists','device_count','battery_type','replacement_interval','co_detector_required','principal_responsible'),
   'autoplayGoal','Carry confirmed household safety-device testing/replacement without fabricating devices or local requirements.',
   'contractVersion','human_reality_smoke_co_v1'
-),'true'),
+),true),
 ('household.animal_veterinary_care',1,'household','Animal veterinary care',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('animal_exists','animal_identity','care_responsibility','provider_or_care_path','preventive_requirements','attention_window','visit_or_treatment','result','next_attention'),
@@ -84,7 +86,7 @@ values
   'nonClaims',jsonb_build_array('animal_exists','species','vaccination_required','license_required','medication','provider','specific_interval'),
   'autoplayGoal','Carry only the care cycles established for actual animals in the household.',
   'contractVersion','human_reality_animal_vet_v1'
-),'true'),
+),true),
 ('household.school_calendar_administration',1,'household','School calendar administration',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('student_relationship','school_or_program','calendar_source','dates_and_breaks','forms_or_requirements','household_capacity_effects','changes','next_term'),
@@ -92,7 +94,7 @@ values
   'nonClaims',jsonb_build_array('child_exists','school_enrollment','school_identity','calendar_dates','parental_responsibility','transport_required'),
   'autoplayGoal','Let one confirmed school/calendar source answer many future household scheduling questions.',
   'contractVersion','human_reality_school_calendar_v1'
-),'true'),
+),true),
 ('person.preventive_dental_care',1,'person','Preventive dental care',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('care_path_exists','provider_or_search','recommended_or_personal_interval','attention_window','schedule','appointment','result','next_attention'),
@@ -100,7 +102,7 @@ values
   'nonClaims',jsonb_build_array('provider_exists','six_month_interval','appointment_due','insurance_coverage','clinical_need'),
   'autoplayGoal','Carry appointment logistics from confirmed care history or explicit preference without diagnosing or inventing a clinical schedule.',
   'contractVersion','human_reality_dental_v1'
-),'true'),
+),true),
 ('person.preventive_vision_care',1,'person','Preventive vision care',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('care_path_exists','provider_or_search','recommended_or_personal_interval','attention_window','schedule','appointment','result','next_attention'),
@@ -108,7 +110,7 @@ values
   'nonClaims',jsonb_build_array('provider_exists','annual_interval','appointment_due','glasses_or_contacts','insurance_coverage','clinical_need'),
   'autoplayGoal','Carry vision-care logistics only from confirmed care reality, not from an assumed medical need.',
   'contractVersion','human_reality_vision_v1'
-),'true'),
+),true),
 ('household.recurring_bills',1,'household','Recurring bills',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('obligation_observed','obligation_identity','amount_or_rule','payment_path','due_window','paid_or_failed','reconcile','next_cycle'),
@@ -116,7 +118,7 @@ values
   'nonClaims',jsonb_build_array('bill_exists','amount','due_date','autopay','principal_responsible','account_balance'),
   'autoplayGoal','Learn recurring obligations preferentially from evidence and ask only for the missing responsibility or timing detail needed to keep them safe.',
   'contractVersion','human_reality_recurring_bills_v1'
-),'true'),
+),true),
 ('household.insurance_renewal',1,'household','Insurance renewal',jsonb_build_object(
   'ordinary',true,
   'topology',jsonb_build_array('policy_exists','insured_subject','responsibility','coverage_term','renewal_window','review_or_shop','renew','evidence','next_term'),
@@ -124,11 +126,10 @@ values
   'nonClaims',jsonb_build_array('policy_exists','coverage_required','provider','premium','renewal_date','adequacy_of_coverage'),
   'autoplayGoal','Carry confirmed policy renewal logistics without deciding coverage adequacy or inventing insurance requirements.',
   'contractVersion','human_reality_insurance_renewal_v1'
-),'true')
+),true)
 on conflict(kernel_key,version) do update set
   scope_kind=excluded.scope_kind,title=excluded.title,definition=excluded.definition,active=true;
 
--- Discovery relevance rules are proposals about what may be worth learning, never kernel-instance authority.
 create table if not exists atlas.reality_discovery_kernel_rules (
   id uuid primary key default gen_random_uuid(),
   kernel_key text not null,
@@ -254,10 +255,12 @@ insert into atlas.authenticated_rpc_registry(
   caller_count,policy_reference_count,evidence,registered_at
 ) values(
   'atlas.reality_discovery_kernel_relevance_self_api_v1()','app_endpoint','verified','active',true,true,true,false,1,0,
-  jsonb_build_object('purpose','Project which latent Human Reality Library kernels are worth discovering from current confirmed/candidate discovery context without instantiating them.'),now()
+  jsonb_build_object('purpose','Project which latent Human Reality Library kernels are worth discovering from current confirmed discovery context without instantiating them.'),now()
 )
 on conflict(signature) do update set
   classification=excluded.classification,confidence=excluded.confidence,review_status=excluded.review_status,
   authenticated_execute_expected=excluded.authenticated_execute_expected,security_definer_expected=excluded.security_definer_expected,
   service_execute_expected=excluded.service_execute_expected,anonymous_execute_expected=excluded.anonymous_execute_expected,
   evidence=atlas.authenticated_rpc_registry.evidence||excluded.evidence,reviewed_at=now();
+
+commit;
