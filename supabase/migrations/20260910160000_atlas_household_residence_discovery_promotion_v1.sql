@@ -1,8 +1,8 @@
 -- Canonical Personal Atlas household residence arrangement + first Reality Discovery promotion adapter.
 --
--- This table owns the durable relationship: this household resides at this place/address, with the
--- explicitly supplied tenure and major-repair responsibility. It does not own building systems,
--- property title, tax liability, or a universal Place ontology.
+-- This table owns the durable relationship that this household resides at a confirmed address,
+-- with explicitly supplied tenure and major-repair responsibility. It does not own building systems,
+-- property title, tax liability, geographic classification, or a universal Place ontology.
 
 create table if not exists atlas.household_residence_arrangements (
   id uuid primary key default gen_random_uuid(),
@@ -44,6 +44,7 @@ declare
   v_repairs text;
   v_source_kind text;
   v_source_ref text;
+  v_existing atlas.household_residence_arrangements%rowtype;
   v_row atlas.household_residence_arrangements%rowtype;
 begin
   v_user_id:=auth.uid();
@@ -59,14 +60,24 @@ begin
   v_source_kind:=coalesce(nullif(trim(p_input->>'sourceKind'),''),'personal_atlas');
   v_source_ref:=nullif(trim(p_input->>'sourceRef'),'');
 
-  if v_address is not null and jsonb_typeof(v_address)<>'object' then
-    raise exception 'Residence address must be an object when supplied.' using errcode='22023';
+  if v_address is not null and (jsonb_typeof(v_address)<>'object' or v_address='{}'::jsonb) then
+    raise exception 'Residence address must be a non-empty object when supplied.' using errcode='22023';
   end if;
   if v_tenure is not null and v_tenure not in ('own','rent','family_provided','other') then
     raise exception 'Unsupported tenure kind.' using errcode='22023';
   end if;
   if v_repairs is not null and v_repairs not in ('me','shared','landlord','depends') then
     raise exception 'Unsupported major-repair responsibility.' using errcode='22023';
+  end if;
+
+  select * into v_existing
+  from atlas.household_residence_arrangements
+  where household_id=v_household_id and stable_key=v_stable_key
+  for update;
+
+  -- Tenure and repair responsibility describe a residence; they may not manufacture one.
+  if v_existing.id is null and v_address is null then
+    raise exception 'A confirmed residence address is required before residence details can be promoted.' using errcode='22023';
   end if;
 
   insert into atlas.household_residence_arrangements(
@@ -94,19 +105,14 @@ begin
     'ok',true,
     'contractVersion','personal_residence_arrangement_v1',
     'residence',jsonb_build_object(
-      'id',v_row.id,
-      'stableKey',v_row.stable_key,
-      'address',v_row.address,
-      'tenureKind',v_row.tenure_kind,
-      'majorRepairsResponsibility',v_row.major_repairs_responsibility,
-      'confidence',v_row.confidence,
-      'confirmedAt',v_row.confirmed_at
+      'id',v_row.id,'stableKey',v_row.stable_key,'address',v_row.address,
+      'tenureKind',v_row.tenure_kind,'majorRepairsResponsibility',v_row.major_repairs_responsibility,
+      'confidence',v_row.confidence,'confirmedAt',v_row.confirmed_at
     ),
     'truthBoundary',jsonb_build_object(
-      'residenceArrangementIsCanonical',true,
-      'propertyTitleNotClaimed',true,
-      'taxLiabilityNotClaimed',true,
-      'buildingSystemsNotClaimed',true
+      'residenceArrangementIsCanonical',true,'confirmedAddressRequiredToCreate',true,
+      'propertyTitleNotClaimed',true,'taxLiabilityNotClaimed',true,
+      'buildingSystemsNotClaimed',true,'geographicClassificationNotClaimed',true
     )
   );
 end;
@@ -134,8 +140,7 @@ begin
   limit 1;
 
   return jsonb_build_object(
-    'ok',true,
-    'contractVersion','personal_residence_arrangement_self_api_v1',
+    'ok',true,'contractVersion','personal_residence_arrangement_self_api_v1',
     'residence',case when v_row.id is null then null else jsonb_build_object(
       'id',v_row.id,'stableKey',v_row.stable_key,'address',v_row.address,
       'tenureKind',v_row.tenure_kind,'majorRepairsResponsibility',v_row.major_repairs_responsibility,
@@ -162,7 +167,7 @@ revoke all on function public.personal_residence_arrangement_self_api_v1() from 
 grant execute on function public.upsert_personal_residence_arrangement_self_api_v1(jsonb) to authenticated,service_role;
 grant execute on function public.personal_residence_arrangement_self_api_v1() to authenticated,service_role;
 
--- Extend the Discovery context to prefer canonical residence truth once promoted.
+-- Prefer canonical residence truth once promoted while preserving explicit rejection of purchase evidence.
 create or replace function atlas.reality_discovery_context_self_api_v1()
 returns jsonb
 language plpgsql
@@ -208,14 +213,11 @@ begin
   limit 1;
 
   v_purchase_address:=case
-    when v_purchase.metadata ? 'billingAddress' and v_purchase.metadata->'billingAddress' <> 'null'::jsonb
-      then v_purchase.metadata->'billingAddress'
-    else null
-  end;
+    when v_purchase.metadata ? 'billingAddress' and v_purchase.metadata->'billingAddress'<>'null'::jsonb
+      then v_purchase.metadata->'billingAddress' else null end;
   v_purchase_phone:=case
     when nullif(trim(v_purchase.metadata->>'phone'),'') is not null then to_jsonb(trim(v_purchase.metadata->>'phone'))
-    else null
-  end;
+    else null end;
 
   select count(*)::integer,
          count(*) filter(where lower(coalesce(relationship,'')) in ('child','son','daughter'))::integer
@@ -236,8 +238,13 @@ begin
       updated_at desc,id desc
   ) c;
 
-  if v_purchase_address is not null then v_candidates:=v_candidates||jsonb_build_object('purchase.billing_address',v_purchase_address); end if;
-  if v_purchase_phone is not null then v_candidates:=v_candidates||jsonb_build_object('purchase.phone',v_purchase_phone); end if;
+  if v_purchase_address is not null
+     and coalesce(v_answers#>>'{home.confirm_purchase_address}','') <> 'no' then
+    v_candidates:=v_candidates||jsonb_build_object('purchase.billing_address',v_purchase_address);
+  end if;
+  if v_purchase_phone is not null then
+    v_candidates:=v_candidates||jsonb_build_object('purchase.phone',v_purchase_phone);
+  end if;
 
   v_address_confirmed:=v_residence.id is not null and v_residence.address is not null;
   v_tenure:=coalesce(v_residence.tenure_kind,v_answers#>>'{home.tenure}');
@@ -273,14 +280,15 @@ begin
     ) end,
     'truthBoundary',jsonb_build_object(
       'signalsAreDiscoveryContext',true,'purchaseContactIsCandidateEvidence',true,
-      'canonicalResidenceOutranksDiscoveryAnswer',true,'inferenceIsNotDomainTruth',true,
-      'candidateEvidenceRequiresConfirmationOrPromotion',true,'sensitiveTraitsNotInferred',true
+      'rejectedPurchaseAddressSuppressed',true,'canonicalResidenceOutranksDiscoveryAnswer',true,
+      'inferenceIsNotDomainTruth',true,'candidateEvidenceRequiresConfirmationOrPromotion',true,
+      'sensitiveTraitsNotInferred',true
     )
   );
 end;
 $function$;
 
--- Replace answer writer to promote only the home facts for which a canonical authority now exists.
+-- Replace the answer writer only to add residence promotion; preserve V1 fail-closed admission.
 create or replace function atlas.answer_reality_discovery_question_self_api_v1(p_input jsonb)
 returns jsonb
 language plpgsql
@@ -298,8 +306,9 @@ declare
   v_existing atlas.reality_discovery_answer_events%rowtype;
   v_event atlas.reality_discovery_answer_events%rowtype;
   v_signal_key text;
-  v_context jsonb;
-  v_address jsonb;
+  v_next jsonb;
+  v_candidate_address jsonb;
+  v_residence jsonb;
   v_promotion jsonb;
   v_promoted boolean:=false;
 begin
@@ -341,6 +350,14 @@ begin
     return jsonb_build_object('ok',true,'idempotentReplay',true,'eventId',v_existing.id,'next',atlas.reality_discovery_next_question_self_api_v1());
   end if;
 
+  v_next:=atlas.reality_discovery_next_question_self_api_v1();
+  if coalesce(v_next#>>'{question,questionKey}','') is distinct from v_question_key then
+    raise exception 'Discovery question is no longer the current eligible encounter.' using errcode='40001';
+  end if;
+  if v_question_key='home.confirm_purchase_address' then
+    v_candidate_address:=v_next#>'{question,candidateValue}';
+  end if;
+
   insert into atlas.reality_discovery_answer_events(principal_id,owner_user_id,question_key,source_action_id,answer_value,metadata)
   values(v_principal.id,v_user_id,v_question_key,v_source_action_id,v_answer,
     jsonb_build_object('source','reality_discovery_v1','reason',v_question.reason_text))
@@ -357,40 +374,55 @@ begin
   end if;
 
   if v_question_key='home.confirm_purchase_address' then
-    v_context:=atlas.reality_discovery_context_self_api_v1();
-    v_address:=v_context#>'{candidateEvidence,purchase.billing_address}';
-    if v_answer_scalar='yes' and v_address is not null and v_address<>'null'::jsonb then
+    insert into atlas.reality_discovery_evidence_candidates(
+      principal_id,owner_user_id,signal_key,candidate_value,epistemic_state,source_kind,source_ref,confidence,explanation,metadata
+    ) values(
+      v_principal.id,v_user_id,'home.address_confirmed',to_jsonb(v_answer_scalar='yes'),
+      'human_confirmed','discovery_answer',v_event.id::text,1,
+      case when v_answer_scalar='yes' then 'The human confirmed the purchase address is home.' else 'The human rejected the purchase address as home.' end,
+      jsonb_build_object('questionKey',v_question_key)
+    );
+
+    if v_candidate_address is not null and v_candidate_address<>'null'::jsonb then
+      insert into atlas.reality_discovery_evidence_candidates(
+        principal_id,owner_user_id,signal_key,candidate_value,epistemic_state,source_kind,source_ref,confidence,explanation,metadata
+      ) values(
+        v_principal.id,v_user_id,'purchase.billing_address',v_candidate_address,
+        case when v_answer_scalar='yes' then 'human_confirmed' else 'human_rejected' end,
+        'stripe_purchase_confirmation',v_event.id::text,1,
+        case when v_answer_scalar='yes'
+          then 'The human confirmed the Stripe purchase address as their home address candidate.'
+          else 'The human explicitly rejected the Stripe purchase address as their home address.' end,
+        jsonb_build_object('questionKey',v_question_key)
+      );
+    end if;
+
+    if v_answer_scalar='yes' and v_candidate_address is not null and v_candidate_address<>'null'::jsonb then
       v_promotion:=atlas.upsert_personal_residence_arrangement_self_api_v1(jsonb_build_object(
-        'stableKey','primary-home','address',v_address,
+        'stableKey','primary-home','address',v_candidate_address,
         'sourceKind','reality_discovery','sourceRef',v_event.id::text
       ));
       v_promoted:=true;
-      update atlas.reality_discovery_evidence_candidates
-      set epistemic_state='promoted',updated_at=now(),metadata=metadata||jsonb_build_object('promotion','household_residence_arrangement')
-      where principal_id=v_principal.id and source_ref=v_event.id::text and signal_key=v_signal_key;
-    else
-      insert into atlas.reality_discovery_evidence_candidates(
-        principal_id,owner_user_id,signal_key,candidate_value,epistemic_state,source_kind,source_ref,confidence,explanation
-      ) values(
-        v_principal.id,v_user_id,'purchase.billing_address',coalesce(v_address,'{}'::jsonb),'human_rejected',
-        'discovery_answer',v_event.id::text,1,'The human rejected the purchase address as their home.'
-      );
     end if;
-  elsif v_question_key='home.tenure' then
-    v_promotion:=atlas.upsert_personal_residence_arrangement_self_api_v1(jsonb_build_object(
-      'stableKey','primary-home','tenureKind',v_answer_scalar,
-      'sourceKind','reality_discovery','sourceRef',v_event.id::text
-    ));
-    v_promoted:=true;
-  elsif v_question_key='home.major_repairs' then
-    v_promotion:=atlas.upsert_personal_residence_arrangement_self_api_v1(jsonb_build_object(
-      'stableKey','primary-home','majorRepairsResponsibility',v_answer_scalar,
-      'sourceKind','reality_discovery','sourceRef',v_event.id::text
-    ));
-    v_promoted:=true;
+  elsif v_question_key in ('home.tenure','home.major_repairs') then
+    v_residence:=atlas.personal_residence_arrangement_self_api_v1();
+    if v_residence#>'{residence,address}' is not null and v_residence#>'{residence,address}'<>'null'::jsonb then
+      if v_question_key='home.tenure' then
+        v_promotion:=atlas.upsert_personal_residence_arrangement_self_api_v1(jsonb_build_object(
+          'stableKey','primary-home','tenureKind',v_answer_scalar,
+          'sourceKind','reality_discovery','sourceRef',v_event.id::text
+        ));
+      else
+        v_promotion:=atlas.upsert_personal_residence_arrangement_self_api_v1(jsonb_build_object(
+          'stableKey','primary-home','majorRepairsResponsibility',v_answer_scalar,
+          'sourceKind','reality_discovery','sourceRef',v_event.id::text
+        ));
+      end if;
+      v_promoted:=true;
+    end if;
   end if;
 
-  if v_promoted then
+  if v_promoted and v_signal_key is not null then
     update atlas.reality_discovery_evidence_candidates
     set epistemic_state='promoted',updated_at=now(),metadata=metadata||jsonb_build_object('promotion','household_residence_arrangement')
     where principal_id=v_principal.id and source_ref=v_event.id::text and signal_key=v_signal_key;
@@ -403,7 +435,9 @@ begin
     'next',atlas.reality_discovery_next_question_self_api_v1(),
     'truthBoundary',jsonb_build_object(
       'answerIsEvidence',true,'answerDoesNotBypassOwningDomain',true,
-      'residencePromotionUsesResidenceAuthority',true,'inferenceMayRerankButNotEstablishTruth',true
+      'residencePromotionRequiresConfirmedResidenceIdentity',true,
+      'residencePromotionUsesResidenceAuthority',true,
+      'inferenceMayRerankButNotEstablishTruth',true,'staleQuestionSubmissionRejected',true
     )
   );
 end;
