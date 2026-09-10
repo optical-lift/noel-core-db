@@ -27,8 +27,8 @@ begin
   from (
     select c.relname
     from pg_class c
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'atlas'
+    join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname='atlas'
       and c.relname in (
         'company_operating_knowledge',
         'company_operating_knowledge_evidence',
@@ -84,25 +84,33 @@ begin
     raise exception 'Resolver no longer exposes equal-rank conflicting rules.';
   end if;
 
+  if position('atlas.is_organization_member' in v_resolver_def) = 0 then
+    raise exception 'Resolver lost organization-membership authorization check.';
+  end if;
+
   if (
     select count(*)
     from pg_trigger t
-    join pg_class c on c.oid = t.tgrelid
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'atlas'
+    join pg_class c on c.oid=t.tgrelid
+    join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname='atlas'
       and t.tgname in (
+        'company_operating_knowledge_scope_guard',
+        'company_operating_knowledge_evidence_scope_guard',
+        'company_operating_knowledge_adjudications_scope_guard',
+        'company_operating_knowledge_established_semantics_guard',
         'company_operating_knowledge_evidence_append_only',
         'company_operating_knowledge_adjudications_append_only'
       )
       and not t.tgisinternal
-  ) <> 2 then
-    raise exception 'Company Operating Knowledge append-only history trigger set is incomplete.';
+  ) <> 6 then
+    raise exception 'Company Operating Knowledge custody trigger set is incomplete.';
   end if;
 
   if not exists (
     select 1
     from pg_constraint c
-    where c.conrelid = 'atlas.company_operating_knowledge'::regclass
+    where c.conrelid='atlas.company_operating_knowledge'::regclass
       and pg_get_constraintdef(c.oid) ilike '%status%established%'
       and pg_get_constraintdef(c.oid) ilike '%established_at%'
   ) then
