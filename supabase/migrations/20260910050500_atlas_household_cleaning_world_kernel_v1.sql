@@ -1,6 +1,6 @@
 -- Complete household Cleaning as a dedicated Personal Reality Kernel, following Laundry's pattern.
--- The earlier Cleaning definition/models were scaffold only: they had no dedicated read/calibration contract
--- and generic acceptance depended on retired Welcome/Root calibration carriers.
+-- The kernel describes what Cleaning is and how this household tends to carry it.
+-- FlyLady-derived five-zone attention is a separate standing exposure policy; it is not a selectable model here.
 
 update atlas.world_kernel_definitions
 set active=false
@@ -23,8 +23,8 @@ values(
       'children_present',
       'pets_present',
       'hosting_frequency_known',
-      'zone_system_preferred',
-      'daily_cleaning_required',
+      'room_zone_assignment_known',
+      'physical_condition_known',
       'specific_cadence'
     )
   ),
@@ -47,22 +47,16 @@ values
     1,true,'[]'::jsonb
   ),
   (
-    'household.cleaning',2,'general','cleaning_zone_rotation','Zone rotation',
-    'The home is divided into areas and deeper attention rotates through them.',
-    jsonb_build_object('style','zone_rotation','usualPattern','few_times_week','expectedMinutes',60),
-    2,true,'[]'::jsonb
-  ),
-  (
     'household.cleaning',2,'general','cleaning_weekly_reset','Weekly reset',
-    'Daily life is tolerated and most cleaning is concentrated into one larger reset.',
+    'Daily life is tolerated and most cleaning effort is concentrated into one larger reset.',
     jsonb_build_object('style','weekly_reset','usualPattern','main_day','expectedMinutes',120),
-    3,true,'[]'::jsonb
+    2,true,'[]'::jsonb
   ),
   (
     'household.cleaning',2,'general','cleaning_host_ready','Host-ready rhythm',
     'Frequent quick resets protect the rooms guests actually see.',
     jsonb_build_object('style','host_ready','usualPattern','few_times_week','expectedMinutes',45),
-    4,true,'[]'::jsonb
+    3,true,'[]'::jsonb
   )
 on conflict (kernel_key,kernel_version,model_key) do update set
   audience_key=excluded.audience_key,
@@ -88,24 +82,16 @@ declare
   v_member_count integer := 0;
   v_models jsonb := '[]'::jsonb;
 begin
-  if auth.uid() is null then
-    raise exception 'Sign in required.' using errcode='42501';
-  end if;
-
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
   v_household_id:=atlas.principal_current_household_id_v1();
-  if v_household_id is null then
-    raise exception 'Active Principal household required.' using errcode='42501';
-  end if;
+  if v_household_id is null then raise exception 'Active Principal household required.' using errcode='42501'; end if;
 
   select * into v_kernel
   from atlas.world_kernel_definitions k
   where k.kernel_key='household.cleaning' and k.active
   order by k.version desc
   limit 1;
-
-  if v_kernel.kernel_key is null then
-    raise exception 'Cleaning world kernel is unavailable.' using errcode='55000';
-  end if;
+  if v_kernel.kernel_key is null then raise exception 'Cleaning world kernel is unavailable.' using errcode='55000'; end if;
 
   select count(*)::integer into v_member_count
   from atlas.household_members m
@@ -142,8 +128,9 @@ begin
     'modelSelection',jsonb_build_object(
       'audienceKey','general',
       'knownMemberCount',v_member_count,
-      'basis','general_cleaning_starting_points',
-      'assumptionsMade',false
+      'basis','general_cleaning_workload_starting_points',
+      'assumptionsMade',false,
+      'zoneExposurePolicySeparate',true
     ),
     'models',v_models,
     'kernel',jsonb_build_object(
@@ -194,24 +181,16 @@ declare
   v_instance atlas.household_kernel_instances%rowtype;
   v_rhythm_result jsonb;
 begin
-  if auth.uid() is null then
-    raise exception 'Sign in required.' using errcode='42501';
-  end if;
-  if p_input is null or jsonb_typeof(p_input)<>'object' then
-    raise exception 'Cleaning calibration input must be an object.' using errcode='22023';
-  end if;
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if p_input is null or jsonb_typeof(p_input)<>'object' then raise exception 'Cleaning calibration input must be an object.' using errcode='22023'; end if;
 
   v_household_id:=atlas.principal_current_household_id_v1();
-  if v_household_id is null then
-    raise exception 'Active Principal household required.' using errcode='42501';
-  end if;
+  if v_household_id is null then raise exception 'Active Principal household required.' using errcode='42501'; end if;
 
   select max(k.version) into v_kernel_version
   from atlas.world_kernel_definitions k
   where k.kernel_key='household.cleaning' and k.active;
-  if v_kernel_version is null then
-    raise exception 'Cleaning world kernel is unavailable.' using errcode='55000';
-  end if;
+  if v_kernel_version is null then raise exception 'Cleaning world kernel is unavailable.' using errcode='55000'; end if;
 
   v_model_key:=nullif(trim(p_input->>'modelKey'),'');
   if v_model_key is not null then
@@ -221,9 +200,7 @@ begin
       and m.kernel_version=v_kernel_version
       and m.model_key=v_model_key
       and m.active;
-    if v_model.model_key is null then
-      raise exception 'Unknown Cleaning model.' using errcode='22023';
-    end if;
+    if v_model.model_key is null then raise exception 'Unknown Cleaning model.' using errcode='22023'; end if;
     v_config:=v_model.configuration;
   end if;
 
@@ -235,9 +212,7 @@ begin
   ));
 
   if p_input ? 'priorityAreas' then
-    if jsonb_typeof(p_input->'priorityAreas') <> 'array' then
-      raise exception 'priorityAreas must be an array.' using errcode='22023';
-    end if;
+    if jsonb_typeof(p_input->'priorityAreas') <> 'array' then raise exception 'priorityAreas must be an array.' using errcode='22023'; end if;
     v_config:=v_config || jsonb_build_object('priorityAreas',p_input->'priorityAreas');
   end if;
 
@@ -246,15 +221,13 @@ begin
   v_notes:=nullif(trim(v_config->>'notes'),'');
   v_expected:=coalesce(nullif(v_config->>'expectedMinutes','')::integer,45);
 
-  if v_style is null or v_style not in ('steady_reset','zone_rotation','weekly_reset','host_ready','other') then
+  if v_style is null or v_style not in ('steady_reset','weekly_reset','host_ready','other') then
     raise exception 'Supported cleaning style required.' using errcode='22023';
   end if;
   if v_pattern is null or v_pattern not in ('little_most_days','few_times_week','main_day','as_needed','other') then
     raise exception 'Supported cleaning pattern required.' using errcode='22023';
   end if;
-  if v_expected <= 0 then
-    raise exception 'expectedMinutes must be positive.' using errcode='22023';
-  end if;
+  if v_expected <= 0 then raise exception 'expectedMinutes must be positive.' using errcode='22023'; end if;
 
   select coalesce(array_agg(distinct x order by x),'{}'::text[])
   into v_priority
@@ -265,12 +238,7 @@ begin
   insert into atlas.household_kernel_instances(
     household_id,kernel_key,kernel_version,state,configuration,calibrated_at,metadata
   ) values(
-    v_household_id,
-    'household.cleaning',
-    v_kernel_version,
-    'active',
-    v_config,
-    now(),
+    v_household_id,'household.cleaning',v_kernel_version,'active',v_config,now(),
     jsonb_strip_nulls(jsonb_build_object(
       'source','principal_calibration',
       'calibratedBy',auth.uid(),
@@ -291,7 +259,7 @@ begin
   v_rhythm_result:=atlas.principal_upsert_household_rhythm_api_v1(jsonb_build_object(
     'stableKey','kernel:household.cleaning:general',
     'area','cleaning',
-    'title','Cleaning',
+    'title','Cleaning workload',
     'cadenceRule',v_pattern,
     'expectedMinutes',v_expected,
     'protectionLevel','protected',
@@ -300,14 +268,15 @@ begin
     'principalRequired',true,
     'blocksCapacity',true,
     'consequence','Occupied household spaces need recurring restoration to remain usable for ordinary life.',
-    'reasonForFloor','Ordinary household cleaning rhythm calibrated through the Cleaning world kernel.',
+    'reasonForFloor','Broad household Cleaning workload calibrated separately from five-zone area exposure.',
     'metadata',jsonb_strip_nulls(jsonb_build_object(
       'worldKernelKey','household.cleaning',
       'worldKernelVersion',v_kernel_version,
       'source','household_cleaning_calibration_v1',
       'selectedModelKey',v_model_key,
       'semanticCadence',true,
-      'clockWindowEstablished',false
+      'clockWindowEstablished',false,
+      'zoneExposurePolicySeparate',true
     ))
   ));
 
@@ -328,7 +297,9 @@ begin
       'propertySizeKnown',false,
       'childrenPresent',false,
       'petsPresent',false,
-      'hostingFrequencyKnown',false
+      'hostingFrequencyKnown',false,
+      'roomZoneAssignmentKnown',false,
+      'physicalConditionKnown',false
     )
   );
 end;
@@ -340,18 +311,11 @@ grant execute on function atlas.personal_cleaning_kernel_self_api_v1() to authen
 grant execute on function atlas.calibrate_personal_cleaning_kernel_self_api_v1(jsonb) to authenticated,service_role;
 
 create or replace function public.personal_cleaning_kernel_self_api_v1()
-returns jsonb
-language sql
-stable
-security definer
-set search_path=pg_catalog
+returns jsonb language sql stable security definer set search_path=pg_catalog
 as $function$ select atlas.personal_cleaning_kernel_self_api_v1(); $function$;
 
 create or replace function public.calibrate_personal_cleaning_kernel_self_api_v1(p_input jsonb)
-returns jsonb
-language sql
-security definer
-set search_path=pg_catalog
+returns jsonb language sql security definer set search_path=pg_catalog
 as $function$ select atlas.calibrate_personal_cleaning_kernel_self_api_v1(p_input); $function$;
 
 revoke all on function public.personal_cleaning_kernel_self_api_v1() from public,anon;
@@ -377,9 +341,7 @@ declare
   v_rhythm jsonb;
 begin
   if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
-  if p_kernel_key <> 'household.groceries' then
-    raise exception 'Kernel is not available through generic model acceptance.' using errcode='22023';
-  end if;
+  if p_kernel_key <> 'household.groceries' then raise exception 'Kernel is not available through generic model acceptance.' using errcode='22023'; end if;
   v_household_id:=atlas.principal_current_household_id_v1();
   if v_household_id is null then raise exception 'Active Principal household required.' using errcode='42501'; end if;
   select max(version) into v_version from atlas.world_kernel_definitions where kernel_key=p_kernel_key and active;
@@ -421,16 +383,8 @@ insert into atlas.authenticated_rpc_registry(
   caller_count,policy_reference_count,evidence,registered_at
 )
 values
-  (
-    'atlas.personal_cleaning_kernel_self_api_v1()',
-    'app_endpoint','verified','active',true,true,true,false,1,0,
-    jsonb_build_object('purpose','Read the dedicated household Cleaning world kernel, models, calibrated instance, and rhythm without retired calibration dependencies.'),now()
-  ),
-  (
-    'atlas.calibrate_personal_cleaning_kernel_self_api_v1(p_input jsonb)',
-    'app_endpoint','verified','active',true,true,true,false,1,0,
-    jsonb_build_object('purpose','Calibrate Cleaning from an accepted/corrected starting model and project the accepted cadence into canonical household rhythm authority.'),now()
-  )
+  ('atlas.personal_cleaning_kernel_self_api_v1()','app_endpoint','verified','active',true,true,true,false,1,0,jsonb_build_object('purpose','Read the dedicated household Cleaning world kernel, workload models, calibrated instance, and broad rhythm independently of the standing five-zone attention policy.'),now()),
+  ('atlas.calibrate_personal_cleaning_kernel_self_api_v1(p_input jsonb)','app_endpoint','verified','active',true,true,true,false,1,0,jsonb_build_object('purpose','Calibrate household Cleaning workload/style without selecting or disabling the standing five-zone attention policy.'),now())
 on conflict (signature) do update set
   classification=excluded.classification,
   confidence=excluded.confidence,
