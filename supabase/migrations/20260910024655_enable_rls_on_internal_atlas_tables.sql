@@ -1,0 +1,43 @@
+-- Close the remaining Atlas internal-table RLS gaps discovered during notebook-runtime launch hardening.
+-- Direct anon/authenticated table grants were checked before this change; governed RPC/service membranes remain the access path.
+
+alter table atlas.architecture_truth_authorities enable row level security;
+alter table atlas.attention_events enable row level security;
+alter table atlas.attention_policies enable row level security;
+alter table atlas.attention_subjects enable row level security;
+alter table atlas.capital_requests enable row level security;
+alter table atlas.connected_sources enable row level security;
+alter table atlas.crop_cycle_management_events enable row level security;
+alter table atlas.farm_round_member_series enable row level security;
+alter table atlas.farm_round_occurrences enable row level security;
+alter table atlas.flower_route_availability_lines enable row level security;
+alter table atlas.flower_route_availability_snapshots enable row level security;
+alter table atlas.flower_sales_route_lanes enable row level security;
+alter table atlas.great_game_score_updates enable row level security;
+alter table atlas.great_game_scorecards enable row level security;
+alter table atlas.house_position_line_items enable row level security;
+alter table atlas.house_position_snapshots enable row level security;
+alter table atlas.implementation_case_sources enable row level security;
+alter table atlas.investment_opportunities enable row level security;
+alter table atlas.legacy_surface_retirement_registry enable row level security;
+alter table atlas.operating_functions enable row level security;
+alter table atlas.organization_employee_seats enable row level security;
+alter table atlas.organization_member_credentials enable row level security;
+alter table atlas.organization_member_exposure_grants enable row level security;
+alter table atlas.organization_onboarding_actors enable row level security;
+alter table atlas.organization_units enable row level security;
+alter table atlas.portfolio_theses enable row level security;
+alter table atlas.principal_authority_allocation_events enable row level security;
+alter table atlas.principal_authority_allocations enable row level security;
+alter table atlas.principal_decision_adapter_registry enable row level security;
+alter table atlas.principal_model_coverage_snapshots enable row level security;
+alter table atlas.reconstruction_session_sources enable row level security;
+alter table atlas.reconstruction_sessions enable row level security;
+alter table atlas.work_allocations enable row level security;
+alter table atlas.work_execution_adapters enable row level security;
+alter table atlas.work_item_relations enable row level security;
+alter table atlas.work_items enable row level security;
+alter table atlas.work_planning_conflicts enable row level security;
+alter table atlas.work_requirement_links enable row level security;
+alter table atlas.work_requirements enable row level security;
+alter table atlas.work_time_contracts enable row level security;
