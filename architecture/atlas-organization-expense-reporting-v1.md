@@ -11,7 +11,7 @@ Atlas Organization Expense Reporting translates real operational and financial f
 
 The governing flow is:
 
-`real-world activity -> evidence -> domain-owned fact -> organization reporting interpretation -> exception review -> finished report`
+`real-world activity -> evidence -> domain-owned fact -> organization reporting interpretation -> exception review -> finished report -> accounting handoff`
 
 The reporting layer does not become the source of the expense, trip, or activity. It stores the organization's rules for interpreting known reality and compiling it into the required artifact.
 
@@ -42,6 +42,8 @@ The supplied Camps International Mexico workbook has three output sheets:
 3. **Impact** — event, participant counts in age bands 0–8, 9–16, 17+, total, and VOICE/Other classification.
 
 These are three projections over overlapping monthly reality, not three independent capture workflows. One real activity may legitimately feed Expense, Travel, and Impact at the same time.
+
+A further Camps International accounting requirement was clarified September 10, 2026: expense categories may repeat throughout the month, but the final expense presentation should be grouped/sorted by **category**, with a subtotal for each category. The treasurer should then be able to enter the one category subtotal into QuickBooks while retaining/uploading the detailed report as documentary proof. This accounting handoff is a projection over the report, not a second expense ledger.
 
 ## 4. Governing rules
 
@@ -101,6 +103,38 @@ A report period is `ready` only when blocking exceptions are resolved or explici
 
 The submitted spreadsheet/PDF/file is not the canonical fact store. Atlas must preserve provenance from every output row back to the source fact/evidence, governing contract version, classification, applied rate, human resolution/waiver, and final submitted artifact.
 
+### 4.6 Final presentation sort is contract-owned
+
+The report's output ordering is a presentation rule, not a change to fact chronology.
+
+For the Camps International Expense projection, the final/primary sort is **expense category**, not date and not amount. Date and amount remain attributes of each detail line. The contract may define a stable secondary order within a category.
+
+This sort requirement must be configurable because another organization may require chronological, project, account-code, funding-source, department, or other ordering.
+
+### 4.7 Category subtotals are accounting reconciliation units
+
+Repeated detail lines within the same reporting category must remain individually preserved, while the report may additionally expose a deterministic subtotal for that category.
+
+For every category group:
+
+`sum(detail line report amounts) = category subtotal`
+
+and across the full report:
+
+`sum(category subtotals) = report expense total`
+
+A mismatch is a blocking close exception. Atlas must never repair a discrepancy silently in rendering.
+
+### 4.8 Accounting handoff is downstream and software-neutral
+
+A reporting contract may define an accounting handoff projection that translates accepted report detail into the grain required by a downstream accounting workflow.
+
+For Camps International, the current destination is QuickBooks and the posting grain is **one amount per expense category subtotal**. The full detailed report remains documentary proof/supporting documentation.
+
+QuickBooks is an adapter/destination, not a canonical Atlas concept. The same handoff model must be usable with another accounting system or a manual bookkeeper workflow.
+
+Named people are instances, not schema. Kirk is the current CI treasurer/operator for this handoff; the reusable structure should point to the responsible organization role/membership when persisted.
+
 ## 5. Core objects
 
 ### `organization_expense_reporting_contracts`
@@ -135,6 +169,18 @@ Binds a source fact/evidence item to a reporting period without taking ownership
 
 First-class unresolved requirements: period, optional fact link, exception code, blocking/warning severity, human-readable question, state, resolution/waiver, resolver, timestamp.
 
+### Accounting handoff projection
+
+The initial implementation should remain a stable projection over accepted report state rather than a new canonical accounting table. It should expose:
+
+- grouped detail lines;
+- category/accounting subtotals;
+- overall reconciliation state;
+- downstream destination metadata;
+- documentary-artifact relationship.
+
+A first-class downstream posting event should be introduced only when Atlas must persist facts such as an actual QuickBooks transaction identifier, attachment upload, posting result, reversal, or reconciliation event.
+
 ## 6. Camps International pilot category contract
 
 Preserve the supplied policy meanings for:
@@ -163,6 +209,15 @@ Template labels remain separately configured. `Publishing` remains unresolved un
 
 Sequence, date from/on, date to, purpose/description, expense-type export label, Mexican factura indicator, MXN amount, adjusted rate, USD amount.
 
+Presentation/accounting rules:
+
+- primary final sort: category;
+- group by category;
+- retain all detail lines;
+- show subtotal for each category;
+- category subtotal is the accounting handoff amount;
+- retain/generate the complete detail report as documentary proof for downstream accounting.
+
 ### Travel
 
 Date from/to, origin, destination, purpose/description, vehicle/distance basis, odometer start/stop where applicable, total miles/km, reimbursement rate, USD amount.
@@ -184,7 +239,8 @@ The database authority should eventually release seams for:
 5. exception resolution/waiver;
 6. deterministic close-readiness evaluation;
 7. stable export payload generation;
-8. submission provenance recording.
+8. accounting handoff projection with deterministic category/group subtotals;
+9. submission/documentary-artifact provenance recording.
 
 AI may extract or suggest classifications, but suggestions are not authoritative until accepted under organization rules.
 
@@ -198,9 +254,10 @@ This v1 tranche may establish the reporting interpretation boundary only:
 - rates;
 - source-fact/evidence links;
 - exceptions;
-- read/projection contract.
+- read/projection contract;
+- configurable output grouping/sorting/subtotals/accounting-handoff metadata.
 
-It must not invent permanent canonical expense, travel, participant, receipt, organization, or operating-unit truth merely to finish David's report.
+It must not invent permanent canonical expense, travel, participant, receipt, organization, operating-unit, or downstream-accounting truth merely to finish David's report.
 
 ## 10. Next seams to resolve
 
@@ -211,8 +268,9 @@ It must not invent permanent canonical expense, travel, participant, receipt, or
 5. Define receipt/factura evidence values and durable file locator/hash conventions using `atlas.evidence_records` plus file custody.
 6. Reconcile CI workbook-only `Publishing` and combined shorthand labels with CI policy authority.
 7. Establish authoritative exchange/mileage rate source and approval rules.
-8. Build the exact workbook renderer only after the stable export payload exists.
+8. Confirm CI's downstream QuickBooks posting convention: exact transaction form, posting date, account/code mapping, and whether category subtotals are entered as lines of one transaction or separate transactions.
+9. Build the exact workbook renderer only after the stable export and accounting-handoff payloads exist.
 
 ## 11. Governing test
 
-The feature is working when David can live the month normally, capture evidence close to the moment it occurs, and reach month-end with Atlas asking only for information it could not already know — while Camps International receives the exact report it requires and every output row remains traceable to real evidence and an authorized organization reporting rule.
+The feature is working when David can live the month normally, capture evidence close to the moment it occurs, and reach month-end with Atlas asking only for information it could not already know — while Camps International receives the exact report it requires, every output row remains traceable to real evidence and an authorized organization reporting rule, repeated category lines reconcile to correct category subtotals, and the treasurer can use those subtotals for downstream accounting without losing the detailed documentary record.
