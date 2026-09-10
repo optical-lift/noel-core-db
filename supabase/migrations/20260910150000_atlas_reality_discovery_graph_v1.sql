@@ -86,7 +86,7 @@ insert into atlas.reality_discovery_questions(
   question_key,section_key,prompt,help_text,answer_kind,options,base_score,friction,consequence_value,information_gain,resolved_signal_key,reason_text,metadata
 ) values
 ('home.confirm_purchase_address','home','Is this where you live?','Atlas may have an address from your purchase. It will not treat it as home until you confirm it.','yes_no',
- '[{"key":"yes","label":"yes"},{"key":"no","label":"no"}]'::jsonb,80,1,55,90,'home.purchase_address_confirmed','Confirming an address Atlas already has can establish jurisdiction context without making you retype it.',
+ '[{"key":"yes","label":"yes"},{"key":"no","label":"no"}]'::jsonb,140,1,70,100,'home.purchase_address_confirmed','Confirming an address Atlas already has can establish jurisdiction context without making you retype it.',
  '{"candidateSignalKey":"purchase.billing_address","requiresCandidate":true}'::jsonb),
 ('home.tenure','home','Do you own this home, rent it, or is it another arrangement?',null,'single_choice',
  '[{"key":"own","label":"own"},{"key":"rent","label":"rent"},{"key":"family_provided","label":"family provides it"},{"key":"other","label":"something else"}]'::jsonb,75,1,80,95,'home.tenure','This answer changes which home systems and obligations are likely to be yours.','{}'::jsonb),
