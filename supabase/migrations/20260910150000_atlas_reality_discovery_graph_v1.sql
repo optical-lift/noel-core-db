@@ -1,3 +1,5 @@
+begin;
+
 -- Adaptive Reality Discovery for Personal Atlas.
 --
 -- This subsystem owns discovery questions, answer evidence, candidate evidence, ranking, and routing metadata.
@@ -402,8 +404,6 @@ begin
     return jsonb_build_object('ok',true,'idempotentReplay',true,'eventId',v_existing.id,'next',atlas.reality_discovery_next_question_self_api_v1());
   end if;
 
-  -- Fail closed on stale or out-of-context submissions. The visible question is a governed
-  -- consequence of the current discovery graph, not an arbitrary catalog key the client may invoke.
   v_next:=atlas.reality_discovery_next_question_self_api_v1();
   if coalesce(v_next#>>'{question,questionKey}','') is distinct from v_question_key then
     raise exception 'Discovery question is no longer the current eligible encounter.' using errcode='40001';
@@ -504,3 +504,5 @@ on conflict(signature) do update set
   authenticated_execute_expected=excluded.authenticated_execute_expected,security_definer_expected=excluded.security_definer_expected,
   service_execute_expected=excluded.service_execute_expected,anonymous_execute_expected=excluded.anonymous_execute_expected,
   evidence=atlas.authenticated_rpc_registry.evidence||excluded.evidence,reviewed_at=now();
+
+commit;
