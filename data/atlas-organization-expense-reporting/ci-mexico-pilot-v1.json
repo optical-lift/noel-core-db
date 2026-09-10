@@ -1,0 +1,205 @@
+{
+  "schemaVersion": "atlas_organization_expense_reporting_pilot_v1",
+  "status": "candidate_configuration",
+  "contractKey": "camps_international_mexico_monthly_expense_reporting",
+  "displayName": "Camps International Mexico Monthly Expense Reporting",
+  "reportingBodyName": "Camps International",
+  "cadence": "monthly",
+  "baseCurrency": "USD",
+  "pilotSourceCurrency": "MXN",
+  "sourcePolicy": {
+    "name": "Expense Categories and Explanation of Purpose",
+    "sourceDate": "2023-06-21"
+  },
+  "outputTemplate": {
+    "name": "2026XX CI Exp Rpt MX Caldwell Atlas 20260910.ods",
+    "sheets": [
+      {
+        "key": "expense",
+        "sheetName": "Expense",
+        "columns": [
+          "sequence",
+          "dateFromOrOn",
+          "dateTo",
+          "purposeDescription",
+          "expenseTypeExportLabel",
+          "mexicanFactura",
+          "amountMXN",
+          "adjustedRate",
+          "amountUSD"
+        ]
+      },
+      {
+        "key": "travel",
+        "sheetName": "Travel",
+        "columns": [
+          "dateFrom",
+          "dateTo",
+          "origin",
+          "destination",
+          "purposeDescription",
+          "odometerStart",
+          "odometerStop",
+          "totalDistance",
+          "rate",
+          "amountUSD"
+        ]
+      },
+      {
+        "key": "impact",
+        "sheetName": "Impact",
+        "columns": [
+          "sequence",
+          "event",
+          "age0To8",
+          "age9To16",
+          "age17Up",
+          "totalParticipants",
+          "voiceOrOther"
+        ]
+      }
+    ]
+  },
+  "categories": [
+    {
+      "categoryKey": "connection_it",
+      "canonicalLabel": "Connection/IT",
+      "exportLabel": "Connection/IT",
+      "definition": "Internet service provider, internet signal provider, internet equipment, solar equipment related to internet, cell/phone fees and service recharge, phone number, domain name renewal, website software for domains, social media management, consultation, programming, app development, internet cafe time, etc."
+    },
+    {
+      "categoryKey": "entertainment",
+      "canonicalLabel": "Entertainment",
+      "exportLabel": "Entertainment",
+      "definition": "Treating others to meals, outings, events, etc. for relationship building, recruitment, project discussion, or developing understanding of the mission and how needs can be met; may include oneself, others, and tips."
+    },
+    {
+      "categoryKey": "equipment_tools",
+      "canonicalLabel": "Equipment/Tools",
+      "exportLabel": "Equipment/Tools",
+      "definition": "Machinery used to repair, fabricate, build, or construct something else related to Camps International purposes; usually not office related."
+    },
+    {
+      "categoryKey": "facilities",
+      "canonicalLabel": "Facilities",
+      "exportLabel": "Facilities",
+      "definition": "Architectural plans/consulting, excavation, materials, labor, building, signage, flags, landscaping, maintenance, and repair related to the camp site, camp development, events, or other Camps International purposes; includes solar equipment related to facility."
+    },
+    {
+      "categoryKey": "fees",
+      "canonicalLabel": "Fees",
+      "exportLabel": "Fees",
+      "definition": "Bank, legal, passport, visa, and similar often-unavoidable prerequisite expenses needed to do business or move projects forward."
+    },
+    {
+      "categoryKey": "goodwill",
+      "canonicalLabel": "Goodwill",
+      "exportLabel": "Goodwill/C/H",
+      "definition": "Acts of generosity or compassion related to need, conscience, or humanitarianism; documentation may be enhanced through photos or event/publication evidence; includes donations to other ministries.",
+      "mappingState": "template_label_requires_confirmation"
+    },
+    {
+      "categoryKey": "honorarium",
+      "canonicalLabel": "Honorarium",
+      "exportLabel": "Honorariums",
+      "definition": "Stipend, offering of gratitude, financial thank-you, or similar compensation for contribution to Camps International purposes beyond a volunteer."
+    },
+    {
+      "categoryKey": "hospitality_lodging",
+      "canonicalLabel": "Hospitality/Lodging",
+      "exportLabel": "Hospitality/Lodging/Meals",
+      "definition": "Expenses related to hosting others; thank-you gifts for staying at someone's home while doing Camps International work; and overnight lodging while traveling, with receipt required for accommodations.",
+      "mappingState": "template_label_requires_confirmation"
+    },
+    {
+      "categoryKey": "office_library",
+      "canonicalLabel": "Office/Library",
+      "exportLabel": "Office/Library",
+      "definition": "Office equipment, furniture, supplies, postage, delivery, and study/teaching materials; may include solar equipment."
+    },
+    {
+      "categoryKey": "other",
+      "canonicalLabel": "Other",
+      "exportLabel": "Other",
+      "definition": "Miscellaneous, rare catch-all category."
+    },
+    {
+      "categoryKey": "per_diem_meals",
+      "canonicalLabel": "Per Diem/Meals",
+      "exportLabel": "Per Diem/Meals",
+      "definition": "Meals related to travel significantly far from home base; first and last day rates differ from full day rates; location is Other."
+    },
+    {
+      "categoryKey": "printing",
+      "canonicalLabel": "Printing",
+      "exportLabel": null,
+      "definition": "Brochures, promotion, tracts, manuals, and books.",
+      "mappingState": "unresolved",
+      "mappingNote": "The supplied workbook contains a Publishing export label but the supplied policy defines Printing. Do not equate them without Camps International confirmation."
+    },
+    {
+      "categoryKey": "program_activity",
+      "canonicalLabel": "Program/Activity",
+      "exportLabel": "Program/Act.",
+      "definition": "Materials and supplies used to build or equip an activity, event, or program so objectives are better met, themes reinforced, or practitioners are facilitated to perform skill-based, experiential, or other activities benefiting campers and participants in realms related to core values; may include solar equipment."
+    },
+    {
+      "categoryKey": "record_of_transaction",
+      "canonicalLabel": "Record of Transaction",
+      "exportLabel": "Record of Transaction",
+      "definition": "Documentation of transactions used as proof in other accounting where no expense is claimed, such as ATM withdrawals, currency exchange, or photos of documents."
+    },
+    {
+      "categoryKey": "travel",
+      "canonicalLabel": "Travel",
+      "exportLabel": "Travel",
+      "definition": "Transportation to and from transport hubs, hosts, camp sites, training locations, churches, stores, and similar destinations to perform Camps International work; may include parking, tolls, mileage, taxi, public transport, and borrowed or rented cars."
+    }
+  ],
+  "templateOnlyLabels": [
+    {
+      "exportLabel": "Publishing",
+      "state": "unresolved",
+      "note": "Observed in workbook; no independently matching category definition appears in the supplied policy sheet."
+    }
+  ],
+  "knownPilotRates": [
+    {
+      "rateKey": "mxn_usd_adjusted",
+      "rateKind": "currency_exchange",
+      "fromUnit": "MXN",
+      "toUnit": "USD",
+      "observedValue": 16.5,
+      "meaning": "Workbook states this as the number of pesos for 1 USD.",
+      "state": "observed_template_value_not_general_rule"
+    },
+    {
+      "rateKey": "vehicle_miles_usd",
+      "rateKind": "mileage",
+      "fromUnit": "mile",
+      "toUnit": "USD",
+      "observedValue": 0.725,
+      "state": "observed_template_value_not_general_rule"
+    },
+    {
+      "rateKey": "vehicle_km_usd",
+      "rateKind": "distance",
+      "fromUnit": "km",
+      "toUnit": "USD",
+      "observedValue": 0.451,
+      "state": "observed_template_value_not_general_rule"
+    }
+  ],
+  "initialExceptionCodes": [
+    "receipt_or_factura_missing",
+    "purpose_missing",
+    "expense_category_unresolved",
+    "reporting_eligibility_unresolved",
+    "exchange_rate_missing",
+    "travel_origin_missing",
+    "travel_destination_missing",
+    "travel_distance_basis_missing",
+    "impact_age_breakdown_missing",
+    "impact_voice_or_other_missing"
+  ]
+}
