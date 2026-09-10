@@ -1,0 +1,100 @@
+{
+  "schemaVersion": "atlas_organization_spend_kernel_fixture_v1",
+  "status": "synthetic_acceptance_fixture",
+  "purpose": "Prove source spend stays universal while CI reporting and QuickBooks handoff remain downstream projections.",
+  "fixtures": [
+    {
+      "key": "lumber_for_los_domos",
+      "capture": {
+        "grossAmount": 1840,
+        "currency": "MXN",
+        "fundingKind": "organization_member",
+        "payerRole": "field_director",
+        "payeeLabel": "Home Depot",
+        "occurredOn": "2026-09-03",
+        "operationalPurpose": "Lumber for repair work at Los Domos"
+      },
+      "expectedSpendKernel": {
+        "occurrenceCount": 1,
+        "allocationCount": 1,
+        "allocatedAmount": 1840,
+        "unallocatedAmount": 0,
+        "forbiddenKernelFields": [
+          "ciExpenseCategory",
+          "quickbooksAccount",
+          "reimbursementStatus",
+          "exchangeRate"
+        ]
+      },
+      "downstreamCIInterpretation": {
+        "categoryKey": "facilities"
+      }
+    },
+    {
+      "key": "plumbing_for_los_domos",
+      "capture": {
+        "grossAmount": 920,
+        "currency": "MXN",
+        "fundingKind": "organization_member",
+        "payerRole": "field_director",
+        "payeeLabel": "Ferreteria Local",
+        "occurredOn": "2026-09-11",
+        "operationalPurpose": "Plumbing fittings for Los Domos maintenance"
+      },
+      "expectedSpendKernel": {
+        "occurrenceCount": 1,
+        "allocationCount": 1,
+        "allocatedAmount": 920,
+        "unallocatedAmount": 0
+      },
+      "downstreamCIInterpretation": {
+        "categoryKey": "facilities"
+      }
+    },
+    {
+      "key": "mixed_purpose_receipt",
+      "capture": {
+        "grossAmount": 1500,
+        "currency": "MXN",
+        "fundingKind": "organization_member",
+        "payerRole": "field_director",
+        "payeeLabel": "Walmart",
+        "occurredOn": "2026-09-15"
+      },
+      "allocations": [
+        {
+          "amount": 1000,
+          "operationalPurpose": "Cleaning and maintenance supplies for Los Domos"
+        },
+        {
+          "amount": 500,
+          "operationalPurpose": "Supplies for participant activity"
+        }
+      ],
+      "expectedSpendKernel": {
+        "occurrenceCount": 1,
+        "allocationCount": 2,
+        "allocatedAmount": 1500,
+        "unallocatedAmount": 0
+      },
+      "downstreamCIInterpretations": [
+        {
+          "allocationIndex": 0,
+          "categoryKey": "facilities"
+        },
+        {
+          "allocationIndex": 1,
+          "categoryKey": "program_activity"
+        }
+      ]
+    }
+  ],
+  "expectedCIAccountingProjection": {
+    "groupBy": "expense_category",
+    "facilitiesSourceMXNSubtotal": 3760,
+    "programActivitySourceMXNSubtotal": 500,
+    "detailLinesRemainDistinct": true,
+    "quickbooksPostingGrain": "category_subtotal",
+    "documentaryProof": "full_expense_report"
+  }
+}
