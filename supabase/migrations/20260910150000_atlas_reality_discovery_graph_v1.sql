@@ -82,7 +82,6 @@ revoke all on atlas.reality_discovery_edges from public,anon,authenticated;
 revoke all on atlas.reality_discovery_answer_events from public,anon,authenticated;
 revoke all on atlas.reality_discovery_evidence_candidates from public,anon,authenticated;
 
--- Seed only broad, high-information questions plus enough downstream questions to prove adaptive branching.
 insert into atlas.reality_discovery_questions(
   question_key,section_key,prompt,help_text,answer_kind,options,base_score,friction,consequence_value,information_gain,resolved_signal_key,reason_text,metadata
 ) values
@@ -90,41 +89,39 @@ insert into atlas.reality_discovery_questions(
  '[{"key":"yes","label":"yes"},{"key":"no","label":"no"}]'::jsonb,80,1,55,90,'home.purchase_address_confirmed','Confirming an address Atlas already has can establish jurisdiction context without making you retype it.',
  '{"candidateSignalKey":"purchase.billing_address","requiresCandidate":true}'::jsonb),
 ('home.tenure','home','Do you own this home, rent it, or is it another arrangement?',null,'single_choice',
- '[{"key":"own","label":"own"},{"key":"rent","label":"rent"},{"key":"family_provided","label":"family provides it"},{"key":"other","label":"something else"}]'::jsonb,75,1,80,95,'home.tenure','This answer changes which home systems and obligations are likely to be yours.', '{}'::jsonb),
+ '[{"key":"own","label":"own"},{"key":"rent","label":"rent"},{"key":"family_provided","label":"family provides it"},{"key":"other","label":"something else"}]'::jsonb,75,1,80,95,'home.tenure','This answer changes which home systems and obligations are likely to be yours.','{}'::jsonb),
 ('home.major_repairs','home','When something major breaks here, who normally handles it?',null,'single_choice',
- '[{"key":"me","label":"I do"},{"key":"shared","label":"we share it"},{"key":"landlord","label":"landlord / management"},{"key":"depends","label":"it depends"}]'::jsonb,55,1,80,85,'home.major_repairs_responsibility','Responsibility matters more than simply knowing a home system exists.', '{}'::jsonb),
+ '[{"key":"me","label":"I do"},{"key":"shared","label":"we share it"},{"key":"landlord","label":"landlord / management"},{"key":"depends","label":"it depends"}]'::jsonb,55,1,80,85,'home.major_repairs_responsibility','Responsibility matters more than simply knowing a home system exists.','{}'::jsonb),
 ('grounds.responsibility','home','Are you responsible for any yard or land where you live?',null,'single_choice',
- '[{"key":"yes","label":"yes"},{"key":"shared","label":"shared"},{"key":"service","label":"someone else handles it"},{"key":"none","label":"no"}]'::jsonb,40,1,55,75,'grounds.responsibility','Grounds responsibility determines whether outdoor maintenance and equipment belong in your world.', '{}'::jsonb),
+ '[{"key":"yes","label":"yes"},{"key":"shared","label":"shared"},{"key":"service","label":"someone else handles it"},{"key":"none","label":"no"}]'::jsonb,40,1,55,75,'grounds.responsibility','Grounds responsibility determines whether outdoor maintenance and equipment belong in your world.','{}'::jsonb),
 ('grounds.mowing_method','home','How does mowing usually get handled?',null,'single_choice',
- '[{"key":"push","label":"push mower"},{"key":"riding","label":"riding mower"},{"key":"tractor","label":"tractor"},{"key":"service","label":"lawn service"},{"key":"other","label":"something else"},{"key":"none","label":"we do not mow"}]'::jsonb,30,1,45,70,'grounds.mowing_method','How mowing happens determines whether Atlas should learn about maintainable equipment.', '{}'::jsonb),
+ '[{"key":"push","label":"push mower"},{"key":"riding","label":"riding mower"},{"key":"tractor","label":"tractor"},{"key":"service","label":"lawn service"},{"key":"other","label":"something else"},{"key":"none","label":"we do not mow"}]'::jsonb,30,1,45,70,'grounds.mowing_method','How mowing happens determines whether Atlas should learn about maintainable equipment.','{}'::jsonb),
 ('equipment.riding_mower_identity','home','What riding mower is it?','Pick a common brand or tell Atlas later; the maintenance kernel can become more specific once the actual machine is known.','single_choice',
- '[{"key":"john_deere","label":"John Deere"},{"key":"cub_cadet","label":"Cub Cadet"},{"key":"husqvarna","label":"Husqvarna"},{"key":"other","label":"other"},{"key":"not_sure","label":"not sure"}]'::jsonb,20,1,45,55,'equipment.riding_mower_brand','The actual equipment changes the maintenance information Atlas should use.', '{}'::jsonb),
+ '[{"key":"john_deere","label":"John Deere"},{"key":"cub_cadet","label":"Cub Cadet"},{"key":"husqvarna","label":"Husqvarna"},{"key":"other","label":"other"},{"key":"not_sure","label":"not sure"}]'::jsonb,20,1,45,55,'equipment.riding_mower_brand','The actual equipment changes the maintenance information Atlas should use.','{}'::jsonb),
 ('transport.vehicle_count','transport','Are you responsible for any vehicles?',null,'single_choice',
- '[{"key":"none","label":"none"},{"key":"one","label":"one"},{"key":"two_plus","label":"two or more"},{"key":"other","label":"something else"}]'::jsonb,65,1,85,90,'transport.vehicle_count','Vehicles create predictable registration, insurance, tax, and maintenance obligations.', '{}'::jsonb),
+ '[{"key":"none","label":"none"},{"key":"one","label":"one"},{"key":"two_plus","label":"two or more"},{"key":"other","label":"something else"}]'::jsonb,65,1,85,90,'transport.vehicle_count','Vehicles create predictable registration, insurance, tax, and maintenance obligations.','{}'::jsonb),
 ('animals.responsibility','animals','Are there animals you are responsible for?',null,'single_choice',
- '[{"key":"none","label":"none"},{"key":"dog","label":"dog"},{"key":"cat","label":"cat"},{"key":"livestock","label":"livestock"},{"key":"other","label":"other"}]'::jsonb,35,1,45,60,'animals.responsibility','Animals can create recurring care, supplies, veterinary, medication, and licensing obligations.', '{}'::jsonb),
+ '[{"key":"none","label":"none"},{"key":"dog","label":"dog"},{"key":"cat","label":"cat"},{"key":"livestock","label":"livestock"},{"key":"other","label":"other"}]'::jsonb,35,1,45,60,'animals.responsibility','Animals can create recurring care, supplies, veterinary, medication, and licensing obligations.','{}'::jsonb),
 ('children.school_calendar','people','Do any of the kids use a school, preschool, or daycare calendar?',null,'yes_no',
- '[{"key":"yes","label":"yes"},{"key":"no","label":"no"}]'::jsonb,45,1,65,75,'children.school_calendar','Known children make school/calendar structure a potentially high-value branch.', '{}'::jsonb),
+ '[{"key":"yes","label":"yes"},{"key":"no","label":"no"}]'::jsonb,45,1,65,75,'children.school_calendar','Known children make school/calendar structure a potentially high-value branch.','{}'::jsonb),
 ('life.weekday_anchor','time','What sets most of your ordinary weekday schedule?',null,'single_choice',
- '[{"key":"job","label":"a job"},{"key":"business","label":"my business"},{"key":"school","label":"school"},{"key":"caregiving","label":"caregiving"},{"key":"home","label":"home life"},{"key":"mixed","label":"a mix"}]'::jsonb,50,1,75,80,'life.weekday_anchor','The main weekday anchor helps Atlas understand what kinds of recurring time structure to discover next.', '{}'::jsonb),
+ '[{"key":"job","label":"a job"},{"key":"business","label":"my business"},{"key":"school","label":"school"},{"key":"caregiving","label":"caregiving"},{"key":"home","label":"home life"},{"key":"mixed","label":"a mix"}]'::jsonb,50,1,75,80,'life.weekday_anchor','The main weekday anchor helps Atlas understand what kinds of recurring time structure to discover next.','{}'::jsonb),
 ('laundry.location','home','How does laundry work where you live?',null,'single_choice',
- '[{"key":"home","label":"machines in my home"},{"key":"building","label":"shared building machines"},{"key":"laundromat","label":"laundromat"},{"key":"service","label":"service / someone else"},{"key":"other","label":"other"}]'::jsonb,25,1,35,55,'laundry.location','Housing arrangement changes which ordinary laundry model is likely to fit.', '{}'::jsonb)
+ '[{"key":"home","label":"machines in my home"},{"key":"building","label":"shared building machines"},{"key":"laundromat","label":"laundromat"},{"key":"service","label":"service / someone else"},{"key":"other","label":"other"}]'::jsonb,25,1,35,55,'laundry.location','Housing arrangement changes which ordinary laundry model is likely to fit.','{}'::jsonb)
 on conflict(question_key) do update set
   section_key=excluded.section_key,prompt=excluded.prompt,help_text=excluded.help_text,answer_kind=excluded.answer_kind,
   options=excluded.options,base_score=excluded.base_score,friction=excluded.friction,consequence_value=excluded.consequence_value,
   information_gain=excluded.information_gain,resolved_signal_key=excluded.resolved_signal_key,reason_text=excluded.reason_text,
   active=true,metadata=excluded.metadata,updated_at=now();
 
--- Graph rules. Require edges are ANDed. Any matching suppress edge removes a question. Boost edges add weight.
 insert into atlas.reality_discovery_edges(question_key,signal_key,operator,compare_value,effect_kind,weight,reason_text) values
 ('home.confirm_purchase_address','purchase.billing_address','exists',null,'require',0,'Only ask when Atlas actually has an address candidate.'),
 ('home.tenure','home.address_confirmed','eq','true'::jsonb,'boost',35,'Confirmed residence makes tenure immediately useful.'),
 ('home.major_repairs','home.tenure','in','["rent","family_provided","other"]'::jsonb,'boost',45,'Non-owner housing makes repair responsibility especially important.'),
 ('grounds.responsibility','home.tenure','eq','"own"'::jsonb,'boost',45,'Ownership raises the value of asking about grounds responsibility.'),
-('grounds.responsibility','home.major_repairs_responsibility','eq','"landlord"'::jsonb,'suppress',0,'Management-owned major maintenance makes grounds responsibility lower-value in ordinary apartment-like cases.'),
+('grounds.responsibility','home.major_repairs_responsibility','eq','"landlord"'::jsonb,'suppress',0,'Management-owned major maintenance suppresses ordinary grounds questioning unless later evidence reopens it.'),
 ('grounds.mowing_method','grounds.responsibility','in','["yes","shared"]'::jsonb,'require',0,'Mowing method matters only after grounds responsibility exists.'),
 ('equipment.riding_mower_identity','grounds.mowing_method','eq','"riding"'::jsonb,'require',0,'Do not ask about a riding mower unless the user said mowing uses one.'),
-('transport.vehicle_count','household.member_count','gte'::jsonb->>0,'boost',0,'placeholder'),
 ('transport.vehicle_count','home.tenure','eq','"own"'::jsonb,'boost',10,'Owner households often benefit from early vehicle/admin mapping.'),
 ('transport.vehicle_count','context.dense_urban_renter','eq','true'::jsonb,'boost',-15,'Dense urban renter context lowers but does not suppress vehicle responsibility.'),
 ('animals.responsibility','household.has_children','eq','true'::jsonb,'boost',10,'Known children modestly raise the value of checking animal responsibility.'),
@@ -134,10 +131,6 @@ insert into atlas.reality_discovery_edges(question_key,signal_key,operator,compa
 ('laundry.location','household.member_count_bucket','eq','"one"'::jsonb,'boost',10,'One-person housing can often resolve laundry structure with one tap.')
 on conflict do nothing;
 
--- Remove the deliberately unsupported placeholder edge if present; numeric comparison is not part of V1 operators.
-delete from atlas.reality_discovery_edges
-where question_key='transport.vehicle_count' and signal_key='household.member_count' and reason_text='placeholder';
-
 create or replace function atlas.reality_discovery_latest_answers_v1(p_principal_id uuid)
 returns jsonb
 language sql
@@ -146,8 +139,7 @@ security definer
 set search_path=pg_catalog,atlas
 as $function$
   with ranked as (
-    select distinct on (question_key)
-      question_key,answer_value,occurred_at
+    select distinct on (question_key) question_key,answer_value,occurred_at
     from atlas.reality_discovery_answer_events
     where principal_id=p_principal_id
     order by question_key,occurred_at desc,id desc
@@ -166,11 +158,14 @@ declare
   v_user_id uuid;
   v_principal atlas.principals%rowtype;
   v_household atlas.households%rowtype;
+  v_purchase atlas.personal_atlas_purchases%rowtype;
   v_member_count integer:=0;
   v_child_count integer:=0;
   v_answers jsonb:='{}'::jsonb;
   v_candidates jsonb:='{}'::jsonb;
   v_signals jsonb:='{}'::jsonb;
+  v_purchase_address jsonb;
+  v_purchase_phone jsonb;
   v_tenure text;
   v_repairs text;
   v_grounds text;
@@ -183,6 +178,22 @@ begin
   select * into v_principal from atlas.principals where user_id=v_user_id and status='active' limit 1;
   if v_principal.id is null then raise exception 'Active Principal required.' using errcode='42501'; end if;
   select * into v_household from atlas.households where id=v_principal.active_household_id and status='active';
+
+  select * into v_purchase
+  from atlas.personal_atlas_purchases
+  where claimed_by_user_id=v_user_id and claimed_principal_id=v_principal.id
+  order by purchased_at desc,id desc limit 1;
+
+  v_purchase_address:=case
+    when v_purchase.metadata ? 'billingAddress' and v_purchase.metadata->'billingAddress' <> 'null'::jsonb
+      then v_purchase.metadata->'billingAddress'
+    else null
+  end;
+  v_purchase_phone:=case
+    when nullif(trim(v_purchase.metadata->>'phone'),'') is not null
+      then to_jsonb(trim(v_purchase.metadata->>'phone'))
+    else null
+  end;
 
   select count(*)::integer,
          count(*) filter(where lower(coalesce(relationship,'')) in ('child','son','daughter'))::integer
@@ -203,6 +214,9 @@ begin
       updated_at desc,id desc
   ) c;
 
+  if v_purchase_address is not null then v_candidates:=v_candidates||jsonb_build_object('purchase.billing_address',v_purchase_address); end if;
+  if v_purchase_phone is not null then v_candidates:=v_candidates||jsonb_build_object('purchase.phone',v_purchase_phone); end if;
+
   v_address_confirmed:=coalesce(v_answers#>>'{home.confirm_purchase_address}','')='yes';
   v_tenure:=v_answers#>>'{home.tenure}';
   v_repairs:=v_answers#>>'{home.major_repairs}';
@@ -217,7 +231,6 @@ begin
     'household.member_count_bucket',case when v_member_count<=1 then 'one' when v_member_count<=3 then 'small' else 'large' end,
     'household.has_children',v_child_count>0,
     'household.child_count',v_child_count,
-    'purchase.billing_address',v_candidates->'purchase.billing_address',
     'home.address_confirmed',v_address_confirmed,
     'home.tenure',v_tenure,
     'home.major_repairs_responsibility',v_repairs,
@@ -226,20 +239,15 @@ begin
     'transport.vehicle_count',v_vehicle_count,
     'context.low_density_owner_household',false,
     'context.dense_urban_renter',false
-  );
+  )||v_candidates;
 
   return jsonb_build_object(
-    'ok',true,
-    'contractVersion','reality_discovery_context_self_api_v1',
-    'principalId',v_principal.id,
-    'householdId',v_household.id,
-    'signals',v_signals,
-    'answers',v_answers,
-    'candidateEvidence',v_candidates,
+    'ok',true,'contractVersion','reality_discovery_context_self_api_v1',
+    'principalId',v_principal.id,'householdId',v_household.id,
+    'signals',v_signals,'answers',v_answers,'candidateEvidence',v_candidates,
     'truthBoundary',jsonb_build_object(
-      'signalsAreDiscoveryContext',true,
-      'inferenceIsNotDomainTruth',true,
-      'candidateEvidenceRequiresConfirmationOrPromotion',true,
+      'signalsAreDiscoveryContext',true,'purchaseContactIsCandidateEvidence',true,
+      'inferenceIsNotDomainTruth',true,'candidateEvidenceRequiresConfirmationOrPromotion',true,
       'sensitiveTraitsNotInferred',true
     )
   );
@@ -280,18 +288,14 @@ begin
   v_answers:=coalesce(v_context->'answers','{}'::jsonb);
 
   with edge_eval as (
-    select
-      q.question_key,
-      e.effect_kind,
-      e.weight,
+    select q.question_key,e.effect_kind,e.weight,
       atlas.reality_discovery_edge_matches_v1(v_signals->e.signal_key,e.operator,e.compare_value) as matched,
       e.reason_text
     from atlas.reality_discovery_questions q
     left join atlas.reality_discovery_edges e on e.question_key=q.question_key
     where q.active
   ), scored as (
-    select
-      q.*,
+    select q.*,
       (q.base_score+q.consequence_value+q.information_gain-q.friction
        +coalesce(sum(e.weight) filter(where e.effect_kind='boost' and e.matched),0))::integer as score,
       coalesce(bool_and(e.matched) filter(where e.effect_kind='require'),true) as requirements_met,
@@ -309,41 +313,27 @@ begin
     and not (v_answers ? s.question_key)
     and not (
       coalesce((s.metadata->>'requiresCandidate')::boolean,false)
-      and not (v_signals ? coalesce(s.metadata->>'candidateSignalKey',''))
+      and coalesce(v_signals->(s.metadata->>'candidateSignalKey'),'null'::jsonb)='null'::jsonb
     )
   order by s.score desc,s.question_key
   limit 1;
 
   if v_question.question_key is null then
     return jsonb_build_object(
-      'ok',true,
-      'contractVersion','reality_discovery_next_question_self_api_v1',
-      'question',null,
-      'quiet',true,
-      'message','I know enough here for now.',
-      'context',v_context
+      'ok',true,'contractVersion','reality_discovery_next_question_self_api_v1',
+      'question',null,'quiet',true,'message','I know enough here for now.','context',v_context
     );
   end if;
 
   return jsonb_build_object(
-    'ok',true,
-    'contractVersion','reality_discovery_next_question_self_api_v1',
-    'quiet',false,
+    'ok',true,'contractVersion','reality_discovery_next_question_self_api_v1','quiet',false,
     'question',jsonb_build_object(
-      'questionKey',v_question.question_key,
-      'sectionKey',v_question.section_key,
-      'prompt',v_question.prompt,
-      'helpText',v_question.help_text,
-      'answerKind',v_question.answer_kind,
-      'options',v_question.options,
-      'score',v_question.score,
-      'reason',v_question.reason_text,
-      'matchedReasons',v_question.matched_reasons,
-      'candidateValue',case
-        when coalesce((v_question.metadata->>'requiresCandidate')::boolean,false)
-          then v_signals->(v_question.metadata->>'candidateSignalKey')
-        else null
-      end
+      'questionKey',v_question.question_key,'sectionKey',v_question.section_key,
+      'prompt',v_question.prompt,'helpText',v_question.help_text,
+      'answerKind',v_question.answer_kind,'options',v_question.options,
+      'score',v_question.score,'reason',v_question.reason_text,'matchedReasons',v_question.matched_reasons,
+      'candidateValue',case when coalesce((v_question.metadata->>'requiresCandidate')::boolean,false)
+        then v_signals->(v_question.metadata->>'candidateSignalKey') else null end
     ),
     'context',v_context
   );
@@ -396,8 +386,7 @@ begin
     end if;
   end if;
 
-  select * into v_existing
-  from atlas.reality_discovery_answer_events
+  select * into v_existing from atlas.reality_discovery_answer_events
   where owner_user_id=v_user_id and source_action_id=v_source_action_id;
   if v_existing.id is not null then
     if v_existing.question_key is distinct from v_question_key or v_existing.answer_value is distinct from v_answer then
@@ -421,21 +410,22 @@ begin
     );
   end if;
 
-  -- Special derived discovery signals. These are graph context only, not domain truth.
-  if v_question_key='home.confirm_purchase_address' and v_answer='"yes"'::jsonb then
-    insert into atlas.reality_discovery_evidence_candidates(principal_id,owner_user_id,signal_key,candidate_value,epistemic_state,source_kind,source_ref,confidence,explanation)
-    values(v_principal.id,v_user_id,'home.address_confirmed','true'::jsonb,'human_confirmed','discovery_answer',v_event.id::text,1,'The human confirmed the purchase address is home.');
+  if v_question_key='home.confirm_purchase_address' then
+    insert into atlas.reality_discovery_evidence_candidates(
+      principal_id,owner_user_id,signal_key,candidate_value,epistemic_state,source_kind,source_ref,confidence,explanation
+    ) values(
+      v_principal.id,v_user_id,'home.address_confirmed',to_jsonb(v_answer='"yes"'::jsonb),
+      'human_confirmed','discovery_answer',v_event.id::text,1,
+      case when v_answer='"yes"'::jsonb then 'The human confirmed the purchase address is home.' else 'The human rejected the purchase address as home.' end
+    );
   end if;
 
   return jsonb_build_object(
-    'ok',true,
-    'contractVersion','answer_reality_discovery_question_self_api_v1',
-    'idempotentReplay',false,
-    'eventId',v_event.id,
+    'ok',true,'contractVersion','answer_reality_discovery_question_self_api_v1',
+    'idempotentReplay',false,'eventId',v_event.id,
     'next',atlas.reality_discovery_next_question_self_api_v1(),
     'truthBoundary',jsonb_build_object(
-      'answerIsEvidence',true,
-      'answerDoesNotBypassOwningDomain',true,
+      'answerIsEvidence',true,'answerDoesNotBypassOwningDomain',true,
       'inferenceMayRerankButNotEstablishTruth',true
     )
   );
