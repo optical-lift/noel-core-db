@@ -214,8 +214,13 @@ begin
       updated_at desc,id desc
   ) c;
 
-  if v_purchase_address is not null then v_candidates:=v_candidates||jsonb_build_object('purchase.billing_address',v_purchase_address); end if;
-  if v_purchase_phone is not null then v_candidates:=v_candidates||jsonb_build_object('purchase.phone',v_purchase_phone); end if;
+  if v_purchase_address is not null
+     and coalesce(v_answers#>>'{home.confirm_purchase_address}','') <> 'no' then
+    v_candidates:=v_candidates||jsonb_build_object('purchase.billing_address',v_purchase_address);
+  end if;
+  if v_purchase_phone is not null then
+    v_candidates:=v_candidates||jsonb_build_object('purchase.phone',v_purchase_phone);
+  end if;
 
   v_address_confirmed:=coalesce(v_answers#>>'{home.confirm_purchase_address}','')='yes';
   v_tenure:=v_answers#>>'{home.tenure}';
@@ -357,6 +362,8 @@ declare
   v_event atlas.reality_discovery_answer_events%rowtype;
   v_signal_key text;
   v_answer_scalar text;
+  v_next jsonb;
+  v_candidate_address jsonb;
 begin
   v_user_id:=auth.uid();
   if v_user_id is null then raise exception 'Sign in required.' using errcode='42501'; end if;
@@ -395,6 +402,16 @@ begin
     return jsonb_build_object('ok',true,'idempotentReplay',true,'eventId',v_existing.id,'next',atlas.reality_discovery_next_question_self_api_v1());
   end if;
 
+  -- Fail closed on stale or out-of-context submissions. The visible question is a governed
+  -- consequence of the current discovery graph, not an arbitrary catalog key the client may invoke.
+  v_next:=atlas.reality_discovery_next_question_self_api_v1();
+  if coalesce(v_next#>>'{question,questionKey}','') is distinct from v_question_key then
+    raise exception 'Discovery question is no longer the current eligible encounter.' using errcode='40001';
+  end if;
+  if v_question_key='home.confirm_purchase_address' then
+    v_candidate_address:=v_next#>'{question,candidateValue}';
+  end if;
+
   insert into atlas.reality_discovery_answer_events(principal_id,owner_user_id,question_key,source_action_id,answer_value,metadata)
   values(v_principal.id,v_user_id,v_question_key,v_source_action_id,v_answer,
     jsonb_build_object('source','reality_discovery_v1','reason',v_question.reason_text))
@@ -412,12 +429,27 @@ begin
 
   if v_question_key='home.confirm_purchase_address' then
     insert into atlas.reality_discovery_evidence_candidates(
-      principal_id,owner_user_id,signal_key,candidate_value,epistemic_state,source_kind,source_ref,confidence,explanation
+      principal_id,owner_user_id,signal_key,candidate_value,epistemic_state,source_kind,source_ref,confidence,explanation,metadata
     ) values(
       v_principal.id,v_user_id,'home.address_confirmed',to_jsonb(v_answer='"yes"'::jsonb),
       'human_confirmed','discovery_answer',v_event.id::text,1,
-      case when v_answer='"yes"'::jsonb then 'The human confirmed the purchase address is home.' else 'The human rejected the purchase address as home.' end
+      case when v_answer='"yes"'::jsonb then 'The human confirmed the purchase address is home.' else 'The human rejected the purchase address as home.' end,
+      jsonb_build_object('questionKey',v_question_key)
     );
+
+    if v_candidate_address is not null and v_candidate_address <> 'null'::jsonb then
+      insert into atlas.reality_discovery_evidence_candidates(
+        principal_id,owner_user_id,signal_key,candidate_value,epistemic_state,source_kind,source_ref,confidence,explanation,metadata
+      ) values(
+        v_principal.id,v_user_id,'purchase.billing_address',v_candidate_address,
+        case when v_answer='"yes"'::jsonb then 'human_confirmed' else 'human_rejected' end,
+        'stripe_purchase_confirmation',v_event.id::text,1,
+        case when v_answer='"yes"'::jsonb
+          then 'The human confirmed the Stripe purchase address as their home address candidate.'
+          else 'The human explicitly rejected the Stripe purchase address as their home address.' end,
+        jsonb_build_object('questionKey',v_question_key)
+      );
+    end if;
   end if;
 
   return jsonb_build_object(
@@ -426,7 +458,7 @@ begin
     'next',atlas.reality_discovery_next_question_self_api_v1(),
     'truthBoundary',jsonb_build_object(
       'answerIsEvidence',true,'answerDoesNotBypassOwningDomain',true,
-      'inferenceMayRerankButNotEstablishTruth',true
+      'inferenceMayRerankButNotEstablishTruth',true,'staleQuestionSubmissionRejected',true
     )
   );
 end;
