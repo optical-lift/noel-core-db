@@ -72,7 +72,7 @@ begin
   select pg_get_functiondef('atlas.resolve_company_operating_knowledge_v1(uuid,text,jsonb,timestamp with time zone)'::regprocedure)
   into v_resolver_def;
 
-  if position("status = 'established'" in v_resolver_def) = 0 then
+  if position('status = ''established''' in v_resolver_def) = 0 then
     raise exception 'Resolver no longer limits execution context to established knowledge.';
   end if;
 
@@ -80,7 +80,7 @@ begin
     raise exception 'Resolver lost context-containment scope matching.';
   end if;
 
-  if position("'conflict'" in v_resolver_def) = 0 then
+  if position('''conflict''' in v_resolver_def) = 0 then
     raise exception 'Resolver no longer exposes equal-rank conflicting rules.';
   end if;
 
