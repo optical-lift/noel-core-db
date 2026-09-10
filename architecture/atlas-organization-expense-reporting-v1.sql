@@ -86,6 +86,7 @@ create table atlas.organization_expense_reporting_periods (
   check (submitted_artifact_hash is null or submitted_artifact_hash ~ '^[0-9a-f]{64}$'),
   check (state <> 'submitted' or submitted_at is not null),
   unique (contract_id, period_start, period_end),
+  unique (id, principal_id),
   unique (id, contract_id, principal_id)
 );
 
