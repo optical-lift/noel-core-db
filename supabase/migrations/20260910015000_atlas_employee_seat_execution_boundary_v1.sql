@@ -123,7 +123,7 @@ declare
   v_plan record;
   v_delivery jsonb;
 begin
-  v_membership_id:=coalesce(new.organization_membership_id,old.organization_membership_id);
+  v_membership_id:=new.organization_membership_id;
 
   for v_plan in
     select p.*
@@ -161,7 +161,7 @@ begin
     end if;
   end loop;
 
-  return coalesce(new,old);
+  return new;
 end;
 $function$;
 
