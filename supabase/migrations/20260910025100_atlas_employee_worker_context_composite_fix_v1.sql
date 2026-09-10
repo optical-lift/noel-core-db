@@ -1,8 +1,7 @@
 begin;
 
 -- Keep replayed schema aligned with the production Gate 2 function. Resolve
--- appointment and position as separate composite rows rather than relying on
--- expansion of two table records into two PL/pgSQL targets.
+-- appointment and position as separate rowtype records.
 create or replace function atlas.organization_employee_worker_context_self_v1(
   p_farm_id uuid,
   p_delivery_membership_id uuid
@@ -70,7 +69,7 @@ begin
       and (c.expires_at is null or c.expires_at>now())
   ) then return jsonb_build_object('ok',false,'reason','active_employee_credential_required'); end if;
 
-  select a into v_appointment
+  select a.* into v_appointment
   from atlas.organization_position_appointments a
   join atlas.organization_positions p on p.id=a.position_id and p.organization_id=a.organization_id and p.status='active'
   where a.organization_id=v_farm.organization_id and a.organization_membership_id=v_org_member.id
