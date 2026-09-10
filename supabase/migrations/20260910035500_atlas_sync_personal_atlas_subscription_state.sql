@@ -1,5 +1,6 @@
 -- Keep Personal Atlas purchase eligibility aligned with Stripe subscription lifecycle evidence.
 -- Service custody only; browser callers cannot mutate purchase state.
+-- Unknown Stripe states fail closed to inactive rather than preserving stale paid eligibility.
 
 create or replace function atlas.record_stripe_personal_atlas_subscription_state_v1(
   p_subscription_id text,
