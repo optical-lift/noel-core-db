@@ -7,12 +7,15 @@ Usage: scripts/validate-production-schema-clone.sh \
   --migration-version <14 digits> \
   --release-lane <atlas|wnph|shared> \
   --candidate-migration <path> \
+  [--candidate-fixture <path>] \
+  [--candidate-validation <path>] \
   --roles-dump <path> \
   --schema-dump <path> \
   --artifacts-dir <path>
 
 Runs the same disposable production-schema-clone validation used by CI.
-Both dump inputs are read-only snapshots; candidate DDL is applied locally only.
+Both dump inputs are read-only snapshots; fixture data, candidate DDL/DML, and
+postconditions are applied to the local disposable database only.
 EOF
   exit 2
 }
@@ -20,6 +23,8 @@ EOF
 version=""
 lane=""
 candidate_migration=""
+candidate_fixture=""
+candidate_validation=""
 roles_dump=""
 schema_dump=""
 artifacts_dir=""
@@ -29,6 +34,8 @@ while [ "$#" -gt 0 ]; do
     --migration-version) version="${2:-}"; shift 2 ;;
     --release-lane) lane="${2:-}"; shift 2 ;;
     --candidate-migration) candidate_migration="${2:-}"; shift 2 ;;
+    --candidate-fixture) candidate_fixture="${2:-}"; shift 2 ;;
+    --candidate-validation) candidate_validation="${2:-}"; shift 2 ;;
     --roles-dump) roles_dump="${2:-}"; shift 2 ;;
     --schema-dump) schema_dump="${2:-}"; shift 2 ;;
     --artifacts-dir) artifacts_dir="${2:-}"; shift 2 ;;
@@ -48,12 +55,20 @@ for required_path in "$candidate_migration" "$roles_dump" "$schema_dump"; do
     exit 2
   fi
 done
+for optional_path in "$candidate_fixture" "$candidate_validation"; do
+  if [ -n "$optional_path" ] && [ ! -s "$optional_path" ]; then
+    echo "Optional validation input was supplied but is missing or empty: $optional_path" >&2
+    exit 2
+  fi
+done
 if [ -z "$artifacts_dir" ]; then
   usage
 fi
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 candidate_migration="$(realpath "$candidate_migration")"
+if [ -n "$candidate_fixture" ]; then candidate_fixture="$(realpath "$candidate_fixture")"; fi
+if [ -n "$candidate_validation" ]; then candidate_validation="$(realpath "$candidate_validation")"; fi
 roles_dump="$(realpath "$roles_dump")"
 schema_dump="$(realpath "$schema_dump")"
 mkdir -p "$artifacts_dir"
@@ -104,6 +119,31 @@ trap finish EXIT
 cd "$repo_root"
 phase="release-lane custody check"
 bash scripts/check-migration-release-lane.sh "$version" "$lane" "$candidate_migration"
+
+if [ -n "$candidate_fixture" ]; then
+  phase="validation fixture safety check"
+  python3 - "$candidate_fixture" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+text = Path(sys.argv[1]).read_text(encoding='utf-8')
+text = re.sub(r'/\*.*?\*/', ' ', text, flags=re.S)
+text = re.sub(r'--[^\n]*', ' ', text)
+normalized = re.sub(r'\s+', ' ', text).strip()
+forbidden = re.compile(
+    r'\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|reindex|cluster|refresh|copy|do|call|execute|prepare|deallocate|listen|notify|security)\b',
+    re.I,
+)
+if forbidden.search(normalized):
+    raise SystemExit('validation fixture may contain data setup only; schema/privilege/procedural statements are forbidden')
+statements = [s.strip() for s in normalized.split(';') if s.strip()]
+allowed = re.compile(r'^(insert\s+into|update\s+|delete\s+from|select\s+)', re.I)
+if not statements or any(not allowed.match(s) for s in statements):
+    raise SystemExit('validation fixture statements must begin with INSERT, UPDATE, DELETE, or SELECT')
+print(f'validation fixture safety check passed ({len(statements)} statement(s))')
+PY
+fi
 
 phase="schema dump sanitation"
 python3 - "$schema_dump" "$schema_clone" <<'PY'
@@ -162,22 +202,24 @@ run_lint() {
 phase="baseline Atlas schema lint"
 run_lint baseline
 
+if [ -n "$candidate_fixture" ]; then
+  phase="candidate validation fixture application"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_fixture" \
+    >"$artifacts_dir/candidate-fixture.log" 2>&1
+else
+  echo 'No candidate validation fixture is defined.' >"$artifacts_dir/candidate-fixture.log"
+fi
+
 phase="candidate migration application"
 psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration" \
   >"$artifacts_dir/candidate-migration.log" 2>&1
 
-phase="canonical migration postconditions"
-cd "$repo_root"
-mapfile -t validations < <(find validation/migrations -maxdepth 1 -type f -name "${version}_*.sql" -print 2>/dev/null || true)
-if [ "${#validations[@]}" -gt 1 ]; then
-  echo "Expected at most one canonical postcondition file for ${version}; found ${#validations[@]}." >&2
-  exit 1
-fi
-if [ "${#validations[@]}" -eq 1 ]; then
-  psql "$database_url" -X -v ON_ERROR_STOP=1 -f "${validations[0]}" \
+phase="candidate migration postconditions"
+if [ -n "$candidate_validation" ]; then
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_validation" \
     >"$artifacts_dir/postconditions.log" 2>&1
 else
-  echo "No canonical migration-specific postcondition file is defined for ${version}." \
+  echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
 fi
 

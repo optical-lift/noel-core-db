@@ -37,8 +37,15 @@ required = [
     '--file "$RUNNER_TEMP/production-custom-roles.sql"',
     '--file "$RUNNER_TEMP/production-user-schema.sql"',
     'ref: ${{ steps.request.outputs.candidate_sha }}',
+    'Resolve exact candidate migration package',
+    'candidate/validation/fixtures',
+    'candidate/validation/migrations',
+    'fixture_path=',
+    'validation_path=',
     'bash scripts/check-migration-release-lane.sh',
     'bash scripts/validate-production-schema-clone.sh',
+    '--candidate-fixture "$CANDIDATE_FIXTURE"',
+    '--candidate-validation "$CANDIDATE_VALIDATION"',
     '--roles-dump "$RUNNER_TEMP/production-custom-roles.sql"',
     '--schema-dump "$RUNNER_TEMP/production-user-schema.sql"',
     'Publish validation summary',
@@ -51,6 +58,14 @@ for fragment in required:
 
 harness_required = [
     "postgresql://postgres:postgres@127.0.0.1:54322/postgres",
+    '--candidate-fixture',
+    '--candidate-validation',
+    'validation fixture safety check',
+    'validation fixture may contain data setup only',
+    'candidate validation fixture application',
+    'candidate migration postconditions',
+    'psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_fixture"',
+    'psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_validation"',
     'supabase db lint --local --schema atlas --level error --fail-on error',
     'run_lint baseline',
     'run_lint candidate',
@@ -89,7 +104,7 @@ for forbidden in [
 
 snapshot_marker = '- name: Snapshot production user schemas read-only'
 candidate_marker = '- name: Checkout immutable candidate'
-resolve_marker = '- name: Resolve exact candidate migration'
+resolve_marker = '- name: Resolve exact candidate migration package'
 validate_marker = '- name: Validate candidate through canonical local harness'
 markers = [snapshot_marker, candidate_marker, resolve_marker, validate_marker]
 if any(marker not in workflow for marker in markers):
@@ -119,5 +134,5 @@ if errors:
         print(f'- {error}')
     raise SystemExit(1)
 
-print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, dependency-complete schema plus custom-role production reads, one local/CI harness, baseline-aware Atlas lint deltas, durable failure artifacts, local-only candidate execution, and no production DDL path.')
+print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, dependency-complete schema plus custom-role production reads, immutable candidate fixtures/postconditions, DML-only local fixture setup, one local/CI harness, baseline-aware Atlas lint deltas, durable failure artifacts, local-only candidate execution, and no production DDL path.')
 PY
