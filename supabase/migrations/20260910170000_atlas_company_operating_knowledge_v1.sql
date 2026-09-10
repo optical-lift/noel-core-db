@@ -2,6 +2,8 @@
 -- Durable institution-specific standards and procedures that may be resolved into execution context.
 -- Canonical DB authority: optical-lift/noel-core-db.
 
+BEGIN;
+
 create table atlas.company_operating_knowledge (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references atlas.organizations(id),
@@ -333,3 +335,5 @@ revoke all on function atlas.guard_established_company_operating_knowledge_mutat
 revoke all on function atlas.prevent_company_operating_knowledge_history_mutation_v1() from public, anon, authenticated;
 
 grant usage on schema atlas to authenticated, service_role;
+
+COMMIT;
