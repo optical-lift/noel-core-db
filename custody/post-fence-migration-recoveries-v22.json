@@ -1,0 +1,18 @@
+{
+  "contractVersion": 22,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v21.json",
+  "rule": "These already-live post-fence Atlas rows bypassed canonical source custody or drifted after release. Preserve their exact production filenames and Git blob identities as historical evidence only; this registry does not authorize their historical prefixes, repository drift, or future out-of-band production writes.",
+  "recoveries": [
+    {
+      "version": "20260910210208",
+      "name": "atlas_flower_correspondence_bounce_position_v1",
+      "filename": "20260910210208_atlas_flower_correspondence_bounce_position_v1.sql",
+      "gitBlobSha1": "b3257745e03f50df1eb96eecf74564eaa3dbecc6",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
