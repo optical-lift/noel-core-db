@@ -292,11 +292,23 @@ begin
     dk:='principal_one_off_action'; did:=result#>>'{action,id}';
     if did is null then raise exception 'One-Off Action destination did not return an action id.' using errcode='55000'; end if;
   elsif q.effect_kind='capacity_block' then
-    update atlas.personal_reality_effect_proposals set proposal_state='destination_unavailable',destination_kind='principal_capacity_block',destination_id=null,updated_at=now() where id=q.id returning * into q;
-    if before<>'destination_unavailable' then insert into atlas.personal_reality_effect_events(proposal_id,capture_id,principal_id,actor_user_id,event_kind,from_state,to_state,detail)
-      values(q.id,cap.id,cap.principal_id,u,'destination_unavailable',before,'destination_unavailable',jsonb_build_object('reason','No governed self-authoring Principal Capacity Block writer exists yet.','sourceEvidenceId',cap.evidence_id)); end if;
-    return jsonb_build_object('ok',true,'changed',(before<>'destination_unavailable'),'contractVersion','personal_reality_effect_application_v1','proposalId',q.id,
-      'state','destination_unavailable','effectKind','capacity_block','evidenceId',cap.evidence_id);
+    fn:=to_regprocedure('atlas.record_principal_capacity_block_self_api_v1(jsonb)');
+    if fn is null then
+      update atlas.personal_reality_effect_proposals set proposal_state='destination_unavailable',destination_kind='principal_capacity_block',destination_id=null,updated_at=now() where id=q.id returning * into q;
+      if before<>'destination_unavailable' then insert into atlas.personal_reality_effect_events(proposal_id,capture_id,principal_id,actor_user_id,event_kind,from_state,to_state,detail)
+        values(q.id,cap.id,cap.principal_id,u,'destination_unavailable',before,'destination_unavailable',jsonb_build_object('requiredFunction','atlas.record_principal_capacity_block_self_api_v1(jsonb)','sourceEvidenceId',cap.evidence_id)); end if;
+      return jsonb_build_object('ok',true,'changed',(before<>'destination_unavailable'),'contractVersion','personal_reality_effect_application_v1','proposalId',q.id,
+        'state','destination_unavailable','effectKind','capacity_block','evidenceId',cap.evidence_id);
+    end if;
+    if nullif(btrim(body->>'title'),'') is null or nullif(btrim(body->>'blockKind'),'') is null
+      or nullif(btrim(body->>'startsAt'),'') is null or nullif(btrim(body->>'endsAt'),'') is null then
+      raise exception 'capacity_block effect requires title, blockKind, startsAt, and endsAt.' using errcode='22023';
+    end if;
+    body:=(body-'sourceKey'-'sourceEvidenceId'-'floorClass'-'protectionLevel'-'interruptibility'-'reasonForFloor'-'consequence'-'blocksCapacity')
+      ||jsonb_build_object('sourceKey',cap.source_action_id||':'||q.effect_key,'sourceEvidenceId',cap.evidence_id);
+    execute 'select atlas.record_principal_capacity_block_self_api_v1($1)' into result using body;
+    dk:='principal_capacity_block'; did:=result#>>'{capacityBlock,id}';
+    if did is null then raise exception 'Principal Capacity destination did not return a capacity block id.' using errcode='55000'; end if;
   end if;
   update atlas.personal_reality_effect_proposals set proposal_state='applied',applied_at=coalesce(applied_at,now()),destination_kind=dk,destination_id=did,updated_at=now() where id=q.id returning * into q;
   insert into atlas.personal_reality_effect_events(proposal_id,capture_id,principal_id,actor_user_id,event_kind,from_state,to_state,detail)
@@ -305,7 +317,7 @@ begin
   return jsonb_build_object('ok',true,'changed',true,'contractVersion','personal_reality_effect_application_v1','proposalId',q.id,'state','applied',
     'effectKind',q.effect_kind,'destinationKind',dk,'destinationId',did,'evidenceId',cap.evidence_id,'result',result,
     'truthBoundary',jsonb_build_object('applicationUsesAllowlistedRoute',true,'sourceEvidenceRetained',true,'captureMembraneDoesNotOwnDestinationTruth',true,
-    'worldKernelApplicabilityNotInferred',true,'discoveryQuestionNotAnsweredByResemblance',true));
+    'destinationOwnsStructuralSemantics',true,'callerCannotInjectClockPriorityFields',true,'worldKernelApplicabilityNotInferred',true,'discoveryQuestionNotAnsweredByResemblance',true));
 end;$function$;
 
 create or replace function atlas.personal_reality_capture_self_api_v1(p_capture_id uuid)
