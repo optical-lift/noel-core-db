@@ -22,10 +22,9 @@ create table if not exists atlas.principal_one_off_actions (
   external_action_ref text,
   source_evidence_id uuid references atlas.evidence_records(id) on delete set null,
   source_claim_id uuid references atlas.claim_records(id) on delete set null,
-  status text not null default 'open' check (status in ('open','completed','cancelled','superseded')),
+  status text not null default 'open' check (status in ('open','completed','cancelled')),
   completed_at timestamptz,
   cancelled_at timestamptz,
-  superseded_by_action_id uuid references atlas.principal_one_off_actions(id) on delete restrict,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -37,10 +36,11 @@ create table if not exists atlas.principal_one_off_actions (
   check (must_finish_by is null or becomes_relevant_at is null or must_finish_by >= becomes_relevant_at),
   check (preferred_window is null or not isempty(preferred_window)),
   check ((status='completed') = (completed_at is not null)),
-  check ((status='cancelled') = (cancelled_at is not null)),
-  check ((status='superseded') = (superseded_by_action_id is not null)),
-  check (superseded_by_action_id is null or superseded_by_action_id<>id)
+  check ((status='cancelled') = (cancelled_at is not null))
 );
+
+comment on table atlas.principal_one_off_actions is
+  'Principal-owned finite action identity. It preserves what remains to be done without itself creating Owner Obligation, Company Work, Commitment Plan, execution authority, or Clock placement.';
 
 create index if not exists principal_one_off_actions_open_idx
   on atlas.principal_one_off_actions(principal_id,status,becomes_relevant_at,must_finish_by,created_at);
@@ -53,13 +53,16 @@ create table if not exists atlas.principal_one_off_action_events (
   action_id uuid not null references atlas.principal_one_off_actions(id) on delete cascade,
   principal_id uuid not null references atlas.principals(id) on delete cascade,
   actor_user_id uuid references auth.users(id) on delete set null,
-  event_kind text not null check (event_kind in ('captured','completed','cancelled','superseded','reopened')),
+  event_kind text not null check (event_kind in ('captured','completed','cancelled','reopened')),
   from_status text,
   to_status text not null,
   reason text,
   metadata jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+comment on table atlas.principal_one_off_action_events is
+  'Append-oriented lifecycle evidence for Principal one-off actions.';
 
 create index if not exists principal_one_off_action_events_action_idx
   on atlas.principal_one_off_action_events(action_id,created_at,id);
@@ -81,9 +84,13 @@ declare
   v_testimony text;
   v_domain text;
   v_expected integer;
+  v_becomes_relevant_at timestamptz;
+  v_must_finish_by timestamptz;
+  v_preferred_window tstzrange;
+  v_source_evidence_id uuid;
+  v_source_claim_id uuid;
   v_existing atlas.principal_one_off_actions%rowtype;
   v_action atlas.principal_one_off_actions%rowtype;
-  v_created boolean:=false;
 begin
   v_user_id:=auth.uid();
   if v_user_id is null then raise exception 'Sign in required.' using errcode='42501'; end if;
@@ -99,6 +106,20 @@ begin
   v_title:=nullif(btrim(p_input->>'title'),'');
   v_testimony:=coalesce(nullif(btrim(p_input->>'testimony'),''),v_title);
   v_domain:=coalesce(nullif(btrim(p_input->>'actionDomain'),''),'personal');
+  v_becomes_relevant_at:=nullif(p_input->>'becomesRelevantAt','')::timestamptz;
+  v_must_finish_by:=nullif(p_input->>'mustFinishBy','')::timestamptz;
+  v_source_evidence_id:=nullif(p_input->>'sourceEvidenceId','')::uuid;
+  v_source_claim_id:=nullif(p_input->>'sourceClaimId','')::uuid;
+
+  if nullif(p_input->>'preferredWindowStart','') is not null
+     or nullif(p_input->>'preferredWindowEnd','') is not null then
+    if nullif(p_input->>'preferredWindowStart','') is null or nullif(p_input->>'preferredWindowEnd','') is null then
+      raise exception 'Preferred window requires both start and end when supplied.' using errcode='22023';
+    end if;
+    v_preferred_window:=tstzrange((p_input->>'preferredWindowStart')::timestamptz,(p_input->>'preferredWindowEnd')::timestamptz,'[)');
+    if isempty(v_preferred_window) then raise exception 'Preferred window must have positive duration.' using errcode='22023'; end if;
+  end if;
+
   if p_input ? 'expectedMinutes' and jsonb_typeof(p_input->'expectedMinutes')='number' then
     v_expected:=(p_input->>'expectedMinutes')::integer;
   end if;
@@ -107,6 +128,30 @@ begin
     raise exception 'sourceKey, title, and testimony are required.' using errcode='22023';
   end if;
   if v_expected is not null and v_expected<=0 then raise exception 'expectedMinutes must be positive when supplied.' using errcode='22023'; end if;
+  if v_must_finish_by is not null and v_becomes_relevant_at is not null and v_must_finish_by<v_becomes_relevant_at then
+    raise exception 'mustFinishBy cannot precede becomesRelevantAt.' using errcode='22023';
+  end if;
+
+  if v_source_evidence_id is not null and not exists(
+    select 1 from atlas.evidence_records e
+    where e.id=v_source_evidence_id and e.scope_kind='person' and e.scope_id=v_user_id
+  ) then
+    raise exception 'sourceEvidenceId must identify evidence owned by the signed-in person.' using errcode='42501';
+  end if;
+
+  if v_source_claim_id is not null and not exists(
+    select 1 from atlas.claim_records c
+    where c.id=v_source_claim_id and c.scope_kind='person' and c.scope_id=v_user_id
+  ) then
+    raise exception 'sourceClaimId must identify a claim owned by the signed-in person.' using errcode='42501';
+  end if;
+
+  if v_source_evidence_id is not null and v_source_claim_id is not null and not exists(
+    select 1 from atlas.claim_evidence_links l
+    where l.claim_id=v_source_claim_id and l.evidence_id=v_source_evidence_id
+  ) then
+    raise exception 'sourceClaimId and sourceEvidenceId must already be related.' using errcode='22023';
+  end if;
 
   select * into v_existing
   from atlas.principal_one_off_actions a
@@ -119,13 +164,14 @@ begin
       or v_existing.subject_domain is distinct from nullif(btrim(p_input->>'subjectDomain'),'')
       or v_existing.subject_kind is distinct from nullif(btrim(p_input->>'subjectKind'),'')
       or v_existing.subject_id is distinct from nullif(btrim(p_input->>'subjectId'),'')
-      or v_existing.becomes_relevant_at is distinct from nullif(p_input->>'becomesRelevantAt','')::timestamptz
-      or v_existing.must_finish_by is distinct from nullif(p_input->>'mustFinishBy','')::timestamptz
+      or v_existing.becomes_relevant_at is distinct from v_becomes_relevant_at
+      or v_existing.must_finish_by is distinct from v_must_finish_by
+      or v_existing.preferred_window is distinct from v_preferred_window
       or v_existing.expected_minutes is distinct from v_expected
       or v_existing.external_action_kind is distinct from nullif(btrim(p_input->>'externalActionKind'),'')
       or v_existing.external_action_ref is distinct from nullif(btrim(p_input->>'externalActionRef'),'')
-      or v_existing.source_evidence_id is distinct from nullif(p_input->>'sourceEvidenceId','')::uuid
-      or v_existing.source_claim_id is distinct from nullif(p_input->>'sourceClaimId','')::uuid then
+      or v_existing.source_evidence_id is distinct from v_source_evidence_id
+      or v_existing.source_claim_id is distinct from v_source_claim_id then
       raise exception 'sourceKey retry does not match existing one-off action.' using errcode='23505';
     end if;
     return jsonb_build_object(
@@ -141,22 +187,18 @@ begin
   ) values(
     v_principal.id,v_user_id,v_source_key,v_title,v_testimony,v_domain,
     nullif(btrim(p_input->>'subjectDomain'),''),nullif(btrim(p_input->>'subjectKind'),''),nullif(btrim(p_input->>'subjectId'),''),
-    nullif(p_input->>'becomesRelevantAt','')::timestamptz,
-    nullif(p_input->>'mustFinishBy','')::timestamptz,
-    case when nullif(p_input->>'preferredWindowStart','') is null or nullif(p_input->>'preferredWindowEnd','') is null then null
-         else tstzrange((p_input->>'preferredWindowStart')::timestamptz,(p_input->>'preferredWindowEnd')::timestamptz,'[)') end,
+    v_becomes_relevant_at,v_must_finish_by,v_preferred_window,
     v_expected,nullif(btrim(p_input->>'externalActionKind'),''),nullif(btrim(p_input->>'externalActionRef'),''),
-    nullif(p_input->>'sourceEvidenceId','')::uuid,nullif(p_input->>'sourceClaimId','')::uuid,
+    v_source_evidence_id,v_source_claim_id,
     coalesce(case when jsonb_typeof(p_input->'metadata')='object' then p_input->'metadata' end,'{}'::jsonb)
       ||jsonb_build_object('authoringContract','personal_one_off_action_v1')
   ) returning * into v_action;
-  v_created:=true;
 
   insert into atlas.principal_one_off_action_events(action_id,principal_id,actor_user_id,event_kind,from_status,to_status,reason,metadata)
   values(v_action.id,v_principal.id,v_user_id,'captured',null,'open','Principal captured a finite action that remains to be done.',jsonb_build_object('sourceKey',v_source_key));
 
   return jsonb_build_object(
-    'ok',true,'created',v_created,'contractVersion','personal_one_off_action_v1','action',to_jsonb(v_action),
+    'ok',true,'created',true,'contractVersion','personal_one_off_action_v1','action',to_jsonb(v_action),
     'truthBoundary',jsonb_build_object(
       'actionIsNotClockPlacement',true,
       'actionIsNotOwnerObligation',true,
@@ -166,6 +208,7 @@ begin
       'actionDoesNotRequireDeadline',true,
       'sourceEvidenceRemainsDistinct',true,
       'sourceClaimRemainsDistinct',true,
+      'sourceLinksRequireSamePersonCustody',true,
       'externalActionReferenceDoesNotGrantExternalAuthority',true
     )
   );
@@ -236,7 +279,6 @@ begin
   if v_from=v_to then
     return jsonb_build_object('ok',true,'changed',false,'contractVersion','personal_one_off_action_transition_v1','action',to_jsonb(v_action));
   end if;
-  if v_from='superseded' then raise exception 'Superseded action cannot be transitioned.' using errcode='22023'; end if;
   if v_to='completed' and v_from<>'open' then raise exception 'Only an open action may be completed.' using errcode='22023'; end if;
   if v_to='cancelled' and v_from<>'open' then raise exception 'Only an open action may be cancelled.' using errcode='22023'; end if;
   if v_to='open' and v_from not in ('completed','cancelled') then raise exception 'Only a completed or cancelled action may be reopened.' using errcode='22023'; end if;
@@ -298,7 +340,7 @@ values
   ('atlas.personal_one_off_actions_self_api_v1(p_include_closed boolean)','app_endpoint','verified','active',true,true,true,false,1,0,
     jsonb_build_object('purpose','Read Principal-owned one-off actions; ordering is presentation convenience, not Clock arbitration.'),now()),
   ('atlas.transition_personal_one_off_action_self_api_v1(p_action_id uuid, p_transition text)','app_endpoint','verified','active',true,true,true,false,1,0,
-    jsonb_build_object('purpose','Explicitly complete, cancel, or reopen a Principal-owned one-off action with append-only event evidence.'),now())
+    jsonb_build_object('purpose','Explicitly complete, cancel, or reopen a Principal-owned one-off action with append-oriented event evidence.'),now())
 on conflict(signature) do update set
   classification=excluded.classification,
   confidence=excluded.confidence,
