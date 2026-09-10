@@ -3,193 +3,141 @@
 **Status:** Candidate architecture  
 **Scope:** Organization-owned expense/travel/impact reporting contract and monthly close  
 **Pilot:** Camps International / Mexico reporting used by David Caldwell  
-**Database authority:** `noel-core-db`  
+**Database authority:** `noel-core-db`
 
 ## 1. Purpose
 
-Atlas Organization Expense Reporting translates real operational and financial facts into an organization's required reimbursement/reporting format without making the human reconstruct the month after the fact.
+Atlas Organization Expense Reporting translates real operational and financial facts into an organization's required reimbursement/reporting format without making the human reconstruct the month afterward.
 
 The governing flow is:
 
-`real-world activity -> source evidence -> domain-owned fact -> organization reporting interpretation -> exception review -> finished report`
+`real-world activity -> evidence -> domain-owned fact -> organization reporting interpretation -> exception review -> finished report`
 
-The reporting layer does not become the source of the expense, trip, or activity. It preserves the organization's rules for interpreting already-known reality and compiling that reality into a required reporting artifact.
+The reporting layer does not become the source of the expense, trip, or activity. It stores the organization's rules for interpreting known reality and compiling it into the required artifact.
 
-## 2. Pilot problem
+## 2. Existing Atlas seams confirmed September 10, 2026
 
-The Camps International Mexico workbook supplied for the pilot has three output sheets:
+A read-only inspection of the live shared `atlas` schema confirmed that Atlas already has the custody seams this feature should use:
 
-1. **Expense** — expense date/range, purpose, expense type, Mexican factura state, MXN amount, adjusted exchange rate, USD amount.
+- `atlas.organizations` — canonical organization identity;
+- `atlas.organization_units` — subdivisions/operating units under an organization;
+- `atlas.organization_ledger_entries` — organization-level truth projection with provenance/correlation;
+- `atlas.evidence_records` — generic evidence primitive;
+- `atlas.organization_memberships` — human relationship to an organization;
+- `atlas.operational_routes` / `atlas.operational_route_events` — existing route/event truth where applicable;
+- `atlas.community_events` — existing event truth for the community-event domain.
+
+Therefore the reporting contract is **organization-owned**, not Principal-owned. `principal_id` is not the custody root for this feature.
+
+An optional `organization_unit_id` allows a contract or report period to be scoped to an operating unit such as a site/program when that is the organization's actual structure. This is how Los Domos can be represented if it is an operating unit of Camps International; Atlas should not decide that legal/accounting relationship by inference.
+
+`atlas.evidence_records` can provide evidence references, but it is not automatically an expense ledger. The live schema inspection did not establish a released universal canonical expense/payment or travel/mileage fact table, so this module must not invent one silently.
+
+## 3. Pilot problem
+
+The supplied Camps International Mexico workbook has three output sheets:
+
+1. **Expense** — date/range, purpose, expense type, Mexican factura state, MXN amount, adjusted exchange rate, USD amount.
 2. **Travel** — date/range, origin, destination, purpose, vehicle/odometer or distance, reimbursement rate, USD amount.
 3. **Impact** — event, participant counts in age bands 0–8, 9–16, 17+, total, and VOICE/Other classification.
 
-These are three reporting projections over overlapping monthly reality, not three independent capture workflows.
+These are three projections over overlapping monthly reality, not three independent capture workflows. One real activity may legitimately feed Expense, Travel, and Impact at the same time.
 
-A single activity may legitimately produce all three projections. Example: a pastors breakfast in Morelia may contain an expense, travel, and impact counts. Atlas should capture/link that reality once and compile every required reporting projection from it.
+## 4. Governing rules
 
-## 3. Governing rules
+### 4.1 Domain truth remains domain-owned
 
-### 3.1 Domain truth remains domain-owned
+Organization Expense Reporting does not create a second canonical ledger of money, travel, or program truth.
 
-Organization Expense Reporting does not create a second ledger of canonical financial or operational truth.
-
-- expense/payment truth belongs to the owning Atlas money/transaction domain;
+- payment/expense truth belongs to the owning money/transaction domain;
 - trip/mileage truth belongs to the owning travel/mobility domain;
 - event/participant truth belongs to the owning activity/program domain;
-- receipt/factura files remain source evidence under their owning custody mechanism.
+- receipts/facturas are evidence and remain under evidence/file custody.
 
-This module stores organization reporting rules, reporting-period state, interpretations/classifications, source-fact references, and close exceptions.
+The reporting module owns only:
 
-Until a released canonical domain fact exists, a reporting link may identify evidence-only/manual capture as a transitional source. Transitional capture must not be promoted into permanent domain authority merely because it allows an export to succeed.
+- reporting contracts and versions;
+- organization-specific categories and meanings;
+- report periods;
+- accepted rates;
+- links to source facts/evidence;
+- organization-specific classifications/interpretations;
+- close exceptions;
+- export/submission provenance.
 
-### 3.2 Meaning is separate from export label
+Where no released source-domain fact exists yet, the system may link transitional evidence/manual capture, but transitional capture must remain visibly transitional and must not become permanent authority merely because it can populate a report.
 
-An organization's category has at least two independent representations:
+### 4.2 Meaning is separate from export label
 
-- **canonical meaning** — what the organization says the category means;
-- **export label** — the exact shorthand/text expected in a particular template.
+An organization category has two separate concerns:
 
-The Camps International pilot proves this distinction is necessary. The policy language includes categories such as `Goodwill`, `Honorarium`, `Hospitality/Lodging`, and `Program/Activity`, while the supplied workbook uses shorthand or combined labels such as `Goodwill/C/H`, `Honorariums`, `Hospitality/Lodging/Meals`, and `Program/Act.`.
+- **canonical meaning** — what the organization's policy says the category means;
+- **export label** — the exact shorthand expected by a specific template.
 
-Atlas must never infer that a different label necessarily means a different accounting meaning.
+The CI pilot proves this is necessary. The policy uses labels including `Goodwill`, `Honorarium`, `Hospitality/Lodging`, `Printing`, and `Program/Activity`; the workbook contains shorthand/alternate labels including `Goodwill/C/H`, `Honorariums`, `Hospitality/Lodging/Meals`, `Publishing`, and `Program/Act.`.
 
-### 3.3 Capture once, report many
+Atlas must not treat label differences as semantic truth or silently map `Publishing` to `Printing` without CI authority.
 
-A reporting fact link points back to the source fact. It may then carry the organization-specific interpretation required by the contract.
+### 4.3 Capture once, report many
 
-One source activity can therefore participate in:
+A source fact or evidence item can be linked once to the reporting period and interpreted into the required projection(s). One underlying activity may therefore contribute an expense line, a travel line, an impact line, or any valid combination.
 
-- one or more expense lines;
-- one or more travel lines;
-- one impact line;
-- or no line for a given contract.
+### 4.4 Month-end is exception handling
 
-### 3.4 Month-end is exception handling
+A close begins with what Atlas already knows, not a blank form. Atlas compiles eligible facts and creates explicit exceptions only for unresolved required information, such as:
 
-The monthly close should not begin by presenting a blank form.
-
-Atlas should compile all eligible source facts for the reporting period, apply known reporting rules, and produce a finite exception queue for unresolved requirements such as:
-
-- missing receipt/factura evidence;
+- missing receipt/factura;
 - missing purpose;
-- unresolved expense category;
-- uncertain reimbursement eligibility;
-- missing exchange rate;
-- missing travel origin/destination;
-- missing vehicle/distance/odometer information;
+- unresolved category;
+- reimbursement eligibility needing judgment;
+- missing/unsupported exchange rate;
+- missing travel origin/destination/distance basis;
 - missing impact age breakdown;
 - missing VOICE/Other classification.
 
-A period becomes `ready` only when blocking exceptions are resolved or explicitly waived by authorized human judgment.
+A report period is `ready` only when blocking exceptions are resolved or explicitly waived by authorized organization judgment.
 
-### 3.5 Reporting artifact is a projection
+### 4.5 The report file is a projection
 
-The submitted spreadsheet/PDF/file is an artifact generated from the period's accepted facts and reporting interpretations. It is not the canonical store of those facts.
+The submitted spreadsheet/PDF/file is not the canonical fact store. Atlas must preserve provenance from every output row back to the source fact/evidence, governing contract version, classification, applied rate, human resolution/waiver, and final submitted artifact.
 
-Atlas must preserve enough provenance to answer:
+## 5. Core objects
 
-- what source fact produced each output row;
-- which contract/version governed the interpretation;
-- which category meaning and export label were used;
-- which exchange or mileage rate was applied;
-- what human confirmations or waivers occurred;
-- which exact artifact was ultimately submitted.
+### `organization_expense_reporting_contracts`
 
-## 4. Core objects
+Organization-owned effective-dated reporting rules. Holds `organization_id`, optional `organization_unit_id`, stable contract key, reporting-body label, cadence, currency expectations, policy/template provenance, configuration, and lifecycle state.
 
-### 4.1 `organization_expense_reporting_contracts`
+### `organization_expense_reporting_categories`
 
-Defines one organization's reporting rules over an effective interval.
+Organization-specific category definitions under a contract version: stable key, canonical label, export label, policy definition, examples/notes, sort order, active state.
 
-Minimum responsibilities:
+### `organization_expense_reporting_periods`
 
-- custody root (`principal_id`);
-- stable contract key and display name;
-- reporting body / organization label;
-- reporting cadence;
-- effective dates/version;
-- default/base currency expectations;
-- source policy provenance;
-- output-template provenance and configuration;
-- status (`draft`, `active`, `retired`).
+One reporting window under one contract: organization/unit scope, period start/end, reporting identity, close state, and submitted-artifact provenance.
 
-The pilot contract is Camps International Mexico monthly expense reporting.
+### `organization_expense_reporting_rates`
 
-### 4.2 `organization_expense_reporting_categories`
+Accepted exchange/mileage/distance rates for a report period or narrower effective window, including source/provenance and human confirmation when applicable.
 
-Defines the organization's permitted expense classifications under a contract version.
+### `organization_expense_reporting_fact_links`
 
-Minimum fields:
+Binds a source fact/evidence item to a reporting period without taking ownership of that source. Supports:
 
-- stable category key;
-- canonical label;
-- export label;
-- policy definition;
-- optional examples/notes;
-- sort order and active state.
-
-This is organization-owned operating knowledge, not a global Atlas taxonomy.
-
-### 4.3 `organization_expense_reporting_periods`
-
-Represents one reporting period under one contract.
-
-Minimum fields:
-
-- contract/version;
-- period start/end;
-- reporting identity shown on the artifact;
-- state (`open`, `review`, `ready`, `submitted`, `reopened`);
-- submitted artifact locator/hash when available;
-- submission metadata and timestamps.
-
-### 4.4 `organization_expense_reporting_rates`
-
-Stores rates accepted for one reporting period or a narrower date window.
-
-Examples:
-
-- MXN -> USD adjusted exchange rate;
-- mileage reimbursement per mile;
-- kilometer reimbursement rate.
-
-Each rate preserves type, units/currencies, value, source/provenance, effective date/window, and whether it was contract-provided, organization-provided, or manually confirmed.
-
-### 4.5 `organization_expense_reporting_fact_links`
-
-Binds a reportable source fact/evidence item to a reporting contract/period without taking ownership of the source fact.
-
-Minimum responsibilities:
-
-- fact kind (`expense`, `travel`, `impact_activity`);
-- source authority identifier;
-- immutable source reference;
-- optional category classification;
+- `fact_kind`: `expense`, `travel`, `impact_activity`;
+- `source_authority` and immutable `source_ref`;
+- optional direct `evidence_record_id` when the source is `atlas.evidence_records`;
+- optional expense category;
 - classification state/confidence;
-- report-specific purpose/description when the source fact does not already provide an accepted one;
-- output-shaping metadata that does not overwrite source truth.
+- report-specific purpose/description;
+- export-only shaping metadata.
 
-A source fact can be linked to multiple report contracts when the real-world responsibility legitimately requires it.
+### `organization_expense_reporting_exceptions`
 
-### 4.6 `organization_expense_reporting_exceptions`
+First-class unresolved requirements: period, optional fact link, exception code, blocking/warning severity, human-readable question, state, resolution/waiver, resolver, timestamp.
 
-Represents unresolved information or human judgment required before close.
+## 6. Camps International pilot category contract
 
-Minimum responsibilities:
-
-- period and optional fact link;
-- exception code;
-- blocking/non-blocking severity;
-- human-readable question;
-- state (`open`, `resolved`, `waived`);
-- resolution value/note;
-- resolver identity and timestamp.
-
-The exception record is first-class because the product promise is not merely generation. It is telling the human exactly what Atlas still needs.
-
-## 5. Camps International pilot category contract
-
-The initial pilot should preserve the supplied Camps International policy meanings for:
+Preserve the supplied policy meanings for:
 
 - Connection/IT
 - Entertainment
@@ -207,106 +155,64 @@ The initial pilot should preserve the supplied Camps International policy meanin
 - Record of Transaction
 - Travel
 
-The template may render different shorthand labels. Those labels belong to export/template configuration, not to the canonical category meaning.
+Template labels remain separately configured. `Publishing` remains unresolved until Camps International establishes its intended relationship to `Printing`.
 
-The current workbook also contains a `Publishing` export label. The supplied policy sheet does not independently define `Publishing`; this remains a pilot reconciliation issue and must not be silently normalized into `Printing` without Camps International authority.
+## 7. CI pilot output contract
 
-## 6. CI pilot output contract
+### Expense
 
-### Expense projection
+Sequence, date from/on, date to, purpose/description, expense-type export label, Mexican factura indicator, MXN amount, adjusted rate, USD amount.
 
-Required output concepts observed in the supplied workbook:
+### Travel
 
-- sequence number;
-- date from/on;
-- date to;
-- purpose/description;
-- expense type export label;
-- Mexican factura indicator;
-- MXN amount;
-- adjusted rate;
-- USD amount.
+Date from/to, origin, destination, purpose/description, vehicle/distance basis, odometer start/stop where applicable, total miles/km, reimbursement rate, USD amount.
 
-### Travel projection
+### Impact
 
-Required output concepts observed in the supplied workbook:
+Event, age 0–8, age 9–16, age 17+, total participants, VOICE/Other.
 
-- date from/to;
-- origin;
-- destination;
-- purpose/description;
-- vehicle/distance basis;
-- odometer start/stop where applicable;
-- total miles or kilometers;
-- reimbursement rate;
-- USD amount.
+## 8. Application contract
 
-### Impact projection
+Atlas application repositories should consume released database RPC/projection seams rather than making direct-table writes the product architecture.
 
-Required output concepts observed in the supplied workbook:
+The database authority should eventually release seams for:
 
-- event;
-- participants age 0–8;
-- participants age 9–16;
-- participants age 17+;
-- total participants;
-- VOICE or Other.
+1. active contract/category retrieval;
+2. report-period bundle retrieval;
+3. admission/linkage of an authorized source fact/evidence item;
+4. classification confirmation;
+5. exception resolution/waiver;
+6. deterministic close-readiness evaluation;
+7. stable export payload generation;
+8. submission provenance recording.
 
-## 7. Application contract
-
-Atlas application repositories must not read/write these canonical tables directly as product architecture.
-
-The database authority should release RPC/projection seams for at least:
-
-1. **contract retrieval** — active contract, categories, export labels, and template requirements;
-2. **period retrieval** — reporting month state, rates, linked facts, and exceptions;
-3. **fact admission/classification** — bind a known source fact and preserve organization-specific interpretation without rewriting the source;
-4. **exception resolution** — record explicit human answer/waiver;
-5. **close readiness** — deterministic evaluation of whether blocking requirements remain;
-6. **export payload** — stable JSON contract from which Atlas can render the exact organization template.
-
-The application layer may provide AI-assisted extraction/classification, but suggestions remain suggestions until the database seam accepts them under the organization's authority rules.
-
-## 8. Pilot capture behavior
-
-The intended David workflow is:
-
-1. David captures or forwards evidence when reality occurs: receipt/photo/email/manual note/voice-derived structured capture.
-2. Atlas links that evidence to the appropriate source fact or transitional evidence record.
-3. Atlas applies the active Camps International contract and suggests category/purpose/report treatment.
-4. David is interrupted only when a required fact cannot be known safely.
-5. At month-end Atlas opens review with only unresolved exceptions.
-6. Once blocking exceptions are resolved, Atlas produces an export payload for Expense, Travel, and Impact.
-7. A template renderer generates the exact CI artifact and records its submission provenance.
+AI may extract or suggest classifications, but suggestions are not authoritative until accepted under organization rules.
 
 ## 9. First implementation tranche
 
-This v1 tranche intentionally stops at the reporting interpretation boundary.
-
-It may establish:
+This v1 tranche may establish the reporting interpretation boundary only:
 
 - contracts;
 - categories;
 - periods;
 - rates;
-- source-fact links;
+- source-fact/evidence links;
 - exceptions;
-- read/projection RPCs.
+- read/projection contract.
 
-It must **not** invent permanent canonical expense, travel, participant, receipt, or organization tables merely to finish this feature. Those source domains must either already exist under released authority or be designed/released separately.
+It must not invent permanent canonical expense, travel, participant, receipt, organization, or operating-unit truth merely to finish David's report.
 
-## 10. Unresolved seams before production release
+## 10. Next seams to resolve
 
-1. Bind contract custody to the released Atlas organization/ledger/portfolio-unit identity once that canonical seam is confirmed.
-2. Confirm the canonical money/transaction source reference used for reportable expenses.
-3. Confirm the canonical travel/mileage source reference.
-4. Confirm the canonical activity/participant source reference.
-5. Confirm receipt/factura evidence custody and durable file locator/hash contract.
-6. Reconcile CI's workbook-only `Publishing` label with the supplied category policy.
-7. Confirm whether `Goodwill/C/H` is only a template shorthand or intentionally combines multiple policy categories.
-8. Determine authoritative rate source/approval rules for CI exchange and vehicle reimbursement.
-9. Build the exact ODS/XLSX export renderer only after the stable export payload is released.
+1. Decide whether Los Domos is an `organization_unit` of Camps International or requires a separate organization/reporting contract based on actual accounting authority.
+2. Design/release the canonical money/expense fact seam needed for reimbursement expenses.
+3. Design/release the canonical travel/mileage fact seam.
+4. Reuse existing event truth where valid and determine a universal participant/impact fact seam where it is not.
+5. Define receipt/factura evidence values and durable file locator/hash conventions using `atlas.evidence_records` plus file custody.
+6. Reconcile CI workbook-only `Publishing` and combined shorthand labels with CI policy authority.
+7. Establish authoritative exchange/mileage rate source and approval rules.
+8. Build the exact workbook renderer only after the stable export payload exists.
 
 ## 11. Governing test
 
-The feature is working when David can live the month normally, capture evidence close to the moment it occurs, and reach month-end with Atlas asking only for information that could not already be known — while Camps International still receives the exact report it requires and every output row remains traceable back to real evidence and an authorized reporting rule.
+The feature is working when David can live the month normally, capture evidence close to the moment it occurs, and reach month-end with Atlas asking only for information it could not already know — while Camps International receives the exact report it requires and every output row remains traceable to real evidence and an authorized organization reporting rule.
