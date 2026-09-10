@@ -1,3 +1,5 @@
+begin;
+
 -- Canonical Personal Atlas household residence arrangement + first Reality Discovery promotion adapter.
 --
 -- This table owns the durable relationship that this household resides at a confirmed address,
@@ -75,7 +77,6 @@ begin
   where household_id=v_household_id and stable_key=v_stable_key
   for update;
 
-  -- Tenure and repair responsibility describe a residence; they may not manufacture one.
   if v_existing.id is null and v_address is null then
     raise exception 'A confirmed residence address is required before residence details can be promoted.' using errcode='22023';
   end if;
@@ -167,7 +168,6 @@ revoke all on function public.personal_residence_arrangement_self_api_v1() from 
 grant execute on function public.upsert_personal_residence_arrangement_self_api_v1(jsonb) to authenticated,service_role;
 grant execute on function public.personal_residence_arrangement_self_api_v1() to authenticated,service_role;
 
--- Prefer canonical residence truth once promoted while preserving explicit rejection of purchase evidence.
 create or replace function atlas.reality_discovery_context_self_api_v1()
 returns jsonb
 language plpgsql
@@ -288,7 +288,6 @@ begin
 end;
 $function$;
 
--- Replace the answer writer only to add residence promotion; preserve V1 fail-closed admission.
 create or replace function atlas.answer_reality_discovery_question_self_api_v1(p_input jsonb)
 returns jsonb
 language plpgsql
@@ -457,3 +456,5 @@ on conflict(signature) do update set
   authenticated_execute_expected=excluded.authenticated_execute_expected,security_definer_expected=excluded.security_definer_expected,
   service_execute_expected=excluded.service_execute_expected,anonymous_execute_expected=excluded.anonymous_execute_expected,
   evidence=atlas.authenticated_rpc_registry.evidence||excluded.evidence,reviewed_at=now();
+
+commit;
