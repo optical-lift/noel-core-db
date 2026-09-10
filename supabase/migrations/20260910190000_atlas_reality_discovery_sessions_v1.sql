@@ -1,3 +1,5 @@
+begin;
+
 -- Reality Discovery session orchestration.
 -- Session state governs whether an adaptive questioning encounter is open/paused/quiet.
 -- It is not a universal onboarding-completion flag and says nothing about world completeness.
@@ -255,3 +257,5 @@ on conflict(signature) do update set
   authenticated_execute_expected=excluded.authenticated_execute_expected,security_definer_expected=excluded.security_definer_expected,
   service_execute_expected=excluded.service_execute_expected,anonymous_execute_expected=excluded.anonymous_execute_expected,
   evidence=atlas.authenticated_rpc_registry.evidence||excluded.evidence,reviewed_at=now();
+
+commit;
