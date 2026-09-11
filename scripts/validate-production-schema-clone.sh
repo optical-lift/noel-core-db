@@ -179,7 +179,40 @@ mkdir -p "$project_dir"
 cd "$project_dir"
 supabase init --force
 local_started=true
-supabase db start
+startup_attempt=1
+startup_max_attempts=4
+startup_delays=(0 15 30 60)
+while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
+  startup_log="$artifacts_dir/disposable-database-startup-attempt-${startup_attempt}.log"
+  if [ "${startup_delays[$((startup_attempt - 1))]}" -gt 0 ]; then
+    sleep "${startup_delays[$((startup_attempt - 1))]}"
+  fi
+
+  set +e
+  supabase db start >"$startup_log" 2>&1
+  startup_status=$?
+  set -e
+
+  if [ "$startup_status" -eq 0 ]; then
+    cat "$startup_log"
+    break
+  fi
+
+  cat "$startup_log" >&2
+  if ! grep -Eiq '(toomanyrequests|too many requests|rate[ -]?limit|rate exceeded|429)' "$startup_log"; then
+    echo "Disposable database startup failed for a non-registry-throttling reason on attempt ${startup_attempt}." >&2
+    exit "$startup_status"
+  fi
+
+  if [ "$startup_attempt" -eq "$startup_max_attempts" ]; then
+    echo "Disposable database startup remained registry-throttled after ${startup_max_attempts} attempts." >&2
+    exit "$startup_status"
+  fi
+
+  echo "Registry throttling detected during disposable database startup; cleaning partial state before retry $((startup_attempt + 1))/${startup_max_attempts}." >&2
+  supabase stop --no-backup >>"$artifacts_dir/cleanup.log" 2>&1 || true
+  startup_attempt=$((startup_attempt + 1))
+done
 
 phase="production custom-role restore"
 psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$roles_dump" \
