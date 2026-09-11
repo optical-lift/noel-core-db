@@ -225,19 +225,13 @@ begin
     if nullif(btrim(p_body->>'title'),'') is null then issues:=issues||'"capacity_adjustment_title_required"'::jsonb; end if;
     if not atlas.personal_reality_timestamp_is_explicit_v1(p_body->>'startsAt') then issues:=issues||'"capacity_adjustment_start_requires_explicit_offset"'::jsonb; end if;
     if not atlas.personal_reality_timestamp_is_explicit_v1(p_body->>'endsAt') then issues:=issues||'"capacity_adjustment_end_requires_explicit_offset"'::jsonb; end if;
-    if not (p_body?'availabilityFraction') and not (p_body?'maximumPlannedMinutes') and not (p_body?'discretionaryCapacityMinutes') then issues:=issues||'"capacity_adjustment_quantity_required"'::jsonb; end if;
+    if not (p_body?'availabilityFraction') then issues:=issues||'"availability_fraction_required"'::jsonb; end if;
     if p_body?'availabilityFraction' then
       if jsonb_typeof(p_body->'availabilityFraction')<>'number' then issues:=issues||'"availability_fraction_invalid"'::jsonb;
       else n:=(p_body->>'availabilityFraction')::numeric; if n<=0 or n>=1 then issues:=issues||'"availability_fraction_must_be_between_zero_and_one"'::jsonb; end if; end if;
     end if;
-    if p_body?'maximumPlannedMinutes' then
-      if jsonb_typeof(p_body->'maximumPlannedMinutes')<>'number' then issues:=issues||'"maximum_planned_minutes_invalid"'::jsonb;
-      else n:=(p_body->>'maximumPlannedMinutes')::numeric; if n<0 or trunc(n)<>n then issues:=issues||'"maximum_planned_minutes_invalid"'::jsonb; end if; end if;
-    end if;
-    if p_body?'discretionaryCapacityMinutes' then
-      if jsonb_typeof(p_body->'discretionaryCapacityMinutes')<>'number' then issues:=issues||'"discretionary_capacity_minutes_invalid"'::jsonb;
-      else n:=(p_body->>'discretionaryCapacityMinutes')::numeric; if n<0 or trunc(n)<>n then issues:=issues||'"discretionary_capacity_minutes_invalid"'::jsonb; end if; end if;
-    end if;
+    if p_body?'maximumPlannedMinutes' then issues:=issues||'"maximum_planned_minutes_not_allowed_for_capacity_adjustment"'::jsonb; end if;
+    if p_body?'discretionaryCapacityMinutes' then issues:=issues||'"discretionary_capacity_minutes_not_allowed_for_capacity_adjustment"'::jsonb; end if;
     if atlas.personal_reality_timestamp_is_explicit_v1(p_body->>'startsAt') and atlas.personal_reality_timestamp_is_explicit_v1(p_body->>'endsAt') then
       begin a:=(p_body->>'startsAt')::timestamptz; b:=(p_body->>'endsAt')::timestamptz; if b<=a then issues:=issues||'"capacity_adjustment_interval_must_be_positive"'::jsonb; end if;
       exception when others then issues:=issues||'"capacity_adjustment_interval_invalid"'::jsonb; end;
@@ -555,7 +549,7 @@ begin
     result:=atlas.record_person_claim_from_capture_evidence_v1(jsonb_build_object('sourceEvidenceId',cap.evidence_id,'proposalId',q.id,'decisionReceiptId',q.decision_receipt_id,'subject',body->'subject','claim',body->'claim','supersedesClaimId',case when same_subject then old_claim.id else null end));
     dk:='claim_record'; did:=result->>'claimId'; if same_subject then old_reversed:=true; end if;
   else
-    body:=(body-'sourceKey'-'sourceEvidenceId'-'sourceClaimId'-'testimony'-'floorClass'-'protectionLevel'-'interruptibility'-'reasonForFloor'-'consequence'-'blocksCapacity')
+    body:=(body-'sourceKey'-'sourceEvidenceId'-'sourceClaimId'-'testimony'-'floorClass'-'protectionLevel'-'interruptibility'-'reasonForFloor'-'consequence'-'blocksCapacity'-'maximumPlannedMinutes'-'discretionaryCapacityMinutes')
       ||jsonb_build_object('sourceKey',source_key,'sourceEvidenceId',cap.evidence_id,
         'metadata',coalesce(case when jsonb_typeof(body->'metadata')='object' then body->'metadata' end,'{}'::jsonb)||jsonb_build_object('personalRealityProposalId',q.id,'decisionReceiptId',q.decision_receipt_id,'timingProvenance',body->'timingProvenance'));
     if q.effect_kind='one_off_action' then body:=body||jsonb_build_object('testimony',cap.testimony); end if;
