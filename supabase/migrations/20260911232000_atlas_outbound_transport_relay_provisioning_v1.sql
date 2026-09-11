@@ -66,7 +66,7 @@ begin
         updated_at=now()
     where id=v_existing.id;
     v_rotated:=true;
-    v_existing:=null;
+    v_existing.id:=null;
   end if;
 
   if v_existing.id is null then
