@@ -6,6 +6,57 @@ alter table atlas.communication_outbound_operations
   add constraint communication_outbound_operations_operation_kind_check
   check (operation_kind in ('email_send','social_reply'));
 
+create or replace function atlas.guard_communication_outbound_transport_relay_v1()
+returns trigger
+language plpgsql
+security definer
+set search_path=pg_catalog,atlas
+as $function$
+declare
+  v_source atlas.connected_sources%rowtype;
+  v_endpoint atlas.communication_endpoints%rowtype;
+  v_transport_kind text:=lower(btrim(coalesce(new.transport_kind,'')));
+begin
+  select * into v_source from atlas.connected_sources where id=new.connected_source_id;
+  select * into v_endpoint from atlas.communication_endpoints where id=new.communication_endpoint_id;
+  if v_source.id is null or v_endpoint.id is null then
+    raise exception 'Outbound transport relay requires a connected source and communication endpoint.' using errcode='23514';
+  end if;
+
+  if v_endpoint.endpoint_kind='email' then
+    if v_transport_kind='facebook_messenger' then
+      raise exception 'Facebook Messenger transport requires a social endpoint.' using errcode='23514';
+    end if;
+  elsif v_endpoint.endpoint_kind='social' then
+    if v_source.provider_key<>'facebook' or v_transport_kind<>'facebook_messenger' then
+      raise exception 'Social outbound relay currently requires a Facebook source and facebook_messenger transport.' using errcode='23514';
+    end if;
+  else
+    raise exception 'Outbound transport relay requires an email or supported social endpoint.' using errcode='23514';
+  end if;
+
+  if v_source.custodian_organization_id is distinct from v_endpoint.organization_id
+     or v_source.custodian_organization_unit_id is distinct from v_endpoint.organization_unit_id then
+    raise exception 'Outbound transport relay source and endpoint must share organization/unit custody.' using errcode='23514';
+  end if;
+  if not exists (
+    select 1
+    from atlas.communication_endpoint_source_bindings binding
+    where binding.communication_endpoint_id=new.communication_endpoint_id
+      and binding.connected_source_id=new.connected_source_id
+      and binding.binding_state='active'
+      and binding.binding_role in ('send','send_receive')
+  ) then
+    raise exception 'Outbound transport relay source must be actively bound as a send transport for endpoint.' using errcode='23514';
+  end if;
+  new.relay_key:=btrim(new.relay_key);
+  new.secret_sha256:=lower(btrim(new.secret_sha256));
+  new.transport_kind:=v_transport_kind;
+  new.updated_at:=now();
+  return new;
+end;
+$function$;
+
 create or replace function atlas.prepare_institutional_social_reply_self_api_v1(
   p_communication_endpoint_id uuid,
   p_institutional_conversation_id uuid,
