@@ -303,8 +303,8 @@ async function drain(req: Request) {
     p_secret_sha256: await sha256(relaySecret),
   });
   if (!relay.authorized) return json({ error: "Outbound relay authorization failed." }, 403);
-  if (relay.providerKey !== "facebook" || !relay.connectedSourceId || !relay.providerAccountKey) {
-    return json({ error: "Relay is not bound to a Facebook connected source." }, 400);
+  if (relay.providerKey !== "facebook" || relay.transportKind !== "facebook_messenger" || !relay.connectedSourceId || !relay.providerAccountKey) {
+    return json({ error: "Relay is not a Facebook Messenger transport for a connected source." }, 400);
   }
 
   let requestedLimit = 10;
