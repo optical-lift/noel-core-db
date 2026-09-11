@@ -143,7 +143,7 @@ create table atlas.capability_attribute_values (
 );
 
 comment on table atlas.capability_attribute_values is
-  'Typed attribute values bound to exactly one Capability, Variant, or Deployment. Definitions govern meaning and validation.';
+  'Typed attribute values bound to exactly one Capability, Variant, or Deployment. V1 values are single-valued per governed definition and target.';
 
 create index capability_attribute_values_definition_idx
   on atlas.capability_attribute_values (attribute_definition_id);
@@ -156,6 +156,16 @@ create index capability_attribute_values_variant_idx
 create index capability_attribute_values_deployment_idx
   on atlas.capability_attribute_values (deployment_id)
   where deployment_id is not null;
+
+create unique index capability_attribute_values_capability_unique_idx
+  on atlas.capability_attribute_values (attribute_definition_id, capability_id)
+  where capability_id is not null and variant_id is null and deployment_id is null;
+create unique index capability_attribute_values_variant_unique_idx
+  on atlas.capability_attribute_values (attribute_definition_id, variant_id)
+  where capability_id is null and variant_id is not null and deployment_id is null;
+create unique index capability_attribute_values_deployment_unique_idx
+  on atlas.capability_attribute_values (attribute_definition_id, deployment_id)
+  where capability_id is null and variant_id is null and deployment_id is not null;
 
 create table atlas.capability_requirements (
   id uuid primary key default gen_random_uuid(),
@@ -203,6 +213,16 @@ create index capability_requirements_deployment_idx
   on atlas.capability_requirements (deployment_id, lifecycle_state)
   where deployment_id is not null;
 
+create unique index capability_requirements_capability_stable_key_unique_idx
+  on atlas.capability_requirements (capability_id, stable_key)
+  where capability_id is not null and variant_id is null and deployment_id is null;
+create unique index capability_requirements_variant_stable_key_unique_idx
+  on atlas.capability_requirements (variant_id, stable_key)
+  where capability_id is null and variant_id is not null and deployment_id is null;
+create unique index capability_requirements_deployment_stable_key_unique_idx
+  on atlas.capability_requirements (deployment_id, stable_key)
+  where capability_id is null and variant_id is null and deployment_id is not null;
+
 create table atlas.capability_knowledge_bindings (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references atlas.organizations(id),
@@ -218,8 +238,7 @@ create table atlas.capability_knowledge_bindings (
   constraint capability_knowledge_bindings_exactly_one_target check (
     ((capability_id is not null)::integer + (variant_id is not null)::integer + (deployment_id is not null)::integer) = 1
   ),
-  constraint capability_knowledge_bindings_metadata_object check (jsonb_typeof(metadata) = 'object'),
-  unique (knowledge_id, capability_id, variant_id, deployment_id, binding_role)
+  constraint capability_knowledge_bindings_metadata_object check (jsonb_typeof(metadata) = 'object')
 );
 
 comment on table atlas.capability_knowledge_bindings is
@@ -228,6 +247,16 @@ comment on table atlas.capability_knowledge_bindings is
 create index capability_knowledge_bindings_knowledge_idx
   on atlas.capability_knowledge_bindings (knowledge_id)
   where active;
+
+create unique index capability_knowledge_bindings_capability_unique_idx
+  on atlas.capability_knowledge_bindings (knowledge_id, capability_id, binding_role)
+  where capability_id is not null and variant_id is null and deployment_id is null;
+create unique index capability_knowledge_bindings_variant_unique_idx
+  on atlas.capability_knowledge_bindings (knowledge_id, variant_id, binding_role)
+  where capability_id is null and variant_id is not null and deployment_id is null;
+create unique index capability_knowledge_bindings_deployment_unique_idx
+  on atlas.capability_knowledge_bindings (knowledge_id, deployment_id, binding_role)
+  where capability_id is null and variant_id is null and deployment_id is not null;
 
 create table atlas.capability_relations (
   id uuid primary key default gen_random_uuid(),
@@ -294,10 +323,6 @@ begin
     ) then
       raise exception 'Capability Deployment organization unit must belong to the same organization';
     end if;
-    return new;
-  end if;
-
-  if tg_table_name = 'capability_attribute_definitions' then
     return new;
   end if;
 
