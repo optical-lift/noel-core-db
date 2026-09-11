@@ -119,7 +119,7 @@ for row in post_fence:
     if not path.is_file():
         errors.append(
             f"{lane} release lane blocked by uncustodied {owner_lane} live migration: "
-            f"{version}_{name}; expected {path} or a sealed exact-live-byte recovery"
+            f"{version}_{name}; production={production_blob}; expected {path} or a sealed exact-live-byte recovery"
         )
     else:
         errors.append(
