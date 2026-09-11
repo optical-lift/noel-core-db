@@ -142,6 +142,18 @@ $function$;
 revoke all on function public.ingest_provider_history_events_service_v1(uuid,jsonb,jsonb) from public,anon,authenticated;
 grant execute on function public.ingest_provider_history_events_service_v1(uuid,jsonb,jsonb) to service_role;
 
+create or replace function public.read_connected_source_secret_service_v1(
+  p_connected_source_id uuid,
+  p_credential_kind text
+) returns text
+language sql
+set search_path=pg_catalog,atlas,public
+as $function$
+  select atlas.read_connected_source_secret_service_v1(p_connected_source_id,p_credential_kind);
+$function$;
+revoke all on function public.read_connected_source_secret_service_v1(uuid,text) from public,anon,authenticated;
+grant execute on function public.read_connected_source_secret_service_v1(uuid,text) to service_role;
+
 insert into atlas.authenticated_rpc_registry(
   signature,classification,confidence,review_status,authenticated_execute_expected,security_definer_expected,service_execute_expected,caller_count,policy_reference_count,evidence,reviewed_at,anonymous_execute_expected
 ) values (
