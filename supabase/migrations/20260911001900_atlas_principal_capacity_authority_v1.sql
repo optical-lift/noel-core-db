@@ -8,6 +8,8 @@
 -- Capacity Blocks may not be used for protected strategy or other merely important work.
 -- Capacity Adjustments do not create Clock candidates or task/priority authority.
 
+BEGIN;
+
 create table if not exists atlas.principal_capacity_adjustments (
   id uuid primary key default gen_random_uuid(),
   principal_id uuid not null references atlas.principals(id) on delete cascade,
@@ -453,3 +455,5 @@ values
 ('atlas.transition_principal_capacity_adjustment_self_api_v1(p_capacity_adjustment_id uuid, p_transition text, p_reason text)','owner_admin_endpoint','verified','active',true,true,true,false,1,0,jsonb_build_object('purpose','Cancel/reopen the Principal own self-authored capacity adjustment.'),now()),
 ('atlas.principal_capacity_adjustments_self_api_v1(p_start_at timestamp with time zone, p_end_at timestamp with time zone, p_include_inactive boolean)','app_endpoint','verified','active',true,true,true,false,1,0,jsonb_build_object('purpose','Read self-authored reduced-capacity intervals.'),now())
 on conflict(signature) do update set classification=excluded.classification,confidence=excluded.confidence,review_status=excluded.review_status,authenticated_execute_expected=excluded.authenticated_execute_expected,security_definer_expected=excluded.security_definer_expected,service_execute_expected=excluded.service_execute_expected,anonymous_execute_expected=excluded.anonymous_execute_expected,evidence=atlas.authenticated_rpc_registry.evidence||excluded.evidence,reviewed_at=now();
+
+COMMIT;
