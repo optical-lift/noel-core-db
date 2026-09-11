@@ -17,12 +17,7 @@ const WORK_AREAS = [
 ] as const;
 
 type Json = Record<string, unknown>;
-type AccessPacket = {
-  ok?: boolean;
-  artifactId?: string;
-  implementationCaseId?: string;
-  implementationThreadId?: string;
-};
+type AccessPacket = { ok?: boolean; artifactId?: string; implementationCaseId?: string; implementationThreadId?: string };
 type BeginTranscript = {
   ok?: boolean;
   shouldTranscribe?: boolean;
@@ -39,39 +34,20 @@ type BeginTranscript = {
   byteSize?: number;
   durationMs?: number | null;
   startingLabel?: string | null;
+  submitterIsPractitioner?: boolean;
 };
-type BeginInterpretation = {
-  ok?: boolean;
-  shouldInterpret?: boolean;
-  reason?: string;
-  interpretationId?: string;
-  transcriptText?: string;
-};
-type Candidate = {
-  candidateKind: "finding" | "question";
-  workArea: typeof WORK_AREAS[number];
-  statement: string;
-  evidenceExcerpt: string;
-  confidence: number;
-};
-
+type BeginInterpretation = { ok?: boolean; shouldInterpret?: boolean; reason?: string; interpretationId?: string; transcriptText?: string };
+type Candidate = { candidateKind: "finding" | "question"; workArea: typeof WORK_AREAS[number]; statement: string; evidenceExcerpt: string; confidence: number };
 type Extraction = { summary: string; candidates: Candidate[] };
 
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
-  });
+  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 }
 
 async function rpc<T>(functionName: string, args: Json, authorization: string, apikey: string): Promise<T> {
   const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${encodeURIComponent(functionName)}`, {
     method: "POST",
-    headers: {
-      apikey,
-      Authorization: authorization,
-      "content-type": "application/json",
-    },
+    headers: { apikey, Authorization: authorization, "content-type": "application/json" },
     body: JSON.stringify(args),
   });
   const text = await response.text();
@@ -131,7 +107,6 @@ async function transcribe(packet: BeginTranscript, audio: Blob) {
   form.append("model", TRANSCRIPTION_MODEL);
   form.append("response_format", "json");
   form.append("file", new File([audio], safeFilename(packet), { type: packet.mimeType || audio.type || "audio/webm" }));
-
   const response = await fetch(`${GROQ_API_BASE}/audio/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
@@ -142,15 +117,10 @@ async function transcribe(packet: BeginTranscript, audio: Blob) {
     const retryAfter = response.headers.get("retry-after");
     throw new Error(`Groq transcription failed (${response.status})${retryAfter ? `; retry after ${retryAfter}s` : ""}: ${text.slice(0, 1000)}`);
   }
-
   const body = JSON.parse(text) as { text?: string; language?: string; x_groq?: { id?: string } };
   const transcript = body.text?.trim() ?? "";
   if (!transcript) throw new Error("Groq returned an empty transcript.");
-  return {
-    transcript,
-    language: body.language ?? null,
-    requestId: response.headers.get("x-request-id") ?? body.x_groq?.id ?? null,
-  };
+  return { transcript, language: body.language ?? null, requestId: response.headers.get("x-request-id") ?? body.x_groq?.id ?? null };
 }
 
 const extractionSchema = {
@@ -198,14 +168,7 @@ async function interpret(transcript: string, startingLabel?: string | null) {
         { role: "system", content: systemPrompt },
         { role: "user", content: `Organization/starting label: ${startingLabel || "unknown"}\n\nTRANSCRIPT\n${transcript}` },
       ],
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: "atlas_implementation_intake",
-          strict: true,
-          schema: extractionSchema,
-        },
-      },
+      response_format: { type: "json_schema", json_schema: { name: "atlas_implementation_intake", strict: true, schema: extractionSchema } },
     }),
   });
 
@@ -214,14 +177,9 @@ async function interpret(transcript: string, startingLabel?: string | null) {
     const retryAfter = response.headers.get("retry-after");
     throw new Error(`Groq interpretation failed (${response.status})${retryAfter ? `; retry after ${retryAfter}s` : ""}: ${raw.slice(0, 1000)}`);
   }
-
-  const body = JSON.parse(raw) as {
-    choices?: Array<{ message?: { content?: string | null } }>;
-    x_groq?: { id?: string };
-  };
+  const body = JSON.parse(raw) as { choices?: Array<{ message?: { content?: string | null } }>; x_groq?: { id?: string } };
   const outputText = body.choices?.[0]?.message?.content?.trim() ?? "";
   if (!outputText) throw new Error("Groq returned no structured interpretation text.");
-
   const parsed = JSON.parse(outputText) as Extraction;
   const candidates = Array.isArray(parsed.candidates)
     ? parsed.candidates.filter((candidate) =>
@@ -251,7 +209,7 @@ async function processArtifact(artifactId: string) {
     if (begin.reason === "already_processing") return;
 
     let transcript = begin.transcriptText?.trim() ?? "";
-    let transcriptId = begin.transcriptId ?? "";
+    const transcriptId = begin.transcriptId ?? "";
 
     if (begin.shouldTranscribe) {
       stage = "download";
@@ -271,11 +229,20 @@ async function processArtifact(artifactId: string) {
           groqRequestId: result.requestId,
           source: "atlas-implementation-artifact-processor",
           paidFallback: false,
+          conversationOnly: begin.submitterIsPractitioner === true,
         },
       });
     }
 
-    if (!transcript || !transcriptId) throw new Error("Ready transcript is unavailable for interpretation.");
+    if (!transcript || !transcriptId) throw new Error("Ready transcript is unavailable after transcription.");
+
+    if (begin.submitterIsPractitioner === true) {
+      await serviceRpc("complete_implementation_practitioner_voice_service_v1", {
+        p_artifact_id: artifactId,
+        p_transcript_id: transcriptId,
+      });
+      return;
+    }
 
     stage = "interpretation";
     const interpretation = await serviceRpc<BeginInterpretation>("begin_implementation_artifact_interpretation_service_v1", {
