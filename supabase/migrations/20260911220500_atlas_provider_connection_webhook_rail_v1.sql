@@ -185,7 +185,7 @@ create or replace function atlas.ingest_provider_webhook_events_service_v1(
   p_manifest jsonb default '{}'::jsonb
 ) returns jsonb
 language plpgsql security definer set search_path=pg_catalog,atlas as $function$
-declare v_delivery atlas.provider_webhook_deliveries%rowtype; v_source atlas.connected_sources%rowtype; v_receipt jsonb;
+declare v_delivery atlas.provider_webhook_deliveries%rowtype; v_source atlas.connected_sources%rowtype; v_receipt jsonb; v_manifest jsonb;
 begin
   select * into v_delivery from atlas.provider_webhook_deliveries where id=p_provider_webhook_delivery_id for update;
   if v_delivery.id is null then raise exception 'Provider webhook delivery not found.' using errcode='P0002'; end if;
@@ -193,10 +193,15 @@ begin
   if v_delivery.delivery_state='conflict' then raise exception 'Conflicted provider delivery cannot be ingested.' using errcode='55000'; end if;
   select * into v_source from atlas.connected_sources where id=v_delivery.connected_source_id and authorization_state='connected';
   if v_source.id is null then raise exception 'Webhook source is not connected.' using errcode='42501'; end if;
+  v_manifest:=coalesce(p_manifest,'{}'::jsonb)||jsonb_build_object('providerWebhookDeliveryId',v_delivery.id);
   if v_source.custodian_user_id is not null then
-    v_receipt:=atlas.ingest_principal_communication_events_service_v1(v_source.id,p_events,coalesce(p_manifest,'{}'::jsonb)||jsonb_build_object('providerWebhookDeliveryId',v_delivery.id));
+    if to_regprocedure('atlas.ingest_principal_communication_events_service_v1(uuid,jsonb,jsonb)') is null then
+      raise exception 'Principal provider communication ingest is unavailable.' using errcode='55000';
+    end if;
+    execute 'select atlas.ingest_principal_communication_events_service_v1($1,$2,$3)'
+      into v_receipt using v_source.id,p_events,v_manifest;
   elsif v_source.custodian_organization_id is not null then
-    v_receipt:=atlas.ingest_organization_communication_events_service_v3(v_source.id,p_events,coalesce(p_manifest,'{}'::jsonb)||jsonb_build_object('providerWebhookDeliveryId',v_delivery.id));
+    v_receipt:=atlas.ingest_organization_communication_events_service_v3(v_source.id,p_events,v_manifest);
   else
     raise exception 'Connected source has no valid custody root.' using errcode='23514';
   end if;
