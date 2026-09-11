@@ -36,6 +36,13 @@ begin
     raise exception 'Reusable credentials are not allowed in relay metadata.' using errcode='22023';
   end if;
 
+  perform pg_advisory_xact_lock(
+    hashtextextended(
+      p_connected_source_id::text||'|'||p_communication_endpoint_id::text||'|'||v_kind,
+      0
+    )
+  );
+
   select count(*) into v_count
   from atlas.communication_outbound_transport_relays r
   where r.connected_source_id=p_connected_source_id
