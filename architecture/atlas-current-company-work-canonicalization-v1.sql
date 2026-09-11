@@ -1,0 +1,12 @@
+-- Atlas Current Company Work Canonicalization v1
+--
+-- Executable authority moved into the governed migration lane:
+--   supabase/migrations/20260907155832_atlas_current_company_work_canonicalization_v1.sql
+--
+-- Reconciliation law is documented in:
+--   architecture/atlas-legacy-work-canonicalization-v1.md
+--
+-- Verification is documented in:
+--   architecture/atlas-current-company-work-canonicalization-v1-verification.sql
+--
+-- This pointer intentionally avoids retaining a competing executable SQL copy.

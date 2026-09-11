@@ -1,0 +1,12 @@
+-- Atlas Company Work Ledger v1
+--
+-- Executable authority moved into the governed migration lane:
+--   supabase/migrations/20260907154849_atlas_company_work_ledger_read_authority_v1.sql
+--
+-- The normative architecture is documented in:
+--   architecture/atlas-company-work-ledger-v1.md
+--   architecture/atlas-legacy-work-canonicalization-v1.md
+--   architecture/atlas-company-work-retrieval-v1.md
+--
+-- This pointer intentionally avoids keeping a second executable SQL copy that
+-- can drift from the canonical post-fence migration.
