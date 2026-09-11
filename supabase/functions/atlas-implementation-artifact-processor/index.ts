@@ -5,9 +5,11 @@ declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-const TRANSCRIPTION_MODEL = "gpt-transcribe";
-const INTERPRETATION_MODEL = "gpt-5.6-terra";
+const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY") ?? "";
+const GROQ_API_BASE = "https://api.groq.com/openai/v1";
+const PROVIDER_KEY = "groq";
+const TRANSCRIPTION_MODEL = "whisper-large-v3-turbo";
+const INTERPRETATION_MODEL = "openai/gpt-oss-20b";
 
 const WORK_AREAS = [
   "people","work","time","money","things_places","systems_evidence",
@@ -89,7 +91,12 @@ async function markFailed(artifactId: string, stage: string, error: unknown, ret
       p_stage: stage,
       p_error_detail: detail.slice(0, 4000),
       p_retryable: retryable,
-      p_metadata: { processor: "atlas-implementation-artifact-processor", model: stage === "interpretation" ? INTERPRETATION_MODEL : TRANSCRIPTION_MODEL },
+      p_metadata: {
+        processor: "atlas-implementation-artifact-processor",
+        provider: PROVIDER_KEY,
+        model: stage === "interpretation" ? INTERPRETATION_MODEL : TRANSCRIPTION_MODEL,
+        paidFallback: false,
+      },
     });
   } catch (markError) {
     console.error("Could not persist implementation artifact failure", markError);
@@ -124,17 +131,26 @@ async function transcribe(packet: BeginTranscript, audio: Blob) {
   form.append("model", TRANSCRIPTION_MODEL);
   form.append("response_format", "json");
   form.append("file", new File([audio], safeFilename(packet), { type: packet.mimeType || audio.type || "audio/webm" }));
-  const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+
+  const response = await fetch(`${GROQ_API_BASE}/audio/transcriptions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
     body: form,
   });
   const text = await response.text();
-  if (!response.ok) throw new Error(`OpenAI transcription failed (${response.status}): ${text.slice(0, 1000)}`);
-  const body = JSON.parse(text) as { text?: string; language?: string };
+  if (!response.ok) {
+    const retryAfter = response.headers.get("retry-after");
+    throw new Error(`Groq transcription failed (${response.status})${retryAfter ? `; retry after ${retryAfter}s` : ""}: ${text.slice(0, 1000)}`);
+  }
+
+  const body = JSON.parse(text) as { text?: string; language?: string; x_groq?: { id?: string } };
   const transcript = body.text?.trim() ?? "";
-  if (!transcript) throw new Error("OpenAI returned an empty transcript.");
-  return { transcript, language: body.language ?? null, requestId: response.headers.get("x-request-id") };
+  if (!transcript) throw new Error("Groq returned an empty transcript.");
+  return {
+    transcript,
+    language: body.language ?? null,
+    requestId: response.headers.get("x-request-id") ?? body.x_groq?.id ?? null,
+  };
 }
 
 const extractionSchema = {
@@ -142,10 +158,9 @@ const extractionSchema = {
   additionalProperties: false,
   required: ["summary", "candidates"],
   properties: {
-    summary: { type: "string", maxLength: 2000 },
+    summary: { type: "string" },
     candidates: {
       type: "array",
-      maxItems: 50,
       items: {
         type: "object",
         additionalProperties: false,
@@ -153,68 +168,83 @@ const extractionSchema = {
         properties: {
           candidateKind: { type: "string", enum: ["finding", "question"] },
           workArea: { type: "string", enum: WORK_AREAS },
-          statement: { type: "string", minLength: 1, maxLength: 4000 },
-          evidenceExcerpt: { type: "string", minLength: 1, maxLength: 1200 },
-          confidence: { type: "number", minimum: 0, maximum: 1 },
+          statement: { type: "string" },
+          evidenceExcerpt: { type: "string" },
+          confidence: { type: "number" },
         },
       },
     },
   },
 };
 
-function responseOutputText(body: any): string {
-  if (typeof body?.output_text === "string") return body.output_text;
-  for (const item of body?.output ?? []) {
-    if (item?.type !== "message") continue;
-    for (const content of item?.content ?? []) {
-      if (content?.type === "output_text" && typeof content.text === "string") return content.text;
-    }
-  }
-  return "";
-}
-
 async function interpret(transcript: string, startingLabel?: string | null) {
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const systemPrompt = [
+    "You extract implementation candidates from a human-supplied Atlas onboarding transcript.",
+    "The transcript is evidence of what the speaker said, not proof that every proposition is established organizational truth.",
+    "Return finding candidates for explicit operational assertions worth review and question candidates only where the transcript exposes a material unresolved fact needed for implementation.",
+    "Do not invent names, roles, policies, amounts, schedules, relationships, or facts.",
+    "Every evidenceExcerpt must be copied VERBATIM as one contiguous substring from the transcript. Do not normalize punctuation, spelling, capitalization, or filler words inside evidenceExcerpt.",
+    "Keep statements concise and faithful. Return no more than 50 candidates.",
+    "A practitioner, not the model, decides whether a candidate enters implementation work.",
+  ].join(" ");
+
+  const response = await fetch(`${GROQ_API_BASE}/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}`, "content-type": "application/json" },
+    headers: { Authorization: `Bearer ${GROQ_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model: INTERPRETATION_MODEL,
-      store: false,
-      reasoning: { effort: "none" },
-      instructions: [
-        "You extract implementation candidates from a human-supplied Atlas onboarding transcript.",
-        "The transcript is evidence of what the speaker said, not proof that every proposition is established organizational truth.",
-        "Return finding candidates for explicit operational assertions worth review and question candidates only where the transcript exposes a material unresolved fact needed for implementation.",
-        "Do not invent names, roles, policies, amounts, schedules, relationships, or facts.",
-        "Every evidenceExcerpt must be copied VERBATIM as one contiguous substring from the transcript. Do not normalize punctuation, spelling, capitalization, or filler words inside evidenceExcerpt.",
-        "Keep statements concise and faithful. A practitioner, not the model, decides whether a candidate enters implementation work.",
-      ].join(" "),
-      input: `Organization/starting label: ${startingLabel || "unknown"}\n\nTRANSCRIPT\n${transcript}`,
-      text: {
-        verbosity: "low",
-        format: { type: "json_schema", name: "atlas_implementation_intake", strict: true, schema: extractionSchema },
+      reasoning_effort: "low",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Organization/starting label: ${startingLabel || "unknown"}\n\nTRANSCRIPT\n${transcript}` },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "atlas_implementation_intake",
+          strict: true,
+          schema: extractionSchema,
+        },
       },
     }),
   });
+
   const raw = await response.text();
-  if (!response.ok) throw new Error(`OpenAI interpretation failed (${response.status}): ${raw.slice(0, 1000)}`);
-  const body = JSON.parse(raw);
-  const outputText = responseOutputText(body);
-  if (!outputText) throw new Error("OpenAI returned no structured interpretation text.");
+  if (!response.ok) {
+    const retryAfter = response.headers.get("retry-after");
+    throw new Error(`Groq interpretation failed (${response.status})${retryAfter ? `; retry after ${retryAfter}s` : ""}: ${raw.slice(0, 1000)}`);
+  }
+
+  const body = JSON.parse(raw) as {
+    choices?: Array<{ message?: { content?: string | null } }>;
+    x_groq?: { id?: string };
+  };
+  const outputText = body.choices?.[0]?.message?.content?.trim() ?? "";
+  if (!outputText) throw new Error("Groq returned no structured interpretation text.");
+
   const parsed = JSON.parse(outputText) as Extraction;
-  const candidates = Array.isArray(parsed.candidates) ? parsed.candidates.filter((candidate) =>
-    candidate && (candidate.candidateKind === "finding" || candidate.candidateKind === "question") &&
-    WORK_AREAS.includes(candidate.workArea) && typeof candidate.statement === "string" && candidate.statement.trim().length > 0 &&
-    typeof candidate.evidenceExcerpt === "string" && candidate.evidenceExcerpt.length > 0 && transcript.includes(candidate.evidenceExcerpt) &&
-    typeof candidate.confidence === "number" && candidate.confidence >= 0 && candidate.confidence <= 1
-  ) : [];
-  return { summary: typeof parsed.summary === "string" ? parsed.summary : "", candidates, requestId: response.headers.get("x-request-id") };
+  const candidates = Array.isArray(parsed.candidates)
+    ? parsed.candidates.filter((candidate) =>
+      candidate && (candidate.candidateKind === "finding" || candidate.candidateKind === "question") &&
+      WORK_AREAS.includes(candidate.workArea) &&
+      typeof candidate.statement === "string" && candidate.statement.trim().length > 0 && candidate.statement.length <= 4000 &&
+      typeof candidate.evidenceExcerpt === "string" && candidate.evidenceExcerpt.length > 0 && candidate.evidenceExcerpt.length <= 1200 && transcript.includes(candidate.evidenceExcerpt) &&
+      typeof candidate.confidence === "number" && candidate.confidence >= 0 && candidate.confidence <= 1
+    ).slice(0, 50)
+    : [];
+
+  return {
+    summary: typeof parsed.summary === "string" ? parsed.summary.slice(0, 2000) : "",
+    candidates,
+    requestId: response.headers.get("x-request-id") ?? body.x_groq?.id ?? null,
+  };
 }
 
 async function processArtifact(artifactId: string) {
   let stage: "configuration" | "download" | "transcription" | "interpretation" = "configuration";
   try {
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) throw new Error("Supabase processor configuration is unavailable.");
+    if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY is not configured for the Atlas implementation artifact processor.");
 
     const begin = await serviceRpc<BeginTranscript>("begin_implementation_artifact_transcription_service_v1", { p_artifact_id: artifactId });
     if (!begin.ok) throw new Error("Atlas could not begin artifact transcription.");
@@ -224,7 +254,6 @@ async function processArtifact(artifactId: string) {
     let transcriptId = begin.transcriptId ?? "";
 
     if (begin.shouldTranscribe) {
-      if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured for the Atlas implementation artifact processor.");
       stage = "download";
       const audio = await downloadArtifact(begin);
       stage = "transcription";
@@ -236,20 +265,23 @@ async function processArtifact(artifactId: string) {
         p_transcript_id: transcriptId,
         p_transcript_text: transcript,
         p_language_code: result.language,
-        p_provider_key: "openai",
+        p_provider_key: PROVIDER_KEY,
         p_model_key: TRANSCRIPTION_MODEL,
-        p_metadata: { openaiRequestId: result.requestId, source: "atlas-implementation-artifact-processor" },
+        p_metadata: {
+          groqRequestId: result.requestId,
+          source: "atlas-implementation-artifact-processor",
+          paidFallback: false,
+        },
       });
     }
 
     if (!transcript || !transcriptId) throw new Error("Ready transcript is unavailable for interpretation.");
-    if (!OPENAI_API_KEY) throw new Error("OPENAI_API_KEY is not configured for the Atlas implementation artifact processor.");
 
     stage = "interpretation";
     const interpretation = await serviceRpc<BeginInterpretation>("begin_implementation_artifact_interpretation_service_v1", {
       p_artifact_id: artifactId,
       p_transcript_id: transcriptId,
-      p_provider_key: "openai",
+      p_provider_key: PROVIDER_KEY,
       p_model_key: INTERPRETATION_MODEL,
     });
     if (!interpretation.ok || interpretation.reason === "already_processing" || interpretation.reason === "interpretation_ready") return;
@@ -260,11 +292,20 @@ async function processArtifact(artifactId: string) {
       p_interpretation_id: interpretation.interpretationId,
       p_summary: extracted.summary,
       p_candidates: extracted.candidates,
-      p_metadata: { openaiRequestId: extracted.requestId, source: "atlas-implementation-artifact-processor", exactExcerptFilter: true },
+      p_metadata: {
+        groqRequestId: extracted.requestId,
+        source: "atlas-implementation-artifact-processor",
+        exactExcerptFilter: true,
+        paidFallback: false,
+      },
     });
   } catch (error) {
-    console.error("Atlas implementation artifact processing failed", { artifactId, stage, error: error instanceof Error ? error.message : String(error) });
-    await markFailed(artifactId, stage, error, stage !== "configuration");
+    console.error("Atlas implementation artifact processing failed", {
+      artifactId,
+      stage,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    await markFailed(artifactId, stage, error, true);
   }
 }
 
