@@ -1,0 +1,54 @@
+{
+  "contractVersion": 27,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v26.json",
+  "rule": "These already-live post-fence Atlas rows were missing exact canonical source custody. Preserve only the exact production Git blob identities reported by the protected Atlas release lane. This corrective registry supplies live-custody matching evidence only; it does not authorize historical or future out-of-band production writes.",
+  "recoveries": [
+    {
+      "version": "20260911043745",
+      "name": "atlas_communication_inbound_relay_v1",
+      "filename": "20260911043745_atlas_communication_inbound_relay_v1.sql",
+      "gitBlobSha1": "92607a306f496f90ef7e6dda949ebf0bebf3dd40",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911051454",
+      "name": "atlas_institutional_response_event_idempotency_v1",
+      "filename": "20260911051454_atlas_institutional_response_event_idempotency_v1.sql",
+      "gitBlobSha1": "991effa6d360d367f0761453e1e384470d8f5ee8",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911053520",
+      "name": "atlas_communication_outbound_transport_relay_v1",
+      "filename": "20260911053520_atlas_communication_outbound_transport_relay_v1.sql",
+      "gitBlobSha1": "b7f109761f3649e8df0878a2e4466aba529caf01",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911053554",
+      "name": "atlas_outbound_transport_result_operation_recipient_guard_v1",
+      "filename": "20260911053554_atlas_outbound_transport_result_operation_recipient_guard_v1.sql",
+      "gitBlobSha1": "355fa14bae43c6d35f523c334236b609dda97e8f",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911053637",
+      "name": "atlas_outbound_transport_job_reply_scope_guard_v1",
+      "filename": "20260911053637_atlas_outbound_transport_job_reply_scope_guard_v1.sql",
+      "gitBlobSha1": "34209f977f09b81739a8df154e5beb62032b51b1",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}

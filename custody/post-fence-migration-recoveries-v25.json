@@ -1,0 +1,63 @@
+{
+  "contractVersion": 25,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v24.json",
+  "rule": "These already-live post-fence Atlas rows bypassed canonical source custody or drifted after release. Preserve their exact production filenames and Git blob identities as historical evidence only; this registry does not authorize their historical release path, repository drift, or future out-of-band production writes.",
+  "recoveries": [
+    {
+      "version": "20260911002240",
+      "name": "atlas_implementation_artifact_interpretation_v1",
+      "filename": "20260911002240_atlas_implementation_artifact_interpretation_v1.sql",
+      "gitBlobSha1": "a7c89fbd1010a01281ec58bd2e6affa31f7b5768",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911002857",
+      "name": "atlas_implementation_artifact_ready_state_v1",
+      "filename": "20260911002857_atlas_implementation_artifact_ready_state_v1.sql",
+      "gitBlobSha1": "c71f6606659fd1ef73f65ae636ddfa2ec08f3a84",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911014144",
+      "name": "atlas_ledger_purchase_personal_atlas_handoff_v1",
+      "filename": "20260911014144_atlas_ledger_purchase_personal_atlas_handoff_v1.sql",
+      "gitBlobSha1": "cebd0eb94a8c00960efacfbbaee26d52c8ac9f0d",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_release_repository_byte_drift"
+    },
+    {
+      "version": "20260911030743",
+      "name": "atlas_institutional_communications_home_v1",
+      "filename": "20260911030743_atlas_institutional_communications_home_v1.sql",
+      "gitBlobSha1": "534d4128b1c15b0b35b76e8d83cd032dcf34a4f5",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_release_repository_byte_drift"
+    },
+    {
+      "version": "20260911031744",
+      "name": "atlas_communication_outbound_attachment_storage_v1",
+      "filename": "20260911031744_atlas_communication_outbound_attachment_storage_v1.sql",
+      "gitBlobSha1": "a74212f25111202de2e3577679b85cddfc97d270",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_release_repository_byte_drift"
+    },
+    {
+      "version": "20260911031919",
+      "name": "atlas_communication_outbound_attachment_storage_policy_fix_v1",
+      "filename": "20260911031919_atlas_communication_outbound_attachment_storage_policy_fix_v1.sql",
+      "gitBlobSha1": "e224d9983401fdeca2d20d45a3f9e4984c8248a4",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_release_repository_byte_drift"
+    }
+  ]
+}
