@@ -24,21 +24,21 @@ insert into atlas.reality_discovery_questions(
   resolved_signal_key,reason_text,metadata,active
 ) values
 ('home.confirm_purchase_address','home','Fixture address','yes_no','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('household.people_shape','people','Fixture household','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('home.tenure','home','Fixture tenure','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('home.major_repairs','home','Fixture repairs','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('home.setting','home','Fixture setting','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('home.dwelling_kind','home','Fixture dwelling','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('grounds.responsibility','home','Fixture grounds','yes_no','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('transport.vehicle_count','transport','Fixture vehicles','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('household.child_count','people','Fixture children','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('household.people_shape','people','Fixture household','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('home.tenure','home','Fixture tenure','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('home.major_repairs','home','Fixture repairs','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('home.setting','home','Fixture setting','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('home.dwelling_kind','home','Fixture dwelling','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('grounds.responsibility','home','Fixture grounds','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('transport.vehicle_count','transport','Fixture vehicles','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('household.child_count','people','Fixture children','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
 ('children.school_calendar','people','Fixture school','yes_no','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('animals.responsibility','animals','Fixture animals','yes_no','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('life.weekday_anchor','life','Fixture weekday','short_text','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('laundry.location','home','Fixture laundry','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('grounds.scale','home','Fixture grounds scale','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('grounds.mowing_method','home','Fixture mowing','single_select','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
-('equipment.riding_mower_identity','home','Fixture mower identity','short_text','[]'::jsonb,10000,0,10000,10000,null,'Fixture highest-ranked specialization','{}'::jsonb,true);
+('animals.responsibility','animals','Fixture animals','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('life.weekday_anchor','life','Fixture weekday','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('laundry.location','home','Fixture laundry','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('grounds.scale','home','Fixture grounds scale','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('grounds.mowing_method','home','Fixture mowing','single_choice','[]'::jsonb,100,1,0,0,null,'Fixture','{}'::jsonb,true),
+('equipment.riding_mower_identity','home','Fixture mower identity','single_choice','[]'::jsonb,10000,0,10000,10000,null,'Fixture highest-ranked specialization','{}'::jsonb,true);
 
 insert into atlas.reality_discovery_answer_events(
   principal_id,owner_user_id,question_key,source_action_id,answer_value,metadata
