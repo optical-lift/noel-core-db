@@ -1,0 +1,54 @@
+{
+  "contractVersion": 28,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v27.json",
+  "rule": "These already-live post-fence Atlas rows were missing exact canonical source custody when the protected release lane was checked. Preserve only the exact production Git blob identities reported by that gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path or any future out-of-band production write.",
+  "recoveries": [
+    {
+      "version": "20260911150145",
+      "name": "add_sacred_time_state_transition_context_lens",
+      "filename": "20260911150145_add_sacred_time_state_transition_context_lens.sql",
+      "gitBlobSha1": "02d30cb63ec3e446e7dced540c34948aa1e5d073",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911154102",
+      "name": "atlas_practitioner_voice_conversation_v1",
+      "filename": "20260911154102_atlas_practitioner_voice_conversation_v1.sql",
+      "gitBlobSha1": "b33930bbcf9be47372315c4fa88ef3b9efefcbee",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911162415",
+      "name": "atlas_external_compute_usage_v1",
+      "filename": "20260911162415_atlas_external_compute_usage_v1.sql",
+      "gitBlobSha1": "154d7ab026fa729df9e5d24195dfe522cde65223",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911162446",
+      "name": "atlas_implementation_compute_usage_attribution_v1",
+      "filename": "20260911162446_atlas_implementation_compute_usage_attribution_v1.sql",
+      "gitBlobSha1": "f7580e456f29ca9eef2a03aec49b874484e81beb",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911163619",
+      "name": "add_sacred_time_witness_divergence_registry",
+      "filename": "20260911163619_add_sacred_time_witness_divergence_registry.sql",
+      "gitBlobSha1": "e4e2182f8a948e19f9b982ccc11a13e89ffe54af",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
