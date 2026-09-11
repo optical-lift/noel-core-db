@@ -66,13 +66,17 @@ language plpgsql security definer set search_path=pg_catalog,atlas,vault as $fun
 declare
   v_session jsonb; v_provider text:=lower(btrim(coalesce(p_provider_key,''))); v_subject text:=btrim(coalesce(p_authorization_subject_key,''));
   v_authorization_id uuid:=gen_random_uuid(); v_secret_id uuid; v_candidate jsonb; v_kind text; v_key text; v_parent text; v_label text; v_count integer:=0;
+  v_session_relation regclass;
 begin
-  if to_regclass('atlas.provider_connection_sessions') is null then raise exception 'Provider connection session rail is unavailable.' using errcode='55000'; end if;
+  v_session_relation:=to_regclass('atlas.provider_connection_sessions');
+  if v_session_relation is null then raise exception 'Provider connection session rail is unavailable.' using errcode='55000'; end if;
   if v_provider='' or v_subject='' or p_access_token is null or p_access_token='' or p_expires_at<=now() then raise exception 'Valid provider authorization is required.' using errcode='22023'; end if;
   if jsonb_typeof(coalesce(p_candidates,'[]'::jsonb))<>'array' or jsonb_typeof(coalesce(p_metadata,'{}'::jsonb))<>'object' then raise exception 'Candidates must be an array and metadata an object.' using errcode='22023'; end if;
 
-  execute $sql$select jsonb_build_object('actorUserId',actor_user_id,'custodianKind',custodian_kind,'custodianUserId',custodian_user_id,'organizationId',custodian_organization_id,'providerKey',provider_key,'sessionState',session_state,'expiresAt',expires_at) from atlas.provider_connection_sessions where id=$1 for update$sql$
-    into v_session using p_provider_connection_session_id;
+  execute format(
+    'select jsonb_build_object(''actorUserId'',actor_user_id,''custodianKind'',custodian_kind,''custodianUserId'',custodian_user_id,''organizationId'',custodian_organization_id,''providerKey'',provider_key,''sessionState'',session_state,''expiresAt'',expires_at) from %s where id=$1 for update',
+    v_session_relation
+  ) into v_session using p_provider_connection_session_id;
   if v_session is null then raise exception 'Provider connection session not found.' using errcode='P0002'; end if;
   if v_session->>'sessionState'<>'pending' or (v_session->>'expiresAt')::timestamptz<=now() then raise exception 'Provider connection session is not available for asset discovery.' using errcode='55000'; end if;
   if v_provider is distinct from v_session->>'providerKey' then raise exception 'Provider authorization does not match the connection session.' using errcode='42501'; end if;
@@ -90,7 +94,7 @@ begin
     v_count:=v_count+1;
   end loop;
 
-  execute 'update atlas.provider_connection_sessions set metadata=metadata||$1::jsonb,updated_at=now() where id=$2'
+  execute format('update %s set metadata=metadata||$1::jsonb,updated_at=now() where id=$2',v_session_relation)
     using jsonb_build_object('providerAssetAuthorizationId',v_authorization_id),p_provider_connection_session_id;
   return jsonb_build_object('contractVersion','provider_asset_authorization_v1','authorizationId',v_authorization_id,'providerKey',v_provider,'candidateCount',v_count,'expiresAt',least(p_expires_at,now()+interval '24 hours'));
 end;$function$;
