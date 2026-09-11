@@ -78,8 +78,8 @@ insert into atlas.reality_discovery_encounter_admission(
 ('grounds.scale','high_leverage','admit',
  'Outdoor scale changes whether equipment and seasonal land-care discovery is worth pursuing.',
  '{}'::jsonb),
-('grounds.mowing_method','specialization','defer',
- 'Mowing method specializes already-established grounds responsibility and does not by itself deserve first-day attention.',
+('grounds.mowing_method','high_leverage','admit',
+ 'Mowing method can determine whether a maintainable equipment branch exists at all, so it changes downstream discovery rather than merely adding descriptive detail.',
  '{}'::jsonb),
 ('equipment.riding_mower_identity','specialization','defer',
  'Exact mower identity is useful for later maintenance specialization but need not consume first-day attention.',
@@ -273,10 +273,7 @@ begin
     'encounterKind',v_kind,
     'question',null,
     'quiet',true,
-    'message',case
-      when v_has_eligible and v_deferred_count>0 then 'I know enough here for now.'
-      else 'I know enough here for now.'
-    end,
+    'message','I know enough here for now.',
     'eligibleUnansweredRemain',v_has_eligible,
     'deferredCount',v_deferred_count,
     'context',v_context,
