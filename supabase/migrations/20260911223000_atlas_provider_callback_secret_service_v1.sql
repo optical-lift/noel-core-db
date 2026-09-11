@@ -10,21 +10,54 @@ security definer
 set search_path=pg_catalog,atlas
 as $function$
 declare
-  v_session atlas.provider_connection_sessions%rowtype;
+  v_session jsonb;
   v_provider text:=lower(btrim(coalesce(p_provider_key,'')));
   v_digest text:=lower(btrim(coalesce(p_state_nonce_digest,'')));
+  v_expires_at timestamptz;
 begin
-  select * into v_session from atlas.provider_connection_sessions where id=p_session_id for update;
-  if v_session.id is null then raise exception 'Provider connection session not found.' using errcode='P0002'; end if;
-  if v_session.session_state<>'pending' then raise exception 'Provider callback session is no longer pending.' using errcode='55000'; end if;
-  if now()>v_session.expires_at then
-    update atlas.provider_connection_sessions set session_state='expired',updated_at=now() where id=v_session.id;
+  if to_regclass('atlas.provider_connection_sessions') is null then
+    raise exception 'Provider connection session rail is unavailable.' using errcode='55000';
+  end if;
+
+  execute $sql$
+    select jsonb_build_object(
+      'id',id,
+      'providerKey',provider_key,
+      'stateDigest',state_nonce_digest,
+      'custodianKind',custodian_kind,
+      'custodianUserId',custodian_user_id,
+      'organizationId',custodian_organization_id,
+      'redirectUri',redirect_uri,
+      'sessionState',session_state,
+      'expiresAt',expires_at
+    )
+    from atlas.provider_connection_sessions
+    where id=$1
+    for update
+  $sql$ into v_session using p_session_id;
+
+  if v_session is null then raise exception 'Provider connection session not found.' using errcode='P0002'; end if;
+  if v_session->>'sessionState'<>'pending' then raise exception 'Provider callback session is no longer pending.' using errcode='55000'; end if;
+  v_expires_at:=(v_session->>'expiresAt')::timestamptz;
+  if now()>v_expires_at then
+    execute 'update atlas.provider_connection_sessions set session_state=''expired'',updated_at=now() where id=$1' using p_session_id;
     raise exception 'Provider connection session expired.' using errcode='55000';
   end if;
-  if v_provider='' or v_provider is distinct from v_session.provider_key then raise exception 'Provider callback does not match the connection session.' using errcode='42501'; end if;
-  if v_digest !~ '^[0-9a-f]{64}$' or v_digest is distinct from v_session.state_nonce_digest then raise exception 'Provider callback state is invalid.' using errcode='42501'; end if;
+  if v_provider='' or v_provider is distinct from v_session->>'providerKey' then raise exception 'Provider callback does not match the connection session.' using errcode='42501'; end if;
+  if v_digest !~ '^[0-9a-f]{64}$' or v_digest is distinct from v_session->>'stateDigest' then raise exception 'Provider callback state is invalid.' using errcode='42501'; end if;
 
-  return jsonb_build_object('contractVersion','provider_connection_callback_validation_v1','sessionId',v_session.id,'providerKey',v_session.provider_key,'custodianKind',v_session.custodian_kind,'custodianUserId',v_session.custodian_user_id,'organizationId',v_session.custodian_organization_id,'redirectUri',v_session.redirect_uri,'sessionState',v_session.session_state,'expiresAt',v_session.expires_at,'validated',true);
+  return jsonb_build_object(
+    'contractVersion','provider_connection_callback_validation_v1',
+    'sessionId',p_session_id,
+    'providerKey',v_session->>'providerKey',
+    'custodianKind',v_session->>'custodianKind',
+    'custodianUserId',v_session->>'custodianUserId',
+    'organizationId',v_session->>'organizationId',
+    'redirectUri',v_session->>'redirectUri',
+    'sessionState',v_session->>'sessionState',
+    'expiresAt',v_expires_at,
+    'validated',true
+  );
 end;
 $function$;
 revoke all on function atlas.validate_provider_connection_callback_service_v1(uuid,text,text) from public,anon,authenticated;
