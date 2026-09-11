@@ -229,7 +229,7 @@ function canonicalMessage(accountId: string, envelope: Json) {
       sourceAuthority: "evidence_only",
       permittedStateEffect: "append_source_attributed_evidence_only",
       governingStateChanged: false,
-    },
+    } as Json,
   };
 }
 
@@ -264,17 +264,17 @@ function canonicalComment(accountId: string, change: Json) {
       sourceAuthority: "evidence_only",
       permittedStateEffect: "append_source_attributed_evidence_only",
       governingStateChanged: false,
-    },
+    } as Json,
   };
 }
 
 async function ingestCanonical(accountId: string, deliveryKey: string, event: Json) {
+  event.contentHash = await sha256(JSON.stringify(event));
   const source = await serviceRpc<SourceResolution>("resolve_provider_webhook_source_service_v1", {
     p_provider_key: "instagram",
     p_provider_account_key: accountId,
   });
-  const eventJson = JSON.stringify(event);
-  const payloadHash = await sha256(eventJson);
+  const payloadHash = await sha256(JSON.stringify(event));
   const delivery = await serviceRpc<{ deliveryId: string; state: string; shouldProcess: boolean }>("record_provider_webhook_delivery_service_v1", {
     p_connected_source_id: source.connectedSourceId,
     p_provider_key: "instagram",
@@ -316,7 +316,7 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     if (req.method === "GET" && url.pathname.endsWith("/health")) {
-      return json({ ok: true, adapter: "atlas_instagram_login_v1", deployed: true });
+      return json({ ok: true, adapter: "atlas_instagram_login_v1" });
     }
 
     if (req.method === "GET" && url.pathname.endsWith("/instagram/start")) {
