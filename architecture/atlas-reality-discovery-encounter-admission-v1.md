@@ -76,7 +76,7 @@ Default first-day disposition: **admit only when explicit consequence evidence e
 
 One answer can materially alter several downstream questions or kernels, without being merely descriptive specialization.
 
-Examples may include school-calendar applicability or animal responsibility after household shape makes them materially useful.
+Examples may include school-calendar applicability, animal responsibility, or mowing method once grounds responsibility is established.
 
 Default first-day disposition: **admit**.
 
@@ -171,7 +171,7 @@ The current questions should be classified conservatively:
 | `life.weekday_anchor` | `foundation` | admit |
 | `laundry.location` | `high_leverage` | admit when context materially raises it |
 | `grounds.scale` | `high_leverage` | admit when grounds responsibility exists |
-| `grounds.mowing_method` | `specialization` | defer |
+| `grounds.mowing_method` | `high_leverage` | admit when grounds responsibility exists |
 | `equipment.riding_mower_identity` | `specialization` | defer |
 
 This classification can evolve through governed source changes. It is not inferred from raw score at runtime.
@@ -197,10 +197,10 @@ The existing public `reality_discovery_next_question_self_api_v1()` contract sho
 
 ### Rural owner household
 
-After broad facts establish owner/rural/grounds/riding-mower context:
+After broad facts establish owner/rural/grounds context:
 
-- vehicle, school/calendar, animal, and other admitted broad/high-leverage questions may continue to surface;
-- `grounds.mowing_method` may have been asked only while still classified appropriately by the admitted path; once a riding mower is established, `equipment.riding_mower_identity` must remain unresolved but **deferred from first-day**;
+- vehicle, school/calendar, animal, mowing-method, and other admitted broad/high-leverage questions may continue to surface;
+- if mowing is answered `riding`, `equipment.riding_mower_identity` becomes eligible in the graph but remains unresolved and **deferred from first-day**;
 - manual or later justified micro-discovery may surface mower identity.
 
 ### Dense-city single renter
