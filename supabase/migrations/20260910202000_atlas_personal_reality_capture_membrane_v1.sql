@@ -446,7 +446,7 @@ returns jsonb language plpgsql security definer set search_path=pg_catalog,atlas
 declare
   u uuid:=auth.uid(); raw_id uuid:=nullif(p_input->>'sourceEvidenceId','')::uuid; pid uuid:=nullif(p_input->>'proposalId','')::uuid; rid uuid:=nullif(p_input->>'decisionReceiptId','')::uuid;
   supersedes uuid:=nullif(p_input->>'supersedesClaimId','')::uuid; s jsonb:=p_input->'subject'; c jsonb:=p_input->'claim'; sd text; sk text; sid text; ct text; ls text; ak text; conf numeric;
-  vf timestamptz; vu timestamptz; md jsonb; eid uuid; cid uuid; old atlas.claim_records%rowtype; ec atlas.claim_records%rowtype; ee atlas.evidence_records%rowtype; source_key text; made boolean:=false;
+  vf timestamptz; vu timestamptz; md jsonb; eid uuid; cid uuid; old atlas.claim_records%rowtype; ec atlas.claim_records%rowtype; ee atlas.evidence_records%rowtype; v_source_key text; made boolean:=false;
 begin
   if u is null then raise exception 'Sign in required.' using errcode='42501'; end if;
   if raw_id is null or pid is null or rid is null or jsonb_typeof(s)<>'object' or jsonb_typeof(c)<>'object' then raise exception 'sourceEvidenceId, proposalId, decisionReceiptId, subject, and claim are required.' using errcode='22023'; end if;
@@ -457,25 +457,25 @@ begin
   if ls not in ('reported','observed','accepted','rejected','unknown') then raise exception 'Unsupported human-confirmed claim lifecycle.' using errcode='22023'; end if;
   if c?'confidence' then conf:=(c->>'confidence')::numeric; if conf<0 or conf>1 then raise exception 'claim confidence must be 0..1.' using errcode='22023'; end if; end if;
   vf:=nullif(c->>'validFrom','')::timestamptz; vu:=nullif(c->>'validUntil','')::timestamptz; if vf is not null and vu is not null and vu<vf then raise exception 'validUntil precedes validFrom.' using errcode='22023'; end if;
-  md:=coalesce(case when jsonb_typeof(c->'metadata')='object' then c->'metadata' end,'{}'::jsonb); source_key:='personal_reality_proposal:'||pid::text;
+  md:=coalesce(case when jsonb_typeof(c->'metadata')='object' then c->'metadata' end,'{}'::jsonb); v_source_key:='personal_reality_proposal:'||pid::text;
   if supersedes is not null then
     select * into old from atlas.claim_records x where x.id=supersedes and x.scope_kind='person' and x.scope_id=u and x.subject_domain=sd and x.subject_kind=sk and x.subject_id=sid;
     if old.id is null then raise exception 'supersedesClaimId must identify same-subject person claim.' using errcode='42501'; end if;
   end if;
   insert into atlas.evidence_records(scope_kind,scope_id,subject_domain,subject_kind,subject_id,evidence_kind,source_kind,source_key,actor_user_id,value,confidence,observed_at,effective_from,effective_until,provenance,metadata)
-  values('person',u,sd,sk,sid,'human_confirmed_interpretation','personal_reality_claim_interpretation',source_key,u,c->'value',1,null,vf,vu,
+  values('person',u,sd,sk,sid,'human_confirmed_interpretation','personal_reality_claim_interpretation',v_source_key,u,c->'value',1,null,vf,vu,
     jsonb_build_object('sourceEvidenceId',raw_id,'proposalId',pid,'decisionReceiptId',rid),jsonb_build_object('rawTestimonyNotCopied',true))
   on conflict(scope_kind,scope_id,source_kind,source_key) do nothing returning id into eid;
   if eid is null then
-    select * into ee from atlas.evidence_records e where e.scope_kind='person' and e.scope_id=u and e.source_kind='personal_reality_claim_interpretation' and e.source_key=source_key;
+    select * into ee from atlas.evidence_records e where e.scope_kind='person' and e.scope_id=u and e.source_kind='personal_reality_claim_interpretation' and e.source_key=v_source_key;
     if ee.id is null or ee.subject_domain is distinct from sd or ee.subject_kind is distinct from sk or ee.subject_id is distinct from sid or ee.value is distinct from c->'value' or ee.effective_from is distinct from vf or ee.effective_until is distinct from vu then raise exception 'proposal retry does not match interpretation Evidence.' using errcode='23505'; end if; eid:=ee.id;
   end if;
   ak:=case when supersedes is not null then 'person_correction' when ls='observed' then 'person_reported_observation' when ls='accepted' then 'person_acceptance' when ls='rejected' then 'person_rejection' else 'person_confirmed_interpretation' end;
   insert into atlas.claim_records(scope_kind,scope_id,subject_domain,subject_kind,subject_id,claim_type,lifecycle_state,authority_kind,source_kind,source_key,value,confidence,primary_evidence_id,supersedes_claim_id,valid_from,valid_until,metadata)
-  values('person',u,sd,sk,sid,ct,ls,ak,'personal_reality_claim',source_key,c->'value',conf,eid,supersedes,vf,vu,md||jsonb_build_object('sourceEvidenceId',raw_id,'proposalId',pid,'decisionReceiptId',rid))
+  values('person',u,sd,sk,sid,ct,ls,ak,'personal_reality_claim',v_source_key,c->'value',conf,eid,supersedes,vf,vu,md||jsonb_build_object('sourceEvidenceId',raw_id,'proposalId',pid,'decisionReceiptId',rid))
   on conflict(scope_kind,scope_id,source_kind,source_key) do nothing returning id into cid;
   if cid is null then
-    select * into ec from atlas.claim_records x where x.scope_kind='person' and x.scope_id=u and x.source_kind='personal_reality_claim' and x.source_key=source_key;
+    select * into ec from atlas.claim_records x where x.scope_kind='person' and x.scope_id=u and x.source_kind='personal_reality_claim' and x.source_key=v_source_key;
     if ec.id is null or ec.subject_domain is distinct from sd or ec.subject_kind is distinct from sk or ec.subject_id is distinct from sid or ec.claim_type is distinct from ct or ec.value is distinct from c->'value' or ec.primary_evidence_id is distinct from eid or ec.supersedes_claim_id is distinct from supersedes then raise exception 'proposal retry does not match Claim.' using errcode='23505'; end if; cid:=ec.id;
   else made:=true; end if;
   insert into atlas.claim_evidence_links(claim_id,evidence_id,relation_kind,metadata) values(cid,eid,'supports',jsonb_build_object('primary',true)) on conflict(claim_id,evidence_id,relation_kind) do nothing;
@@ -501,7 +501,7 @@ begin
     r:=to_regclass('atlas.principal_one_off_actions'); if r is not null then select n.nspname,c.relname into sn,rn from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.oid=r;
       execute format('select jsonb_build_object(''exists'',true,''actionId'',id,''status'',status,''completedAt'',completed_at,''cancelledAt'',cancelled_at) from %I.%I where id=$1',sn,rn) into s using p_id::uuid; end if;
   elsif p_kind='principal_capacity_adjustment' then
-    r:=to_regclass('atlas.principal_capacity_adjustments'); if r is not null then select n.nspname,c.relname into sn,rn from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.oid=r;
+    r:=to_regclass('atlas.principal_capacity_adjustments'); if r is not null then select n.nspname,c.relname into sn,rn from pg_class c join pg_namespace n on n.oid=r;
       execute format('select jsonb_build_object(''exists'',true,''adjustmentId'',id,''active'',active,''startsAt'',starts_at,''endsAt'',ends_at) from %I.%I where id=$1',sn,rn) into s using p_id::uuid; end if;
   end if;
   return coalesce(s,jsonb_build_object('exists',false));
