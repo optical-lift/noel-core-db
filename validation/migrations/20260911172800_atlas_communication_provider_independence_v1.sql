@@ -1,5 +1,5 @@
--- Validation for 20260911172800 + 20260911173500 communication provider-independence candidates.
--- Intended for disposable/clone validation after migrations are applied.
+-- Validation for 20260911172800 communication provider-independence foundation.
+-- Intended for disposable/clone validation after this migration alone is applied.
 
 begin;
 
@@ -167,19 +167,11 @@ begin
 end;
 $validation$;
 
--- The two Principal endpoint browser APIs are the only newly opened client seam.
+-- This migration opens only the Principal endpoint upsert client seam.
 do $validation$
 begin
   if not has_function_privilege('authenticated','atlas.upsert_principal_communication_endpoint_self_api_v1(text,text,text,jsonb)','EXECUTE') then
     raise exception 'Principal endpoint upsert API is not executable by authenticated.';
-  end if;
-
-  if not has_function_privilege('authenticated','atlas.principal_communication_endpoints_self_api_v1()','EXECUTE') then
-    raise exception 'Principal endpoint read API is not executable by authenticated.';
-  end if;
-
-  if not has_function_privilege('authenticated','atlas.bind_principal_communication_endpoint_source_self_api_v1(uuid,uuid,text,jsonb)','EXECUTE') then
-    raise exception 'Principal endpoint source-binding API is not executable by authenticated.';
   end if;
 end;
 $validation$;
