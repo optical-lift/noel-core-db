@@ -14,33 +14,23 @@ declare
   v_provider text:=lower(btrim(coalesce(p_provider_key,'')));
   v_digest text:=lower(btrim(coalesce(p_state_nonce_digest,'')));
   v_expires_at timestamptz;
+  v_session_relation regclass;
 begin
-  if to_regclass('atlas.provider_connection_sessions') is null then
+  v_session_relation:=to_regclass('atlas.provider_connection_sessions');
+  if v_session_relation is null then
     raise exception 'Provider connection session rail is unavailable.' using errcode='55000';
   end if;
 
-  execute $sql$
-    select jsonb_build_object(
-      'id',id,
-      'providerKey',provider_key,
-      'stateDigest',state_nonce_digest,
-      'custodianKind',custodian_kind,
-      'custodianUserId',custodian_user_id,
-      'organizationId',custodian_organization_id,
-      'redirectUri',redirect_uri,
-      'sessionState',session_state,
-      'expiresAt',expires_at
-    )
-    from atlas.provider_connection_sessions
-    where id=$1
-    for update
-  $sql$ into v_session using p_session_id;
+  execute format(
+    'select jsonb_build_object(''id'',id,''providerKey'',provider_key,''stateDigest'',state_nonce_digest,''custodianKind'',custodian_kind,''custodianUserId'',custodian_user_id,''organizationId'',custodian_organization_id,''redirectUri'',redirect_uri,''sessionState'',session_state,''expiresAt'',expires_at) from %s where id=$1 for update',
+    v_session_relation
+  ) into v_session using p_session_id;
 
   if v_session is null then raise exception 'Provider connection session not found.' using errcode='P0002'; end if;
   if v_session->>'sessionState'<>'pending' then raise exception 'Provider callback session is no longer pending.' using errcode='55000'; end if;
   v_expires_at:=(v_session->>'expiresAt')::timestamptz;
   if now()>v_expires_at then
-    execute 'update atlas.provider_connection_sessions set session_state=''expired'',updated_at=now() where id=$1' using p_session_id;
+    execute format('update %s set session_state=''expired'',updated_at=now() where id=$1',v_session_relation) using p_session_id;
     raise exception 'Provider connection session expired.' using errcode='55000';
   end if;
   if v_provider='' or v_provider is distinct from v_session->>'providerKey' then raise exception 'Provider callback does not match the connection session.' using errcode='42501'; end if;
