@@ -6,10 +6,10 @@ begin;
 
 do $$
 declare
-  v_org uuid;
-  v_unit uuid;
+  v_org uuid:=gen_random_uuid();
+  v_unit uuid:=gen_random_uuid();
   v_owner_membership uuid;
-  v_owner_user uuid;
+  v_owner_user uuid:=gen_random_uuid();
   v_work uuid;
   v_allocation uuid;
   v_plan uuid;
@@ -22,22 +22,19 @@ declare
   v_before_allocations bigint;
   v_after_allocations bigint;
 begin
-  select om.organization_id,om.id,om.user_id
-  into v_org,v_owner_membership,v_owner_user
-  from atlas.organization_memberships om
-  where om.active and om.role='owner'
-  order by om.created_at,om.id
-  limit 1;
+  -- Production clone validation is schema-only, so create a disposable authority graph
+  -- inside this transaction rather than depending on production rows.
+  insert into auth.users(id) values (v_owner_user);
 
-  if v_org is null then
-    raise exception 'Postcondition requires an organization with an active Owner membership.';
-  end if;
+  insert into atlas.organizations(id,stable_key,name,status,metadata,onboarding_state)
+  values(v_org,v_key||'-org','Route integration fixture organization','active','{}'::jsonb,'ready');
 
-  select u.id into v_unit
-  from atlas.organization_units u
-  where u.organization_id=v_org and u.status='active'
-  order by u.created_at,u.id
-  limit 1;
+  insert into atlas.organization_units(id,organization_id,stable_key,name,unit_kind,status,metadata)
+  values(v_unit,v_org,v_key||'-unit','Route integration fixture unit','operating_unit','active','{}'::jsonb);
+
+  insert into atlas.organization_memberships(organization_id,user_id,role,active,permissions)
+  values(v_org,v_owner_user,'owner',true,'{}'::jsonb)
+  returning id into v_owner_membership;
 
   perform set_config('request.jwt.claim.sub',v_owner_user::text,true);
 
