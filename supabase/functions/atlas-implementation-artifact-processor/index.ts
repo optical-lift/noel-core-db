@@ -39,6 +39,15 @@ type BeginTranscript = {
 type BeginInterpretation = { ok?: boolean; shouldInterpret?: boolean; reason?: string; interpretationId?: string; transcriptText?: string };
 type Candidate = { candidateKind: "finding" | "question"; workArea: typeof WORK_AREAS[number]; statement: string; evidenceExcerpt: string; confidence: number };
 type Extraction = { summary: string; candidates: Candidate[] };
+type RateSnapshot = {
+  limitRequests: number | null;
+  remainingRequests: number | null;
+  limitTokens: number | null;
+  remainingTokens: number | null;
+  resetRequests: string | null;
+  resetTokens: string | null;
+  retryAfterSeconds: number | null;
+};
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -57,6 +66,76 @@ async function rpc<T>(functionName: string, args: Json, authorization: string, a
 
 async function serviceRpc<T>(functionName: string, args: Json): Promise<T> {
   return rpc<T>(functionName, args, `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, SUPABASE_SERVICE_ROLE_KEY);
+}
+
+function numericHeader(response: Response, name: string) {
+  const raw = response.headers.get(name);
+  if (!raw) return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : null;
+}
+
+function integerHeader(response: Response, name: string) {
+  const value = numericHeader(response, name);
+  return value === null ? null : Math.trunc(value);
+}
+
+function rateSnapshot(response: Response): RateSnapshot {
+  return {
+    limitRequests: integerHeader(response, "x-ratelimit-limit-requests"),
+    remainingRequests: integerHeader(response, "x-ratelimit-remaining-requests"),
+    limitTokens: integerHeader(response, "x-ratelimit-limit-tokens"),
+    remainingTokens: integerHeader(response, "x-ratelimit-remaining-tokens"),
+    resetRequests: response.headers.get("x-ratelimit-reset-requests"),
+    resetTokens: response.headers.get("x-ratelimit-reset-tokens"),
+    retryAfterSeconds: numericHeader(response, "retry-after"),
+  };
+}
+
+async function recordProviderUsage(artifactId: string, input: {
+  model: string;
+  operation: string;
+  status: "succeeded" | "failed" | "rate_limited";
+  requestId?: string | null;
+  audioSeconds?: number | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  totalTokens?: number | null;
+  cachedInputTokens?: number | null;
+  httpStatus?: number | null;
+  rate?: RateSnapshot;
+  metadata?: Json;
+}) {
+  try {
+    const rate = input.rate ?? {
+      limitRequests: null, remainingRequests: null, limitTokens: null, remainingTokens: null,
+      resetRequests: null, resetTokens: null, retryAfterSeconds: null,
+    };
+    await serviceRpc("record_implementation_compute_usage_service_v1", {
+      p_artifact_id: artifactId,
+      p_provider_key: PROVIDER_KEY,
+      p_model_key: input.model,
+      p_operation_kind: input.operation,
+      p_status: input.status,
+      p_provider_request_id: input.requestId ?? null,
+      p_audio_seconds: input.audioSeconds ?? null,
+      p_input_tokens: input.inputTokens ?? null,
+      p_output_tokens: input.outputTokens ?? null,
+      p_total_tokens: input.totalTokens ?? null,
+      p_cached_input_tokens: input.cachedInputTokens ?? null,
+      p_http_status: input.httpStatus ?? null,
+      p_rate_limit_limit_requests: rate.limitRequests,
+      p_rate_limit_remaining_requests: rate.remainingRequests,
+      p_rate_limit_limit_tokens: rate.limitTokens,
+      p_rate_limit_remaining_tokens: rate.remainingTokens,
+      p_rate_limit_reset_requests: rate.resetRequests,
+      p_rate_limit_reset_tokens: rate.resetTokens,
+      p_retry_after_seconds: rate.retryAfterSeconds,
+      p_metadata: { source: "atlas-implementation-artifact-processor", paidFallback: false, ...(input.metadata ?? {}) },
+    });
+  } catch (usageError) {
+    console.error("Could not persist external compute usage", usageError);
+  }
 }
 
 async function markFailed(artifactId: string, stage: string, error: unknown, retryable = true) {
@@ -102,25 +181,41 @@ async function downloadArtifact(packet: BeginTranscript) {
   return await response.blob();
 }
 
-async function transcribe(packet: BeginTranscript, audio: Blob) {
+async function transcribe(artifactId: string, packet: BeginTranscript, audio: Blob) {
   const form = new FormData();
   form.append("model", TRANSCRIPTION_MODEL);
-  form.append("response_format", "json");
+  form.append("response_format", "verbose_json");
   form.append("file", new File([audio], safeFilename(packet), { type: packet.mimeType || audio.type || "audio/webm" }));
   const response = await fetch(`${GROQ_API_BASE}/audio/transcriptions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
     body: form,
   });
-  const text = await response.text();
+  const raw = await response.text();
+  let body: { text?: string; language?: string; duration?: number; x_groq?: { id?: string } } = {};
+  try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; }
+  const requestId = response.headers.get("x-request-id") ?? body.x_groq?.id ?? null;
+  const audioSeconds = typeof body.duration === "number" && Number.isFinite(body.duration)
+    ? body.duration
+    : packet.durationMs != null ? packet.durationMs / 1000 : null;
+  const status = response.ok ? "succeeded" : response.status === 429 ? "rate_limited" : "failed";
+  await recordProviderUsage(artifactId, {
+    model: TRANSCRIPTION_MODEL,
+    operation: "transcription",
+    status,
+    requestId,
+    audioSeconds,
+    httpStatus: response.status,
+    rate: rateSnapshot(response),
+    metadata: { responseFormat: "verbose_json", conversationOnly: packet.submitterIsPractitioner === true },
+  });
   if (!response.ok) {
     const retryAfter = response.headers.get("retry-after");
-    throw new Error(`Groq transcription failed (${response.status})${retryAfter ? `; retry after ${retryAfter}s` : ""}: ${text.slice(0, 1000)}`);
+    throw new Error(`Groq transcription failed (${response.status})${retryAfter ? `; retry after ${retryAfter}s` : ""}: ${raw.slice(0, 1000)}`);
   }
-  const body = JSON.parse(text) as { text?: string; language?: string; x_groq?: { id?: string } };
   const transcript = body.text?.trim() ?? "";
   if (!transcript) throw new Error("Groq returned an empty transcript.");
-  return { transcript, language: body.language ?? null, requestId: response.headers.get("x-request-id") ?? body.x_groq?.id ?? null };
+  return { transcript, language: body.language ?? null, requestId };
 }
 
 const extractionSchema = {
@@ -147,7 +242,7 @@ const extractionSchema = {
   },
 };
 
-async function interpret(transcript: string, startingLabel?: string | null) {
+async function interpret(artifactId: string, transcript: string, startingLabel?: string | null) {
   const systemPrompt = [
     "You extract implementation candidates from a human-supplied Atlas onboarding transcript.",
     "The transcript is evidence of what the speaker said, not proof that every proposition is established organizational truth.",
@@ -173,11 +268,38 @@ async function interpret(transcript: string, startingLabel?: string | null) {
   });
 
   const raw = await response.text();
+  let body: {
+    choices?: Array<{ message?: { content?: string | null } }>;
+    x_groq?: { id?: string };
+    usage?: {
+      prompt_tokens?: number;
+      completion_tokens?: number;
+      total_tokens?: number;
+      prompt_tokens_details?: { cached_tokens?: number };
+    };
+  } = {};
+  try { body = raw ? JSON.parse(raw) : {}; } catch { body = {}; }
+  const requestId = response.headers.get("x-request-id") ?? body.x_groq?.id ?? null;
+  const usage = body.usage;
+  const status = response.ok ? "succeeded" : response.status === 429 ? "rate_limited" : "failed";
+  await recordProviderUsage(artifactId, {
+    model: INTERPRETATION_MODEL,
+    operation: "interpretation",
+    status,
+    requestId,
+    inputTokens: usage?.prompt_tokens ?? null,
+    outputTokens: usage?.completion_tokens ?? null,
+    totalTokens: usage?.total_tokens ?? null,
+    cachedInputTokens: usage?.prompt_tokens_details?.cached_tokens ?? null,
+    httpStatus: response.status,
+    rate: rateSnapshot(response),
+    metadata: { reasoningEffort: "low", structuredOutput: true },
+  });
   if (!response.ok) {
     const retryAfter = response.headers.get("retry-after");
     throw new Error(`Groq interpretation failed (${response.status})${retryAfter ? `; retry after ${retryAfter}s` : ""}: ${raw.slice(0, 1000)}`);
   }
-  const body = JSON.parse(raw) as { choices?: Array<{ message?: { content?: string | null } }>; x_groq?: { id?: string } };
+
   const outputText = body.choices?.[0]?.message?.content?.trim() ?? "";
   if (!outputText) throw new Error("Groq returned no structured interpretation text.");
   const parsed = JSON.parse(outputText) as Extraction;
@@ -194,7 +316,7 @@ async function interpret(transcript: string, startingLabel?: string | null) {
   return {
     summary: typeof parsed.summary === "string" ? parsed.summary.slice(0, 2000) : "",
     candidates,
-    requestId: response.headers.get("x-request-id") ?? body.x_groq?.id ?? null,
+    requestId,
   };
 }
 
@@ -215,7 +337,7 @@ async function processArtifact(artifactId: string) {
       stage = "download";
       const audio = await downloadArtifact(begin);
       stage = "transcription";
-      const result = await transcribe(begin, audio);
+      const result = await transcribe(artifactId, begin, audio);
       transcript = result.transcript;
       if (!transcriptId) throw new Error("Transcript record identity is missing.");
       await serviceRpc("complete_implementation_artifact_transcript_service_v1", {
@@ -230,6 +352,7 @@ async function processArtifact(artifactId: string) {
           source: "atlas-implementation-artifact-processor",
           paidFallback: false,
           conversationOnly: begin.submitterIsPractitioner === true,
+          usageMetered: true,
         },
       });
     }
@@ -254,7 +377,7 @@ async function processArtifact(artifactId: string) {
     if (!interpretation.ok || interpretation.reason === "already_processing" || interpretation.reason === "interpretation_ready") return;
     if (!interpretation.shouldInterpret || !interpretation.interpretationId) return;
 
-    const extracted = await interpret(transcript, begin.startingLabel);
+    const extracted = await interpret(artifactId, transcript, begin.startingLabel);
     await serviceRpc("complete_implementation_artifact_interpretation_service_v1", {
       p_interpretation_id: interpretation.interpretationId,
       p_summary: extracted.summary,
@@ -264,6 +387,7 @@ async function processArtifact(artifactId: string) {
         source: "atlas-implementation-artifact-processor",
         exactExcerptFilter: true,
         paidFallback: false,
+        usageMetered: true,
       },
     });
   } catch (error) {
