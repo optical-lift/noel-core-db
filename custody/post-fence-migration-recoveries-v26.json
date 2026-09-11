@@ -1,0 +1,27 @@
+{
+  "contractVersion": 26,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v25.json",
+  "rule": "These already-live post-fence Atlas rows were previously missing exact canonical source custody. Preserve the exact production Git blob identities reported by the protected release lane. This corrective registry supersedes the nonmatching blob guesses for these filenames in v25 for live-custody matching only; it does not authorize historical or future out-of-band production writes.",
+  "recoveries": [
+    {
+      "version": "20260911002240",
+      "name": "atlas_implementation_artifact_interpretation_v1",
+      "filename": "20260911002240_atlas_implementation_artifact_interpretation_v1.sql",
+      "gitBlobSha1": "a473f8d120fd989fdd808020f4df500063da6920",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260911002857",
+      "name": "atlas_implementation_artifact_ready_state_v1",
+      "filename": "20260911002857_atlas_implementation_artifact_ready_state_v1.sql",
+      "gitBlobSha1": "9f0446fd738a827081afe715844e72f7368ae34a",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
