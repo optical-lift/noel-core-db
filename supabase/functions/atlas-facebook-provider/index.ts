@@ -27,6 +27,13 @@ async function sha256(text: string) {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function stableEventProjection(event: Json) {
+  const copy = structuredClone(event);
+  delete copy.capturedAt;
+  delete copy.contentHash;
+  return copy;
+}
+
 async function hmacSha256Hex(secret: string, text: string) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
@@ -324,12 +331,12 @@ function canonicalPageComment(pageId: string, change: Json) {
 }
 
 async function ingestFacebookCanonical(pageId: string, deliveryKey: string, event: Json) {
-  event.contentHash = await sha256(JSON.stringify(event));
+  event.contentHash = await sha256(JSON.stringify(stableEventProjection(event)));
   const source = await serviceRpc<SourceResolution>("resolve_provider_webhook_source_service_v1", {
     p_provider_key: "facebook",
     p_provider_account_key: pageId,
   });
-  const payloadHash = await sha256(JSON.stringify(event));
+  const payloadHash = await sha256(JSON.stringify(stableEventProjection(event)));
   const delivery = await serviceRpc<{ deliveryId: string; state: string; shouldProcess: boolean }>("record_provider_webhook_delivery_service_v1", {
     p_connected_source_id: source.connectedSourceId,
     p_provider_key: "facebook",
