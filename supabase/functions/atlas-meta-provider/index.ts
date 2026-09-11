@@ -36,6 +36,13 @@ async function sha256(text: string) {
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function stableEventProjection(event: Json) {
+  const copy = structuredClone(event);
+  delete copy.capturedAt;
+  delete copy.contentHash;
+  return copy;
+}
+
 async function hmacSha256Hex(secret: string, text: string) {
   const key = await crypto.subtle.importKey(
     "raw",
@@ -269,12 +276,12 @@ function canonicalComment(accountId: string, change: Json) {
 }
 
 async function ingestCanonical(accountId: string, deliveryKey: string, event: Json) {
-  event.contentHash = await sha256(JSON.stringify(event));
+  event.contentHash = await sha256(JSON.stringify(stableEventProjection(event)));
   const source = await serviceRpc<SourceResolution>("resolve_provider_webhook_source_service_v1", {
     p_provider_key: "instagram",
     p_provider_account_key: accountId,
   });
-  const payloadHash = await sha256(JSON.stringify(event));
+  const payloadHash = await sha256(JSON.stringify(stableEventProjection(event)));
   const delivery = await serviceRpc<{ deliveryId: string; state: string; shouldProcess: boolean }>("record_provider_webhook_delivery_service_v1", {
     p_connected_source_id: source.connectedSourceId,
     p_provider_key: "instagram",
