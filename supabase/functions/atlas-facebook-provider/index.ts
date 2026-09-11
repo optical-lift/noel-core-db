@@ -191,12 +191,63 @@ async function subscribeSelectedAsset(assetKind: string, providerAssetKey: strin
   if (result.success !== true) throw new Error("Meta webhook subscription was not accepted for the selected asset.");
 }
 
-async function completeSelection(selectionId: string) {
+async function bindOrganizationCommunicationEndpoint(
+  context: Json,
+  sourceId: string,
+  sourceProvider: string,
+  canSend: boolean,
+  authorization: string,
+) {
+  if (String(context.custodianKind ?? "") !== "organization") return null;
+  const organizationId = String(context.organizationId ?? "").trim();
+  const providerAccountKey = String(context.providerAssetKey ?? "").trim();
+  if (!organizationId || !providerAccountKey) throw new Error("Organization/provider identity is unavailable for communication endpoint setup.");
+
+  const address = sourceProvider === "facebook"
+    ? `facebook:page:${providerAccountKey}`
+    : `instagram:business:${providerAccountKey}`;
+  const displayLabel = String(context.displayLabel ?? "").trim() || address;
+  const endpoint = await rpc<{ communicationEndpointId: string }>("upsert_communication_endpoint_self_api_v1", {
+    p_organization_id: organizationId,
+    p_organization_unit_id: null,
+    p_endpoint_kind: "social",
+    p_address: address,
+    p_display_name: displayLabel,
+    p_metadata: {
+      provider: sourceProvider,
+      providerAccountKey,
+      connectedSourceId: sourceId,
+      setupSource: "atlas_facebook_asset_discovery_v1",
+    },
+  }, authorization);
+  if (!endpoint.communicationEndpointId) throw new Error("Atlas did not return the organization social communication endpoint.");
+
+  const bindingRole = canSend ? "send_receive" : "receive";
+  await rpc<Json>("bind_communication_endpoint_source_self_api_v1", {
+    p_communication_endpoint_id: endpoint.communicationEndpointId,
+    p_connected_source_id: sourceId,
+    p_binding_role: bindingRole,
+    p_transport_metadata: {
+      provider: sourceProvider,
+      providerAccountKey,
+      setupSource: "atlas_facebook_asset_discovery_v1",
+    },
+  }, authorization);
+
+  return {
+    communicationEndpointId: endpoint.communicationEndpointId,
+    endpointAddress: address,
+    bindingRole,
+  };
+}
+
+async function completeSelection(selectionId: string, authorization: string) {
   const context = await serviceRpc<Json>("provider_asset_selection_context_service_v1", { p_provider_asset_selection_id: selectionId });
   const page = await reacquireSelectedPage(context);
   const assetKind = String(context.assetKind ?? "");
   const sourceProvider = assetKind === "facebook_page" ? "facebook" : "instagram";
   const tasks = Array.isArray(page.tasks) ? page.tasks : [];
+  const canSend = tasks.map((x) => x.toUpperCase()).includes("MESSAGING");
   const source = await serviceRpc<{ connectedSourceId: string }>("create_provider_asset_connected_source_service_v1", {
     p_provider_asset_selection_id: selectionId,
     p_source_provider_key: sourceProvider,
@@ -205,8 +256,8 @@ async function completeSelection(selectionId: string) {
       : ["instagram_basic", "instagram_manage_messages", "instagram_manage_comments", "pages_manage_metadata"],
     p_capabilities: {
       communicationCapture: true,
-      communicationSend: tasks.map((x) => x.toUpperCase()).includes("MESSAGING"),
-      directMessages: tasks.map((x) => x.toUpperCase()).includes("MESSAGING"),
+      communicationSend: canSend,
+      directMessages: canSend,
       comments: true,
       providerTasks: tasks,
     },
@@ -219,12 +270,33 @@ async function completeSelection(selectionId: string) {
     p_description: `Meta Page access token for selected ${assetKind}`,
   });
   await subscribeSelectedAsset(assetKind, String(context.providerAssetKey ?? ""), String(page.id), page.access_token!);
+
+  const communication = await bindOrganizationCommunicationEndpoint(
+    context,
+    source.connectedSourceId,
+    sourceProvider,
+    canSend,
+    authorization,
+  );
+
   await serviceRpc<Json>("complete_provider_asset_selection_service_v1", {
     p_provider_asset_selection_id: selectionId,
     p_required_credential_kind: "page_access_token",
-    p_metadata: { webhookSubscribed: true, adapter: "atlas_facebook_asset_discovery_v1" },
+    p_metadata: {
+      webhookSubscribed: true,
+      adapter: "atlas_facebook_asset_discovery_v1",
+      communicationEndpointId: communication?.communicationEndpointId ?? null,
+      communicationBindingRole: communication?.bindingRole ?? null,
+    },
   });
-  return { ok: true, selectionId, connectedSourceId: source.connectedSourceId, provider: sourceProvider, providerAccountKey: context.providerAssetKey };
+  return {
+    ok: true,
+    selectionId,
+    connectedSourceId: source.connectedSourceId,
+    provider: sourceProvider,
+    providerAccountKey: context.providerAssetKey,
+    communication,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -265,7 +337,7 @@ Deno.serve(async (req) => {
         p_provider_asset_authorization_id: body.authorizationId,
         p_provider_asset_candidate_id: body.candidateId,
       }, authorization);
-      return responseJson(await completeSelection(selection.selectionId));
+      return responseJson(await completeSelection(selection.selectionId, authorization));
     }
 
     return responseJson({ error: "Not found" }, 404);
