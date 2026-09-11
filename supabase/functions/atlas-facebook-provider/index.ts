@@ -6,10 +6,12 @@ const FACEBOOK_APP_ID = Deno.env.get("ATLAS_FACEBOOK_APP_ID") ?? "";
 const FACEBOOK_APP_SECRET = Deno.env.get("ATLAS_FACEBOOK_APP_SECRET") ?? "";
 const FACEBOOK_REDIRECT_URI = Deno.env.get("ATLAS_FACEBOOK_REDIRECT_URI") ?? "";
 const META_GRAPH_VERSION = Deno.env.get("ATLAS_META_GRAPH_VERSION") ?? "";
+const META_WEBHOOK_VERIFY_TOKEN = Deno.env.get("ATLAS_META_WEBHOOK_VERIFY_TOKEN") ?? "";
 const AFTER_DISCOVERY_URI = Deno.env.get("ATLAS_META_AFTER_DISCOVERY_URI") ?? "";
 
 type Json = Record<string, unknown>;
 type PageAsset = { id: string; name?: string; access_token?: string; tasks?: string[]; instagram_business_account?: { id?: string } };
+type SourceResolution = { connectedSourceId: string; providerKey: string; providerAccountKey: string };
 
 function responseJson(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
@@ -23,6 +25,26 @@ function requiredConfig() {
 async function sha256(text: string) {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function stableEventProjection(event: Json) {
+  const copy = structuredClone(event);
+  delete copy.capturedAt;
+  delete copy.contentHash;
+  return copy;
+}
+
+async function hmacSha256Hex(secret: string, text: string) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(signature)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function constantTimeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 function parseSessionIdFromState(state: string) {
@@ -299,12 +321,141 @@ async function completeSelection(selectionId: string, authorization: string) {
   };
 }
 
+function canonicalPageMessage(pageId: string, envelope: Json) {
+  const sender = String((envelope.sender as Json | undefined)?.id ?? "").trim();
+  const recipient = String((envelope.recipient as Json | undefined)?.id ?? "").trim();
+  const message = (envelope.message as Json | undefined) ?? {};
+  const mid = String(message.mid ?? "").trim();
+  if (!pageId || !sender || !recipient || !mid) return null;
+  const incoming = recipient === pageId;
+  const other = incoming ? sender : recipient;
+  const text = typeof message.text === "string" ? message.text : null;
+  return {
+    deliveryKey: `message:${mid}`,
+    event: {
+      schemaVersion: "atlas_communication_event_v1",
+      source: { kind: "facebook", accountRef: pageId, eventRef: mid, threadRef: `messenger:${other}` },
+      captureMode: "provider_webhook",
+      occurredAt: typeof envelope.timestamp === "number" ? new Date(envelope.timestamp).toISOString() : null,
+      capturedAt: new Date().toISOString(),
+      direction: incoming ? "incoming" : "outgoing",
+      speaker: { isSelf: !incoming, address: incoming ? sender : pageId },
+      body: text,
+      bodyState: text ? "exact_text" : "empty",
+      participants: [
+        { addressKind: "social", address: pageId, isSelf: true, role: "page" },
+        { addressKind: "social", address: other, isSelf: false, role: "participant" },
+      ],
+      sourcePayload: { adapter: "atlas_facebook_webhook_v1", field: "messages", messageId: mid },
+      sourceAuthority: "evidence_only",
+      permittedStateEffect: "append_source_attributed_evidence_only",
+      governingStateChanged: false,
+    } as Json,
+  };
+}
+
+function canonicalPageComment(pageId: string, change: Json) {
+  if (String(change.field ?? "") !== "feed") return null;
+  const value = (change.value as Json | undefined) ?? {};
+  if (String(value.item ?? "").toLowerCase() !== "comment") return null;
+  const commentId = String(value.comment_id ?? value.id ?? "").trim();
+  const postId = String(value.post_id ?? "").trim();
+  const parentId = String(value.parent_id ?? "").trim();
+  const senderId = String(value.sender_id ?? "").trim();
+  if (!commentId || !senderId) return null;
+  const isSelf = senderId === pageId;
+  const body = typeof value.message === "string" ? value.message : null;
+  const parentCommentId = parentId && parentId !== postId ? parentId : "";
+  const threadRef = parentCommentId ? `comment:${parentCommentId}` : `comment:${commentId}`;
+  return {
+    deliveryKey: `comment:${commentId}:${String(value.verb ?? "add")}`,
+    event: {
+      schemaVersion: "atlas_communication_event_v1",
+      source: {
+        kind: "facebook",
+        accountRef: pageId,
+        eventRef: commentId,
+        threadRef,
+      },
+      captureMode: "provider_webhook",
+      occurredAt: typeof value.created_time === "number" ? new Date(value.created_time * 1000).toISOString() : null,
+      capturedAt: new Date().toISOString(),
+      direction: isSelf ? "outgoing" : "incoming",
+      speaker: { isSelf, address: senderId, displayName: value.sender_name ?? null },
+      body,
+      bodyState: body ? "exact_text" : "empty",
+      participants: [
+        { addressKind: "social", address: pageId, isSelf: true, role: "page" },
+        { addressKind: "social", address: senderId, isSelf, role: "commenter" },
+      ],
+      sourcePayload: {
+        adapter: "atlas_facebook_webhook_v1",
+        field: "feed",
+        item: "comment",
+        verb: value.verb ?? null,
+        commentId,
+        postId: postId || null,
+        parentId: parentId || null,
+        parentCommentId: parentCommentId || null,
+        commentThreadBasis: parentCommentId ? "parent_comment" : "top_level_comment",
+      },
+      sourceAuthority: "evidence_only",
+      permittedStateEffect: "append_source_attributed_evidence_only",
+      governingStateChanged: false,
+    } as Json,
+  };
+}
+
+async function ingestFacebookCanonical(pageId: string, deliveryKey: string, event: Json) {
+  event.contentHash = await sha256(JSON.stringify(stableEventProjection(event)));
+  const source = await serviceRpc<SourceResolution>("resolve_provider_webhook_source_service_v1", {
+    p_provider_key: "facebook",
+    p_provider_account_key: pageId,
+  });
+  const payloadHash = await sha256(JSON.stringify(stableEventProjection(event)));
+  const delivery = await serviceRpc<{ deliveryId: string; state: string; shouldProcess: boolean }>("record_provider_webhook_delivery_service_v1", {
+    p_connected_source_id: source.connectedSourceId,
+    p_provider_key: "facebook",
+    p_provider_delivery_key: deliveryKey,
+    p_payload_sha256: payloadHash,
+    p_metadata: { adapter: "atlas_facebook_webhook_v1", providerAccountKey: pageId },
+  });
+  if (!delivery.shouldProcess) return { delivery, replay: true };
+  const receipt = await serviceRpc<Json>("ingest_provider_webhook_events_service_v1", {
+    p_provider_webhook_delivery_id: delivery.deliveryId,
+    p_events: [event],
+    p_manifest: { adapter: "atlas_facebook_webhook_v1", providerDeliveryKey: deliveryKey },
+  });
+  return { delivery, receipt, replay: false };
+}
+
+async function handleFacebookWebhook(raw: string) {
+  const body = JSON.parse(raw) as { object?: string; entry?: Json[] };
+  if (body.object !== "page" || !Array.isArray(body.entry)) return { accepted: 0, ignored: true, results: [] };
+  const results: unknown[] = [];
+  for (const entry of body.entry) {
+    const pageId = String(entry.id ?? "").trim();
+    if (!pageId) continue;
+    const messaging = Array.isArray(entry.messaging) ? entry.messaging as Json[] : [];
+    for (const envelope of messaging) {
+      const normalized = canonicalPageMessage(pageId, envelope);
+      if (normalized) results.push(await ingestFacebookCanonical(pageId, normalized.deliveryKey, normalized.event));
+    }
+    const changes = Array.isArray(entry.changes) ? entry.changes as Json[] : [];
+    for (const change of changes) {
+      const normalized = canonicalPageComment(pageId, change);
+      if (normalized) results.push(await ingestFacebookCanonical(pageId, normalized.deliveryKey, normalized.event));
+    }
+  }
+  return { accepted: results.length, ignored: false, results };
+}
+
 Deno.serve(async (req) => {
   try {
     requiredConfig();
     const url = new URL(req.url);
 
-    if (req.method === "GET" && url.pathname.endsWith("/health")) return responseJson({ ok: true, adapter: "atlas_facebook_asset_discovery_v1" });
+    if (req.method === "GET" && url.pathname.endsWith("/health")) return responseJson({ ok: true, adapter: "atlas_facebook_webhook_v1" });
 
     if (req.method === "GET" && url.pathname.endsWith("/facebook/start")) {
       const state = url.searchParams.get("state") ?? "";
@@ -338,6 +489,25 @@ Deno.serve(async (req) => {
         p_provider_asset_candidate_id: body.candidateId,
       }, authorization);
       return responseJson(await completeSelection(selection.selectionId, authorization));
+    }
+
+    if (req.method === "GET" && url.pathname.endsWith("/facebook/webhook")) {
+      if (!META_WEBHOOK_VERIFY_TOKEN) return responseJson({ error: "Webhook verification token is unavailable." }, 503);
+      const mode = url.searchParams.get("hub.mode") ?? "";
+      const token = url.searchParams.get("hub.verify_token") ?? "";
+      const challenge = url.searchParams.get("hub.challenge") ?? "";
+      if (mode === "subscribe" && token === META_WEBHOOK_VERIFY_TOKEN && challenge) return new Response(challenge, { status: 200, headers: { "content-type": "text/plain" } });
+      return responseJson({ error: "Webhook verification failed." }, 403);
+    }
+
+    if (req.method === "POST" && url.pathname.endsWith("/facebook/webhook")) {
+      const raw = await req.text();
+      const header = req.headers.get("x-hub-signature-256") ?? "";
+      const supplied = header.toLowerCase().startsWith("sha256=") ? header.slice(7).toLowerCase() : "";
+      const expected = await hmacSha256Hex(FACEBOOK_APP_SECRET, raw);
+      if (!supplied || !constantTimeEqual(supplied, expected)) return responseJson({ error: "Invalid Meta webhook signature." }, 401);
+      const result = await handleFacebookWebhook(raw);
+      return responseJson({ ok: true, ...result });
     }
 
     return responseJson({ error: "Not found" }, 404);
