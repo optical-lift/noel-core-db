@@ -1,0 +1,207 @@
+name: Manual Generic Email Transport Verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: manual-generic-email-transport-verification-hello-elmfarm
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+    env:
+      CONNECTED_SOURCE_ID: 238df033-5704-4404-bf34-a509f4e4d1c1
+
+    steps:
+      - name: Checkout exact recovery implementation
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/institutional-email-runtime-v1
+          persist-credentials: false
+
+      - name: Verify current stored credential without mailbox access or sending
+        id: verify
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "${NOEL_CORE_DATABASE_URL:-}"
+
+          config_file="$RUNNER_TEMP/generic-email-transport-config.json"
+          result_file="$RUNNER_TEMP/generic-email-transport-result.env"
+          trap 'rm -f "$config_file" "$result_file"' EXIT
+
+          # Read the protected credential only into an ephemeral runner file. Nothing
+          # from this query is emitted to stdout, the step summary, or an artifact.
+          psql "$NOEL_CORE_DATABASE_URL" -X -A -t -v ON_ERROR_STOP=1 \
+            -c "select atlas.generic_email_transport_config_service_v1('${CONNECTED_SOURCE_ID}'::uuid)::text;" \
+            > "$config_file"
+          chmod 600 "$config_file"
+          test -s "$config_file"
+
+          python3 - "$config_file" "$result_file" <<'PY'
+          import imaplib
+          import json
+          import smtplib
+          import ssl
+          import sys
+          from pathlib import Path
+
+          config_path = Path(sys.argv[1])
+          result_path = Path(sys.argv[2])
+          config = json.loads(config_path.read_text(encoding='utf-8'))
+          mail = config.get('mailConfig') or {}
+          imap_cfg = mail.get('imap') or {}
+          smtp_cfg = mail.get('smtp') or {}
+          username = str(mail.get('username') or '').strip()
+          password = str(mail.get('password') or '')
+          if not username or not password:
+              raise SystemExit('Atlas generic email credentials are incomplete')
+
+          context = ssl.create_default_context()
+          imap_ok = False
+          smtp_ok = False
+          imap_error = ''
+          smtp_error = ''
+
+          try:
+              client = None
+              try:
+                  host = str(imap_cfg.get('host') or '').strip()
+                  port = int(imap_cfg.get('port') or 0)
+                  security = str(imap_cfg.get('security') or '').strip().lower()
+                  if security in {'ssl', 'tls'}:
+                      client = imaplib.IMAP4_SSL(host, port, ssl_context=context)
+                  elif security == 'starttls':
+                      client = imaplib.IMAP4(host, port)
+                      status, _ = client.starttls(ssl_context=context)
+                      if status != 'OK':
+                          raise RuntimeError('IMAP STARTTLS failed')
+                  else:
+                      raise RuntimeError('Unsupported IMAP security mode')
+                  status, _ = client.login(username, password)
+                  if status != 'OK':
+                      raise RuntimeError('IMAP authentication failed')
+                  imap_ok = True
+              except Exception as exc:
+                  imap_error = type(exc).__name__
+              finally:
+                  if client is not None:
+                      try:
+                          client.logout()
+                      except Exception:
+                          pass
+
+              try:
+                  client = None
+                  try:
+                      host = str(smtp_cfg.get('host') or '').strip()
+                      port = int(smtp_cfg.get('port') or 0)
+                      security = str(smtp_cfg.get('security') or '').strip().lower()
+                      if security in {'ssl', 'tls'}:
+                          client = smtplib.SMTP_SSL(host, port, timeout=30, context=context)
+                      elif security == 'starttls':
+                          client = smtplib.SMTP(host, port, timeout=30)
+                          client.ehlo()
+                          client.starttls(context=context)
+                          client.ehlo()
+                      else:
+                          raise RuntimeError('Unsupported SMTP security mode')
+                      client.login(username, password)
+                      smtp_ok = True
+                  except Exception as exc:
+                      smtp_error = type(exc).__name__
+                  finally:
+                      if client is not None:
+                          try:
+                              client.quit()
+                          except Exception:
+                              try:
+                                  client.close()
+                              except Exception:
+                                  pass
+              finally:
+                  pass
+          finally:
+              password = ''
+              config_path.write_text('', encoding='utf-8')
+
+          def clean(value: str) -> str:
+              return ''.join(ch for ch in value if ch.isalnum() or ch in {'_', '-'})[:80]
+
+          result_path.write_text(
+              f"IMAP_OK={'true' if imap_ok else 'false'}\n"
+              f"SMTP_OK={'true' if smtp_ok else 'false'}\n"
+              f"IMAP_ERROR={clean(imap_error)}\n"
+              f"SMTP_ERROR={clean(smtp_error)}\n",
+              encoding='utf-8',
+          )
+          PY
+
+          # The result file contains booleans and exception class names only.
+          source "$result_file"
+
+          psql "$NOEL_CORE_DATABASE_URL" -X -v ON_ERROR_STOP=1 \
+            -v imap_ok="$IMAP_OK" \
+            -v smtp_ok="$SMTP_OK" \
+            -v imap_error="$IMAP_ERROR" \
+            -v smtp_error="$SMTP_ERROR" <<'SQL' >/dev/null
+          select atlas.record_generic_email_transport_verification_service_v1(
+            '238df033-5704-4404-bf34-a509f4e4d1c1'::uuid,
+            :'imap_ok'::boolean,
+            :'smtp_ok'::boolean,
+            jsonb_build_object(
+              'contractVersion', 'generic_email_transport_verifier_v1',
+              'mode', 'authentication_only',
+              'executor', 'github_actions_manual_dispatch',
+              'imap', jsonb_build_object('ok', :'imap_ok'::boolean, 'errorType', nullif(:'imap_error', '')),
+              'smtp', jsonb_build_object('ok', :'smtp_ok'::boolean, 'errorType', nullif(:'smtp_error', ''))
+            )
+          );
+          SQL
+
+          {
+            echo "imap_ok=$IMAP_OK"
+            echo "smtp_ok=$SMTP_OK"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$IMAP_OK" != true || "$SMTP_OK" != true ]]; then
+            echo "Transport authentication did not verify both protocols." >&2
+            exit 1
+          fi
+
+      - name: Confirm verification did not activate transport
+        if: always()
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          state="$({ psql "$NOEL_CORE_DATABASE_URL" -X -A -t -F '|' -v ON_ERROR_STOP=1 -c "select authorization_state, coalesce((capabilities->>'communicationCapture')::boolean,false), coalesce((capabilities->>'communicationSend')::boolean,false), coalesce((metadata->'transportVerification'->>'verified')::boolean,false) from atlas.connected_sources where id='${CONNECTED_SOURCE_ID}'::uuid;"; } | tr -d '[:space:]')"
+          test -n "$state"
+          IFS='|' read -r authorization capture send verified <<< "$state"
+
+          {
+            echo '## Generic email transport verification'
+            echo
+            echo "- Authorization state: \`$authorization\`"
+            echo "- IMAP authentication: \`${{ steps.verify.outputs.imap_ok || 'not-recorded' }}\`"
+            echo "- SMTP authentication: \`${{ steps.verify.outputs.smtp_ok || 'not-recorded' }}\`"
+            echo "- Verification evidence: \`$verified\`"
+            echo "- Communication capture: \`$capture\`"
+            echo "- Communication send: \`$send\`"
+            echo
+            echo 'This run authenticated transport only. It did not select/read a mailbox, issue SMTP MAIL/RCPT/DATA, send email, or invoke the activation RPC.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [[ "$capture" != false || "$send" != false ]]; then
+            echo "Safety boundary violated: verification must leave capture and send disabled." >&2
+            exit 1
+          fi
