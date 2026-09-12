@@ -31,10 +31,11 @@ begin
   if v_actor.id is null then raise exception 'Organization owner authority is required to change conversation visibility.' using errcode='42501'; end if;
 
   if exists (
-    select 1 from unnest(v_allowed) id
+    select 1
+    from unnest(v_allowed) as allowed(membership_id)
     where not exists (
       select 1 from atlas.organization_memberships m
-      where m.id=id and m.organization_id=v_conv.organization_id and m.active
+      where m.id=allowed.membership_id and m.organization_id=v_conv.organization_id and m.active
     )
   ) then raise exception 'Every allowed membership must be active in the conversation organization.' using errcode='23514'; end if;
 
@@ -128,7 +129,11 @@ begin
   ) then
     raise exception 'Endpoint capability change would hide a restricted conversation from an active responsible membership. Handoff/complete responsibility first.' using errcode='23514';
   end if;
-  return coalesce(new,old);
+
+  if tg_op='DELETE' then
+    return old;
+  end if;
+  return new;
 end;
 $function$;
 
