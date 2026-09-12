@@ -159,9 +159,21 @@ jobs:
         env:
           LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
         run: |
-          set -euo pipefail
+          set +e
+          output="$RUNNER_TEMP/outbound-finalizer-python.txt"
           python3 -m unittest -v \
-            validation.integration.test_institutional_email_outbound_finalizer_contract
+            validation.integration.test_institutional_email_outbound_finalizer_contract \
+            2>&1 | tee "$output"
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo '## Outbound finalizer Python contract'
+            echo
+            echo '```text'
+            tail -n 200 "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
 
       - name: Run pgTAP database-native contract tests
         shell: bash
