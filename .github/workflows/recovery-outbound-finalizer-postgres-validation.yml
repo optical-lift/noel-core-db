@@ -6,6 +6,10 @@ on:
       - recovery/institutional-email-runtime-v1
     paths:
       - '.github/workflows/recovery-outbound-finalizer-postgres-validation.yml'
+      - 'validation/integration/test_institutional_email_outbound_finalizer_contract.py'
+      - 'validation/pgtap/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql'
+      - 'validation/fixtures/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql'
+      - 'supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql'
 
 permissions:
   contents: read
@@ -50,9 +54,6 @@ jobs:
           set -euo pipefail
           test -n "${NOEL_CORE_DATABASE_URL:-}"
 
-          # Supabase's filtered schema dump includes every user/application schema
-          # while excluding extension-owned and platform-managed internals that the
-          # target Supabase Postgres image supplies itself.
           supabase db dump \
             --db-url "$NOEL_CORE_DATABASE_URL" \
             --role-only \
@@ -60,10 +61,6 @@ jobs:
           supabase db dump \
             --db-url "$NOEL_CORE_DATABASE_URL" \
             --file "$RUNNER_TEMP/production-application-schema.sql"
-
-          # Auth is intentionally excluded from the ordinary filtered dump, but the
-          # synthetic validation fixture writes auth.users. Clone its structure too;
-          # no production rows are copied.
           supabase db dump \
             --db-url "$NOEL_CORE_DATABASE_URL" \
             --schema auth \
@@ -124,24 +121,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          # The Supabase Postgres image has already created its platform roles,
-          # extension support, and base managed schemas. Restore only production
-          # role customizations plus production schema definitions.
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
             -f "$RUNNER_TEMP/production-custom-roles.sql"
 
-          # Replace only the managed auth schema in this disposable database with
-          # production's schema-only definition so auth.users exactly matches the
-          # structure against which Atlas currently runs.
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 <<'SQL'
           DROP SCHEMA IF EXISTS auth CASCADE;
           SQL
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
             -f "$RUNNER_TEMP/production-auth-schema-sanitized.sql"
 
-          # This is the complete filtered production application schema, not a
-          # hand-picked atlas/auth subset. Cross-schema dependencies such as
-          # atlas -> practice therefore restore together.
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
             -f "$RUNNER_TEMP/production-application-schema-sanitized.sql"
 
@@ -166,14 +154,30 @@ jobs:
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
             -f supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
 
-      - name: Run behavioral postconditions
+      - name: Run Python black-box contract tests
         shell: bash
         env:
           LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
         run: |
           set -euo pipefail
+          python3 -m unittest -v \
+            validation.integration.test_institutional_email_outbound_finalizer_contract
+
+      - name: Run pgTAP database-native contract tests
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/outbound-finalizer-pgtap.txt"
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
-            -f validation/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+            -f validation/pgtap/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql \
+            | tee "$output"
+          if grep -Eq '^not ok\b' "$output"; then
+            echo 'pgTAP reported one or more failed assertions.' >&2
+            exit 1
+          fi
+          grep -Eq '^1\.\.21$' "$output"
 
       - name: Record success
         run: |
@@ -181,6 +185,8 @@ jobs:
             echo '## Outbound finalizer production-structure validation'
             echo
             echo 'PASS: full filtered production application schema plus production auth structure restored into an isolated Supabase Postgres 17 database.'
-            echo 'PASS: synthetic fixture, candidate migration, and behavioral postconditions completed.'
+            echo 'PASS: synthetic fixture and candidate migration applied.'
+            echo 'PASS: Python black-box contract tests passed.'
+            echo 'PASS: pgTAP database-native contract tests passed.'
             echo 'No production data rows were cloned and no production DDL was executed.'
           } >> "$GITHUB_STEP_SUMMARY"
