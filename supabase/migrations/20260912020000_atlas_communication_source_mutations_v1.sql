@@ -24,8 +24,8 @@ create table atlas.communication_event_source_mutations (
   unique(event_id,mutation_kind,mutation_evidence_sha256)
 );
 
-create unique index communication_event_source_mutations_provider_ref_uq
-  on atlas.communication_event_source_mutations(connected_source_id,provider_mutation_ref)
+create index communication_event_source_mutations_provider_ref_idx
+  on atlas.communication_event_source_mutations(connected_source_id,provider_mutation_ref,observed_at,id)
   where provider_mutation_ref is not null;
 create index communication_event_source_mutations_event_idx
   on atlas.communication_event_source_mutations(event_id,coalesce(provider_occurred_at,observed_at),id);
@@ -114,7 +114,9 @@ begin
   end if;
   if v_ref='' then raise exception 'Original source event reference is required.' using errcode='22023'; end if;
   if v_kind not in ('edited','deleted','unsent') then raise exception 'Unsupported communication source mutation kind.' using errcode='22023'; end if;
-  if jsonb_typeof(coalesce(p_observed_state,'null'::jsonb))<>'object' then raise exception 'Mutation observed state must be a JSON object.' using errcode='22023'; end if;
+  if p_observed_state is null or jsonb_typeof(p_observed_state)<>'object' then
+    raise exception 'Mutation observed state must be a JSON object.' using errcode='22023';
+  end if;
   if lower(p_observed_state::text) ~ '"(access_token|refresh_token|authorization_code|client_secret|api_key|secret_key|webhook_secret)"[[:space:]]*:' then
     raise exception 'Provider secrets are not allowed in mutation evidence.' using errcode='22023';
   end if;
