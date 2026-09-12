@@ -40,9 +40,7 @@ begin
   if not has_function_privilege('authenticated','atlas.principal_communication_conversations_self_api_v1(uuid,integer)','EXECUTE') then raise exception 'Principal conversation list seam unavailable.'; end if;
   if not has_function_privilege('authenticated','atlas.principal_communication_conversation_detail_self_api_v1(uuid)','EXECUTE') then raise exception 'Principal conversation detail seam unavailable.'; end if;
   if has_function_privilege('authenticated','atlas.ingest_principal_communication_events_service_v1(uuid,jsonb,jsonb)','EXECUTE') then raise exception 'Browser may execute provider ingest service seam.'; end if;
-  if has_function_privilege('authenticated','atlas.store_connected_source_secret_service_v1(uuid,text,text,text)','EXECUTE') or has_function_privilege('authenticated','atlas.read_connected_source_secret_service_v1(uuid,text)','EXECUTE') then raise exception 'Browser may access provider credential custody.'; end if;
   if not has_function_privilege('service_role','atlas.ingest_principal_communication_events_service_v1(uuid,jsonb,jsonb)','EXECUTE') then raise exception 'Service provider ingest seam unavailable.'; end if;
-  if not has_function_privilege('service_role','atlas.store_connected_source_secret_service_v1(uuid,text,text,text)','EXECUTE') or not has_function_privilege('service_role','atlas.read_connected_source_secret_service_v1(uuid,text)','EXECUTE') then raise exception 'Service credential custody seam unavailable.'; end if;
 end;$validation$;
 
 -- Direct browser access to new internal tables stays closed.
