@@ -133,15 +133,13 @@ end;
 $function$;
 
 drop trigger if exists endpoint_grant_hidden_responsibility_guard_update on atlas.communication_endpoint_member_grants;
-create constraint trigger endpoint_grant_hidden_responsibility_guard_update
+create trigger endpoint_grant_hidden_responsibility_guard_update
 after update of capability,grant_state on atlas.communication_endpoint_member_grants
-deferrable initially immediate
 for each row execute function atlas.guard_endpoint_grant_against_hidden_responsibility_v1();
 
 drop trigger if exists endpoint_grant_hidden_responsibility_guard_delete on atlas.communication_endpoint_member_grants;
-create constraint trigger endpoint_grant_hidden_responsibility_guard_delete
+create trigger endpoint_grant_hidden_responsibility_guard_delete
 after delete on atlas.communication_endpoint_member_grants
-deferrable initially immediate
 for each row execute function atlas.guard_endpoint_grant_against_hidden_responsibility_v1();
 
 comment on function atlas.guard_endpoint_grant_against_hidden_responsibility_v1() is
