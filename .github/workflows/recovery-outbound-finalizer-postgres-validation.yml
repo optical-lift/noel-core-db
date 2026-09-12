@@ -1,0 +1,113 @@
+name: Recovery Outbound Finalizer Postgres Validation
+
+on:
+  push:
+    branches:
+      - recovery/institutional-email-runtime-v1
+    paths:
+      - '.github/workflows/recovery-outbound-finalizer-postgres-validation.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout immutable recovery candidate
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/institutional-email-runtime-v1
+          persist-credentials: false
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+
+      - name: Snapshot production schema and roles read-only
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "${NOEL_CORE_DATABASE_URL:-}"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/production-custom-roles.sql" "$RUNNER_TEMP/production-user-schema.sql"
+
+      - name: Sanitize restore-only trigger toggles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/production-user-schema.sql" "$RUNNER_TEMP/production-user-schema-sanitized.sql" <<'PY'
+          import re, sys
+          from pathlib import Path
+          src = Path(sys.argv[1]).read_text(encoding='utf-8')
+          lines = src.splitlines(keepends=True)
+          pattern = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
+          kept=[]; disabled=0; enabled=0
+          for line in lines:
+              m=pattern.match(line)
+              if not m:
+                  kept.append(line)
+              elif m.group(1)=='DISABLE':
+                  disabled += 1
+              else:
+                  enabled += 1
+          if disabled != enabled:
+              raise SystemExit(f'unbalanced restore-only trigger toggles: {disabled} vs {enabled}')
+          Path(sys.argv[2]).write_text(''.join(kept), encoding='utf-8')
+          print(f'removed {disabled+enabled} restore-only trigger toggle statement(s)')
+          PY
+
+      - name: Restore production schema into plain Postgres
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$LOCAL_DB" -v ON_ERROR_STOP=1 <<'SQL'
+          create schema if not exists extensions;
+          create extension if not exists pgcrypto with schema extensions;
+          SQL
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-custom-roles.sql"
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-user-schema-sanitized.sql"
+
+      - name: Apply fixture, migration, and behavioral postconditions
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f validation/fixtures/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f validation/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+
+      - name: Record success
+        shell: bash
+        run: |
+          echo 'Outbound finalizer restored against the production schema snapshot and all behavioral postconditions passed.' >> "$GITHUB_STEP_SUMMARY"
