@@ -190,7 +190,7 @@ jobs:
         run: |
           set -euo pipefail
           output="$RUNNER_TEMP/outbound-finalizer-pgtap.txt"
-          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
+          psql "$LOCAL_DB" -X -qAt -v ON_ERROR_STOP=1 \
             -f validation/pgtap/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql \
             | tee "$output"
           if grep -Eq '^not ok\b' "$output"; then
