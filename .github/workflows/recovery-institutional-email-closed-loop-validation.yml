@@ -1,0 +1,164 @@
+name: Recovery Institutional Email Closed Loop Validation
+
+on:
+  push:
+    branches:
+      - recovery/institutional-email-runtime-v1
+    paths:
+      - '.github/workflows/recovery-institutional-email-closed-loop-validation.yml'
+      - 'validation/integration/20260912154500_atlas_institutional_email_closed_loop_v1.sql'
+      - 'validation/fixtures/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql'
+      - 'supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql'
+      - 'supabase/migrations/20260912153000_atlas_institutional_email_inbound_transport_v1.sql'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: public.ecr.aws/supabase/postgres:17.6.1.165
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U supabase_admin -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 30
+
+    steps:
+      - name: Checkout immutable recovery candidate
+        uses: actions/checkout@v4
+        with:
+          ref: recovery/institutional-email-runtime-v1
+          persist-credentials: false
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+
+      - name: Snapshot full production application structure read-only
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "${NOEL_CORE_DATABASE_URL:-}"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/production-application-schema.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --schema auth --file "$RUNNER_TEMP/production-auth-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-application-schema.sql"
+          test -s "$RUNNER_TEMP/production-auth-schema.sql"
+
+      - name: Prepare schema-only restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - \
+            "$RUNNER_TEMP/production-application-schema.sql" \
+            "$RUNNER_TEMP/production-application-schema-sanitized.sql" \
+            "$RUNNER_TEMP/production-auth-schema.sql" \
+            "$RUNNER_TEMP/production-auth-schema-sanitized.sql" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+          trigger = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
+          def sanitize(src_name: str, dst_name: str) -> None:
+              lines = Path(src_name).read_text(encoding='utf-8').splitlines(keepends=True)
+              kept = []
+              disabled = enabled = 0
+              for line in lines:
+                  match = trigger.match(line)
+                  if not match:
+                      kept.append(line)
+                      continue
+                  if match.group(1) == 'DISABLE': disabled += 1
+                  else: enabled += 1
+              if disabled != enabled:
+                  raise SystemExit(f'unbalanced restore-only trigger toggles in {src_name}: {disabled} disable vs {enabled} enable')
+              Path(dst_name).write_text(''.join(kept), encoding='utf-8')
+          sanitize(sys.argv[1], sys.argv[2])
+          sanitize(sys.argv[3], sys.argv[4])
+          PY
+
+      - name: Restore production structural clone
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-custom-roles.sql"
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 <<'SQL'
+          DROP SCHEMA IF EXISTS auth CASCADE;
+          SQL
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-auth-schema-sanitized.sql"
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-application-schema-sanitized.sql"
+
+      - name: Apply outbound synthetic fixture
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f validation/fixtures/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+
+      - name: Apply outbound and inbound candidate migrations
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20260912153000_atlas_institutional_email_inbound_transport_v1.sql
+
+      - name: Run synthetic closed-loop contract
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
+        run: |
+          set +e
+          output="$RUNNER_TEMP/institutional-email-closed-loop.txt"
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
+            -f validation/integration/20260912154500_atlas_institutional_email_closed_loop_v1.sql \
+            2>&1 | tee "$output"
+          status=${PIPESTATUS[0]}
+          set -e
+          {
+            echo '## Institutional email synthetic closed loop'
+            echo
+            echo '```text'
+            tail -n 200 "$output"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Preserve closed-loop output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: institutional-email-closed-loop
+          path: ${{ runner.temp }}/institutional-email-closed-loop.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Record success
+        run: |
+          {
+            echo '## Institutional email closed-loop validation'
+            echo
+            echo 'PASS: Atlas outbound finalizer constructed accepted canonical evidence.'
+            echo 'PASS: synthetic external IMAP reply rejoined the same source thread and institutional conversation through explicit RFC reply evidence.'
+            echo 'PASS: response state returned from waiting_external to needs_response without changing Company Work responsibility.'
+            echo 'PASS: inbound raw MIME hash custody remained distinct.'
+            echo 'No production data rows were cloned and no production DDL, SMTP, IMAP, or Vercel actions were executed.'
+          } >> "$GITHUB_STEP_SUMMARY"
