@@ -17,21 +17,18 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: public.ecr.aws/supabase/postgres:17.6.1.165
+        image: postgres:17
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
           POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
+        ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U postgres -d postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
+          --health-interval 5s --health-timeout 5s --health-retries 20
 
     steps:
-      - name: Checkout immutable recovery candidate
+      - name: Checkout recovery candidate
         uses: actions/checkout@v4
         with:
           ref: recovery/institutional-email-runtime-v1
@@ -44,7 +41,6 @@ jobs:
           curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
           tar -xzf /tmp/supabase.tgz -C /tmp supabase
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
-          supabase --version
 
       - name: Snapshot production schema and roles read-only
         shell: bash
@@ -57,9 +53,8 @@ jobs:
           supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/production-user-schema.sql"
           test -s "$RUNNER_TEMP/production-custom-roles.sql"
           test -s "$RUNNER_TEMP/production-user-schema.sql"
-          sha256sum "$RUNNER_TEMP/production-custom-roles.sql" "$RUNNER_TEMP/production-user-schema.sql"
 
-      - name: Sanitize restore-only trigger toggles
+      - name: Sanitize restore-only Supabase infrastructure
         shell: bash
         run: |
           set -euo pipefail
@@ -68,23 +63,26 @@ jobs:
           from pathlib import Path
           src = Path(sys.argv[1]).read_text(encoding='utf-8')
           lines = src.splitlines(keepends=True)
-          pattern = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
-          kept=[]; disabled=0; enabled=0
+          trigger = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
+          skip_ext = re.compile(r'^\s*(?:CREATE EXTENSION IF NOT EXISTS|COMMENT ON EXTENSION)\s+"?(pg_cron)"?.*;\s*$')
+          kept=[]; disabled=enabled=ext=0
           for line in lines:
-              m=pattern.match(line)
-              if not m:
-                  kept.append(line)
-              elif m.group(1)=='DISABLE':
-                  disabled += 1
-              else:
-                  enabled += 1
+              m=trigger.match(line)
+              if m:
+                  if m.group(1)=='DISABLE': disabled += 1
+                  else: enabled += 1
+                  continue
+              if skip_ext.match(line):
+                  ext += 1
+                  continue
+              kept.append(line)
           if disabled != enabled:
               raise SystemExit(f'unbalanced restore-only trigger toggles: {disabled} vs {enabled}')
           Path(sys.argv[2]).write_text(''.join(kept), encoding='utf-8')
-          print(f'removed {disabled+enabled} restore-only trigger toggle statement(s)')
+          print(f'removed {disabled+enabled} trigger toggle and {ext} pg_cron extension statement(s)')
           PY
 
-      - name: Restore production schema into Supabase Postgres
+      - name: Restore production schema into plain Postgres
         shell: bash
         env:
           LOCAL_DB: postgresql://postgres:postgres@127.0.0.1:5432/postgres
@@ -92,18 +90,13 @@ jobs:
           set -euo pipefail
           psql "$LOCAL_DB" -v ON_ERROR_STOP=1 <<'SQL'
           create schema if not exists extensions;
+          create schema if not exists cron;
           create extension if not exists pgcrypto with schema extensions;
           do $roles$
           declare r text;
           begin
-            foreach r in array array[
-              'anon','authenticated','service_role','authenticator',
-              'supabase_admin','supabase_auth_admin','supabase_storage_admin',
-              'supabase_functions_admin','dashboard_user','pgbouncer'
-            ] loop
-              if not exists (select 1 from pg_roles where rolname=r) then
-                execute format('create role %I nologin',r);
-              end if;
+            foreach r in array array['anon','authenticated','service_role','authenticator','supabase_admin','supabase_auth_admin','supabase_storage_admin','supabase_functions_admin','dashboard_user','pgbouncer'] loop
+              if not exists (select 1 from pg_roles where rolname=r) then execute format('create role %I nologin',r); end if;
             end loop;
           end $roles$;
           SQL
@@ -121,6 +114,4 @@ jobs:
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f validation/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
 
       - name: Record success
-        shell: bash
-        run: |
-          echo 'Outbound finalizer restored against the production schema snapshot and all behavioral postconditions passed.' >> "$GITHUB_STEP_SUMMARY"
+        run: echo 'Outbound finalizer restored against the production schema snapshot and all behavioral postconditions passed.' >> "$GITHUB_STEP_SUMMARY"
