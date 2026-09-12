@@ -1,4 +1,4 @@
-name: Recovery Outbound Finalizer Postgres Validation
+name: Recovery Outbound Finalizer Full Schema Validation
 
 on:
   push:
@@ -17,18 +17,17 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17
+        image: public.ecr.aws/supabase/postgres:17.6.1.165
         env:
           POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
           POSTGRES_DB: postgres
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U postgres -d postgres"
-          --health-interval 5s --health-timeout 5s --health-retries 20
+          --health-cmd "pg_isready -U supabase_admin -d postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 30
 
     steps:
-      - name: Checkout recovery candidate
+      - name: Checkout immutable recovery candidate
         uses: actions/checkout@v4
         with:
           ref: recovery/institutional-email-runtime-v1
@@ -41,75 +40,147 @@ jobs:
           curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
           tar -xzf /tmp/supabase.tgz -C /tmp supabase
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
 
-      - name: Snapshot production Atlas/auth schemas and roles read-only
+      - name: Snapshot full production application structure read-only
         shell: bash
         env:
           NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
         run: |
           set -euo pipefail
           test -n "${NOEL_CORE_DATABASE_URL:-}"
-          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/production-custom-roles.sql"
+
+          # Supabase's filtered schema dump includes every user/application schema
+          # while excluding extension-owned and platform-managed internals that the
+          # target Supabase Postgres image supplies itself.
           supabase db dump \
             --db-url "$NOEL_CORE_DATABASE_URL" \
-            --schema atlas,auth \
-            --file "$RUNNER_TEMP/production-user-schema.sql"
-          test -s "$RUNNER_TEMP/production-custom-roles.sql"
-          test -s "$RUNNER_TEMP/production-user-schema.sql"
+            --role-only \
+            --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/production-application-schema.sql"
 
-      - name: Sanitize restore-only Supabase infrastructure
+          # Auth is intentionally excluded from the ordinary filtered dump, but the
+          # synthetic validation fixture writes auth.users. Clone its structure too;
+          # no production rows are copied.
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --schema auth \
+            --file "$RUNNER_TEMP/production-auth-schema.sql"
+
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-application-schema.sql"
+          test -s "$RUNNER_TEMP/production-auth-schema.sql"
+          sha256sum \
+            "$RUNNER_TEMP/production-custom-roles.sql" \
+            "$RUNNER_TEMP/production-application-schema.sql" \
+            "$RUNNER_TEMP/production-auth-schema.sql"
+
+      - name: Prepare schema-only restore
         shell: bash
         run: |
           set -euo pipefail
-          python3 - "$RUNNER_TEMP/production-user-schema.sql" "$RUNNER_TEMP/production-user-schema-sanitized.sql" <<'PY'
-          import re, sys
+          python3 - \
+            "$RUNNER_TEMP/production-application-schema.sql" \
+            "$RUNNER_TEMP/production-application-schema-sanitized.sql" \
+            "$RUNNER_TEMP/production-auth-schema.sql" \
+            "$RUNNER_TEMP/production-auth-schema-sanitized.sql" <<'PY'
+          import re
+          import sys
           from pathlib import Path
-          src = Path(sys.argv[1]).read_text(encoding='utf-8')
-          lines = src.splitlines(keepends=True)
+
           trigger = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
-          kept=[]; disabled=enabled=0
-          for line in lines:
-              m=trigger.match(line)
-              if m:
-                  if m.group(1)=='DISABLE': disabled += 1
-                  else: enabled += 1
-                  continue
-              kept.append(line)
-          if disabled != enabled:
-              raise SystemExit(f'unbalanced restore-only trigger toggles: {disabled} vs {enabled}')
-          Path(sys.argv[2]).write_text(''.join(kept), encoding='utf-8')
-          print(f'removed {disabled+enabled} restore-only trigger toggle statement(s)')
+
+          def sanitize(src_name: str, dst_name: str) -> None:
+              lines = Path(src_name).read_text(encoding='utf-8').splitlines(keepends=True)
+              kept = []
+              disabled = enabled = 0
+              for line in lines:
+                  match = trigger.match(line)
+                  if not match:
+                      kept.append(line)
+                      continue
+                  if match.group(1) == 'DISABLE':
+                      disabled += 1
+                  else:
+                      enabled += 1
+              if disabled != enabled:
+                  raise SystemExit(
+                      f'unbalanced restore-only trigger toggles in {src_name}: '
+                      f'{disabled} disable vs {enabled} enable'
+                  )
+              Path(dst_name).write_text(''.join(kept), encoding='utf-8')
+              print(f'{src_name}: removed {disabled + enabled} restore-only trigger toggle statement(s)')
+
+          sanitize(sys.argv[1], sys.argv[2])
+          sanitize(sys.argv[3], sys.argv[4])
           PY
 
-      - name: Restore production Atlas/auth schemas into plain Postgres
+      - name: Restore production structural clone
         shell: bash
         env:
-          LOCAL_DB: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
         run: |
           set -euo pipefail
-          psql "$LOCAL_DB" -v ON_ERROR_STOP=1 <<'SQL'
-          create schema if not exists extensions;
-          create extension if not exists pgcrypto with schema extensions;
-          do $roles$
-          declare r text;
-          begin
-            foreach r in array array['anon','authenticated','service_role','authenticator','supabase_admin','supabase_auth_admin','supabase_storage_admin','supabase_functions_admin','dashboard_user','pgbouncer'] loop
-              if not exists (select 1 from pg_roles where rolname=r) then execute format('create role %I nologin',r); end if;
-            end loop;
-          end $roles$;
-          SQL
-          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-custom-roles.sql"
-          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-user-schema-sanitized.sql"
 
-      - name: Apply fixture, migration, and behavioral postconditions
+          # The Supabase Postgres image has already created its platform roles,
+          # extension support, and base managed schemas. Restore only production
+          # role customizations plus production schema definitions.
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
+            -f "$RUNNER_TEMP/production-custom-roles.sql"
+
+          # Replace only the managed auth schema in this disposable database with
+          # production's schema-only definition so auth.users exactly matches the
+          # structure against which Atlas currently runs.
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 <<'SQL'
+          DROP SCHEMA IF EXISTS auth CASCADE;
+          SQL
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
+            -f "$RUNNER_TEMP/production-auth-schema-sanitized.sql"
+
+          # This is the complete filtered production application schema, not a
+          # hand-picked atlas/auth subset. Cross-schema dependencies such as
+          # atlas -> practice therefore restore together.
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
+            -f "$RUNNER_TEMP/production-application-schema-sanitized.sql"
+
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -Atc \
+            "select string_agg(nspname, ',' order by nspname) from pg_namespace where nspname !~ '^pg_' and nspname <> 'information_schema';"
+
+      - name: Apply synthetic fixture
         shell: bash
         env:
-          LOCAL_DB: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
         run: |
           set -euo pipefail
-          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f validation/fixtures/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
-          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
-          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f validation/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
+            -f validation/fixtures/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+
+      - name: Apply candidate migration
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
+            -f supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+
+      - name: Run behavioral postconditions
+        shell: bash
+        env:
+          LOCAL_DB: postgresql://supabase_admin:postgres@127.0.0.1:5432/postgres
+        run: |
+          set -euo pipefail
+          psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 \
+            -f validation/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
 
       - name: Record success
-        run: echo 'Outbound finalizer restored against the production Atlas/auth schema snapshot and all behavioral postconditions passed.' >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          {
+            echo '## Outbound finalizer production-structure validation'
+            echo
+            echo 'PASS: full filtered production application schema plus production auth structure restored into an isolated Supabase Postgres 17 database.'
+            echo 'PASS: synthetic fixture, candidate migration, and behavioral postconditions completed.'
+            echo 'No production data rows were cloned and no production DDL was executed.'
+          } >> "$GITHUB_STEP_SUMMARY"
