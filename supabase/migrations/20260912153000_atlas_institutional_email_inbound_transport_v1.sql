@@ -212,7 +212,7 @@ begin
     raise exception 'Connected institutional IMAP capture source required.' using errcode='42501';
   end if;
 
-  select count(*),min(ep.id) into v_endpoint_count,v_endpoint_id
+  select count(*) into v_endpoint_count
   from atlas.communication_endpoint_source_bindings b
   join atlas.communication_endpoints ep on ep.id=b.communication_endpoint_id
   where b.connected_source_id=v_source.id
@@ -223,6 +223,16 @@ begin
   if v_endpoint_count<>1 then
     raise exception 'Exactly one active institutional email receive endpoint is required for this IMAP source; found %.',v_endpoint_count using errcode='55000';
   end if;
+  select ep.id into v_endpoint_id
+  from atlas.communication_endpoint_source_bindings b
+  join atlas.communication_endpoints ep on ep.id=b.communication_endpoint_id
+  where b.connected_source_id=v_source.id
+    and b.binding_state='active'
+    and b.binding_role in ('receive','send_receive')
+    and ep.endpoint_state='active'
+    and ep.endpoint_kind='email'
+  order by ep.id
+  limit 1;
   select * into v_endpoint from atlas.communication_endpoints where id=v_endpoint_id;
   if v_endpoint.organization_id is distinct from v_source.custodian_organization_id
      or v_endpoint.organization_unit_id is distinct from v_source.custodian_organization_unit_id then
