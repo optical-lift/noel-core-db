@@ -58,6 +58,20 @@ begin
   for update;
   if v_op.id is null then raise exception 'Outbound operation not found.' using errcode='P0002'; end if;
 
+  -- A provider acceptance may have committed even if the worker lost the HTTP response
+  -- from this RPC. Once Atlas has already finalized any accepted copy, replay is a read
+  -- of durable state rather than a demand for the now-cleared transport lease.
+  if v_op.operation_state in ('accepted','partially_accepted') then
+    return jsonb_build_object(
+      'contractVersion','communication_outbound_transport_finalize_v1',
+      'state','already_accepted',
+      'operationState',v_op.operation_state,
+      'outboundOperationId',v_op.id,
+      'canonicalEventConstructed',true,
+      'canonicalEventSource','atlas_database'
+    );
+  end if;
+
   -- Known failures stay transport evidence only. Canonical communication evidence is
   -- constructed only after the transport has definitively accepted at least one copy.
   if v_result not in ('accepted','partially_accepted') then
