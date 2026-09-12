@@ -175,6 +175,14 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
 
+      - name: Preserve Python contract output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outbound-finalizer-python-contract
+          path: ${{ runner.temp }}/outbound-finalizer-python.txt
+          if-no-files-found: warn
+
       - name: Run pgTAP database-native contract tests
         shell: bash
         env:
