@@ -1,0 +1,121 @@
+name: Recovery DB-Only Outbound Validation
+
+on:
+  push:
+    branches:
+      - recovery/institutional-email-runtime-v1
+    paths:
+      - '.github/workflows/recovery-db-only-outbound-validation.yml'
+      - 'supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql'
+      - 'validation/fixtures/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql'
+      - 'validation/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'scripts/compare-schema-lint.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recovery-db-only-outbound-validation
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - name: Checkout recovery candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+          supabase start --help >/dev/null
+          supabase db dump --help >/dev/null
+          supabase db lint --help >/dev/null
+
+      - name: Snapshot production user schemas read-only
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NOEL_CORE_DATABASE_URL:-}" ]]; then
+            echo '::error::The protected production environment is missing NOEL_CORE_DATABASE_URL.'
+            exit 1
+          fi
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only \
+            --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/production-custom-roles.sql"
+          sha256sum "$RUNNER_TEMP/production-user-schema.sql"
+
+      - name: Convert canonical harness to database-only startup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/validate-production-schema-clone.sh')
+          text = path.read_text(encoding='utf-8')
+          old = 'supabase db start >"$startup_log" 2>&1'
+          new = (
+              'supabase start '
+              '-x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,'
+              'postgres-meta,studio,edge-runtime,logflare,vector,supavisor '
+              '--ignore-health-check >"$startup_log" 2>&1'
+          )
+          if text.count(old) != 1:
+              raise SystemExit('expected exactly one canonical database-start command to replace')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          print('Recovery runner will start Supabase Postgres without Auth, Realtime, Storage, API, Studio, or other non-database services.')
+          PY
+
+      - name: Validate outbound finalizer against production schema clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version 20260912114723 \
+            --release-lane atlas \
+            --candidate-migration supabase/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql \
+            --candidate-fixture validation/fixtures/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql \
+            --candidate-validation validation/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql \
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/recovery-db-only-validation"
+
+      - name: Publish validation summary
+        if: always()
+        shell: bash
+        run: |
+          summary="$RUNNER_TEMP/recovery-db-only-validation/summary.md"
+          if [[ -s "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No validation summary was produced.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recovery-db-only-outbound-validation
+          path: ${{ runner.temp }}/recovery-db-only-validation
+          if-no-files-found: warn
+          retention-days: 7
