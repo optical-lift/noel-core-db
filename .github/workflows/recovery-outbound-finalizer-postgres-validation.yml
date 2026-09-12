@@ -42,7 +42,7 @@ jobs:
           tar -xzf /tmp/supabase.tgz -C /tmp supabase
           sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
 
-      - name: Snapshot production schema and roles read-only
+      - name: Snapshot production Atlas/auth schemas and roles read-only
         shell: bash
         env:
           NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
@@ -50,7 +50,10 @@ jobs:
           set -euo pipefail
           test -n "${NOEL_CORE_DATABASE_URL:-}"
           supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/production-custom-roles.sql"
-          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/production-user-schema.sql"
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --schema atlas,auth \
+            --file "$RUNNER_TEMP/production-user-schema.sql"
           test -s "$RUNNER_TEMP/production-custom-roles.sql"
           test -s "$RUNNER_TEMP/production-user-schema.sql"
 
@@ -64,25 +67,21 @@ jobs:
           src = Path(sys.argv[1]).read_text(encoding='utf-8')
           lines = src.splitlines(keepends=True)
           trigger = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
-          skip_ext = re.compile(r'^\s*(?:CREATE EXTENSION IF NOT EXISTS|COMMENT ON EXTENSION)\s+"?(pg_cron|pg_net)"?.*;\s*$')
-          kept=[]; disabled=enabled=ext=0
+          kept=[]; disabled=enabled=0
           for line in lines:
               m=trigger.match(line)
               if m:
                   if m.group(1)=='DISABLE': disabled += 1
                   else: enabled += 1
                   continue
-              if skip_ext.match(line):
-                  ext += 1
-                  continue
               kept.append(line)
           if disabled != enabled:
               raise SystemExit(f'unbalanced restore-only trigger toggles: {disabled} vs {enabled}')
           Path(sys.argv[2]).write_text(''.join(kept), encoding='utf-8')
-          print(f'removed {disabled+enabled} trigger toggle and {ext} pg_cron/pg_net extension statement(s)')
+          print(f'removed {disabled+enabled} restore-only trigger toggle statement(s)')
           PY
 
-      - name: Restore production schema into plain Postgres
+      - name: Restore production Atlas/auth schemas into plain Postgres
         shell: bash
         env:
           LOCAL_DB: postgresql://postgres:postgres@127.0.0.1:5432/postgres
@@ -90,7 +89,6 @@ jobs:
           set -euo pipefail
           psql "$LOCAL_DB" -v ON_ERROR_STOP=1 <<'SQL'
           create schema if not exists extensions;
-          create schema if not exists cron;
           create extension if not exists pgcrypto with schema extensions;
           do $roles$
           declare r text;
@@ -114,4 +112,4 @@ jobs:
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f validation/migrations/20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
 
       - name: Record success
-        run: echo 'Outbound finalizer restored against the production schema snapshot and all behavioral postconditions passed.' >> "$GITHUB_STEP_SUMMARY"
+        run: echo 'Outbound finalizer restored against the production Atlas/auth schema snapshot and all behavioral postconditions passed.' >> "$GITHUB_STEP_SUMMARY"
