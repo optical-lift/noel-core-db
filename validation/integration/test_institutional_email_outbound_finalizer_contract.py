@@ -187,7 +187,11 @@ class OutboundFinalizerContractTests(unittest.TestCase):
               'accepted',
               '<fixture-accepted@example.invalid>',
               '{"phase":"data","smtpCode":250}'::jsonb,
-              '[{"role":"to","address":"to@example.invalid","state":"accepted"}]'::jsonb,
+              '[
+                {"role":"to","address":"to@example.invalid","state":"accepted"},
+                {"role":"cc","address":"cc@example.invalid","state":"accepted"},
+                {"role":"bcc","address":"bcc@example.invalid","state":"accepted"}
+              ]'::jsonb,
               '2026-09-12T16:00:00Z'::timestamptz
             ) AS value;
 
