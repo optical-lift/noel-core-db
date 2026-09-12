@@ -34,6 +34,36 @@ function stableEventProjection(event: Json) {
   return copy;
 }
 
+function canonicalProviderMessageAttachments(message: Json, eventRef: string, providerKey: string) {
+  const raw = Array.isArray(message.attachments) ? message.attachments as Json[] : [];
+  return raw.map((attachment, index) => {
+    const payload = (attachment.payload as Json | undefined) ?? {};
+    const providerAttachmentId = String(attachment.id ?? payload.attachment_id ?? payload.id ?? "").trim();
+    const providerMediaType = String(attachment.type ?? "").trim().toLowerCase() || null;
+    const transferNameCandidate = [payload.name, payload.file_name, attachment.name, attachment.filename]
+      .find((value) => typeof value === "string" && value.trim());
+    const providerUrl = typeof payload.url === "string" && payload.url.trim() ? payload.url.trim() : null;
+    return {
+      sourceAttachmentRef: providerAttachmentId
+        ? `${providerKey}:${providerAttachmentId}`
+        : `${providerKey}:${eventRef}:attachment:${index}`,
+      mimeType: null,
+      transferName: typeof transferNameCandidate === "string" ? transferNameCandidate.trim() : null,
+      sourceContentHash: null,
+      custodyLocator: null,
+      metadata: {
+        provider: providerKey,
+        providerMediaType,
+        providerAttachmentId: providerAttachmentId || null,
+        providerAttachmentIndex: index,
+        providerUrlPresent: providerUrl !== null,
+        providerUrlWithheldFromDurableMetadata: providerUrl !== null,
+        custodyState: "provider_reference_only",
+      },
+    };
+  });
+}
+
 async function hmacSha256Hex(secret: string, text: string) {
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(text));
@@ -330,6 +360,7 @@ function canonicalPageMessage(pageId: string, envelope: Json) {
   const incoming = recipient === pageId;
   const other = incoming ? sender : recipient;
   const text = typeof message.text === "string" ? message.text : null;
+  const attachments = canonicalProviderMessageAttachments(message, mid, "facebook");
   return {
     deliveryKey: `message:${mid}`,
     event: {
@@ -346,7 +377,8 @@ function canonicalPageMessage(pageId: string, envelope: Json) {
         { addressKind: "social", address: pageId, isSelf: true, role: "page" },
         { addressKind: "social", address: other, isSelf: false, role: "participant" },
       ],
-      sourcePayload: { adapter: "atlas_facebook_webhook_v1", field: "messages", messageId: mid },
+      attachments,
+      sourcePayload: { adapter: "atlas_facebook_webhook_v1", field: "messages", messageId: mid, attachmentCount: attachments.length },
       sourceAuthority: "evidence_only",
       permittedStateEffect: "append_source_attributed_evidence_only",
       governingStateChanged: false,

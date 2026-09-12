@@ -105,6 +105,43 @@ function canonicalParticipants(pageId: string, message: ProviderMessage) {
   return participants;
 }
 
+function canonicalHistoryAttachments(messageId: string, message: ProviderMessage) {
+  const raw = Array.isArray(message.attachments?.data) ? message.attachments!.data! : [];
+  return raw.map((attachment, index) => {
+    const providerAttachmentId = String(attachment.id ?? "").trim();
+    const transferNameCandidate = [attachment.name, attachment.file_name, attachment.filename]
+      .find((value) => typeof value === "string" && value.trim());
+    const providerMimeTypeClaim = typeof attachment.mime_type === "string" && attachment.mime_type.trim()
+      ? attachment.mime_type.trim().toLowerCase()
+      : null;
+    const providerMediaType = typeof attachment.type === "string" && attachment.type.trim()
+      ? attachment.type.trim().toLowerCase()
+      : null;
+    const urlKeys = ["file_url", "image_url", "video_url", "url"];
+    const providerUrlPresent = urlKeys.some((key) => typeof attachment[key] === "string" && String(attachment[key]).trim());
+    return {
+      sourceAttachmentRef: providerAttachmentId
+        ? `facebook:${providerAttachmentId}`
+        : `facebook:${messageId}:attachment:${index}`,
+      mimeType: null,
+      transferName: typeof transferNameCandidate === "string" ? transferNameCandidate.trim() : null,
+      sourceContentHash: null,
+      custodyLocator: null,
+      metadata: {
+        provider: "facebook",
+        providerAttachmentId: providerAttachmentId || null,
+        providerAttachmentIndex: index,
+        providerMediaType,
+        providerMimeTypeClaim,
+        providerUrlPresent,
+        providerUrlWithheldFromDurableMetadata: providerUrlPresent,
+        custodyState: "provider_reference_only",
+        captureMode: "provider_sync",
+      },
+    };
+  });
+}
+
 async function canonicalHistoryMessage(pageId: string, conversationId: string, message: ProviderMessage) {
   const id = String(message.id ?? "").trim();
   const fromId = String(message.from?.id ?? "").trim();
@@ -112,7 +149,7 @@ async function canonicalHistoryMessage(pageId: string, conversationId: string, m
 
   const isSelf = fromId === pageId;
   const body = typeof message.message === "string" ? message.message : null;
-  const providerAttachments = Array.isArray(message.attachments?.data) ? message.attachments!.data! : [];
+  const attachments = canonicalHistoryAttachments(id, message);
   const event: Json = {
     schemaVersion: "atlas_communication_event_v1",
     source: {
@@ -133,11 +170,12 @@ async function canonicalHistoryMessage(pageId: string, conversationId: string, m
     body,
     bodyState: body ? "exact_text" : "empty",
     participants: canonicalParticipants(pageId, message),
+    attachments,
     sourcePayload: {
       adapter: "atlas_facebook_history_sync_v1",
       conversationId,
       messageId: id,
-      providerAttachments,
+      attachmentCount: attachments.length,
       historicalBackfill: true,
     },
     sourceAuthority: "evidence_only",
