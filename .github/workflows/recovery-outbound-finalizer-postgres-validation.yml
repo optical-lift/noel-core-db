@@ -93,6 +93,19 @@ jobs:
           psql "$LOCAL_DB" -v ON_ERROR_STOP=1 <<'SQL'
           create schema if not exists extensions;
           create extension if not exists pgcrypto with schema extensions;
+          do $roles$
+          declare r text;
+          begin
+            foreach r in array array[
+              'anon','authenticated','service_role','authenticator',
+              'supabase_admin','supabase_auth_admin','supabase_storage_admin',
+              'supabase_functions_admin','dashboard_user','pgbouncer'
+            ] loop
+              if not exists (select 1 from pg_roles where rolname=r) then
+                execute format('create role %I nologin',r);
+              end if;
+            end loop;
+          end $roles$;
           SQL
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-custom-roles.sql"
           psql "$LOCAL_DB" -X -v ON_ERROR_STOP=1 -f "$RUNNER_TEMP/production-user-schema-sanitized.sql"
