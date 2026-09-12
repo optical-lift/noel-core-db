@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:17
+        image: public.ecr.aws/supabase/postgres:17.6.1.165
         env:
           POSTGRES_PASSWORD: postgres
           POSTGRES_USER: postgres
@@ -84,7 +84,7 @@ jobs:
           print(f'removed {disabled+enabled} restore-only trigger toggle statement(s)')
           PY
 
-      - name: Restore production schema into plain Postgres
+      - name: Restore production schema into Supabase Postgres
         shell: bash
         env:
           LOCAL_DB: postgresql://postgres:postgres@127.0.0.1:5432/postgres
