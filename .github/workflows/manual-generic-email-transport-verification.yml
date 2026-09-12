@@ -46,89 +46,42 @@ jobs:
           chmod 600 "$config_file"
           test -s "$config_file"
 
+          # Import the tested verifier from this recovery candidate. This workflow does
+          # not carry a second implementation of either transport protocol.
           python3 - "$config_file" "$result_file" <<'PY'
-          import imaplib
+          import importlib.util
           import json
-          import smtplib
-          import ssl
           import sys
           from pathlib import Path
+
+          module_path = Path('scripts/communications/generic_email_transport_verify.py')
+          spec = importlib.util.spec_from_file_location('generic_email_transport_verify', module_path)
+          module = importlib.util.module_from_spec(spec)
+          assert spec and spec.loader
+          sys.modules[spec.name] = module
+          spec.loader.exec_module(module)
 
           config_path = Path(sys.argv[1])
           result_path = Path(sys.argv[2])
           config = json.loads(config_path.read_text(encoding='utf-8'))
-          mail = config.get('mailConfig') or {}
-          imap_cfg = mail.get('imap') or {}
-          smtp_cfg = mail.get('smtp') or {}
-          username = str(mail.get('username') or '').strip()
-          password = str(mail.get('password') or '')
-          if not username or not password:
-              raise SystemExit('Atlas generic email credentials are incomplete')
+          imap_cfg, smtp_cfg, username, password = module._mail_config(config)
 
-          context = ssl.create_default_context()
           imap_ok = False
           smtp_ok = False
           imap_error = ''
           smtp_error = ''
-
           try:
-              client = None
               try:
-                  host = str(imap_cfg.get('host') or '').strip()
-                  port = int(imap_cfg.get('port') or 0)
-                  security = str(imap_cfg.get('security') or '').strip().lower()
-                  if security in {'ssl', 'tls'}:
-                      client = imaplib.IMAP4_SSL(host, port, ssl_context=context)
-                  elif security == 'starttls':
-                      client = imaplib.IMAP4(host, port)
-                      status, _ = client.starttls(ssl_context=context)
-                      if status != 'OK':
-                          raise RuntimeError('IMAP STARTTLS failed')
-                  else:
-                      raise RuntimeError('Unsupported IMAP security mode')
-                  status, _ = client.login(username, password)
-                  if status != 'OK':
-                      raise RuntimeError('IMAP authentication failed')
+                  module.verify_imap_auth(imap_cfg, username, password)
                   imap_ok = True
               except Exception as exc:
                   imap_error = type(exc).__name__
-              finally:
-                  if client is not None:
-                      try:
-                          client.logout()
-                      except Exception:
-                          pass
 
               try:
-                  client = None
-                  try:
-                      host = str(smtp_cfg.get('host') or '').strip()
-                      port = int(smtp_cfg.get('port') or 0)
-                      security = str(smtp_cfg.get('security') or '').strip().lower()
-                      if security in {'ssl', 'tls'}:
-                          client = smtplib.SMTP_SSL(host, port, timeout=30, context=context)
-                      elif security == 'starttls':
-                          client = smtplib.SMTP(host, port, timeout=30)
-                          client.ehlo()
-                          client.starttls(context=context)
-                          client.ehlo()
-                      else:
-                          raise RuntimeError('Unsupported SMTP security mode')
-                      client.login(username, password)
-                      smtp_ok = True
-                  except Exception as exc:
-                      smtp_error = type(exc).__name__
-                  finally:
-                      if client is not None:
-                          try:
-                              client.quit()
-                          except Exception:
-                              try:
-                                  client.close()
-                              except Exception:
-                                  pass
-              finally:
-                  pass
+                  module.verify_smtp_auth(smtp_cfg, username, password)
+                  smtp_ok = True
+              except Exception as exc:
+                  smtp_error = type(exc).__name__
           finally:
               password = ''
               config_path.write_text('', encoding='utf-8')
