@@ -458,8 +458,15 @@ Deno.serve(async (req) => {
     if (req.method === "GET" && url.pathname.endsWith("/health")) return responseJson({ ok: true, adapter: "atlas_facebook_webhook_v1" });
 
     if (req.method === "GET" && url.pathname.endsWith("/facebook/start")) {
+      const authorization = req.headers.get("authorization") ?? "";
+      if (!/^Bearer\s+\S+/i.test(authorization)) return responseJson({ error: "Signed-in Atlas session required." }, 401);
       const state = url.searchParams.get("state") ?? "";
-      parseSessionIdFromState(state);
+      const sessionId = parseSessionIdFromState(state);
+      await rpc<Json>("provider_connection_start_context_self_api_v1", {
+        p_session_id: sessionId,
+        p_provider_key: "facebook",
+        p_state_nonce_digest: await sha256(state),
+      }, authorization);
       return responseJson({ provider: "facebook", authorizeUrl: facebookAuthorizeUrl(state) });
     }
 
