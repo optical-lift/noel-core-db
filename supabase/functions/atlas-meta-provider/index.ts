@@ -62,13 +62,13 @@ function constantTimeEqual(a: string, b: string) {
   return diff === 0;
 }
 
-async function serviceRpc<T>(name: string, args: Json): Promise<T> {
+async function rpc<T>(name: string, args: Json, authorization: string): Promise<T> {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) throw new Error("Provider gateway service configuration is unavailable.");
   const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${encodeURIComponent(name)}`, {
     method: "POST",
     headers: {
       apikey: SERVICE_ROLE_KEY,
-      authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+      authorization,
       "content-type": "application/json",
     },
     body: JSON.stringify(args),
@@ -76,6 +76,10 @@ async function serviceRpc<T>(name: string, args: Json): Promise<T> {
   const text = await r.text();
   if (!r.ok) throw new Error(`${name} failed (${r.status}): ${text.slice(0, 1000)}`);
   return (text ? JSON.parse(text) : null) as T;
+}
+
+function serviceRpc<T>(name: string, args: Json): Promise<T> {
+  return rpc<T>(name, args, `Bearer ${SERVICE_ROLE_KEY}`);
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -327,8 +331,15 @@ Deno.serve(async (req) => {
     }
 
     if (req.method === "GET" && url.pathname.endsWith("/instagram/start")) {
+      const authorization = req.headers.get("authorization") ?? "";
+      if (!/^Bearer\s+\S+/i.test(authorization)) return json({ error: "Signed-in Atlas session required." }, 401);
       const state = url.searchParams.get("state") ?? "";
-      parseSessionIdFromState(state);
+      const sessionId = parseSessionIdFromState(state);
+      await rpc<Json>("provider_connection_start_context_self_api_v1", {
+        p_session_id: sessionId,
+        p_provider_key: "instagram",
+        p_state_nonce_digest: await sha256(state),
+      }, authorization);
       return json({ authorizeUrl: instagramAuthorizeUrl(state), provider: "instagram" });
     }
 
