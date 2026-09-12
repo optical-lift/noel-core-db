@@ -64,7 +64,7 @@ jobs:
           src = Path(sys.argv[1]).read_text(encoding='utf-8')
           lines = src.splitlines(keepends=True)
           trigger = re.compile(r'^\s*ALTER TABLE .+ (DISABLE|ENABLE) TRIGGER ALL;\s*$')
-          skip_ext = re.compile(r'^\s*(?:CREATE EXTENSION IF NOT EXISTS|COMMENT ON EXTENSION)\s+"?(pg_cron)"?.*;\s*$')
+          skip_ext = re.compile(r'^\s*(?:CREATE EXTENSION IF NOT EXISTS|COMMENT ON EXTENSION)\s+"?(pg_cron|pg_net)"?.*;\s*$')
           kept=[]; disabled=enabled=ext=0
           for line in lines:
               m=trigger.match(line)
@@ -79,7 +79,7 @@ jobs:
           if disabled != enabled:
               raise SystemExit(f'unbalanced restore-only trigger toggles: {disabled} vs {enabled}')
           Path(sys.argv[2]).write_text(''.join(kept), encoding='utf-8')
-          print(f'removed {disabled+enabled} trigger toggle and {ext} pg_cron extension statement(s)')
+          print(f'removed {disabled+enabled} trigger toggle and {ext} pg_cron/pg_net extension statement(s)')
           PY
 
       - name: Restore production schema into plain Postgres
