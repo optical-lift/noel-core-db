@@ -196,7 +196,7 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
     transformTags: {
       a: (_tagName, attribs) => {
         const href = safeLinkHref(attribs.href);
-        const next = { ...attribs, target: "_blank", rel: "noreferrer noopener" };
+        const next: Record<string, string> = { ...attribs, target: "_blank", rel: "noreferrer noopener" };
         if (href) next.href = href;
         else delete next.href;
         return { tagName: "a", attribs: next };
