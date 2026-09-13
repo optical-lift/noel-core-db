@@ -1,0 +1,1 @@
+Gate B Teaching Academic Kernel v1 validated production-shape green in run 221 against candidate SHA 29b0a11abae7fb1d061ddf3ce86212a811d7a5b7. Production release remains separate.
