@@ -9,7 +9,7 @@ declare
   p4 constant uuid := '44444444-4444-4444-8444-444444444442'::uuid;
   p5 constant uuid := '55555555-5555-4555-8555-555555555552'::uuid;
   u1 constant uuid := '11111111-1111-4111-8111-111111111111'::uuid;
-  practitioner_uid constant uuid := '55555555-5555-4555-8555-555555555551'::uuid;
+  practitioner_uid constant uuid := '99999999-9999-4999-8999-999999999991'::uuid;
   org_alpha constant uuid := 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid;
   org_beta constant uuid := 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'::uuid;
   org_zero constant uuid := 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1'::uuid;
@@ -61,7 +61,6 @@ begin
     raise exception 'Pre-graph fixture identity is unavailable.';
   end if;
 
-  -- Existing Ledger identity, authority, and entry history must survive unchanged.
   if not exists (
     select 1 from atlas.ledgers l
     where l.id=v_pre_ledger
@@ -103,7 +102,6 @@ begin
     raise exception 'Compatibility-primary Ledger lookup changed for legacy Organization.';
   end if;
 
-  -- A direct Organization insert may now exist without a Ledger. The universal birth trigger is gone.
   insert into atlas.organizations(id,stable_key,name,status,metadata,onboarding_state)
   values (
     org_zero,'cccccccccccc4ccc8cccccccccccccc1','Organization With No Ledger',
@@ -118,8 +116,6 @@ begin
     raise exception 'Organization insert still manufactured a Ledger.';
   end if;
 
-  -- Build eight independent Ledgers under one Principal. Together with the two legacy Ledgers,
-  -- this creates a ten-Ledger authority matrix without Organization containment.
   for i in 1..8 loop
     v_result := atlas.establish_ledger_for_principal_v1(
       p1,v_person1,
@@ -149,7 +145,6 @@ begin
   v_shared := v_ledgers[1];
   v_independent := v_ledgers[2];
 
-  -- One Organization can participate in multiple Ledgers.
   perform atlas.establish_ledger_organization_participation_v1(
     v_shared,org_alpha,'operating',false,
     '{"source":"ledger_graph_validation"}'::jsonb,'{}'::jsonb
@@ -160,7 +155,6 @@ begin
     raise exception 'One Organization could not participate in multiple Ledgers.';
   end if;
 
-  -- One Ledger can involve multiple Organizations.
   perform atlas.establish_ledger_organization_participation_v1(
     v_shared,org_beta,'shared_service',false,
     '{"source":"ledger_graph_validation"}'::jsonb,'{}'::jsonb
@@ -171,7 +165,6 @@ begin
     raise exception 'One Ledger could not involve multiple Organizations.';
   end if;
 
-  -- Independent Ledger remains valid with no Organization participant.
   if exists (
     select 1 from atlas.ledger_organization_participations p
     where p.ledger_id=v_independent and p.status='active'
@@ -179,8 +172,6 @@ begin
     raise exception 'Independent Ledger unexpectedly acquired Organization participation.';
   end if;
 
-  -- Organization-scoped projection may use any Ledger in which the Organization participates,
-  -- not only the compatibility-primary Ledger.
   insert into atlas.organization_ledger_entries(
     id,organization_id,event_key,source_domain,semantic_type,occurred_at,title,detail,
     payload,provenance,correlation,ledger_id
@@ -208,7 +199,6 @@ begin
     raise exception 'Organization Ledger entry accepted a Ledger without active participation.';
   end if;
 
-  -- Five Principals can all hold top-level authority across the same ten Ledgers.
   insert into atlas.principal_ledger_authorities(
     principal_id,ledger_id,authority_kind,status,basis,metadata
   )
@@ -228,7 +218,6 @@ begin
     raise exception 'Five-Principals / ten-Ledgers root authority matrix was not established.';
   end if;
 
-  -- Directed cycles are allowed; symmetric edges normalize so reverse retry is idempotent.
   v_rel_a := atlas.establish_ledger_relationship_v1(
     v_ledgers[3],v_ledgers[4],'depends_on','directed',
     '{"source":"ledger_graph_validation"}'::jsonb,'{}'::jsonb
@@ -254,7 +243,6 @@ begin
     raise exception 'Symmetric Ledger relationship reverse retry was not idempotent.';
   end if;
 
-  -- Correlation preserves independent governed addresses and retries by correlation identity.
   v_corr_a := atlas.establish_ledger_correlation_v1(
     '77777777-7777-4777-8777-777777777701'::uuid,
     v_ledgers[3],'production_lot','88888888-8888-4888-8888-888888888801'::uuid,null,'harvest',
@@ -306,8 +294,6 @@ begin
     raise exception 'Symmetric correlation reverse retry was not normalized.';
   end if;
 
-  -- Public Organization establishment keeps working, but both Organization and initial Ledger
-  -- get opaque identifiers and are connected by an explicit compatibility-primary participation.
   perform set_config('request.jwt.claim.sub',u1::text,true);
   perform set_config('request.jwt.claim.role','authenticated',true);
   perform set_config('request.jwt.claims',jsonb_build_object('sub',u1::text,'role','authenticated')::text,true);
@@ -342,7 +328,6 @@ begin
     raise exception 'New initial Ledger did not receive Principal root authority.';
   end if;
 
-  -- Commercial binding can target a sponsor-governed Ledger with no Organization at all.
   select count(*) into v_org_count from atlas.organizations;
   select count(*) into v_ledger_count from atlas.ledgers;
 
@@ -370,7 +355,6 @@ begin
     raise exception 'Commercial binding changed institutional identity counts.';
   end if;
 
-  -- Principal Ledger projection includes independent and multi-Organization Ledgers.
   perform set_config('request.jwt.claim.sub',u1::text,true);
   perform set_config('request.jwt.claim.role','authenticated',true);
   perform set_config('request.jwt.claims',jsonb_build_object('sub',u1::text,'role','authenticated')::text,true);
@@ -392,7 +376,6 @@ begin
     raise exception 'Principal Ledger projection did not expose multi-Organization participation.';
   end if;
 
-  -- Browser roles receive no direct graph-table access; only intended self APIs remain exposed.
   if has_table_privilege('anon','atlas.ledger_organization_participations','SELECT')
      or has_table_privilege('authenticated','atlas.ledger_organization_participations','SELECT')
      or has_table_privilege('anon','atlas.ledger_relationships','SELECT')
@@ -416,7 +399,6 @@ begin
     raise exception 'Governed browser API grants are incorrect.';
   end if;
 
-  -- Structural proof: Ledger Organization ownership is no longer mandatory.
   if (select is_nullable from information_schema.columns
       where table_schema='atlas' and table_name='ledgers' and column_name='organization_id')<>'YES' then
     raise exception 'Ledger.organization_id is still mandatory.';
