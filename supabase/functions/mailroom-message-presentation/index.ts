@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import PostalMime from "npm:postal-mime@3.0.0";
+// @ts-types="npm:@types/sanitize-html@2.16.1"
 import sanitizeHtml from "npm:sanitize-html@2.17.7";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -7,6 +8,7 @@ const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHA256 = /^[0-9a-f]{64}$/i;
 const RAW_BUCKET = "atlas-communication-raw";
 const MAX_RAW_BYTES = 10 * 1024 * 1024;
 const MAX_INLINE_IMAGE_BYTES = 1536 * 1024;
@@ -56,6 +58,7 @@ async function custodyForEvent(eventId: string): Promise<CustodyRow | null> {
     communication_event_id: `eq.${eventId}`,
     custody_state: "eq.stored",
     select: "raw_mime_sha256,byte_length,storage_locator,custody_state",
+    order: "recorded_at.desc",
     limit: "1",
   });
   const response = await fetch(`${SUPABASE_URL}/rest/v1/communication_raw_message_custody?${params}`, {
@@ -93,7 +96,13 @@ async function downloadRawMessage(path: string, expectedBytes?: number | null) {
   if (length > MAX_RAW_BYTES) throw new Error("Raw email exceeds the presentation size limit.");
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength > MAX_RAW_BYTES) throw new Error("Raw email exceeds the presentation size limit.");
+  if (expectedBytes && bytes.byteLength !== expectedBytes) throw new Error("Raw email length does not match the custody record.");
   return bytes;
+}
+
+async function sha256Hex(bytes: Uint8Array) {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  return Array.from(digest).map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
 function toBase64(bytes: Uint8Array) {
@@ -146,7 +155,7 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
   const cleanedSource = stripRemoteCss(sourceHtml);
   const clean = sanitizeHtml(cleanedSource, {
     allowedTags: [
-      "html","head","body","style","title","div","span","p","br","hr","pre","blockquote",
+      "style","div","span","p","br","hr","pre","blockquote",
       "h1","h2","h3","h4","h5","h6","strong","b","em","i","u","s","small","sub","sup",
       "table","thead","tbody","tfoot","tr","th","td","colgroup","col","center","font","a","img",
       "ul","ol","li","dl","dt","dd",
@@ -169,11 +178,7 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
     transformTags: {
       a: (_tagName, attribs) => ({
         tagName: "a",
-        attribs: {
-          ...attribs,
-          target: "_blank",
-          rel: "noreferrer noopener",
-        },
+        attribs: { ...attribs, target: "_blank", rel: "noreferrer noopener" },
       }),
       img: (_tagName, attribs) => {
         const image = safeImageSource(attribs.src, inlineImages);
@@ -185,10 +190,6 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
         if (image.blocked) next.class = `${next.class ?? ""} atlas-remote-image-blocked`.trim();
         return { tagName: "img", attribs: next };
       },
-      style: (_tagName, attribs) => ({ tagName: "style", attribs }),
-    },
-    exclusiveFilter(frame) {
-      return ["script","iframe","object","embed","form","input","button","textarea","select","option","video","audio","source","meta","link","base","svg","math"].includes(frame.tag);
     },
   });
 
@@ -214,18 +215,15 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
 async function presentationForEvent(eventId: string): Promise<Presentation> {
   const custody = await custodyForEvent(eventId);
   if (!custody?.storage_locator || custody.custody_state !== "stored") throw new Error("Original email is not available in raw-message custody.");
+  const expectedHash = custody.raw_mime_sha256?.trim().toLowerCase() ?? "";
+  if (!SHA256.test(expectedHash)) throw new Error("Raw-message custody hash is unavailable or invalid.");
   const raw = await downloadRawMessage(storagePath(custody.storage_locator), custody.byte_length);
+  if (await sha256Hex(raw) !== expectedHash) throw new Error("Raw email does not match the custody hash.");
+
   const parsed = await PostalMime.parse(raw);
   const html = parsed.html?.trim() ?? "";
   if (!html) {
-    return {
-      ok: true,
-      eventId,
-      kind: "text",
-      text: parsed.text?.trim() ?? "",
-      remoteImagesBlocked: false,
-      inlineImageCount: 0,
-    };
+    return { ok: true, eventId, kind: "text", text: parsed.text?.trim() ?? "", remoteImagesBlocked: false, inlineImageCount: 0 };
   }
   const inlineImages = buildInlineImages(parsed.attachments ?? []);
   const sanitized = sanitizedEmailDocument(html, inlineImages);
