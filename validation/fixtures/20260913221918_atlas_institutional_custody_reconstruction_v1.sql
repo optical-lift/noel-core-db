@@ -260,11 +260,12 @@ insert into atlas.user_profiles(
 ('f496b283-795e-4c3e-b2ea-677989c9a235'::uuid,'Katie',null,false,'{"validation_fixture":true}'::jsonb,'818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'ready'),
 ('b5e4014b-8fc6-4733-9c89-e158f9dcc341'::uuid,'Marshall','6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid,false,'{"validation_fixture":true}'::jsonb,'818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'ready');
 
--- Representative direct work classification.
-insert into atlas.tasks(id,farm_id,title,status,organization_id,metadata) values
-('aaaaaaaa-1000-4000-8000-aaaaaaaa0001'::uuid,'6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid,'Elm fixture task','open','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb),
-('aaaaaaaa-1000-4000-8000-aaaaaaaa0002'::uuid,'f6592422-cf2b-4375-ba8f-f00828a05c18'::uuid,'Waiting Room fixture task','open','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb),
-('aaaaaaaa-1000-4000-8000-aaaaaaaa0003'::uuid,null,'Owner-level Camp Duffel fixture task','open','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb);
+-- Representative direct work classification. Root portfolio work is project-scoped,
+-- matching production and avoiding farm-operation release automation during fixture setup.
+insert into atlas.tasks(id,farm_id,title,status,organization_id,task_scope,metadata) values
+('aaaaaaaa-1000-4000-8000-aaaaaaaa0001'::uuid,'6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid,'Elm fixture task','open','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'farm_operation','{"validation_fixture":true}'::jsonb),
+('aaaaaaaa-1000-4000-8000-aaaaaaaa0002'::uuid,'f6592422-cf2b-4375-ba8f-f00828a05c18'::uuid,'Waiting Room fixture task','open','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'farm_operation','{"validation_fixture":true}'::jsonb),
+('aaaaaaaa-1000-4000-8000-aaaaaaaa0003'::uuid,null,'Owner-level Camp Duffel fixture task','open','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'project','{"validation_fixture":true}'::jsonb);
 
 insert into atlas.projects(id,farm_id,stable_key,title,status,organization_id,metadata) values
 ('bbbbbbbb-1000-4000-8000-bbbbbbbb0001'::uuid,'6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid,'custody_fixture_elm_project','Elm fixture project','active','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb),
