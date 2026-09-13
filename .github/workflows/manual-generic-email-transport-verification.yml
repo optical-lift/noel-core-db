@@ -137,7 +137,7 @@ jobs:
           NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
         run: |
           set -euo pipefail
-          state="$({ psql "$NOEL_CORE_DATABASE_URL" -X -A -t -F '|' -v ON_ERROR_STOP=1 -c "select authorization_state, coalesce((capabilities->>'communicationCapture')::boolean,false), coalesce((capabilities->>'communicationSend')::boolean,false), coalesce((metadata->'transportVerification'->>'verified')::boolean,false) from atlas.connected_sources where id='${CONNECTED_SOURCE_ID}'::uuid;"; } | tr -d '[:space:]')"
+          state="$({ psql "$NOEL_CORE_DATABASE_URL" -X -A -t -F '|' -v ON_ERROR_STOP=1 -c "select authorization_state, case when coalesce((capabilities->>'communicationCapture')::boolean,false) then 'true' else 'false' end, case when coalesce((capabilities->>'communicationSend')::boolean,false) then 'true' else 'false' end, case when coalesce((metadata->'transportVerification'->>'verified')::boolean,false) then 'true' else 'false' end from atlas.connected_sources where id='${CONNECTED_SOURCE_ID}'::uuid;"; } | tr -d '[:space:]')"
           test -n "$state"
           IFS='|' read -r authorization capture send verified <<< "$state"
 
