@@ -2,22 +2,22 @@
 
 ## Purpose
 
-Correct the historical mixed `feast_guild` production container now that Ledger Graph v1 is live, without rewriting or deleting historical evidence.
+Correct the historical mixed `feast_guild` production container now that Ledger Graph v1 is live, without deleting historical evidence or manufacturing false Feast Guild history.
 
-This tranche establishes fresh canonical Elm Farm and Feast Guild institutions, establishes separate Elm Farm and Elm Venue Ledgers, archives the Waiting Room test scope and owner-level test/project scope in the legacy portfolio container, and introduces explicit adjudication evidence for historical rows whose original foreign keys must remain as historical custody.
+This tranche establishes fresh canonical Elm Farm and Feast Guild institutions, establishes separate Elm Farm and Elm Venue Ledgers, archives the Waiting Room test scope and owner-level test/project scope in the legacy portfolio container, and introduces explicit adjudication evidence recording where historical rows originally lived before canonical custody was corrected.
 
 ## Governing laws
 
 1. **Historical container is not canonical owner.** A legacy `organization_id` proves where Atlas stored a row at the time; it does not override stronger institutional evidence.
-2. **Canonical custody must be explicit and independently queryable.** Historical foreign keys may remain untouched when changing them would rewrite history or create integrity risk.
+2. **Canonical custody must be explicit and independently queryable.** When a preserved historical row is physically rehomed to keep the current runtime coherent, Atlas must first record its historical custody in an immutable adjudication.
 3. **A Ledger is a governing boundary, not an Organization synonym.** Elm Farm and Elm Venue are separate Ledgers even when the same Elm Farm Organization participates in both.
 4. **Names are labels, never identity.** New Organization and Ledger stable identifiers are opaque random alphanumeric values.
 5. **Authority is direct Principal -> Ledger authority.** Lex governs Elm Farm, Elm Venue, and Feast Guild through explicit root authority; legacy `principals.organization_id` remains compatibility/history only.
-6. **Feast Guild starts empty.** No historical Elm, Waiting Room, customer, supplier, task, work, communication, order, farm, membership, position, responsibility, or identity state is inherited into the new Feast Guild institution.
-7. **Anna is the sole active Elm employee.** Her new canonical Elm employment relation is explicit; Lex governs Elm through Ledger authority, not by inheriting the legacy owner membership.
+6. **Feast Guild starts empty.** No historical Elm, Waiting Room, customer, supplier, task, work, communication, order, farm, employee, position, responsibility, or identity state is inherited into the new Feast Guild institution.
+7. **Anna is the sole Elm employee.** Her existing membership, identity subject, employee seat, credential, Farm Steward position, and appointment IDs are preserved while canonical Organization custody changes to Elm. Lex may hold a non-employee compatibility owner membership solely for existing Organization-owner read surfaces; that membership is not Ledger authority truth.
 8. **Waiting Room remains test history only.** Its farm/unit and directly associated work are archived in the legacy portfolio scope and are not promoted into a new institution.
 9. **Owner-level projects remain portfolio history only.** Nathan/Camp Duffel and rehabilitation-house work are archived in the legacy portfolio scope and are not assigned to Elm or Feast Guild.
-10. **No destructive deletion.** Existing IDs, timestamps, event revisions, source provenance, and legacy container references remain preserved.
+10. **No destructive deletion.** Existing IDs, timestamps, event revisions, source provenance, and explicit historical-custody evidence remain preserved.
 
 ## Known production evidence
 
@@ -89,14 +89,14 @@ Introduce an append-only adjudication relation for historical records:
 
 Each adjudication identifies an existing historical subject and records:
 
-- subject schema/table/kind/key;
-- historical Organization / Organization Unit / Farm / Ledger when known;
+- subject schema/table/key;
+- historical Organization / Ledger when known;
 - canonical Organization and optional canonical Ledger;
 - disposition: `reassigned`, `archived`, or `unresolved`;
 - evidence basis and evidence payload;
 - adjudicated timestamp and metadata.
 
-The historical record itself does not need to have its original foreign keys rewritten for Atlas to know its canonical custody.
+When a row is rehomed, its adjudication preserves the old container as historical custody. The row ID and domain identity remain unchanged.
 
 ### Elm evidence rule
 
@@ -104,7 +104,7 @@ A historical row is canonically Elm when direct evidence names the Elm Farm or E
 
 - `farm_id = 6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f`, or
 - `organization_unit_id = 1b65ac99-0f00-4ca2-9488-e8539cae2a1b`, or
-- it is an institutional identity record proven to belong to the 139 Elm external relationships or Anna's institutional identity.
+- it is an institutional identity/domain record proven to belong to the Elm operating graph.
 
 Rows may additionally receive an Elm Farm or Elm Venue Ledger adjudication when the domain itself proves the governing boundary. Lack of sufficient Ledger evidence is not permission to guess.
 
@@ -124,15 +124,15 @@ The Lex Principal's legacy `organization_id` may continue to point to this archi
 
 ## Elm people / structure
 
-The new Elm Farm Organization begins with:
+The canonical Elm Farm Organization has:
 
 - Lex root authority over Elm Farm Ledger and Elm Venue Ledger;
-- Anna as the only active Elm member/employee;
-- an active employee seat for Anna;
-- Farm Steward structure carried forward canonically with preserved historical source references;
-- no inherited Katie or Marshall active membership.
-
-Historical membership/seat/position rows remain preserved in the legacy container. New canonical Elm relationship rows are created rather than rewriting old relationship history.
+- Lex as a non-employee compatibility owner membership only where current Organization-owner read contracts still require membership;
+- Anna as the only active employee seat;
+- Anna's existing membership / identity subject / seat / credential IDs preserved and rehomed to Elm;
+- Farm Steward position/appointment and the five responsibilities preserved by ID and rehomed to Elm;
+- venue preparation adjudicated to Elm Venue Ledger; farm/production responsibilities adjudicated to Elm Farm Ledger;
+- no Katie or Marshall active membership added to Elm.
 
 ## Feast Guild clean-room rule
 
@@ -149,7 +149,7 @@ No membership, employee seat, farm, unit, identity subject, external relationshi
 
 A production-schema clone must prove:
 
-1. historical IDs and row counts are preserved;
+1. historical row identities and fixed Ledger revisions are preserved;
 2. legacy mixed Organization is archived and relabeled;
 3. legacy mixed Ledger is retired and its participation/authority ended;
 4. fresh Elm Farm and Feast Guild Organizations have opaque stable keys unrelated to their names;
@@ -158,12 +158,13 @@ A production-schema clone must prove:
 7. Elm Farm Organization actively participates in both Elm Ledgers;
 8. Feast Guild Organization participates only in Feast Guild Ledger;
 9. Feast Guild has no inherited operational/commercial/institutional rows;
-10. Anna is the sole active Elm organization membership and has one active employee seat;
+10. Anna remains the sole active Elm employee seat, while Lex is not made an employee;
 11. Waiting Room and owner-level project/task evidence remains historical and is adjudicated archived;
-12. Elm evidence is adjudicated to the Elm Organization without changing historical source IDs;
-13. all six historical Organization Ledger entries remain unchanged in identity/revision and are canonically adjudicated to Elm Farm Ledger;
-14. direct browser access to custody adjudications remains denied;
-15. no existing communication capture/send state is enabled or mutated as a side effect.
+12. explicit Elm evidence moves to canonical Elm without changing source row IDs;
+13. all six historical Organization Ledger entries preserve identity/revision and move to Elm Farm Ledger;
+14. direct browser access to custody adjudications remains denied and adjudications are append-only;
+15. no existing communication capture/send/authorization state is enabled or changed as a side effect;
+16. temporary FK deferral used for the atomic Elm Unit move does not remain in the durable schema.
 
 ## Explicitly out of scope
 
