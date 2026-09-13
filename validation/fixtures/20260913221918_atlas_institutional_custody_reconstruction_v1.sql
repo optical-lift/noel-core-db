@@ -1,6 +1,6 @@
 -- DML-only fixture for Atlas Institutional Custody Reconstruction v1.
--- Reproduces the production mixed-container identity with exact governing anchor IDs and
--- representative Elm, Waiting Room, owner-level, communication, and institutional rows.
+-- Reproduces the production mixed-container identity with exact governing anchors plus
+-- positive Elm evidence, archived test/portfolio evidence, and negative-control generic rows.
 
 insert into auth.users(id) values
   ('4cd799e2-16d4-4020-9d21-ccf1a2b98553'::uuid),
@@ -20,18 +20,14 @@ insert into atlas.person_auth_credentials(person_id,auth_user_id,status,provenan
   ('6ab25390-b372-4b1b-aa9e-1976f0ec1ba3'::uuid,'f496b283-795e-4c3e-b2ea-677989c9a235'::uuid,'active','{"validation_fixture":true}'::jsonb),
   ('3105e113-d73f-4f9f-b7e1-c112eb26e87b'::uuid,'b5e4014b-8fc6-4733-9c89-e158f9dcc341'::uuid,'active','{"validation_fixture":true}'::jsonb);
 
-insert into atlas.organizations(
-  id,stable_key,name,status,metadata,onboarding_state
-) values (
+insert into atlas.organizations(id,stable_key,name,status,metadata,onboarding_state) values (
   '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
   'feast_guild','Feast Guild','active',
   '{"validation_fixture":true,"created_from":"portfolio_foundation_v1","organization_kind":"farm_collective"}'::jsonb,
   'ready'
 );
 
-insert into atlas.ledgers(
-  id,stable_key,name,organization_id,ledger_kind,status,metadata
-) values (
+insert into atlas.ledgers(id,stable_key,name,organization_id,ledger_kind,status,metadata) values (
   '6dab72b7-cb2f-43eb-855e-c0c99756e0d6'::uuid,
   'feast_guild','Feast Guild','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
   'organization_governing','active',
@@ -67,9 +63,7 @@ insert into atlas.principal_ledger_authorities(
   'root_governing','active','legacy_principal_organization_compatibility','{"validation_fixture":true}'::jsonb
 );
 
-insert into atlas.organization_units(
-  id,organization_id,stable_key,name,unit_kind,status,metadata
-) values
+insert into atlas.organization_units(id,organization_id,stable_key,name,unit_kind,status,metadata) values
 (
   '1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid,
   '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
@@ -99,9 +93,7 @@ insert into atlas.farms(
   '{"validation_fixture":true}'::jsonb,'Waiting Room test fixture'
 );
 
-insert into atlas.identity_subjects(
-  id,organization_id,state,creation_basis
-) values
+insert into atlas.identity_subjects(id,organization_id,state,creation_basis) values
 (
   '0b87334c-56e0-44c2-a7d7-57d6df60f705'::uuid,
   '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
@@ -208,7 +200,7 @@ insert into atlas.organization_responsibility_scopes(
 ('7b36de04-e752-41f9-a069-82e2120ffbc3'::uuid,'818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'0c95d93a-2dc2-46f6-864f-a222b7f9e85b'::uuid,'organization_unit','1b65ac99-0f00-4ca2-9488-e8539cae2a1b','stewards','{"validation_fixture":true}'::jsonb),
 ('7c7e95dd-ee10-4f7f-9cef-967fccd5111e'::uuid,'818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'d9a382c4-cbde-4b03-b8be-cf0465035bf4'::uuid,'organization_unit','1b65ac99-0f00-4ca2-9488-e8539cae2a1b','stewards','{"validation_fixture":true}'::jsonb);
 
--- Representative Elm institutional identity/customer relationship.
+-- Explicit Elm institutional/customer identity.
 insert into atlas.external_relationships(
   id,organization_id,organization_unit_id,subject_id,stable_key,relationship_state,metadata
 ) values (
@@ -217,6 +209,15 @@ insert into atlas.external_relationships(
   '1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid,
   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10'::uuid,
   'custody_fixture_elm_relationship','active','{"validation_fixture":true}'::jsonb
+);
+
+insert into atlas.identity_subject_external_identifiers(
+  id,organization_id,subject_id,provider_key,identifier_type,identifier_value,identifier_normalized,metadata
+) values (
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa30'::uuid,
+  '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10'::uuid,
+  'validation','email','fixture@example.invalid','fixture@example.invalid','{"validation_fixture":true}'::jsonb
 );
 
 insert into atlas.communication_endpoints(
@@ -228,8 +229,6 @@ insert into atlas.communication_endpoints(
   'email','hello@elmfarm.co','hello@elmfarm.co','Elm Farm','active','{"validation_fixture":true}'::jsonb
 );
 
--- Exact source IDs and communication capabilities let postconditions prove custody movement
--- cannot enable/disable capture/send or mutate authorization state.
 insert into atlas.connected_sources(
   id,custodian_organization_id,custodian_organization_unit_id,provider_key,provider_account_key,
   display_label,account_hint,authorization_state,granted_scopes,capabilities,last_sync_at,metadata
@@ -261,7 +260,7 @@ insert into atlas.user_profiles(
 ('f496b283-795e-4c3e-b2ea-677989c9a235'::uuid,'Katie',null,false,'{"validation_fixture":true}'::jsonb,'818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'ready'),
 ('b5e4014b-8fc6-4733-9c89-e158f9dcc341'::uuid,'Marshall','6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid,false,'{"validation_fixture":true}'::jsonb,'818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'ready');
 
--- Representative work classification: Elm moves, Waiting Room and root owner work archive in place.
+-- Representative direct work classification.
 insert into atlas.tasks(id,farm_id,title,status,organization_id,metadata) values
 ('aaaaaaaa-1000-4000-8000-aaaaaaaa0001'::uuid,'6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid,'Elm fixture task','open','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb),
 ('aaaaaaaa-1000-4000-8000-aaaaaaaa0002'::uuid,'f6592422-cf2b-4375-ba8f-f00828a05c18'::uuid,'Waiting Room fixture task','open','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb),
@@ -271,6 +270,59 @@ insert into atlas.projects(id,farm_id,stable_key,title,status,organization_id,me
 ('bbbbbbbb-1000-4000-8000-bbbbbbbb0001'::uuid,'6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid,'custody_fixture_elm_project','Elm fixture project','active','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb),
 ('bbbbbbbb-1000-4000-8000-bbbbbbbb0002'::uuid,'f6592422-cf2b-4375-ba8f-f00828a05c18'::uuid,'custody_fixture_waiting_project','Waiting Room fixture project','active','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb),
 ('bbbbbbbb-1000-4000-8000-bbbbbbbb0003'::uuid,null,'custody_fixture_owner_project','Nathan / Camp Duffel fixture project','active','818b9a23-65e9-4198-b86c-9496ba548642'::uuid,'{"validation_fixture":true}'::jsonb);
+
+-- FK propagation proof: work item is direct Elm Unit evidence; allocation follows only through real FKs.
+insert into atlas.work_items(
+  id,organization_id,organization_unit_id,title,work_state,stable_key,metadata
+) values (
+  'dddddddd-1000-4000-8000-dddddddd0001'::uuid,
+  '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
+  '1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid,
+  'Elm governed work fixture','open','custody_fixture_work_item','{"validation_fixture":true}'::jsonb
+);
+
+insert into atlas.work_allocations(
+  id,organization_id,work_item_id,assignee_membership_id,allocation_role,state,metadata
+) values (
+  'dddddddd-1000-4000-8000-dddddddd0002'::uuid,
+  '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
+  'dddddddd-1000-4000-8000-dddddddd0001'::uuid,
+  '4bda9631-07a6-43ae-9f51-4cb63d78c803'::uuid,
+  'responsible','active','{"validation_fixture":true}'::jsonb
+);
+
+-- Route has no Unit column; its own farmId metadata is direct Elm evidence.
+insert into atlas.operational_routes(
+  id,organization_id,stable_key,route_date,route_label,route_kind,state,source_authority,idempotency_key,metadata
+) values (
+  'eeeeeeee-1000-4000-8000-eeeeeeee0001'::uuid,
+  '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
+  'custody_fixture_elm_route','2026-09-13','Elm fixture route','delivery','planned','atlas',
+  'custody-fixture-elm-route',
+  '{"validation_fixture":true,"farmId":"6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f","domainKey":"flowers"}'::jsonb
+);
+
+-- Negative controls: old-container storage alone is not Elm evidence.
+insert into atlas.composition_runs(
+  id,organization_id,contract_version,mode,source_domain,source_ref,present_state,intended_fruit,
+  protected_claims,constraints,canon_basis_refs,terminal_status,status,source_payload,metadata
+) values (
+  'ffffffff-1000-4000-8000-ffffffff0001'::uuid,
+  '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
+  'custody_fixture_v1','shadow','ordinary_life','fixture:generic_portfolio_composition',
+  '{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'[]'::jsonb,array[]::text[],
+  'unresolved','draft','{}'::jsonb,'{"validation_fixture":true,"negative_control":true}'::jsonb
+);
+
+insert into local_intel.recommendation_lenses(
+  id,organization_id,stable_key,name,description,source_system,source_ref,source_version,mode,status,governance,metadata
+) values (
+  'ffffffff-2000-4000-8000-ffffffff0001'::uuid,
+  '818b9a23-65e9-4198-b86c-9496ba548642'::uuid,
+  'custody_fixture_generic_lens','Generic portfolio lens','Must remain historical portfolio evidence.',
+  'validation','fixture:generic_portfolio_lens',1,'shadow','working','{}'::jsonb,
+  '{"validation_fixture":true,"negative_control":true}'::jsonb
+);
 
 -- Six preserved Elm production Ledger entries with fixed revisions.
 insert into atlas.organization_ledger_entries(

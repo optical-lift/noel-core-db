@@ -9,20 +9,15 @@ declare
   v_fg_ledger uuid;
   v_failed boolean;
 begin
-  select id into v_elm_org
-  from atlas.organizations
+  select id into v_elm_org from atlas.organizations
   where metadata->>'custody_reconstruction_key'='elm_farm_organization_v1';
-  select id into v_fg_org
-  from atlas.organizations
+  select id into v_fg_org from atlas.organizations
   where metadata->>'custody_reconstruction_key'='feast_guild_organization_v1';
-  select id into v_farm_ledger
-  from atlas.ledgers
+  select id into v_farm_ledger from atlas.ledgers
   where metadata->>'custody_reconstruction_key'='elm_farm_ledger_v1';
-  select id into v_venue_ledger
-  from atlas.ledgers
+  select id into v_venue_ledger from atlas.ledgers
   where metadata->>'custody_reconstruction_key'='elm_venue_ledger_v1';
-  select id into v_fg_ledger
-  from atlas.ledgers
+  select id into v_fg_ledger from atlas.ledgers
   where metadata->>'custody_reconstruction_key'='feast_guild_ledger_v1';
 
   if v_elm_org is null or v_fg_org is null or v_farm_ledger is null or v_venue_ledger is null or v_fg_ledger is null then
@@ -97,7 +92,9 @@ begin
     raise exception 'Feast Guild Organization is not a fresh opaque clean-room identity.';
   end if;
 
-  if (select count(*) from atlas.ledgers l where l.id in (v_farm_ledger,v_venue_ledger,v_fg_ledger) and l.status='active' and l.stable_key ~ '^[0-9a-f]{32}$')<>3 then
+  if (select count(*) from atlas.ledgers l
+      where l.id in (v_farm_ledger,v_venue_ledger,v_fg_ledger)
+        and l.status='active' and l.stable_key ~ '^[0-9a-f]{32}$')<>3 then
     raise exception 'New Ledgers are not distinct active opaque identities.';
   end if;
 
@@ -141,7 +138,7 @@ begin
     raise exception 'Feast Guild must participate only in its clean-room Ledger.';
   end if;
 
-  -- Feast Guild starts genuinely empty except its institutional identity, participation, and Lex authority.
+  -- Feast Guild is clean-room institutional identity only.
   if exists (select 1 from atlas.organization_memberships where organization_id=v_fg_org)
      or exists (select 1 from atlas.organization_employee_seats where organization_id=v_fg_org)
      or exists (select 1 from atlas.organization_units where organization_id=v_fg_org)
@@ -151,44 +148,133 @@ begin
      or exists (select 1 from atlas.communication_endpoints where organization_id=v_fg_org)
      or exists (select 1 from atlas.tasks where organization_id=v_fg_org)
      or exists (select 1 from atlas.projects where organization_id=v_fg_org)
-     or exists (select 1 from atlas.organization_ledger_entries where organization_id=v_fg_org) then
+     or exists (select 1 from atlas.organization_ledger_entries where organization_id=v_fg_org)
+     or exists (select 1 from atlas.operational_routes where organization_id=v_fg_org)
+     or exists (select 1 from atlas.composition_runs where organization_id=v_fg_org)
+     or exists (select 1 from local_intel.recommendation_lenses where organization_id=v_fg_org) then
     raise exception 'Feast Guild inherited historical operating reality.';
   end if;
 
-  -- Elm's preserved operating anchors keep their identities while changing canonical Organization custody.
+  -- Elm operating anchors preserve identity while canonical Organization custody changes.
   if not exists (
     select 1 from atlas.organization_units
-    where id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid and organization_id=v_elm_org and status='active'
+    where id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
+      and organization_id=v_elm_org and status='active'
   ) then
     raise exception 'Elm Unit identity was not preserved into canonical Elm.';
   end if;
 
   if not exists (
     select 1 from atlas.farms
-    where id='6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid and organization_id=v_elm_org and organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
+    where id='6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid
+      and organization_id=v_elm_org
+      and organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
   ) then
     raise exception 'Elm Farm identity was not preserved into canonical Elm.';
   end if;
 
   if not exists (
-    select 1 from atlas.tasks where id='aaaaaaaa-1000-4000-8000-aaaaaaaa0001'::uuid
-      and organization_id=v_elm_org and farm_id='6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid
+    select 1 from atlas.tasks
+    where id='aaaaaaaa-1000-4000-8000-aaaaaaaa0001'::uuid
+      and organization_id=v_elm_org
+      and farm_id='6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid
   ) or not exists (
-    select 1 from atlas.projects where id='bbbbbbbb-1000-4000-8000-bbbbbbbb0001'::uuid
-      and organization_id=v_elm_org and farm_id='6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid
+    select 1 from atlas.projects
+    where id='bbbbbbbb-1000-4000-8000-bbbbbbbb0001'::uuid
+      and organization_id=v_elm_org
+      and farm_id='6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'::uuid
   ) then
     raise exception 'Explicit Elm task/project identities did not move to canonical Elm.';
   end if;
 
-  -- Waiting Room stays historical and is archived, not promoted into a canonical institution.
+  -- Direct Unit evidence and FK propagation both work without family-name inference.
   if not exists (
-    select 1 from atlas.organization_units where id='999569f3-8ae5-4bd0-b74d-f586b6b39d8d'::uuid
-      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid and status='archived'
+    select 1 from atlas.work_items
+    where id='dddddddd-1000-4000-8000-dddddddd0001'::uuid
+      and organization_id=v_elm_org
+      and organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
+  ) then
+    raise exception 'Elm work item did not move from direct Unit evidence.';
+  end if;
+
+  if not exists (
+    select 1 from atlas.work_allocations
+    where id='dddddddd-1000-4000-8000-dddddddd0002'::uuid
+      and organization_id=v_elm_org
+      and work_item_id='dddddddd-1000-4000-8000-dddddddd0001'::uuid
+      and assignee_membership_id='4bda9631-07a6-43ae-9f51-4cb63d78c803'::uuid
+  ) then
+    raise exception 'Dependent work allocation did not follow proven Elm FK custody.';
+  end if;
+
+  if not exists (
+    select 1 from atlas.institutional_custody_adjudications a
+    where a.subject_table='work_allocations'
+      and a.subject_key='dddddddd-1000-4000-8000-dddddddd0002'
+      and a.disposition='reassigned'
+      and a.canonical_organization_id=v_elm_org
+      and a.evidence_basis='derived_from_reassigned_parent'
+  ) then
+    raise exception 'FK-propagated work allocation lacks custody evidence.';
+  end if;
+
+  -- Explicit route metadata is accepted as evidence; generic org storage is not.
+  if not exists (
+    select 1 from atlas.operational_routes
+    where id='eeeeeeee-1000-4000-8000-eeeeeeee0001'::uuid
+      and organization_id=v_elm_org
+      and metadata->>'farmId'='6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f'
+  ) then
+    raise exception 'Explicit Elm route metadata did not move route custody.';
+  end if;
+
+  -- Negative controls must remain historical portfolio evidence.
+  if not exists (
+    select 1 from atlas.composition_runs
+    where id='ffffffff-1000-4000-8000-ffffffff0001'::uuid
+      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid
+      and metadata->>'negative_control'='true'
+  ) then
+    raise exception 'Generic composition fixture was incorrectly promoted into Elm.';
+  end if;
+
+  if not exists (
+    select 1 from local_intel.recommendation_lenses
+    where id='ffffffff-2000-4000-8000-ffffffff0001'::uuid
+      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid
+      and metadata->>'negative_control'='true'
+  ) then
+    raise exception 'Generic recommendation lens was incorrectly promoted into Elm.';
+  end if;
+
+  if exists (
+    select 1 from atlas.institutional_custody_adjudications
+    where subject_table='composition_runs'
+      and subject_key='ffffffff-1000-4000-8000-ffffffff0001'
+      and disposition='reassigned'
+  ) or exists (
+    select 1 from atlas.institutional_custody_adjudications
+    where subject_schema='local_intel' and subject_table='recommendation_lenses'
+      and subject_key='ffffffff-2000-4000-8000-ffffffff0001'
+      and disposition='reassigned'
+  ) then
+    raise exception 'Negative-control generic rows received false Elm custody adjudication.';
+  end if;
+
+  -- Waiting Room remains historical and archived, not promoted.
+  if not exists (
+    select 1 from atlas.organization_units
+    where id='999569f3-8ae5-4bd0-b74d-f586b6b39d8d'::uuid
+      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid
+      and status='archived'
   ) or not exists (
-    select 1 from atlas.farms where id='f6592422-cf2b-4375-ba8f-f00828a05c18'::uuid
-      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid and status='archived'
+    select 1 from atlas.farms
+    where id='f6592422-cf2b-4375-ba8f-f00828a05c18'::uuid
+      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid
+      and status='archived'
   ) or not exists (
-    select 1 from atlas.projects where id='bbbbbbbb-1000-4000-8000-bbbbbbbb0002'::uuid
+    select 1 from atlas.projects
+    where id='bbbbbbbb-1000-4000-8000-bbbbbbbb0002'::uuid
       and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid
   ) then
     raise exception 'Waiting Room test scope was not preserved as archived historical evidence.';
@@ -196,31 +282,41 @@ begin
 
   if not exists (
     select 1 from atlas.institutional_custody_adjudications a
-    where a.subject_table='projects' and a.subject_key='bbbbbbbb-1000-4000-8000-bbbbbbbb0002'
-      and a.disposition='archived' and a.evidence_basis='waiting_room_test_scope'
+    where a.subject_table='projects'
+      and a.subject_key='bbbbbbbb-1000-4000-8000-bbbbbbbb0002'
+      and a.disposition='archived'
+      and a.evidence_basis='waiting_room_test_scope'
   ) then
     raise exception 'Waiting Room project lacks archive adjudication.';
   end if;
 
-  -- Owner-level work stays in the legacy portfolio container and is explicitly archived.
+  -- Owner-level work remains in the legacy portfolio container.
   if not exists (
-    select 1 from atlas.tasks where id='aaaaaaaa-1000-4000-8000-aaaaaaaa0003'::uuid
-      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid and farm_id is null
+    select 1 from atlas.tasks
+    where id='aaaaaaaa-1000-4000-8000-aaaaaaaa0003'::uuid
+      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid
+      and farm_id is null
   ) or not exists (
-    select 1 from atlas.projects where id='bbbbbbbb-1000-4000-8000-bbbbbbbb0003'::uuid
-      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid and farm_id is null
+    select 1 from atlas.projects
+    where id='bbbbbbbb-1000-4000-8000-bbbbbbbb0003'::uuid
+      and organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid
+      and farm_id is null
   ) then
     raise exception 'Owner-level historical work was incorrectly promoted.';
   end if;
 
   if not exists (
     select 1 from atlas.institutional_custody_adjudications a
-    where a.subject_table='tasks' and a.subject_key='aaaaaaaa-1000-4000-8000-aaaaaaaa0003'
-      and a.disposition='archived' and a.evidence_basis='owner_level_portfolio_work'
+    where a.subject_table='tasks'
+      and a.subject_key='aaaaaaaa-1000-4000-8000-aaaaaaaa0003'
+      and a.disposition='archived'
+      and a.evidence_basis='owner_level_portfolio_work'
   ) or not exists (
     select 1 from atlas.institutional_custody_adjudications a
-    where a.subject_table='projects' and a.subject_key='bbbbbbbb-1000-4000-8000-bbbbbbbb0003'
-      and a.disposition='archived' and a.evidence_basis='owner_level_portfolio_work'
+    where a.subject_table='projects'
+      and a.subject_key='bbbbbbbb-1000-4000-8000-bbbbbbbb0003'
+      and a.disposition='archived'
+      and a.evidence_basis='owner_level_portfolio_work'
   ) then
     raise exception 'Owner-level historical work lacks archive adjudications.';
   end if;
@@ -234,7 +330,9 @@ begin
         'cccccccc-1000-4000-8000-cccccccc0004'::uuid,
         'cccccccc-1000-4000-8000-cccccccc0005'::uuid,
         'cccccccc-1000-4000-8000-cccccccc0006'::uuid
-      ) and e.organization_id=v_elm_org and e.ledger_id=v_farm_ledger
+      )
+        and e.organization_id=v_elm_org
+        and e.ledger_id=v_farm_ledger
         and e.organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid)<>6 then
     raise exception 'Historical Elm Ledger entries did not retain identity while moving to Elm Farm Ledger.';
   end if;
@@ -251,20 +349,25 @@ begin
   if (select count(*) from atlas.institutional_custody_adjudications a
       where a.subject_table='organization_ledger_entries'
         and a.subject_key like 'cccccccc-1000-4000-8000-cccccccc000%'
-        and a.disposition='reassigned' and a.canonical_organization_id=v_elm_org and a.canonical_ledger_id=v_farm_ledger)<>6 then
+        and a.disposition='reassigned'
+        and a.canonical_organization_id=v_elm_org
+        and a.canonical_ledger_id=v_farm_ledger)<>6 then
     raise exception 'Historical Elm Ledger entries lack canonical custody adjudications.';
   end if;
 
-  -- Anna keeps the same institutional identities and is the only active Elm employee seat.
+  -- Anna keeps the same institutional identities and is the sole active Elm employee seat.
   if not exists (
     select 1 from atlas.organization_memberships m
     where m.id='4bda9631-07a6-43ae-9f51-4cb63d78c803'::uuid
-      and m.organization_id=v_elm_org and m.person_id='998e6116-6d9d-4ee5-9d48-6c239d58507b'::uuid and m.active
+      and m.organization_id=v_elm_org
+      and m.person_id='998e6116-6d9d-4ee5-9d48-6c239d58507b'::uuid
+      and m.active
   ) then
     raise exception 'Anna membership identity/custody was not preserved.';
   end if;
 
-  if (select count(*) from atlas.organization_employee_seats s where s.organization_id=v_elm_org and s.status='active')<>1
+  if (select count(*) from atlas.organization_employee_seats s
+      where s.organization_id=v_elm_org and s.status='active')<>1
      or not exists (
        select 1 from atlas.organization_employee_seats s
        where s.id='74e1ec6b-6c6b-45b2-b1cf-4a76303b8ec0'::uuid
@@ -278,8 +381,10 @@ begin
   if not exists (
     select 1 from atlas.organization_member_credentials c
     where c.id='385673ab-cf4e-4dbe-8c1d-11cb244143f2'::uuid
-      and c.organization_id=v_elm_org and c.issued_by_organization_id=v_elm_org
-      and c.auth_user_id='21436a28-40fd-4914-8015-a248d0dca14e'::uuid and c.status='active'
+      and c.organization_id=v_elm_org
+      and c.issued_by_organization_id=v_elm_org
+      and c.auth_user_id='21436a28-40fd-4914-8015-a248d0dca14e'::uuid
+      and c.status='active'
   ) then
     raise exception 'Anna institutional credential identity/custody was not preserved.';
   end if;
@@ -287,18 +392,22 @@ begin
   if not exists (
     select 1 from atlas.organization_positions p
     where p.id='badd2192-28a7-4913-aa90-e7076cb419f5'::uuid
-      and p.organization_id=v_elm_org and p.organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
+      and p.organization_id=v_elm_org
+      and p.organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
       and p.display_title='Farm Steward' and p.status='active'
   ) or not exists (
     select 1 from atlas.organization_position_appointments a
     where a.id='1baf1031-cbe3-4520-9b5d-485bb5c9a59c'::uuid
-      and a.organization_id=v_elm_org and a.position_id='badd2192-28a7-4913-aa90-e7076cb419f5'::uuid
-      and a.organization_membership_id='4bda9631-07a6-43ae-9f51-4cb63d78c803'::uuid and a.status='active'
+      and a.organization_id=v_elm_org
+      and a.position_id='badd2192-28a7-4913-aa90-e7076cb419f5'::uuid
+      and a.organization_membership_id='4bda9631-07a6-43ae-9f51-4cb63d78c803'::uuid
+      and a.status='active'
   ) then
     raise exception 'Anna Farm Steward structure did not preserve identity.';
   end if;
 
-  if (select count(*) from atlas.organization_responsibilities r where r.organization_id=v_elm_org and r.status='active')<>5 then
+  if (select count(*) from atlas.organization_responsibilities r
+      where r.organization_id=v_elm_org and r.status='active')<>5 then
     raise exception 'Elm responsibility identities did not move intact.';
   end if;
 
@@ -311,12 +420,14 @@ begin
     raise exception 'Venue preparation was not explicitly adjudicated to Elm Venue Ledger.';
   end if;
 
-  -- Elm endpoint/source custody moves without changing communication behavior.
+  -- Communication endpoint/source custody changes only; transport behavior is unchanged.
   if not exists (
     select 1 from atlas.communication_endpoints e
     where e.id='7617a7b1-8713-4520-923f-51a15c6b2d7f'::uuid
-      and e.organization_id=v_elm_org and e.organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
-      and e.address_normalized='hello@elmfarm.co' and e.endpoint_state='active'
+      and e.organization_id=v_elm_org
+      and e.organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
+      and e.address_normalized='hello@elmfarm.co'
+      and e.endpoint_state='active'
   ) then
     raise exception 'Elm communication endpoint custody did not move intact.';
   end if;
@@ -340,17 +451,26 @@ begin
     raise exception 'Communication source capture/send/authorization state changed during custody reconstruction.';
   end if;
 
-  -- Elm institutional identity/customer evidence follows Elm; Feast Guild receives none of it.
+  -- Elm relationship identity plus a dependent identifier follow evidence, not table family.
   if not exists (
-    select 1 from atlas.identity_subjects s where s.id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10'::uuid and s.organization_id=v_elm_org
+    select 1 from atlas.identity_subjects s
+    where s.id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10'::uuid
+      and s.organization_id=v_elm_org
   ) or not exists (
-    select 1 from atlas.external_relationships r where r.id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa20'::uuid
-      and r.organization_id=v_elm_org and r.organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
+    select 1 from atlas.external_relationships r
+    where r.id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa20'::uuid
+      and r.organization_id=v_elm_org
+      and r.organization_unit_id='1b65ac99-0f00-4ca2-9488-e8539cae2a1b'::uuid
+  ) or not exists (
+    select 1 from atlas.identity_subject_external_identifiers i
+    where i.id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa30'::uuid
+      and i.organization_id=v_elm_org
+      and i.subject_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaa10'::uuid
   ) then
-    raise exception 'Elm identity/customer evidence did not move to canonical Elm.';
+    raise exception 'Elm identity/customer FK custody did not propagate correctly.';
   end if;
 
-  -- Only current Elm profiles are redirected; inactive historical collaborators remain on the archived portfolio container.
+  -- Only current Elm profiles are redirected; inactive collaborators remain portfolio history.
   if not exists (select 1 from atlas.user_profiles where user_id='4cd799e2-16d4-4020-9d21-ccf1a2b98553'::uuid and default_organization_id=v_elm_org)
      or not exists (select 1 from atlas.user_profiles where user_id='21436a28-40fd-4914-8015-a248d0dca14e'::uuid and default_organization_id=v_elm_org)
      or not exists (select 1 from atlas.user_profiles where user_id='f496b283-795e-4c3e-b2ea-677989c9a235'::uuid and default_organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid)
@@ -360,7 +480,8 @@ begin
 
   if not exists (
     select 1 from atlas.organization_memberships m
-    where m.organization_id=v_elm_org and m.user_id='4cd799e2-16d4-4020-9d21-ccf1a2b98553'::uuid
+    where m.organization_id=v_elm_org
+      and m.user_id='4cd799e2-16d4-4020-9d21-ccf1a2b98553'::uuid
       and m.role='owner' and m.active
   ) then
     raise exception 'Lex compatibility owner membership for current Elm read surfaces is missing.';
@@ -369,7 +490,8 @@ begin
   if exists (
     select 1 from atlas.organization_employee_seats s
     join atlas.organization_memberships m on m.id=s.organization_membership_id
-    where s.organization_id=v_elm_org and m.user_id='4cd799e2-16d4-4020-9d21-ccf1a2b98553'::uuid
+    where s.organization_id=v_elm_org
+      and m.user_id='4cd799e2-16d4-4020-9d21-ccf1a2b98553'::uuid
   ) then
     raise exception 'Lex was incorrectly made an Elm employee.';
   end if;
@@ -377,12 +499,13 @@ begin
   if not exists (
     select 1 from atlas.organization_memberships m
     where m.id='427e84d8-e7dc-4292-8b25-002758d8d1f9'::uuid
-      and m.organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid and not m.active
+      and m.organization_id='818b9a23-65e9-4198-b86c-9496ba548642'::uuid
+      and not m.active
   ) then
     raise exception 'Historical Lex owner membership was not preserved/inactivated.';
   end if;
 
-  -- Custody evidence is sealed and append-only.
+  -- Custody evidence is sealed and browser-inaccessible.
   if has_table_privilege('anon','atlas.institutional_custody_adjudications','SELECT')
      or has_table_privilege('authenticated','atlas.institutional_custody_adjudications','SELECT') then
     raise exception 'Browser roles can directly read custody adjudications.';
@@ -413,12 +536,37 @@ begin
     raise exception 'Custody adjudication DELETE was not rejected.';
   end if;
 
+  -- Temporary Organization-composite FK deferral must not leak into durable schema.
   if exists (
-    select 1 from pg_constraint c
-    where c.contype='f' and c.confrelid='atlas.organization_units'::regclass
-      and array_length(c.conkey,1)=2 and c.condeferrable
+    select 1
+    from pg_constraint c
+    join pg_class ch on ch.oid=c.conrelid
+    join pg_namespace nch on nch.oid=ch.relnamespace
+    join pg_class pa on pa.oid=c.confrelid
+    join pg_namespace npa on npa.oid=pa.relnamespace
+    where c.contype='f'
+      and nch.nspname in ('atlas','local_intel')
+      and npa.nspname in ('atlas','local_intel')
+      and c.condeferrable
+      and exists (
+        select 1
+        from generate_subscripts(c.conkey,1) s(i)
+        join pg_attribute ca on ca.attrelid=c.conrelid and ca.attnum=c.conkey[s.i]
+        join pg_attribute ppa on ppa.attrelid=c.confrelid and ppa.attnum=c.confkey[s.i]
+        where ca.attname='organization_id' and ppa.attname='organization_id'
+      )
   ) then
-    raise exception 'Temporary Organization Unit FK deferral leaked into durable schema.';
+    raise exception 'Temporary Organization composite FK deferral leaked into durable schema.';
+  end if;
+
+  -- The one unrelated preexisting deferred FK remains untouched.
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid='atlas.planned_work_occurrences'::regclass
+      and conname='planned_work_occurrences_released_task_id_fkey'
+      and condeferrable and condeferred
+  ) then
+    raise exception 'Unrelated preexisting FK deferrability was altered.';
   end if;
 end;
 $validation$;
