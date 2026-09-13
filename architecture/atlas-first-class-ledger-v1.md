@@ -13,7 +13,7 @@ The governing distinction is:
 
 > **Organization answers what institution this is. Ledger answers what canonical institutional reality belongs there.**
 
-This tranche establishes Ledger identity, root Principal authority, compatibility attachment for current organization-ledger records, and safe read resolution. It does not perform historical institutional separation.
+This tranche establishes Ledger identity, root Principal authority, compatibility attachment for current organization-ledger records, automatic governing-Ledger birth for future Organizations, and safe read resolution. It does not perform historical institutional separation.
 
 ## 2. Governing order
 
@@ -49,6 +49,25 @@ V1 admits one primary governing Ledger per Organization. Enforce this with a uni
 `ledger_kind` v1 value: `organization_governing`.
 
 Ledger birth is noncommercial. No entitlement or purchase row is required to create or preserve a Ledger.
+
+### Organization birth invariant
+
+First-class Ledger cannot be merely a historical backfill.
+
+> **Every Organization birth must establish its governing Ledger in the same database transaction.**
+
+This invariant belongs below all application/RPC/commercial paths. During the transition, legacy Organization creators still exist and do not know how to create a Ledger explicitly. Therefore v1 installs an Organization insert guard/derivation that creates one canonical `organization_governing` Ledger for every newly inserted Organization.
+
+A newly born Organization receives:
+
+- one active governing Ledger;
+- Ledger stable key derived from the canonical Organization stable key;
+- `scope_state = canonical`;
+- `establishment_basis = organization_birth`.
+
+This does **not** establish Principal authority by itself. Root Principal→Ledger authority remains a separate governed relation created/backfilled when the responsible Principal is known.
+
+No read helper is allowed to lazily manufacture a missing Ledger.
 
 ### `atlas.principal_ledger_authorities`
 
@@ -99,11 +118,13 @@ Compatibility law:
 
 `ledger_entitlement_bindings` is a commercial capability/access structure, not Ledger identity.
 
-Where such a binding exists, it should be capable of referring to the canonical Ledger it commercially affects. This tranche may add `ledger_id` derived from its existing `organization_id` while preserving the existing commercial columns and semantics.
+Where such a binding exists, it should be capable of referring to the canonical Ledger it commercially affects. This tranche adds/derives `ledger_id` from the binding's existing `organization_id` while preserving existing commercial columns and semantics.
 
 A Ledger may exist without any entitlement binding.
 
 An entitlement may never create the Ledger ontologically.
+
+Because future Organization birth already creates the Ledger below application code, a legacy commercial implementation path may continue inserting an Organization temporarily; its subsequent entitlement binding attaches to the Ledger that already exists. Tranche D will replace that transitional behavior with explicit noncommercial establishment.
 
 ## 7. Current production backfill
 
@@ -178,6 +199,7 @@ Do not expose arbitrary metadata, commercial details, or unrelated Organization 
 - authenticated clients use governed functions;
 - helpers pin `search_path`;
 - current Person-first Principal resolution remains the root authenticated identity seam;
+- the Organization→Ledger birth trigger is internal, not browser-callable;
 - no service credential, Stripe state, or storefront session becomes Ledger identity.
 
 ## 11. Current organization-ledger projection compatibility
@@ -212,22 +234,27 @@ Those require separate adjudication after Ledger identity is live.
 
 Production-schema clone validation must prove:
 
-1. every current Organization has exactly one active `organization_governing` Ledger;
-2. every current Organization Ledger Entry maps to the Ledger belonging to the same Organization;
-3. no Ledger Entry ID/revision/event key changes during backfill;
-4. every current Principal with a legacy `organization_id` gets corresponding root Ledger authority;
-5. one Principal may hold multiple Ledger authority rows without schema contradiction;
-6. `feast_guild` Ledger is marked `legacy_mixed_pending_adjudication`;
-7. `atlas_reference_company` is not incorrectly marked mixed;
-8. Ledger existence has no dependency on `ledger_entitlements` or purchases;
-9. direct browser table access remains denied;
-10. current Organization-ledger APIs remain present with unchanged signatures.
+1. every pre-existing Organization has exactly one active `organization_governing` Ledger after backfill;
+2. inserting a new Organization after the migration automatically establishes exactly one active governing Ledger in the same transaction;
+3. every current Organization Ledger Entry maps to the Ledger belonging to the same Organization;
+4. no Ledger Entry ID/revision/event key changes during backfill;
+5. every current Principal with a legacy `organization_id` gets corresponding root Ledger authority;
+6. one Principal may hold multiple Ledger authority rows without schema contradiction;
+7. `feast_guild` Ledger is marked `legacy_mixed_pending_adjudication`;
+8. ordinary backfilled/future Organization Ledgers are canonical, not mixed;
+9. Ledger existence has no dependency on `ledger_entitlements` or purchases;
+10. direct browser table/helper access remains denied;
+11. current Organization-ledger APIs remain present with unchanged signatures.
+
+The validation harness is schema-clone based and therefore must use a DML-only fixture for the minimum production topology needed to prove data backfill behavior. Production rows are never copied into the disposable clone.
 
 ## 14. Failure semantics
 
-If an Organization lacks a governing Ledger after this tranche, Ledger-addressed resolution fails closed.
+If an Organization lacks a governing Ledger after this tranche, Ledger-addressed resolution fails closed and the institutional invariant is broken.
 
 Do not silently create a Ledger from a read helper.
+
+Organization creation itself is the canonical Ledger-birth seam.
 
 If an entry's Organization and Ledger conflict, writes must fail.
 
@@ -235,20 +262,20 @@ If a Principal lacks explicit Ledger authority, the new authority helper returns
 
 ## 15. Relationship to next tranche
 
-Once first-class Ledger identity is live, Tranche D can safely introduce atomic noncommercial Organization + Ledger establishment:
+Once first-class Ledger identity is live, Tranche D can safely introduce atomic noncommercial Organization + Ledger + authority establishment:
 
 ```text
 credential
   → Person
   → Principal authority
   → create Organization
-  → create governing Ledger
+      ↳ database invariant creates governing Ledger
   → create root Principal→Ledger authority
   → optionally create Person↔Organization membership
   → begin onboarding
 ```
 
-That contract must ensure Organization + Ledger birth is atomic.
+The Organization→Ledger invariant is already enforced below Tranche D; Tranche D then adds the correct authority/relationship semantics and replaces legacy purchase/application creation responsibility.
 
 ## 16. Feast Guild consequence
 
