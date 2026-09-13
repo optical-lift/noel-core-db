@@ -1,7 +1,9 @@
 begin;
 
 -- Read projections v2: read/unread is the latest explicit attention state,
--- not whether a message was ever opened in the past.
+-- not whether a message was ever opened in the past. The inbox projection also
+-- exposes last-sender evidence so the Atlas presentation can distinguish human
+-- correspondence from system traffic without making that heuristic canonical.
 create or replace function atlas.institutional_shared_inbox_self_v2(
   p_communication_endpoint_id uuid,
   p_limit integer default 200
@@ -52,6 +54,14 @@ begin
   from (
     select
       v.*,
+      e.speaker_address as last_message_speaker_address,
+      (
+        select nullif(p.value->'metadata'->>'displayName','')
+        from jsonb_array_elements(coalesce(e.canonical_event->'participants','[]'::jsonb)) as p(value)
+        where p.value->>'role' = 'sender'
+          and coalesce((p.value->>'isSelf')::boolean, false) = false
+        limit 1
+      ) as last_message_sender_display_name,
       coalesce((
         select case
           when a.attention_kind = 'marked_unread' then false
@@ -65,6 +75,7 @@ begin
         limit 1
       ), false) as last_message_opened_by_me
     from atlas.v_institutional_shared_inbox_v1 v
+    left join atlas.communication_events e on e.id = v.last_message_event_id
     where v.communication_endpoint_id = v_endpoint.id
     order by v.last_activity_at desc
     limit p_limit
