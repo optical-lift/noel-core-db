@@ -38,46 +38,48 @@ insert into atlas.implementation_practitioners(
 );
 
 -- Establish three institutional targets before any implementation purchase can bind to them.
-do $fixture$
-declare
-  v_person_one uuid;
-  v_person_two uuid;
-begin
-  select person_id into v_person_one
-  from atlas.person_auth_credentials
-  where auth_user_id='11111111-1111-4111-8111-111111111111'::uuid and status='active'
-  limit 1;
+-- Fixture setup remains DML-only; it calls the already-live canonical establishment kernel.
+select atlas.establish_organization_ledger_for_principal_v1(
+  '11111111-1111-4111-8111-111111111112'::uuid,
+  (
+    select c.person_id
+    from atlas.person_auth_credentials c
+    where c.auth_user_id='11111111-1111-4111-8111-111111111111'::uuid
+      and c.status='active'
+    limit 1
+  ),
+  null,
+  'Commercial Binding Target A',
+  false,false,'commercial_binding_validation_fixture'
+);
 
-  select person_id into v_person_two
-  from atlas.person_auth_credentials
-  where auth_user_id='22222222-2222-4222-8222-222222222221'::uuid and status='active'
-  limit 1;
+select atlas.establish_organization_ledger_for_principal_v1(
+  '11111111-1111-4111-8111-111111111112'::uuid,
+  (
+    select c.person_id
+    from atlas.person_auth_credentials c
+    where c.auth_user_id='11111111-1111-4111-8111-111111111111'::uuid
+      and c.status='active'
+    limit 1
+  ),
+  null,
+  'Commercial Binding Target C',
+  false,false,'commercial_binding_validation_fixture'
+);
 
-  perform atlas.establish_organization_ledger_for_principal_v1(
-    '11111111-1111-4111-8111-111111111112'::uuid,
-    v_person_one,
-    null,
-    'Commercial Binding Target A',
-    false,false,'commercial_binding_validation_fixture'
-  );
-
-  perform atlas.establish_organization_ledger_for_principal_v1(
-    '11111111-1111-4111-8111-111111111112'::uuid,
-    v_person_one,
-    null,
-    'Commercial Binding Target C',
-    false,false,'commercial_binding_validation_fixture'
-  );
-
-  perform atlas.establish_organization_ledger_for_principal_v1(
-    '22222222-2222-4222-8222-222222222222'::uuid,
-    v_person_two,
-    null,
-    'Commercial Binding Target B',
-    false,false,'commercial_binding_validation_fixture'
-  );
-end;
-$fixture$;
+select atlas.establish_organization_ledger_for_principal_v1(
+  '22222222-2222-4222-8222-222222222222'::uuid,
+  (
+    select c.person_id
+    from atlas.person_auth_credentials c
+    where c.auth_user_id='22222222-2222-4222-8222-222222222221'::uuid
+      and c.status='active'
+    limit 1
+  ),
+  null,
+  'Commercial Binding Target B',
+  false,false,'commercial_binding_validation_fixture'
+);
 
 -- Four implementation cases support success plus negative-path proofs.
 insert into atlas.implementation_purchases(
