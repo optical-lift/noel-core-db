@@ -35,6 +35,7 @@ type InlineAttachment = { contentId?: string | null; mimeType?: string | null; c
 
 type Presentation = {
   ok: true;
+  conversationId: string;
   eventId: string;
   kind: "html" | "text";
   document?: string;
@@ -131,10 +132,15 @@ function ownedAttachmentBytes(content: InlineAttachment["content"]) {
   return null;
 }
 
-function stripRemoteCss(value: string) {
-  return value
-    .replace(/@import\s+(?:url\()?[^;]+;?/gi, "")
-    .replace(/url\(\s*(['"]?)(?!data:)[^)]+\1\s*\)/gi, "none");
+function sanitizeCssUrls(value: string, allowRemoteImages: boolean) {
+  const withoutImports = value.replace(/@import\s+(?:url\()?[^;]+;?/gi, "");
+  return withoutImports.replace(/url\(\s*(['"]?)([^)'\"]+)\1\s*\)/gi, (_match, quote: string, rawUrl: string) => {
+    const url = rawUrl.trim();
+    if (/^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(url)) return `url(${quote}${url}${quote})`;
+    if (allowRemoteImages && /^https?:\/\//i.test(url)) return `url(${quote}${url}${quote})`;
+    if (allowRemoteImages && /^\/\//.test(url)) return `url(${quote}https:${url}${quote})`;
+    return "none";
+  });
 }
 
 function buildInlineImages(attachments: InlineAttachment[]) {
@@ -152,7 +158,7 @@ function buildInlineImages(attachments: InlineAttachment[]) {
   return images;
 }
 
-function safeImageSource(value: string | undefined, inlineImages: Map<string, string>) {
+function safeImageSource(value: string | undefined, inlineImages: Map<string, string>, allowRemoteImages: boolean) {
   const src = (value ?? "").trim();
   if (!src) return { src: "", blocked: false };
   if (/^cid:/i.test(src)) {
@@ -160,7 +166,9 @@ function safeImageSource(value: string | undefined, inlineImages: Map<string, st
     return { src: inlineImages.get(cid) ?? "", blocked: !inlineImages.has(cid) };
   }
   if (/^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(src)) return { src, blocked: false };
-  return { src: "", blocked: /^(?:https?:)?\/\//i.test(src) };
+  if (/^https?:\/\//i.test(src)) return allowRemoteImages ? { src, blocked: false } : { src: "", blocked: true };
+  if (/^\/\//.test(src)) return allowRemoteImages ? { src: `https:${src}`, blocked: false } : { src: "", blocked: true };
+  return { src: "", blocked: false };
 }
 
 function safeLinkHref(value?: string) {
@@ -168,9 +176,9 @@ function safeLinkHref(value?: string) {
   return /^(?:https?:|mailto:|tel:)/i.test(href) ? href : "";
 }
 
-function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, string>) {
+function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, string>, allowRemoteImages: boolean) {
   let remoteImagesBlocked = false;
-  const cleanedSource = stripRemoteCss(sourceHtml);
+  const cleanedSource = sanitizeCssUrls(sourceHtml, allowRemoteImages);
   const clean = sanitizeHtml(cleanedSource, {
     allowedTags: [
       "style","div","span","p","br","hr","pre","blockquote",
@@ -190,7 +198,7 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
       font: ["face","size","color","class","style"],
     },
     allowedSchemes: ["http","https","mailto","tel"],
-    allowedSchemesByTag: { img: ["data"] },
+    allowedSchemesByTag: { img: allowRemoteImages ? ["data","http","https"] : ["data"] },
     allowProtocolRelative: false,
     enforceHtmlBoundary: true,
     transformTags: {
@@ -202,7 +210,7 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
         return { tagName: "a", attribs: next };
       },
       img: (_tagName, attribs) => {
-        const image = safeImageSource(attribs.src, inlineImages);
+        const image = safeImageSource(attribs.src, inlineImages, allowRemoteImages);
         if (image.blocked) remoteImagesBlocked = true;
         const next = { ...attribs };
         delete next.srcset;
@@ -214,10 +222,10 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
     },
   });
 
-  const cssSafe = stripRemoteCss(clean);
+  const cssSafe = sanitizeCssUrls(clean, allowRemoteImages);
   const csp = [
     "default-src 'none'",
-    "img-src data:",
+    allowRemoteImages ? "img-src data: http: https:" : "img-src data:",
     "style-src 'unsafe-inline'",
     "font-src data:",
     "connect-src 'none'",
@@ -233,7 +241,7 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
   return { document, remoteImagesBlocked };
 }
 
-async function presentationForEvent(eventId: string): Promise<Presentation> {
+async function presentationForEvent(conversationId: string, eventId: string, allowRemoteImages: boolean): Promise<Presentation> {
   const custody = await custodyForEvent(eventId);
   if (!custody?.storage_locator || custody.custody_state !== "stored") throw new Error("Original email is not available in raw-message custody.");
   const expectedHash = custody.raw_mime_sha256?.trim().toLowerCase() ?? "";
@@ -244,12 +252,13 @@ async function presentationForEvent(eventId: string): Promise<Presentation> {
   const parsed = await PostalMime.parse(raw);
   const html = parsed.html?.trim() ?? "";
   if (!html) {
-    return { ok: true, eventId, kind: "text", text: parsed.text?.trim() ?? "", remoteImagesBlocked: false, inlineImageCount: 0 };
+    return { ok: true, conversationId, eventId, kind: "text", text: parsed.text?.trim() ?? "", remoteImagesBlocked: false, inlineImageCount: 0 };
   }
   const inlineImages = buildInlineImages(parsed.attachments ?? []);
-  const sanitized = sanitizedEmailDocument(html, inlineImages);
+  const sanitized = sanitizedEmailDocument(html, inlineImages, allowRemoteImages);
   return {
     ok: true,
+    conversationId,
     eventId,
     kind: "html",
     document: sanitized.document,
@@ -268,10 +277,12 @@ Deno.serve(async (request: Request) => {
 
   let conversationId = "";
   let eventId = "";
+  let allowRemoteImages = false;
   try {
-    const body = await request.json() as { conversationId?: string; eventId?: string };
+    const body = await request.json() as { conversationId?: string; eventId?: string; allowRemoteImages?: boolean };
     conversationId = body.conversationId?.trim() ?? "";
     eventId = body.eventId?.trim() ?? "";
+    allowRemoteImages = body.allowRemoteImages === true;
   } catch {
     return json({ error: "Valid JSON body required." }, 400);
   }
@@ -292,7 +303,7 @@ Deno.serve(async (request: Request) => {
   }
 
   try {
-    return json(await presentationForEvent(eventId));
+    return json(await presentationForEvent(conversationId, eventId, allowRemoteImages));
   } catch (error) {
     console.error("Mailroom presentation projection failed", { eventId, error: error instanceof Error ? error.message : String(error) });
     return json({ error: "Atlas could not prepare the sender-designed email view." }, 422);
