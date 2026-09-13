@@ -1,5 +1,6 @@
 -- Data-only fixture for Atlas Teaching Academic Kernel v1 candidate.
--- Assumes production already contains Gate A capability activation v1.
+-- Production-schema validation restores schema but not production data, so this fixture
+-- also restores the Gate A Teaching v1 definition that Gate B depends on.
 
 insert into auth.users(id) values
   ('d1100000-0000-4000-8000-000000000001'::uuid),
@@ -30,6 +31,9 @@ insert into atlas.principals(
 insert into atlas.ledgers(id,stable_key,name,organization_id,ledger_kind,status,metadata) values
   ('d1200000-0000-4000-8000-000000000001'::uuid,'teachingfixtureledgerroot000001','Teaching Fixture Governed Ledger',null,'governed_reality','active','{"validation_fixture":true}'::jsonb),
   ('e1200000-0000-4000-8000-000000000001'::uuid,'teachingfixtureledgerother00001','Teaching Fixture Other Ledger',null,'governed_reality','active','{"validation_fixture":true}'::jsonb);
+
+insert into atlas.capability_definitions(capability_key,capability_version,status,eligible_subject_kinds)
+values ('teaching',1,'active',array['ledger']::text[]);
 
 insert into atlas.principal_ledger_authorities(
   id,principal_id,ledger_id,authority_kind,status,basis,metadata
