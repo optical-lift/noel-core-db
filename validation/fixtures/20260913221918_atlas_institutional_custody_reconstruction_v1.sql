@@ -8,11 +8,11 @@ insert into auth.users(id) values
   ('f496b283-795e-4c3e-b2ea-677989c9a235'::uuid),
   ('b5e4014b-8fc6-4733-9c89-e158f9dcc341'::uuid);
 
-insert into atlas.people(id,stable_key,display_name,status,metadata) values
-  ('59e9fd9d-e7fd-48ca-91e0-ee271c05148e'::uuid,'custody_fixture_lex','Lex','active','{"validation_fixture":true}'::jsonb),
-  ('998e6116-6d9d-4ee5-9d48-6c239d58507b'::uuid,'custody_fixture_anna','Anna','active','{"validation_fixture":true}'::jsonb),
-  ('6ab25390-b372-4b1b-aa9e-1976f0ec1ba3'::uuid,'custody_fixture_katie','Katie','active','{"validation_fixture":true}'::jsonb),
-  ('3105e113-d73f-4f9f-b7e1-c112eb26e87b'::uuid,'custody_fixture_marshall','Marshall','active','{"validation_fixture":true}'::jsonb);
+insert into atlas.people(id,display_name,status,metadata) values
+  ('59e9fd9d-e7fd-48ca-91e0-ee271c05148e'::uuid,'Lex','active','{"validation_fixture":true}'::jsonb),
+  ('998e6116-6d9d-4ee5-9d48-6c239d58507b'::uuid,'Anna','active','{"validation_fixture":true}'::jsonb),
+  ('6ab25390-b372-4b1b-aa9e-1976f0ec1ba3'::uuid,'Katie','active','{"validation_fixture":true}'::jsonb),
+  ('3105e113-d73f-4f9f-b7e1-c112eb26e87b'::uuid,'Marshall','active','{"validation_fixture":true}'::jsonb);
 
 insert into atlas.person_auth_credentials(person_id,auth_user_id,status,provenance) values
   ('59e9fd9d-e7fd-48ca-91e0-ee271c05148e'::uuid,'4cd799e2-16d4-4020-9d21-ccf1a2b98553'::uuid,'active','{"validation_fixture":true}'::jsonb),
