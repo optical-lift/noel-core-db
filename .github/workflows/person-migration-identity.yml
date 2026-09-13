@@ -1,0 +1,64 @@
+name: Generate Canonical Person Migration Identity
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/person-migration-identity.yml"
+      - "architecture/atlas-canonical-person-v1.sql"
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate branch
+        uses: actions/checkout@v4
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+
+      - name: Generate governed migration identity
+        id: migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase migration new atlas_canonical_person_v1
+          generated="$(find supabase/migrations -maxdepth 1 -type f -name '*_atlas_canonical_person_v1.sql' -printf '%f\n' | sort | tail -n 1)"
+          if [[ -z "$generated" ]]; then
+            echo '::error::Supabase CLI did not generate the expected migration file.'
+            exit 1
+          fi
+          version="${generated%%_*}"
+          if [[ ! "$version" =~ ^[0-9]{14}$ ]]; then
+            echo "::error::Generated migration version is not 14 digits: $version"
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/person-migration-identity"
+          cp "supabase/migrations/$generated" "$RUNNER_TEMP/person-migration-identity/$generated"
+          printf '%s\n' "$generated" > "$RUNNER_TEMP/person-migration-identity/generated-filename.txt"
+          printf '%s\n' "$version" > "$RUNNER_TEMP/person-migration-identity/generated-version.txt"
+          echo "generated=$generated" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload generated identity artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-person-migration-identity
+          path: ${{ runner.temp }}/person-migration-identity
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Summarize
+        run: |
+          echo "Supabase CLI generated: ${{ steps.migration.outputs.generated }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Migration version: ${{ steps.migration.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "This workflow does not connect to or mutate any Supabase project." >> "$GITHUB_STEP_SUMMARY"
