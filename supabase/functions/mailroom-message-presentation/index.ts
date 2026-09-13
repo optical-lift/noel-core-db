@@ -31,6 +31,7 @@ function json(body: unknown, status = 200) {
 type DetailMessage = { communication_event_id?: string };
 type DetailPacket = { messages?: DetailMessage[] };
 type CustodyRow = { raw_mime_sha256?: string | null; byte_length?: number | null; storage_locator?: string | null; custody_state?: string | null };
+type InlineAttachment = { contentId?: string | null; mimeType?: string | null; content?: string | ArrayBuffer | Uint8Array | null };
 
 type Presentation = {
   ok: true;
@@ -101,7 +102,9 @@ async function downloadRawMessage(path: string, expectedBytes?: number | null) {
 }
 
 async function sha256Hex(bytes: Uint8Array) {
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const owned = new Uint8Array(bytes.byteLength);
+  owned.set(bytes);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", owned.buffer));
   return Array.from(digest).map((value) => value.toString(16).padStart(2, "0")).join("");
 }
 
@@ -118,19 +121,29 @@ function normalizeCid(value?: string | null) {
   return (value ?? "").trim().replace(/^<|>$/g, "").toLowerCase();
 }
 
+function ownedAttachmentBytes(content: InlineAttachment["content"]) {
+  if (content instanceof Uint8Array) {
+    const owned = new Uint8Array(content.byteLength);
+    owned.set(content);
+    return owned;
+  }
+  if (content instanceof ArrayBuffer) return new Uint8Array(content.slice(0));
+  return null;
+}
+
 function stripRemoteCss(value: string) {
   return value
     .replace(/@import\s+(?:url\()?[^;]+;?/gi, "")
     .replace(/url\(\s*(['"]?)(?!data:)[^)]+\1\s*\)/gi, "none");
 }
 
-function buildInlineImages(attachments: Array<{ contentId?: string | null; mimeType?: string | null; content?: Uint8Array | null }>) {
+function buildInlineImages(attachments: InlineAttachment[]) {
   const images = new Map<string, string>();
   let total = 0;
   for (const attachment of attachments) {
     const cid = normalizeCid(attachment.contentId);
     const mime = (attachment.mimeType ?? "").toLowerCase();
-    const content = attachment.content;
+    const content = ownedAttachmentBytes(attachment.content);
     if (!cid || !content || !SAFE_INLINE_IMAGE_TYPES.has(mime)) continue;
     if (content.byteLength > MAX_INLINE_IMAGE_BYTES || total + content.byteLength > MAX_INLINE_IMAGE_TOTAL_BYTES) continue;
     total += content.byteLength;
@@ -148,6 +161,11 @@ function safeImageSource(value: string | undefined, inlineImages: Map<string, st
   }
   if (/^data:image\/(?:png|jpeg|gif|webp);base64,/i.test(src)) return { src, blocked: false };
   return { src: "", blocked: /^(?:https?:)?\/\//i.test(src) };
+}
+
+function safeLinkHref(value?: string) {
+  const href = (value ?? "").trim();
+  return /^(?:https?:|mailto:|tel:)/i.test(href) ? href : "";
 }
 
 function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, string>) {
@@ -171,15 +189,18 @@ function sanitizedEmailDocument(sourceHtml: string, inlineImages: Map<string, st
       col: ["width","span","class","style"],
       font: ["face","size","color","class","style"],
     },
-    allowedSchemes: ["http","https","mailto","tel","data"],
+    allowedSchemes: ["http","https","mailto","tel"],
     allowedSchemesByTag: { img: ["data"] },
     allowProtocolRelative: false,
     enforceHtmlBoundary: true,
     transformTags: {
-      a: (_tagName, attribs) => ({
-        tagName: "a",
-        attribs: { ...attribs, target: "_blank", rel: "noreferrer noopener" },
-      }),
+      a: (_tagName, attribs) => {
+        const href = safeLinkHref(attribs.href);
+        const next = { ...attribs, target: "_blank", rel: "noreferrer noopener" };
+        if (href) next.href = href;
+        else delete next.href;
+        return { tagName: "a", attribs: next };
+      },
       img: (_tagName, attribs) => {
         const image = safeImageSource(attribs.src, inlineImages);
         if (image.blocked) remoteImagesBlocked = true;
