@@ -6,10 +6,10 @@ insert into auth.users(id) values
   ('b1000000-0000-4000-8000-000000000001'::uuid),
   ('f1000000-0000-4000-8000-000000000001'::uuid);
 
-insert into atlas.people(id,stable_key,display_name,status,metadata) values
-  ('a1000000-0000-4000-8000-000000000011'::uuid,'cap_fixture_person_root','Capability Fixture Root','active','{"validation_fixture":true}'::jsonb),
-  ('b1000000-0000-4000-8000-000000000011'::uuid,'cap_fixture_person_owner','Capability Fixture Org Owner','active','{"validation_fixture":true}'::jsonb),
-  ('f1000000-0000-4000-8000-000000000011'::uuid,'cap_fixture_person_practitioner','Capability Fixture Practitioner','active','{"validation_fixture":true}'::jsonb);
+insert into atlas.people(id,display_name,status,metadata) values
+  ('a1000000-0000-4000-8000-000000000011'::uuid,'Capability Fixture Root','active','{"validation_fixture":true}'::jsonb),
+  ('b1000000-0000-4000-8000-000000000011'::uuid,'Capability Fixture Org Owner','active','{"validation_fixture":true}'::jsonb),
+  ('f1000000-0000-4000-8000-000000000011'::uuid,'Capability Fixture Practitioner','active','{"validation_fixture":true}'::jsonb);
 
 insert into atlas.person_auth_credentials(
   id,person_id,credential_kind,auth_user_id,status,bound_at,provenance
