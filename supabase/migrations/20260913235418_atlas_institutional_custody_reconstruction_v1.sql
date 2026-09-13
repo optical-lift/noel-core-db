@@ -1,7 +1,8 @@
 -- Atlas Institutional Custody Reconstruction v1.
--- Replacement for superseded 20260913220404 candidate.
+-- Replacement for superseded 20260913221918 candidate.
 -- Reconstructs canonical Elm / Feast Guild institutional identity after Ledger Graph v1
 -- using evidence-backed custody movement only.
+-- Temporary FK deferral is selected by referenced parent-key semantics, not child-column names.
 
 BEGIN;
 
@@ -117,28 +118,6 @@ begin
   ) then
     raise exception 'Expected Anna Elm employment anchors are unavailable.' using errcode='P0002';
   end if;
-
-  if exists (
-    select 1
-    from pg_constraint c
-    join pg_class ch on ch.oid=c.conrelid
-    join pg_namespace nch on nch.oid=ch.relnamespace
-    join pg_class pa on pa.oid=c.confrelid
-    join pg_namespace npa on npa.oid=pa.relnamespace
-    where c.contype='f'
-      and nch.nspname in ('atlas','local_intel')
-      and npa.nspname in ('atlas','local_intel')
-      and c.condeferrable
-      and exists (
-        select 1
-        from generate_subscripts(c.conkey,1) s(i)
-        join pg_attribute ca on ca.attrelid=c.conrelid and ca.attnum=c.conkey[s.i]
-        join pg_attribute ppa on ppa.attrelid=c.confrelid and ppa.attnum=c.confkey[s.i]
-        where ca.attname='organization_id' and ppa.attname='organization_id'
-      )
-  ) then
-    raise exception 'Unexpected preexisting deferrable Organization composite FK.' using errcode='55000';
-  end if;
 end;
 $function$;
 
@@ -155,6 +134,35 @@ where id in (
   '188291ac-3b08-429b-8ea1-a2bf3f3833ef'::uuid,
   '238df033-5704-4404-bf34-a509f4e4d1c1'::uuid
 );
+
+-- Capture the exact Organization-bearing parent-key constraints that may need temporary deferral.
+-- Parent-key semantics govern selection so custom child names such as custodian_organization_id are included.
+create temporary table custody_fk_deferral_guard_v1 (
+  child_schema text not null,
+  child_table text not null,
+  conname text not null,
+  was_deferrable boolean not null,
+  was_deferred boolean not null,
+  primary key (child_schema,child_table,conname)
+) on commit drop;
+
+insert into custody_fk_deferral_guard_v1(child_schema,child_table,conname,was_deferrable,was_deferred)
+select nch.nspname,ch.relname,c.conname,c.condeferrable,c.condeferred
+from pg_constraint c
+join pg_class ch on ch.oid=c.conrelid
+join pg_namespace nch on nch.oid=ch.relnamespace
+join pg_class pa on pa.oid=c.confrelid
+join pg_namespace npa on npa.oid=pa.relnamespace
+where c.contype='f'
+  and nch.nspname in ('atlas','local_intel')
+  and npa.nspname in ('atlas','local_intel')
+  and array_length(c.confkey,1) > 1
+  and exists (
+    select 1
+    from generate_subscripts(c.confkey,1) s(i)
+    join pg_attribute ppa on ppa.attrelid=c.confrelid and ppa.attnum=c.confkey[s.i]
+    where ppa.attname='organization_id'
+  );
 
 -- Establish fresh canonical institutional identity with opaque stable keys.
 do $function$
@@ -264,28 +272,16 @@ begin
 end;
 $function$;
 
--- Temporarily defer only composite FKs whose child Organization must move with a referenced parent.
+-- Temporarily defer the captured parent-semantic constraints that were originally non-deferrable.
 do $function$
 declare
   r record;
 begin
   for r in
-    select nch.nspname child_schema,ch.relname child_table,c.conname
-    from pg_constraint c
-    join pg_class ch on ch.oid=c.conrelid
-    join pg_namespace nch on nch.oid=ch.relnamespace
-    join pg_class pa on pa.oid=c.confrelid
-    join pg_namespace npa on npa.oid=pa.relnamespace
-    where c.contype='f'
-      and nch.nspname in ('atlas','local_intel')
-      and npa.nspname in ('atlas','local_intel')
-      and exists (
-        select 1
-        from generate_subscripts(c.conkey,1) s(i)
-        join pg_attribute ca on ca.attrelid=c.conrelid and ca.attnum=c.conkey[s.i]
-        join pg_attribute ppa on ppa.attrelid=c.confrelid and ppa.attnum=c.confkey[s.i]
-        where ca.attname='organization_id' and ppa.attname='organization_id'
-      )
+    select child_schema,child_table,conname
+    from custody_fk_deferral_guard_v1
+    where not was_deferrable
+    order by child_schema,child_table,conname
   loop
     execute format(
       'alter table %I.%I alter constraint %I deferrable initially deferred',
@@ -873,7 +869,7 @@ begin
 end;
 $function$;
 
--- Enforce FK consistency before restoring the temporary composite Organization constraints.
+-- Enforce FK consistency before restoring only the constraints we temporarily changed.
 SET CONSTRAINTS ALL IMMEDIATE;
 
 do $function$
@@ -881,28 +877,33 @@ declare
   r record;
 begin
   for r in
-    select nch.nspname child_schema,ch.relname child_table,c.conname
-    from pg_constraint c
-    join pg_class ch on ch.oid=c.conrelid
-    join pg_namespace nch on nch.oid=ch.relnamespace
-    join pg_class pa on pa.oid=c.confrelid
-    join pg_namespace npa on npa.oid=pa.relnamespace
-    where c.contype='f'
-      and nch.nspname in ('atlas','local_intel')
-      and npa.nspname in ('atlas','local_intel')
-      and exists (
-        select 1
-        from generate_subscripts(c.conkey,1) s(i)
-        join pg_attribute ca on ca.attrelid=c.conrelid and ca.attnum=c.conkey[s.i]
-        join pg_attribute ppa on ppa.attrelid=c.confrelid and ppa.attnum=c.confkey[s.i]
-        where ca.attname='organization_id' and ppa.attname='organization_id'
-      )
+    select child_schema,child_table,conname
+    from custody_fk_deferral_guard_v1
+    where not was_deferrable
+    order by child_schema,child_table,conname
   loop
     execute format(
       'alter table %I.%I alter constraint %I not deferrable',
       r.child_schema,r.child_table,r.conname
     );
   end loop;
+end;
+$function$;
+
+-- Prove temporary deferral did not leak and preexisting selected constraint state was preserved.
+do $function$
+begin
+  if exists (
+    select 1
+    from custody_fk_deferral_guard_v1 g
+    join pg_namespace n on n.nspname=g.child_schema
+    join pg_class ch on ch.relnamespace=n.oid and ch.relname=g.child_table
+    join pg_constraint c on c.conrelid=ch.oid and c.conname=g.conname
+    where (not g.was_deferrable and c.condeferrable)
+       or (g.was_deferrable and (not c.condeferrable or c.condeferred is distinct from g.was_deferred))
+  ) then
+    raise exception 'Temporary Organization-bearing parent-key FK deferral was not restored exactly.' using errcode='55000';
+  end if;
 end;
 $function$;
 
