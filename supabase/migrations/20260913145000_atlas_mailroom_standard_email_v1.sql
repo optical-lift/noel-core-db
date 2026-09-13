@@ -354,7 +354,7 @@ begin
      v_body:=coalesce(v_row.body_text,'');
      if v_row.signature_id is not null then select * into v_signature from atlas.communication_email_signatures where id=v_row.signature_id and active; if v_signature.id is not null and btrim(v_signature.body_text)<>'' then v_body:=rtrim(v_body)||E'\n\n'||v_signature.body_text; end if; end if;
      v_result:=atlas.prepare_institutional_email_send_internal_v2(v_row.author_membership_id,v_row.communication_endpoint_id,v_row.institutional_conversation_id,v_row.to_recipients,v_row.cc_recipients,v_row.bcc_recipients,v_row.subject,v_body,v_row.body_html,v_row.attachment_refs,v_row.reply_to_communication_event_id,'draft:'||v_row.id::text,'scheduled_draft_release');
-     update atlas.communication_email_drafts set draft_state='authorized',authorized_outbound_operation_id=(v_result->>'outboundOperationId')::uuid,updated_at=now(),metadata=metadata-jsonb_build_object('lastScheduleError','') where id=v_row.id;
+     update atlas.communication_email_drafts set draft_state='authorized',authorized_outbound_operation_id=(v_result->>'outboundOperationId')::uuid,updated_at=now(),metadata=metadata-'lastScheduleError' where id=v_row.id;
      v_released:=v_released+1;
    exception when others then
      update atlas.communication_email_drafts set metadata=metadata||jsonb_build_object('lastScheduleError',sqlerrm,'lastScheduleAttemptAt',now()),updated_at=now() where id=v_row.id;
