@@ -8,7 +8,8 @@ values
   ('22222222-2222-4222-8222-222222222221'::uuid),
   ('33333333-3333-4333-8333-333333333331'::uuid),
   ('44444444-4444-4444-8444-444444444441'::uuid),
-  ('55555555-5555-4555-8555-555555555551'::uuid);
+  ('55555555-5555-4555-8555-555555555551'::uuid),
+  ('99999999-9999-4999-8999-999999999991'::uuid);
 
 -- These Organizations are intentionally inserted before Ledger Graph v1, while the old
 -- universal trigger still creates exactly one same-key governing Ledger for each.
@@ -120,7 +121,7 @@ where o.id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'::uuid;
 insert into atlas.implementation_practitioners(
   human_user_id,status,authorization_basis,metadata
 ) values (
-  '55555555-5555-4555-8555-555555555551'::uuid,
+  '99999999-9999-4999-8999-999999999991'::uuid,
   'active','{"basis":"ledger_graph_validation"}'::jsonb,'{"validation_fixture":true}'::jsonb
 );
 
@@ -146,7 +147,7 @@ insert into atlas.implementation_case_participants(
 (
   '66666666-6666-4666-8666-666666666621'::uuid,
   '66666666-6666-4666-8666-666666666611'::uuid,
-  '55555555-5555-4555-8555-555555555551'::uuid,
+  '99999999-9999-4999-8999-999999999991'::uuid,
   'practitioner',true,null,'{"basis":"ledger_graph_validation"}'::jsonb,'{}'::jsonb
 ),
 (
@@ -163,13 +164,13 @@ insert into atlas.implementation_establishment_items(
   '66666666-6666-4666-8666-666666666631'::uuid,
   '66666666-6666-4666-8666-666666666611'::uuid,
   'institution','Institution','','established',
-  '55555555-5555-4555-8555-555555555551'::uuid,'{}'::jsonb
+  '99999999-9999-4999-8999-999999999991'::uuid,'{}'::jsonb
 ),
 (
   '66666666-6666-4666-8666-666666666632'::uuid,
   '66666666-6666-4666-8666-666666666611'::uuid,
   'ledger_scope','Ledger Scope','','established',
-  '55555555-5555-4555-8555-555555555551'::uuid,'{}'::jsonb
+  '99999999-9999-4999-8999-999999999991'::uuid,'{}'::jsonb
 );
 
 insert into atlas.ledger_entitlements(
