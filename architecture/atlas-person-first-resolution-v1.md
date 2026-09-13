@@ -1,8 +1,9 @@
 # Atlas Person-First Resolution v1
 
-**Status:** Candidate implementation contract
+**Status:** Candidate implementation contract with canonical migration package staged
 **Date:** 2026-09-13
 **Prerequisite:** Canonical Person v1 live as `20260913134242_atlas_canonical_person_v1`
+**Canonical migration:** `20260913184222_atlas_person_first_resolution_v1.sql`
 
 ## 1. Purpose
 
@@ -207,3 +208,19 @@ credential → Person → Principal / Membership → Ledger authority
 If Ledger is introduced while Principal and Membership are still semantically credential-rooted, Atlas would preserve the very single-login/single-root assumption the Ledger work is intended to remove.
 
 Therefore this tranche is the immediate prerequisite for first-class Ledger identity.
+
+## 11. Canonical package
+
+Supabase CLI v2.116.0 generated the migration identity in GitHub Actions without connecting to Supabase:
+
+`20260913184222_atlas_person_first_resolution_v1.sql`
+
+Durable candidate package:
+
+- `supabase/migrations/20260913184222_atlas_person_first_resolution_v1.sql`
+- `validation/migrations/20260913184222_atlas_person_first_resolution_v1.sql`
+- this architecture contract.
+
+The temporary identity-generator workflow is removed after capture and is not part of the durable candidate.
+
+Production release remains separate from merge and requires Database Custody CI plus production-schema-clone validation on the immutable candidate.
