@@ -1,0 +1,30 @@
+name: Temporary Generate Replacement Institutional Custody Migration Identity
+
+on:
+  push:
+    branches:
+      - institutional-custody-reconstruction-v1
+    paths:
+      - .github/workflows/tmp-generate-institutional-custody-migration-v2.yml
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate replacement migration identity with pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes supabase@2.116.0 --version
+          npx --yes supabase@2.116.0 migration new atlas_institutional_custody_reconstruction_v1
+          basename "$(ls -1t supabase/migrations/*_atlas_institutional_custody_reconstruction_v1.sql | head -n1)" > migration_identity.txt
+          cat migration_identity.txt
+      - name: Upload identity
+        uses: actions/upload-artifact@v4
+        with:
+          name: institutional-custody-migration-identity-v2
+          path: migration_identity.txt
