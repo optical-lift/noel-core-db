@@ -1,9 +1,7 @@
 -- Atlas Canonical Person v1 postcondition proof.
 --
--- Reviewed candidate source only. This is NOT a canonical validation/migrations file.
--- After the governed Supabase CLI creates the canonical migration identity, this
--- proof should be promoted under the matching validation/migrations version and
--- run only against the disposable production-schema clone.
+-- Reviewed rollback-only proof source. The canonical production-schema-clone
+-- postconditions are promoted under migration version 20260913040326.
 
 BEGIN;
 
@@ -85,8 +83,6 @@ begin
     raise exception 'Canonical Person compatibility links are incomplete.';
   end if;
 
-  -- Tranche 1 must preserve the old columns and their requiredness so existing
-  -- application contracts continue to work before Person-first RPC cutover.
   if not exists (
     select 1 from information_schema.columns
     where table_schema='atlas' and table_name='principals' and column_name='user_id' and is_nullable='NO'
@@ -175,13 +171,10 @@ begin
     raise exception 'Dual-write Person compatibility trigger set is incomplete.';
   end if;
 
-  -- The migration must not pretend organization-local identity_subjects are
-  -- globally reconciled. No bulk Person binding is introduced in tranche 1.
   if to_regclass('atlas.person_identity_subject_bindings') is not null then
     raise exception 'Institution-local identity was bound globally before a separate adjudication contract.';
   end if;
 
-  -- Pre-auth / collision fixture: same display name is legal, no login is born.
   select count(*) into v_before_auth from auth.users;
 
   insert into atlas.people(display_name,metadata)
