@@ -1,8 +1,9 @@
 # Atlas Canonical Person v1
 
-**Status:** Candidate governing architecture
+**Status:** Candidate governing architecture; canonical migration package staged and awaiting production-schema-clone execution
 **Date:** 2026-09-12
 **Branch:** `feature/atlas-canonical-person-v1`
+**Canonical migration version:** `20260913040326`
 **Scope:** Establish a canonical Atlas-wide human identity independent of authentication, payment, organization membership, Principal provisioning, and organization-local identity.
 
 ## 1. Purpose
@@ -116,13 +117,13 @@ Only the former belongs to Person identity.
 
 ## 5. Canonical Person object
 
-Introduce a first-class canonical human table, provisionally:
+Introduce a first-class canonical human table:
 
 ```text
 atlas.people
 
 id             uuid primary key
-stable_key     text unique, generated and immutable
+stable_key     text unique, generated from id
 display_name   text
 status         text  -- active / retired
 metadata       jsonb
@@ -141,7 +142,7 @@ Rules:
 
 ## 6. Credential binding
 
-Introduce a separate binding between Person and authentication account, provisionally:
+Introduce a separate binding between Person and authentication account:
 
 ```text
 atlas.person_auth_credentials
@@ -159,19 +160,19 @@ updated_at     timestamptz
 
 Required invariants:
 
-- one active `auth_user_id` may resolve to at most one Person;
+- one `auth_user_id` may resolve to at most one Person;
 - one Person may have more than one credential over time;
 - credential replacement does not create a new Person;
 - credential deletion/revocation must not delete Person;
-- application self-RPCs resolve `auth.uid()` → active Person binding before resolving Principal or institution relationships.
+- application self-RPCs ultimately resolve `auth.uid()` → active Person binding before resolving Principal or institution relationships.
 
-A helper such as `atlas.current_person_id_v1()` may provide this resolution after the schema exists.
+Tranche 1 introduces internal compatibility helpers `atlas.ensure_person_for_auth_user_v1(...)` and `atlas.current_person_id_v1()` while preserving all current public application signatures.
 
 ## 7. Organization-local identity binding
 
 `atlas.identity_subjects` remains institution-local identity truth. It must not be replaced by global Person.
 
-When Atlas has adjudicated that an institutional subject is the same human as a canonical Person, preserve an explicit binding, provisionally:
+When Atlas has adjudicated that an institutional subject is the same human as a canonical Person, preserve an explicit binding in a later tranche, provisionally:
 
 ```text
 atlas.person_identity_subject_bindings
@@ -208,34 +209,42 @@ without pretending the organizations share one local identity record.
 
 `atlas.principals` should become Person-owned.
 
-Staged contract:
+Tranche 1 does only the additive seam:
 
 1. add nullable `person_id` FK → `atlas.people(id)`;
 2. backfill every existing Principal through the credential binding created for its current `user_id`;
 3. add one-Principal-per-Person uniqueness;
-4. update Principal lookup functions to resolve current Person first;
-5. keep `user_id` temporarily for compatibility;
-6. after all writers/readers use Person, allow `principals.user_id` to become nullable so a Principal can be pre-provisioned before login;
-7. ultimately treat `user_id` as legacy credential convenience or retire it after all dependent contracts have moved.
+4. retain `user_id NOT NULL` for existing callers;
+5. install a consistency trigger so legacy `user_id` writes establish the correct Person and cannot contradict an explicit `person_id`.
+
+Later transition:
+
+1. update Principal lookup functions to resolve current Person first;
+2. after all writers/readers use Person, allow `principals.user_id` to become nullable so a Principal can be pre-provisioned before login;
+3. ultimately treat `user_id` as legacy credential convenience or retire it after all dependent contracts have moved.
 
 Required proof:
 
 - existing Principal continues to open the same Atlas;
 - a Person may exist without Principal;
-- a Principal may exist for a Person without an auth credential once the compatibility stage is complete.
+- a Principal may eventually exist for a Person without an auth credential.
 
 ## 9. Organization Membership transition
 
 `atlas.organization_memberships` should describe Person ↔ Organization relationship, not credential ↔ Organization relationship.
 
-Staged contract:
+Tranche 1:
 
 1. add nullable `person_id` FK;
 2. backfill existing membership rows through current user → Person credential binding;
-3. add organization/person uniqueness for active canonical membership;
-4. retain `user_id` temporarily for compatibility with existing work-allocation and access paths;
-5. update access resolution to use credential → Person → Membership, while `organization_member_credentials` continues to prove the login credential is authorized;
-6. later allow organization membership to exist before the person has a credential.
+3. add organization/person uniqueness;
+4. retain `user_id NOT NULL` temporarily;
+5. install a dual-write consistency trigger.
+
+Later:
+
+1. update access resolution to use credential → Person → Membership, while `organization_member_credentials` continues to prove the login credential is authorized;
+2. allow organization membership to exist before the person has a credential.
 
 This is necessary for pre-provisioning employees, owners, board members, consultants, and other institution relationships before login.
 
@@ -243,9 +252,7 @@ This is necessary for pre-provisioning employees, owners, board members, consult
 
 `household_members.user_id` is already nullable and therefore must not become the Person root.
 
-Add a Person relationship when the household member is a known canonical human. This allows children, spouses, dependents, and other household members to exist as humans without Atlas accounts.
-
-The authenticated account remains optional access evidence rather than household identity.
+Tranche 1 adds nullable `person_id`, backfills only household humans that already carry authenticated identity, and leaves accountless household humans untouched rather than guessing by name. A later governed operation can establish/bind canonical Person for those humans.
 
 ## 11. Connected-source custody transition
 
@@ -262,7 +269,7 @@ The target distinction is:
 
 The personal side should migrate from `custodian_user_id` to `custodian_person_id` (or Principal only if a later custody audit demonstrates Principal, rather than Person, is the true durable owner).
 
-Do not remove the existing constraint until all current source adapters and RLS/read contracts are audited.
+This is explicitly **not** part of Canonical Person tranche 1.
 
 ## 12. Noncommercial provisioning
 
@@ -278,7 +285,7 @@ Commerce grants access/capability to already-existing reality. It does not creat
 
 Likewise, organization creation and future Ledger creation must not depend on purchase.
 
-`begin_personal_atlas_self_api_v1` may continue to gate *customer self-provisioning* commercially during compatibility, but the underlying ability to establish Person/Principal must be separable into a noncommercial governed operation so Atlas can preload a human such as Nathan before that human arrives.
+`begin_personal_atlas_self_api_v1` may continue to gate customer self-provisioning commercially during compatibility, but the underlying ability to establish Person/Principal must be separable into a noncommercial governed operation so Atlas can preload a human such as Nathan before that human arrives.
 
 ## 13. Future credential reconciliation
 
@@ -297,49 +304,44 @@ If two candidate people share an email/name or evidence is ambiguous, fail close
 
 ## 14. Compatibility strategy
 
-The first Person migration should be additive.
+The first Person migration is additive.
 
-It should not:
+It does not:
 
 - drop existing `user_id` columns;
 - rewrite every auth-user FK;
-- change public application routing in the same migration;
+- change public application routing;
 - alter payment entitlement semantics;
 - activate new organization access;
 - auto-link 140 existing organization identity subjects;
 - broaden browser privileges;
-- change RLS by convenience;
-- deploy or change Vercel.
+- change Vercel.
 
-Initial release should establish:
+It establishes:
 
 1. Person table;
 2. credential binding table;
-3. canonical current-person resolver;
-4. backfill for existing human accounts needed by current Principal/membership reality;
-5. nullable Person links on the narrow identity-root tables selected for tranche 1;
-6. consistency guards so legacy `user_id` and new `person_id` cannot contradict one another during dual-write/compatibility;
-7. validation proving current behavior still works.
+3. internal current-person resolver;
+4. backfill for existing Principal/membership/household account roots;
+5. nullable Person links on tranche-1 identity-root tables;
+6. consistency guards so legacy `user_id` and new `person_id` cannot contradict one another;
+7. production-schema-clone postconditions.
 
 ## 15. Backfill rule
 
 Do not create one Person for every row that happens to reference `auth.users`.
 
-For tranche 1, establish one Person for each distinct authenticated human participating in current durable human identity roots, initially derived from the union of current:
+Tranche 1 establishes one Person for each distinct authenticated human participating in current durable human identity roots derived from current:
 
 - Principals;
 - Organization Memberships;
-- active Organization Member Credentials where needed to reconcile membership access;
-- household self/member rows with authenticated identity where needed;
-- setup/implementation human relations if present.
+- authenticated Household Member rows.
 
-Current production counts are small enough to inspect every created binding during validation.
+The migration intentionally does not bulk-convert action/audit references or all institutional identity subjects.
 
-Backfill uses generated system identity; it must not infer Person identity from display-name uniqueness.
+## 16. Required API transition after tranche 1
 
-## 16. Required API transition
-
-After the schema seam exists, current self APIs should resolve:
+After the schema seam is released and proven, current self APIs should begin resolving:
 
 ```text
 auth.uid()
@@ -373,52 +375,53 @@ Compatibility may keep their public signatures unchanged while internal resoluti
 
 ## 17. Acceptance tests
 
-The Person foundation is not complete until all of these pass.
+The Person foundation is not complete until all of these pass across staged tranches.
 
-### Existing-user continuity
+### Tranche-1 structural/compatibility acceptance
 
-- current Principal resolves to exactly one Person;
-- current Atlas home continues to resolve the same Principal;
-- existing organization access remains unchanged;
-- no extra user/customer is created.
+- current Principal backfills to exactly one Person;
+- current organization memberships backfill through the same credential-to-Person binding;
+- authenticated household humans backfill consistently;
+- legacy `user_id` remains required where current app code needs it;
+- duplicate display names are legal;
+- Person creation itself does not require authentication or payment;
+- browser direct table/RPC authority is not widened;
+- organization-local identity subjects remain independent.
 
-### Pre-auth Person
+### Later credential-first cutover acceptance
 
-- create a Person with no `auth.users` row;
-- Person exists validly without Principal, membership, or payment;
-- no authentication/account side effect occurs.
-
-### Credential attachment
-
-- attach one authenticated credential to an existing Person through a governed operation;
-- repeated attachment is idempotent;
-- the same credential cannot bind to two People;
-- replacing/retiring a credential does not retire Person.
-
-### Multi-institution human
-
+- current Atlas home continues to resolve the same Principal through Person;
+- organization access remains unchanged through credential → Person → Membership;
+- a pre-auth Person can receive a credential through governed reconciliation without creating a duplicate;
 - one Person can bind to institution-local identity subjects in multiple organizations;
-- organization-local identities remain separate records;
-- organization membership/access is not created merely by identity binding.
-
-### Collision test
-
-- two People may have the same display name;
-- two organizations may have the same display name;
-- no suffixing/renaming is needed for identity correctness;
-- no fuzzy/display-name match creates a credential or institutional binding.
-
-### Commercial independence
-
-- Person can be established with no purchase;
-- commercial access remains separately enforceable;
 - ending commercial access does not delete Person.
 
-## 18. Tranche boundary
+## 18. Canonical migration package
 
-**Tranche 1 should stop after the canonical Person seam is proven.**
+The governed Supabase CLI v2.116.0 generated the migration identity:
 
-It should not simultaneously introduce:
+`20260913040326_atlas_canonical_person_v1.sql`
+
+Candidate package on `feature/atlas-canonical-person-v1`:
+
+- `supabase/migrations/20260913040326_atlas_canonical_person_v1.sql`
+- `validation/migrations/20260913040326_atlas_canonical_person_v1.sql`
+- this architecture document;
+- rollback-only proof source under `architecture/atlas-canonical-person-v1.sql` and `architecture/atlas-canonical-person-v1-postconditions.sql`.
+
+The temporary workflow used only to run `supabase migration new atlas_canonical_person_v1` was removed immediately after it generated the identity. It never connected to Supabase.
+
+Static `Database Custody CI` passed on immutable candidate SHA:
+
+`5a5163554e31f60e6ad37f62c3acc34c1e4544e2`
+
+The governed production-schema-clone request is issue `#553`. The candidate has **not** been applied to production.
+
+## 19. Tranche boundary
+
+**Tranche 1 stops after the canonical Person seam is proven and released.**
+
+It does not simultaneously introduce:
 
 - first-class Ledger;
 - institution-to-institution commercial relationship objects;
@@ -429,7 +432,7 @@ It should not simultaneously introduce:
 
 Those depend on Person, but they are separate authority decisions.
 
-## 19. Next sequence after Person
+## 20. Next sequence after Person
 
 After Person is released and proven:
 
@@ -440,7 +443,7 @@ After Person is released and proven:
 5. register `feastguild.com` as a Feast Guild Ledger projection;
 6. build florist catalogue/order → sourcing reality on those foundations.
 
-## 20. Governing test
+## 21. Governing test
 
 Before any field or function is migrated from auth-user identity to Person, ask:
 
@@ -448,8 +451,4 @@ Before any field or function is migrated from auth-user identity to Person, ask:
 
 If yes, the durable referent is probably Person.
 
-If the fact answers:
-
-> **Which authenticated credential/account performed or authorized this action?**
-
-then the auth-user reference is probably correct and should remain.
+If the field instead records which authenticated credential performed an action, it should generally remain credential-bound.
