@@ -117,7 +117,7 @@ Venue-specific records may be assigned to Elm Venue Ledger when their semantic d
 
 ### Archive rule
 
-Waiting Room and owner-level portfolio work remain under the archived legacy portfolio Organization as historical evidence. Their adjudication disposition is `archived`, not reassigned to Elm or Feast Guild.
+Waiting Room and owner-level portfolio work remain under the archived legacy portfolio Organization as historical evidence. Their adjudication disposition is `archived`, not reassigned to Elm or Feast Guild. Source-domain lifecycle state is preserved rather than rewritten merely to express archival custody.
 
 ## Legacy container treatment
 
@@ -171,14 +171,11 @@ A production-schema clone must prove:
 17. no existing communication capture/send/authorization/scopes/sync/revocation state is enabled or changed as a side effect;
 18. temporary Organization-composite FK deferral does not remain in the durable schema, and unrelated preexisting deferred FKs remain untouched.
 
-## Validation package status
+## Validation package
 
 Immutable migration identity: `20260913221918_atlas_institutional_custody_reconstruction_v1.sql`.
 
-The migration bytes are frozen. The first production-schema clone of the replacement candidate failed before migration execution because the DML fixture supplied `atlas.people.stable_key`, which production defines as a generated column. That fixture-only defect was repaired by omitting the generated column; no migration bytes changed.
-
-Current custody-green candidate SHA: `4a29a9329663cf0b6bc21ff4d2594b3973c21256`.
-Fresh governed production-schema clone request: issue `#610`.
+Migration bytes are immutable once production-schema validation is requested. Validation fixtures must mirror production-generated columns and runtime task-scope semantics without invoking unrelated operational automation. Current CI/clone run identifiers and candidate SHAs belong in PR/release metadata rather than this architecture contract.
 
 ## Explicitly out of scope
 
