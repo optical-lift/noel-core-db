@@ -87,7 +87,8 @@ security definer
 set search_path=pg_catalog,atlas
 as $function$
 begin
-  if new.status='active' then
+  if new.status='active'
+     and (tg_op='INSERT' or old.status is distinct from new.status) then
     perform atlas.establish_connections_spread_v1(new.id);
   end if;
   return new;
@@ -100,7 +101,6 @@ drop trigger if exists trg_seed_connections_spread_for_principal_v1 on atlas.pri
 create trigger trg_seed_connections_spread_for_principal_v1
 after insert or update of status on atlas.principals
 for each row
-when (new.status='active' and (tg_op='INSERT' or old.status is distinct from new.status))
 execute function atlas.seed_connections_spread_for_principal_v1();
 
 commit;
