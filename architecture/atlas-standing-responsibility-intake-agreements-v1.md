@@ -23,12 +23,12 @@ A receiver may accept responsibility either:
 1. **item-by-item**, after a particular offer arrives; or
 2. **in advance**, through a standing responsibility-intake agreement that precisely defines what future offers the receiver has already agreed to take on.
 
-A standing agreement is therefore not a sender-side assignment privilege. It is durable evidence of the receiver's prior consent.
+A standing agreement is therefore not a sender-side assignment privilege. It is durable evidence of the receiver's prior consent. Another party may propose the terms, but the agreement is effective as standing acceptance only because the receiver assented to those bounded terms.
 
 Conceptually:
 
 ```text
-Person P establishes standing intake agreement A
+Person P assents to standing intake agreement A
 A admits future offers from source S
 A is bounded to governed Scope/category/effect/time/context
 
@@ -88,7 +88,7 @@ These dimensions are conceptual requirements, not a commitment to a specific tab
 
 ## Receiver consent remains primary
 
-The standing agreement is created because the receiver chose it.
+The standing agreement is effective because the receiver assented to it.
 
 The source cannot unilaterally enlarge it.
 
@@ -323,4 +323,4 @@ This architecture tranche creates no:
 
 The settled law is:
 
-> Responsibility always originates in the receiver's consent. That consent may be expressed after an individual offer arrives or in advance through a bounded standing responsibility-intake agreement. Employment commonly supplies the compensated relationship in which such advance consent is established, but employment labels, seats, positions, and memberships do not themselves create acceptance. A qualifying future offer may become accepted immediately only when Atlas can prove that it falls inside the receiver-authored standing agreement. Ambiguous or out-of-bound offers remain pending. Ending the standing agreement stops future automatic acceptance but does not erase already-current responsibility.
+> Responsibility always originates in the receiver's consent. That consent may be expressed after an individual offer arrives or in advance through a bounded standing responsibility-intake agreement. Employment commonly supplies the compensated relationship in which such advance consent is established, but employment labels, seats, positions, and memberships do not themselves create acceptance. A qualifying future offer may become accepted immediately only when Atlas can prove that it falls inside the receiver-assented standing agreement. Ambiguous or out-of-bound offers remain pending. Ending the standing agreement stops future automatic acceptance but does not erase already-current responsibility.
