@@ -8,271 +8,88 @@ The historical Atlas sentence builder had the correct authoring instinct:
 
 > Create [action] [work] in [area] at [bed/object] for [person] on [farm day]
 
-David's later operational grammar made the semantic structure clearer:
+Its authority model was not durable enough. Subject, location, assignment, timing, and object ownership were repeatedly conflated, and later readers had to infer meaning from prose.
 
-> Zone -> Zone Detail -> Function -> Action
+This contract carries the sentence-builder idea forward into the Company Work kernel and aligns it with the David Task Grammar:
 
-The universal reality grammar then generalized that local language to:
-
-> Authority Root -> Domain -> System -> Context -> Target -> Current State -> Function -> Action -> Resulting State -> Evidence
-
-This contract carries those ideas into the current Company Work kernel without turning the rendered sentence, a UI form, or a task title into a new authority.
+`Authority Root -> Domain -> System -> Context -> Target -> Current State -> Function -> Action -> Resulting State -> Evidence`
 
 ## Governing rule
 
 **The sentence is a projection of typed facts. It is never the source of truth.**
 
-Atlas must never need to parse a task title or rendered sentence to recover context, target, state transition, function, action, responsibility, timing, dependency, evidence, or handling mode.
+Atlas must never need to parse a task title or rendered sentence to recover subject, place, responsibility, timing, dependency, evidence, handling mode, or the intended state transition.
 
-A sentence such as:
+## Work transition
 
-> The florist email does not have the Elm header. Under Correspondence, revise it for Katie after Pricing Review so the delivered email carries the Elm header.
+For task authoring, the central semantic spine is:
 
-may render naturally, but its authority is distributed across separate contracts:
+`CURRENT -> MOVE -> AFTER`
 
-- `work_items`: durable Company Work identity and editable instructions;
-- `work_item_semantic_frames`: the Work-owned semantic sentence frame and intended state transition;
-- `work_item_context_links`: canonical Context/Target references such as a person, zone, or place;
-- `work_item_relations`: causal/structural work-to-work relations;
-- `work_allocations`: responsibility;
-- `work_time_contracts`: time;
-- source/domain evidence contracts, such as `communication_derived_work_links`: evidence and provenance.
+Where:
 
-## David grammar lineage
+- **CURRENT** is the observed or asserted starting-state phrase supplied for the work. It does not overwrite a domain-owned canonical state.
+- **MOVE** is represented by **Function + Action**. Function names the kind of change or operating function; Action names the requested act within it.
+- **AFTER** is the requested resulting-state phrase. It is an intent or acceptance target, not evidence that the result has actually occurred.
 
-The original `Zone -> Zone Detail -> Function -> Action` proposal remains useful because it preserves two distinctions that ordinary task lists usually erase:
+Domain and System may also be supplied when they help position the transition. They remain semantic phrases until and unless Atlas can lawfully resolve them to canonical domain objects.
 
-1. **where/what is being addressed is not the same thing as the work being done;**
-2. **Function comes before Action.**
+## Context and target
 
-Examples remain lawful local grammars:
+Person, place, and related work surround the transition as address/context. They are not substituted for CURRENT, MOVE, or AFTER.
 
-- `Landscape -> Weed / Cut / Plant / Fertilize`;
-- `Fluids -> Check / Fill`;
-- `Correspondence -> Reply / Forward / Acknowledge`;
-- `Reconciliation -> Match / Allocate / Resolve`.
+Canonical links currently supported by this tranche are:
 
-`Zone` and `Zone Detail` remain local vocabulary. Atlas must not create a universal `Zone` ontology merely because one organization uses that word. Depending on evidence, a local Zone Detail may be a finer Context or the actual Target.
+- Identity subjects and external relationships, with relations such as `for`, `about`, and `supports`.
+- Spatial zones and places, with relations such as `located_in`, `acts_on`, `about`, and `supports`.
+- Company Work relations through the existing work relation graph, including `blocks`, `enables`, `depends_on`, `part_of`, `alternative_to`, and `handoff_to`.
 
-## Semantic work frame
+The historical Zone / Zone Detail vocabulary is therefore treated as local authoring language. A Zone can resolve to Context; Zone Detail can resolve to another Context or the Target according to the governed object actually selected.
 
-`atlas.work_item_semantic_frames` carries the part of the universal sentence that belongs to the requested Company Work transition.
+## Execution envelope
 
-The v1 frame may retain these phrases:
+The following are deliberately orthogonal to the semantic transition:
 
-- `domain_phrase` — the local field of responsibility/work, when not already inherited;
-- `system_phrase` — the bounded system, when not already inherited;
-- `current_state_phrase` — the author's statement of what is currently true or why attention is needed;
-- `function_phrase` — what purpose/kind of work is being served;
-- `action_phrase` — the intended operation/verb;
-- `resulting_state_phrase` — what the author intends to become true;
-- `handling_mode` — the broad Atlas reasoning posture (`do`, `decide`, `research`, `prepare`, `watch`).
+- responsibility / assignment;
+- due date and other timing contracts;
+- authority;
+- handling mode (`do`, `decide`, `research`, `prepare`, `watch`);
+- evidence.
 
-These phrases are semantic authoring state, not a second canonical ontology.
-
-In particular:
-
-- `current_state_phrase` does **not** overwrite a domain-owned canonical state or observation;
-- `resulting_state_phrase` is the requested result, not proof that the result occurred;
-- `function_phrase` is not a Capability and is not an Organization Function merely because the words happen to match;
-- `action_phrase` is not the Company Work identity;
-- `handling_mode` is not Function or Action.
-
-Where a domain already owns canonical truth, Atlas should resolve/link to it rather than treating the phrase as a replacement authority. Where the organization has not yet mapped the phrase, preserving the unresolved phrase with provenance is lawful.
-
-## CURRENT -> MOVE -> AFTER
-
-The execution-side Task Move work supplied another durable distinction:
-
-> CURRENT -> MOVE -> AFTER
-
-For Company Work authoring:
-
-- **CURRENT** is represented by the current-state statement and any canonical Context/Target evidence;
-- **MOVE** is Function + Action applied to the addressed reality;
-- **AFTER** is the requested Resulting State;
-- execution requirements such as resources, methods, prerequisites, capacity, or dependencies remain branches around MOVE rather than fake sequential steps;
-- actual completion and Evidence remain separate from the requested AFTER state.
-
-A blocked or unresolved branch may prevent execution while preserving the intended AFTER state. Atlas must not discard the work merely because one branch is unresolved.
-
-## Addressing the reality
-
-The full universal sentence may include Authority Root, Domain, System, Context, and Target. Company Work should inherit what the current governed surface already establishes and ask only for unresolved meaning.
-
-### Authority Root
-
-For organizational Company Work, `work_items.organization_id` establishes the owning organization. This does not identify the executor.
-
-### Domain and System
-
-Domain/System may be inherited from existing organization/work context or remain an unresolved local phrase in `work_item_semantic_frames`. A stored phrase does not create a new canonical Domain, department, operating unit, or System object.
-
-### Context and Target
-
-`atlas.work_item_context_links` is the generic non-causal seam for canonical real things the work is in, about, for, or acting on.
-
-v1 accepts:
-
-- `spatial / zone`;
-- `spatial / place`;
-- `identity / identity_subject`;
-- `identity / external_relationship`.
-
-v1 relation kinds are:
-
-- `about`;
-- `for`;
-- `located_in`;
-- `acts_on`;
-- `supports`.
-
-A human-facing sentence may render those differently, but the relation remains inspectable.
-
-Subject/context is not responsibility. A task can be **for Katie** while **Anna is responsible for doing it**.
-
-Location is not responsibility. A task can be **in Bed 7** while being owned by someone elsewhere.
-
-The storage shape is intentionally extensible to projects, Ledger objects, crops, assets, communications, accounts, and other governed subjects later. New subject kinds require explicit custody validation; arbitrary UUIDs are never accepted merely because they are syntactically valid.
-
-## Related work
-
-Existing `work_item_relations` remains authoritative for work-to-work meaning:
-
-- `depends_on` (including UI language such as “after”);
-- `part_of`;
-- `blocks`;
-- `enables`;
-- `alternative_to`;
-- `handoff_to` where already valid.
-
-Work-to-work meaning must not be duplicated into the context-link table or inferred from prose.
-
-## Responsibility
-
-Responsibility remains in `work_allocations` and Company Work responsibility functions.
-
-`for Katie` and `assigned to Katie` are different truths.
-
-## Time
-
-Due/relevance timing remains in `work_time_contracts`.
-
-A date in the rendered sentence is a projection of that contract, not a second date field owned by the sentence builder.
+These contracts answer who may or should act, when action is expected, how Atlas should handle the work, and why the work exists. They do not redefine the state transition itself.
 
 ## Evidence
 
-Evidence answers **what supports the claim about what happened?**
+Correspondence-derived work keeps the selected communication excerpt as Evidence through the existing communication-to-work evidence contract.
 
-Source/domain evidence contracts remain authoritative. Correspondence-derived work preserves the exact selected canonical message excerpt through `communication_derived_work_links`.
+Evidence is never copied into CURRENT or AFTER merely to make the task look complete. The communication remains the source authority for what was said; the Company Work semantic frame records the requested work interpretation.
 
-The semantic frame may state CURRENT and requested AFTER, but it does not manufacture proof. Intent is not result; result is not evidence.
+## Unknowns are lawful
 
-## Handling mode
+A person can know that something needs doing without knowing every grammar slot. Atlas must permit semantic-frame fields to remain unknown rather than inventing values or refusing to create durable work.
 
-Handling mode tells Atlas how to reason about unresolved Company Work at a broad intelligence level:
+Later reasoning may propose additional typed placement, but it must not silently rewrite source evidence or canonical domain state.
 
-- `do`: perform an action;
-- `decide`: reach an authorized decision;
-- `research`: acquire or verify truth;
-- `prepare`: produce a reviewable result;
-- `watch`: monitor until a condition, reply, date, or state warrants action.
+## Storage
 
-Handling mode is deliberately separate from `operation_class`, local task type, Function, Action, Capability, and authority.
+`atlas.work_item_semantic_frames` owns the Work-authored semantic frame:
 
-## Custody
+- optional Domain phrase;
+- optional System phrase;
+- CURRENT / current-state phrase;
+- Function phrase;
+- Action phrase;
+- AFTER / resulting-state phrase;
+- handling mode and provenance metadata.
 
-Every semantic/context relation must remain organization-safe.
+`atlas.work_item_context_links` owns typed non-causal identity and spatial context.
 
-- a semantic frame belongs to the same organization as its work item;
-- its author/updater must be an active membership of that organization when supplied;
-- a zone/place must belong to a farm in the work item's organization;
-- an identity subject projection must belong to the work item's organization;
-- an external relationship must belong to the work item's organization;
-- related work must belong to the same organization;
-- authenticated browser callers receive no direct table write authority.
+`atlas.work_item_relations` remains authoritative for Work-to-Work semantics.
 
-The browser submits intent only through governed RPCs.
+Existing allocation, timing, evidence, and authority contracts remain authoritative for their respective domains.
 
-## Correspondence-derived work v2
+## Correspondence projection
 
-`create_communication_derived_work_self_api_v2` remains additive beside the existing v1 evidence/Company Work creator.
+The Mailroom authoring surface may render a human-readable sentence or CURRENT -> MOVE -> AFTER diagram from these facts. The projection is for comprehension and editing only.
 
-It first creates/deduplicates the canonical Company Work and source evidence through v1, then atomically adds:
-
-- the semantic work frame;
-- handling mode;
-- context/target links;
-- related-work relations.
-
-This preserves existing Mailroom authority checks and evidence guarantees while giving new work enough coordinates to survive later Atlas reasoning.
-
-## Sentence-builder behavior
-
-The authoring experience should behave as a narrowing semantic sentence, not a universal ten-dropdown form.
-
-Rules:
-
-1. inherit Authority Root, Domain, System, or Context where the current Atlas surface already establishes them unambiguously;
-2. ask only for unresolved meaning;
-3. keep Context/Target, Function, Action, responsibility, time, dependency, and evidence distinct;
-4. allow unresolved text where the organization's grammar dictionary is incomplete;
-5. never require physical location for non-spatial work;
-6. never infer completion from the selected Action;
-7. preserve CURRENT and intended AFTER even if execution cannot yet be placed;
-8. filter downstream choices when governed local grammar exists, especially Function -> Action;
-9. retain the organization's preferred words while keeping the semantic role inspectable.
-
-A correspondence authoring surface may therefore show a compact spine such as:
-
-> CURRENT [header absent] -> FUNCTION [Correspondence] / ACTION [Revise] -> AFTER [email carries Elm header]
-
-with context branches beneath it:
-
-> for [Katie] · in [Feast Guild] · after [Pricing Review]
-
-and execution envelope separately:
-
-> assigned to [Lex] · due [Tuesday] · handling [Prepare]
-
-The human sees one coherent sentence. Atlas retains several authorities.
-
-## Incomplete context is lawful
-
-A work item is not discarded because one semantic coordinate is absent.
-
-- no assignee -> valid unassigned Company Work;
-- no date -> valid temporally unplaced work;
-- no place -> valid non-spatial or unresolved-spatial work;
-- no person/target -> valid general work;
-- unknown Function or Action -> valid unresolved semantic work;
-- unknown Current State -> valid work whose basis still needs clarification/evidence;
-- unknown Resulting State -> valid work whose completion contract still needs clarification;
-- unresolved planning -> explicit planning/placement need, never disappearance.
-
-This is the central reason for the contract: later Atlas intelligence may enrich, place, route, challenge, or escalate work, but it must not silently drop user-authored work merely because it was authored outside a pre-existing domain template.
-
-## Non-collapse rules
-
-The sentence builder must preserve at minimum:
-
-- Authority Root != actor/carrier;
-- Domain != System;
-- Context != Target;
-- Target != Function;
-- Function != Action;
-- Handling mode != Function or Action;
-- Capability != Function or Action;
-- Current State != requested Resulting State;
-- requested Resulting State != actual Result;
-- Result != Evidence;
-- person/subject != assignee;
-- place != assignee;
-- dependency != context;
-- title != semantic authority.
-
-## Legacy boundary
-
-`task_subject_links` belongs to the legacy Task architecture. It is not revived as the Company Work context seam.
-
-Historical sentence-builder and Task Move UIs are design ancestors, not authority sources. Current Company Work uses `work_item_semantic_frames`, `work_item_context_links`, and existing kernel primitives so that the same semantics can be used by Mailroom, Ledgers, projects, farm operation, household work, and future Atlas intelligence without reparsing the sentence.
+A correspondence-derived task therefore remains valid even when only a title and evidence are known. As more of the work grammar becomes known, Atlas can persist those facts without reparsing the title.
