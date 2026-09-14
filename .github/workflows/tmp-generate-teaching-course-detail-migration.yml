@@ -1,0 +1,58 @@
+name: Temporary Teaching course-detail migration generator
+
+on:
+  push:
+    branches:
+      - feature/atlas-teaching-course-detail-read-v1
+    paths:
+      - migration-requests/atlas_teaching_course_detail_read_v1.request
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/atlas-teaching-course-detail-read-v1
+          fetch-depth: 0
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          test "$(supabase --version)" = "2.116.0"
+
+      - name: Generate canonical migration identity
+        id: migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          before=$(mktemp)
+          after=$(mktemp)
+          find supabase/migrations -maxdepth 1 -type f -printf '%f\n' | sort > "$before"
+          supabase migration new atlas_teaching_course_detail_read_v1
+          find supabase/migrations -maxdepth 1 -type f -printf '%f\n' | sort > "$after"
+          filename=$(comm -13 "$before" "$after")
+          if [[ -z "$filename" || "$(printf '%s\n' "$filename" | wc -l)" -ne 1 ]]; then
+            echo "::error::Expected exactly one generated migration file."
+            exit 1
+          fi
+          echo "filename=$filename" >> "$GITHUB_OUTPUT"
+          printf '%s\n' "$filename"
+
+      - name: Commit generated migration identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "supabase/migrations/${{ steps.migration.outputs.filename }}"
+          git commit -m "Generate Teaching course detail migration identity"
+          git push origin HEAD:feature/atlas-teaching-course-detail-read-v1
