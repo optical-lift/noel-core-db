@@ -1,0 +1,12 @@
+{
+  "contractVersion": 32,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v31.json",
+  "rule": "These already-live post-fence Atlas rows bypassed canonical source custody or drifted after release. Preserve only the exact production Git blob identities reported by the protected Atlas release lane as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, repository drift, or any future out-of-band production write.",
+  "recoveries": [
+    {"version":"20260914042154","name":"company_work_completion_bundle_relations_v1","filename":"20260914042154_company_work_completion_bundle_relations_v1.sql","gitBlobSha1":"8e6c13a1c21a754f0917d67847ee9a944ad90931","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260914042250","name":"company_work_completion_bundle_relation_kind_v1","filename":"20260914042250_company_work_completion_bundle_relation_kind_v1.sql","gitBlobSha1":"ecf713838405d1348d1c99dd634aefa94d33ce1f","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260914125951","name":"worker_delivery_result_policy_service_read_v1","filename":"20260914125951_worker_delivery_result_policy_service_read_v1.sql","gitBlobSha1":"e2e8738f87b60a5f9d7cc077ffcbd8350c78e693","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_release_repository_byte_drift"}
+  ]
+}
