@@ -1,0 +1,16 @@
+{
+  "contractVersion": 31,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v30.json",
+  "rule": "These already-live post-fence Atlas rows were missing exact canonical source custody when the protected Atlas release lane was checked. Preserve only the exact production Git blob identities reported by that gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path or any future out-of-band production write.",
+  "recoveries": [
+    {"version":"20260914025111","name":"production_hardening_minimum_fourteen_days_after_pot_up","filename":"20260914025111_production_hardening_minimum_fourteen_days_after_pot_up.sql","gitBlobSha1":"02d6b09d6118b3c1c853875e0a18d6beb7e3b3d2","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260914032038","name":"production_actual_path_promotes_hardening_v2","filename":"20260914032038_production_actual_path_promotes_hardening_v2.sql","gitBlobSha1":"6af56788cb5b6e789d92d1a1bf9f3d8c8f2edd63","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260914032102","name":"production_pot_up_quantity_nonblocking_v2","filename":"20260914032102_production_pot_up_quantity_nonblocking_v2.sql","gitBlobSha1":"3c018b83b8d59d3a61aa757a68cc566051e2927d","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260914032257","name":"production_pot_up_lineage_trigger_order_v2","filename":"20260914032257_production_pot_up_lineage_trigger_order_v2.sql","gitBlobSha1":"5cf4914cb4c5ed7d23cce96be4459806b02d3276","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260914032351","name":"planned_occurrence_adapter_rebind_v2","filename":"20260914032351_planned_occurrence_adapter_rebind_v2.sql","gitBlobSha1":"110814e5433f8025c7e2457a74e4c6e92b45365a","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260914032413","name":"production_actual_path_hardening_skip_growout_v3","filename":"20260914032413_production_actual_path_hardening_skip_growout_v3.sql","gitBlobSha1":"551de8001439eb74797344cfe707b244b3cfd575","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260914032610","name":"production_reconciler_post_potup_recovery_clock_v2","filename":"20260914032610_production_reconciler_post_potup_recovery_clock_v2.sql","gitBlobSha1":"e928c7c001788cd4aab1938714779c06a65f534d","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"}
+  ]
+}
