@@ -2,108 +2,158 @@
 
 ## Purpose
 
-Move authenticated Atlas runtime identity, Organization access, Company Work accountability, and institutional Correspondence presentation from historical physical Organization storage to the canonical institutional custody established by `20260914000504_atlas_institutional_custody_reconstruction_v1.sql`.
+Move selected authenticated Atlas presentation and authority seams from historical physical Organization storage to the canonical institutional custody established by `20260914000504_atlas_institutional_custody_reconstruction_v1.sql`, without breaking the still-physical compatibility-era APIs that have not yet been cut over.
 
-This tranche is a **runtime membrane**. It does not physically move historical rows. It changes which Organization Atlas presents and authorizes against while retaining historical physical IDs as implementation/provenance evidence behind the membrane.
+This tranche is a **targeted runtime membrane**, not a global reinterpretation of every Organization helper and not a physical rehome.
+
+## Critical distinction
+
+Atlas currently has two legitimate kinds of Organization semantics during the transition:
+
+1. **Physical compatibility semantics** — existing APIs that still operate directly on preserved historical `organization_id` values. These must keep using the existing `current_organization_membership_v1`, `is_organization_member`, and `is_organization_owner` contracts until each caller is deliberately migrated.
+2. **Effective canonical semantics** — the selected Stage-2 surfaces that must present or authorize against canonical institutional custody even though the underlying rows remain physical.
+
+The first `20260914010315` candidate incorrectly replaced the global physical helpers. It was superseded before merge/release after a blast-radius audit showed many untouched authenticated APIs still depend on those physical semantics, including generic-email transport/history/credential controls, commercial correspondence, project/task controls, Organization Ledger owner windows, Company Work planning, and operating-knowledge reads.
+
+This replacement therefore leaves all global physical helpers unchanged and introduces separate effective-custody helpers used only by the surfaces explicitly cut over here.
 
 ## Governing laws
 
-1. **Canonical custody governs presentation and authority.** A row adjudicated `reassigned` is presented and authorized against its canonical Organization/Ledger, not its historical carrier.
-2. **Physical history remains immutable.** Work items, execution results, acceptances, communication endpoints, connected sources, memberships, employee seats, credentials, and Ledger entries remain physically where established unless a later governed migration expressly moves mutable state.
-3. **Unresolved and archived custody never becomes runtime institutional identity.** An unresolved/archived membership cannot make its historical container appear as a current institution.
-4. **Direct canonical rows remain canonical.** Rows with no adjudication continue to resolve to their physical Organization/Ledger.
-5. **Membership and Principal authority are distinct.** Employee access resolves through effective membership/seat/credential custody. Top-level Organization governance may also be proven by current Principal root authority over that Organization's active governing compatibility-primary Ledger.
-6. **Ledger authority is not flattened into Organization ownership generally.** Only root authority over the Organization's active `governing` compatibility-primary Ledger satisfies the Organization-owner compatibility helper. Operating/sibling/dependency Ledgers do not silently confer Organization-wide authority.
-7. **Company Work writes remain physical while authority becomes canonical.** The work item's effective custody determines who may decide it; the acceptance/event remains attached to the preserved physical work chain.
-8. **Correspondence presentation becomes canonical while transport remains physical.** Endpoint/source IDs, bindings, capability grants, capture/send state, heartbeat state, credentials, and communication history are untouched.
-9. **No trigger bypass, FK rewrite, mail activation, polling, or outbound send.**
-10. **Compatibility is visible, never normative.** Principal context may expose the legacy singleton Organization only under an explicitly named compatibility field; governed Ledgers/Organizations are the governing truth.
+1. **Canonical custody governs selected presentation and authority.** A row adjudicated `reassigned` is presented and authorized against its canonical Organization/Ledger on Stage-2 surfaces.
+2. **Physical compatibility remains valid behind the membrane.** Existing non-cut-over APIs may continue to use physical Organization membership/owner predicates until migrated deliberately.
+3. **No semantic monkey-patching.** Stage 2 does not globally change what `is_organization_member` or `is_organization_owner` means.
+4. **Physical history remains immutable.** Work items, execution results, acceptances, communication endpoints, connected sources, memberships, employee seats, credentials, and Ledger entries remain physically where established.
+5. **Unresolved and archived custody never becomes canonical institutional identity.** Effective helpers return no canonical membership/authority for those adjudications.
+6. **Direct canonical rows remain canonical.** Rows with no adjudication remain their physical Organization/Ledger unless they are inside an active compatibility carrier with stronger explicit Unit evidence.
+7. **Membership and Principal authority are distinct.** Effective employee access resolves through effective membership/seat/credential custody. Effective Organization-owner compatibility authority may also be proven by current Principal root authority over that Organization’s active governing compatibility-primary Ledger.
+8. **Ledger authority is not flattened generally.** Only root authority over the Organization’s active `governing`, compatibility-primary Ledger satisfies the effective Organization-owner compatibility predicate. Operating/sibling/dependency Ledgers do not confer Organization-wide authority.
+9. **Company Work writes remain physical while selected authority becomes canonical.** The work item’s effective custody determines who may decide it; the acceptance/event remains attached to the preserved physical Company Work chain.
+10. **Correspondence presentation becomes canonical while transport remains physical.** Endpoint/source IDs, bindings, capability grants, capture/send state, credentials, heartbeat state, and communication history are untouched.
+11. **No trigger bypass, FK rewrite, mail activation, polling, or outbound send.**
+12. **Compatibility is visible, never normative.** Principal context may expose the legacy singleton Organization only under an explicitly named compatibility field; governed Ledgers/Organizations are the governing truth.
 
-## Effective membership membrane
+## Effective-only helpers
 
-`atlas.current_organization_membership_v1(canonical_organization_id)` resolves the signed-in Person's active membership by:
+Stage 2 introduces private effective helpers without replacing their physical predecessors:
+
+- `current_effective_organization_membership_v1(canonical_organization_id)`
+- `is_effective_organization_member_v1(canonical_organization_id)`
+- `is_effective_organization_owner_v1(canonical_organization_id)`
+- `effective_work_item_organization_v1(work_item_id)`
+- `effective_communication_endpoint_organization_v1(endpoint_id)`
+
+### Effective membership
+
+The current Person’s membership resolves by:
 
 - preferring a direct active membership in the requested canonical Organization;
-- otherwise accepting an active membership whose immutable custody adjudication is `reassigned` to the requested Organization;
-- never treating `archived` or `unresolved` adjudications as current membership.
+- otherwise accepting an active membership whose immutable custody adjudication is `reassigned` to that Organization;
+- never using `archived` or `unresolved` adjudications as canonical membership.
 
-`atlas.is_organization_member(...)` follows that helper.
+The existing physical `current_organization_membership_v1` remains untouched.
 
-`atlas.is_organization_owner(...)` is satisfied by either:
+### Effective Organization-owner authority
+
+The effective owner predicate is satisfied by either:
 
 - an effective active `owner` membership; or
-- the current Principal holding active `root_governing` authority over an active Ledger that is the requested Organization's active `governing`, compatibility-primary participation.
+- current Principal `root_governing` authority over an active Ledger participating as the requested Organization’s active `governing`, compatibility-primary Ledger.
 
-This is a compatibility Organization-owner predicate. Ledger-specific governance must continue to use Ledger authority directly.
+An active institutional custody carrier is explicitly excluded from this Principal-authority route.
+
+The existing physical `is_organization_owner` remains untouched so compatibility-era APIs using the old carrier keep functioning.
+
+### New compatibility-era rows
+
+Stage 1 adjudicated rows that existed when it ran. New rows can still be written physically to the historical carrier before physical retirement.
+
+For Company Work and communication endpoints only, Stage 2 permits a fallback from the row to its explicit `organization_unit_id`. If that Unit itself has immutable `reassigned` custody, the row inherits that canonical Organization for the selected runtime surface. If the row has no direct adjudication and no explicit adjudicated Unit, an active compatibility carrier is **not guessed** as canonical.
 
 ## Authenticated surfaces cut over
 
+### Principal Ledger projection
+
+`principal_ledgers_self_api_v1()` excludes active compatibility-carrier Ledgers while leaving the underlying legacy authority row intact.
+
 ### Organization access
 
-`organization_access_self_api_v1()` keeps its existing response keys but returns the canonical effective Organization. Historical physical Organization ID is additive metadata (`physicalOrganizationId`). Employee seat, credential, membership, and identity IDs are preserved.
+`organization_access_self_api_v1()` keeps its mature physical employee-seat/credential query behind a private compatibility function, then maps each returned membership to effective custody for presentation.
 
-For Anna this means the existing durable employment chain now presents **Elm Farm**, not the historical mixed `Feast Guild` carrier.
+The response preserves physical membership/seat/credential IDs and adds `physicalOrganizationId` while presenting canonical `organizationId` / `organizationName`.
+
+For Anna, the durable physical employment chain therefore presents Elm Farm rather than the historical mixed carrier.
 
 ### Session context
 
-`current_session_context_api_v1()`:
+`current_session_context_api_v1()` keeps its mature session validation behind a private compatibility function, then:
 
 - projects `organizationMemberships` through effective custody;
-- excludes `archived` and `unresolved` membership adjudications;
+- excludes `archived` and `unresolved` membership adjudications from canonical presentation;
 - exposes physical Organization ID additively;
-- projects `profile.default_organization_id` through the profile's effective custody where adjudicated.
+- projects `profile.default_organization_id` through profile custody where adjudicated.
 
-Lex's unresolved historical mixed-container owner membership is therefore not a current institutional membership. Lex's direct canonical Elm membership remains.
+Lex’s unresolved historical mixed-container owner membership is not a canonical institutional membership; Lex’s direct canonical Elm membership remains.
 
 ### Principal context
 
-`principal_self_context_api_v1()` retains `principal.organizationId` only for compatibility and labels its semantics explicitly. It adds:
+`principal_self_context_api_v1()` retains the historical `principals.organization_id` only as explicitly named compatibility evidence. It adds:
 
 - `legacyCompatibilityOrganizationId`;
 - `organizationIdSemantics = legacy_compatibility_only`;
-- `governedLedgers`, using the canonical Principal → Ledger graph;
-- `governedOrganizations`, deduplicated from active Ledger participations.
+- `governedLedgers` from the Principal → Ledger graph, excluding active custody carriers;
+- `governedOrganizations`, deduplicated from those active Ledger participations.
 
-No single Organization is promoted as the Principal's governing root.
+No single Organization is promoted as the Principal’s governing root.
 
-### Company Work
+### Company Work accountability and decision
 
-`organization_work_accountability_self_api_v1()` resolves each work item and completion Ledger entry through effective custody before:
+`organization_work_accountability_self_api_v1()` uses effective-only helpers to:
 
-- determining Organization authority;
-- naming the Organization;
-- returning `organizationId`.
+- determine canonical owner Organizations;
+- present pending Company Work against effective Organization custody;
+- present established completion events against the effective source work chain while preserving physical Organization/Ledger IDs as provenance.
 
-It returns physical Organization/Ledger IDs only as additive provenance fields.
+`organization_owner_decide_company_work_result_api_v1()` authorizes using the work item’s effective Organization and the effective owner predicate, then writes the acceptance/reopen event to the preserved physical Company Work chain. It records canonical authority evidence alongside physical provenance.
 
-`organization_owner_decide_company_work_result_api_v1()` resolves the work item's effective Organization, checks owner authority against that canonical Organization, and then writes the acceptance/reopen event to the preserved physical Company Work chain. No historical work row is moved.
+Existing planning/scheduling APIs are **not** cut over by this tranche and continue to use physical helper semantics.
 
 ### Institutional Correspondence
 
-`institutional_communications_home_self_api_v1()` continues to use the preserved physical membership and endpoint for transport/capability evidence, but resolves each endpoint's Organization through effective custody for presentation. It adds `physicalOrganizationId` and returns canonical `organizationId`/`organizationName`.
+`institutional_communications_home_self_api_v1()` keeps the mature physical membership, endpoint, source, capability, credential, and heartbeat logic behind a private compatibility function. The outer membrane maps endpoint Organization identity to effective custody for presentation only.
 
-Transport state is not changed.
+Transport state does not change.
+
+## Compatibility functions
+
+The existing mature bodies are renamed behind private, non-browser-executable compatibility functions:
+
+- `organization_access_physical_compatibility_internal_v1()`
+- `current_session_context_physical_compatibility_internal_v1()`
+- `principal_self_context_physical_compatibility_internal_v1()`
+- `institutional_communications_home_physical_compatibility_internal_v1()`
+
+The public API names are recreated as effective-custody wrappers with the original authenticated/service-role execution boundary.
 
 ## Validation requirements
 
 The production-shaped clone must prove:
 
-1. direct canonical membership remains resolvable;
-2. Anna's preserved physical employment membership resolves as canonical Elm;
-3. unresolved legacy owner membership is excluded from session institutional memberships;
-4. authenticated Organization access presents canonical Elm while preserving Anna's existing membership/seat/credential IDs;
-5. Principal context exposes multiple governed Ledgers/Organizations and labels the legacy singleton Organization as compatibility-only;
-6. Company Work physically stored on the historical carrier presents canonical Elm and can be decided by canonical Elm authority without changing the work item's physical Organization;
-7. completion Ledger entries physically on the historical carrier present canonical Elm / Elm Farm Ledger;
-8. institutional Correspondence physically on the historical carrier presents canonical Elm while endpoint/source/capture/send state remains unchanged;
-9. Feast Guild remains clean-room and is not populated by the cutover;
-10. archived/unresolved adjudications never become current institutional identity;
-11. zero production/runtime triggers are disabled and FK deferrability is unchanged;
-12. no new outbound communication operation is created;
-13. browser roles gain no direct access to custody internals.
+1. the preexisting physical membership/owner helpers keep their physical semantics;
+2. effective helpers resolve direct canonical membership and reassigned membership separately;
+3. unresolved legacy membership is excluded only from effective/canonical identity, not deleted or made unusable for still-physical APIs;
+4. Anna’s preserved physical employment presents canonical Elm;
+5. Principal projection hides the active compatibility carrier and exposes multiple governed Ledgers/Organizations;
+6. Company Work physically stored on the carrier presents canonical Elm and can be decided by effective Elm authority while the physical row stays put;
+7. new compatibility-era Company Work without direct adjudication can inherit Elm only from an explicitly adjudicated Elm Unit;
+8. Correspondence physically on the carrier presents canonical Elm while endpoint/source/capture/send state remains unchanged;
+9. new compatibility-era endpoints without direct adjudication can inherit Elm only from an explicitly adjudicated Elm Unit;
+10. Feast Guild remains clean-room;
+11. no outbound communication is created;
+12. compatibility internals and effective helpers remain browser-inaccessible;
+13. zero runtime triggers are disabled and FK deferrability is unchanged.
 
 ## Release boundary
 
-After this tranche, current authenticated presentation and the selected authority seams operate through canonical custody, while physical historical storage remains behind the compatibility membrane.
+After this tranche, the selected authenticated surfaces operate through canonical custody while untouched compatibility-era APIs retain their preexisting physical semantics.
 
-This does **not** retire the historical carrier. A later retirement gate must first prove that remaining authenticated Organization-scoped APIs either operate canonically or are intentionally physical implementation seams.
+This is a **partial runtime cutover**, not retirement of the historical carrier. Later tranches must migrate remaining physical callers one governed contract at a time before the carrier and its legacy authority can be retired.

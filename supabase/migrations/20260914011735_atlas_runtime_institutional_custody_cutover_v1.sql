@@ -1,5 +1,6 @@
--- Atlas Runtime Institutional Custody Cutover v1.
--- Canonical presentation/authority over preserved physical historical storage.
+-- Atlas Runtime Institutional Custody Cutover v1, replacement candidate.
+-- Targeted canonical presentation/authority over preserved physical compatibility storage.
+-- Existing global physical membership/owner helpers remain unchanged.
 -- No historical row rehome, trigger bypass, FK rewrite, mail activation, polling, or send.
 
 begin;
@@ -39,7 +40,9 @@ begin
     from atlas.effective_institutional_custody_v1(
       'atlas','organization_units',v_work.organization_unit_id::text,v_work.organization_id,null
     );
-    if v_unit.from_adjudication and v_unit.disposition='reassigned' and v_unit.effective_organization_id is not null then
+    if v_unit.from_adjudication
+       and v_unit.disposition='reassigned'
+       and v_unit.effective_organization_id is not null then
       return v_unit.effective_organization_id;
     end if;
   end if;
@@ -89,7 +92,9 @@ begin
     from atlas.effective_institutional_custody_v1(
       'atlas','organization_units',v_endpoint.organization_unit_id::text,v_endpoint.organization_id,null
     );
-    if v_unit.from_adjudication and v_unit.disposition='reassigned' and v_unit.effective_organization_id is not null then
+    if v_unit.from_adjudication
+       and v_unit.disposition='reassigned'
+       and v_unit.effective_organization_id is not null then
       return v_unit.effective_organization_id;
     end if;
   end if;
@@ -104,12 +109,7 @@ begin
 end;
 $function$;
 
-revoke all on function atlas.effective_work_item_organization_v1(uuid) from public, anon, authenticated;
-revoke all on function atlas.effective_communication_endpoint_organization_v1(uuid) from public, anon, authenticated;
-grant execute on function atlas.effective_work_item_organization_v1(uuid) to service_role;
-grant execute on function atlas.effective_communication_endpoint_organization_v1(uuid) to service_role;
-
-create or replace function atlas.current_organization_membership_v1(p_organization_id uuid)
+create or replace function atlas.current_effective_organization_membership_v1(p_organization_id uuid)
 returns uuid
 language sql
 stable
@@ -139,7 +139,7 @@ as $function$
   limit 1;
 $function$;
 
-create or replace function atlas.is_organization_member(p_organization_id uuid)
+create or replace function atlas.is_effective_organization_member_v1(p_organization_id uuid)
 returns boolean
 language sql
 stable
@@ -147,10 +147,10 @@ security definer
 set search_path = pg_catalog, atlas, auth
 as $function$
   select p_organization_id is not null
-     and atlas.current_organization_membership_v1(p_organization_id) is not null;
+     and atlas.current_effective_organization_membership_v1(p_organization_id) is not null;
 $function$;
 
-create or replace function atlas.is_organization_owner(p_organization_id uuid)
+create or replace function atlas.is_effective_organization_owner_v1(p_organization_id uuid)
 returns boolean
 language sql
 stable
@@ -199,7 +199,18 @@ as $function$
   );
 $function$;
 
--- Hide the compatibility carrier from the Principal's governed-Ledger runtime projection.
+revoke all on function atlas.effective_work_item_organization_v1(uuid) from public, anon, authenticated;
+revoke all on function atlas.effective_communication_endpoint_organization_v1(uuid) from public, anon, authenticated;
+revoke all on function atlas.current_effective_organization_membership_v1(uuid) from public, anon, authenticated;
+revoke all on function atlas.is_effective_organization_member_v1(uuid) from public, anon, authenticated;
+revoke all on function atlas.is_effective_organization_owner_v1(uuid) from public, anon, authenticated;
+grant execute on function atlas.effective_work_item_organization_v1(uuid) to service_role;
+grant execute on function atlas.effective_communication_endpoint_organization_v1(uuid) to service_role;
+grant execute on function atlas.current_effective_organization_membership_v1(uuid) to service_role;
+grant execute on function atlas.is_effective_organization_member_v1(uuid) to service_role;
+grant execute on function atlas.is_effective_organization_owner_v1(uuid) to service_role;
+
+-- Selected Principal presentation: hide active compatibility-carrier Ledgers without changing legacy authority rows.
 create or replace function atlas.principal_ledgers_self_api_v1()
 returns jsonb
 language plpgsql
@@ -280,7 +291,7 @@ begin
 end;
 $function$;
 
--- Preserve mature self-API bodies behind private physical compatibility functions.
+-- Preserve mature physical self-API bodies behind private compatibility functions.
 do $function$
 begin
   if to_regprocedure('atlas.organization_access_physical_compatibility_internal_v1()') is null then
@@ -366,7 +377,8 @@ begin
       'atlas','user_profiles',v_base->'user'->>'id',
       (v_profile->>'default_organization_id')::uuid,null
     );
-    if v_profile_custody.disposition in ('physical','reassigned') and v_profile_custody.effective_organization_id is not null then
+    if v_profile_custody.disposition in ('physical','reassigned')
+       and v_profile_custody.effective_organization_id is not null then
       v_profile:=v_profile || jsonb_build_object(
         'physical_default_organization_id',(v_profile->>'default_organization_id')::uuid,
         'default_organization_id',v_profile_custody.effective_organization_id,
@@ -485,7 +497,7 @@ begin
       'organizationId',o.id,
       'organizationName',o.name,
       'physicalOrganizationId',(item->>'organizationId')::uuid,
-      'effectiveOrganizationMembershipId',atlas.current_organization_membership_v1(o.id),
+      'effectiveOrganizationMembershipId',atlas.current_effective_organization_membership_v1(o.id),
       'institutionalCustodyMode','effective'
     ) order by o.name,item->>'address'
   ),'[]'::jsonb)
@@ -525,7 +537,7 @@ begin
   ) order by o.name,o.id),'[]'::jsonb)
   into v_organizations
   from atlas.organizations o
-  where o.status='active' and atlas.is_organization_owner(o.id);
+  where o.status='active' and atlas.is_effective_organization_owner_v1(o.id);
 
   select coalesce(jsonb_agg(item order by reported_at desc,result_id desc),'[]'::jsonb)
   into v_pending
@@ -572,7 +584,7 @@ begin
       order by case when opa.appointment_kind='primary' then 0 else 1 end,opa.begins_at desc,opa.id
       limit 1
     ) position_row on true
-    where atlas.is_organization_owner(effective_org.id)
+    where atlas.is_effective_organization_owner_v1(effective_org.id)
       and not exists (select 1 from atlas.work_result_acceptances a where a.execution_result_id=r.id)
     order by r.reported_at desc,r.id desc
     limit 50
@@ -611,7 +623,7 @@ begin
       and le.truth_status='established'
       and coalesce((le.provenance->>'institutionalOnly')::boolean,false)
       and coalesce((le.provenance->>'personalAtlasCausalityIncluded')::boolean,false)=false
-      and atlas.is_organization_owner(effective_org.id)
+      and atlas.is_effective_organization_owner_v1(effective_org.id)
     order by le.established_at desc,le.id desc
     limit 50
   ) recent_rows;
@@ -665,11 +677,12 @@ begin
   if v_work.id is null then raise exception 'Company Work item was not found.' using errcode='P0002'; end if;
 
   v_effective_organization_id:=atlas.effective_work_item_organization_v1(v_work.id);
-  if v_effective_organization_id is null or not atlas.is_organization_owner(v_effective_organization_id) then
+  if v_effective_organization_id is null
+     or not atlas.is_effective_organization_owner_v1(v_effective_organization_id) then
     raise exception 'Organization owner authority required.' using errcode='42501';
   end if;
 
-  v_authority_membership_id:=atlas.current_organization_membership_v1(v_effective_organization_id);
+  v_authority_membership_id:=atlas.current_effective_organization_membership_v1(v_effective_organization_id);
   v_authority_principal_id:=atlas.current_principal_id_v1();
 
   select * into v_policy
@@ -719,8 +732,11 @@ begin
       set state='completed',completed_at=coalesce(completed_at,now()),updated_at=now()
       where id=v_result.responsible_allocation_id and state='active';
   elsif v_decision='rejected' and v_result.result_kind='completed' then
-    begin v_projection_id:=nullif(v_result.metadata->>'projectionId','')::uuid;
-    exception when invalid_text_representation then v_projection_id:=null; end;
+    begin
+      v_projection_id:=nullif(v_result.metadata->>'projectionId','')::uuid;
+    exception when invalid_text_representation then
+      v_projection_id:=null;
+    end;
     if v_projection_id is not null
        and v_result.reported_by_farm_membership_id is not null
        and v_result.reported_by_organization_membership_id is not null
@@ -764,7 +780,7 @@ begin
 end;
 $function$;
 
--- Restore the original public API privilege boundary after compatibility renames.
+-- Restore original public API privilege boundaries after compatibility renames.
 revoke all on function atlas.organization_access_self_api_v1() from public, anon;
 revoke all on function atlas.current_session_context_api_v1() from public, anon;
 revoke all on function atlas.principal_self_context_api_v1() from public, anon;
@@ -774,10 +790,10 @@ grant execute on function atlas.current_session_context_api_v1() to authenticate
 grant execute on function atlas.principal_self_context_api_v1() to authenticated, service_role;
 grant execute on function atlas.institutional_communications_home_self_api_v1() to authenticated, service_role;
 
-comment on function atlas.current_organization_membership_v1(uuid) is
-  'Resolves current Person membership against effective canonical institutional custody. Archived/unresolved legacy memberships never establish current membership.';
-comment on function atlas.is_organization_owner(uuid) is
-  'Compatibility Organization-owner predicate: effective owner membership or current Principal root authority over the Organization governing compatibility-primary Ledger, excluding active compatibility carriers.';
+comment on function atlas.current_effective_organization_membership_v1(uuid) is
+  'Canonical/effective membership resolver for selected runtime cutover surfaces. Existing physical current_organization_membership_v1 remains unchanged.';
+comment on function atlas.is_effective_organization_owner_v1(uuid) is
+  'Effective Organization-owner compatibility predicate for selected canonical surfaces only; excludes active custody carriers and does not replace physical is_organization_owner.';
 comment on function atlas.effective_work_item_organization_v1(uuid) is
   'Resolves work-item Organization custody by direct adjudication, then explicit Organization-Unit adjudication. Never guesses an active compatibility carrier as canonical.';
 comment on function atlas.effective_communication_endpoint_organization_v1(uuid) is

@@ -1,4 +1,5 @@
--- Behavioral postconditions for Atlas Runtime Institutional Custody Cutover v1.
+-- Behavioral postconditions for Atlas Runtime Institutional Custody Cutover v1 replacement.
+-- Proves selected canonical cutover while preserving untouched physical helper semantics.
 
 do $function$
 declare
@@ -8,7 +9,7 @@ declare
   v_work atlas.work_items%rowtype;
   v_count integer;
 begin
-  -- Lex: canonical Principal/owner authority.
+  -- Lex: physical compatibility helpers remain physical, effective helpers are canonical.
   perform set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000001',true);
   perform set_config('request.jwt.claims',jsonb_build_object(
     'sub','10000000-0000-4000-8000-000000000001',
@@ -16,19 +17,26 @@ begin
     'role','authenticated'
   )::text,true);
 
-  if atlas.current_organization_membership_v1('20000000-0000-4000-8000-000000000002'::uuid)
+  if atlas.current_organization_membership_v1('20000000-0000-4000-8000-000000000001'::uuid)
+       is distinct from '51000000-0000-4000-8000-000000000001'::uuid
+     or not atlas.is_organization_member('20000000-0000-4000-8000-000000000001'::uuid)
+     or not atlas.is_organization_owner('20000000-0000-4000-8000-000000000001'::uuid) then
+    raise exception 'Preexisting physical Organization helper semantics were changed.';
+  end if;
+
+  if atlas.current_effective_organization_membership_v1('20000000-0000-4000-8000-000000000002'::uuid)
        is distinct from '51000000-0000-4000-8000-000000000002'::uuid then
-    raise exception 'Direct canonical Elm owner membership did not resolve.';
+    raise exception 'Direct canonical Elm owner membership did not resolve effectively.';
   end if;
 
-  if atlas.current_organization_membership_v1('20000000-0000-4000-8000-000000000001'::uuid) is not null then
-    raise exception 'Unresolved legacy owner membership still establishes current institutional membership.';
+  if atlas.current_effective_organization_membership_v1('20000000-0000-4000-8000-000000000001'::uuid) is not null then
+    raise exception 'Unresolved legacy owner membership still establishes effective institutional membership.';
   end if;
 
-  if not atlas.is_organization_owner('20000000-0000-4000-8000-000000000002'::uuid)
-     or not atlas.is_organization_owner('20000000-0000-4000-8000-000000000003'::uuid)
-     or atlas.is_organization_owner('20000000-0000-4000-8000-000000000001'::uuid) then
-    raise exception 'Canonical Organization owner authority boundary is wrong.';
+  if not atlas.is_effective_organization_owner_v1('20000000-0000-4000-8000-000000000002'::uuid)
+     or not atlas.is_effective_organization_owner_v1('20000000-0000-4000-8000-000000000003'::uuid)
+     or atlas.is_effective_organization_owner_v1('20000000-0000-4000-8000-000000000001'::uuid) then
+    raise exception 'Effective canonical Organization owner authority boundary is wrong.';
   end if;
 
   v_payload:=atlas.principal_ledgers_self_api_v1();
@@ -72,7 +80,7 @@ begin
     select 1 from jsonb_array_elements(v_payload->'organizations') x
     where x->>'organizationId'='20000000-0000-4000-8000-000000000001'
   ) then
-    raise exception 'Company Work owner organizations still expose the compatibility carrier.';
+    raise exception 'Company Work effective owner organizations still expose the compatibility carrier.';
   end if;
 
   if atlas.effective_communication_endpoint_organization_v1('80000000-0000-4000-8000-000000000001'::uuid)
@@ -94,14 +102,14 @@ begin
     raise exception 'Correspondence presentation/transport boundary is wrong.';
   end if;
 
-  -- Canonical authority decides preserved physical Company Work.
+  -- Canonical/effective authority decides preserved physical Company Work.
   v_payload:=atlas.organization_owner_decide_company_work_result_api_v1(
     '71000000-0000-4000-8000-000000000001'::uuid,'accepted','fixture acceptance'
   );
   if v_payload->>'state'<>'decided'
      or v_payload->>'organizationId'<>'20000000-0000-4000-8000-000000000002'
      or v_payload->>'physicalOrganizationId'<>'20000000-0000-4000-8000-000000000001' then
-    raise exception 'Company Work decision did not authorize canonically while preserving physical custody.';
+    raise exception 'Company Work decision did not authorize effectively while preserving physical custody.';
   end if;
 
   select * into v_acceptance
@@ -119,7 +127,7 @@ begin
     raise exception 'Company Work physical row was rehomed or failed governed completion.';
   end if;
 
-  -- Anna: preserved physical employment presents canonical Elm.
+  -- Anna: physical APIs remain usable against carrier; effective presentation resolves Elm.
   perform set_config('request.jwt.claim.sub','10000000-0000-4000-8000-000000000002',true);
   perform set_config('request.jwt.claims',jsonb_build_object(
     'sub','10000000-0000-4000-8000-000000000002',
@@ -127,10 +135,16 @@ begin
     'role','authenticated'
   )::text,true);
 
-  if atlas.current_organization_membership_v1('20000000-0000-4000-8000-000000000002'::uuid)
+  if atlas.current_organization_membership_v1('20000000-0000-4000-8000-000000000001'::uuid)
        is distinct from '51000000-0000-4000-8000-000000000003'::uuid
-     or atlas.current_organization_membership_v1('20000000-0000-4000-8000-000000000001'::uuid) is not null
-     or not atlas.is_organization_member('20000000-0000-4000-8000-000000000002'::uuid) then
+     or not atlas.is_organization_member('20000000-0000-4000-8000-000000000001'::uuid) then
+    raise exception 'Anna physical compatibility membership was broken.';
+  end if;
+
+  if atlas.current_effective_organization_membership_v1('20000000-0000-4000-8000-000000000002'::uuid)
+       is distinct from '51000000-0000-4000-8000-000000000003'::uuid
+     or atlas.current_effective_organization_membership_v1('20000000-0000-4000-8000-000000000001'::uuid) is not null
+     or not atlas.is_effective_organization_member_v1('20000000-0000-4000-8000-000000000002'::uuid) then
     raise exception 'Anna effective membership boundary is wrong.';
   end if;
 
@@ -176,14 +190,17 @@ begin
   select count(*) into v_count from atlas.communication_outbound_operations;
   if v_count<>0 then raise exception 'Runtime custody cutover manufactured outbound communication.'; end if;
 
-  -- Compatibility internals and custody helpers are not browser-executable.
+  -- Compatibility internals and effective helpers are not browser-executable.
   if has_function_privilege('authenticated','atlas.organization_access_physical_compatibility_internal_v1()','execute')
      or has_function_privilege('authenticated','atlas.current_session_context_physical_compatibility_internal_v1()','execute')
      or has_function_privilege('authenticated','atlas.principal_self_context_physical_compatibility_internal_v1()','execute')
      or has_function_privilege('authenticated','atlas.institutional_communications_home_physical_compatibility_internal_v1()','execute')
      or has_function_privilege('authenticated','atlas.effective_work_item_organization_v1(uuid)','execute')
-     or has_function_privilege('authenticated','atlas.effective_communication_endpoint_organization_v1(uuid)','execute') then
-    raise exception 'Browser role gained direct compatibility/custody execution.';
+     or has_function_privilege('authenticated','atlas.effective_communication_endpoint_organization_v1(uuid)','execute')
+     or has_function_privilege('authenticated','atlas.current_effective_organization_membership_v1(uuid)','execute')
+     or has_function_privilege('authenticated','atlas.is_effective_organization_member_v1(uuid)','execute')
+     or has_function_privilege('authenticated','atlas.is_effective_organization_owner_v1(uuid)','execute') then
+    raise exception 'Browser role gained direct compatibility/effective-custody execution.';
   end if;
 
   if not has_function_privilege('authenticated','atlas.organization_access_self_api_v1()','execute')
@@ -191,6 +208,13 @@ begin
      or not has_function_privilege('authenticated','atlas.principal_self_context_api_v1()','execute')
      or not has_function_privilege('authenticated','atlas.institutional_communications_home_self_api_v1()','execute') then
     raise exception 'Public authenticated API execution was not restored.';
+  end if;
+
+  -- Preexisting physical helpers remain browser-executable exactly as before.
+  if not has_function_privilege('authenticated','atlas.current_organization_membership_v1(uuid)','execute')
+     or not has_function_privilege('authenticated','atlas.is_organization_member(uuid)','execute')
+     or not has_function_privilege('authenticated','atlas.is_organization_owner(uuid)','execute') then
+    raise exception 'Preexisting physical helper privilege boundary changed.';
   end if;
 
   -- Trigger and FK contracts remain unchanged.
