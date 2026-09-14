@@ -8,27 +8,31 @@
 
 Scope membership conflict is itself governed institutional reality.
 
-When Atlas has admissible evidence that both includes and excludes the same subject from the same Governed Scope, Atlas must not silently choose a winner by fixed precedence or hidden specificity rules.
+When Atlas has admissible positive and negative **claims/evidence** about whether the same subject belongs to the same Governed Scope, Atlas must not silently choose a winner by fixed precedence, source rank, claimant status, or hidden specificity rules.
 
 Instead:
 
-- the positive evidence remains recorded;
-- the negative evidence remains recorded;
+- the positive claims/evidence remain recorded;
+- the negative claims/evidence remain recorded;
 - effective membership becomes **unresolved**;
 - any aperture behavior that depends on that membership fails closed;
-- an authorized adjudication may later establish the effective membership state;
-- the adjudication preserves the evidence that produced the conflict and may itself later be superseded by a new adjudication.
+- a governed adjudication may later establish the current institutional membership disposition;
+- the adjudication preserves the claims/evidence that produced the conflict and may itself later be superseded.
 
-Conflict is not data corruption. It is a first-class truth state requiring governed resolution.
+Conflict is not data corruption. It is a first-class unresolved institutional state requiring governed resolution.
+
+A crucial distinction applies throughout this document:
+
+> **An adjudication establishes Atlas's current institutional treatment of the membership question. It does not make the underlying proposition objectively true by fiat.**
 
 ## 2. Why no implicit precedence
 
 Hybrid Scope membership can be supported by:
 
-- explicit subject inclusion;
-- child Scope membership;
-- governed semantic predicate membership;
-- explicit exclusion.
+- explicit positive membership claims;
+- child Scope membership evidence;
+- governed semantic predicate evaluation;
+- explicit negative membership claims.
 
 Any of those may disagree.
 
@@ -44,7 +48,9 @@ or:
 more-specific evidence always wins
 ```
 
-because those rules would convert disagreement into hidden software judgment. Atlas instead preserves the disagreement until an authorized institutional decision resolves it.
+because those rules would convert disagreement into hidden software judgment. Atlas instead preserves the disagreement until the applicable institutional resolution process establishes a current disposition.
+
+A claim from a Person with broad action authority does not automatically outrank another claim merely because of that Person's standing.
 
 ## 3. Membership states
 
@@ -60,16 +66,18 @@ not_established
 These are architectural states, not a final enum declaration.
 
 ### included
-Admissible evidence supports membership and no unresolved negative evidence remains applicable, or a governing adjudication establishes inclusion.
+The currently effective institutional disposition treats the subject as a member of the Scope for the evaluated context/time.
+
+That disposition may arise from unconflicted admissible support or from a governing adjudication after conflict. It remains provenance-bearing and revisable if later evidence changes the institutional position.
 
 ### excluded
-Admissible evidence supports exclusion and no unresolved positive evidence remains applicable, or a governing adjudication establishes exclusion.
+The currently effective institutional disposition treats the subject as excluded from the Scope for the evaluated context/time.
 
 ### unresolved
-Applicable positive and negative membership evidence conflict and no governing adjudication currently settles that conflict.
+Applicable positive and negative membership claims/evidence conflict and no current governed disposition settles that conflict for institutional use.
 
 ### not_established
-No admissible evidence currently establishes either inclusion or exclusion.
+No admissible basis currently establishes either inclusion or exclusion.
 
 `not_established` and `excluded` must not be conflated. Absence of membership proof is not the same as an affirmative exclusion.
 
@@ -79,19 +87,20 @@ A conflict exists when, for one Scope and one candidate subject in the same eval
 
 - at least one applicable positive membership path resolves; and
 - at least one applicable negative membership path resolves; and
-- no current adjudication governs that conflict.
+- no current governing adjudication/disposition settles that conflict.
 
-Positive membership paths may originate from explicit inclusion, child Scope resolution, or governed predicate resolution.
+Positive membership paths may originate from explicit inclusion claims, child Scope resolution, or governed predicate resolution.
 
-Negative membership paths may originate from explicit exclusion or future governed negative membership rules if explicitly established.
+Negative membership paths may originate from explicit exclusion claims or future governed negative membership rules if explicitly established.
 
-The conflict record must preserve enough evidence to reconstruct:
+The conflict record/explanation must preserve enough evidence to reconstruct:
 
 - which Scope was evaluated;
 - which subject was evaluated;
 - which Ledger custody intersection was relevant;
 - which positive membership paths applied;
 - which negative membership paths applied;
+- which claims and evidence supported those paths;
 - which predicate/rule versions were involved;
 - which child Scope revisions were involved;
 - when the conflict became observable;
@@ -99,7 +108,7 @@ The conflict record must preserve enough evidence to reconstruct:
 
 ## 5. Fail-closed aperture consequence
 
-Unresolved Scope membership cannot be used as positive evidence for visibility, responsibility, or authority.
+Unresolved Scope membership cannot be used as positive evidence for visibility, responsibility, or action authority.
 
 Therefore:
 
@@ -108,10 +117,10 @@ Scope membership = unresolved
         ↓
 visibility through that Scope = no
 responsibility through that Scope = no
-authority through that Scope = no
+action authority through that Scope = no
 ```
 
-This does not erase independent visibility, responsibility, or authority facts established through another Scope or another governed path.
+This does not erase independent visibility, responsibility, or action-authority facts established through another Scope or another governed path.
 
 The failure is local to the unresolved membership dependency.
 
@@ -119,7 +128,7 @@ The failure is local to the unresolved membership dependency.
 
 A Scope membership adjudication answers:
 
-> Given these conflicting membership facts, what is the effective membership disposition for this subject in this Scope under this governed context?
+> Given these competing membership claims/evidence, what effective membership disposition should Atlas rely upon for institutional use in this governed context?
 
 Conceptually, an adjudication should preserve:
 
@@ -127,15 +136,17 @@ Conceptually, an adjudication should preserve:
 - subject identity;
 - effective Ledger custody/custody evidence relevant to the decision;
 - disposition such as `include` or `exclude`;
-- evidence snapshot;
+- evidence/claim snapshot;
 - rationale/basis;
-- adjudicator identity/authority evidence;
+- actor identity and action-authority evidence for recording the institutional decision;
 - effective time;
 - recorded time;
 - provenance;
 - optional superseded adjudication identity.
 
-The adjudication does not delete, rewrite, or deactivate the evidence that produced the conflict. It governs the effective answer while the underlying evidence remains auditable.
+The adjudication does not delete, rewrite, or deactivate the claims/evidence that produced the conflict. It governs Atlas's current effective answer while the underlying history remains auditable.
+
+The adjudicator may be mistaken. New evidence may justify a later superseding disposition.
 
 ## 7. Existing Atlas precedent
 
@@ -146,7 +157,7 @@ Atlas already contains several adjudication patterns that support this architect
 - `source_custody_adjudications` records disposition, evidence, rationale, adjudicator, and supersession;
 - `company_operating_knowledge_adjudications` preserves evidence snapshots and explicit decision basis;
 - `crop_relation_evidence_adjudications` records adjudication state, rationale, and resulting mutation separately from source evidence;
-- `claim_records` and `claim_adjudication_relations` already distinguish claims from adjudication relationships.
+- `claim_records`, `claim_evidence_links`, and `claim_adjudication_relations` already distinguish propositions, evidence, contradiction/correction, and adjudication state.
 
 These are precedents, not the Scope schema. No existing domain-specific adjudication table is silently repurposed as the cross-domain Scope adjudication primitive.
 
@@ -154,51 +165,54 @@ These are precedents, not the Scope schema. No existing domain-specific adjudica
 
 The preferred semantic pattern is append-only decision history.
 
-A later decision that changes the effective answer should supersede the earlier adjudication rather than mutate its historical decision in place.
+A later decision that changes the effective institutional answer should supersede the earlier adjudication rather than mutate its historical decision in place.
 
 This preserves the ability to answer:
 
+- what was claimed;
 - what evidence existed at the time;
-- what decision was made;
-- who was authorized to make it;
+- what conflict existed;
+- what institutional disposition was adopted;
+- who recorded that decision and under what action authority;
 - what later changed;
-- which decision is currently effective.
+- which disposition is currently effective.
 
-Historical aperture reconstruction must be able to evaluate the adjudication that was effective at the historical time being queried.
+Historical aperture reconstruction must be able to evaluate the disposition that was effective at the historical time being queried.
 
-## 9. Authority remains independent
+## 9. Action authority remains independent and downstream
 
-Conflict adjudication requires authority, but authority to adjudicate is not inferred from visibility or responsibility.
+Authority in this architecture is **action authority**, not truth authority.
 
-The future action contract must independently prove that the Person establishing the adjudication has authority over:
+The action contract for recording/adopting an adjudication must independently prove that the Person may take that institutional action over the relevant governed extent.
 
-- the relevant Scope or institutional reality;
-- the type of membership decision being established;
-- and, for cross-Ledger Scopes, the Ledger intersections affected by that adjudication.
+That proves only that the Person may establish the institution's current operational disposition. It does **not** prove that the proposition they chose is objectively true.
 
-No legacy `owner`, `manager`, `employee`, route, seat, or organization membership label may substitute for that proof.
+No legacy `owner`, `manager`, `employee`, route, seat, organization membership label, visibility grant, responsibility allocation, or claim-source label may substitute for the required action-authority proof.
+
+Likewise, lack of action authority to adjudicate does not make a Person's factual claim inadmissible as a claim or evidence. Claim provenance and action authority answer different questions.
 
 ## 10. Cross-Ledger Scope consequence
 
-A single Scope may contain reality from multiple Ledgers, but one membership adjudication cannot silently transfer custody or authority across Ledgers.
+A single Scope may contain reality from multiple Ledgers, but one membership adjudication cannot silently transfer custody or action authority across Ledgers.
 
 The effective subject membership may be composed at the Scope level, while each aperture resolver still intersects that result with canonical Ledger custody.
 
-If the conflict itself concerns whether a subject belongs to one cross-Ledger Scope, the adjudication may settle Scope membership. It cannot settle or overwrite the subject's canonical Ledger custody unless a separate custody adjudication does so through the custody system.
+If the conflict concerns whether a subject belongs to one cross-Ledger Scope, the adjudication may establish Atlas's current Scope-membership disposition. It cannot settle or overwrite the subject's canonical Ledger custody unless a separate custody adjudication does so through the custody system.
 
 ## 11. No hidden conflict healing
 
 Atlas must not automatically resolve a Scope membership conflict merely because:
 
-- one evidence source is newer;
+- one claim/evidence source is newer;
 - one source came from an explicit inclusion;
 - one source is more specific;
 - one source is attached to a paid seat or active worker route;
-- one source belongs to a Person with broader visibility;
+- one claimant has broader visibility;
+- one claimant has broader action authority;
 - one source appears in a higher-level Scope;
 - one predicate is evaluated later in time.
 
-Any such tie-breaker would need to be an explicit governed rule or adjudication policy established separately.
+Any such tie-breaker would need to be an explicit governed resolution rule established separately and would itself need provenance.
 
 ## 12. Explainability requirement
 
@@ -208,8 +222,8 @@ For any candidate subject, Scope resolution should eventually be able to return 
 subject
 scope
 membership_state
-positive_evidence[]
-negative_evidence[]
+positive_claims_evidence[]
+negative_claims_evidence[]
 current_adjudication?
 effective_ledger_custody
 resolved_at
@@ -225,33 +239,40 @@ Existing domain-local scope carriers may continue operating under their current 
 
 When migrating a legacy scope path:
 
-1. identify its actual positive/negative membership semantics;
-2. identify whether the legacy path contains hidden precedence;
-3. preserve conflicting evidence rather than flattening it;
-4. establish equivalent Scope membership/adjudication semantics;
-5. prove the new resolver is no broader than the old exposure/authority boundary;
-6. only then retire the compatibility path.
+1. identify its actual membership assertions/rules;
+2. identify its evidence and provenance;
+3. identify whether the legacy path contains hidden precedence or truth-by-role behavior;
+4. preserve conflicting claims/evidence rather than flattening them;
+5. establish equivalent effective Scope membership/adjudication semantics;
+6. prove the new resolver is no broader than the old exposure/action boundary;
+7. only then retire the compatibility path.
 
 ## 14. Explicit non-scope
 
 This document does **not**:
 
 - create a Scope table;
-- create membership evidence tables;
+- create membership claim/evidence tables;
 - create a conflict table;
 - create an adjudication table;
 - define an executable disposition enum;
-- define who may adjudicate Scope conflicts;
+- define the action-authority contract for adopting an adjudication;
 - create Person visibility admissions;
 - create an aperture resolver;
 - change any production permission or Worker Day behavior.
 
-## 15. Next unresolved boundary
+## 15. Governing companion contract
 
-The conflict law is now settled.
+The claims/evidence/truth distinction in `atlas-claims-evidence-effective-reality-v1.md` governs this document.
 
-The next architectural boundary is **Scope authorship and stewardship**:
+Where any earlier architecture wording suggests that an authorized Person can make a factual proposition true merely by establishing or adjudicating it, that wording is superseded.
 
-> Who or what is permitted to establish, revise, retire, or adjudicate a Governed Scope definition itself?
+## 16. Next unresolved boundary
 
-Because Scope can affect visibility, responsibility, and authority across multiple Ledgers, its lifecycle authority cannot be inferred from ownership labels, responsibility, visibility, or simple participation. That authority law must be settled before executable Scope schema is created.
+The membership-conflict law is now settled under the corrected claims model.
+
+The next architectural boundary is **Scope definition and revision adoption**:
+
+> Which parts of a Governed Scope are institutional specification rather than factual claims, how are proposed revisions represented, and what governed action turns one proposed definition into the currently adopted Scope definition?
+
+That question is about institutional action over a construct, not about granting a Person the power to manufacture factual truth. It must be settled before executable Scope schema is created.
