@@ -19,6 +19,7 @@ declare
   v_related uuid:=gen_random_uuid();
   v_key text:='work-sentence-context-fixture-'||gen_random_uuid()::text;
   v_failed boolean:=false;
+  v_frame jsonb;
 begin
   insert into auth.users(id) values(v_user);
 
@@ -56,6 +57,45 @@ begin
   values
     (v_work,v_org,'Prepare revised florist email','open','{}'::jsonb),
     (v_related,v_org,'Pricing review','open','{}'::jsonb);
+
+  v_frame:=atlas.upsert_work_item_semantic_frame_internal_v1(
+    v_work,
+    'prepare',
+    jsonb_build_object(
+      'domain','Communications',
+      'system','Elm customer email',
+      'currentState','Elm header is absent',
+      'function','Correspondence',
+      'action','Revise',
+      'resultingState','The delivered email carries the Elm header'
+    ),
+    v_membership,
+    jsonb_build_object('fixture',true),
+    jsonb_build_object('test','david-grammar')
+  );
+
+  if v_frame->>'handlingMode'<>'prepare'
+     or v_frame->>'currentState'<>'Elm header is absent'
+     or v_frame->>'function'<>'Correspondence'
+     or v_frame->>'action'<>'Revise'
+     or v_frame->>'resultingState'<>'The delivered email carries the Elm header' then
+    raise exception 'Semantic frame did not preserve CURRENT -> Function/Action -> AFTER independently: %',v_frame;
+  end if;
+
+  if not exists(
+    select 1 from atlas.work_item_semantic_frames f
+    where f.work_item_id=v_work
+      and f.organization_id=v_org
+      and f.domain_phrase='Communications'
+      and f.system_phrase='Elm customer email'
+      and f.current_state_phrase='Elm header is absent'
+      and f.function_phrase='Correspondence'
+      and f.action_phrase='Revise'
+      and f.resulting_state_phrase='The delivered email carries the Elm header'
+      and f.handling_mode='prepare'
+  ) then
+    raise exception 'Company Work semantic frame was not stored independently from title/context.';
+  end if;
 
   perform atlas.attach_work_item_context_internal_v1(
     v_work,'spatial','zone',v_zone,'located_in',v_membership,
@@ -108,11 +148,19 @@ begin
      or has_table_privilege('authenticated','atlas.work_item_context_links','insert') then
     raise exception 'Authenticated browser callers received direct work context table authority.';
   end if;
+  if has_table_privilege('authenticated','atlas.work_item_semantic_frames','select')
+     or has_table_privilege('authenticated','atlas.work_item_semantic_frames','insert')
+     or has_table_privilege('authenticated','atlas.work_item_semantic_frames','update') then
+    raise exception 'Authenticated browser callers received direct semantic-frame table authority.';
+  end if;
+  if has_function_privilege('authenticated','atlas.upsert_work_item_semantic_frame_internal_v1(uuid,text,jsonb,uuid,jsonb,jsonb)','execute') then
+    raise exception 'Authenticated browser callers can execute the internal semantic-frame writer.';
+  end if;
 
-  if has_function_privilege('anon','public.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamp with time zone,text,jsonb,jsonb,text)','execute') then
+  if has_function_privilege('anon','public.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamp with time zone,text,jsonb,jsonb,jsonb,text)','execute') then
     raise exception 'Anonymous callers can execute derived-work v2.';
   end if;
-  if not has_function_privilege('authenticated','public.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamp with time zone,text,jsonb,jsonb,text)','execute') then
+  if not has_function_privilege('authenticated','public.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamp with time zone,text,jsonb,jsonb,jsonb,text)','execute') then
     raise exception 'Authenticated derived-work v2 membrane is unavailable.';
   end if;
   if has_function_privilege('anon','public.communication_work_context_candidates_self_v1(uuid,text)','execute') then
@@ -120,6 +168,9 @@ begin
   end if;
   if not has_function_privilege('authenticated','public.communication_work_context_candidates_self_v1(uuid,text)','execute') then
     raise exception 'Authenticated work-context candidate membrane is unavailable.';
+  end if;
+  if has_function_privilege('anon','public.institutional_conversation_detail_self_v4(uuid)','execute') then
+    raise exception 'Anonymous callers can read conversation detail v4.';
   end if;
   if not has_function_privilege('authenticated','public.institutional_conversation_detail_self_v4(uuid)','execute') then
     raise exception 'Conversation detail v4 membrane is unavailable.';
