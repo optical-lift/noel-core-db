@@ -55,14 +55,23 @@ values (
 );
 
 insert into atlas.organization_units(id,organization_id,stable_key,name,unit_kind,status)
-values (
-  '84000000-0000-0000-0000-000000000001'::uuid,
-  '82000000-0000-0000-0000-000000000001'::uuid,
-  'operations',
-  'Operations',
-  'operating_unit',
-  'active'
-);
+values
+  (
+    '84000000-0000-0000-0000-000000000001'::uuid,
+    '82000000-0000-0000-0000-000000000001'::uuid,
+    'operations',
+    'Operations',
+    'operating_unit',
+    'active'
+  ),
+  (
+    '84000000-0000-0000-0000-000000000002'::uuid,
+    '82000000-0000-0000-0000-000000000001'::uuid,
+    'other_operations',
+    'Other Operations',
+    'operating_unit',
+    'active'
+  );
 
 insert into atlas.organization_memberships(
   id,organization_id,user_id,role,active,identity_subject_id
@@ -171,6 +180,36 @@ begin
     raise exception 'exact resolver failed established_current proof: %',v_result;
   end if;
 
+  -- A different but valid active Organization Unit is resolved reality; this
+  -- responsibility simply does not currently cover it.
+  v_result:=atlas.resolve_person_organization_responsibility_current_v1(
+    v_person_id,
+    '82000000-0000-0000-0000-000000000001'::uuid,
+    '87000000-0000-0000-0000-000000000001'::uuid,
+    'organization_unit',
+    '84000000-0000-0000-0000-000000000002'
+  );
+
+  if v_result->>'state'<>'established_not_current'
+     or v_result->>'reason'<>'responsibility_not_current_for_requested_scope' then
+    raise exception 'valid scope mismatch did not resolve as established_not_current: %',v_result;
+  end if;
+
+  -- Unsupported scope identity cannot be treated as a negative responsibility fact.
+  v_result:=atlas.resolve_person_organization_responsibility_current_v1(
+    v_person_id,
+    '82000000-0000-0000-0000-000000000001'::uuid,
+    '87000000-0000-0000-0000-000000000001'::uuid,
+    'farm',
+    '84000000-0000-0000-0000-000000000001'
+  );
+
+  if v_result->>'state'<>'indeterminate'
+     or v_result->>'reason'<>'requested_scope_kind_not_supported' then
+    raise exception 'unsupported requested Scope kind did not fail closed: %',v_result;
+  end if;
+
+  -- A UUID-shaped but nonexistent Organization Unit is unresolved, not a negative fact.
   v_result:=atlas.resolve_person_organization_responsibility_current_v1(
     v_person_id,
     '82000000-0000-0000-0000-000000000001'::uuid,
@@ -179,15 +218,73 @@ begin
     '84000000-0000-0000-0000-000000000099'
   );
 
-  if v_result->>'state'<>'established_not_current'
-     or v_result->>'reason'<>'responsibility_not_current_for_requested_scope' then
-    raise exception 'scope mismatch did not fail closed as established_not_current: %',v_result;
+  if v_result->>'state'<>'indeterminate'
+     or v_result->>'reason'<>'requested_scope_unresolved' then
+    raise exception 'dangling requested Organization Unit Scope did not fail closed: %',v_result;
   end if;
 end;
 $behavior$;
 
+-- Replace the valid definition with a dangling Scope row. The canonical rowset
+-- preserves the unresolved evidence as indeterminate and the exact unscoped
+-- resolver must not silently promote it into responsibility truth.
 delete from atlas.organization_responsibility_scopes
 where id='88000000-0000-0000-0000-000000000001'::uuid;
+
+insert into atlas.organization_responsibility_scopes(
+  id,organization_id,responsibility_id,scope_kind,scope_id,relation_kind
+) values (
+  '88000000-0000-0000-0000-000000000099'::uuid,
+  '82000000-0000-0000-0000-000000000001'::uuid,
+  '87000000-0000-0000-0000-000000000001'::uuid,
+  'organization_unit',
+  '84000000-0000-0000-0000-000000000099',
+  'stewards'
+);
+
+do $dangling_scope$
+declare
+  v_person_id uuid;
+  v_count integer;
+  v_result jsonb;
+begin
+  select m.person_id into strict v_person_id
+  from atlas.organization_memberships m
+  where m.id='85000000-0000-0000-0000-000000000001'::uuid;
+
+  select count(*)::integer into v_count
+  from atlas.effective_person_organization_responsibilities_current_v1(
+    v_person_id,
+    '82000000-0000-0000-0000-000000000001'::uuid
+  ) x
+  where x.responsibility_id='87000000-0000-0000-0000-000000000001'::uuid
+    and x.scope_link_id='88000000-0000-0000-0000-000000000099'::uuid
+    and x.resolution_state='indeterminate'
+    and x.evidence->>'scopeResolution'='organization_unit_unresolved';
+
+  if v_count<>1 then
+    raise exception 'dangling Scope evidence was not preserved as one indeterminate row; found %',v_count;
+  end if;
+
+  v_result:=atlas.resolve_person_organization_responsibility_current_v1(
+    v_person_id,
+    '82000000-0000-0000-0000-000000000001'::uuid,
+    '87000000-0000-0000-0000-000000000001'::uuid,
+    null,
+    null
+  );
+
+  if v_result->>'state'<>'indeterminate'
+     or v_result->>'reason'<>'current_responsibility_scope_unresolved' then
+    raise exception 'dangling current Scope did not become indeterminate: %',v_result;
+  end if;
+end;
+$dangling_scope$;
+
+-- With no Scope evidence at all, bounded responsibility remains indeterminate for
+-- a different reason: the required governed target is missing rather than dangling.
+delete from atlas.organization_responsibility_scopes
+where id='88000000-0000-0000-0000-000000000099'::uuid;
 
 do $missing_scope$
 declare
