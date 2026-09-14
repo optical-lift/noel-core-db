@@ -1,4 +1,4 @@
-name: Recover Sept 10 Production Custody Source
+name: Recover All Post-Fence Atlas Production Custody Source
 
 on:
   push:
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: recover-sept10-production-custody-source
+  group: recover-all-postfence-atlas-custody-source
   cancel-in-progress: false
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
     environment: production
     env:
       NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
-      REPAIR_BRANCH: custody-repair-sept10-production-source-v1
+      REPAIR_BRANCH: custody-repair-all-postfence-atlas-source-v1
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,7 +37,7 @@ jobs:
           fi
           command -v xxd >/dev/null 2>&1 || { echo "::error::xxd is required"; exit 1; }
 
-      - name: Recover exact Sept 10 Atlas migration bytes
+      - name: Recover exact post-fence Atlas migration bytes
         shell: bash
         run: |
           set -euo pipefail
@@ -51,8 +51,7 @@ jobs:
                      name,
                      array_to_string(statements, E'\\n') as body
               from supabase_migrations.schema_migrations
-              where version >= '20260910000000'
-                and version <  '20260911000000'
+              where version > '20260825203448'
                 and name like 'atlas\\_%' escape '\\'
             )
             select version,
@@ -71,7 +70,7 @@ jobs:
             order by version;
           " > "$rows"
 
-          test -s "$rows" || { echo "::error::No Sept. 10 Atlas production migrations were returned"; exit 1; }
+          test -s "$rows" || { echo "::error::No post-fence Atlas production migrations were returned"; exit 1; }
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -112,11 +111,11 @@ jobs:
           done < "$rows"
 
           if [ "$changed" -eq 0 ]; then
-            echo "All Sept. 10 Atlas production migration sources already match exactly; no repair branch required."
+            echo "All post-fence Atlas production migration sources already match exactly; no repair branch required."
             exit 0
           fi
 
           git add supabase/migrations
-          git commit -m "Restore exact Sept 10 Atlas production migration sources"
+          git commit -m "Restore exact post-fence Atlas production migration sources"
           git push origin "HEAD:refs/heads/${REPAIR_BRANCH}"
-          echo "Recovered ${changed} of ${checked} Sept. 10 Atlas migration sources onto ${REPAIR_BRANCH}."
+          echo "Recovered ${changed} of ${checked} post-fence Atlas migration sources onto ${REPAIR_BRANCH}."
