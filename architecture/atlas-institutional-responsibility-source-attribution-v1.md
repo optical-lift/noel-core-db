@@ -6,453 +6,340 @@ Architecture contract only. No executable generic institutional-source-attributi
 
 ## Purpose
 
-Define when Atlas may treat a responsibility offer as having come **from an institution** rather than merely from a Person who says they represent that institution.
+Define when Atlas may attribute a responsibility-offer effect to an institution rather than merely to the Person or workflow that emitted the originating event.
 
-This contract exists because standing responsibility intake may admit future offers from a source such as `Elm Farm`. Atlas therefore needs a governed answer to:
+This document now operates under `atlas-event-effect-governed-uptake-v1.md`.
 
-> What makes this offer count as having come from Elm Farm?
-
-The answer must preserve the already-settled distinctions between:
-
-- actor identity;
-- institutional source attribution;
-- truth of claims contained in the offer;
-- action authority;
-- transport permission;
-- Ledger/institutional custody;
-- responsibility acceptance.
-
-None of these dimensions may silently substitute for another.
+Source attribution is **provenance for an event/effect**, not a generic permission system and not proof that every consequence in an event takes hold.
 
 ## Governing principle
 
-**Actor and institutional source are separate facts.**
+**Actual actor and institutional source are separate facts.**
 
-Conceptually:
+Atlas may truthfully preserve:
 
 ```text
-Person A performed action X
-Institution I is the attributable source of X
+actual actor: Marshall
+originating event: message to Anna
+institutional source of responsibility-offer effect: Elm Farm
 ```
 
-may both be true at the same time.
+without implying:
 
-For example:
+- Marshall is Elm Farm;
+- everything Marshall says is true;
+- every act Marshall performs is attributable to Elm;
+- every proposed consequence in the message takes hold;
+- Marshall possesses a universal `speaks_for_Elm` permission.
+
+## Source attribution follows the effect being resolved
+
+A single event may carry several semantic elements:
 
 ```text
-actor: Marshall
-institutional source: Elm Farm
-action: send routine production responsibility offer to Anna
+message happened
+information was disclosed
+claim: north bed is ready
+responsibility offer: harvest tomorrow
+claimed source: Elm Farm
 ```
 
-This does not mean:
+Institutional source attribution is resolved for the relevant consequence, not as one all-or-nothing validity flag over the entire event.
 
-- Marshall is the institution;
-- Marshall's statements are automatically true;
-- Marshall has universal authority over Elm;
-- every action Marshall takes is attributable to Elm;
-- every message from Marshall's personal account counts as Elm work.
-
-Source attribution is action-local and provenance-backed.
-
-## Source attribution is not truth authority
-
-If Atlas establishes that an offer came from Elm Farm, that establishes only the source provenance of the offer.
-
-It does **not** establish that every proposition inside the offer is true.
-
-Example:
+For example, Atlas may establish:
 
 ```text
-Elm Farm attributable offer:
-  "The north bed is ready for harvest. Please harvest it today."
-```
-
-Atlas may validly establish:
-
-```text
-source = Elm Farm
-```
-
-while the factual claim:
-
-```text
-north bed is ready for harvest
-```
-
-remains false, disputed, unsupported, or unresolved under the claims/evidence layer.
-
-Institutional source provenance and factual truth must remain distinct.
-
-## Source attribution is not generic action authority
-
-A Person may be able to send through an institutional communication endpoint without holding every form of institutional action authority.
-
-Conversely, a Person may hold a bounded action authority and act for an institution through an Atlas-native workflow without using an email endpoint.
-
-Therefore:
-
-```text
-transport permission != institutional source attribution != generic action authority
-```
-
-A valid source path must establish that the particular action was emitted on behalf of the institution in the relevant context.
-
-## Canonical source-attribution paths
-
-Atlas may recognize multiple governed paths by which an action becomes attributable to an institution. These paths are alternative provenance mechanisms, not universal rank classes.
-
-### 1. Institution-custodied endpoint path
-
-An action may be attributable to an institution when it is emitted through an endpoint that Atlas can resolve as effectively custodied by that institution and the sending action itself is validly performed through that endpoint.
-
-A strong path conceptually requires:
-
-```text
-institution-custodied endpoint
-+ active/valid send transport binding
-+ authenticated/recorded actor
-+ actor permitted to perform this endpoint action
-+ durable outbound operation provenance
-+ no unresolved custody/source conflict
--> institutional source attribution candidate
-```
-
-Existing communication machinery provides useful precedent:
-
-- `communication_endpoints` has an Organization or Principal custody root;
-- `effective_communication_endpoint_organization_v1` resolves endpoint institutional custody through effective custody adjudication;
-- `communication_endpoint_source_bindings` binds endpoints to actual connected send/receive transports;
-- `communication_endpoint_member_grants` expresses endpoint capabilities such as `send`;
-- `communication_outbound_operations` preserves Organization, unit, endpoint, connected source, initiating membership, content hash, and operation state;
-- outbound guards require endpoint, source, conversation, and actor to share current compatibility custody.
-
-These mechanisms can support source provenance, but they are not yet the generic source-attribution ontology.
-
-### 2. Institution-governed native workflow path
-
-An Atlas-native workflow may emit a responsibility offer directly on behalf of an institution without pretending a human personally authored the event.
-
-Conceptually:
-
-```text
-institution-governed workflow W
-+ W is effectively custodied by institution I
-+ W is permitted to emit action class A in context C
-+ event E is durably linked to W and its triggering governed reality
-+ no unresolved custody/source conflict
--> E may be attributable to institution I
-```
-
-The source actor may be recorded as a service/workflow/system actor while the institutional source remains the institution.
-
-Existing `workflow_events`, institutional communication runtime, and other domain workflows are useful precedents, but current farm-shaped workflow tables are not silently promoted into the generic rule.
-
-### 3. Person acting on behalf of an institution
-
-A Person may act through a personal or otherwise non-institutional channel and still validly perform an institution-attributable action, but only when Atlas has an explicit, action-local basis for representation.
-
-Conceptually:
-
-```text
-Person P
-+ explicit current representation/delegation basis for institution I
-+ representation covers action class A
-+ representation covers affected Scope/context X
-+ action E is attributable to P and falls inside A/X
-+ provenance links E to that representation basis
--> E may be attributable to institution I
-```
-
-This path prevents Atlas from requiring every institutional action to originate from a company mailbox while still rejecting bare self-assertion.
-
-The representation basis must not be inferred merely from:
-
-- Organization membership;
-- employee status;
-- title;
-- position;
-- owner label;
-- Principal status;
-- responsibility alone;
-- visibility alone;
-- a signature saying `Elm Farm`;
-- a From/display-name string;
-- the Person's claim that they are acting for Elm.
-
-The representation basis is itself a governed relationship/action fact.
-
-## No role-label speaking authority
-
-Current compatibility communication helpers sometimes grant endpoint capabilities implicitly to an Organization membership whose role is `owner`.
-
-That is a runtime compatibility rule for existing communication operations. It is **not** adopted as the generic institutional source-attribution law.
-
-Atlas must not infer:
-
-```text
-role = owner
--> every action by this Person is institution-attributable
+message source = Marshall
+responsibility-offer institutional source = Elm Farm
+readiness claim truth = unresolved
 ```
 
 or:
 
 ```text
-role = employee
--> Person may emit responsibility offers for the employer
+message source = Marshall
+responsibility-offer institutional source = not established
 ```
 
-Source attribution remains action-local.
+The original event remains preserved either way.
 
-## Endpoint permission versus institutional attribution
+## Source attribution is not factual truth
 
-If a Person has permission to send from `hello@elmfarm.co`, that proves an endpoint capability and enables the transport action.
+If Atlas establishes that Elm Farm is the institutional source of a responsibility offer, that establishes provenance for the offer.
 
-For standing-intake purposes, Atlas must still preserve at least:
+It does not establish factual claims bundled with the offer.
 
-- actual actor;
-- endpoint identity;
-- effective institution custodian of the endpoint at action time;
-- connected transport used;
-- action/operation provenance;
-- applicable action context;
-- any relevant representation or workflow basis.
-
-In the common case, an institution-custodied endpoint plus valid send operation will be sufficient source provenance for an ordinary institutional communication. But source provenance remains explainable rather than being reduced to `sender address string = institution`.
-
-## Personal channel examples
-
-### Personal message without representation basis
+Example:
 
 ```text
-Marshall -> Anna
-from: Marshall personal email
-message: "Elm needs you to handle this."
+"The north bed is ready. Please harvest it today."
 ```
 
-If Atlas has no action-local representation basis:
+may resolve as:
 
 ```text
-actor = Marshall
-claimed source = Elm Farm
-institutional source attribution = not established
+responsibility-offer source = Elm Farm
+readiness claim = false/disputed/unresolved
 ```
 
-A standing intake agreement admitting only `source = Elm Farm` must not auto-accept the responsibility.
+Claims remain governed by the separate claims/evidence/adjudication architecture.
 
-The offer may still be delivered to Anna as a normal pending offer from Marshall.
+## Source attribution is not transport permission
 
-### Personal message with bounded representation basis
+Permission to use a communication endpoint proves only the transport capability governed by that endpoint runtime.
 
-If Atlas has established that Marshall may issue Elm Farm production responsibility offers over Scope S during period T, and the message satisfies that bounded relationship:
+A Person may validly send from `hello@elmfarm.co` while a particular semantic consequence in the message still requires separate governed uptake.
+
+Likewise, an event emitted through a personal endpoint may later produce an institutionally attributable consequence if the institution's governed relationships support that consequence.
+
+Therefore:
 
 ```text
-actor = Marshall
-channel = personal email
-institutional source = Elm Farm
-source basis = explicit representation R
+transport permission != institutional source attribution != effect uptake
 ```
 
-The offer may qualify for Anna's Elm standing intake if all other standing-intake boundaries also match.
+## Useful source-attribution paths
 
-This does not grant Marshall broader Elm powers.
+Atlas may establish institutional source provenance through different governed paths. These are evidence paths, not universal actor ranks.
 
-## Institutional endpoint examples
+### Institution-custodied endpoint
 
-If Anna receives a responsibility offer produced through an active Elm Farm endpoint whose effective institutional custody resolves to Elm Farm and whose outbound operation preserves the initiating actor and valid send path, Atlas may establish:
+An event emitted through an endpoint whose effective custody resolves to institution I is strong evidence that the communication event itself came through I's institutional channel.
 
-```text
-institutional source = Elm Farm
-actor = actual initiating Person/system
-```
+Useful existing provenance includes:
 
-The endpoint display name is not the source evidence by itself. The governed endpoint/transport/custody chain is.
+- `communication_endpoints`;
+- `effective_communication_endpoint_organization_v1`;
+- `communication_endpoint_source_bindings`;
+- `communication_endpoint_member_grants`;
+- `communication_outbound_operations`;
+- `connected_sources`.
 
-## Internal workflow examples
+The endpoint display name or From string is not sufficient by itself.
 
-Suppose Elm's production system observes an established operational condition and emits a routine responsibility offer that falls inside Anna's standing intake agreement.
+### Institution-governed workflow
+
+A governed workflow may emit an event whose effect is attributable to its institution when Atlas can establish the workflow's effective custody, triggering reality, and governed relationship to the consequence being produced.
+
+The workflow does not need to impersonate a human actor.
 
 Atlas should preserve:
 
 ```text
-actor kind = governed workflow/system
+actor kind = workflow/system
 institutional source = Elm Farm
-triggering reality = specific governed subject/event
-workflow provenance = specific rule/run/event
+triggering subject/event = ...
+workflow provenance = ...
 ```
 
-The workflow does not need to impersonate Marshall or another human sender.
+### Person with a bounded institution relationship
 
-## Effective custody matters
-
-Physical/historical Organization IDs are not sufficient when institutional custody has been adjudicated or migrated.
-
-Source attribution should resolve effective institutional custody at the relevant historical time wherever such a resolver exists.
-
-For communication endpoints, `effective_communication_endpoint_organization_v1` is an existing precedent.
-
-If endpoint/workflow/source custody is ambiguous, mixed, carrier-only, or otherwise unresolved, Atlas must not auto-establish institutional source attribution.
-
-## Action-local representation
-
-Representation must be evaluated against the action actually performed.
-
-Examples of distinct possible action classes include conceptually:
-
-- issue routine responsibility offer;
-- create or revise institutional work;
-- send informational communication;
-- approve expenditure;
-- commit institution to contract;
-- reroute responsibility;
-- establish customer promise;
-- communicate policy;
-- accept vendor obligation.
-
-A Person may legitimately represent an institution for one action class without representing it for another.
-
-Thus:
-
-```text
-may send Elm production work
-!=
-may sign Elm lease
-```
-
-No generic `speaks_for_organization = true` shortcut is established.
-
-## Scope/context bounding
-
-An action-local representation may also be bounded by Governed Scope, Ledger intersection, unit, workflow family, relationship, time, or other semantic context.
+A Person acting through a personal or otherwise non-institutional channel may still originate an institutionally attributable consequence when Atlas has sufficient governed relationship evidence over the affected reality.
 
 For example:
 
 ```text
-Person P may issue Elm Farm responsibility offers
-for Scope = greenhouse production
+Marshall has a current governed Elm relationship
+covering greenhouse production responsibility requests
 ```
 
-must not silently expand to:
+may support Elm source attribution for a greenhouse responsibility-offer effect.
+
+Atlas does not require a universal action-class permission registry to express this law. The relationship must simply be sufficiently bounded and relevant to the consequence being resolved.
+
+The relationship must not be inferred solely from:
+
+- Organization membership;
+- employee status;
+- title;
+- `owner` label;
+- Principal identity;
+- responsibility alone;
+- visibility alone;
+- endpoint send permission;
+- email signature;
+- sender display name;
+- the actor's own claim that they represent the institution.
+
+## Existing owner endpoint compatibility behavior
+
+Current communication helpers may treat an Organization membership whose role is `owner` as implicitly able to administer/send through an endpoint.
+
+That remains compatibility behavior for the existing communication runtime.
+
+It is not promoted into the generic law:
 
 ```text
-Person P may issue Elm Venue event commitments
+role = owner
+-> every consequence emitted by this Person is Elm-attributable
 ```
 
-Cross-Ledger representation must be proved for each affected effective custody intersection.
+Nor does `employee` imply that a Person may originate responsibility for the employer.
 
-## Institutional source and standing intake
+## Personal-channel example
 
-A standing intake agreement that admits offers from institution I should auto-accept an incoming offer only when:
+Suppose:
 
 ```text
-incoming offer O
-+ source attribution to I is established
-+ standing agreement A is active
-+ O satisfies A's target boundary
-+ O satisfies A's admitted effect/context/time rules
-+ no unresolved source/scope/effect conflict
--> O may be accepted under A
+Marshall -> Anna
+from Marshall's personal email
+"Elm needs you to handle this."
 ```
 
-If source attribution is merely claimed, uncertain, or disputed:
+If Atlas cannot establish a relevant Elm relationship supporting that responsibility-offer consequence, Atlas preserves:
 
 ```text
--> no standing auto-acceptance
--> offer remains pending/unresolved
+actor/source event = Marshall
+claimed institutional source = Elm Farm
+institutional source of offer = not established
 ```
 
-This fail-closed behavior prevents impersonation or ambiguous representation from manufacturing responsibility.
+Anna may still receive a normal pending responsibility offer from Marshall.
 
-## Source attribution lifecycle and historical reconstruction
+If Atlas can establish sufficient bounded Elm relationship evidence for this consequence, it may preserve:
 
-Institutional source attribution is time-sensitive.
+```text
+actor = Marshall
+channel = personal email
+institutional source of offer = Elm Farm
+source basis = governed relationship evidence
+```
 
-A Person may have had a valid representation basis on September 10 and not on September 15. An endpoint may have been custodied by one institution before a later custody adjudication. A connected source may have been active at one time and revoked later.
+No broader Elm standing is inferred.
 
-Historical responsibility reconstruction must therefore use source-attribution evidence effective at the time of the offer/action.
+## Later institutional uptake
 
-Current status must not rewrite historical provenance.
+A Person-originating event may fail to establish institutional source at the time it occurs and still later be taken up by an institution.
 
-## Conflicting source evidence
+Example:
 
-Source attribution can itself be disputed.
+```text
+Event 1:
+Katie -> Anna
+"Elm wants you to prepare the venue."
+```
 
-Examples:
+If Elm source attribution is not established, Atlas does not pretend Katie's event came from Elm.
 
-- a message claims Elm Farm but came from a personal address with no resolved representation;
-- an endpoint is physically attached to a historical carrier while effective custody is disputed;
-- two institutional paths claim the same source action;
-- a representation basis is alleged to have expired before the action;
-- a workflow event is claimed to be institutional but its custody is unresolved.
+Later:
 
-Atlas should preserve the competing evidence rather than choose by hidden precedence.
+```text
+Event 2:
+Elm Farm adopts the responsibility request into Elm-governed reality.
+```
 
-Where a responsibility decision depends on source attribution and source attribution is unresolved, the dependent standing-intake path fails closed.
+Atlas then preserves:
 
-If adjudication is later required, the adjudication establishes Atlas's current institutional treatment of the source question; it does not make underlying propositions metaphysically true.
+```text
+original event source = Katie
+later uptake source = Elm Farm
+```
 
-## Explainability requirement
+The later uptake may create a new Elm-originating responsibility-offer consequence. It does not rewrite Event 1 or manufacture earlier representation.
 
-For any responsibility offer treated as institution-attributable, Atlas should be able to explain at least:
+## Standing responsibility intake
 
-- institutional source;
-- actual actor or workflow/system actor;
-- action class;
-- channel/path kind;
-- endpoint/source/workflow identity where applicable;
-- effective custody evidence;
-- actor capability/representation basis where applicable;
-- Scope/context boundary;
-- timestamp/effective window;
-- provenance links;
-- any superseded or conflicting source evidence.
+A standing intake agreement admitting offers from institution I may auto-accept only when the incoming responsibility-offer consequence is sufficiently attributable to I at the relevant time and the rest of the standing agreement matches.
 
 Conceptually:
 
 ```text
-source_attribution:
-  institution: Elm Farm
+responsibility-offer effect O
++ institutional source O = I established
++ standing agreement A active
++ target/effect/time/context satisfy A
++ no unresolved source/scope/effect conflict
+-> O may be accepted under A
+```
+
+If source attribution is merely claimed or unresolved:
+
+```text
+-> no standing auto-acceptance
+```
+
+If the institution later takes up the request, that later institutional effect is evaluated at the uptake time rather than backdating automatic acceptance.
+
+## Effective custody matters
+
+Physical/historical Organization IDs are not sufficient when custody has been adjudicated or migrated.
+
+Source attribution should use effective institutional custody at the relevant historical time wherever Atlas has a resolver.
+
+If endpoint/workflow/source custody is ambiguous or unresolved, dependent institutional attribution fails closed.
+
+## Conflicting source evidence
+
+Atlas may encounter conflicting provenance such as:
+
+- personal message claiming an institutional source;
+- historical carrier endpoint with uncertain effective custody;
+- conflicting evidence about the actor's institutional relationship;
+- workflow custody conflict;
+- later institution uptake after an initially personal event.
+
+Atlas preserves the evidence and historical events rather than applying hidden precedence.
+
+Where standing intake or another consequence depends on source attribution, unresolved attribution fails closed locally.
+
+## Explainability requirement
+
+For any responsibility-offer effect treated as institution-attributable, Atlas should be able to explain at least:
+
+- originating event;
+- actual actor/workflow;
+- institutional source of the effect;
+- channel/path;
+- endpoint/source/workflow identity where applicable;
+- effective custody evidence;
+- relevant institutional relationship evidence;
+- affected Scope/context;
+- event/effect time;
+- later uptake or supersession where relevant;
+- conflicting source evidence.
+
+Conceptually:
+
+```text
+responsibility_offer_source:
+  originating_event: ...
   actor: Marshall
-  path_kind: institution_endpoint
-  endpoint: hello@elmfarm.co
-  transport: connected mail source
-  action_class: responsibility_offer
-  custody: established Elm Farm
-  basis: recorded outbound operation
+  institution: Elm Farm
+  path: governed_relationship
+  affected_scope: greenhouse production
+  custody: Elm Farm established
   effective_at: ...
 ```
 
 ## Existing Atlas precedents
 
-Useful existing mechanisms include:
+Useful current mechanisms include:
 
 - `communication_endpoints`;
 - `effective_communication_endpoint_organization_v1`;
-- `communication_endpoint_member_grants`;
-- `communication_endpoint_source_bindings`;
-- `communication_outbound_operations`;
-- `connected_sources`;
-- `institutional_communication_admission_reviews`;
-- `communication_event_source_observations`;
-- `communication_identity_links`;
+- endpoint member grants;
+- endpoint/source bindings;
+- outbound operations;
+- connected sources;
+- institutional communication admission reviews;
+- communication event source observations;
+- communication identity links;
 - effective institutional custody adjudication;
-- domain workflow events and workflow handoffs.
+- domain workflow events and handoffs.
 
-These provide transport, custody, identity, conflict, and provenance precedents. None is automatically the complete generic institutional-source-attribution object.
+These provide provenance and custody evidence. None is silently promoted into a universal permission or representation ontology.
 
 ## Deliberately not included yet
 
 This architecture tranche creates no:
 
 - generic institutional source-attribution table;
-- representation/delegation table;
 - generic action-class registry;
+- representation-mandate table;
 - source-attribution resolver;
-- standing-intake automatic-acceptance trigger;
-- generic responsibility-offer table;
-- generic Responsibility Relation table;
+- generic uptake table;
+- standing-intake trigger;
 - endpoint authorization migration;
-- removal of existing owner compatibility behavior;
 - role hierarchy;
 - universal `speaks_for` relation;
 - production permission change;
@@ -460,6 +347,4 @@ This architecture tranche creates no:
 
 ## Resulting law
 
-The settled law is:
-
-> A responsibility offer counts as having come from an institution only when Atlas can establish an action-local, provenance-backed path from the actual actor/workflow through reality effectively attributable to that institution. Institution-custodied endpoints, institution-governed workflows, and explicit bounded Person representation may each provide such a path. Role labels, titles, membership, display names, sender assertions, or transport permission alone do not create universal institutional attribution. Source attribution establishes provenance, not factual truth. When source attribution is unresolved, any standing-intake behavior that depends on it fails closed.
+> Institutional source attribution is provenance attached to a particular event/effect. Atlas establishes it from governed custody and relationship evidence relevant to the consequence being resolved, not from titles, roles, sender strings, or a universal action permission. Later institutional uptake may create a new institution-originating consequence without rewriting the source of the earlier event. Source attribution establishes where the consequence came from; it does not establish factual truth or guarantee that every proposed effect takes hold.
