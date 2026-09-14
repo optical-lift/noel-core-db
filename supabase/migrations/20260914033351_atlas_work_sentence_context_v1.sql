@@ -1,5 +1,5 @@
 -- Atlas Work Sentence Context v1
--- The rendered sentence is a projection. Typed relations remain authoritative.
+-- The rendered sentence is a projection. Typed relations and the semantic frame remain authoritative.
 
 create table if not exists atlas.work_item_context_links (
   id uuid primary key default gen_random_uuid(),
@@ -22,7 +22,9 @@ create table if not exists atlas.work_item_context_links (
   ),
   constraint work_item_context_links_unique_v1 unique (
     work_item_id, subject_domain, subject_kind, subject_id, relation_kind
-  )
+  ),
+  constraint work_item_context_links_provenance_object_v1 check (jsonb_typeof(provenance)='object'),
+  constraint work_item_context_links_metadata_object_v1 check (jsonb_typeof(metadata)='object')
 );
 
 create index if not exists work_item_context_links_work_v1
@@ -34,6 +36,141 @@ create index if not exists work_item_context_links_subject_v1
 alter table atlas.work_item_context_links enable row level security;
 revoke all on table atlas.work_item_context_links from public, anon, authenticated;
 grant select, insert, update, delete on table atlas.work_item_context_links to service_role;
+
+create table if not exists atlas.work_item_semantic_frames (
+  work_item_id uuid primary key references atlas.work_items(id) on delete cascade,
+  organization_id uuid not null references atlas.organizations(id) on delete cascade,
+  handling_mode text,
+  domain_phrase text,
+  system_phrase text,
+  current_state_phrase text,
+  function_phrase text,
+  action_phrase text,
+  resulting_state_phrase text,
+  created_by_membership_id uuid references atlas.organization_memberships(id) on delete set null,
+  updated_by_membership_id uuid references atlas.organization_memberships(id) on delete set null,
+  provenance jsonb not null default '{}'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint work_item_semantic_frames_handling_mode_v1 check (
+    handling_mode is null or handling_mode in ('do','decide','research','prepare','watch')
+  ),
+  constraint work_item_semantic_frames_domain_phrase_v1 check (domain_phrase is null or btrim(domain_phrase)<>''),
+  constraint work_item_semantic_frames_system_phrase_v1 check (system_phrase is null or btrim(system_phrase)<>''),
+  constraint work_item_semantic_frames_current_state_phrase_v1 check (current_state_phrase is null or btrim(current_state_phrase)<>''),
+  constraint work_item_semantic_frames_function_phrase_v1 check (function_phrase is null or btrim(function_phrase)<>''),
+  constraint work_item_semantic_frames_action_phrase_v1 check (action_phrase is null or btrim(action_phrase)<>''),
+  constraint work_item_semantic_frames_resulting_state_phrase_v1 check (resulting_state_phrase is null or btrim(resulting_state_phrase)<>''),
+  constraint work_item_semantic_frames_provenance_object_v1 check (jsonb_typeof(provenance)='object'),
+  constraint work_item_semantic_frames_metadata_object_v1 check (jsonb_typeof(metadata)='object')
+);
+
+create index if not exists work_item_semantic_frames_org_v1
+  on atlas.work_item_semantic_frames(organization_id, updated_at desc);
+
+alter table atlas.work_item_semantic_frames enable row level security;
+revoke all on table atlas.work_item_semantic_frames from public, anon, authenticated;
+grant select, insert, update, delete on table atlas.work_item_semantic_frames to service_role;
+
+create or replace function atlas.upsert_work_item_semantic_frame_internal_v1(
+  p_work_item_id uuid,
+  p_handling_mode text,
+  p_semantic_frame jsonb,
+  p_actor_membership_id uuid,
+  p_provenance jsonb default '{}'::jsonb,
+  p_metadata jsonb default '{}'::jsonb
+) returns jsonb
+language plpgsql
+security definer
+set search_path = pg_catalog, atlas
+as $$
+declare
+  v_work atlas.work_items%rowtype;
+  v_frame jsonb := coalesce(p_semantic_frame,'{}'::jsonb);
+  v_mode text := nullif(lower(btrim(coalesce(p_handling_mode,''))), '');
+  v_domain text;
+  v_system text;
+  v_current text;
+  v_function text;
+  v_action text;
+  v_resulting text;
+  v_row atlas.work_item_semantic_frames%rowtype;
+begin
+  select * into v_work from atlas.work_items where id=p_work_item_id;
+  if v_work.id is null then
+    raise exception 'Company Work item not found.' using errcode='P0002';
+  end if;
+  if jsonb_typeof(v_frame)<>'object' then
+    raise exception 'Semantic frame must be an object.' using errcode='22023';
+  end if;
+  if jsonb_typeof(coalesce(p_provenance,'{}'::jsonb))<>'object'
+     or jsonb_typeof(coalesce(p_metadata,'{}'::jsonb))<>'object' then
+    raise exception 'Semantic frame provenance and metadata must be objects.' using errcode='22023';
+  end if;
+  if v_mode is not null and v_mode not in ('do','decide','research','prepare','watch') then
+    raise exception 'Choose how Atlas should handle this work.' using errcode='22023';
+  end if;
+  if p_actor_membership_id is not null and not exists (
+    select 1 from atlas.organization_memberships m
+    where m.id=p_actor_membership_id and m.organization_id=v_work.organization_id and m.active
+  ) then
+    raise exception 'Semantic frame author must be an active member of the work organization.' using errcode='42501';
+  end if;
+
+  v_domain := nullif(btrim(coalesce(v_frame->>'domain','')), '');
+  v_system := nullif(btrim(coalesce(v_frame->>'system','')), '');
+  v_current := nullif(btrim(coalesce(v_frame->>'currentState','')), '');
+  v_function := nullif(btrim(coalesce(v_frame->>'function','')), '');
+  v_action := nullif(btrim(coalesce(v_frame->>'action','')), '');
+  v_resulting := nullif(btrim(coalesce(v_frame->>'resultingState','')), '');
+
+  if length(coalesce(v_domain,''))>240 or length(coalesce(v_system,''))>240
+     or length(coalesce(v_function,''))>240 or length(coalesce(v_action,''))>240 then
+    raise exception 'Domain, system, function, and action phrases must be 240 characters or fewer.' using errcode='22023';
+  end if;
+  if length(coalesce(v_current,''))>2000 or length(coalesce(v_resulting,''))>2000 then
+    raise exception 'Current and resulting state phrases must be 2000 characters or fewer.' using errcode='22023';
+  end if;
+
+  insert into atlas.work_item_semantic_frames(
+    work_item_id,organization_id,handling_mode,domain_phrase,system_phrase,current_state_phrase,
+    function_phrase,action_phrase,resulting_state_phrase,created_by_membership_id,
+    updated_by_membership_id,provenance,metadata
+  ) values (
+    v_work.id,v_work.organization_id,v_mode,v_domain,v_system,v_current,
+    v_function,v_action,v_resulting,p_actor_membership_id,p_actor_membership_id,
+    coalesce(p_provenance,'{}'::jsonb),coalesce(p_metadata,'{}'::jsonb)
+  )
+  on conflict (work_item_id) do update set
+    handling_mode=excluded.handling_mode,
+    domain_phrase=excluded.domain_phrase,
+    system_phrase=excluded.system_phrase,
+    current_state_phrase=excluded.current_state_phrase,
+    function_phrase=excluded.function_phrase,
+    action_phrase=excluded.action_phrase,
+    resulting_state_phrase=excluded.resulting_state_phrase,
+    updated_by_membership_id=excluded.updated_by_membership_id,
+    provenance=atlas.work_item_semantic_frames.provenance || excluded.provenance,
+    metadata=atlas.work_item_semantic_frames.metadata || excluded.metadata,
+    updated_at=now()
+  returning * into v_row;
+
+  return jsonb_build_object(
+    'handlingMode',v_row.handling_mode,
+    'domain',v_row.domain_phrase,
+    'system',v_row.system_phrase,
+    'currentState',v_row.current_state_phrase,
+    'function',v_row.function_phrase,
+    'action',v_row.action_phrase,
+    'resultingState',v_row.resulting_state_phrase,
+    'updatedAt',v_row.updated_at
+  );
+end;
+$$;
+
+revoke all on function atlas.upsert_work_item_semantic_frame_internal_v1(uuid,text,jsonb,uuid,jsonb,jsonb) from public, anon, authenticated;
+grant execute on function atlas.upsert_work_item_semantic_frame_internal_v1(uuid,text,jsonb,uuid,jsonb,jsonb) to service_role;
 
 create or replace function atlas.attach_work_item_context_internal_v1(
   p_work_item_id uuid,
@@ -66,6 +203,10 @@ begin
     where m.id=p_created_by_membership_id and m.organization_id=v_work.organization_id and m.active
   ) then
     raise exception 'Context creator must be an active member of the work organization.' using errcode='42501';
+  end if;
+  if jsonb_typeof(coalesce(p_provenance,'{}'::jsonb))<>'object'
+     or jsonb_typeof(coalesce(p_metadata,'{}'::jsonb))<>'object' then
+    raise exception 'Context provenance and metadata must be objects.' using errcode='22023';
   end if;
 
   if v_domain='spatial' and v_kind='zone' then
@@ -143,6 +284,7 @@ create or replace function atlas.create_communication_derived_work_self_api_v2(
   p_assignee_membership_id uuid,
   p_due_at timestamptz,
   p_handling_mode text,
+  p_semantic_frame jsonb,
   p_context_links jsonb,
   p_related_work jsonb,
   p_idempotency_key text
@@ -161,23 +303,26 @@ declare
   v_subject_id uuid;
   v_target_id uuid;
   v_relation text;
+  v_semantic_result jsonb := '{}'::jsonb;
   v_context_result jsonb := '[]'::jsonb;
   v_related_result jsonb := '[]'::jsonb;
 begin
   if v_mode not in ('do','decide','research','prepare','watch') then
     raise exception 'Choose how Atlas should handle this work.' using errcode='22023';
   end if;
-
-  if p_context_links is not null and jsonb_typeof(p_context_links) <> 'array' then
+  if p_semantic_frame is not null and jsonb_typeof(p_semantic_frame)<>'object' then
+    raise exception 'Semantic frame must be an object.' using errcode='22023';
+  end if;
+  if p_context_links is not null and jsonb_typeof(p_context_links)<>'array' then
     raise exception 'Context links must be an array.' using errcode='22023';
   end if;
-  if p_related_work is not null and jsonb_typeof(p_related_work) <> 'array' then
+  if p_related_work is not null and jsonb_typeof(p_related_work)<>'array' then
     raise exception 'Related work must be an array.' using errcode='22023';
   end if;
-  if jsonb_array_length(coalesce(p_context_links,'[]'::jsonb)) > 24 then
+  if jsonb_array_length(coalesce(p_context_links,'[]'::jsonb))>24 then
     raise exception 'No more than 24 work contexts may be attached at once.' using errcode='22023';
   end if;
-  if jsonb_array_length(coalesce(p_related_work,'[]'::jsonb)) > 24 then
+  if jsonb_array_length(coalesce(p_related_work,'[]'::jsonb))>24 then
     raise exception 'No more than 24 work relations may be attached at once.' using errcode='22023';
   end if;
 
@@ -206,11 +351,22 @@ begin
     raise exception 'Active organization membership required.' using errcode='42501';
   end if;
 
+  v_semantic_result := atlas.upsert_work_item_semantic_frame_internal_v1(
+    v_work.id,
+    v_mode,
+    coalesce(p_semantic_frame,'{}'::jsonb),
+    v_actor.id,
+    jsonb_build_object(
+      'source','communication_derived_work_v2',
+      'institutionalConversationId',p_institutional_conversation_id,
+      'communicationEventId',p_communication_event_id
+    ),
+    jsonb_build_object('sentenceContractVersion','work_sentence_context_v1')
+  );
+
   update atlas.work_items
-  set metadata = metadata || jsonb_build_object(
-    'handlingMode',v_mode,
-    'sentenceContractVersion','work_sentence_context_v1'
-  ), updated_at=now()
+  set metadata=metadata || jsonb_build_object('sentenceContractVersion','work_sentence_context_v1'),
+      updated_at=now()
   where id=v_work.id;
 
   for v_entry in select value from jsonb_array_elements(coalesce(p_context_links,'[]'::jsonb))
@@ -303,14 +459,15 @@ begin
   return v_base || jsonb_build_object(
     'contractVersion','communication_derived_work_create_v2',
     'handlingMode',v_mode,
+    'semanticFrame',v_semantic_result,
     'contextLinks',v_context_result,
     'relatedWork',v_related_result
   );
 end;
 $$;
 
-revoke all on function atlas.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,text) from public, anon;
-grant execute on function atlas.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,text) to authenticated, service_role;
+revoke all on function atlas.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text) from public, anon;
+grant execute on function atlas.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text) to authenticated, service_role;
 
 create or replace function atlas.communication_work_context_candidates_self_v1(
   p_institutional_conversation_id uuid,
@@ -393,7 +550,9 @@ begin
     'label',x.title,
     'operationClass',x.operation_class,
     'workState',x.work_state,
-    'handlingMode',x.metadata->>'handlingMode'
+    'handlingMode',sf.handling_mode,
+    'function',sf.function_phrase,
+    'action',sf.action_phrase
   ) order by x.updated_at desc,x.title),'[]'::jsonb)
   into v_work
   from (
@@ -403,7 +562,8 @@ begin
       and (v_query is null or w.title ilike '%'||v_query||'%')
     order by w.updated_at desc
     limit 80
-  ) x;
+  ) x
+  left join atlas.work_item_semantic_frames sf on sf.work_item_id=x.id;
 
   return jsonb_build_object(
     'contractVersion','communication_work_context_candidates_v1',
@@ -434,7 +594,17 @@ begin
 
   select coalesce(jsonb_agg(
     d.item || jsonb_build_object(
-      'handlingMode',w.metadata->>'handlingMode',
+      'handlingMode',sf.handling_mode,
+      'semanticFrame',case when sf.work_item_id is null then '{}'::jsonb else jsonb_build_object(
+        'handlingMode',sf.handling_mode,
+        'domain',sf.domain_phrase,
+        'system',sf.system_phrase,
+        'currentState',sf.current_state_phrase,
+        'function',sf.function_phrase,
+        'action',sf.action_phrase,
+        'resultingState',sf.resulting_state_phrase,
+        'updatedAt',sf.updated_at
+      ) end,
       'contextLinks',coalesce((
         select jsonb_agg(jsonb_build_object(
           'id',c.id,
@@ -471,7 +641,8 @@ begin
   ),'[]'::jsonb)
   into v_derived
   from jsonb_array_elements(coalesce(v_detail->'derivedWork','[]'::jsonb)) with ordinality d(item,ordinality)
-  left join atlas.work_items w on w.id=nullif(d.item->>'workItemId','')::uuid;
+  left join atlas.work_items w on w.id=nullif(d.item->>'workItemId','')::uuid
+  left join atlas.work_item_semantic_frames sf on sf.work_item_id=w.id;
 
   v_detail := jsonb_set(v_detail,'{derivedWork}',v_derived,true);
   return v_detail || jsonb_build_object('contractVersion','institutional_conversation_detail_v4');
@@ -490,6 +661,7 @@ create or replace function public.create_communication_derived_work_self_api_v2(
   p_assignee_membership_id uuid,
   p_due_at timestamptz,
   p_handling_mode text,
+  p_semantic_frame jsonb,
   p_context_links jsonb,
   p_related_work jsonb,
   p_idempotency_key text
@@ -499,7 +671,7 @@ set search_path = pg_catalog, atlas
 as $$
   select atlas.create_communication_derived_work_self_api_v2(
     p_institutional_conversation_id,p_communication_event_id,p_excerpt,p_title,p_instructions,
-    p_assignee_membership_id,p_due_at,p_handling_mode,p_context_links,p_related_work,p_idempotency_key
+    p_assignee_membership_id,p_due_at,p_handling_mode,p_semantic_frame,p_context_links,p_related_work,p_idempotency_key
   );
 $$;
 
@@ -524,15 +696,17 @@ as $$
   select atlas.institutional_conversation_detail_self_v4(p_institutional_conversation_id);
 $$;
 
-revoke all on function public.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,text) from public, anon;
+revoke all on function public.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text) from public, anon;
 revoke all on function public.communication_work_context_candidates_self_v1(uuid,text) from public, anon;
 revoke all on function public.institutional_conversation_detail_self_v4(uuid) from public, anon;
 
-grant execute on function public.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,text) to authenticated, service_role;
+grant execute on function public.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text) to authenticated, service_role;
 grant execute on function public.communication_work_context_candidates_self_v1(uuid,text) to authenticated, service_role;
 grant execute on function public.institutional_conversation_detail_self_v4(uuid) to authenticated, service_role;
 
 comment on table atlas.work_item_context_links is
-  'Typed non-causal semantic context for Company Work. Human-readable work sentences are projections of these links plus allocation/time/work relations.';
-comment on function atlas.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,text) is
-  'Creates correspondence-derived Company Work with handling mode, typed subject/place context, and explicit related-work relations while preserving v1 evidence authority.';
+  'Typed non-causal Context/Target references for Company Work. Human-readable work sentences are projections of these links plus the semantic frame and existing work authorities.';
+comment on table atlas.work_item_semantic_frames is
+  'Work-owned semantic authoring frame for Domain/System phrases and the requested CURRENT -> Function/Action -> AFTER transition. Phrases do not replace domain-owned canonical state, result, capability, or evidence.';
+comment on function atlas.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text) is
+  'Creates correspondence-derived Company Work with semantic transition frame, handling mode, typed Context/Target links, and explicit related-work relations while preserving v1 evidence authority.';
