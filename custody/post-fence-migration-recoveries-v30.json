@@ -1,0 +1,36 @@
+{
+  "contractVersion": 30,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v29.json",
+  "rule": "These already-live post-fence Atlas rows were missing exact canonical source custody when the protected Atlas release lane was checked. Preserve only the exact production Git blob identities reported by that gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path or any future out-of-band production write.",
+  "recoveries": [
+    {
+      "version": "20260914023344",
+      "name": "atlas_management_work_adjudication_v1",
+      "filename": "20260914023344_atlas_management_work_adjudication_v1.sql",
+      "gitBlobSha1": "0966581c6cad3276a7e0e744b44ed73e03abbb26",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260914023422",
+      "name": "atlas_management_pot_up_physical_output_fix_v1",
+      "filename": "20260914023422_atlas_management_pot_up_physical_output_fix_v1.sql",
+      "gitBlobSha1": "a724034a9f753002cd1a085953647310d6c455c6",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260914023525",
+      "name": "atlas_management_pot_up_lineage_fix_v1",
+      "filename": "20260914023525_atlas_management_pot_up_lineage_fix_v1.sql",
+      "gitBlobSha1": "a9d4c26d5058797e630df95cf09319a1967f6f3d",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
