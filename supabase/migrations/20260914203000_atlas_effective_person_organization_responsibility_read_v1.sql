@@ -79,8 +79,11 @@ as $function$
     rs.scope_kind,
     rs.scope_id,
     rs.relation_kind as scope_relation_kind,
-    'established_current'::text as resolution_state,
-    jsonb_build_object(
+    case
+      when rs.scope_kind='organization_unit' and su.id is not null then 'established_current'::text
+      else 'indeterminate'::text
+    end as resolution_state,
+    jsonb_strip_nulls(jsonb_build_object(
       'contractVersion','effective_person_organization_responsibilities_current_v1',
       'personId',pe.id,
       'organizationMembershipId',m.id,
@@ -89,9 +92,15 @@ as $function$
       'positionId',p.id,
       'responsibilityId',r.id,
       'scopeLinkId',rs.id,
+      'scopeResolution',case
+        when rs.scope_kind<>'organization_unit' then 'unsupported_scope_kind'
+        when su.id is null then 'organization_unit_unresolved'
+        else 'resolved'
+      end,
+      'resolvedScopeOrganizationUnitId',su.id,
       'currentOnly',true,
       'historicalDefinitionReconstruction','not_yet_available'
-    ) as evidence
+    )) as evidence
   from atlas.people pe
   join atlas.organization_memberships m
     on m.person_id=pe.id
@@ -123,6 +132,15 @@ as $function$
   join atlas.organization_responsibility_scopes rs
     on rs.organization_id=m.organization_id
    and rs.responsibility_id=r.id
+  left join atlas.organization_units su
+    on rs.scope_kind='organization_unit'
+   and su.id=case
+     when rs.scope_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+       then rs.scope_id::uuid
+     else null
+   end
+   and su.organization_id=rs.organization_id
+   and su.status='active'
   where pe.id=p_person_id
     and pe.status='active'
     and (p_organization_id is null or m.organization_id=p_organization_id)
@@ -132,7 +150,7 @@ as $function$
 $function$;
 
 comment on function atlas.effective_person_organization_responsibilities_current_v1(uuid,uuid) is
-  'Canonical current effective Person↔Organization durable-responsibility read. Derives responsibility from canonical Person, active Organization Membership, active Position Appointment, current Position→Responsibility definition, and current Responsibility Scope. Current-only: mutable definition history is not yet reconstructable. Seat/credential, Farm Membership, visibility, action authority, custody, and exact Company Work allocation are intentionally not inferred here.';
+  'Canonical current effective Person↔Organization durable-responsibility read. Derives responsibility from canonical Person, active Organization Membership, active Position Appointment, current Position→Responsibility definition, and current Responsibility Scope. Scope rows that cannot resolve to a supported active governed target are emitted as indeterminate rather than promoted into responsibility truth. Current-only: mutable definition history is not yet reconstructable. Seat/credential, Farm Membership, visibility, action authority, custody, and exact Company Work allocation are intentionally not inferred here.';
 
 revoke all on function atlas.effective_person_organization_responsibilities_current_v1(uuid,uuid)
   from public, anon, authenticated;
@@ -161,6 +179,9 @@ declare
   v_appointment_count integer:=0;
   v_linked_count integer:=0;
   v_scope_count integer:=0;
+  v_resolved_scope_count integer:=0;
+  v_indeterminate_scope_count integer:=0;
+  v_requested_scope_resolves boolean:=false;
   v_items jsonb;
 begin
   if p_person_id is null or p_organization_id is null or p_responsibility_id is null then
@@ -226,6 +247,52 @@ begin
       'organizationId',p_organization_id,
       'responsibilityId',p_responsibility_id
     );
+  end if;
+
+  if p_scope_kind is not null and p_scope_kind<>'organization_unit' then
+    return jsonb_build_object(
+      'state','indeterminate',
+      'reason','requested_scope_kind_not_supported',
+      'personId',p_person_id,
+      'organizationId',p_organization_id,
+      'responsibilityId',p_responsibility_id,
+      'scopeKind',p_scope_kind,
+      'scopeId',p_scope_id
+    );
+  end if;
+
+  if p_scope_kind='organization_unit' then
+    if p_scope_id !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+      return jsonb_build_object(
+        'state','indeterminate',
+        'reason','requested_scope_unresolved',
+        'personId',p_person_id,
+        'organizationId',p_organization_id,
+        'responsibilityId',p_responsibility_id,
+        'scopeKind',p_scope_kind,
+        'scopeId',p_scope_id
+      );
+    end if;
+
+    select exists(
+      select 1
+      from atlas.organization_units su
+      where su.id=p_scope_id::uuid
+        and su.organization_id=p_organization_id
+        and su.status='active'
+    ) into v_requested_scope_resolves;
+
+    if not v_requested_scope_resolves then
+      return jsonb_build_object(
+        'state','indeterminate',
+        'reason','requested_scope_unresolved',
+        'personId',p_person_id,
+        'organizationId',p_organization_id,
+        'responsibilityId',p_responsibility_id,
+        'scopeKind',p_scope_kind,
+        'scopeId',p_scope_id
+      );
+    end if;
   end if;
 
   select count(*)::integer,
@@ -349,10 +416,42 @@ begin
     );
   end if;
 
+  select
+    count(*) filter (where x.resolution_state='established_current')::integer,
+    count(*) filter (where x.resolution_state='indeterminate')::integer
+    into v_resolved_scope_count,v_indeterminate_scope_count
+  from atlas.effective_person_organization_responsibilities_current_v1(p_person_id,p_organization_id) x
+  where x.responsibility_id=p_responsibility_id;
+
+  if v_resolved_scope_count=0 then
+    return jsonb_build_object(
+      'state','indeterminate',
+      'reason','current_responsibility_scope_unresolved',
+      'personId',p_person_id,
+      'organizationId',p_organization_id,
+      'responsibilityId',p_responsibility_id,
+      'scopeRowCount',v_scope_count,
+      'indeterminateScopeCount',v_indeterminate_scope_count
+    );
+  end if;
+
+  if p_scope_kind is null and v_indeterminate_scope_count>0 then
+    return jsonb_build_object(
+      'state','indeterminate',
+      'reason','current_responsibility_scope_partially_unresolved',
+      'personId',p_person_id,
+      'organizationId',p_organization_id,
+      'responsibilityId',p_responsibility_id,
+      'resolvedScopeCount',v_resolved_scope_count,
+      'indeterminateScopeCount',v_indeterminate_scope_count
+    );
+  end if;
+
   select jsonb_agg(to_jsonb(x) order by x.position_key,x.responsibility_key,x.scope_kind,x.scope_id,x.scope_link_id)
     into v_items
   from atlas.effective_person_organization_responsibilities_current_v1(p_person_id,p_organization_id) x
   where x.responsibility_id=p_responsibility_id
+    and x.resolution_state='established_current'
     and (p_scope_kind is null or (x.scope_kind=p_scope_kind and x.scope_id=p_scope_id));
 
   if v_items is not null then
@@ -383,7 +482,7 @@ end;
 $function$;
 
 comment on function atlas.resolve_person_organization_responsibility_current_v1(uuid,uuid,uuid,text,text) is
-  'Exact current durable-responsibility resolver. Returns established_current, established_not_current, or indeterminate. It delegates established-current evidence to effective_person_organization_responsibilities_current_v1 and does not infer responsibility from employee seat, credential, Farm Membership, visibility, authority, custody, or Company Work allocation.';
+  'Exact current durable-responsibility resolver. Returns established_current, established_not_current, or indeterminate. Unsupported, dangling, or otherwise unresolved bounded Scope evidence fails closed to indeterminate. It delegates established-current evidence to effective_person_organization_responsibilities_current_v1 and does not infer responsibility from employee seat, credential, Farm Membership, visibility, authority, custody, or Company Work allocation.';
 
 revoke all on function atlas.resolve_person_organization_responsibility_current_v1(uuid,uuid,uuid,text,text)
   from public, anon, authenticated;
@@ -442,10 +541,11 @@ insert into atlas.architecture_truth_authorities(
     'farm_memberships.role treated as Organization responsibility',
     'organization_positions.display_title treated as sufficient responsibility evidence',
     'work_allocations treated as standing institutional responsibility',
+    'unresolved or unsupported responsibility Scope rows treated as established responsibility',
     'current Position→Responsibility or Scope rows projected backward as historical truth'
   ],
   'optical-lift/noel-core-db:supabase/migrations',
-  'Current durable responsibility is derived from canonical Person identity, current Organization affiliation, current Position Appointment, the current Position responsibility definition, and bounded Responsibility Scope. Seats/credentials are access-commercial mechanics, Farm Membership is a domain execution adapter, and work_allocations carry exact Company Work responsibility. This authority is intentionally current-only until append-only position/responsibility/scope definition history exists.'
+  'Current durable responsibility is derived from canonical Person identity, current Organization affiliation, current Position Appointment, the current Position responsibility definition, and bounded Responsibility Scope. Unsupported or unresolved Scope evidence fails closed. Seats/credentials are access-commercial mechanics, Farm Membership is a domain execution adapter, and work_allocations carry exact Company Work responsibility. This authority is intentionally current-only until append-only position/responsibility/scope definition history exists.'
 )
 on conflict (authority_key)
 do update set
