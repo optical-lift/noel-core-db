@@ -127,7 +127,56 @@ means the institution has chosen an explicit inclusion rule naming X.
 
 If independent governed evidence creates a conflicting exclusion/membership state, the conflict law still applies. The inclusion rule does not erase contrary evidence merely because it was intentionally added.
 
-## 7. Cross-Ledger consequence
+## 7. Direct local addition law
+
+A Person does not need pre-approval merely to contribute a Scope-definition addition concerning reality that is both:
+
+1. independently visible to that Person; and
+2. independently carried by that Person as responsibility.
+
+When both conditions hold over the affected reality, the Person may append the local addition directly to the living definition history.
+
+This is not a general rule that `visibility + responsibility = all action authority`.
+
+It is a specific law for local contribution to the living Scope definition.
+
+The contribution remains attributable to the Person and does not become factual truth merely because it entered the institutional specification.
+
+## 8. Peer observability and broader triage
+
+The contributor's addition becomes part of the coordination reality visible under the separately governed definition-event exposure policy.
+
+People whose independently resolved visibility and responsibility are equivalent to or broader than the contributor's relevant aperture over the affected reality may receive that event in the appropriate coordination surface.
+
+A Person who is provably broader in **both** visibility and responsibility over the affected reality has broader-scope triage standing over the lower-scope addition.
+
+`same`, `broader`, and `narrower` are contextual aperture comparisons, not user ranks.
+
+The comparison law is defined in `atlas-aperture-comparative-breadth-v1.md`.
+
+## 9. Triage is another event, not history rewriting
+
+A broader participant may triage a lower-scope definition addition by appending later living-Scope events that:
+
+- reroute it to another contained Scope;
+- split it;
+- consolidate it with another addition;
+- clarify it;
+- return it for narrower local handling;
+- supersede it for current institutional specification.
+
+The original event remains preserved.
+
+Atlas must be able to reconstruct:
+
+```text
+Person A added this here.
+Person B later rerouted it there.
+```
+
+Triage does not prove that Person A was factually wrong. It changes how the institution currently specifies the operating boundary.
+
+## 10. Cross-Ledger consequence
 
 A living Scope may span multiple Ledgers.
 
@@ -142,7 +191,9 @@ Changing the Scope definition may therefore change which Ledger-held reality the
 
 Each aperture resolver must still intersect the resolved Scope with effective custody for the Ledger being queried.
 
-## 8. Child Scope behavior
+Comparative breadth is likewise evaluated per relevant Ledger-custody intersection. Breadth in one Ledger does not compensate for missing visibility or responsibility in another.
+
+## 11. Child Scope behavior
 
 Child Scope relationships are part of the living definition.
 
@@ -152,7 +203,7 @@ The parent's effective membership follows the child's historically effective def
 
 Child-Scope resolution must remain cycle-safe and fail closed on unresolved cycles or reconstruction gaps.
 
-## 9. Predicate behavior
+## 12. Predicate behavior
 
 Predicates in a Scope definition are durable institutional specification.
 
@@ -164,7 +215,7 @@ Predicate engines must not fill unknown values by assumption merely to make a Sc
 
 If a predicate's required input is unresolved, the dependent membership path must preserve that unresolved state rather than coercing it to included or excluded.
 
-## 10. Revision semantics without immutable definition versions
+## 13. Revision semantics without immutable definition versions
 
 Atlas may expose a human-readable revision counter or event sequence number for diagnostics, concurrency control, or caching, but that counter is not a separate immutable Scope-definition object.
 
@@ -184,26 +235,26 @@ current definition = fold(events 1..4)
 
 A later change appends event 5. It does not create a separate `Scope S v2` ontology.
 
-## 11. Concurrency and conflicting definition events
+## 14. Concurrency and conflicting definition events
 
 Executable design must eventually define how simultaneous or contradictory definition-change attempts are serialized and accepted.
 
-Until that law is established, Atlas must not assume "last writer wins" merely from timestamp order.
+Until that law is established, Atlas must not assume `last writer wins` merely from timestamp order.
 
 The event trail must preserve:
 
-- proposed action;
+- action/change;
 - actor/source;
 - effective time;
 - recorded time;
 - prior current-state basis or concurrency token;
 - resulting current-definition state;
 - provenance;
-- any rejection/conflict outcome.
+- any conflict/triage outcome.
 
-This document does not yet establish that mutation protocol.
+Local contribution is direct when visibility + responsibility qualify. That directness does not justify silent overwrite when two contemporaneous events conflict.
 
-## 12. Retirement
+## 15. Retirement
 
 Retiring a Scope is a change to the institution's use of that Scope, not a deletion of history.
 
@@ -215,7 +266,7 @@ A retired Scope:
 - should not silently disappear from historical aperture resolution;
 - should not accept new ordinary definition mutations unless a governed reactivation path exists.
 
-## 13. Relationship to claims and adjudication
+## 16. Relationship to claims and adjudication
 
 The full conceptual chain is:
 
@@ -237,7 +288,7 @@ visibility / responsibility / action-authority intersections
 
 The Scope definition controls the question. Claims and evidence help answer it. Adjudication governs institutional treatment when required. None of those layers should be collapsed.
 
-## 14. Explicit non-scope
+## 17. Explicit non-scope
 
 This document does **not**:
 
@@ -245,20 +296,30 @@ This document does **not**:
 - create a Scope event table;
 - define executable event types;
 - create mutation RPCs;
-- define action-authority requirements for proposing or accepting definition changes;
-- define optimistic concurrency or conflict handling;
+- create a manager approval queue;
+- create supervisor relationships;
+- create the comparative-breadth resolver;
+- define triage destination validity;
+- define optimistic concurrency or event-conflict handling;
 - create membership schema;
 - create claim migrations;
 - create visibility admissions;
 - create an aperture resolver;
 - change Worker Day or any production behavior.
 
-## 15. Next unresolved boundary
+## 18. Governing consequence
 
-The living-definition law is now settled.
+The living Scope model has three independent layers:
 
-The next architectural boundary is the **definition-change protocol**:
+```text
+institutional specification
+  living Scope definition + append-only events
 
-> When a Person or system proposes a Scope-definition change, what makes that proposed institutional action become part of the accepted event history?
+reality evaluation
+  claims + evidence + custody + adjudication
 
-That question concerns action governance and event acceptance, not factual truth. It must be settled before an executable Scope event schema or mutation API is created.
+coordination
+  direct local contribution + peer observability + broader-aperture triage
+```
+
+Those layers must not be collapsed into one generic permission, rank, or truth system.
