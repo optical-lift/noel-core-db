@@ -1,0 +1,45 @@
+name: Temporary Supabase migration identity mint
+
+on:
+  push:
+    branches:
+      - work/organization-ledger-entry-coordinate-v1-current
+    paths:
+      - .github/workflows/temporary-supabase-migration-id.yml
+
+permissions:
+  contents: read
+
+jobs:
+  mint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/install -o /tmp/supabase-install
+          bash /tmp/supabase-install --version 2.116.0 --install-dir "$HOME/.local/bin" --no-modify-path
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Verify CLI and discover migration command
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase --version
+          supabase migration --help
+          supabase migration new --help
+
+      - name: Mint migration identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/atlas-migration-mint
+          mkdir -p /tmp/atlas-migration-mint/supabase/migrations
+          cd /tmp/atlas-migration-mint
+          supabase migration new organization_ledger_entry_coordinate_v1
+          echo "MINTED_MIGRATION_FILE=$(find supabase/migrations -maxdepth 1 -type f -printf '%f\n' | sort | tail -n 1)"
