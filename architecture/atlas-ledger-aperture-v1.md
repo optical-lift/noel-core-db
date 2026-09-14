@@ -16,9 +16,11 @@ A Ledger aperture is the bounded intersection of what a person may see, what rea
 
 This architecture replaces rank-first reasoning with scope-first reasoning. Existing role labels remain compatibility evidence where current runtime contracts still depend on them, but they are not the future semantic source of human standing in Atlas.
 
-This revision makes one additional governing decision explicit:
+This revision makes two governing decisions explicit:
 
 > **There is no canonical Person-to-Ledger connection object. Participation is derived from the real governed relationships that exist between a Person and Ledger reality.**
+
+> **Visibility and responsibility are completely independent. Responsibility never creates visibility, including visibility to the responsible subject itself.**
 
 Atlas must not persist a duplicate row whose only meaning is “this Person belongs to this Ledger.” If visibility, responsibility, authority, delivery entitlement, or another governed relationship exists, those facts are stored in their proper domains. The effective aperture is then derived from them.
 
@@ -32,9 +34,9 @@ Visibility answers:
 
 > What institutional reality is this person permitted to know?
 
-Visibility can be narrower or broader than responsibility. A person may need to see neighboring or upstream reality in order to execute correctly without being responsible for changing it.
+Visibility is independent of responsibility and authority. A person may carry responsibility for reality they are not currently permitted to see. A person may also see reality they do not carry.
 
-Visibility is not inferred from an account class, title, billing seat, legacy organization role, organization membership alone, or the mere fact that another person can see this person.
+Visibility is not inferred from an account class, title, billing seat, legacy organization role, organization membership alone, responsibility, authority, or the mere fact that another person can see this person.
 
 ### 2.2 Responsibility
 
@@ -49,7 +51,7 @@ Responsibility has at least two existing forms in Atlas:
 
 A responsibility may be long-lived stewardship, temporary custody of one piece of work, or both.
 
-Responsibility does not by itself imply broad visibility or the authority to rearrange another person's responsibility.
+Responsibility does not by itself imply **any** visibility, including visibility to the responsible subject itself, and it does not imply authority to rearrange another person's responsibility.
 
 ### 2.3 Authority
 
@@ -65,13 +67,13 @@ Authority may include, depending on explicit scope:
 - establishing new institutional facts;
 - changing the scope through which another person participates.
 
-Authority is explicit. It must not be inferred from legacy labels such as `owner`, `manager`, `farm_manager`, `employee`, a display title, organization membership, or possession of a paid seat.
+Authority is explicit. It must not be inferred from legacy labels such as `owner`, `manager`, `farm_manager`, `employee`, a display title, organization membership, responsibility, visibility, or possession of a paid seat.
 
 ### 2.4 Delivery capability is separate
 
 Delivery answers:
 
-> Through which Atlas surfaces or credentials may this person receive the portion of Ledger reality already admitted by their effective aperture?
+> Through which Atlas surfaces or credentials may this person receive the portion of Ledger reality already admitted by their visibility and other surface-specific rules?
 
 Delivery is not a fourth kind of institutional standing. It is product/access plumbing layered over the semantic aperture.
 
@@ -83,12 +85,13 @@ Atlas does not require human rank classes in order to expose organizational scaf
 
 If Person A's legitimate visibility and authority scope includes institutional reality that contains Person B's narrower responsibility scope, Atlas may show Person B and the relevant work/responsibility structure to Person A.
 
-That is not because A belongs to a superior account class. It is because the governed scopes overlap in a way that makes B's responsibility part of the reality A is entitled to inspect or alter.
+That is not because A belongs to a superior account class. It is because the governed scopes overlap in a way that makes B's responsibility part of the reality A is independently entitled to inspect or alter.
 
 Likewise:
 
 - two people with parallel scopes need not appear above or below one another;
 - a person may hold broad visibility but narrow mutation authority;
+- a person may hold substantial responsibility with zero visibility to that responsibility through a given context;
 - a person may hold substantial responsibility without authority to redistribute another person's responsibility;
 - a person's Atlas projection may change when their aperture changes without changing the kind of user they are.
 
@@ -123,11 +126,11 @@ A governs reality within Ledger L
 ```
 
 ```text
-Person P has an explicit visibility admission for information required by Work W
-W belongs to Ledger L
+Person P has an explicit visibility admission for information Y
+Y belongs to Ledger L
 ```
 
-From those facts Atlas may truthfully conclude that P currently has an aperture into L.
+From those facts Atlas may truthfully conclude that P currently has one or more aperture dimensions into L.
 
 If all such facts end, Atlas does not need to revoke a separate Ledger-membership row. The next aperture derivation simply yields nothing.
 
@@ -137,17 +140,19 @@ This avoids duplicated relationship truth and synchronization problems.
 
 A narrow execution-focused surface and a broad institutional surface are projections of the same Ledger.
 
-A person carrying a narrow slice of Elm may see only:
+A person carrying a narrow slice of Elm may see only the independently admitted subset of that reality. If visibility admits none of the carried reality, the Person-facing execution surface may show none of it even though responsibility still exists canonically.
 
-- the work currently entrusted to them;
-- the information required to execute it correctly;
+Where visibility is independently admitted, a narrow execution-focused surface may expose:
+
+- the visible work currently entrusted to the person;
+- separately admitted information required to execute it correctly;
 - actions they are authorized to take;
 - ways to return results, observations, exceptions, and completion evidence.
 
 A person with a broader Elm aperture may see:
 
-- the same work in institutional context;
-- the people currently carrying pieces beneath that scope;
+- work in institutional context;
+- the people currently carrying pieces beneath that visible scope;
 - unassigned or unresolved responsibility;
 - timing and consequence relationships;
 - returned results and exceptions;
@@ -163,6 +168,7 @@ Person
   -> responsibility
   -> authority
   + independent delivery capability
+  -> surface-specific intersection
   -> Atlas projection
 ```
 
@@ -192,6 +198,8 @@ Important existing behavior to preserve:
 
 This is a strong substrate for temporary custody of work.
 
+It is **not visibility evidence**.
+
 The existing owner-gated public responsibility RPC is compatibility authority and is **not** the governing future answer for who may move responsibility.
 
 ### 6.3 Positions, responsibilities, and responsibility scopes carry standing responsibility
@@ -208,7 +216,7 @@ This substrate may describe durable stewardship without making the position titl
 
 The useful semantic rule is:
 
-> A position says where a person is situated and what standing responsibilities are attached there. It does not automatically establish all visibility or mutation authority over that scope.
+> A position says where a person is situated and what standing responsibilities are attached there. It does not automatically establish visibility or mutation authority over that scope.
 
 ### 6.4 Exposure grants are a visibility compatibility substrate
 
@@ -238,7 +246,7 @@ Root authority is ontologically different from ordinary operational participatio
 
 A person with a narrow aperture does not need to become a root Principal over the Ledger.
 
-Root authority is strong evidence for the **authority** dimension. It must not silently become an unlimited generic visibility grant unless the read contract being evaluated explicitly defines that consequence.
+Root authority is strong evidence for the **authority** dimension. It is not generic visibility evidence unless a separate read contract explicitly grants visibility on that basis.
 
 ### 6.7 Ledger graph and institutional custody establish where reality belongs
 
@@ -279,16 +287,19 @@ Current admissible sources include only explicit governed visibility contracts a
 - semantic exposure policy plus an active compatible member exposure grant where that compatibility membrane is still authoritative;
 - conversation/endpoint visibility grants for correspondence under their own contracts;
 - other domain read contracts that explicitly establish visibility over a scoped subject;
-- future necessary-context derivations only when an explicit semantic policy says a responsibility requires that information to execute.
+- future generic visibility grants or policies only when they independently mean that the Person may know the specified reality.
+
+Responsibility may be referenced by a visibility policy as a matching condition, but responsibility is never itself the source of visibility.
 
 Visibility must **not** be inferred merely because:
 
+- the person is responsible for the exact subject;
 - the person is responsible for neighboring reality;
 - the person holds a position;
 - the person appears in the same organization;
 - the person pays for or receives an Atlas seat;
 - another person with broader scope can see them;
-- the person holds mutation authority, unless the specific authority contract explicitly includes read visibility;
+- the person holds mutation authority, unless a separate explicit read contract grants visibility;
 - a legacy route historically called the person an owner or manager.
 
 ### 7.3 Admissible authority evidence
@@ -366,7 +377,8 @@ Conceptually:
 7. gather admissible authority evidence relevant to the requested actions/scopes
 8. gather delivery capability separately
 9. fail closed anywhere scope/custody mapping is ambiguous
-10. return the composed aperture projection; persist nothing
+10. preserve divergence between dimensions
+11. return the composed aperture projection; persist nothing
 ```
 
 A future returned shape may resemble:
@@ -401,30 +413,37 @@ That example is architectural shape only. It is not an API schema established by
 
 The resolver must preserve evidence provenance so a caller can distinguish:
 
-- explicit authority from derived visibility;
+- visibility from responsibility;
+- explicit authority from visibility;
 - standing responsibility from one work allocation;
 - root authority from narrow operational authority;
 - semantic aperture from product delivery capability.
 
-## 10. Necessary context is policy-derived, not guessed
+The resolver must not discard responsibility merely because the same Person lacks visibility to it.
 
-A narrow responsibility often requires context beyond the exact subject being carried. For example, a person may need method, location, readiness, materials, neighboring state, or consequence information to execute Company Work correctly.
+## 10. Necessary context is independently admitted, not derived from responsibility
 
-Atlas must not solve that by saying:
+A narrow responsibility may be impossible to execute without context beyond the exact subject being carried. For example, a person may need method, location, readiness, materials, neighboring state, or consequence information to execute Company Work correctly.
 
-> responsibility implies visibility to everything nearby.
+Atlas must **not** solve that by treating operational necessity as visibility authority.
 
-Instead:
+The governing model is:
 
 ```text
-responsibility
-  + explicit semantic exposure policy
-  -> necessary execution context
+responsibility for X
+
+separately:
+explicit visibility grant/policy admits Y
+
+only then:
+Y may be exposed to the Person
 ```
 
-The current Worker Day semantic exposure membrane is an early compatibility example of this principle.
+A visibility policy may use responsibility as one condition for determining whether the policy applies, but the independently governed visibility contract is the admission source.
 
-Future aperture resolution should preserve the same discipline generically: context expands only through explicit admissible semantic rules.
+If responsibility exists and visibility does not, Atlas preserves that state. It does not fabricate context, auto-create a grant, release the responsibility, or reinterpret delivery capability as permission to know.
+
+The current Worker Day semantic exposure membrane is a compatibility example of explicit policy/grant admission, not evidence that responsibility itself creates visibility.
 
 ## 11. Scope containment is not one universal tree
 
@@ -471,12 +490,12 @@ Current organization-paid employee seats were intentionally built as licensed pr
 
 That distinction is retained and generalized conceptually:
 
-> A paid connection may determine whether a person receives a particular Atlas delivery surface. It does not make that person a lesser kind of Atlas user, establish their institutional responsibility, or define their authority rank.
+> A paid connection may determine whether a person receives a particular Atlas delivery surface. It does not make that person a lesser kind of Atlas user, establish their institutional responsibility, define their visibility, or define their authority rank.
 
 Terms such as “employee seat” may remain commercial or compatibility vocabulary while the product is migrated, but business logic must not reason from that label to conclusions such as:
 
 - this person is subordinate;
-- this person may see only worker data;
+- this person may see worker data;
 - another person is automatically entitled to inspect or alter this person's work;
 - this person cannot hold broader responsibility elsewhere;
 - this credential is a separate class of Atlas identity.
@@ -495,8 +514,9 @@ It is:
 
 ```text
 Ledger reality
-  -> responsibility is situated within a person's legitimate aperture
-  -> that person carries the entrusted portion
+  -> responsibility is situated with a Person according to governed responsibility authority
+  -> visibility is independently established or absent
+  -> if visibility and delivery rules admit it, the Person may receive an execution projection
   -> action / observation / result is returned to the Ledger
   -> the same institutional reality continues
   -> responsibility may remain, end, or move according to governed authority
@@ -508,13 +528,15 @@ The institution or Ledger does not cease to own its reality while a person carri
 
 ## 15. Work Brief as projection, not data model
 
-A person's current Work Brief is the composed projection of Company Work that intersects their present responsibility and delivery context.
+A person's current Work Brief is the composed **visible and deliverable intersection** of Company Work for which that Person carries relevant responsibility and which the surface is allowed to expose.
 
 A Work Brief does not own tasks and does not create copies of Company Work.
 
-Dates, order, timing, guidance, and execution affordances describe how currently entrusted work is exposed. They are not the canonical work identity.
+Responsibility that is not independently visible to the Person remains canonical responsibility but is absent from that Person's Work Brief.
 
-The future broader Ledger surface should therefore be able to expose the scaffolding of current responsibility without treating a calendar or employee schedule as the source of truth.
+Dates, order, timing, guidance, and execution affordances describe how currently entrusted and visible work is exposed. They are not the canonical work identity.
+
+The future broader Ledger surface should therefore be able to expose responsibility scaffolding according to the current viewer's visibility without treating a calendar or employee schedule as the source of truth.
 
 ## 16. Compatibility vocabulary
 
@@ -553,8 +575,9 @@ For each old gate such as `is_organization_owner`, `farm_manager`, or employee-s
 2. identify the Ledger reality affected;
 3. identify the scope of the requested action;
 4. identify which existing canonical fact, if any, explicitly establishes the person's authority for that scope;
-5. preserve fail-closed behavior if no canonical authority exists;
-6. retire the legacy role gate only after equivalent governed authority is proven.
+5. identify which independent visibility contract, if any, admits the relevant reality to the Person;
+6. preserve fail-closed behavior if either required semantic dimension is absent;
+7. retire the legacy role gate only after equivalent governed semantics are proven.
 
 Do not replace old role checks with broad “organization member” checks. Equality of user kind does not mean equality of aperture.
 
@@ -564,13 +587,13 @@ Do not create a generic Person↔Ledger row as a shortcut around an unresolved a
 
 The next responsibility-management surface should not be modeled as an owner/manager screen for managing employees.
 
-It should be a Ledger projection that exposes the responsibility scaffolding visible to the current person.
+It should be a Ledger projection that exposes only the responsibility scaffolding independently visible to the current person.
 
 Within that projection, a person may be able to:
 
 - inspect people and work beneath/intersecting their visible scope;
-- see where responsibility is unresolved;
-- inspect current Company Work allocations and plans;
+- see where responsibility is unresolved when that fact itself is visible;
+- inspect current Company Work allocations and plans when admitted;
 - alter only the facts for which their effective authority admits the mutation.
 
 A narrower person looking at the same Ledger receives a narrower projection automatically.
@@ -598,16 +621,18 @@ This architecture document does **not**:
 
 ## 20. Questions that remain before executable aperture work
 
-The Person-to-Ledger relationship question is now settled: **there is no first-class connection object; effective aperture is derived.**
+The Person-to-Ledger relationship question is settled: **there is no first-class connection object; effective aperture is derived.**
+
+The responsibility/visibility question is also settled: **responsibility never creates visibility.**
 
 The next executable tranche must stop for explicit design if existing canon does not answer these remaining questions:
 
-1. Which existing visibility contracts can be normalized into a Ledger-addressed read projection without broadening exposure?
-2. How should standing responsibility contribute to visibility when execution requires context that current employee-seat-specific policies do not cover?
-3. What exact governed mappings establish scope containment/custody across Ledger, organization unit, domain object, Company Work, conversation, project, and other typed subjects?
-4. Which explicit authority permits one person to move current Company Work responsibility to another person after legacy role gates are removed?
-5. Which authority permits one person to change another person's planned date/order without conflating planning authority with responsibility authority?
-6. Which existing role-gated contracts can be translated directly to current explicit authority evidence, and which require a new scoped authority seam?
-7. How should a commercial delivery entitlement identify the relevant Person and surface without becoming institutional aperture evidence?
+1. What is the canonical generic visibility truth for Person + scoped Ledger reality, given that current exposure grants are employee-seat/organization-member compatibility structures and current Worker Day visibility still derives from assignment/placement?
+2. What exact governed mappings establish scope containment/custody across Ledger, organization unit, domain object, Company Work, conversation, project, and other typed subjects?
+3. Which explicit authority permits one person to move current Company Work responsibility to another person after legacy role gates are removed?
+4. Which authority permits one person to change another person's planned date/order without conflating planning authority with responsibility authority?
+5. Which existing role-gated contracts can be translated directly to current explicit authority evidence, and which require a new scoped authority seam?
+6. How should a commercial delivery entitlement identify the relevant Person and surface without becoming institutional aperture evidence?
+7. Should responsibility-without-visibility produce any diagnostic or adjudication requirement for another visible/authorized Person, or remain a silent legitimate state unless another rule notices it?
 
 Until those questions are situated, Atlas should continue using the existing canonical work/responsibility objects and fail closed rather than inventing a second delegation model.
