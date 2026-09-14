@@ -23,7 +23,9 @@ A receiver may accept responsibility either:
 1. **item-by-item**, after a particular offer arrives; or
 2. **in advance**, through a standing responsibility-intake agreement that precisely defines what future offers the receiver has already agreed to take on.
 
-A standing agreement is therefore not a sender-side assignment privilege. It is durable evidence of the receiver's prior consent. Another party may propose the terms, but the agreement is effective as standing acceptance only because the receiver assented to those bounded terms.
+A standing agreement is therefore not a sender-side assignment privilege. It is durable evidence of the receiver's prior consent.
+
+The agreement may be proposed or authored by another party. What matters is that the receiver has assented to its bounded terms.
 
 Conceptually:
 
@@ -75,7 +77,7 @@ A seat, membership, appointment, title, or position may support the evidence/bas
 
 A future executable agreement must be able to identify at least:
 
-- **receiver Person** — the Person who is making the advance acceptance;
+- **receiver Person** — the Person whose assent creates the advance acceptance;
 - **accepted source** — the Person, Organization, Ledger, governed relationship, or other source class from which qualifying offers may originate;
 - **governed target boundary** — exact subject, Governed Scope, semantic category, predicate envelope, or another sufficiently bounded description of the responsibility reality that may be admitted;
 - **admitted responsibility effect(s)** — for example carrier transfer, delegated child responsibility, shared participation, or new requested responsibility;
