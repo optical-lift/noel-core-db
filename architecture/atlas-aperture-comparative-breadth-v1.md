@@ -14,7 +14,7 @@ The comparison is contextual and partial. It is not a global rank and it is not 
 
 The governing rule is:
 
-> Person B is broader than Person A for one affected Scope-definition addition only when B's independently resolved visibility contains A's relevant visibility over the affected reality **and** B's independently resolved responsibility contains A's relevant responsibility over the affected reality, with both dimensions strictly broader for triage standing.
+> Person B is broader than Person A for one affected Scope-definition addition only when B's independently resolved visibility contains A's relevant visibility over the affected reality **and** B's independently resolved responsibility contains A's relevant responsibility over the affected reality, with both dimensions strictly broader for guaranteed triage standing.
 
 If containment cannot be proved, Atlas does not infer hierarchy.
 
@@ -137,7 +137,7 @@ Overlap does not establish triage standing.
 
 ### crossed
 
-One Person is broader in visibility while the other is broader in responsibility, or one dimension is equal while the other points the opposite way.
+One Person is broader in visibility while the other is broader in responsibility, or one dimension is equal while the other is strictly broader.
 
 Examples:
 
