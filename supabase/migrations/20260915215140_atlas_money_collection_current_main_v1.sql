@@ -972,9 +972,9 @@ begin
 
   if v_allocation_id is not null then
     if v_commercial_payment_id is not null then
-      select coalesce(abs(sum(e.amount_delta)) filter (
+      select coalesce(abs(sum(e.amount_delta) filter (
         where e.amount_delta<0 and e.event_kind in ('refund','chargeback','adjustment')
-      ),0)::numeric(14,2)
+      )),0)::numeric(14,2)
       into v_refund_amount
       from atlas.commercial_payment_events e
       where e.commercial_payment_id=v_commercial_payment_id;
