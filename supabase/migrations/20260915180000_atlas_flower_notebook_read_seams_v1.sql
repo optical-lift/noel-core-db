@@ -146,7 +146,6 @@ $function$;
 
 revoke all on function atlas.flower_harvest_notebook_self_api_v1(uuid,date,date,integer)
   from public,anon,authenticated,service_role;
-
 grant execute on function atlas.flower_harvest_notebook_self_api_v1(uuid,date,date,integer)
   to service_role;
 
@@ -287,8 +286,9 @@ grant execute on function public.flower_ready_inventory_notebook_self_api_v1(uui
   to authenticated,service_role;
 
 -- Product-owned durable spreads are admitted through the same notebook registry as
--- the existing Household/Organization spreads. They bind only to governed read
--- membranes; the spread rows and bindings do not copy flower facts.
+-- the existing Household/Organization spreads. Admission must match the same farm
+-- authority required by the source read membranes; an Organization role alone is
+-- not treated as substitute farm authority.
 do $body$
 declare
   r record;
@@ -349,6 +349,11 @@ begin
     join atlas.farms f
       on f.organization_id=m.organization_id
      and f.status='active'
+    join atlas.farm_memberships fm
+      on fm.user_id=p.user_id
+     and fm.farm_id=f.id
+     and fm.active=true
+     and fm.role in ('owner','manager')
     where p.status='active'
   loop
     v_spread_id := atlas.set_notebook_spread_instance_v2(
