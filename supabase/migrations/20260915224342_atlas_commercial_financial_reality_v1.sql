@@ -902,7 +902,7 @@ with source_farms as (
     coalesce(oe.ended_or_refunded,false) as ended_or_refunded,
     oe.ended_or_refunded_at,
     (
-      o.metadata->>'financialRealityCoverage' = 'governed_from_order_birth'
+      coalesce(o.metadata->>'financialRealityCoverage','') = 'governed_from_order_birth'
       or coalesce(pe.payment_count,0) > 0
     ) as financial_coverage
   from atlas.commercial_orders o
