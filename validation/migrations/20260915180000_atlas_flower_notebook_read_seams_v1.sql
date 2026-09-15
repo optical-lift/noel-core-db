@@ -13,6 +13,7 @@ declare
   v_farm uuid:=gen_random_uuid();
   v_other_farm uuid:=gen_random_uuid();
   v_membership uuid;
+  v_farm_membership uuid;
   v_principal uuid:=gen_random_uuid();
   v_key text:='flower-notebook-fixture-'||gen_random_uuid()::text;
   v_payload jsonb;
@@ -35,8 +36,8 @@ begin
     raise exception 'Authenticated browser callers received direct atlas-schema execution authority.';
   end if;
 
-  -- Every currently eligible Principal/farm pair must have the product-owned durable
-  -- Harvest and Ready pages and the exact governed source bindings installed by the migration.
+  -- Admission and read authority must be the same boundary: an active owner Principal
+  -- with active Organization ownership plus active owner/manager farm membership.
   if exists (
     select 1
     from atlas.principals p
@@ -44,6 +45,8 @@ begin
       on m.user_id=p.user_id and m.active=true and m.role='owner'
     join atlas.farms f
       on f.organization_id=m.organization_id and f.status='active'
+    join atlas.farm_memberships fm
+      on fm.user_id=p.user_id and fm.farm_id=f.id and fm.active=true and fm.role in ('owner','manager')
     where p.status='active'
       and not exists (
         select 1 from atlas.notebook_spread_instances s
@@ -66,6 +69,8 @@ begin
       on m.user_id=p.user_id and m.active=true and m.role='owner'
     join atlas.farms f
       on f.organization_id=m.organization_id and f.status='active'
+    join atlas.farm_memberships fm
+      on fm.user_id=p.user_id and fm.farm_id=f.id and fm.active=true and fm.role in ('owner','manager')
     where p.status='active'
       and not exists (
         select 1
@@ -90,6 +95,8 @@ begin
       on m.user_id=p.user_id and m.active=true and m.role='owner'
     join atlas.farms f
       on f.organization_id=m.organization_id and f.status='active'
+    join atlas.farm_memberships fm
+      on fm.user_id=p.user_id and fm.farm_id=f.id and fm.active=true and fm.role in ('owner','manager')
     where p.status='active'
       and not exists (
         select 1
@@ -127,6 +134,10 @@ begin
     (v_farm,v_org,v_key||'-farm','Flower Notebook Farm','active','{}'::jsonb),
     (v_other_farm,v_other_org,v_key||'-other-farm','Other Flower Notebook Farm','active','{}'::jsonb);
 
+  insert into atlas.farm_memberships(user_id,farm_id,role,active,permissions)
+  values(v_user,v_farm,'owner',true,'{}'::jsonb)
+  returning id into v_farm_membership;
+
   insert into atlas.principals(id,user_id,organization_id,stable_key,name,status,metadata)
   values(v_principal,v_user,v_org,v_key||'-principal','Flower Notebook Principal','active','{}'::jsonb);
 
@@ -136,6 +147,7 @@ begin
   if v_payload->>'contractVersion'<>'flower_harvest_notebook_self_api_v1'
      or v_payload#>>'{farm,id}'<>v_farm::text
      or v_payload#>>'{audience,role}'<>'owner'
+     or v_payload#>>'{audience,membershipId}'<>v_farm_membership::text
      or jsonb_typeof(v_payload->'items')<>'array'
      or jsonb_array_length(v_payload->'items')<>0 then
     raise exception 'Harvest notebook read membrane did not preserve an empty authorized fixture correctly: %',v_payload;
@@ -145,6 +157,7 @@ begin
   if v_payload->>'contractVersion'<>'flower_ready_inventory_notebook_self_api_v1'
      or v_payload#>>'{farm,id}'<>v_farm::text
      or v_payload#>>'{audience,role}'<>'owner'
+     or v_payload#>>'{audience,membershipId}'<>v_farm_membership::text
      or jsonb_typeof(v_payload->'items')<>'array'
      or jsonb_array_length(v_payload->'items')<>0 then
     raise exception 'Ready notebook read membrane did not preserve an empty authorized fixture correctly: %',v_payload;
