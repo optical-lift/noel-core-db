@@ -183,7 +183,7 @@ values
   '95224342-0000-4000-8000-000000000031'::uuid,
   null,'TEST — Fixture Buyer','wholesale',null,'2026-09-15',
   'immediate_handoff',null,null,null,
-  12.34,0,0,12.34,'USD',null,'Archived test-scope sale; never canonical money.',
+  12.34,0,0,12.34,'USD',null,'Archived test-scope sale that never becomes canonical money.',
   'commercial-financial-fixture-test-sale','95224342-0000-4000-8000-000000000041'::uuid,
   '95224342-0000-4000-8000-000000000001'::uuid,
   '{"validation_fixture":true}'::jsonb
