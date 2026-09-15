@@ -48,8 +48,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- supabase/migrations; then
-            exit 0
+          if [[ -z "$(git status --porcelain -- supabase/migrations)" ]]; then
+            echo 'No migration file was created.'
+            exit 1
           fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
