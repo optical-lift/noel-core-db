@@ -6,10 +6,9 @@
 insert into auth.users(id)
 values ('95224342-0000-4000-8000-000000000001'::uuid);
 
-insert into atlas.people(id,stable_key,display_name,status,metadata)
+insert into atlas.people(id,display_name,status,metadata)
 values (
   '95224342-0000-4000-8000-000000000002'::uuid,
-  'commercial_financial_fixture_person',
   'Commercial Financial Fixture Owner',
   'active',
   '{"validation_fixture":true}'::jsonb
