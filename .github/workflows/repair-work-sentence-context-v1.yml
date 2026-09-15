@@ -31,10 +31,9 @@ jobs:
           NEW_V="validation/migrations/${NEW_TS}_atlas_work_sentence_context_v1.sql"
           WF='.github/workflows/repair-work-sentence-context-v1.yml'
 
-          test "$(git rev-parse HEAD^)" = "$BASE" || {
-            echo 'unexpected branch base'
-            exit 1
-          }
+          # The branch may contain more than one setup commit, but its only net
+          # difference from the pinned base must still be this temporary workflow.
+          test "$(git diff --name-only "$BASE"...HEAD | sort)" = "$WF"
 
           test -f "$OLD_M"
           test -f "$OLD_V"
@@ -77,7 +76,6 @@ jobs:
           # Prove that removing only the wrapper reproduces the exact old migration blob.
           python3 - "$NEW_M" /tmp/old_migration.sql "$OLD_M_HASH" <<'PY'
           from pathlib import Path
-          import hashlib
           import subprocess
           import sys
 
@@ -93,7 +91,9 @@ jobs:
           git rm "$WF"
           git add -A -- supabase/migrations validation/migrations .github/workflows
 
-          CHANGED="$(git diff --cached --name-only | sort)"
+          # Disable rename detection so a byte-identical validation move is
+          # counted as the intended old-path deletion plus new-path addition.
+          CHANGED="$(git diff --cached --no-renames --name-only | sort)"
           EXPECTED="$(printf '%s\n' "$WF" "$OLD_M" "$NEW_M" "$OLD_V" "$NEW_V" | sort)"
           test "$CHANGED" = "$EXPECTED"
 
