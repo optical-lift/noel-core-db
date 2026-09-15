@@ -36,8 +36,52 @@ begin
     raise exception 'Authenticated browser callers received direct atlas-schema execution authority.';
   end if;
 
-  -- Admission and read authority must be the same boundary: an active owner Principal
-  -- with active Organization ownership plus active owner/manager farm membership.
+  -- The pre-migration fixture proves admission itself: both credentials own the
+  -- Organization, but only the first has farm-level authority. Only that Principal
+  -- may receive the product-owned Flower Operations spreads.
+  if not exists (
+    select 1 from atlas.notebook_spread_instances s
+    where s.principal_id='94180000-0000-4000-8000-000000000101'::uuid
+      and s.spread_key='flower-harvest:94180000-0000-4000-8000-000000000020'
+      and s.subject_domain='flower'
+      and s.subject_kind='harvest'
+      and s.subject_id='94180000-0000-4000-8000-000000000020'
+      and s.section_key='Flower Operations'
+      and s.spread_state='open'
+  ) then
+    raise exception 'Eligible pre-migration fixture Principal did not receive the Harvest spread.';
+  end if;
+
+  if not exists (
+    select 1
+    from atlas.notebook_spread_instances s
+    join atlas.notebook_spread_source_bindings b on b.spread_instance_id=s.id
+    where s.principal_id='94180000-0000-4000-8000-000000000101'::uuid
+      and s.spread_key='flower-ready:94180000-0000-4000-8000-000000000020'
+      and s.subject_domain='flower'
+      and s.subject_kind='ready_inventory'
+      and s.subject_id='94180000-0000-4000-8000-000000000020'
+      and s.section_key='Flower Operations'
+      and b.source_domain='flower'
+      and b.source_kind='ready_inventory_position_v1'
+      and b.source_id='94180000-0000-4000-8000-000000000020'
+      and b.relationship_kind='state'
+      and b.binding_state='active'
+  ) then
+    raise exception 'Eligible pre-migration fixture Principal did not receive the Ready spread/binding.';
+  end if;
+
+  if exists (
+    select 1 from atlas.notebook_spread_instances s
+    where s.principal_id='94180000-0000-4000-8000-000000000102'::uuid
+      and s.subject_domain='flower'
+      and s.subject_id='94180000-0000-4000-8000-000000000020'
+  ) then
+    raise exception 'Organization ownership without farm authority incorrectly admitted a Flower Operations spread.';
+  end if;
+
+  -- Every currently eligible production-clone Principal/farm pair must likewise have
+  -- the product-owned durable pages and exact governed bindings installed by the migration.
   if exists (
     select 1
     from atlas.principals p
@@ -118,6 +162,8 @@ begin
     raise exception 'At least one eligible Principal/farm pair is missing its Ready spread/binding.';
   end if;
 
+  -- Post-migration DML fixtures exercise the browser APIs themselves independently
+  -- of the migration-time admission fixture above.
   insert into auth.users(id) values(v_user),(v_other_user);
 
   insert into atlas.organizations(id,stable_key,name,status,metadata,onboarding_state)
