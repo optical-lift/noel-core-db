@@ -1,3 +1,5 @@
+begin;
+
 -- Atlas Work Sentence Context v1
 -- The rendered sentence is a projection. Typed relations and the semantic frame remain authoritative.
 
@@ -710,3 +712,4 @@ comment on table atlas.work_item_semantic_frames is
   'Work-owned semantic authoring frame for Domain/System phrases and the requested CURRENT -> Function/Action -> AFTER transition. Phrases do not replace domain-owned canonical state, result, capability, or evidence.';
 comment on function atlas.create_communication_derived_work_self_api_v2(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text) is
   'Creates correspondence-derived Company Work with semantic transition frame, handling mode, typed Context/Target links, and explicit related-work relations while preserving v1 evidence authority.';
+commit;
