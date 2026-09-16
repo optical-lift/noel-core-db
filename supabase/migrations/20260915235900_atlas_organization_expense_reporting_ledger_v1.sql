@@ -979,7 +979,7 @@ begin
   if v_event.id is not null then
     if v_event.period_id is distinct from v_period.id
        or v_event.after_state->>'spendAllocationId' is distinct from p_spend_allocation_id::text
-       or v_event.after_state->>'categoryId' is distinct from case when p_category_id is null then null else p_category_id::text end
+       or v_event.after_state->>'categoryId' is distinct from (case when p_category_id is null then null else p_category_id::text end)
        or v_event.after_state->>'inclusionState' is distinct from p_inclusion_state
        or v_event.after_state->>'classificationState' is distinct from p_classification_state
        or (v_event.after_state->>'classificationConfidence')::numeric is distinct from p_classification_confidence
