@@ -2,15 +2,19 @@ begin;
 
 -- Operating Knowledge execution proof / Flower Preparation v2.
 --
--- Governing rule:
---   explicit Owner bundle size wins;
---   an omitted bundle size may be supplied only by one singular established
---   Company Operating Knowledge resolution;
---   the winning knowledge identity/effect/context is preserved on the immutable
---   directive line as provenance.
+-- Governing boundary:
+--   * record_flower_preparation_directive_v1 remains the sole authority that
+--     issues the immutable Owner directive, completes Owner review, and releases
+--     the waiting Flower Preparation continuation.
+--   * v2 may supply a missing bundle size only from one deterministic established
+--     Company Operating Knowledge resolution.
+--   * explicit Owner stemsPerUnit always wins and never invokes the resolver.
+--   * crop identity comes from canonical crop_profile_id / crop_profiles, never
+--     from the free-form directive product label when a default is needed.
+--   * provenance is immutable and separate from the immutable v1 directive rows.
 --
--- v1 remains unchanged and callable. This is a new command so existing callers
--- keep their exact semantics until the application intentionally adopts v2.
+-- This migration is schema/authority only. It creates no Flower, crop, farm,
+-- Organization, or Operating Knowledge business/configuration rows.
 
 do $preflight$
 begin
@@ -20,12 +24,105 @@ begin
   if to_regprocedure('atlas.resolve_company_operating_knowledge_v1(uuid,text,jsonb,timestamp with time zone)') is null then
     raise exception 'Company Operating Knowledge resolver authority is missing.';
   end if;
+  if to_regprocedure('atlas.is_organization_member(uuid)') is null then
+    raise exception 'Organization membership authority is missing.';
+  end if;
   if to_regclass('atlas.flower_preparation_directives') is null
-     or to_regclass('atlas.flower_preparation_directive_lines') is null then
-    raise exception 'Flower Preparation directive custody is missing.';
+     or to_regclass('atlas.flower_preparation_directive_lines') is null
+     or to_regclass('atlas.crop_profiles') is null then
+    raise exception 'Flower Preparation directive/crop custody is missing.';
   end if;
 end
 $preflight$;
+
+create table atlas.flower_preparation_directive_line_knowledge_provenance (
+  id uuid primary key default gen_random_uuid(),
+  farm_id uuid not null references atlas.farms(id) on delete restrict,
+  directive_id uuid not null,
+  directive_line_id uuid not null references atlas.flower_preparation_directive_lines(id) on delete restrict,
+  line_number integer not null,
+  source_kind text not null,
+  organization_id uuid not null references atlas.organizations(id) on delete restrict,
+  organization_unit_id uuid not null references atlas.organization_units(id) on delete restrict,
+  crop_profile_id uuid references atlas.crop_profiles(id) on delete restrict,
+  product_key text,
+  knowledge_rule_ids uuid[] not null default '{}'::uuid[],
+  resolution_context jsonb not null default '{}'::jsonb,
+  resolved_effect jsonb,
+  applied_stems_per_unit integer,
+  request_fingerprint text not null,
+  created_at timestamptz not null default now(),
+  constraint flower_prep_knowledge_provenance_directive_farm_fkey
+    foreign key (directive_id, farm_id)
+    references atlas.flower_preparation_directives(id, farm_id)
+    on delete restrict,
+  constraint flower_prep_knowledge_provenance_line_uq unique (directive_line_id),
+  constraint flower_prep_knowledge_provenance_number_uq unique (directive_id, line_number),
+  constraint flower_prep_knowledge_provenance_line_number_check check (line_number between 1 and 12),
+  constraint flower_prep_knowledge_provenance_source_check
+    check (source_kind in ('owner_explicit', 'operating_knowledge', 'not_applicable')),
+  constraint flower_prep_knowledge_provenance_product_key_check
+    check (product_key is null or product_key ~ '^[a-z0-9][a-z0-9_]*$'),
+  constraint flower_prep_knowledge_provenance_context_check
+    check (jsonb_typeof(resolution_context) = 'object'),
+  constraint flower_prep_knowledge_provenance_effect_check
+    check (resolved_effect is null or jsonb_typeof(resolved_effect) = 'object'),
+  constraint flower_prep_knowledge_provenance_fingerprint_check
+    check (request_fingerprint ~ '^[0-9a-f]{32}$'),
+  constraint flower_prep_knowledge_provenance_stems_check
+    check (applied_stems_per_unit is null or applied_stems_per_unit between 1 and 1000),
+  constraint flower_prep_knowledge_provenance_semantics_check
+    check (
+      (source_kind = 'owner_explicit'
+        and cardinality(knowledge_rule_ids) = 0
+        and resolved_effect is null
+        and applied_stems_per_unit is not null)
+      or
+      (source_kind = 'operating_knowledge'
+        and crop_profile_id is not null
+        and product_key is not null
+        and cardinality(knowledge_rule_ids) > 0
+        and resolved_effect is not null
+        and applied_stems_per_unit is not null)
+      or
+      (source_kind = 'not_applicable'
+        and cardinality(knowledge_rule_ids) = 0
+        and resolved_effect is null
+        and applied_stems_per_unit is null)
+    )
+);
+
+comment on table atlas.flower_preparation_directive_line_knowledge_provenance is
+  'Immutable provenance beside Flower Preparation directive lines. Distinguishes explicit Owner bundle size from an established Operating Knowledge default without changing v1 directive truth.';
+
+create or replace function atlas.prevent_flower_preparation_directive_line_knowledge_provenance_mutation_v1()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog', 'atlas'
+as $function$
+begin
+  raise exception 'Flower preparation knowledge provenance is immutable; issue a later governed directive instead.'
+    using errcode = '55000';
+end;
+$function$;
+
+revoke all on function atlas.prevent_flower_preparation_directive_line_knowledge_provenance_mutation_v1()
+  from public, anon, authenticated, service_role;
+
+create trigger flower_prep_knowledge_provenance_immutable_v1
+before update or delete on atlas.flower_preparation_directive_line_knowledge_provenance
+for each row execute function atlas.prevent_flower_preparation_directive_line_knowledge_provenance_mutation_v1();
+
+alter table atlas.flower_preparation_directive_line_knowledge_provenance enable row level security;
+grant select on atlas.flower_preparation_directive_line_knowledge_provenance to authenticated;
+grant all on atlas.flower_preparation_directive_line_knowledge_provenance to service_role;
+
+create policy flower_prep_knowledge_provenance_member_read_v1
+  on atlas.flower_preparation_directive_line_knowledge_provenance
+  for select
+  to authenticated
+  using (atlas.is_farm_member(farm_id));
 
 create or replace function atlas.record_flower_preparation_directive_v2(
   p_owner_review_task_id uuid,
@@ -41,43 +138,35 @@ as $function$
 declare
   v_task atlas.tasks%rowtype;
   v_membership atlas.farm_memberships%rowtype;
-  v_batch atlas.flower_harvest_batches%rowtype;
-  v_occurrence atlas.planned_work_occurrences%rowtype;
-  v_policy atlas.work_release_policies%rowtype;
-  v_assignee atlas.farm_memberships%rowtype;
-  v_existing atlas.flower_preparation_directives%rowtype;
-  v_directive atlas.flower_preparation_directives%rowtype;
-  v_clock atlas.task_dependency_clocks%rowtype;
   v_farm atlas.farms%rowtype;
+  v_existing atlas.flower_preparation_directives%rowtype;
   v_crop_profile atlas.crop_profiles%rowtype;
+  v_directive_line atlas.flower_preparation_directive_lines%rowtype;
   v_line jsonb;
-  v_resolved_line jsonb;
-  v_resolved_lines jsonb := '[]'::jsonb;
-  v_line_number integer := 0;
-  v_crop_profile_id uuid;
-  v_product_label text;
-  v_product_key text;
-  v_output_kind text;
-  v_requested_text text;
-  v_requested_quantity integer;
-  v_stems_text text;
-  v_stems_per_unit integer;
-  v_line_note text;
-  v_batch_id uuid;
-  v_occurrence_id uuid;
-  v_assignee_id uuid;
-  v_key text := nullif(btrim(coalesce(p_idempotency_key, '')), '');
-  v_note text := nullif(btrim(coalesce(p_note, '')), '');
-  v_fingerprint text;
-  v_transition jsonb;
-  v_release jsonb;
-  v_worker_task_id uuid;
-  v_occurrence_task_metadata jsonb;
+  v_provenance_item jsonb;
+  v_normalized_lines jsonb := '[]'::jsonb;
+  v_provenance jsonb := '[]'::jsonb;
   v_context jsonb;
   v_resolution jsonb;
   v_effect jsonb;
-  v_match jsonb;
+  v_rule_ids_json jsonb;
+  v_rule_ids uuid[];
+  v_result jsonb;
+  v_output_kind text;
+  v_stems_text text;
+  v_stems_per_unit integer;
+  v_crop_profile_id uuid;
+  v_product_key text;
+  v_key text := nullif(btrim(coalesce(p_idempotency_key, '')), '');
+  v_note text := nullif(btrim(coalesce(p_note, '')), '');
+  v_request_fingerprint text;
+  v_existing_provenance_count integer;
+  v_existing_fingerprint_min text;
+  v_existing_fingerprint_max text;
+  v_worker_task_id uuid;
+  v_line_number integer := 0;
   v_default_count integer := 0;
+  v_directive_id uuid;
 begin
   if auth.uid() is null then
     raise exception 'Authenticated Owner membership required.' using errcode = '42501';
@@ -103,8 +192,7 @@ begin
 
   select * into v_task
   from atlas.tasks
-  where id = p_owner_review_task_id
-  for update;
+  where id = p_owner_review_task_id;
 
   if v_task.id is null then
     raise exception 'Owner harvest review task was not found.' using errcode = 'P0002';
@@ -120,27 +208,24 @@ begin
     raise exception 'Owner or manager authority is required to direct harvested flowers.' using errcode = '42501';
   end if;
 
-  if v_task.visibility_scope not in ('owner', 'management')
-     or coalesce(v_task.work_class, '') <> 'owner_decision'
-     or coalesce(v_task.metadata->>'task_style', '') <> 'flower_preparation_directive_review'
-     or coalesce(v_task.metadata->>'flower_preparation_directive_review_version', '') <> '1' then
-    raise exception 'This task is not a governed flower preparation directive review.' using errcode = '22023';
+  select * into v_farm
+  from atlas.farms
+  where id = v_task.farm_id;
+
+  if v_farm.id is null
+     or v_farm.organization_id is null
+     or v_farm.organization_unit_id is null then
+    raise exception 'Flower Preparation requires canonical Organization and Organization Unit custody.' using errcode = '22023';
   end if;
 
-  begin
-    v_batch_id := nullif(v_task.metadata->>'flower_harvest_batch_id', '')::uuid;
-    v_occurrence_id := nullif(v_task.metadata->>'flower_preparation_occurrence_id', '')::uuid;
-  exception when invalid_text_representation then
-    raise exception 'Owner harvest review task has invalid preparation linkage.' using errcode = '22023';
-  end;
-
-  if v_batch_id is null or v_occurrence_id is null then
-    raise exception 'Owner harvest review task is missing its harvest batch or waiting preparation occurrence.' using errcode = '22023';
+  if not atlas.is_organization_member(v_farm.organization_id) then
+    raise exception 'Organization membership is required to apply Company Operating Knowledge.' using errcode = '42501';
   end if;
 
-  -- Fingerprint the Owner's original request, before any rule-supplied default.
-  -- This keeps idempotency stable if Operating Knowledge changes after issuance.
-  v_fingerprint := md5(
+  -- This is the Owner's original request, before Atlas supplies any default.
+  -- It is preserved in provenance so an idempotent retry does not change meaning
+  -- merely because Operating Knowledge was versioned later.
+  v_request_fingerprint := md5(
     p_owner_review_task_id::text || '|' || p_lines::text || '|' || coalesce(v_note, '')
   );
 
@@ -150,11 +235,22 @@ begin
     and idempotency_key = v_key;
 
   if v_existing.id is not null then
-    if v_existing.owner_review_task_id is distinct from p_owner_review_task_id
-       or v_existing.harvest_batch_id is distinct from v_batch_id
-       or v_existing.preparation_occurrence_id is distinct from v_occurrence_id
-       or v_existing.request_fingerprint is distinct from v_fingerprint then
-      raise exception 'Directive idempotency key was already used for a different request.' using errcode = '22023';
+    if v_existing.owner_review_task_id is distinct from p_owner_review_task_id then
+      raise exception 'Directive idempotency key was already used for a different Owner review.' using errcode = '22023';
+    end if;
+
+    select count(*)::integer, min(p.request_fingerprint), max(p.request_fingerprint)
+      into v_existing_provenance_count, v_existing_fingerprint_min, v_existing_fingerprint_max
+    from atlas.flower_preparation_directive_line_knowledge_provenance p
+    where p.directive_id = v_existing.id;
+
+    if v_existing_provenance_count = 0 then
+      raise exception 'Directive idempotency key already belongs to a non-v2 Flower Preparation directive.' using errcode = '22023';
+    end if;
+
+    if v_existing_fingerprint_min is distinct from v_request_fingerprint
+       or v_existing_fingerprint_max is distinct from v_request_fingerprint then
+      raise exception 'Directive idempotency key was already used for a different v2 request.' using errcode = '22023';
     end if;
 
     select released_task_id into v_worker_task_id
@@ -168,130 +264,42 @@ begin
       'preparationOccurrenceId', v_existing.preparation_occurrence_id,
       'preparationTaskId', v_worker_task_id,
       'lineCount', (select count(*) from atlas.flower_preparation_directive_lines l where l.directive_id = v_existing.id),
-      'operatingKnowledgeDefaultCount', coalesce((v_existing.metadata->>'operatingKnowledgeDefaultCount')::integer, 0),
+      'preparationDirectiveVersion', 2,
+      'operatingKnowledgeDefaultCount', (
+        select count(*) from atlas.flower_preparation_directive_line_knowledge_provenance p
+        where p.directive_id = v_existing.id and p.source_kind = 'operating_knowledge'
+      ),
+      'knowledgeProvenanceCount', v_existing_provenance_count,
       'deduplicated', true
     );
   end if;
 
-  if v_task.status not in ('open', 'blocked') then
-    raise exception 'Owner harvest review is no longer open for a new directive.' using errcode = '22023';
-  end if;
-
-  select * into v_batch
-  from atlas.flower_harvest_batches
-  where id = v_batch_id;
-
-  if v_batch.id is null or v_batch.farm_id is distinct from v_task.farm_id then
-    raise exception 'Linked flower harvest batch is outside this Owner review.' using errcode = '22023';
-  end if;
-
-  if not exists (
-    select 1 from atlas.flower_harvest_bucket_observations h where h.batch_id = v_batch.id
-  ) then
-    raise exception 'Linked flower harvest batch has no recorded harvest observations.' using errcode = '22023';
-  end if;
-
-  select * into v_farm
-  from atlas.farms
-  where id = v_task.farm_id;
-
-  if v_farm.id is null then
-    raise exception 'Flower Preparation farm was not found.' using errcode = 'P0002';
-  end if;
-
-  select * into v_occurrence
-  from atlas.planned_work_occurrences
-  where id = v_occurrence_id
-  for update;
-
-  if v_occurrence.id is null
-     or v_occurrence.farm_id is distinct from v_task.farm_id
-     or v_occurrence.source_kind is distinct from 'flower_harvest_batch'
-     or v_occurrence.source_id is distinct from v_batch.id
-     or coalesce(v_occurrence.task_payload->>'task_type', '') <> 'flower_preparation' then
-    raise exception 'Waiting Flower Preparation occurrence does not match this harvest review.' using errcode = '22023';
-  end if;
-
-  if v_occurrence.released_task_id is not null
-     or v_occurrence.gate_satisfied_at is not null
-     or v_occurrence.state not in ('planned', 'failed') then
-    raise exception 'Flower Preparation has already been exposed or satisfied before Owner direction.' using errcode = '22023';
-  end if;
-
-  select * into v_policy
-  from atlas.work_release_policies
-  where id = v_occurrence.release_policy_id;
-
-  if v_policy.id is null
-     or v_policy.gate_type not in ('predecessor', 'event', 'state', 'composite')
-     or coalesce(v_policy.gate_config->>'engine', '') <> 'task_dependency_clock_v1' then
-    raise exception 'Waiting Flower Preparation occurrence is not governed by the dependency continuation contract.' using errcode = '22023';
-  end if;
-
-  begin
-    v_assignee_id := nullif(v_occurrence.task_payload->>'assigned_membership_id', '')::uuid;
-  exception when invalid_text_representation then
-    raise exception 'Waiting Flower Preparation occurrence has an invalid assignee.' using errcode = '22023';
-  end;
-
-  select * into v_assignee
-  from atlas.farm_memberships
-  where id = v_assignee_id;
-
-  if v_assignee.id is null
-     or not v_assignee.active
-     or v_assignee.farm_id is distinct from v_task.farm_id
-     or coalesce(v_occurrence.task_payload->>'visibility_scope', '') <> 'assigned_worker' then
-    raise exception 'Waiting Flower Preparation occurrence has no valid assigned worker.' using errcode = '22023';
-  end if;
-
-  -- Validate the Owner request and materialize only missing bundle sizes through
-  -- established Operating Knowledge. The transformed JSON remains transaction-local.
   for v_line in select value from jsonb_array_elements(p_lines) loop
     v_line_number := v_line_number + 1;
     if jsonb_typeof(v_line) <> 'object' then
       raise exception 'Each preparation direction must be an object.' using errcode = '22023';
     end if;
 
-    v_resolved_line := v_line;
-    v_product_label := nullif(btrim(coalesce(v_line->>'productLabel', '')), '');
     v_output_kind := lower(btrim(coalesce(v_line->>'outputKind', '')));
-    v_requested_text := btrim(coalesce(v_line->>'requestedQuantity', ''));
     v_stems_text := btrim(coalesce(v_line->>'stemsPerUnit', ''));
-    v_line_note := nullif(btrim(coalesce(v_line->>'note', '')), '');
-
-    if v_product_label is null or char_length(v_product_label) > 160 then
-      raise exception 'Each preparation direction requires a product label of 160 characters or fewer.' using errcode = '22023';
-    end if;
-
-    if lower(v_product_label) in ('fq', 'florist quality', 'sp', 'spent') then
-      raise exception 'Preparation product must name a crop or finished product, not the FQ/SP harvest grade or status.' using errcode = '22023';
-    end if;
-
-    if v_output_kind not in ('bundle', 'posy', 'bouquet', 'lobby_arrangement') then
-      raise exception 'Preparation output kind must be bundle, posy, bouquet, or lobby_arrangement.' using errcode = '22023';
-    end if;
-
-    if v_requested_text !~ '^[0-9]+$' then
-      raise exception 'Requested preparation quantity must be a whole number.' using errcode = '22023';
-    end if;
-    v_requested_quantity := v_requested_text::integer;
-    if v_requested_quantity < 1 or v_requested_quantity > 10000 then
-      raise exception 'Requested preparation quantity must be between 1 and 10000.' using errcode = '22023';
-    end if;
-
-    if v_line_note is not null and char_length(v_line_note) > 1000 then
-      raise exception 'Preparation line note must be 1000 characters or fewer.' using errcode = '22023';
-    end if;
-
-    begin
-      v_crop_profile_id := nullif(btrim(coalesce(v_line->>'cropProfileId', '')), '')::uuid;
-    exception when invalid_text_representation then
-      raise exception 'Preparation cropProfileId must be a valid UUID.' using errcode = '22023';
-    end;
-
+    v_context := '{}'::jsonb;
+    v_effect := null;
+    v_rule_ids_json := '[]'::jsonb;
     v_crop_profile := null;
-    if v_crop_profile_id is not null then
+    v_crop_profile_id := null;
+    v_product_key := null;
+
+    if v_output_kind = 'bundle' and v_stems_text = '' then
+      begin
+        v_crop_profile_id := nullif(btrim(coalesce(v_line->>'cropProfileId', '')), '')::uuid;
+      exception when invalid_text_representation then
+        raise exception 'Preparation cropProfileId must be a valid UUID before Operating Knowledge can supply bundle size.' using errcode = '22023';
+      end;
+
+      if v_crop_profile_id is null then
+        raise exception 'Bundle size was omitted, but no canonical cropProfileId was supplied. Provide stemsPerUnit explicitly.' using errcode = '22023';
+      end if;
+
       select * into v_crop_profile
       from atlas.crop_profiles cp
       where cp.id = v_crop_profile_id;
@@ -300,264 +308,146 @@ begin
         raise exception 'Preparation crop profile was not found.' using errcode = '22023';
       end if;
 
-      if not exists (
-        select 1
-        from atlas.flower_harvest_bucket_observations h
-        join atlas.crop_cycles c on c.id = h.crop_cycle_id
-        where h.batch_id = v_batch.id
-          and c.crop_profile_id = v_crop_profile_id
-      ) then
-        raise exception 'Preparation crop identity is not present in the linked harvest batch.' using errcode = '22023';
+      -- crop_label is canonical crop-profile master data, not the Owner's free-form
+      -- directive productLabel. Normalize it only into the resolver's product-key
+      -- vocabulary; v1 still proves that the crop profile belongs to this harvest.
+      v_product_key := lower(regexp_replace(btrim(v_crop_profile.crop_label), '[^a-z0-9]+', '_', 'g'));
+      v_product_key := btrim(v_product_key, '_');
+
+      if v_product_key is null or v_product_key = '' then
+        raise exception 'Canonical crop profile does not provide a usable Operating Knowledge product key.' using errcode = '22023';
       end if;
-    end if;
 
-    if v_output_kind = 'bundle' then
-      if v_stems_text ~ '^[0-9]+$' then
-        v_stems_per_unit := v_stems_text::integer;
-        if v_stems_per_unit < 1 or v_stems_per_unit > 1000 then
-          raise exception 'Bundle size must be between 1 and 1000 stems.' using errcode = '22023';
-        end if;
-        v_resolved_line := v_resolved_line || jsonb_build_object(
-          '__bundleSizeSource', 'owner_explicit'
-        );
-      elsif v_stems_text = '' then
-        if v_farm.organization_id is null then
-          raise exception 'An omitted bundle size requires institutional Organization custody.' using errcode = '22023';
-        end if;
+      v_context := jsonb_build_object(
+        'organization_unit_id', v_farm.organization_unit_id,
+        'operation', 'bunch',
+        'category', 'cut_flower',
+        'product', v_product_key
+      );
 
-        -- Product identity comes from typed crop identity when available. Owner
-        -- label is used only for the already-supported label-based directive case.
-        if v_crop_profile.id is not null then
-          v_product_key := case
-            when lower(btrim(coalesce(v_crop_profile.crop_family, ''))) in ('sunflower', 'goldenrod')
-              then lower(btrim(v_crop_profile.crop_family))
-            else lower(btrim(v_crop_profile.crop_label))
-          end;
-        else
-          v_product_key := lower(v_product_label);
-        end if;
+      v_resolution := atlas.resolve_company_operating_knowledge_v1(
+        v_farm.organization_id,
+        'standard',
+        v_context,
+        now()
+      );
 
-        v_context := jsonb_strip_nulls(jsonb_build_object(
-          'organization_unit_id', case when v_farm.organization_unit_id is null then null else v_farm.organization_unit_id::text end,
-          'category', 'cut_flower',
-          'operation', 'bunch',
-          'product', v_product_key
-        ));
-
-        v_resolution := atlas.resolve_company_operating_knowledge_v1(
-          v_farm.organization_id,
-          'standard',
-          v_context,
-          now()
-        );
-
-        if coalesce(v_resolution->>'resolution_state', '') <> 'resolved' then
-          raise exception 'Bundle size is omitted and Operating Knowledge resolution is % for product %.',
-            coalesce(v_resolution->>'resolution_state', 'unknown'), v_product_key
-            using errcode = '22023';
-        end if;
-
-        v_effect := v_resolution->'resolved_effect';
-        v_match := v_resolution->'matches'->0;
-
-        if coalesce(v_effect->>'sales_unit', '') <> 'bunch'
-           or coalesce(v_effect->>'quantity_unit', '') <> 'stem'
-           or coalesce(v_effect->>'quantity_per_unit', '') !~ '^[0-9]+$' then
-          raise exception 'Resolved Operating Knowledge does not establish a valid stem-per-bunch effect.' using errcode = '22023';
-        end if;
-
-        v_stems_per_unit := (v_effect->>'quantity_per_unit')::integer;
-        if v_stems_per_unit < 1 or v_stems_per_unit > 1000 then
-          raise exception 'Resolved Operating Knowledge bundle size must be between 1 and 1000 stems.' using errcode = '22023';
-        end if;
-
-        v_default_count := v_default_count + 1;
-        v_resolved_line := v_resolved_line
-          || jsonb_build_object(
-            'stemsPerUnit', v_stems_per_unit,
-            '__bundleSizeSource', 'operating_knowledge_default',
-            '__operatingKnowledgeDefault', jsonb_build_object(
-              'knowledgeId', v_match->>'id',
-              'stableKey', v_match->>'stable_key',
-              'version', (v_match->>'version')::integer,
-              'statement', v_resolution->>'resolved_statement',
-              'effect', v_effect,
-              'context', v_context
-            )
-          );
-      else
-        raise exception 'A bundle direction stems-per-bundle value must be a whole number or omitted for governed Operating Knowledge resolution.' using errcode = '22023';
+      if coalesce(v_resolution->>'resolution_state', '') <> 'resolved' then
+        raise exception 'Flower bundle Operating Knowledge did not resolve deterministically for crop profile % (state=%). Provide stemsPerUnit explicitly.',
+          v_crop_profile_id, coalesce(v_resolution->>'resolution_state', 'missing')
+          using errcode = '22023';
       end if;
+
+      v_effect := v_resolution->'resolved_effect';
+      if coalesce(v_effect->>'sales_unit', '') <> 'bunch'
+         or coalesce(v_effect->>'quantity_unit', '') <> 'stem'
+         or coalesce(v_effect->>'quantity_per_unit', '') !~ '^[0-9]+$' then
+        raise exception 'Resolved Flower bunching Operating Knowledge has an invalid effect contract.' using errcode = '22023';
+      end if;
+
+      v_stems_per_unit := (v_effect->>'quantity_per_unit')::integer;
+      if v_stems_per_unit < 1 or v_stems_per_unit > 1000 then
+        raise exception 'Resolved Flower bunch size must be between 1 and 1000 stems.' using errcode = '22023';
+      end if;
+
+      select coalesce(jsonb_agg(value->>'id'), '[]'::jsonb)
+        into v_rule_ids_json
+      from jsonb_array_elements(coalesce(v_resolution->'matches', '[]'::jsonb));
+
+      if jsonb_array_length(v_rule_ids_json) < 1 then
+        raise exception 'Resolved Flower bunching Operating Knowledge did not preserve its rule identity.' using errcode = '22023';
+      end if;
+
+      v_line := jsonb_set(v_line, '{stemsPerUnit}', to_jsonb(v_stems_per_unit), true);
+      v_default_count := v_default_count + 1;
+      v_provenance := v_provenance || jsonb_build_array(jsonb_build_object(
+        'lineNumber', v_line_number,
+        'sourceKind', 'operating_knowledge',
+        'cropProfileId', v_crop_profile_id,
+        'productKey', v_product_key,
+        'ruleIds', v_rule_ids_json,
+        'context', v_context,
+        'resolvedEffect', v_effect
+      ));
+    elsif v_output_kind = 'bundle' then
+      v_provenance := v_provenance || jsonb_build_array(jsonb_build_object(
+        'lineNumber', v_line_number,
+        'sourceKind', 'owner_explicit',
+        'ruleIds', '[]'::jsonb,
+        'context', '{}'::jsonb
+      ));
     else
-      if v_stems_text <> '' then
-        raise exception 'Stems per unit is only supported for bundle directions in v2.' using errcode = '22023';
-      end if;
-      v_stems_per_unit := null;
+      v_provenance := v_provenance || jsonb_build_array(jsonb_build_object(
+        'lineNumber', v_line_number,
+        'sourceKind', 'not_applicable',
+        'ruleIds', '[]'::jsonb,
+        'context', '{}'::jsonb
+      ));
     end if;
 
-    v_resolved_lines := v_resolved_lines || jsonb_build_array(v_resolved_line);
+    v_normalized_lines := v_normalized_lines || jsonb_build_array(v_line);
   end loop;
 
-  insert into atlas.flower_preparation_directives (
-    farm_id, harvest_batch_id, owner_review_task_id, preparation_occurrence_id,
-    recorded_by_membership_id, idempotency_key, request_fingerprint, note,
-    created_by_user_id, metadata
-  ) values (
-    v_task.farm_id, v_batch.id, v_task.id, v_occurrence.id,
-    v_membership.id, v_key, v_fingerprint, v_note, auth.uid(),
-    jsonb_build_object(
-      'version', 'flower_preparation_directive_v2',
-      'truthBoundary', 'owner_requested_preparation',
-      'requestedQuantityIsPhysicalTruth', false,
-      'assigneeMembershipId', v_assignee.id,
-      'bundleSizePolicy', 'owner_explicit_else_established_operating_knowledge',
-      'operatingKnowledgeDefaultCount', v_default_count
-    )
-  ) returning * into v_directive;
-
-  v_line_number := 0;
-  for v_line in select value from jsonb_array_elements(v_resolved_lines) loop
-    v_line_number := v_line_number + 1;
-    v_product_label := btrim(v_line->>'productLabel');
-    v_output_kind := lower(btrim(v_line->>'outputKind'));
-    v_requested_quantity := btrim(v_line->>'requestedQuantity')::integer;
-    v_line_note := nullif(btrim(coalesce(v_line->>'note', '')), '');
-    v_crop_profile_id := nullif(btrim(coalesce(v_line->>'cropProfileId', '')), '')::uuid;
-    v_stems_per_unit := case
-      when v_output_kind = 'bundle' then btrim(v_line->>'stemsPerUnit')::integer
-      else null
-    end;
-
-    insert into atlas.flower_preparation_directive_lines (
-      farm_id, directive_id, line_number, crop_profile_id, product_label,
-      output_kind, requested_quantity, stems_per_unit, note, metadata
-    ) values (
-      v_task.farm_id, v_directive.id, v_line_number, v_crop_profile_id, v_product_label,
-      v_output_kind, v_requested_quantity, v_stems_per_unit, v_line_note,
-      jsonb_strip_nulls(
-        jsonb_build_object(
-          'identityBasis', case when v_crop_profile_id is null then 'owner_label' else 'crop_profile' end,
-          'truthBoundary', 'owner_requested_preparation',
-          'bundleSizeSource', case when v_output_kind = 'bundle' then v_line->>'__bundleSizeSource' else null end,
-          'operatingKnowledgeDefault', case
-            when v_line->>'__bundleSizeSource' = 'operating_knowledge_default' then v_line->'__operatingKnowledgeDefault'
-            else null
-          end
-        )
-      )
-    );
-  end loop;
-
-  v_occurrence_task_metadata := coalesce(v_occurrence.task_payload->'metadata', '{}'::jsonb)
-    || jsonb_build_object(
-      'flower_preparation_directive_id', v_directive.id,
-      'flower_preparation_directive_version', 2,
-      'requested_output_line_count', v_line_number,
-      'requested_output_truth_boundary', 'owner_requested_preparation',
-      'operating_knowledge_default_count', v_default_count
-    );
-
-  update atlas.planned_work_occurrences
-  set task_payload = jsonb_set(coalesce(task_payload, '{}'::jsonb), '{metadata}', v_occurrence_task_metadata, true),
-      metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object(
-        'flowerPreparationDirectiveId', v_directive.id,
-        'flowerPreparationDirectiveVersion', 2,
-        'ownerReviewTaskId', v_task.id,
-        'operatingKnowledgeDefaultCount', v_default_count
-      ),
-      work_lane = 'process_continuation',
-      commitment_kind = 'dependency',
-      updated_at = now()
-  where id = v_occurrence.id;
-
-  select * into v_clock
-  from atlas.task_dependency_clocks
-  where downstream_occurrence_id = v_occurrence.id
-  for update;
-
-  if v_clock.id is not null then
-    if v_clock.source_task_id is distinct from v_task.id
-       or v_clock.state <> 'waiting'
-       or v_clock.source_transitions <> array['done']::text[]
-       or v_clock.delay_interval <> interval '0 seconds' then
-      raise exception 'Waiting Flower Preparation occurrence already has a conflicting dependency clock.' using errcode = '22023';
-    end if;
-  else
-    insert into atlas.task_dependency_clocks (
-      farm_id, source_task_id, downstream_occurrence_id, source_transitions,
-      delay_interval, state, notification_policy, metadata
-    ) values (
-      v_task.farm_id, v_task.id, v_occurrence.id, array['done']::text[],
-      interval '0 seconds', 'waiting',
-      jsonb_build_object(
-        'notify_when_ready', true,
-        'ready_title', 'Harvest preparation ready',
-        'ready_body', 'Owner directions are ready. Prepare the harvested flowers.',
-        'importance', 'high'
-      ),
-      jsonb_build_object(
-        'version', 'flower_preparation_directive_v2',
-        'flower_preparation_directive_id', v_directive.id,
-        'release_reason', 'owner_preparation_directive_recorded'
-      )
-    ) returning * into v_clock;
-  end if;
-
-  v_transition := atlas.record_task_transition_v1(
-    v_task.id,
-    'done',
-    'flower-preparation-directive:' || v_directive.id::text,
-    null,
-    v_note,
-    null,
-    'decide',
-    'flower_preparation_directive',
-    jsonb_build_object(
-      'completion_source', 'flower_preparation_directive',
-      'flower_preparation_directive_id', v_directive.id,
-      'flower_preparation_directive_version', 2,
-      'flower_harvest_batch_id', v_batch.id,
-      'preparation_occurrence_id', v_occurrence.id,
-      'requested_output_line_count', v_line_number,
-      'requested_quantity_is_physical_truth', false,
-      'operating_knowledge_default_count', v_default_count
-    ),
-    null
+  -- Final directive/release authority remains in unchanged v1. If any ordinary
+  -- v1 invariant fails, this whole v2 transaction, including provenance, rolls back.
+  v_result := atlas.record_flower_preparation_directive_v1(
+    p_owner_review_task_id,
+    v_normalized_lines,
+    p_note,
+    p_idempotency_key
   );
 
-  v_release := atlas.release_ready_task_dependency_continuations_v1(now(), 100);
-  perform atlas.advance_task_dependency_clocks_v1(now(), 100);
+  begin
+    v_directive_id := nullif(v_result->>'directiveId', '')::uuid;
+  exception when invalid_text_representation then
+    v_directive_id := null;
+  end;
 
-  select released_task_id into v_worker_task_id
-  from atlas.planned_work_occurrences
-  where id = v_occurrence.id;
-
-  if v_worker_task_id is null then
-    raise exception 'Flower Preparation did not release after Owner direction; directive transaction was rolled back.' using errcode = 'P0001';
+  if v_directive_id is null then
+    raise exception 'Flower Preparation v1 did not return a directive identity; v2 transaction was rolled back.' using errcode = 'P0001';
   end if;
 
-  if not exists (
-    select 1
-    from atlas.tasks t
-    where t.id = v_worker_task_id
-      and t.farm_id = v_task.farm_id
-      and t.task_type = 'flower_preparation'
-      and t.metadata->>'flower_preparation_directive_id' = v_directive.id::text
-  ) then
-    raise exception 'Released task does not preserve the flower preparation directive linkage.' using errcode = 'P0001';
-  end if;
+  for v_provenance_item in select value from jsonb_array_elements(v_provenance) loop
+    select * into v_directive_line
+    from atlas.flower_preparation_directive_lines l
+    where l.directive_id = v_directive_id
+      and l.line_number = (v_provenance_item->>'lineNumber')::integer;
 
-  return jsonb_build_object(
-    'directiveId', v_directive.id,
-    'ownerReviewTaskId', v_task.id,
-    'harvestBatchId', v_batch.id,
-    'preparationOccurrenceId', v_occurrence.id,
-    'preparationTaskId', v_worker_task_id,
-    'lineCount', v_line_number,
+    if v_directive_line.id is null then
+      raise exception 'Flower Preparation v2 could not reconcile directive-line provenance; transaction was rolled back.' using errcode = 'P0001';
+    end if;
+
+    select coalesce(array_agg(value::uuid), '{}'::uuid[])
+      into v_rule_ids
+    from jsonb_array_elements_text(coalesce(v_provenance_item->'ruleIds', '[]'::jsonb));
+
+    insert into atlas.flower_preparation_directive_line_knowledge_provenance (
+      farm_id, directive_id, directive_line_id, line_number, source_kind,
+      organization_id, organization_unit_id, crop_profile_id, product_key,
+      knowledge_rule_ids, resolution_context, resolved_effect,
+      applied_stems_per_unit, request_fingerprint
+    ) values (
+      v_task.farm_id,
+      v_directive_id,
+      v_directive_line.id,
+      v_directive_line.line_number,
+      v_provenance_item->>'sourceKind',
+      v_farm.organization_id,
+      v_farm.organization_unit_id,
+      nullif(v_provenance_item->>'cropProfileId', '')::uuid,
+      nullif(v_provenance_item->>'productKey', ''),
+      v_rule_ids,
+      coalesce(v_provenance_item->'context', '{}'::jsonb),
+      v_provenance_item->'resolvedEffect',
+      v_directive_line.stems_per_unit,
+      v_request_fingerprint
+    );
+  end loop;
+
+  return v_result || jsonb_build_object(
+    'preparationDirectiveVersion', 2,
     'operatingKnowledgeDefaultCount', v_default_count,
-    'transition', v_transition,
-    'continuationRelease', v_release,
-    'deduplicated', false
+    'knowledgeProvenanceCount', jsonb_array_length(v_provenance)
   );
 end;
 $function$;
@@ -568,8 +458,9 @@ grant execute on function atlas.record_flower_preparation_directive_v2(uuid, jso
   to authenticated;
 
 comment on function atlas.record_flower_preparation_directive_v2(uuid, jsonb, text, text) is
-  'Flower Preparation v2: preserves explicit Owner bundle size; when omitted, resolves one established Company Operating Knowledge standard and records the winning rule/effect/context on the immutable directive line before releasing the governed preparation continuation.';
+  'Owner/manager Flower Preparation v2. Explicit stemsPerUnit remains sovereign; only an omitted bundle size with canonical crop_profile_id may resolve from established Company Operating Knowledge. Delegates final directive/release authority to unchanged v1 and records immutable provenance.';
 
+-- Keep the authenticated RPC registry honest for the new app endpoint.
 with target as (
   select
     p.oid,
@@ -632,7 +523,7 @@ select
     'reason', 'governed_operating_knowledge_default_execution_proof',
     'functionOid', oid,
     'classificationRuleVersion', 3,
-    'truthBoundary', 'Owner explicit preparation remains sovereign. Only an omitted bundle size may be filled by a singular established Company Operating Knowledge standard; the applied knowledge is preserved as provenance on the immutable directive line.'
+    'truthBoundary', 'Owner explicit preparation remains sovereign. Omitted bundle size may be supplied by deterministic established Operating Knowledge, while final directive/release authority remains in v1.'
   ),
   now(),
   now()
@@ -654,7 +545,7 @@ do $verification$
 declare
   v_oid oid;
   v_def text;
-  v_drift integer;
+  v_registry_count integer;
 begin
   select p.oid, pg_get_functiondef(p.oid)
   into v_oid, v_def
@@ -677,14 +568,23 @@ begin
     raise exception 'Service-role Flower Preparation v2 execution must remain disabled.';
   end if;
   if position('resolve_company_operating_knowledge_v1' in v_def) = 0
-     or position('owner_explicit_else_established_operating_knowledge' in v_def) = 0
-     or position('operatingKnowledgeDefault' in v_def) = 0 then
-    raise exception 'Flower Preparation v2 is missing its governed Operating Knowledge execution contract.';
+     or position('record_flower_preparation_directive_v1' in v_def) = 0
+     or position('flower_preparation_directive_line_knowledge_provenance' in v_def) = 0 then
+    raise exception 'Flower Preparation v2 is missing its governed resolve -> v1 -> provenance contract.';
   end if;
 
-  select count(*) into v_drift from atlas.authenticated_rpc_registry_drift_v1();
-  if v_drift <> 0 then
-    raise exception 'Flower Preparation v2 registration ended with % authenticated RPC drift rows.', v_drift;
+  select count(*) into v_registry_count
+  from atlas.authenticated_rpc_registry r
+  where r.signature = 'atlas.record_flower_preparation_directive_v2(uuid, jsonb, text, text)'
+    and r.classification = 'app_endpoint'
+    and r.review_status = 'active'
+    and r.authenticated_execute_expected is true
+    and r.anonymous_execute_expected is false
+    and r.service_execute_expected is false
+    and r.security_definer_expected is true;
+
+  if v_registry_count <> 1 then
+    raise exception 'Flower Preparation v2 authenticated RPC registry row is missing or inconsistent.';
   end if;
 end
 $verification$;
