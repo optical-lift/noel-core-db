@@ -87,6 +87,7 @@ create table atlas.organization_expense_reporting_periods (
     on delete restrict,
   check (period_end>=period_start),
   unique (contract_id,period_start,period_end),
+  unique (id,ledger_id,organization_id),
   unique (id,contract_id,ledger_id,organization_id)
 );
 
