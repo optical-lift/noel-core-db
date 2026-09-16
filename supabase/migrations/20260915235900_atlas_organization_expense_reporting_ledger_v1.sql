@@ -662,7 +662,7 @@ left join atlas.organization_expense_reporting_categories c
   on c.id=f.category_id and c.contract_id=f.contract_id and c.ledger_id=f.ledger_id and c.organization_id=f.organization_id
 left join lateral(
   select count(*)::integer rate_count,
-         case when count(*)=1 then max(r.id) else null end rate_id,
+         case when count(*)=1 then (array_agg(r.id))[1] else null end rate_id,
          case when count(*)=1 then max(r.quote_value) else null end quote_value,
          case when count(*)=1 then max(r.quote_convention) else null end quote_convention,
          case when count(*)=1 then max(r.conversion_multiplier) else null end conversion_multiplier
