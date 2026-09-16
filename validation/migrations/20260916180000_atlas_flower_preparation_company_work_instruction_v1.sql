@@ -2,12 +2,15 @@ do $validation$
 declare
   v_sync oid;
   v_worker_day oid;
+  v_worker_day_public oid;
   v_sync_def text;
   v_worker_day_def text;
+  v_worker_day_public_def text;
   v_public_execute boolean;
 begin
   v_sync := to_regprocedure('atlas.sync_flower_preparation_company_work_instruction_v1(uuid)');
   v_worker_day := to_regprocedure('atlas.company_work_worker_day_self_api_v1(date,integer)');
+  v_worker_day_public := to_regprocedure('public.company_work_worker_day_self_api_v1(date,integer)');
 
   if v_sync is null then
     raise exception 'Flower Preparation -> Company Work instruction synchronizer is missing.';
@@ -15,9 +18,13 @@ begin
   if v_worker_day is null then
     raise exception 'Company Work Worker Day read is missing.';
   end if;
+  if v_worker_day_public is null then
+    raise exception 'Public Company Work Worker Day browser membrane is missing.';
+  end if;
 
   select pg_get_functiondef(v_sync) into v_sync_def;
   select pg_get_functiondef(v_worker_day) into v_worker_day_def;
+  select pg_get_functiondef(v_worker_day_public) into v_worker_day_public_def;
 
   if position('flower_preparation_directive_line_knowledge_provenance' in v_sync_def) = 0
      or position('work_execution_adapters' in v_sync_def) = 0
@@ -79,11 +86,27 @@ begin
     raise exception 'Worker Day instruction enrichment must remain grounded in required Company Work sources.';
   end if;
 
-  if not has_function_privilege('authenticated', v_worker_day, 'execute') then
-    raise exception 'Authenticated Worker Day execution privilege was lost.';
+  -- Preserve the established two-layer Worker Day membrane: the internal Atlas
+  -- implementation is service-only, while authenticated browser execution is
+  -- granted on the public delegating wrapper.
+  if has_function_privilege('authenticated', v_worker_day, 'execute')
+     or has_function_privilege('anon', v_worker_day, 'execute')
+     or not has_function_privilege('service_role', v_worker_day, 'execute') then
+    raise exception 'Internal Worker Day execution privilege membrane changed.';
   end if;
-  if has_function_privilege('anon', v_worker_day, 'execute') then
-    raise exception 'Anonymous Worker Day execution must remain denied.';
+
+  if position('atlas.company_work_worker_day_self_api_v1' in v_worker_day_public_def) = 0 then
+    raise exception 'Public Worker Day membrane no longer delegates to the governed Atlas implementation.';
+  end if;
+
+  if not has_function_privilege('authenticated', v_worker_day_public, 'execute') then
+    raise exception 'Authenticated public Worker Day execution privilege was lost.';
+  end if;
+  if has_function_privilege('anon', v_worker_day_public, 'execute') then
+    raise exception 'Anonymous public Worker Day execution must remain denied.';
+  end if;
+  if not has_function_privilege('service_role', v_worker_day_public, 'execute') then
+    raise exception 'Service-role public Worker Day execution privilege was lost.';
   end if;
 
   if to_regclass('atlas.flower_preparation_directive_line_knowledge_provenance') is null then
