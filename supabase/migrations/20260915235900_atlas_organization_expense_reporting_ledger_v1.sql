@@ -977,6 +977,17 @@ begin
   select * into v_event from atlas.organization_expense_reporting_fact_events e
   where e.ledger_id=v_period.ledger_id and e.source_kind='report_interpretation' and e.source_key=btrim(p_client_event_key);
   if v_event.id is not null then
+    if v_event.period_id is distinct from v_period.id
+       or v_event.after_state->>'spendAllocationId' is distinct from p_spend_allocation_id::text
+       or v_event.after_state->>'categoryId' is distinct from case when p_category_id is null then null else p_category_id::text end
+       or v_event.after_state->>'inclusionState' is distinct from p_inclusion_state
+       or v_event.after_state->>'classificationState' is distinct from p_classification_state
+       or (v_event.after_state->>'classificationConfidence')::numeric is distinct from p_classification_confidence
+       or v_event.after_state->>'claimTreatment' is distinct from p_claim_treatment
+       or v_event.after_state->>'reportingPurpose' is distinct from nullif(btrim(coalesce(p_reporting_purpose,'')),'')
+       or v_event.after_state->'reportFields' is distinct from coalesce(p_report_fields,'{}'::jsonb) then
+      raise exception 'Client event key is already bound to a different expense-report interpretation.' using errcode='23514';
+    end if;
     return jsonb_build_object('contractVersion','interpret_organization_spend_for_expense_report_self_api_v1','state','unchanged','factLinkId',v_event.fact_link_id,'eventId',v_event.id);
   end if;
 
