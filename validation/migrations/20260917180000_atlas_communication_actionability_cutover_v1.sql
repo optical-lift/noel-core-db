@@ -171,7 +171,7 @@ begin
   end if;
 
   if position('acceptedleafcount' in v_definition)=0
-     or position("'classification','unknown'" in v_definition)=0 then
+     or strpos(v_definition,$needle$'classification','unknown'$needle$)=0 then
     raise exception 'Actionability ambiguity does not visibly fail closed to unknown.';
   end if;
 end;
