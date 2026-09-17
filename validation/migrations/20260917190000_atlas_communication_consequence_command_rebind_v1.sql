@@ -13,10 +13,10 @@ begin
 end;
 $validation$;
 
--- Common Conversation custody columns exist on both draft and outbound consequence rows.
+-- Draft and outbound consequences now carry common Conversation custody.
 do $validation$
 begin
-  if not exists(
+  if not exists (
     select 1 from information_schema.columns
     where table_schema='atlas' and table_name='communication_email_drafts'
       and column_name='communication_conversation_id' and data_type='uuid'
@@ -24,7 +24,7 @@ begin
     raise exception 'Draft common Conversation custody column is missing.';
   end if;
 
-  if not exists(
+  if not exists (
     select 1 from information_schema.columns
     where table_schema='atlas' and table_name='communication_outbound_operations'
       and column_name='communication_conversation_id' and data_type='uuid'
@@ -39,11 +39,11 @@ begin
 end;
 $validation$;
 
--- Existing rows, if any, must be either a lawful unbound draft or a complete
--- common+compatibility pair. Outbound operations are never allowed unbound.
+-- Existing rows are either a lawful unbound new draft or one complete
+-- common+compatibility pair. Outbound operations may never be unbound.
 do $validation$
 begin
-  if exists(
+  if exists (
     select 1
     from atlas.communication_outbound_operations operation
     left join atlas.institutional_conversation_roots root
@@ -55,7 +55,7 @@ begin
     raise exception 'Outbound operation exists outside one common Conversation root.';
   end if;
 
-  if exists(
+  if exists (
     select 1
     from atlas.communication_email_drafts draft
     left join atlas.institutional_conversation_roots root
@@ -71,7 +71,7 @@ begin
 end;
 $validation$;
 
--- Root translation is one-to-one and preserves Organization custody.
+-- Root translation is symmetric for governed Institutional compatibility.
 do $validation$
 declare
   v_root record;
@@ -100,52 +100,65 @@ begin
 end;
 $validation$;
 
--- The deferred final-state guard must re-read rows rather than trust the NEW
--- image captured before a compatibility wrapper's later update.
+-- Normalize function formatting before source-shape assertions. PostgreSQL keeps
+-- PL/pgSQL body spacing largely as authored, so architecture checks must not
+-- depend on spaces around operators.
 do $validation$
 declare
   v_definition text;
+  v_compact text;
 begin
   select lower(pg_get_functiondef('atlas.guard_communication_consequence_common_root_v1()'::regprocedure))
   into v_definition;
+  v_compact:=regexp_replace(v_definition,'[[:space:]]+','','g');
 
-  if position('from atlas.communication_outbound_operations' in v_definition)=0
-     or position('from atlas.communication_email_drafts' in v_definition)=0
-     or position('where operation.id = new.id' in v_definition)=0
-     or position('where draft.id = new.id' in v_definition)=0 then
+  if position('fromatlas.communication_outbound_operations' in v_compact)=0
+     or position('fromatlas.communication_email_drafts' in v_compact)=0
+     or position('whereoperation.id=new.id' in v_compact)=0
+     or position('wheredraft.id=new.id' in v_compact)=0 then
     raise exception 'Deferred consequence guard does not re-read final row state.';
   end if;
 
-  if position('reply consequence must preserve exact common conversation and communication endpoint continuity' in v_definition)=0 then
-    raise exception 'Deferred consequence guard lost exact reply endpoint continuity.';
+  if position('replyconsequencemustpreserveexactcommonconversationandcommunicationendpointcontinuity' in v_compact)=0
+     or position('v_reply_common_idisdistinctfromv_common_id' in v_compact)=0
+     or position('v_reply_endpoint_idisdistinctfromv_endpoint_id' in v_compact)=0 then
+    raise exception 'Deferred consequence guard lost exact reply Conversation/Endpoint continuity.';
   end if;
 end;
 $validation$;
 
--- Both deferred guards must be installed.
+-- Both final-state guards are installed as deferred constraint triggers.
 do $validation$
 begin
-  if not exists(
-    select 1 from pg_trigger
-    where tgrelid='atlas.communication_email_drafts'::regclass
-      and tgname='communication_email_draft_common_root_guard_v1'
-      and not tgisinternal
+  if not exists (
+    select 1
+    from pg_trigger trigger
+    join pg_constraint constraint_row on constraint_row.oid=trigger.tgconstraint
+    where trigger.tgrelid='atlas.communication_email_drafts'::regclass
+      and trigger.tgname='communication_email_draft_common_root_guard_v1'
+      and not trigger.tgisinternal
+      and constraint_row.condeferrable
+      and constraint_row.condeferred
   ) then
-    raise exception 'Draft common-root constraint trigger is missing.';
+    raise exception 'Draft common-root deferred constraint trigger is missing.';
   end if;
 
-  if not exists(
-    select 1 from pg_trigger
-    where tgrelid='atlas.communication_outbound_operations'::regclass
-      and tgname='communication_outbound_operation_common_root_guard_v1'
-      and not tgisinternal
+  if not exists (
+    select 1
+    from pg_trigger trigger
+    join pg_constraint constraint_row on constraint_row.oid=trigger.tgconstraint
+    where trigger.tgrelid='atlas.communication_outbound_operations'::regclass
+      and trigger.tgname='communication_outbound_operation_common_root_guard_v1'
+      and not trigger.tgisinternal
+      and constraint_row.condeferrable
+      and constraint_row.condeferred
   ) then
-    raise exception 'Outbound common-root constraint trigger is missing.';
+    raise exception 'Outbound common-root deferred constraint trigger is missing.';
   end if;
 end;
 $validation$;
 
--- New outbound intent must create common identity before compatibility identity.
+-- New outbound intent creates common identity first, then compatibility, then root.
 do $validation$
 declare
   v_definition text;
@@ -174,17 +187,19 @@ begin
 end;
 $validation$;
 
--- Common-root send v3 must resolve/create the pair before delegating transport
--- authority to the historical internal v2 implementation.
+-- Common-root send v3 establishes the pair before delegating to historical
+-- transport authority and persists common custody on the outbound operation.
 do $validation$
 declare
   v_definition text;
+  v_compact text;
   v_pair_pos int;
   v_legacy_pos int;
 begin
   select lower(pg_get_functiondef(
     'atlas.prepare_communication_email_send_internal_v3(uuid,uuid,uuid,uuid,jsonb,jsonb,jsonb,text,text,text,jsonb,uuid,text,text)'::regprocedure
   )) into v_definition;
+  v_compact:=regexp_replace(v_definition,'[[:space:]]+','','g');
 
   v_pair_pos:=position('ensure_organization_communication_command_pair_service_v1' in v_definition);
   v_legacy_pos:=position('prepare_institutional_email_send_internal_v2' in v_definition);
@@ -192,14 +207,13 @@ begin
     raise exception 'Outbound send v3 does not establish common command identity before compatibility transport authorization.';
   end if;
 
-  if position('communication_conversation_id = v_common_id' in v_definition)=0 then
+  if position('communication_conversation_id=v_common_id' in v_compact)=0 then
     raise exception 'Outbound send v3 does not persist common Conversation custody on the operation.';
   end if;
 end;
 $validation$;
 
--- Every live legacy browser/send-draft entrypoint must flow through the common
--- command membrane rather than calling internal v2 directly.
+-- Every active legacy send/draft-release entrypoint routes through send v3.
 do $validation$
 declare
   v_send text;
@@ -231,29 +245,29 @@ begin
 end;
 $validation$;
 
--- Draft compatibility implementation is private; common v2 is the new public
--- contract. Reply drafts must derive both common Conversation and exact endpoint.
+-- Common draft v2 binds replies to exact common Conversation + Endpoint.
 do $validation$
 declare
   v_definition text;
+  v_compact text;
 begin
   select lower(pg_get_functiondef(
     'atlas.save_communication_email_draft_self_api_v2(uuid,uuid,uuid,uuid,jsonb,jsonb,jsonb,text,text,text,jsonb,uuid,timestamptz,jsonb)'::regprocedure
   )) into v_definition;
+  v_compact:=regexp_replace(v_definition,'[[:space:]]+','','g');
 
   if position('communication_conversation_events' in v_definition)=0
-     or position('v_reply_endpoint_id is distinct from p_communication_endpoint_id' in v_definition)=0
+     or position('v_reply_endpoint_idisdistinctfromp_communication_endpoint_id' in v_compact)=0
      or position('require_institutional_compatibility_for_communication_conversation_v1' in v_definition)=0 then
     raise exception 'Common draft v2 does not prove reply Conversation/Endpoint continuity.';
   end if;
 end;
 $validation$;
 
--- Response/handoff/collaboration/context/work APIs use common Conversation as
--- their public identifier and only then resolve the compatibility carrier.
+-- Response/handoff/collaboration/context commands expose common Conversation IDs
+-- and resolve the compatibility carrier only behind the command membrane.
 do $validation$
 declare
-  v_name text;
   v_signature text;
   v_definition text;
 begin
@@ -277,27 +291,28 @@ begin
 end;
 $validation$;
 
--- Work creation must bind an exact Event that belongs to the common Conversation.
+-- Work creation binds an exact Event inside the common Conversation.
 do $validation$
 declare
   v_definition text;
+  v_compact text;
 begin
   select lower(pg_get_functiondef(
     'atlas.create_communication_derived_work_self_api_v3(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text)'::regprocedure
   )) into v_definition;
+  v_compact:=regexp_replace(v_definition,'[[:space:]]+','','g');
 
   if position('communication_conversation_events' in v_definition)=0
-     or position('membership.communication_conversation_id = p_communication_conversation_id' in v_definition)=0
-     or position('membership.communication_event_id = p_communication_event_id' in v_definition)=0
+     or position('membership.communication_conversation_id=p_communication_conversation_id' in v_compact)=0
+     or position('membership.communication_event_id=p_communication_event_id' in v_compact)=0
      or position('communicationcommandroot' in v_definition)=0 then
     raise exception 'Communication-derived Work v3 lacks exact common Conversation/Event custody.';
   end if;
 end;
 $validation$;
 
--- Stage 4 intentionally does NOT create a common-level mailbox disposition API.
--- Disposition remains endpoint/mailbox state until Product cutover supplies an
--- explicit endpoint context.
+-- Mailbox disposition remains endpoint-scoped; Stage 4 must not silently select
+-- an endpoint by promoting it to common Conversation authority.
 do $validation$
 begin
   if to_regprocedure('atlas.set_communication_conversation_disposition_self_api_v1(uuid,text,text)') is not null then
@@ -306,8 +321,7 @@ begin
 end;
 $validation$;
 
--- Privilege boundary: browser sees new self APIs, never internal compatibility
--- or root-resolution authority.
+-- Browser sees governed common self APIs, not internal compatibility authority.
 do $validation$
 begin
   if has_function_privilege('authenticated','atlas.require_institutional_compatibility_for_communication_conversation_v1(uuid)','EXECUTE')
@@ -328,8 +342,7 @@ begin
 end;
 $validation$;
 
--- No current service/browser function besides the Stage 4 v3 compatibility
--- membrane may call the old send internal v2 implementation.
+-- No service/browser function except send v3 may call the old internal v2.
 do $validation$
 declare
   v_bypass_count integer;
