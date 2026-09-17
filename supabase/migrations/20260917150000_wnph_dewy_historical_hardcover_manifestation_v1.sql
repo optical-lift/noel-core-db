@@ -2,6 +2,9 @@
 -- accidental paperback assumption to the historically grounded restored
 -- cloth-hardcover target. Preserve the existing Manifestation UUID and all
 -- prior derivation history; add a new physical render profile/derivation.
+--
+-- Historical bound-book dimensions remain source evidence only. This migration
+-- does not promote them into an exact WNPH trim specification.
 
 do $$
 begin
@@ -29,8 +32,8 @@ $$;
 update wnph.manifestations
 set canonical_key = 'wish-fairy-dewy-dear:wnph-hardcover-v1',
     publication_statement = 'WNPH restored publication manifestation planned from the governed publication Expression and historically grounded in the Henry Altemus c1922 physical edition.',
-    format_statement = 'restored cloth hardcover; approximately 4.25 x 5.5 in trim target; gray cloth with green lettering/art treatment; matching historical dust-jacket character documented separately pending approved jacket artwork',
-    notes = 'Physical restored hardcover manifestation. Historical evidence records gray cloth, green lettering, book-specific multicolor artwork/applique, approximately 5.5 x 4.25 inches, and a matching white coated dust jacket. WNPH intentionally adopts that historical physical character as the restoration target. Text authority remains the publication Expression master. Spine width, stocks, final page block, and jacket artwork remain unresolved until governed publication inputs establish them.'
+    format_statement = 'restored cloth hardcover; gray cloth with green lettering/art treatment; matching historical dust-jacket character documented separately pending approved jacket artwork; final WNPH trim unresolved',
+    notes = 'Physical restored hardcover manifestation. Historical evidence records gray cloth, green lettering, book-specific multicolor artwork/applique, approximately 5.5 x 4.25 inch bound-book dimensions, and a matching white coated dust jacket. WNPH intentionally adopts that historical physical character as the restoration target. The approximate historical dimensions remain source evidence and do not establish exact WNPH printer trim. Text authority remains the publication Expression master. Final WNPH trim, spine width, stocks, final page block, and jacket artwork remain unresolved until governed publication inputs establish them.'
 where id = '0bb1920c-3df4-4ae9-9e4a-67ba8b39ff82'::uuid;
 
 insert into wnph.publication_render_profiles (
@@ -137,6 +140,7 @@ begin
     where id = '0bb1920c-3df4-4ae9-9e4a-67ba8b39ff82'::uuid
       and canonical_key = 'wish-fairy-dewy-dear:wnph-hardcover-v1'
       and format_statement ilike '%cloth hardcover%'
+      and format_statement ilike '%trim unresolved%'
   ) then
     raise exception 'Dewy WNPH manifestation hardcover correction failed';
   end if;
