@@ -6,6 +6,8 @@
 -- Historical bound-book dimensions remain source evidence only. This migration
 -- does not promote them into an exact WNPH trim specification.
 
+begin;
+
 do $$
 begin
   if not exists (
@@ -158,3 +160,5 @@ begin
   end if;
 end
 $$;
+
+commit;
