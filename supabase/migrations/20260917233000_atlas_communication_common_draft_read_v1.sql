@@ -54,6 +54,23 @@ begin
     'bodyText',case when q.is_mine then q.body_text else null end,
     'bodyHtml',case when q.is_mine then q.body_html else null end,
     'attachmentRefs',case when q.is_mine then q.attachment_refs else '[]'::jsonb end,
+    'attachments',case when q.is_mine then coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'attachmentId',a.id,
+        'fileName',a.file_name,
+        'mimeType',a.mime_type,
+        'state',a.attachment_state,
+        'storageBucket',a.storage_bucket,
+        'storageObjectPath',a.storage_object_path,
+        'byteLength',a.byte_length,
+        'sha256',a.sha256
+      ) order by a.created_at,a.id)
+      from atlas.communication_outbound_attachments a
+      where a.id::text in (
+        select ref.value #>> '{}'
+        from jsonb_array_elements(q.attachment_refs) ref(value)
+      )
+    ),'[]'::jsonb) else '[]'::jsonb end,
     'signatureId',case when q.is_mine then q.signature_id else null end,
     'sendAfter',q.send_after,
     'state',q.draft_state,
