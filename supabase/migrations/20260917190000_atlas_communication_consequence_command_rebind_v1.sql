@@ -654,6 +654,91 @@ begin
 end;
 $function$;
 
+-- Sent is a common-Conversation read. The outbound operation is now the direct
+-- holder of common identity; the Institutional root only proves compatibility.
+create or replace function atlas.organization_correspondence_sent_self_api_v1(
+  p_organization_id uuid default null,
+  p_communication_endpoint_id uuid default null,
+  p_limit integer default 200
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=pg_catalog,atlas,auth
+as $function$
+declare
+  v_items jsonb;
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if p_limit<1 or p_limit>500 then raise exception 'Sent limit must be between 1 and 500.' using errcode='22023'; end if;
+  if p_communication_endpoint_id is not null
+     and not atlas.communication_endpoint_authorized_self_v1(p_communication_endpoint_id,'view') then
+    raise exception 'Communication endpoint view authority required.' using errcode='42501';
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'outboundOperationId',q.id,
+           'communicationConversationId',q.communication_conversation_id,
+           'institutionalConversationId',q.institutional_conversation_id,
+           'communicationEndpointId',q.communication_endpoint_id,
+           'communicationEventId',q.communication_event_id,
+           'operationState',q.operation_state,
+           'authorizedAt',q.authorized_at,
+           'acceptedAt',q.accepted_at,
+           'failedAt',q.failed_at,
+           'to',q.to_recipients,
+           'cc',q.cc_recipients,
+           'bcc',q.bcc_recipients,
+           'subject',q.subject,
+           'bodyText',q.body_text,
+           'attachmentRefs',q.attachment_refs,
+           'latestAttempt',q.latest_attempt,
+           'recipientResults',q.recipient_results
+         ) order by q.authorized_at desc,q.id),'[]'::jsonb)
+  into v_items
+  from (
+    select o.*,el.communication_event_id,
+           la.attempt as latest_attempt,coalesce(la.recipients,'[]'::jsonb) as recipient_results
+    from atlas.communication_outbound_operations o
+    join atlas.institutional_conversation_roots r
+      on r.institutional_conversation_id=o.institutional_conversation_id
+     and r.communication_conversation_id=o.communication_conversation_id
+    left join atlas.communication_outbound_event_links el on el.outbound_operation_id=o.id
+    left join lateral (
+      select jsonb_build_object(
+               'attemptId',a.id,'attemptNumber',a.attempt_number,'resultState',a.result_state,
+               'providerMessageRef',a.provider_message_ref,'attemptedAt',a.attempted_at
+             ) as attempt,
+             (select coalesce(jsonb_agg(jsonb_build_object(
+                'role',ar.recipient_role,'address',ar.recipient_address,
+                'resultState',ar.result_state,'providerResponse',ar.provider_response
+              ) order by ar.recipient_role,ar.recipient_address),'[]'::jsonb)
+              from atlas.communication_outbound_attempt_recipients ar
+              where ar.outbound_attempt_id=a.id) as recipients
+      from atlas.communication_outbound_attempts a
+      where a.outbound_operation_id=o.id
+      order by a.attempt_number desc
+      limit 1
+    ) la on true
+    where atlas.organization_correspondence_read_authorized_self_v1(o.communication_conversation_id)
+      and (p_organization_id is null or atlas.organization_correspondence_effective_organization_v1(o.communication_conversation_id)=p_organization_id)
+      and (p_communication_endpoint_id is null or o.communication_endpoint_id=p_communication_endpoint_id)
+    order by o.authorized_at desc,o.id
+    limit p_limit
+  ) q;
+
+  return jsonb_build_object(
+    'ok',true,
+    'contractVersion','organization_correspondence_sent_v1',
+    'identityRoot','communication_conversation',
+    'organizationId',p_organization_id,
+    'communicationEndpointFilterId',p_communication_endpoint_id,
+    'items',v_items
+  );
+end;
+$function$;
+
 create or replace function atlas.claim_communication_conversation_self_api_v1(p_communication_conversation_id uuid,p_reason text default null)
 returns jsonb language plpgsql security definer set search_path=pg_catalog,atlas,auth
 as $function$
