@@ -1,11 +1,9 @@
 begin;
 
 -- Package 7 Communications convergence Stage 4.
---
 -- Common Communication Conversation becomes the command-side root for
 -- Organization Correspondence consequences. Institutional Conversation remains
--- a compatibility carrier behind these seams while historical response/send/
--- work tables still reference it.
+-- a compatibility carrier while historical response/send/work tables require it.
 
 alter table atlas.communication_email_drafts
   add column if not exists communication_conversation_id uuid
@@ -23,9 +21,7 @@ create index if not exists communication_outbound_operations_common_conversation
   on atlas.communication_outbound_operations(communication_conversation_id,created_at desc)
   where communication_conversation_id is not null;
 
--- Any historical rows that predate this migration inherit their already-
--- governed Stage 1 compatibility root. Current production contains zero rows,
--- but this keeps the migration correct for other receiving states.
+-- Historical consequence rows inherit their already-governed Stage 1 root.
 update atlas.communication_email_drafts draft
 set communication_conversation_id=root.communication_conversation_id
 from atlas.institutional_conversation_roots root
@@ -39,12 +35,10 @@ where operation.communication_conversation_id is null
   and operation.institutional_conversation_id=root.institutional_conversation_id;
 
 comment on column atlas.communication_email_drafts.communication_conversation_id is
-'Common provider-independent Communication Conversation custody for a draft when conversation continuity is already established. Institutional Conversation is compatibility only.';
+'Common provider-independent Communication Conversation custody for a draft when continuity is established. Institutional Conversation is compatibility only.';
 comment on column atlas.communication_outbound_operations.communication_conversation_id is
-'Common provider-independent Communication Conversation custody for an authorized outbound operation. Institutional Conversation remains a compatibility transport/response carrier.';
+'Common provider-independent Communication Conversation custody for an authorized outbound operation. Institutional Conversation is compatibility only.';
 
--- Resolve the one permitted compatibility carrier beneath a common Organization
--- Communication Conversation. This helper never creates compatibility state.
 create or replace function atlas.require_institutional_compatibility_for_communication_conversation_v1(
   p_communication_conversation_id uuid
 )
@@ -118,9 +112,10 @@ begin
 end;
 $function$;
 
--- Draft/outbound consequence rows may temporarily carry the historical
--- Institutional identifier, but once either conversation identity is present
--- they must carry both and they must describe the same Stage 1 root.
+-- These are deferred AFTER triggers because compatibility functions may insert
+-- a historical carrier first and the Stage 4 wrapper supplies the common root
+-- later in the same transaction. A deferred trigger's NEW image is historical,
+-- so the guard MUST re-read the row's final state by id before validating it.
 create or replace function atlas.guard_communication_consequence_common_root_v1()
 returns trigger
 language plpgsql
@@ -128,33 +123,81 @@ security definer
 set search_path=pg_catalog,atlas
 as $function$
 declare
+  v_common_id uuid;
+  v_institutional_id uuid;
+  v_endpoint_id uuid;
+  v_reply_event_id uuid;
   v_root uuid;
+  v_reply_common_id uuid;
+  v_reply_endpoint_id uuid;
 begin
+  if tg_table_name='communication_outbound_operations' then
+    select operation.communication_conversation_id,
+           operation.institutional_conversation_id,
+           operation.communication_endpoint_id,
+           operation.reply_to_communication_event_id
+    into v_common_id,v_institutional_id,v_endpoint_id,v_reply_event_id
+    from atlas.communication_outbound_operations operation
+    where operation.id=new.id;
+  elsif tg_table_name='communication_email_drafts' then
+    select draft.communication_conversation_id,
+           draft.institutional_conversation_id,
+           draft.communication_endpoint_id,
+           draft.reply_to_communication_event_id
+    into v_common_id,v_institutional_id,v_endpoint_id,v_reply_event_id
+    from atlas.communication_email_drafts draft
+    where draft.id=new.id;
+  else
+    raise exception 'Unsupported Communication consequence table %.',tg_table_name using errcode='23514';
+  end if;
+
+  -- Row may have been removed later in the same transaction.
+  if not found then
+    return null;
+  end if;
+
   if tg_table_name='communication_outbound_operations'
-     and (new.communication_conversation_id is null or new.institutional_conversation_id is null) then
+     and (v_common_id is null or v_institutional_id is null) then
     raise exception 'Outbound Communication operations require common Conversation and Institutional compatibility custody.' using errcode='23514';
   end if;
 
-  if new.communication_conversation_id is null
-     and new.institutional_conversation_id is null then
-    return new;
+  -- A brand-new unsent draft may remain intentionally unbound while composing.
+  if v_common_id is null and v_institutional_id is null then
+    if v_reply_event_id is not null then
+      raise exception 'A reply draft cannot be unbound from its Communication Conversation.' using errcode='23514';
+    end if;
+    return null;
   end if;
 
-  if new.communication_conversation_id is null
-     or new.institutional_conversation_id is null then
+  if v_common_id is null or v_institutional_id is null then
     raise exception 'Communication consequence conversation custody must be paired.' using errcode='23514';
   end if;
 
   select communication_conversation_id
   into v_root
   from atlas.institutional_conversation_roots
-  where institutional_conversation_id=new.institutional_conversation_id;
+  where institutional_conversation_id=v_institutional_id;
 
-  if v_root is distinct from new.communication_conversation_id then
+  if v_root is distinct from v_common_id then
     raise exception 'Communication consequence Institutional compatibility does not match common Conversation.' using errcode='23514';
   end if;
 
-  return new;
+  -- A reply is anchored to the exact source Event and its endpoint. Deliberate
+  -- channel changes must be expressed as a new send, not silently as a reply.
+  if v_reply_event_id is not null then
+    select membership.communication_conversation_id,membership.communication_endpoint_id
+    into v_reply_common_id,v_reply_endpoint_id
+    from atlas.communication_conversation_events membership
+    where membership.communication_event_id=v_reply_event_id;
+
+    if v_reply_common_id is null
+       or v_reply_common_id is distinct from v_common_id
+       or v_reply_endpoint_id is distinct from v_endpoint_id then
+      raise exception 'Reply consequence must preserve exact common Conversation and Communication Endpoint continuity.' using errcode='23514';
+    end if;
+  end if;
+
+  return null;
 end;
 $function$;
 
@@ -173,8 +216,8 @@ deferrable initially deferred
 for each row execute function atlas.guard_communication_consequence_common_root_v1();
 
 -- Resolve or create the common/compatibility pair used by an outbound command.
--- Reply continuity may derive the common Conversation from the exact source
--- Communication Event. New outbound intent creates common identity first.
+-- Reply continuity derives from the exact source Event. New outbound intent
+-- creates common identity first, then the Institutional compatibility carrier.
 create or replace function atlas.ensure_organization_communication_command_pair_service_v1(
   p_actor_membership_id uuid,
   p_communication_endpoint_id uuid,
@@ -202,8 +245,7 @@ declare
 begin
   select * into v_endpoint
   from atlas.communication_endpoints
-  where id=p_communication_endpoint_id
-    and endpoint_state='active';
+  where id=p_communication_endpoint_id and endpoint_state='active';
   if v_endpoint.id is null then
     raise exception 'Active Communication Endpoint required.' using errcode='P0002';
   end if;
@@ -382,8 +424,7 @@ declare
 begin
   select * into v_endpoint
   from atlas.communication_endpoints
-  where id=p_communication_endpoint_id
-    and endpoint_state='active';
+  where id=p_communication_endpoint_id and endpoint_state='active';
   if v_endpoint.id is null then
     raise exception 'Active Communication Endpoint required.' using errcode='P0002';
   end if;
@@ -392,8 +433,7 @@ begin
     perform pg_advisory_xact_lock(hashtextextended(v_endpoint.organization_id::text||':'||v_key,0));
     select * into v_existing
     from atlas.communication_outbound_operations
-    where organization_id=v_endpoint.organization_id
-      and idempotency_key=v_key
+    where organization_id=v_endpoint.organization_id and idempotency_key=v_key
     limit 1;
   end if;
 
@@ -463,8 +503,7 @@ begin
 end;
 $function$;
 
--- Preserve the existing browser contract, but make it a compatibility wrapper
--- into the common-root command membrane.
+-- Preserve the existing browser contract as a compatibility wrapper.
 create or replace function atlas.prepare_institutional_email_send_self_api_v1(
   p_communication_endpoint_id uuid,
   p_institutional_conversation_id uuid,
@@ -567,8 +606,7 @@ begin
 end;
 $function$;
 
--- Preserve draft implementation as compatibility machinery and put common-root
--- wrappers in front of it.
+-- Preserve draft implementation as service-only compatibility machinery.
 alter function atlas.save_communication_email_draft_self_api_v1(
   uuid,uuid,uuid,uuid,jsonb,jsonb,jsonb,text,text,text,jsonb,uuid,timestamptz,jsonb
 ) rename to save_communication_email_draft_compatibility_self_api_v1;
@@ -654,15 +692,20 @@ declare
   v_common_id uuid:=p_communication_conversation_id;
   v_institutional_id uuid;
   v_reply_common_id uuid;
+  v_reply_endpoint_id uuid;
   v_result jsonb;
   v_draft_id uuid;
 begin
   if p_reply_to_communication_event_id is not null then
-    select communication_conversation_id into v_reply_common_id
+    select communication_conversation_id,communication_endpoint_id
+    into v_reply_common_id,v_reply_endpoint_id
     from atlas.communication_conversation_events
     where communication_event_id=p_reply_to_communication_event_id;
     if v_reply_common_id is null then
       raise exception 'Reply target is not attached to a common Communication Conversation.' using errcode='23514';
+    end if;
+    if v_reply_endpoint_id is distinct from p_communication_endpoint_id then
+      raise exception 'Reply draft must use the exact Communication Endpoint of the source Event.' using errcode='42501';
     end if;
     if v_common_id is not null and v_common_id is distinct from v_reply_common_id then
       raise exception 'Reply target belongs to another Communication Conversation.' using errcode='23514';
@@ -700,9 +743,8 @@ begin
 end;
 $function$;
 
--- Draft authorization now uses the common-root outbound membrane. A brand-new
--- unbound draft creates common Conversation identity only when send is actually
--- authorized, not merely while the human is composing.
+-- Draft authorization creates common Conversation identity only when an unbound
+-- new message is actually authorized for send.
 create or replace function atlas.authorize_communication_email_draft_self_api_v1(
   p_draft_id uuid
 )
@@ -852,9 +894,8 @@ begin
 end;
 $function$;
 
--- Common Conversation response/work command wrappers. They do not duplicate
--- consequence semantics; they resolve the compatibility carrier and delegate to
--- the established authority functions.
+-- Common Conversation response/work wrappers resolve the one compatibility
+-- carrier and delegate to established consequence authority.
 create or replace function atlas.claim_communication_conversation_self_api_v1(
   p_communication_conversation_id uuid,
   p_reason text default null
@@ -864,9 +905,7 @@ language plpgsql
 security definer
 set search_path=pg_catalog,atlas,auth
 as $function$
-declare
-  v_institutional_id uuid;
-  v_result jsonb;
+declare v_institutional_id uuid; v_result jsonb;
 begin
   v_institutional_id:=atlas.require_institutional_compatibility_for_communication_conversation_v1(p_communication_conversation_id);
   v_result:=atlas.claim_institutional_conversation_self_api_v1(v_institutional_id,p_reason);
@@ -888,9 +927,7 @@ language plpgsql
 security definer
 set search_path=pg_catalog,atlas,auth
 as $function$
-declare
-  v_institutional_id uuid;
-  v_result jsonb;
+declare v_institutional_id uuid; v_result jsonb;
 begin
   v_institutional_id:=atlas.require_institutional_compatibility_for_communication_conversation_v1(p_communication_conversation_id);
   v_result:=atlas.handoff_institutional_conversation_self_api_v1(v_institutional_id,p_target_membership_id,p_reason);
@@ -912,9 +949,7 @@ language plpgsql
 security definer
 set search_path=pg_catalog,atlas,auth
 as $function$
-declare
-  v_institutional_id uuid;
-  v_result jsonb;
+declare v_institutional_id uuid; v_result jsonb;
 begin
   v_institutional_id:=atlas.require_institutional_compatibility_for_communication_conversation_v1(p_communication_conversation_id);
   v_result:=atlas.add_institutional_conversation_collaborator_self_api_v1(v_institutional_id,p_target_membership_id,p_allocation_role);
@@ -936,9 +971,7 @@ language plpgsql
 security definer
 set search_path=pg_catalog,atlas,auth
 as $function$
-declare
-  v_institutional_id uuid;
-  v_result jsonb;
+declare v_institutional_id uuid; v_result jsonb;
 begin
   v_institutional_id:=atlas.require_institutional_compatibility_for_communication_conversation_v1(p_communication_conversation_id);
   v_result:=atlas.remove_institutional_conversation_collaborator_self_api_v1(v_institutional_id,p_target_membership_id,p_allocation_role);
@@ -960,38 +993,12 @@ language plpgsql
 security definer
 set search_path=pg_catalog,atlas,auth
 as $function$
-declare
-  v_institutional_id uuid;
-  v_result jsonb;
+declare v_institutional_id uuid; v_result jsonb;
 begin
   v_institutional_id:=atlas.require_institutional_compatibility_for_communication_conversation_v1(p_communication_conversation_id);
   v_result:=atlas.set_institutional_conversation_response_state_self_api_v1(v_institutional_id,p_to_state,p_reason);
   return v_result||jsonb_build_object(
     'contractVersion','communication_conversation_response_state_v1',
-    'communicationConversationId',p_communication_conversation_id,
-    'institutionalCompatibilityId',v_institutional_id
-  );
-end;
-$function$;
-
-create or replace function atlas.set_communication_conversation_disposition_self_api_v1(
-  p_communication_conversation_id uuid,
-  p_disposition text,
-  p_reason text default null
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path=pg_catalog,atlas,auth
-as $function$
-declare
-  v_institutional_id uuid;
-  v_result jsonb;
-begin
-  v_institutional_id:=atlas.require_institutional_compatibility_for_communication_conversation_v1(p_communication_conversation_id);
-  v_result:=atlas.set_institutional_conversation_disposition_self_api_v1(v_institutional_id,p_disposition,p_reason);
-  return v_result||jsonb_build_object(
-    'contractVersion','communication_conversation_disposition_v1',
     'communicationConversationId',p_communication_conversation_id,
     'institutionalCompatibilityId',v_institutional_id
   );
@@ -1008,9 +1015,7 @@ stable
 security definer
 set search_path=pg_catalog,atlas,auth
 as $function$
-declare
-  v_institutional_id uuid;
-  v_result jsonb;
+declare v_institutional_id uuid; v_result jsonb;
 begin
   v_institutional_id:=atlas.require_institutional_compatibility_for_communication_conversation_v1(p_communication_conversation_id);
   v_result:=atlas.communication_work_context_candidates_self_v1(v_institutional_id,p_query);
@@ -1085,9 +1090,11 @@ begin
 end;
 $function$;
 
--- Privilege membrane. Compatibility implementation is service-only; current
--- legacy browser entrypoints remain available only because Stage 5 has not yet
--- cut the Product over. New common-root browser APIs are explicit.
+-- Mailbox disposition stays endpoint/mailbox-scoped in Stage 4. Do not expose a
+-- common-Conversation disposition command that would silently choose one endpoint.
+
+-- Privilege membrane. Compatibility implementation is service-only; legacy
+-- browser entrypoints remain only until Stage 5 Product cutover.
 revoke all on function atlas.require_institutional_compatibility_for_communication_conversation_v1(uuid) from public,anon,authenticated;
 revoke all on function atlas.require_common_communication_conversation_for_institutional_v1(uuid) from public,anon,authenticated;
 revoke all on function atlas.guard_communication_consequence_common_root_v1() from public,anon,authenticated;
@@ -1109,7 +1116,6 @@ revoke all on function atlas.handoff_communication_conversation_self_api_v1(uuid
 revoke all on function atlas.add_communication_conversation_collaborator_self_api_v1(uuid,uuid,text) from public,anon;
 revoke all on function atlas.remove_communication_conversation_collaborator_self_api_v1(uuid,uuid,text) from public,anon;
 revoke all on function atlas.set_communication_conversation_response_state_self_api_v1(uuid,text,text) from public,anon;
-revoke all on function atlas.set_communication_conversation_disposition_self_api_v1(uuid,text,text) from public,anon;
 revoke all on function atlas.communication_work_context_candidates_self_v2(uuid,text) from public,anon;
 revoke all on function atlas.create_communication_derived_work_self_api_v3(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text) from public,anon;
 
@@ -1120,7 +1126,6 @@ grant execute on function atlas.handoff_communication_conversation_self_api_v1(u
 grant execute on function atlas.add_communication_conversation_collaborator_self_api_v1(uuid,uuid,text) to authenticated,service_role;
 grant execute on function atlas.remove_communication_conversation_collaborator_self_api_v1(uuid,uuid,text) to authenticated,service_role;
 grant execute on function atlas.set_communication_conversation_response_state_self_api_v1(uuid,text,text) to authenticated,service_role;
-grant execute on function atlas.set_communication_conversation_disposition_self_api_v1(uuid,text,text) to authenticated,service_role;
 grant execute on function atlas.communication_work_context_candidates_self_v2(uuid,text) to authenticated,service_role;
 grant execute on function atlas.create_communication_derived_work_self_api_v3(uuid,uuid,text,text,text,uuid,timestamptz,text,jsonb,jsonb,jsonb,text) to authenticated,service_role;
 
