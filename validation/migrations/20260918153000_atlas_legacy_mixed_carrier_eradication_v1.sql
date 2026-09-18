@@ -137,8 +137,19 @@ begin
       join atlas.communication_conversation_endpoints cce
         on cce.communication_conversation_id=cc.id
       where cce.communication_endpoint_id='7617a7b1-8713-4520-923f-51a15c6b2d7f'::uuid
-        and cc.organization_id='fc4ad5aa-2d09-4ea6-ba50-eaf0f34fc3f2'::uuid) <> 23 then
-    raise exception 'Expected 23 Elm correspondence Conversations under canonical Elm custody.';
+        and cc.organization_id='fc4ad5aa-2d09-4ea6-ba50-eaf0f34fc3f2'::uuid) < 23 then
+    raise exception 'Existing Elm correspondence Conversations were lost during physical custody cut.';
+  end if;
+
+  if exists (
+    select 1
+    from atlas.communication_conversations cc
+    join atlas.communication_conversation_endpoints cce
+      on cce.communication_conversation_id=cc.id
+    where cce.communication_endpoint_id='7617a7b1-8713-4520-923f-51a15c6b2d7f'::uuid
+      and cc.organization_id<>'fc4ad5aa-2d09-4ea6-ba50-eaf0f34fc3f2'::uuid
+  ) then
+    raise exception 'Elm correspondence still has a non-Elm physical Conversation.';
   end if;
 
   if not exists (
