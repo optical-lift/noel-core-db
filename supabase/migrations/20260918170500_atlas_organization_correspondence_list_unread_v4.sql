@@ -14,6 +14,7 @@ as $function$
 declare
   v_base jsonb;
   v_items jsonb;
+  v_viewer_membership_id uuid;
 begin
   if auth.uid() is null then
     raise exception 'Sign in required.' using errcode='42501';
@@ -24,6 +25,28 @@ begin
     p_communication_endpoint_id,
     p_limit
   );
+
+  if p_organization_id is not null then
+    select membership.id
+    into v_viewer_membership_id
+    from atlas.organization_memberships membership
+    where membership.organization_id=p_organization_id
+      and membership.user_id=auth.uid()
+      and membership.active
+    order by membership.created_at,membership.id
+    limit 1;
+  elsif p_communication_endpoint_id is not null then
+    select membership.id
+    into v_viewer_membership_id
+    from atlas.communication_endpoints endpoint
+    join atlas.organization_memberships membership
+      on membership.organization_id=atlas.effective_communication_endpoint_organization_v1(endpoint.id)
+     and membership.user_id=auth.uid()
+     and membership.active
+    where endpoint.id=p_communication_endpoint_id
+    order by membership.created_at,membership.id
+    limit 1;
+  end if;
 
   select coalesce(
     jsonb_agg(
@@ -75,6 +98,7 @@ begin
 
   return (v_base-'items') || jsonb_build_object(
     'contractVersion','organization_correspondence_list_v4',
+    'viewerMembershipId',v_viewer_membership_id,
     'items',v_items
   );
 end;
@@ -86,6 +110,6 @@ grant execute on function atlas.organization_correspondence_list_self_api_v4(uui
 grant execute on function atlas.organization_correspondence_list_self_api_v4(uuid,uuid,integer) to service_role;
 
 comment on function atlas.organization_correspondence_list_self_api_v4(uuid,uuid,integer)
-is 'Common Communication Conversation list v4. Extends v3 with viewer-specific latest Communication Event attention (opened/read/unread) without restoring Institutional inbox identity.';
+is 'Common Communication Conversation list v4. Extends v3 with viewer Organization membership and viewer-specific latest Communication Event attention (opened/read/unread) without restoring Institutional inbox identity.';
 
 commit;
