@@ -1,41 +1,58 @@
 do $validation$
 declare
-  v_a_session text := 'cs_test_atlas_lifecycle_ordering_v2_a';
-  v_a_subscription text := 'sub_test_atlas_lifecycle_ordering_v2_a';
-  v_b_session text := 'cs_test_atlas_lifecycle_ordering_v2_b';
-  v_b_subscription text := 'sub_test_atlas_lifecycle_ordering_v2_b';
+  v_a_session text := 'cs_test_atlas_lifecycle_current_v2_a';
+  v_a_subscription text := 'sub_test_atlas_lifecycle_current_v2_a';
+  v_b_session text := 'cs_test_atlas_lifecycle_current_v2_b';
+  v_b_subscription text := 'sub_test_atlas_lifecycle_current_v2_b';
   v_result jsonb;
   v_state text;
   v_rls boolean;
 begin
   if to_regclass('atlas.personal_atlas_subscription_events') is null then
-    raise exception 'Expected Personal Atlas subscription event ledger.';
+    raise exception 'Expected Personal Atlas subscription Event ledger.';
+  end if;
+  if to_regclass('atlas.personal_atlas_subscription_observations') is null then
+    raise exception 'Expected Personal Atlas current-subscription observation ledger.';
   end if;
 
-  select c.relrowsecurity
-    into v_rls
+  select c.relrowsecurity into v_rls
   from pg_class c
   where c.oid='atlas.personal_atlas_subscription_events'::regclass;
   if not coalesce(v_rls,false) then
-    raise exception 'Personal Atlas subscription event ledger must have RLS enabled.';
+    raise exception 'Personal Atlas subscription Event ledger must have RLS enabled.';
   end if;
 
-  if to_regprocedure('atlas.record_stripe_personal_atlas_subscription_state_v2(text,text,text,timestamptz)') is null then
-    raise exception 'Expected ordered Personal Atlas subscription lifecycle command v2.';
+  select c.relrowsecurity into v_rls
+  from pg_class c
+  where c.oid='atlas.personal_atlas_subscription_observations'::regclass;
+  if not coalesce(v_rls,false) then
+    raise exception 'Personal Atlas subscription observation ledger must have RLS enabled.';
   end if;
 
-  if has_function_privilege('anon','atlas.record_stripe_personal_atlas_subscription_state_v2(text,text,text,timestamptz)','execute') then
-    raise exception 'anon must not execute Personal Atlas subscription lifecycle v2.';
+  if to_regprocedure('atlas.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb)') is null then
+    raise exception 'Expected current-provider Personal Atlas purchase recorder v2.';
   end if;
-  if has_function_privilege('authenticated','atlas.record_stripe_personal_atlas_subscription_state_v2(text,text,text,timestamptz)','execute') then
-    raise exception 'authenticated must not execute Personal Atlas subscription lifecycle v2.';
-  end if;
-  if not has_function_privilege('service_role','atlas.record_stripe_personal_atlas_subscription_state_v2(text,text,text,timestamptz)','execute') then
-    raise exception 'service_role must execute Personal Atlas subscription lifecycle v2.';
+  if to_regprocedure('atlas.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text)') is null then
+    raise exception 'Expected current-provider Personal Atlas lifecycle recorder v2.';
   end if;
 
-  -- Historical Checkout verification is immutable evidence. Once lifecycle
-  -- state moves away from active, replaying the same Checkout must not reopen it.
+  if has_function_privilege('anon','atlas.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb)','execute')
+     or has_function_privilege('authenticated','atlas.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb)','execute') then
+    raise exception 'Browser roles must not execute Personal Atlas purchase recorder v2.';
+  end if;
+  if not has_function_privilege('service_role','atlas.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb)','execute') then
+    raise exception 'service_role must execute Personal Atlas purchase recorder v2.';
+  end if;
+
+  if has_function_privilege('anon','atlas.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text)','execute')
+     or has_function_privilege('authenticated','atlas.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text)','execute') then
+    raise exception 'Browser roles must not execute Personal Atlas lifecycle recorder v2.';
+  end if;
+  if not has_function_privilege('service_role','atlas.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text)','execute') then
+    raise exception 'service_role must execute Personal Atlas lifecycle recorder v2.';
+  end if;
+
+  -- Historical Checkout replay alone may not reopen a lifecycle-locked Atlas.
   perform atlas.record_stripe_personal_atlas_purchase_v1(
     v_a_session,
     v_a_subscription,
@@ -49,8 +66,7 @@ begin
     'evt_test_legacy_past_due'
   );
 
-  select purchase_state
-    into v_state
+  select purchase_state into v_state
   from atlas.personal_atlas_purchases
   where provider_checkout_session_id=v_a_session;
   if v_state <> 'past_due' then
@@ -65,48 +81,57 @@ begin
     jsonb_build_object('source','validation_replay')
   );
 
-  select purchase_state
-    into v_state
+  select purchase_state into v_state
   from atlas.personal_atlas_purchases
   where provider_checkout_session_id=v_a_session;
   if v_state <> 'past_due' then
-    raise exception 'Checkout replay reopened a non-current Personal Atlas subscription.';
+    raise exception 'Historical Checkout replay reopened a non-current Personal Atlas subscription.';
   end if;
 
-  -- Provider event time, not delivery order, decides the current lifecycle.
+  -- A snapshot Event can be old, delayed, duplicated, or share a timestamp.
+  -- Current Stripe Subscription retrieval, not Event.created, decides access.
   v_result := atlas.record_stripe_personal_atlas_subscription_state_v2(
     v_a_subscription,
-    'active',
-    'evt_test_newer_active',
-    '2026-09-18T10:00:20Z'::timestamptz
-  );
-  if coalesce((v_result->>'accepted')::boolean,false) is not true
-     or v_result->>'purchaseState' <> 'active' then
-    raise exception 'Newer active lifecycle event was not accepted/applied: %',v_result;
-  end if;
-
-  v_result := atlas.record_stripe_personal_atlas_subscription_state_v2(
-    v_a_subscription,
+    'customer.subscription.updated',
     'past_due',
-    'evt_test_older_past_due',
-    '2026-09-18T10:00:10Z'::timestamptz
+    'evt_test_delayed_old_snapshot',
+    '2026-09-18T10:00:10Z'::timestamptz,
+    'active'
   );
   if v_result->>'purchaseState' <> 'active'
-     or v_result->>'appliedEventId' <> 'evt_test_newer_active' then
-    raise exception 'Older delayed lifecycle event overwrote newer state: %',v_result;
+     or v_result->>'observedStripeStatus' <> 'active' then
+    raise exception 'Fresh current Stripe state did not override stale Event snapshot: %',v_result;
   end if;
 
   v_result := atlas.record_stripe_personal_atlas_subscription_state_v2(
     v_a_subscription,
-    'past_due',
-    'evt_test_older_past_due',
-    '2026-09-18T10:00:10Z'::timestamptz
+    'customer.subscription.updated',
+    'active',
+    'evt_test_same_second_snapshot',
+    '2026-09-18T10:00:10Z'::timestamptz,
+    'past_due'
   );
-  if coalesce((v_result->>'accepted')::boolean,true) is not false then
-    raise exception 'Duplicate Stripe event was not deduplicated: %',v_result;
+  if v_result->>'purchaseState' <> 'past_due' then
+    raise exception 'Current provider state was incorrectly inferred from same-second Event evidence: %',v_result;
   end if;
 
-  -- Once ordered v2 evidence exists, a stale legacy v1 caller may not overwrite it.
+  -- Duplicate Event identity is deduplicated as evidence, but each delivery may
+  -- still refresh the current Subscription object and repair the projection.
+  v_result := atlas.record_stripe_personal_atlas_subscription_state_v2(
+    v_a_subscription,
+    'customer.subscription.updated',
+    'active',
+    'evt_test_same_second_snapshot',
+    '2026-09-18T10:00:10Z'::timestamptz,
+    'active'
+  );
+  if coalesce((v_result->>'eventAccepted')::boolean,true) is not false
+     or v_result->>'purchaseState' <> 'active' then
+    raise exception 'Duplicate Event did not dedupe evidence while refreshing current state: %',v_result;
+  end if;
+
+  -- Once a v2 current-provider observation exists, an old deployed v1 caller
+  -- cannot overwrite it with snapshot-event status.
   v_result := atlas.record_stripe_personal_atlas_subscription_state_v1(
     v_a_subscription,
     'canceled',
@@ -114,39 +139,71 @@ begin
   );
   if coalesce((v_result->>'legacyIgnored')::boolean,false) is not true
      or v_result->>'purchaseState' <> 'active' then
-    raise exception 'Legacy lifecycle call bypassed ordered v2 evidence: %',v_result;
+    raise exception 'Legacy lifecycle call bypassed current-provider observation: %',v_result;
   end if;
 
+  -- A fresh current cancellation locks; a later fresh active observation opens.
   v_result := atlas.record_stripe_personal_atlas_subscription_state_v2(
     v_a_subscription,
+    'customer.subscription.deleted',
     'canceled',
-    'evt_test_newer_cancel',
-    '2026-09-18T10:00:30Z'::timestamptz
+    'evt_test_cancel',
+    '2026-09-18T10:00:20Z'::timestamptz,
+    'canceled'
   );
   if v_result->>'purchaseState' <> 'cancelled' then
-    raise exception 'Newer cancellation did not lock Personal Atlas: %',v_result;
+    raise exception 'Current Stripe cancellation did not lock Personal Atlas: %',v_result;
   end if;
 
   v_result := atlas.record_stripe_personal_atlas_subscription_state_v2(
     v_a_subscription,
+    'customer.subscription.updated',
     'active',
-    'evt_test_newest_recovery',
-    '2026-09-18T10:00:40Z'::timestamptz
+    'evt_test_recovery',
+    '2026-09-18T10:00:30Z'::timestamptz,
+    'active'
   );
   if v_result->>'purchaseState' <> 'active' then
-    raise exception 'Newer active recovery did not reopen Personal Atlas: %',v_result;
+    raise exception 'Current Stripe active recovery did not reopen Personal Atlas: %',v_result;
   end if;
 
-  -- A lifecycle event may arrive before Checkout completion. Preserve it and
-  -- reconcile the later purchase immediately instead of assuming active.
+  -- Checkout verification v2 itself is also provider-current and replay safe.
+  v_result := atlas.record_stripe_personal_atlas_purchase_v2(
+    v_a_session,
+    v_a_subscription,
+    'proof-a@example.test',
+    '2026-09-18T10:00:00Z'::timestamptz,
+    'canceled',
+    jsonb_build_object('source','validation_current_checkout')
+  );
+  if v_result->>'purchaseState' <> 'cancelled' then
+    raise exception 'Current Checkout verification did not honor retrieved cancelled Subscription: %',v_result;
+  end if;
+
+  v_result := atlas.record_stripe_personal_atlas_purchase_v2(
+    v_a_session,
+    v_a_subscription,
+    'proof-a@example.test',
+    '2026-09-18T10:00:00Z'::timestamptz,
+    'active',
+    jsonb_build_object('source','validation_current_checkout_recovery')
+  );
+  if v_result->>'purchaseState' <> 'active' then
+    raise exception 'Current Checkout verification did not honor retrieved active Subscription: %',v_result;
+  end if;
+
+  -- Lifecycle observation may arrive before Checkout completion. Preserve the
+  -- observation and reconcile a later v1 purchase instead of assuming active.
   v_result := atlas.record_stripe_personal_atlas_subscription_state_v2(
     v_b_subscription,
+    'customer.subscription.updated',
     'past_due',
     'evt_test_before_purchase',
-    '2026-09-18T11:00:00Z'::timestamptz
+    '2026-09-18T11:00:00Z'::timestamptz,
+    'past_due'
   );
   if coalesce((v_result->>'matched')::boolean,true) is not false then
-    raise exception 'Pre-purchase lifecycle event unexpectedly matched a purchase: %',v_result;
+    raise exception 'Pre-purchase lifecycle observation unexpectedly matched a purchase: %',v_result;
   end if;
 
   perform atlas.record_stripe_personal_atlas_purchase_v1(
@@ -154,25 +211,22 @@ begin
     v_b_subscription,
     'proof-b@example.test',
     '2026-09-18T10:59:00Z'::timestamptz,
-    jsonb_build_object('source','validation_after_event')
+    jsonb_build_object('source','validation_after_observation')
   );
 
-  select purchase_state
-    into v_state
+  select purchase_state into v_state
   from atlas.personal_atlas_purchases
   where provider_checkout_session_id=v_b_session;
   if v_state <> 'past_due' then
-    raise exception 'Purchase arriving after lifecycle evidence failed to reconcile; got %.',v_state;
+    raise exception 'Purchase arriving after current-provider observation failed to reconcile; got %.',v_state;
   end if;
 
+  delete from atlas.personal_atlas_subscription_observations
+  where provider_subscription_id in (v_a_subscription,v_b_subscription);
+
   delete from atlas.personal_atlas_subscription_events
-  where provider_event_id in (
-    'evt_test_newer_active',
-    'evt_test_older_past_due',
-    'evt_test_newer_cancel',
-    'evt_test_newest_recovery',
-    'evt_test_before_purchase'
-  );
+  where provider_subscription_id in (v_a_subscription,v_b_subscription);
+
   delete from atlas.personal_atlas_purchases
   where provider_checkout_session_id in (v_a_session,v_b_session);
 end;
