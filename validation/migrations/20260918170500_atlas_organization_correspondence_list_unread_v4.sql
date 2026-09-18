@@ -24,8 +24,10 @@ begin
       and p.prosrc ilike '%openedByMe%'
       and p.prosrc ilike '%latestAttentionKind%'
       and p.prosrc ilike '%organization_correspondence_list_self_api_v3%'
+      and p.prosrc ilike '%viewerMembershipId%'
+      and p.prosrc ilike '%organization_memberships%'
   ) then
-    raise exception 'Correspondence list v4 lost common-list or exact Event attention dependency.';
+    raise exception 'Correspondence list v4 lost common-list, viewer membership, or exact Event attention dependency.';
   end if;
 end;
 $validation$;
