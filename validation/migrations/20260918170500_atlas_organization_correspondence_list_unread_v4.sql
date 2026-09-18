@@ -108,6 +108,8 @@ begin
       and p.proname='organization_correspondence_search_self_api_v2'
       and p.prosrc ilike '%organization_correspondence_search_self_api_v1%'
       and p.prosrc ilike '%communication_conversation_endpoint_disposition_events%'
+      and p.prosrc ilike '%p_filters%'
+      and p.prosrc ilike '%disposition%'
   ) then
     raise exception 'Common Correspondence search v2 lost common mailbox dependency.';
   end if;
