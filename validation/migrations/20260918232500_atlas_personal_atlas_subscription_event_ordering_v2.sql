@@ -4,6 +4,8 @@ declare
   v_a_subscription text := 'sub_test_atlas_lifecycle_current_v2_a';
   v_b_session text := 'cs_test_atlas_lifecycle_current_v2_b';
   v_b_subscription text := 'sub_test_atlas_lifecycle_current_v2_b';
+  v_c_session text := 'cs_test_atlas_lifecycle_current_v2_c';
+  v_c_subscription text := 'sub_test_atlas_lifecycle_current_v2_c';
   v_result jsonb;
   v_state text;
   v_rls boolean;
@@ -192,6 +194,30 @@ begin
     raise exception 'Current Checkout verification did not honor retrieved active Subscription: %',v_result;
   end if;
 
+  -- A current Checkout observation alone must also protect a rollout from a
+  -- stale v1 lifecycle caller before the first v2 lifecycle Event arrives.
+  v_result := atlas.record_stripe_personal_atlas_purchase_v2(
+    v_c_session,
+    v_c_subscription,
+    'proof-c@example.test',
+    '2026-09-18T10:30:00Z'::timestamptz,
+    'canceled',
+    jsonb_build_object('source','validation_checkout_observation_guard')
+  );
+  if v_result->>'purchaseState' <> 'cancelled' or nullif(v_result->>'observationId','') is null then
+    raise exception 'Current Checkout verification did not persist its provider observation: %',v_result;
+  end if;
+
+  v_result := atlas.record_stripe_personal_atlas_subscription_state_v1(
+    v_c_subscription,
+    'active',
+    'evt_test_legacy_after_checkout_observation'
+  );
+  if coalesce((v_result->>'legacyIgnored')::boolean,false) is not true
+     or v_result->>'purchaseState' <> 'cancelled' then
+    raise exception 'Legacy lifecycle caller bypassed the current Checkout observation: %',v_result;
+  end if;
+
   -- Lifecycle observation may arrive before Checkout completion. Preserve the
   -- observation and reconcile a later v1 purchase instead of assuming active.
   v_result := atlas.record_stripe_personal_atlas_subscription_state_v2(
@@ -222,12 +248,12 @@ begin
   end if;
 
   delete from atlas.personal_atlas_subscription_observations
-  where provider_subscription_id in (v_a_subscription,v_b_subscription);
+  where provider_subscription_id in (v_a_subscription,v_b_subscription,v_c_subscription);
 
   delete from atlas.personal_atlas_subscription_events
-  where provider_subscription_id in (v_a_subscription,v_b_subscription);
+  where provider_subscription_id in (v_a_subscription,v_b_subscription,v_c_subscription);
 
   delete from atlas.personal_atlas_purchases
-  where provider_checkout_session_id in (v_a_session,v_b_session);
+  where provider_checkout_session_id in (v_a_session,v_b_session,v_c_session);
 end;
 $validation$;
