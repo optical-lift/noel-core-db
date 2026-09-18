@@ -26,6 +26,8 @@ begin
       and p.prosrc ilike '%organization_correspondence_list_self_api_v3%'
       and p.prosrc ilike '%viewerMembershipId%'
       and p.prosrc ilike '%organization_memberships%'
+      and p.prosrc ilike '%communication_event_participants%'
+      and p.prosrc ilike '%speakerDisplayName%'
   ) then
     raise exception 'Correspondence list v4 lost common-list, viewer membership, or exact Event attention dependency.';
   end if;
