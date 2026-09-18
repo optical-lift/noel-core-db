@@ -31,6 +31,7 @@ create index if not exists personal_atlas_subscription_events_subscription_idx
 
 create table if not exists atlas.personal_atlas_subscription_observations (
   id uuid primary key default gen_random_uuid(),
+  observation_sequence bigint generated always as identity unique,
   provider text not null default 'stripe',
   provider_subscription_id text not null,
   trigger_provider_event_id text not null,
@@ -46,8 +47,7 @@ create index if not exists personal_atlas_subscription_observations_subscription
   on atlas.personal_atlas_subscription_observations(
     provider,
     provider_subscription_id,
-    observed_at desc,
-    id desc
+    observation_sequence desc
   );
 
 alter table atlas.personal_atlas_subscription_events enable row level security;
@@ -148,7 +148,7 @@ begin
   from atlas.personal_atlas_subscription_observations o
   where o.provider='stripe'
     and o.provider_subscription_id=v_purchase.provider_subscription_id
-  order by o.observed_at desc,o.id desc
+  order by o.observation_sequence desc
   limit 1;
 
   if v_observation.id is not null then
@@ -427,7 +427,7 @@ begin
   from atlas.personal_atlas_subscription_observations o
   where o.provider='stripe'
     and o.provider_subscription_id=trim(p_subscription_id)
-  order by o.observed_at desc,o.id desc
+  order by o.observation_sequence desc
   limit 1;
 
   if v_observation.id is not null then
