@@ -414,8 +414,24 @@ begin
     'cc',v_cc,
     'bcc','[]'::jsonb,
     'subject',v_subject,
-    'sourceAttachmentIds',coalesce((
-      select jsonb_agg(a.id order by a.created_at,a.id)
+    'sourceBody',v_event.body,
+    'sourceOccurredAt',v_event.occurred_at,
+    'sourceSpeakerAddress',v_event.speaker_address,
+    'sourceAttachments',coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'attachmentId',a.id,
+        'fileName',a.transfer_name,
+        'mimeType',a.mime_type,
+        'sourceContentHash',a.source_content_hash,
+        'forwardable',exists(
+          select 1
+          from atlas.communication_raw_message_custody custody
+          where custody.communication_event_id=v_event.id
+            and custody.custody_state='stored'
+            and custody.storage_locator is not null
+            and custody.raw_mime_sha256 is not null
+        )
+      ) order by a.created_at,a.id)
       from atlas.communication_attachments a
       where a.event_id=v_event.id
     ),'[]'::jsonb)
