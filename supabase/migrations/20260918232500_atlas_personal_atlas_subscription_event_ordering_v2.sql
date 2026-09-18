@@ -199,6 +199,7 @@ as $function$
 declare
   v_state text;
   v_purchase atlas.personal_atlas_purchases%rowtype;
+  v_observation atlas.personal_atlas_subscription_observations%rowtype;
 begin
   if coalesce(trim(p_checkout_session_id),'') !~ '^cs_' then
     raise exception 'Valid Stripe Checkout session required.' using errcode='22023';
@@ -244,11 +245,41 @@ begin
     updated_at=now()
   returning * into v_purchase;
 
+  insert into atlas.personal_atlas_subscription_observations(
+    provider,
+    provider_subscription_id,
+    trigger_provider_event_id,
+    provider_status,
+    purchase_state,
+    observation_kind,
+    metadata
+  ) values (
+    'stripe',
+    trim(p_subscription_id),
+    'checkout:'||trim(p_checkout_session_id),
+    lower(coalesce(trim(p_current_stripe_status),'')),
+    v_state,
+    'checkout_current_subscription_retrieval',
+    jsonb_build_object('purchaseId',v_purchase.id)
+  )
+  returning * into v_observation;
+
+  update atlas.personal_atlas_purchases
+  set metadata=metadata || jsonb_build_object(
+        'latestStripeSubscriptionStatus',v_observation.provider_status,
+        'latestStripeSubscriptionObservedAt',v_observation.observed_at,
+        'latestStripeSubscriptionObservationKind',v_observation.observation_kind
+      ),
+      updated_at=now()
+  where id=v_purchase.id
+  returning * into v_purchase;
+
   return jsonb_build_object(
     'ok',true,
     'purchaseId',v_purchase.id,
     'checkoutSessionId',v_purchase.provider_checkout_session_id,
-    'purchaseState',v_purchase.purchase_state
+    'purchaseState',v_purchase.purchase_state,
+    'observationId',v_observation.id
   );
 end;
 $function$;
