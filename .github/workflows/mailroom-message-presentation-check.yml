@@ -1,13 +1,15 @@
-name: Mailroom presentation function check
+name: Communication Event presentation function check
 
 on:
   pull_request:
     paths:
+      - "supabase/functions/communication-event-presentation/**"
       - "supabase/functions/mailroom-message-presentation/**"
       - ".github/workflows/mailroom-message-presentation-check.yml"
   push:
     branches: [main]
     paths:
+      - "supabase/functions/communication-event-presentation/**"
       - "supabase/functions/mailroom-message-presentation/**"
       - ".github/workflows/mailroom-message-presentation-check.yml"
   workflow_dispatch:
@@ -27,5 +29,8 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Type-check Mailroom presentation function
+      - name: Type-check common Communication Event presentation
+        run: deno check supabase/functions/communication-event-presentation/index.ts
+
+      - name: Type-check retired Mailroom presentation tombstone
         run: deno check supabase/functions/mailroom-message-presentation/index.ts
