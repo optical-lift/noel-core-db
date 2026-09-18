@@ -81,7 +81,13 @@ begin
   if v_common_id is null then
     raise exception 'Source Communication Event is not attached to a common Communication Conversation.' using errcode='23514';
   end if;
-  if new.communication_conversation_id is null or new.communication_conversation_id is distinct from v_common_id then
+  -- Compatibility storage inserts may receive the common Conversation ID in the
+  -- immediately following command-membrane update. Direct browser table writes are
+  -- unavailable; enforce the common identity as soon as it is present.
+  if new.communication_conversation_id is null then
+    return new;
+  end if;
+  if new.communication_conversation_id is distinct from v_common_id then
     raise exception 'Composition source Event belongs to another Communication Conversation.' using errcode='23514';
   end if;
   if new.communication_endpoint_id is distinct from v_endpoint_id then
