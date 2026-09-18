@@ -270,12 +270,15 @@ begin
     raise exception 'Communication Conversation read authority required.' using errcode='42501';
   end if;
 
-  select membership.communication_conversation_id,membership.communication_endpoint_id,event.*
-  into v_event_common,v_endpoint_id,v_event
+  select membership.communication_conversation_id,membership.communication_endpoint_id
+  into v_event_common,v_endpoint_id
   from atlas.communication_conversation_events membership
-  join atlas.communication_events event on event.id=membership.communication_event_id
   where membership.communication_event_id=p_communication_event_id
   limit 1;
+
+  select * into v_event
+  from atlas.communication_events event
+  where event.id=p_communication_event_id;
 
   if v_event.id is null or v_event_common is distinct from p_communication_conversation_id then
     raise exception 'Exact source Event is not part of this Communication Conversation.' using errcode='42501';
