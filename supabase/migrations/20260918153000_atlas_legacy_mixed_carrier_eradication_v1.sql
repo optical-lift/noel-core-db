@@ -1,6 +1,57 @@
 begin;
 
 set local statement_timeout = '15min';
+set local lock_timeout = '30s';
+
+-- Freeze writes to every table that can carry an Organization/Ledger coordinate
+-- (plus the institutional graph/notebook roots touched by this cut) before any
+-- physical rewrite begins. SHARE ROW EXCLUSIVE permits reads but blocks
+-- concurrent INSERT/UPDATE/DELETE, closing the live-write race that can otherwise
+-- append a retired id after the generic re-home pass has already visited a table.
+do $lock_cut$
+declare
+  r record;
+begin
+  for r in
+    with target_tables as (
+      select distinct c.table_schema,c.table_name
+      from information_schema.columns c
+      join information_schema.tables t
+        on t.table_schema=c.table_schema and t.table_name=c.table_name
+      where c.table_schema in ('atlas','local_intel')
+        and t.table_type='BASE TABLE'
+        and c.data_type='uuid'
+        and (
+          c.column_name ~ '(^|_)organization_id$'
+          or c.column_name ~ '(^|_)ledger_id$'
+        )
+
+      union
+      select *
+      from (values
+        ('atlas','organizations'),
+        ('atlas','ledgers'),
+        ('atlas','organization_memberships'),
+        ('atlas','principal_ledger_authorities'),
+        ('atlas','ledger_organization_participations'),
+        ('atlas','notebook_spread_instances'),
+        ('atlas','notebook_spread_source_bindings'),
+        ('atlas','institutional_custody_adjudications'),
+        ('atlas','institutional_custody_carriers'),
+        ('atlas','institutional_custody_carrier_targets')
+      ) v(table_schema,table_name)
+    )
+    select table_schema,table_name
+    from target_tables
+    order by table_schema,table_name
+  loop
+    execute format(
+      'lock table %I.%I in share row exclusive mode',
+      r.table_schema,r.table_name
+    );
+  end loop;
+end;
+$lock_cut$;
 
 do $anchors$
 begin
@@ -65,6 +116,7 @@ end;
 $anchors$;
 
 -- One-time physical rewrite of Atlas build-state. Unique indexes remain active.
+-- Transaction-scoped writer locks above remain held through COMMIT/ROLLBACK.
 set local session_replication_role = replica;
 
 -- Move typed Organization coordinates, excluding rows with canonical duplicates.
