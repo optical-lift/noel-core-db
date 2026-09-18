@@ -444,6 +444,7 @@ declare
   v_reply_event uuid;
   v_result jsonb;
   v_id uuid;
+  v_existing_id uuid;
 begin
   if v_kind not in ('compose','reply','reply_all','forward') then
     raise exception 'Unsupported composition kind.' using errcode='22023';
@@ -456,8 +457,14 @@ begin
   end if;
   v_reply_event:=case when v_kind in ('reply','reply_all') then p_source_communication_event_id else null end;
 
+  if p_draft_id is not null and exists(
+    select 1 from atlas.communication_email_drafts where id=p_draft_id
+  ) then
+    v_existing_id:=p_draft_id;
+  end if;
+
   v_result:=atlas.save_communication_email_draft_self_api_v2(
-    p_draft_id,p_communication_endpoint_id,p_communication_conversation_id,v_reply_event,
+    v_existing_id,p_communication_endpoint_id,p_communication_conversation_id,v_reply_event,
     p_to_recipients,p_cc_recipients,p_bcc_recipients,p_subject,p_body_text,p_body_html,
     p_attachment_refs,p_signature_id,p_send_after,
     coalesce(p_metadata,'{}'::jsonb)||jsonb_build_object(
