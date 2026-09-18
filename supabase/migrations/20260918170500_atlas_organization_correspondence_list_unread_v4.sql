@@ -414,12 +414,19 @@ declare
   v_base jsonb;
   v_items jsonb;
 begin
+  -- v1 still computes its compatibility-era disposition. Remove the folder
+  -- predicate before delegating, then apply any requested folder filter only
+  -- after common Conversation + Endpoint disposition has been resolved.
   v_base:=atlas.organization_correspondence_search_self_api_v1(
-    p_query,p_organization_id,p_communication_endpoint_id,p_filters,p_limit
+    p_query,
+    p_organization_id,
+    p_communication_endpoint_id,
+    coalesce(p_filters,'{}'::jsonb)-'disposition',
+    p_limit
   );
 
-  select coalesce(jsonb_agg(
-    item||jsonb_build_object(
+  with enriched as (
+    select item||jsonb_build_object(
       'disposition',
       coalesce((
         select disposition.disposition
@@ -432,13 +439,19 @@ begin
         order by disposition.created_at desc,disposition.id desc
         limit 1
       ),'inbox')
-    )
+    ) as item
+    from jsonb_array_elements(coalesce(v_base->'items','[]'::jsonb)) item
+  )
+  select coalesce(jsonb_agg(
+    item
     order by coalesce((item->>'rank')::real,0) desc,
              nullif(item->>'lastActivityAt','')::timestamptz desc nulls last,
              item->>'communicationConversationId'
   ),'[]'::jsonb)
   into v_items
-  from jsonb_array_elements(coalesce(v_base->'items','[]'::jsonb)) item;
+  from enriched
+  where not (coalesce(p_filters,'{}'::jsonb) ? 'disposition')
+     or item->>'disposition'=p_filters->>'disposition';
 
   return (v_base-'items')||jsonb_build_object(
     'contractVersion','organization_correspondence_search_v2',
