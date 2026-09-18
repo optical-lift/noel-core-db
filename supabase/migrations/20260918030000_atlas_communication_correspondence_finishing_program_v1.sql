@@ -604,10 +604,21 @@ begin
     end;
     if v_target=v_member then continue; end if;
     if not exists(
-      select 1 from atlas.organization_memberships membership
-      where membership.id=v_target and membership.organization_id=v_org and membership.active
+      select 1
+      from atlas.organization_memberships membership
+      where membership.id=v_target
+        and membership.organization_id=v_org
+        and membership.active
+        and exists(
+          select 1
+          from atlas.communication_conversation_endpoints conversation_endpoint
+          where conversation_endpoint.communication_conversation_id=p_communication_conversation_id
+            and atlas.communication_endpoint_membership_has_capability_v1(
+              conversation_endpoint.communication_endpoint_id,v_target,'view'
+            )
+        )
     ) then
-      raise exception 'Mention target is not an active member of this Organization.' using errcode='42501';
+      raise exception 'Mention target is not an active member with access to this Communication Conversation.' using errcode='42501';
     end if;
     insert into atlas.communication_conversation_note_mentions(
       organization_id,communication_conversation_id,note_id,
