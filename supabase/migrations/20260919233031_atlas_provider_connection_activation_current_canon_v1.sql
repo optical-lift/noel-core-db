@@ -483,6 +483,19 @@ begin
        or not atlas.organization_connected_source_authorized_self_v1(v_source.custodian_organization_id) then
       raise exception 'Organization Connected Source authority required.' using errcode='42501';
     end if;
+    if not exists(
+      select 1
+      from atlas.ledger_entitlement_bindings b
+      where b.implementation_case_id=v_case_source.implementation_case_id
+        and b.organization_id=v_source.custodian_organization_id
+        and b.ended_at is null
+        and (
+          v_source.custodian_organization_unit_id is null
+          or b.organization_unit_id=v_source.custodian_organization_unit_id
+        )
+    ) then
+      raise exception 'Connected Source Organization is not in this implementation case operating scope.' using errcode='42501';
+    end if;
     v_custody_kind:='organization';
   end if;
 
