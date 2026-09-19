@@ -27,6 +27,9 @@ declare
   v_purchase uuid;
   v_case uuid;
   v_case_source uuid;
+  v_setup_participant uuid;
+  v_ledger uuid;
+  v_entitlement uuid;
 
   v_begin_oid oid;
   v_complete_oid oid;
@@ -508,13 +511,57 @@ begin
 
   insert into atlas.implementation_case_participants(
     implementation_case_id,human_user_id,relationship_kind,verified_at
-  ) values(v_case,v_setup_user,'setup_sponsor',now());
+  ) values(v_case,v_setup_user,'setup_sponsor',now())
+  returning id into v_setup_participant;
 
   insert into atlas.implementation_case_sources(
     implementation_case_id,provider_key,display_label,identified_by_user_id,requirement_state
   ) values(
     v_case,'fixture_provider','Organization Provider Requirement',v_setup_user,'required'
   ) returning id into v_case_source;
+
+  -- Lawful authority over a source is not enough: the source Organization must
+  -- also be in this implementation case's active operating scope.
+  begin
+    perform atlas.bind_implementation_case_connected_source_self_api_v1(
+      v_case_source,v_source_org_setup
+    );
+    raise exception 'Organization source bound before implementation operating scope existed.';
+  exception when sqlstate '42501' then
+    null;
+  end;
+
+  if exists(
+    select 1 from atlas.implementation_case_sources
+    where id=v_case_source and connected_source_id is not null
+  ) then
+    raise exception 'Failed pre-scope binding mutated the implementation source requirement.';
+  end if;
+
+  insert into atlas.ledgers(stable_key,organization_id,name)
+  values(
+    'provider-proof-ledger-'||substr(replace(gen_random_uuid()::text,'-',''),1,12),
+    v_org,
+    'Provider Proof Ledger'
+  ) returning id into v_ledger;
+
+  insert into atlas.ledger_entitlements(
+    implementation_case_id,source_purchase_id,entitlement_number,
+    state,setup_price_cents,monthly_price_cents
+  ) values(
+    v_case,v_purchase,1,'bound',0,0
+  ) returning id into v_entitlement;
+
+  insert into atlas.ledger_entitlement_bindings(
+    implementation_case_id,ledger_entitlement_id,organization_id,
+    bound_by_participant_id,state,ledger_id,
+    binding_basis,metadata
+  ) values(
+    v_case,v_entitlement,v_org,
+    v_setup_participant,'bound',v_ledger,
+    '{"source":"provider_connection_clone_proof"}'::jsonb,
+    '{"purpose":"prove_case_organization_scope"}'::jsonb
+  );
 
   v_result:=atlas.bind_implementation_case_connected_source_self_api_v1(
     v_case_source,v_source_org_setup
