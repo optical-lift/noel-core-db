@@ -210,6 +210,30 @@ revoke all on function atlas.sync_organization_owner_ledger_spread_v1(uuid,uuid)
 grant execute on function atlas.sync_organization_owner_ledger_spread_v1(uuid,uuid)
   to service_role;
 
+create or replace function public.organization_ledger_owner_recent_api_v1(
+  p_organization_id uuid,
+  p_limit integer default 200
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = pg_catalog
+as $function$
+  select atlas.organization_ledger_owner_recent_api_v1(
+    p_organization_id,
+    p_limit
+  );
+$function$;
+
+revoke all on function public.organization_ledger_owner_recent_api_v1(uuid,integer)
+  from public,anon;
+grant execute on function public.organization_ledger_owner_recent_api_v1(uuid,integer)
+  to authenticated,service_role;
+
+comment on function public.organization_ledger_owner_recent_api_v1(uuid,integer) is
+  'Authenticated browser membrane for the owner-only Organization Ledger recent projection. Authority remains in atlas.organization_ledger_owner_recent_api_v1.';
+
 create or replace function atlas.sync_organization_owner_ledger_from_membership_v1()
 returns trigger
 language plpgsql
