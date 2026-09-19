@@ -168,7 +168,7 @@ begin
     raise exception 'Home Care shell did not resolve through Principal-scoped spread read: %',v_shell;
   end if;
 
-  v_rhythm := atlas.personal_setup_self_api_v1();
+  v_rhythm := public.personal_setup_self_api_v1();
   if v_rhythm->'household'->>'id' <> v_household_id::text then
     raise exception 'Household Rhythm governed read did not resolve the active household: %',v_rhythm;
   end if;
