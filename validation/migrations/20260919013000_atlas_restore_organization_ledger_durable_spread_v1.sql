@@ -17,6 +17,10 @@ declare
   v_membership_id uuid;
   v_spread_id uuid;
   v_reopened_spread_id uuid;
+  v_public_recent_oid oid;
+  v_public_recent_def text;
+  v_public_recent_secdef boolean;
+  v_public_recent_config text[];
   v_count integer;
 begin
   if to_regprocedure('atlas.principal_has_organization_owner_access_v1(uuid,uuid)') is null then
@@ -50,6 +54,43 @@ begin
        'execute'
      ) then
     raise exception 'Organization Ledger spread sync helper became browser-callable.';
+  end if;
+
+  v_public_recent_oid := to_regprocedure(
+    'public.organization_ledger_owner_recent_api_v1(uuid,integer)'
+  );
+
+  if v_public_recent_oid is null then
+    raise exception 'Authenticated Organization Ledger recent browser membrane is missing.';
+  end if;
+
+  select p.prosecdef,p.proconfig,pg_get_functiondef(p.oid)
+    into v_public_recent_secdef,v_public_recent_config,v_public_recent_def
+  from pg_proc p
+  where p.oid=v_public_recent_oid;
+
+  if not v_public_recent_secdef then
+    raise exception 'Organization Ledger recent browser membrane must remain SECURITY DEFINER.';
+  end if;
+
+  if not ('search_path=pg_catalog'=any(coalesce(v_public_recent_config,'{}'::text[]))) then
+    raise exception 'Organization Ledger recent browser membrane must pin search_path to pg_catalog.';
+  end if;
+
+  if position(
+       'atlas.organization_ledger_owner_recent_api_v1' in v_public_recent_def
+     ) = 0 then
+    raise exception 'Organization Ledger recent browser membrane does not delegate to Atlas authority.';
+  end if;
+
+  if has_function_privilege('anon',v_public_recent_oid,'execute') then
+    raise exception 'anon must not execute Organization Ledger recent browser membrane.';
+  end if;
+  if not has_function_privilege('authenticated',v_public_recent_oid,'execute') then
+    raise exception 'authenticated must execute Organization Ledger recent browser membrane.';
+  end if;
+  if not has_function_privilege('service_role',v_public_recent_oid,'execute') then
+    raise exception 'service_role must execute Organization Ledger recent browser membrane.';
   end if;
 
   if not exists (
