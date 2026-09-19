@@ -7,6 +7,10 @@ declare
   v_goal_signal jsonb;
   v_rhythm_signal jsonb;
   v_consequence_signal jsonb;
+  v_consequence_subject jsonb;
+  v_consequence_requirements jsonb;
+  v_consequence_claim jsonb;
+  v_consequence_claim_id uuid;
   v_goal_id uuid;
   v_rhythm_id uuid;
   v_consequence_id uuid;
@@ -103,23 +107,87 @@ begin
     ))->>'definitionId'
   )::uuid;
 
+  v_consequence_subject := jsonb_build_object(
+    'domain','body',
+    'kind','body_region',
+    'id','left_hip'
+  );
+
+  v_consequence_requirements := jsonb_build_array(jsonb_build_object(
+    'requirementKey','left-hip-function-truth',
+    'requirementKind','truth_acquisition',
+    'operationKey','reassess_condition',
+    'policy',jsonb_build_object(
+      'stableKey','left-hip-reassess-v1',
+      'subjectSelector',jsonb_build_object(
+        'subjectDomain','body',
+        'subjectKind','body_region'
+      ),
+      'stateMatch',jsonb_build_object('functionalState','unknown'),
+      'consequenceRole','truth_acquisition',
+      'consequenceKind','knowledge_acquisition',
+      'actionKey','reassess_condition',
+      'priority',50,
+      'actionSpec',jsonb_build_object('factNeeded','present functional state')
+    )
+  ));
+
+  v_consequence_claim := atlas.record_person_claim_evidence_api_v1(jsonb_build_object(
+    'sourceKey','proof-life-consequence-policy-claim',
+    'subject',v_consequence_subject,
+    'evidence',jsonb_build_object(
+      'kind','person_acceptance',
+      'value',jsonb_build_object(
+        'accepted',true,
+        'policyKey','left-hip-reassess-v1'
+      ),
+      'observedAt','2026-09-18T08:30:00-05:00',
+      'provenance',jsonb_build_object(
+        'proof','person-life-durable-spread-v1',
+        'authority','explicit_person_acceptance'
+      )
+    ),
+    'claim',jsonb_build_object(
+      'claimType','consequence_policy',
+      'lifecycleState','accepted',
+      'value',jsonb_build_object(
+        'signalKind','consequence',
+        'subject',v_consequence_subject,
+        'requirements',v_consequence_requirements
+      ),
+      'metadata',jsonb_build_object(
+        'proof','person-life-durable-spread-v1'
+      )
+    )
+  ));
+
+  v_consequence_claim_id := (v_consequence_claim->>'claimId')::uuid;
+  if v_consequence_claim->>'lifecycleState' <> 'accepted'
+     or v_consequence_claim->>'authorityKind' <> 'person_acceptance'
+     or v_consequence_claim_id is null then
+    raise exception 'Person Consequence proof did not establish accepted consequence_policy Claim authority: %',v_consequence_claim;
+  end if;
+
   v_consequence_signal := jsonb_build_object(
     'contractVersion','atlas_life_signal_v1',
     'scope',jsonb_build_object('kind','person','id',v_owner_uid::text),
-    'subject',jsonb_build_object('domain','body','kind','body_region','id','left_hip'),
+    'subject',v_consequence_subject,
     'signalKind','consequence',
     'state',jsonb_build_object('reportedState','tight_after_run','functionalState','unknown'),
     'timing','{}'::jsonb,
-    'requirements',jsonb_build_array(jsonb_build_object(
-      'requirementKey','left-hip-function-truth',
-      'requirementKind','truth_acquisition',
-      'operationKey','reassess_condition'
-    )),
+    'requirements',v_consequence_requirements,
     'constraints','[]'::jsonb,
     'ambiguities',jsonb_build_array('cause_not_established'),
     'relations','[]'::jsonb,
-    'source',jsonb_build_object('domain','body','kind','condition_consequence_definition','id','proof-left-hip'),
-    'epistemic',jsonb_build_object('factClass','explicit_policy','interpretationAuthority','person')
+    'source',jsonb_build_object(
+      'domain','claim_evidence',
+      'kind','claim',
+      'id',v_consequence_claim_id::text
+    ),
+    'epistemic',jsonb_build_object(
+      'factClass','explicit_policy',
+      'interpretationAuthority','person'
+    )
   );
 
   v_consequence_id := (
