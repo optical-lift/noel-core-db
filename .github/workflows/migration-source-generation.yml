@@ -1,0 +1,282 @@
+name: Governed Migration Source Generation
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: noel-core-migration-source-generation-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    if: >-
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      startsWith(github.event.issue.title, 'Migration generation request:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Resolve governed generation request
+        id: request
+        shell: bash
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          title = os.environ.get('ISSUE_TITLE', '')
+          body = os.environ.get('ISSUE_BODY', '')
+          fields = {}
+          for raw in body.splitlines():
+              match = re.fullmatch(r'([a-z_]+):\s*([^\s]+)\s*', raw)
+              if match:
+                  key, value = match.groups()
+                  if key in fields and fields[key] != value:
+                      raise SystemExit(f'duplicate conflicting field: {key}')
+                  fields[key] = value
+
+          required = (
+              'release_lane',
+              'migration_name',
+              'candidate_sha',
+              'candidate_path',
+              'fixture_path',
+              'validation_path',
+          )
+          missing = [key for key in required if key not in fields]
+          if missing:
+              raise SystemExit('missing required generation field(s): ' + ', '.join(missing))
+
+          lane = fields['release_lane']
+          name = fields['migration_name']
+          candidate_sha = fields['candidate_sha'].lower()
+          candidate_path = fields['candidate_path']
+          fixture_path = fields['fixture_path']
+          validation_path = fields['validation_path']
+
+          if lane not in {'atlas', 'wnph', 'shared'}:
+              raise SystemExit('release_lane must be atlas, wnph, or shared')
+          if not re.fullmatch(r'[a-z0-9][a-z0-9_]{2,79}', name):
+              raise SystemExit('migration_name must be lowercase snake_case, 3-80 characters')
+          if lane == 'atlas' and not name.startswith('atlas_'):
+              raise SystemExit('Atlas migration_name must start with atlas_')
+          if lane == 'wnph' and not name.startswith('wnph_'):
+              raise SystemExit('WNPH migration_name must start with wnph_')
+          if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha):
+              raise SystemExit('candidate_sha must be an immutable 40-character commit SHA')
+
+          def validate_candidate_path(value, field, allow_none=False):
+              if allow_none and value == 'none':
+                  return
+              if not value.startswith('candidates/') or not value.endswith('.sql'):
+                  raise SystemExit(f'{field} must be a SQL file under candidates/ or none when allowed')
+              if '..' in Path(value).parts:
+                  raise SystemExit(f'{field} may not traverse directories')
+
+          validate_candidate_path(candidate_path, 'candidate_path')
+          validate_candidate_path(fixture_path, 'fixture_path', allow_none=True)
+          validate_candidate_path(validation_path, 'validation_path', allow_none=True)
+
+          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'shared': 'Shared'}[lane]
+          expected_title = f'Migration generation request: {title_lane} {name}'
+          if title != expected_title:
+              raise SystemExit(f'issue title must be exactly: {expected_title}')
+
+          output = Path(os.environ['GITHUB_OUTPUT'])
+          with output.open('a', encoding='utf-8') as handle:
+              for key, value in (
+                  ('release_lane', lane),
+                  ('migration_name', name),
+                  ('candidate_sha', candidate_sha),
+                  ('candidate_path', candidate_path),
+                  ('fixture_path', fixture_path),
+                  ('validation_path', validation_path),
+              ):
+                  handle.write(f'{key}={value}\n')
+          PY
+
+      - name: Checkout canonical main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Verify immutable candidate custody
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ steps.request.outputs.candidate_sha }}
+          CANDIDATE_PATH: ${{ steps.request.outputs.candidate_path }}
+          FIXTURE_PATH: ${{ steps.request.outputs.fixture_path }}
+          VALIDATION_PATH: ${{ steps.request.outputs.validation_path }}
+        run: |
+          set -euo pipefail
+          git cat-file -e "${CANDIDATE_SHA}^{commit}"
+          git merge-base --is-ancestor "${CANDIDATE_SHA}" origin/main
+
+          git cat-file -e "${CANDIDATE_SHA}:${CANDIDATE_PATH}"
+          if [[ "${FIXTURE_PATH}" != "none" ]]; then
+            git cat-file -e "${CANDIDATE_SHA}:${FIXTURE_PATH}"
+          fi
+          if [[ "${VALIDATION_PATH}" != "none" ]]; then
+            git cat-file -e "${CANDIDATE_SHA}:${VALIDATION_PATH}"
+          fi
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+          supabase migration new --help >/dev/null
+
+      - name: Generate exact migration package
+        id: migration
+        shell: bash
+        env:
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+          MIGRATION_NAME: ${{ steps.request.outputs.migration_name }}
+          CANDIDATE_SHA: ${{ steps.request.outputs.candidate_sha }}
+          CANDIDATE_PATH: ${{ steps.request.outputs.candidate_path }}
+          FIXTURE_PATH: ${{ steps.request.outputs.fixture_path }}
+          VALIDATION_PATH: ${{ steps.request.outputs.validation_path }}
+        run: |
+          set -euo pipefail
+
+          if find supabase/migrations -maxdepth 1 -type f -name "*_${MIGRATION_NAME}.sql" -print | grep -q .; then
+            echo "::error::Canonical main already contains a migration named ${MIGRATION_NAME}."
+            exit 1
+          fi
+
+          before="$(mktemp)"
+          after="$(mktemp)"
+          find supabase/migrations -maxdepth 1 -type f -printf '%f\n' | sort > "$before"
+
+          supabase migration new "${MIGRATION_NAME}"
+
+          find supabase/migrations -maxdepth 1 -type f -printf '%f\n' | sort > "$after"
+          mapfile -t created < <(comm -13 "$before" "$after")
+
+          if [[ "${#created[@]}" -ne 1 ]]; then
+            echo "::error::Supabase CLI did not create exactly one migration; found ${#created[@]}."
+            exit 1
+          fi
+
+          filename="${created[0]}"
+          migration_path="supabase/migrations/${filename}"
+
+          if [[ ! "$filename" =~ ^([0-9]{14})_${MIGRATION_NAME}\.sql$ ]]; then
+            echo "::error::Supabase CLI generated an unexpected migration filename: $filename"
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+
+          git show "${CANDIDATE_SHA}:${CANDIDATE_PATH}" > "$migration_path"
+
+          fixture_target=""
+          validation_target=""
+          if [[ "${FIXTURE_PATH}" != "none" ]]; then
+            mkdir -p validation/fixtures
+            fixture_target="validation/fixtures/${version}_${MIGRATION_NAME}.sql"
+            git show "${CANDIDATE_SHA}:${FIXTURE_PATH}" > "$fixture_target"
+          fi
+          if [[ "${VALIDATION_PATH}" != "none" ]]; then
+            mkdir -p validation/migrations
+            validation_target="validation/migrations/${version}_${MIGRATION_NAME}.sql"
+            git show "${CANDIDATE_SHA}:${VALIDATION_PATH}" > "$validation_target"
+          fi
+
+          bash scripts/check-migration-release-lane.sh "$version" "${RELEASE_LANE}" "$migration_path"
+
+          sha256sum "$migration_path"
+          [[ -z "$fixture_target" ]] || sha256sum "$fixture_target"
+          [[ -z "$validation_target" ]] || sha256sum "$validation_target"
+
+          {
+            echo "version=$version"
+            echo "migration_path=$migration_path"
+            echo "fixture_target=$fixture_target"
+            echo "validation_target=$validation_target"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Commit generated package to isolated branch
+        id: branch
+        shell: bash
+        env:
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+          MIGRATION_NAME: ${{ steps.request.outputs.migration_name }}
+          MIGRATION_VERSION: ${{ steps.migration.outputs.version }}
+          MIGRATION_PATH: ${{ steps.migration.outputs.migration_path }}
+          FIXTURE_TARGET: ${{ steps.migration.outputs.fixture_target }}
+          VALIDATION_TARGET: ${{ steps.migration.outputs.validation_target }}
+        run: |
+          set -euo pipefail
+          branch="generated/${RELEASE_LANE}-${MIGRATION_VERSION}-${MIGRATION_NAME}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+
+          git add "$MIGRATION_PATH"
+          [[ -z "${FIXTURE_TARGET}" ]] || git add "${FIXTURE_TARGET}"
+          [[ -z "${VALIDATION_TARGET}" ]] || git add "${VALIDATION_TARGET}"
+
+          git commit -m "Generate ${MIGRATION_NAME} migration package"
+          git push origin "$branch"
+
+          echo "name=$branch" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Open generated migration pull request
+        id: pr
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH_NAME: ${{ steps.branch.outputs.name }}
+          GENERATED_SHA: ${{ steps.branch.outputs.sha }}
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+          MIGRATION_NAME: ${{ steps.request.outputs.migration_name }}
+          MIGRATION_VERSION: ${{ steps.migration.outputs.version }}
+          CANDIDATE_SHA: ${{ steps.request.outputs.candidate_sha }}
+          SOURCE_ISSUE: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          pr_url="$(gh pr create             --base main             --head "$BRANCH_NAME"             --title "Promote ${MIGRATION_NAME} migration"             --body "Generated by the governed migration-source lane from immutable candidate \`${CANDIDATE_SHA}\`.
+
+          Migration version: \`${MIGRATION_VERSION}\`
+          Release lane: \`${RELEASE_LANE}\`
+          Generated package SHA: \`${GENERATED_SHA}\`
+          Source request: #${SOURCE_ISSUE}
+
+          This PR does not release production. Validate it through the production-schema clone lane before merge.")"
+          echo "url=$pr_url" >> "$GITHUB_OUTPUT"
+
+      - name: Record generated identity on request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          MIGRATION_VERSION: ${{ steps.migration.outputs.version }}
+          GENERATED_SHA: ${{ steps.branch.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh issue comment "$ISSUE_NUMBER" --body "Generated migration version: \`${MIGRATION_VERSION}\`
+
+          Generated package SHA: \`${GENERATED_SHA}\`
+
+          Pull request: ${PR_URL}
+
+          No production release was performed."
