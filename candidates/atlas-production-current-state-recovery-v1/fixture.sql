@@ -137,6 +137,17 @@ insert into atlas.operation_classes(
   '{}'::jsonb
 );
 
+insert into atlas.operation_classes(
+  stable_key,label,operation_domain,definition,active,metadata
+) values(
+  'inspect_assess',
+  'Inspect / assess',
+  'assessment',
+  'Observe, inspect, verify, or assess readiness or state before choosing a later operation.',
+  true,
+  '{}'::jsonb
+);
+
 insert into atlas.tasks(
   id,farm_id,organization_id,title,task_type,action_key,status,metadata,
   visibility_scope,task_scope,origin_kind,work_lane,commitment_kind
