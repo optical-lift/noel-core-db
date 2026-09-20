@@ -1,12 +1,109 @@
--- Personal Laundry Closed Loop v1 — combined postconditions.
+-- Personal Laundry Closed Loop v1 — combined schema/custody postconditions.
+
+-- ============================================================================
+-- Postconditions 0: atlas-authenticated-rpc-registry-signature-resolver-v2
+-- ============================================================================
+
+-- Postconditions for Authenticated RPC Registry Signature Resolver v2.
+
+do $$
+declare
+  v_named_oid oid;
+  v_named_expected oid;
+  v_alias_oid oid;
+  v_alias_expected oid;
+  v_long_oid oid;
+  v_long_expected oid;
+  v_stale_oid oid;
+  v_drift_count integer;
+begin
+  v_named_oid := atlas.resolve_authenticated_rpc_registry_function_oid_v2(
+    'atlas.configure_generic_email_endpoint_self_api_v1(p_organization_id uuid, p_organization_unit_id uuid, p_email_address text, p_display_name text, p_imap_host text, p_imap_port integer, p_imap_security text, p_smtp_host text, p_smtp_port integer, p_smtp_security text, p_username text, p_password text)'
+  );
+  v_named_expected := 'atlas.configure_generic_email_endpoint_self_api_v1(uuid,uuid,text,text,text,integer,text,text,integer,text,text,text)'::regprocedure::oid;
+
+  if v_named_oid is distinct from v_named_expected then
+    raise exception 'Named identity signature did not resolve to its current function OID.';
+  end if;
+
+  v_alias_oid := atlas.resolve_authenticated_rpc_registry_function_oid_v2(
+    'atlas.issue_organization_employee_invitation_service_v1(uuid,timestamptz,uuid)'
+  );
+  v_alias_expected := 'atlas.issue_organization_employee_invitation_service_v1(uuid,timestamp with time zone,uuid)'::regprocedure::oid;
+
+  if v_alias_oid is distinct from v_alias_expected then
+    raise exception 'Type-alias registry signature did not preserve native regprocedure resolution.';
+  end if;
+
+  v_long_oid := atlas.resolve_authenticated_rpc_registry_function_oid_v2(
+    'atlas.transition_organization_connected_source_authorization_self_api_v1(uuid,text,text[],jsonb,jsonb)'
+  );
+  v_long_expected := 'atlas.transition_organization_connected_source_authorization_self_api(uuid,text,text[],jsonb,jsonb)'::regprocedure::oid;
+
+  if v_long_oid is distinct from v_long_expected then
+    raise exception 'Long PostgreSQL identifier did not preserve native truncation resolution.';
+  end if;
+
+  v_stale_oid := atlas.resolve_authenticated_rpc_registry_function_oid_v2(
+    'atlas.answer_owner_needs_from_you_v1(uuid,text,uuid,text,text)'
+  );
+
+  if v_stale_oid is not null then
+    raise exception 'Genuinely absent historical overload must remain unresolved.';
+  end if;
+
+  select count(*) into v_drift_count
+  from atlas.authenticated_rpc_registry_drift_v1();
+
+  if v_drift_count < 0 then
+    raise exception 'Impossible drift count.';
+  end if;
+
+  if has_function_privilege(
+       'authenticated',
+       'atlas.resolve_authenticated_rpc_registry_function_oid_v2(text)'::regprocedure,
+       'EXECUTE'
+     )
+     or has_function_privilege(
+       'anon',
+       'atlas.resolve_authenticated_rpc_registry_function_oid_v2(text)'::regprocedure,
+       'EXECUTE'
+     )
+     or has_function_privilege(
+       'service_role',
+       'atlas.resolve_authenticated_rpc_registry_function_oid_v2(text)'::regprocedure,
+       'EXECUTE'
+     ) then
+    raise exception 'Internal RPC registry resolver must not be directly executable by app/service roles.';
+  end if;
+
+  if has_function_privilege(
+       'authenticated',
+       'atlas.authenticated_rpc_registry_drift_v1()'::regprocedure,
+       'EXECUTE'
+     )
+     or has_function_privilege(
+       'anon',
+       'atlas.authenticated_rpc_registry_drift_v1()'::regprocedure,
+       'EXECUTE'
+     )
+     or not has_function_privilege(
+       'service_role',
+       'atlas.authenticated_rpc_registry_drift_v1()'::regprocedure,
+       'EXECUTE'
+     ) then
+    raise exception 'RPC registry drift endpoint custody changed.';
+  end if;
+end
+$$;
 
 -- ============================================================================
 -- Postconditions 1: atlas-personal-laundry-authority-split-v1
 -- ============================================================================
 
 -- Postconditions for Atlas Personal Laundry Authority Split v1.
--- These assertions are intentionally identity-free. Production-shaped behavioral
--- fixture coverage is required when the candidate is promoted to a real migration.
+-- These assertions are intentionally identity-free and schema-clone-safe.
+-- Live world-kernel row presence is an operational data precondition, not a schema postcondition.
 
 do $$
 declare
@@ -101,7 +198,7 @@ begin
 
   if not exists (
     select 1 from atlas.authenticated_rpc_registry
-    where signature='atlas.record_current_household_claim_evidence_api_v1(p_payload jsonb)'
+    where signature='atlas.record_current_household_claim_evidence_api_v1(jsonb)'
       and review_status='active'
       and authenticated_execute_expected
       and security_definer_expected
@@ -210,7 +307,7 @@ begin
   if not exists (
     select 1
     from atlas.authenticated_rpc_registry
-    where signature='atlas.calibrate_personal_laundry_kernel_self_api_v2(p_input jsonb)'
+    where signature='atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)'
       and review_status='active'
       and authenticated_execute_expected
       and security_definer_expected
@@ -322,7 +419,7 @@ begin
   if not exists (
     select 1
     from atlas.authenticated_rpc_registry
-    where signature='atlas.apply_personal_reality_household_claim_effect_self_api_v1(p_proposal_id uuid)'
+    where signature='atlas.apply_personal_reality_household_claim_effect_self_api_v1(uuid)'
       and review_status='active'
       and authenticated_execute_expected
       and security_definer_expected
@@ -456,12 +553,41 @@ begin
      ) then
     raise exception 'Authenticated role cannot evaluate Laundry consequence from Household Evidence.';
   end if;
+end
+$$;
 
-  if exists (
-    select 1
-    from atlas.authenticated_rpc_registry_drift_v1()
-  ) then
-    raise exception 'Authenticated RPC registry drift exists after Laundry Household consequence candidate.';
+-- Candidate-scoped authenticated RPC custody proof.
+do $$
+declare
+  v_bad_signature text;
+begin
+  with expected(signature) as (
+    values
+      ('atlas.ensure_personal_laundry_consequence_definition_self_api_v1(uuid)'::text),
+      ('atlas.evaluate_personal_laundry_consequence_from_household_evidence_self_api_v1(uuid,jsonb)'::text)
+  )
+  select e.signature
+  into v_bad_signature
+  from expected e
+  left join atlas.authenticated_rpc_registry r
+    on r.signature=e.signature
+  left join pg_proc p
+    on p.oid=to_regprocedure(e.signature)::oid
+  where r.signature is null
+     or p.oid is null
+     or r.review_status<>'active'
+     or not r.authenticated_execute_expected
+     or not r.security_definer_expected
+     or not r.service_execute_expected
+     or r.anonymous_execute_expected
+     or not has_function_privilege('authenticated',p.oid,'EXECUTE')
+     or not has_function_privilege('service_role',p.oid,'EXECUTE')
+     or has_function_privilege('anon',p.oid,'EXECUTE')
+     or p.prosecdef is distinct from true
+  limit 1;
+
+  if v_bad_signature is not null then
+    raise exception 'Candidate authenticated RPC custody mismatch: %',v_bad_signature;
   end if;
 end
 $$;
@@ -538,9 +664,41 @@ begin
      ) then
     raise exception 'Anonymous role must not access consequence Clock characterization APIs.';
   end if;
+end
+$$;
 
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drift exists after Clock characterization candidate.';
+-- Candidate-scoped authenticated RPC custody proof.
+do $$
+declare
+  v_bad_signature text;
+begin
+  with expected(signature) as (
+    values
+      ('atlas.record_person_life_consequence_clock_characterization_self_api_v1(uuid,jsonb)'::text),
+      ('atlas.person_life_consequence_clock_admission_self_api_v1(uuid)'::text)
+  )
+  select e.signature
+  into v_bad_signature
+  from expected e
+  left join atlas.authenticated_rpc_registry r
+    on r.signature=e.signature
+  left join pg_proc p
+    on p.oid=to_regprocedure(e.signature)::oid
+  where r.signature is null
+     or p.oid is null
+     or r.review_status<>'active'
+     or not r.authenticated_execute_expected
+     or not r.security_definer_expected
+     or not r.service_execute_expected
+     or r.anonymous_execute_expected
+     or not has_function_privilege('authenticated',p.oid,'EXECUTE')
+     or not has_function_privilege('service_role',p.oid,'EXECUTE')
+     or has_function_privilege('anon',p.oid,'EXECUTE')
+     or p.prosecdef is distinct from true
+  limit 1;
+
+  if v_bad_signature is not null then
+    raise exception 'Candidate authenticated RPC custody mismatch: %',v_bad_signature;
   end if;
 end
 $$;
@@ -631,9 +789,40 @@ begin
      ) then
     raise exception 'Anonymous role must not reconcile Laundry consequence axes.';
   end if;
+end
+$$;
 
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drift exists after Laundry consequence axis candidate.';
+-- Candidate-scoped authenticated RPC custody proof.
+do $$
+declare
+  v_bad_signature text;
+begin
+  with expected(signature) as (
+    values
+      ('atlas.reconcile_personal_laundry_consequence_axes_self_api_v1(uuid,jsonb)'::text)
+  )
+  select e.signature
+  into v_bad_signature
+  from expected e
+  left join atlas.authenticated_rpc_registry r
+    on r.signature=e.signature
+  left join pg_proc p
+    on p.oid=to_regprocedure(e.signature)::oid
+  where r.signature is null
+     or p.oid is null
+     or r.review_status<>'active'
+     or not r.authenticated_execute_expected
+     or not r.security_definer_expected
+     or not r.service_execute_expected
+     or r.anonymous_execute_expected
+     or not has_function_privilege('authenticated',p.oid,'EXECUTE')
+     or not has_function_privilege('service_role',p.oid,'EXECUTE')
+     or has_function_privilege('anon',p.oid,'EXECUTE')
+     or p.prosecdef is distinct from true
+  limit 1;
+
+  if v_bad_signature is not null then
+    raise exception 'Candidate authenticated RPC custody mismatch: %',v_bad_signature;
   end if;
 end
 $$;
@@ -721,9 +910,40 @@ begin
      ) then
     raise exception 'Authenticated role must not directly execute internal Principal Clock arbitration V2.';
   end if;
+end
+$$;
 
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drift exists after Principal Clock V2 candidate.';
+-- Candidate-scoped authenticated RPC custody proof.
+do $$
+declare
+  v_bad_signature text;
+begin
+  with expected(signature) as (
+    values
+      ('atlas.principal_clock_api_v2(date, timestamp with time zone)'::text)
+  )
+  select e.signature
+  into v_bad_signature
+  from expected e
+  left join atlas.authenticated_rpc_registry r
+    on r.signature=e.signature
+  left join pg_proc p
+    on p.oid=to_regprocedure(e.signature)::oid
+  where r.signature is null
+     or p.oid is null
+     or r.review_status<>'active'
+     or not r.authenticated_execute_expected
+     or not r.security_definer_expected
+     or not r.service_execute_expected
+     or r.anonymous_execute_expected
+     or not has_function_privilege('authenticated',p.oid,'EXECUTE')
+     or not has_function_privilege('service_role',p.oid,'EXECUTE')
+     or has_function_privilege('anon',p.oid,'EXECUTE')
+     or p.prosecdef is distinct from true
+  limit 1;
+
+  if v_bad_signature is not null then
+    raise exception 'Candidate authenticated RPC custody mismatch: %',v_bad_signature;
   end if;
 end
 $$;
@@ -824,9 +1044,41 @@ begin
      ) then
     raise exception 'Anonymous role must not use Laundry actual/resolution APIs.';
   end if;
+end
+$$;
 
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drift exists after Laundry actual-resolution candidate.';
+-- Candidate-scoped authenticated RPC custody proof.
+do $$
+declare
+  v_bad_signature text;
+begin
+  with expected(signature) as (
+    values
+      ('atlas.record_personal_laundry_actual_self_api_v1(jsonb)'::text),
+      ('atlas.resolve_personal_laundry_consequence_from_actual_self_api_v1(uuid,uuid)'::text)
+  )
+  select e.signature
+  into v_bad_signature
+  from expected e
+  left join atlas.authenticated_rpc_registry r
+    on r.signature=e.signature
+  left join pg_proc p
+    on p.oid=to_regprocedure(e.signature)::oid
+  where r.signature is null
+     or p.oid is null
+     or r.review_status<>'active'
+     or not r.authenticated_execute_expected
+     or not r.security_definer_expected
+     or not r.service_execute_expected
+     or r.anonymous_execute_expected
+     or not has_function_privilege('authenticated',p.oid,'EXECUTE')
+     or not has_function_privilege('service_role',p.oid,'EXECUTE')
+     or has_function_privilege('anon',p.oid,'EXECUTE')
+     or p.prosecdef is distinct from true
+  limit 1;
+
+  if v_bad_signature is not null then
+    raise exception 'Candidate authenticated RPC custody mismatch: %',v_bad_signature;
   end if;
 end
 $$;
@@ -893,17 +1145,41 @@ begin
      ) then
     raise exception 'Anonymous role must not run Laundry learning proposal analysis.';
   end if;
-
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drift exists after Laundry learning proposal candidate.';
-  end if;
 end
 $$;
 
+-- Candidate-scoped authenticated RPC custody proof.
 do $$
+declare
+  v_bad_signature text;
 begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drift exists after complete Personal Laundry closed-loop bundle.';
+  with expected(signature) as (
+    values
+      ('atlas.propose_personal_laundry_weekly_pattern_self_api_v1()'::text)
+  )
+  select e.signature
+  into v_bad_signature
+  from expected e
+  left join atlas.authenticated_rpc_registry r
+    on r.signature=e.signature
+  left join pg_proc p
+    on p.oid=to_regprocedure(e.signature)::oid
+  where r.signature is null
+     or p.oid is null
+     or r.review_status<>'active'
+     or not r.authenticated_execute_expected
+     or not r.security_definer_expected
+     or not r.service_execute_expected
+     or r.anonymous_execute_expected
+     or not has_function_privilege('authenticated',p.oid,'EXECUTE')
+     or not has_function_privilege('service_role',p.oid,'EXECUTE')
+     or has_function_privilege('anon',p.oid,'EXECUTE')
+     or p.prosecdef is distinct from true
+  limit 1;
+
+  if v_bad_signature is not null then
+    raise exception 'Candidate authenticated RPC custody mismatch: %',v_bad_signature;
   end if;
 end
 $$;
+
