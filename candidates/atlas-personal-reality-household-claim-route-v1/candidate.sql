@@ -458,6 +458,7 @@ declare
   v_old_decision_state text;
   v_old_route_state text;
   v_capture_state text;
+  v_route_before text;
   v_subject_domain text;
   v_subject_kind text;
   v_subject_id text;
@@ -595,6 +596,8 @@ begin
     )
   );
 
+  v_route_before := v_proposal.route_state;
+
   update atlas.personal_reality_effect_proposals
   set route_state='applied',
       applied_at=coalesce(applied_at,now()),
@@ -623,7 +626,7 @@ begin
     v_proposal.decision_receipt_id,
     'applied',
     'route',
-    'ready',
+    v_route_before,
     'applied',
     jsonb_build_object(
       'destinationKind','claim_record',
