@@ -43,12 +43,13 @@ begin
     raise exception 'Laundry deterministic consequence policy is incomplete.';
   end if;
 
-  if position('engine_packet->''policies'' is distinct from v_policy->''policies''' in v_definition_guard_def)=0 then
-    raise exception 'Laundry consequence definition guard does not enforce deterministic packet policy.';
+  if position('personal_laundry_consequence_policy_from_need_generation_claim_v1' in v_definition_guard_def)=0
+     or position('deterministic policy derived from accepted need-generation truth' in v_definition_guard_def)=0 then
+    raise exception 'Laundry consequence definition guard does not enforce deterministic accepted-rule policy.';
   end if;
 
   if position('scope_kind=''household''' in v_snapshot_def)=0
-     or position('current same-subject Claim' in v_snapshot_def)=0 then
+     or position('cannot drive a Consequence' in v_snapshot_def)=0 then
     raise exception 'Household consequence Evidence snapshot boundary is incomplete.';
   end if;
 
@@ -79,6 +80,7 @@ begin
   end if;
 
   if position('evidenceScopeKind' in v_household_guard_def)=0
+     or position('evaluate_life_state_consequence_policies_v1' in v_household_guard_def)=0
      or position('policyDerivedNotCallerSupplied' in v_eval_def)=0
      or position('doesNotCreateClockPlacement' in v_eval_def)=0 then
     raise exception 'Laundry Household consequence evaluation authority boundary is incomplete.';
