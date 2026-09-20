@@ -120,7 +120,8 @@ begin
       using errcode='22023';
   end if;
 
-  select count(*)::integer,min(plc.crop_cycle_id)
+  select count(*)::integer,
+         (array_agg(plc.crop_cycle_id order by plc.crop_cycle_id))[1]
   into v_primary_count,v_cycle_id
   from atlas.production_lot_crop_cycles plc
   where plc.production_lot_id=v_assignment.production_lot_id
@@ -354,7 +355,7 @@ select
   pba.assignment_status,
   pba.quantity_assigned as assigned_bed_quantity,
   pba.unit as assigned_bed_unit,
-  nullif(pba.metadata->>'planned_seedlings','')::numeric as planned_seedlings,
+  parsed.planned_seedlings,
   lineage.primary_count,
   lineage.primary_crop_cycle_id,
   cdc.id as projected_claim_id,
@@ -379,9 +380,9 @@ select
       and cdc.destination_object_id is distinct from pba.object_id
       then 'claim_destination_mismatch'
     when pba.assignment_status='assigned'
-      and nullif(pba.metadata->>'planned_seedlings','')::numeric is not null
+      and parsed.planned_seedlings is not null
       and (
-        cdc.claimed_quantity is distinct from nullif(pba.metadata->>'planned_seedlings','')::numeric
+        cdc.claimed_quantity is distinct from parsed.planned_seedlings
         or cdc.unit is distinct from 'seedlings'
       )
       then 'claim_quantity_mismatch'
@@ -391,9 +392,98 @@ select
   end as projection_state
 from atlas.production_bed_assignments pba
 left join lateral (
+  select case
+    when nullif(btrim(coalesce(pba.metadata->>'planned_seedlings','')),'')
+         ~ '^[0-9]+([.][0-9]+)?
+  on cdc.farm_id=pba.farm_id
+ and cdc.idempotency_key=
+   atlas.production_bed_assignment_destination_claim_key_v1(pba.id);
+
+revoke all on atlas.production_bed_assignment_destination_claim_audit_v1
+from public,anon,authenticated;
+grant select on atlas.production_bed_assignment_destination_claim_audit_v1
+to service_role;
+
+comment on view atlas.production_bed_assignment_destination_claim_audit_v1 is
+'Internal audit of Production Bed Assignment -> canonical crop destination claim projection, including exact primary lineage, destination identity, quantity, authority, and lifecycle alignment.';
+
+-- Backfill current source truth through the same projection seam.
+do $backfill$
+declare
+  r record;
+begin
+  for r in
+    select id
+    from atlas.production_bed_assignments
+    where assignment_status='assigned'
+    order by id
+  loop
+    perform atlas.sync_production_bed_assignment_destination_claim_v1(r.id);
+  end loop;
+end;
+$backfill$;
+
+do $verification$
+begin
+  if exists(
+    select 1
+    from atlas.production_bed_assignment_destination_claim_audit_v1
+    where assignment_status='assigned'
+      and projection_state<>'aligned'
+  ) then
+    raise exception 'Active Production Bed Assignment destination projection remains unresolved after backfill.'
+      using errcode='55000';
+  end if;
+
+  if has_function_privilege(
+       'authenticated',
+       'atlas.sync_production_bed_assignment_destination_claim_v1(uuid)',
+       'EXECUTE'
+     )
+     or has_table_privilege(
+       'authenticated',
+       'atlas.production_bed_assignment_destination_claim_audit_v1',
+       'SELECT'
+     ) then
+    raise exception 'Internal Production destination projection leaked to authenticated.';
+  end if;
+
+  if not has_function_privilege(
+       'service_role',
+       'atlas.sync_production_bed_assignment_destination_claim_v1(uuid)',
+       'EXECUTE'
+     )
+     or not has_table_privilege(
+       'service_role',
+       'atlas.production_bed_assignment_destination_claim_audit_v1',
+       'SELECT'
+     ) then
+    raise exception 'Service role cannot inspect/repair Production destination projection.';
+  end if;
+
+  if not exists(
+    select 1
+    from pg_trigger
+    where tgrelid='atlas.production_bed_assignments'::regclass
+      and tgname='p1_sync_production_bed_assignment_destination_claim_v1'
+      and not tgisinternal
+  ) then
+    raise exception 'Production Bed Assignment destination projection trigger is absent.';
+  end if;
+end;
+$verification$;
+
+commit;
+
+      then (pba.metadata->>'planned_seedlings')::numeric
+    else null
+  end as planned_seedlings
+) parsed on true
+left join lateral (
   select
     count(*)::integer as primary_count,
-    min(plc.crop_cycle_id) as primary_crop_cycle_id
+    (array_agg(plc.crop_cycle_id order by plc.crop_cycle_id))[1]
+      as primary_crop_cycle_id
   from atlas.production_lot_crop_cycles plc
   where plc.production_lot_id=pba.production_lot_id
     and plc.relation_role='primary'
