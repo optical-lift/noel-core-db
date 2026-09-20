@@ -89,9 +89,13 @@ declare -A sealed_registry_sha=(
   ["custody/post-fence-migration-recoveries-v27.json"]="ec5543fb29af3b20c55fdedd6806032abd18b01f"
   ["custody/post-fence-migration-recoveries-v28.json"]="eb8f3bec7d231caf457a4feb8f689d8a0f431e28"
   ["custody/post-fence-migration-recoveries-v29.json"]="75bee021ad08d2c348cc6f6f4edbe14e498288c6"
+  ["custody/post-fence-migration-recoveries-v30.json"]="d5ff91a22aac39d6ab4c116ae4cab6350f850975"
+  ["custody/post-fence-migration-recoveries-v31.json"]="ca7b04ee203881760e3352f0949f6be134b64c1e"
+  ["custody/post-fence-migration-recoveries-v32.json"]="b017afff8024aa86fe42b7db92014ce90d13c651"
+  ["custody/post-fence-migration-recoveries-v33.json"]="0ea0e49bca1cfab08d164eee1360b152d31b391a"
 )
 
-for version in $(seq 4 29); do
+for version in $(seq 4 33); do
   registry="custody/post-fence-migration-recoveries-v${version}.json"
   if [ ! -f "$registry" ]; then
     echo "Missing $registry"
@@ -117,7 +121,7 @@ import json, re
 from pathlib import Path
 
 specs = []
-for version in range(4, 30):
+for version in range(4, 34):
     path = Path(f'custody/post-fence-migration-recoveries-v{version}.json')
     inherits = None if version == 4 else f'post-fence-migration-recoveries-v{version - 1}.json'
     specs.append((path, version, inherits))
@@ -166,7 +170,7 @@ for path, contract_version, inherits in specs:
             )
         seen[filename] = sha
 
-assert len(seen) == 174
+assert len(seen) == 197
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
@@ -212,4 +216,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 174 sealed retrospective recovery identities preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 197 sealed retrospective recovery identities preserve exact live bytes."
