@@ -9,7 +9,12 @@ declare
   v_later_owner uuid:='96300000-0000-0000-0000-000000000005'::uuid;
   v_endpoint uuid:='96400000-0000-0000-0000-000000000001'::uuid;
   v_new_endpoint uuid;
+  v_identity uuid;
+  v_same_source uuid:='96500000-0000-0000-0000-000000000001'::uuid;
+  v_other_source uuid:='96500000-0000-0000-0000-000000000002'::uuid;
   v_result jsonb;
+  v_access jsonb;
+  v_home jsonb;
   v_old_compat uuid;
   v_count integer;
 begin
@@ -140,6 +145,53 @@ begin
     null;
   end;
 
+  v_result:=atlas.create_correspondence_identity_for_endpoint_self_api_v1(
+    v_endpoint,'Fixture correspondence',null
+  );
+  v_identity:=(v_result->>'correspondenceIdentityId')::uuid;
+
+  if v_identity is null
+     or not atlas.correspondence_identity_read_authorized_self_v1(v_identity)
+     or not atlas.correspondence_identity_manage_authorized_self_v1(v_identity) then
+    raise exception 'Existing owner compatibility grants did not preserve current Correspondence identity behavior.';
+  end if;
+
+  perform set_config('request.jwt.claim.sub','96100000-0000-0000-0000-000000000003',true);
+
+  if atlas.correspondence_identity_read_authorized_self_v1(v_identity)
+     or not atlas.correspondence_identity_manage_authorized_self_v1(v_identity) then
+    raise exception 'Exact Endpoint admin did not remain distinct from Correspondence content view.';
+  end if;
+
+  v_result:=atlas.bind_correspondence_identity_endpoint_self_api_v1(
+    v_identity,v_endpoint
+  );
+  if not coalesce((v_result->>'alreadyBound')::boolean,false) then
+    raise exception 'Exact Endpoint admin did not authorize Correspondence identity binding.';
+  end if;
+
+  begin
+    perform atlas.create_correspondence_identity_for_endpoint_self_api_v1(
+      v_endpoint,'Admin-only identity proof',null
+    );
+    raise exception 'Expected existing Endpoint identity collision after successful admin authorization.';
+  exception when unique_violation then
+    null;
+  end;
+
+  insert into atlas.connected_sources(
+    id,custodian_organization_id,provider_key,provider_account_key,
+    display_label,authorization_state,metadata
+  ) values
+    (
+      v_same_source,v_org,'knowledge_fixture','same-org-source',
+      'Same Organization source','connected','{}'::jsonb
+    ),
+    (
+      v_other_source,v_other_org,'knowledge_fixture','other-org-source',
+      'Other Organization source','connected','{}'::jsonb
+    );
+
   insert into atlas.organization_memberships(
     id,organization_id,user_id,role,active,permissions
   ) values(
@@ -164,9 +216,47 @@ begin
     raise exception 'Updating an existing Endpoint silently granted the editing owner authority.';
   end if;
 
-  if atlas.communication_endpoint_authorized_self_v1(v_endpoint,'view') then
-    raise exception 'Root Organization governance still implied Endpoint knowledge.';
+  if atlas.communication_endpoint_authorized_self_v1(v_endpoint,'view')
+     or atlas.correspondence_identity_read_authorized_self_v1(v_identity)
+     or atlas.correspondence_identity_manage_authorized_self_v1(v_identity) then
+    raise exception 'Root Organization governance still implied Endpoint or Correspondence knowledge/admin.';
   end if;
+
+  begin
+    perform atlas.create_correspondence_identity_for_endpoint_self_api_v1(
+      v_endpoint,'Owner without admin',null
+    );
+    raise exception 'Organization owner created Correspondence identity without exact Endpoint admin.';
+  exception when insufficient_privilege then
+    null;
+  end;
+
+  begin
+    perform atlas.bind_correspondence_identity_endpoint_self_api_v1(
+      v_identity,v_endpoint
+    );
+    raise exception 'Organization owner bound Correspondence identity without exact Endpoint admin.';
+  exception when insufficient_privilege then
+    null;
+  end;
+
+  v_result:=atlas.bind_communication_endpoint_source_self_api_v1(
+    v_endpoint,v_same_source,'receive','{}'::jsonb
+  );
+
+  if (v_result->>'connectedSourceId')::uuid is distinct from v_same_source
+     or atlas.communication_endpoint_authorized_self_v1(v_endpoint,'view') then
+    raise exception 'Root configuration governance either failed or leaked Endpoint knowledge.';
+  end if;
+
+  begin
+    perform atlas.bind_communication_endpoint_source_self_api_v1(
+      v_endpoint,v_other_source,'receive','{}'::jsonb
+    );
+    raise exception 'Organization Endpoint accepted a Connected Source from another Organization custody.';
+  exception when sqlstate '23514' then
+    null;
+  end;
 
   v_result:=atlas.set_communication_endpoint_member_capability_self_api_v1(
     v_endpoint,v_member,'send',true,'govern without Endpoint knowledge'
@@ -195,6 +285,42 @@ begin
   exception when sqlstate '0A000' then
     null;
   end;
+
+  v_result:=atlas.set_communication_endpoint_member_capability_self_api_v1(
+    v_endpoint,v_later_owner,'view',true,'owner explicitly opts into content view'
+  );
+
+  if not atlas.correspondence_identity_read_authorized_self_v1(v_identity)
+     or atlas.correspondence_identity_manage_authorized_self_v1(v_identity) then
+    raise exception 'Exact view grant did not authorize read independently from Endpoint admin.';
+  end if;
+
+  v_access:=atlas.organization_correspondence_access_self_api_v1(v_org);
+  if jsonb_array_length(coalesce(v_access->'items','[]'::jsonb))<>1
+     or coalesce(v_access->'items'->0->'members','null'::jsonb)<>'[]'::jsonb then
+    raise exception 'Organization owner with view-only authority still received member-directory knowledge.';
+  end if;
+
+  v_home:=atlas.institutional_communications_home_physical_compatibility_intern();
+  if jsonb_array_length(coalesce(v_home->'items','[]'::jsonb))<>1
+     or coalesce(v_home->'items'->0->'members','null'::jsonb)<>'[]'::jsonb then
+    raise exception 'Physical compatibility projection still used owner role as member-directory authority.';
+  end if;
+
+  v_result:=atlas.set_communication_endpoint_member_capability_self_api_v1(
+    v_endpoint,v_later_owner,'admin',true,'owner explicitly opts into Endpoint admin'
+  );
+
+  if not atlas.correspondence_identity_manage_authorized_self_v1(v_identity) then
+    raise exception 'Exact Endpoint admin did not authorize Correspondence identity management.';
+  end if;
+
+  v_result:=atlas.bind_correspondence_identity_endpoint_self_api_v1(
+    v_identity,v_endpoint
+  );
+  if not coalesce((v_result->>'alreadyBound')::boolean,false) then
+    raise exception 'Exact Endpoint admin did not authorize existing Correspondence identity binding.';
+  end if;
 
   v_result:=atlas.upsert_communication_endpoint_self_api_v1(
     v_org,null,'email','new-endpoint@example.test',
@@ -229,6 +355,15 @@ begin
       v_endpoint,v_member,'close',true,'bounded owner governance attempt'
     );
     raise exception 'Bounded owner governed Endpoint grants without calendar context.';
+  exception when sqlstate '0A000' then
+    null;
+  end;
+
+  begin
+    perform atlas.bind_communication_endpoint_source_self_api_v1(
+      v_endpoint,v_same_source,'receive','{}'::jsonb
+    );
+    raise exception 'Bounded owner governed Endpoint source binding without calendar context.';
   exception when sqlstate '0A000' then
     null;
   end;
