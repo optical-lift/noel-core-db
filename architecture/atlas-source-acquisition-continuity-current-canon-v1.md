@@ -349,6 +349,36 @@ A production-schema clone validation for the first acquisition/coverage implemen
 19. no unused generic table is promoted without live/proof evidence;
 20. no production release is implied by source merge.
 
+## 18. First live proof decision — institutional email
+
+The first production-shaped proof does **not** create a universal acquisition table.
+
+The live DreamHost email path already has enough durable evidence to prove the law:
+
+- exact raw MIME is stored in private Storage before domain ingestion;
+- Communication preserves one canonical event identity;
+- a changed provider revision is recorded as a durable Communication conflict;
+- canonical event raw-message custody correctly permits only the raw hash belonging to that event.
+
+The production v4 inbound Edge Function currently violates the separation after a conflict: it stores the conflicting raw MIME and Communication records the conflict, then attempts to attach the conflicting raw hash to the existing canonical Communication Event. `record_communication_raw_message_custody_service_v1` correctly rejects that mismatch, causing HTTP 500. The DreamHost poller therefore refuses to advance its IMAP UID checkpoint and redelivers the same message indefinitely.
+
+The first proof repair is:
+
+```text
+raw MIME stored
+→ Communication ingest
+→ durable domain conflict established
+→ do not overwrite/rebind canonical event raw custody
+→ return successful acquisition acknowledgment
+→ provider checkpoint may advance
+```
+
+The response must make the distinction explicit, including a checkpoint-safe acquisition result. This proves the constitutional law without prematurely promoting `connected_source_observations` or a new universal receipt table.
+
+A genuinely failed raw upload, authentication failure, or domain ingest failure remains non-checkpoint-safe and returns failure.
+
+The current production v4 source is replayed into canonical source under `supabase/functions/atlas-inbound-email-relay/index.ts` before any deliberate production function release.
+
 ## 18. Next proof fixture after this slice
 
 Once acquisition/coverage is canonical, replay one concrete modern provider adapter against it.
