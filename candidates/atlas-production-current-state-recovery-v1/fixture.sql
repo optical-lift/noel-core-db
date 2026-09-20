@@ -126,6 +126,17 @@ insert into atlas.production_lot_crop_cycles(
   '{"validation_fixture":true}'::jsonb
 );
 
+insert into atlas.operation_classes(
+  stable_key,label,operation_domain,definition,active,metadata
+) values(
+  'establish_aboveground',
+  'Establish aboveground',
+  'cultivation',
+  'Establish a crop or plant whose working target is primarily aboveground growth, including sowing, potting up, set-out, and ordinary transplanting.',
+  true,
+  '{}'::jsonb
+);
+
 insert into atlas.tasks(
   id,farm_id,organization_id,title,task_type,action_key,status,metadata,
   visibility_scope,task_scope,origin_kind,work_lane,commitment_kind
