@@ -164,6 +164,20 @@ begin
     raise exception 'Updating an existing Endpoint silently granted the editing owner authority.';
   end if;
 
+  if atlas.communication_endpoint_authorized_self_v1(v_endpoint,'view') then
+    raise exception 'Root Organization governance still implied Endpoint knowledge.';
+  end if;
+
+  v_result:=atlas.set_communication_endpoint_member_capability_self_api_v1(
+    v_endpoint,v_member,'send',true,'govern without Endpoint knowledge'
+  );
+
+  if (v_result->>'grantBasisKind')<>'explicit_owner_grant'
+     or not atlas.communication_endpoint_membership_has_capability_v1(v_endpoint,v_member,'send')
+     or atlas.communication_endpoint_authorized_self_v1(v_endpoint,'view') then
+    raise exception 'Owner could not govern an exact Endpoint grant independently of content knowledge.';
+  end if;
+
   begin
     perform atlas.set_communication_endpoint_member_capability_self_api_v1(
       v_endpoint,v_other_member,'view',true,'cross organization target'
