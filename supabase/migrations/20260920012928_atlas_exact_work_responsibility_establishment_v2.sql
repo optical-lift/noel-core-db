@@ -485,18 +485,28 @@ begin
 
   if p_assignee_membership_id is null then
     if v_existing.id is not null then
+      if p_assigned_by_membership_id is null
+         or p_assigned_by_membership_id is distinct from v_existing.assignee_membership_id then
+        raise exception 'Only the current responsible member may self-release through this compatibility path. Transfer or third-party release requires a governed responsibility-lifecycle effect.'
+          using errcode='0A000';
+      end if;
+
       update atlas.work_allocations
       set state='released',
           released_at=now(),
-          release_reason=coalesce(nullif(btrim(p_reason),''),'responsibility_released'),
+          release_reason=coalesce(nullif(btrim(p_reason),''),'responsibility_self_released'),
           metadata=coalesce(metadata,'{}'::jsonb)
             ||coalesce(p_provenance,'{}'::jsonb)
-            ||jsonb_build_object('releasedByMembershipId',p_assigned_by_membership_id),
+            ||jsonb_build_object(
+              'releasedByMembershipId',p_assigned_by_membership_id,
+              'releaseBasis','self_release_compatibility_v1'
+            ),
           updated_at=now()
       where id=v_existing.id;
       perform atlas.sync_production_company_work_responsibility_carrier_v1(v_work.id);
       return jsonb_build_object(
-        'state','released','workItemId',v_work.id,'allocationId',v_existing.id
+        'state','released','workItemId',v_work.id,'allocationId',v_existing.id,
+        'releaseBasis','self_release_compatibility_v1'
       );
     end if;
 
