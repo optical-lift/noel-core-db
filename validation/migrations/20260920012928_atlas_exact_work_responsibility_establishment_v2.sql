@@ -440,19 +440,60 @@ begin
     raise exception 'Failed invalid release changed the current responsibility.';
   end if;
 
+  begin
+    perform atlas.set_company_work_responsibility_internal_v1(
+      v_work_release,null,v_owner,'owner attempted release',
+      '{"source":"responsibility_basis_clone_proof_owner_release"}'::jsonb
+    );
+    raise exception 'Organization owner released another member''s exact Work responsibility.';
+  exception when sqlstate '0A000' then
+    null;
+  end;
+
+  if not exists(
+    select 1 from atlas.work_allocations
+    where work_item_id=v_work_release
+      and allocation_role='responsible'
+      and state='active'
+      and assignee_membership_id=v_a
+  ) then
+    raise exception 'Failed owner release changed the current responsibility.';
+  end if;
+
+  perform set_config('request.jwt.claim.sub',v_owner_user::text,true);
+  begin
+    perform atlas.organization_owner_set_company_work_responsibility_api_v1(
+      v_work_release,null,'owner wrapper attempted release'
+    );
+    raise exception 'Owner responsibility API released another member without governed release basis.';
+  exception when sqlstate '0A000' then
+    null;
+  end;
+
+  if not exists(
+    select 1 from atlas.work_allocations
+    where work_item_id=v_work_release
+      and allocation_role='responsible'
+      and state='active'
+      and assignee_membership_id=v_a
+  ) then
+    raise exception 'Failed owner API release changed the current responsibility.';
+  end if;
+
   v_result:=atlas.set_company_work_responsibility_internal_v1(
-    v_work_release,null,v_a,'responsibility released',
+    v_work_release,null,v_a,'responsibility self-released',
     '{"source":"responsibility_basis_clone_proof_release"}'::jsonb
   );
 
   if (v_result->>'state')<>'released'
+     or (v_result->>'releaseBasis')<>'self_release_compatibility_v1'
      or exists(
        select 1 from atlas.work_allocations
        where work_item_id=v_work_release
          and allocation_role='responsible'
          and state='active'
      ) then
-    raise exception 'Compatibility release path no longer releases exact Work responsibility.';
+    raise exception 'Compatibility self-release path no longer releases exact Work responsibility.';
   end if;
 
   -- Historical responsibility cannot be reassigned by direct mutation without basis.
