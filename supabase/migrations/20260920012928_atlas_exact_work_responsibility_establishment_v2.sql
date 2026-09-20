@@ -33,6 +33,14 @@ declare
   v_kind text:=lower(btrim(coalesce(new.establishment_basis_kind,'')));
   v_basis jsonb:=new.establishment_basis;
 begin
+  if tg_op='UPDATE' then
+    if new.establishment_basis_kind is distinct from old.establishment_basis_kind
+       or new.establishment_basis is distinct from old.establishment_basis then
+      raise exception 'Exact Work responsibility establishment provenance is immutable once the allocation exists.'
+        using errcode='23514';
+    end if;
+  end if;
+
   if new.allocation_role<>'responsible' or new.state<>'active' then
     return new;
   end if;
@@ -62,13 +70,33 @@ begin
        'explicit_worker_task_company_work_adoption_v2'
      ) then
     if v_source='legacy_weekly_harvest_occurrence_assignment'
-       and nullif(btrim(coalesce(new.metadata->>'plannedOccurrenceId','')),'') is null then
-      raise exception 'Weekly-harvest reconstruction requires planned-occurrence provenance.'
+       and (
+         nullif(btrim(coalesce(new.metadata->>'plannedOccurrenceId','')),'') is null
+         or not exists(
+           select 1
+           from atlas.work_items work
+           where work.id=new.work_item_id
+             and work.organization_id=new.organization_id
+             and work.source_object_type='planned_work_occurrence'
+             and work.source_object_id::text=(new.metadata->>'plannedOccurrenceId')
+         )
+       ) then
+      raise exception 'Weekly-harvest reconstruction requires the exact planned-occurrence Work source.'
         using errcode='23514';
     end if;
     if v_source='explicit_worker_task_company_work_adoption_v2'
-       and nullif(btrim(coalesce(new.metadata->>'legacyTaskId','')),'') is null then
-      raise exception 'Legacy-task reconstruction requires legacy-task provenance.'
+       and (
+         nullif(btrim(coalesce(new.metadata->>'legacyTaskId','')),'') is null
+         or not exists(
+           select 1
+           from atlas.work_items work
+           where work.id=new.work_item_id
+             and work.organization_id=new.organization_id
+             and work.source_object_type='legacy_task'
+             and work.source_object_id::text=(new.metadata->>'legacyTaskId')
+         )
+       ) then
+      raise exception 'Legacy-task reconstruction requires the exact legacy-task Work source.'
         using errcode='23514';
     end if;
 
@@ -154,13 +182,47 @@ begin
       using errcode='23514';
   end if;
 
-  if v_kind='legacy_governed_reconstruction'
-     and coalesce(v_basis->>'legacySource','') not in (
-       'legacy_weekly_harvest_occurrence_assignment',
-       'explicit_worker_task_company_work_adoption_v2'
-     ) then
-    raise exception 'Legacy reconstruction basis is limited to the two named transitional carriers.'
-      using errcode='23514';
+  if v_kind='legacy_governed_reconstruction' then
+    if v_source not in (
+         'legacy_weekly_harvest_occurrence_assignment',
+         'explicit_worker_task_company_work_adoption_v2'
+       )
+       or coalesce(v_basis->>'legacySource','')<>v_source then
+      raise exception 'Legacy reconstruction basis is limited to the two named transitional carriers.'
+        using errcode='23514';
+    end if;
+
+    if v_source='legacy_weekly_harvest_occurrence_assignment'
+       and (
+         coalesce(v_basis->>'plannedOccurrenceId','')<>coalesce(new.metadata->>'plannedOccurrenceId','')
+         or not exists(
+           select 1
+           from atlas.work_items work
+           where work.id=new.work_item_id
+             and work.organization_id=new.organization_id
+             and work.source_object_type='planned_work_occurrence'
+             and work.source_object_id::text=(v_basis->>'plannedOccurrenceId')
+         )
+       ) then
+      raise exception 'Legacy weekly-harvest responsibility basis does not match the exact Work source.'
+        using errcode='23514';
+    end if;
+
+    if v_source='explicit_worker_task_company_work_adoption_v2'
+       and (
+         coalesce(v_basis->>'legacyTaskId','')<>coalesce(new.metadata->>'legacyTaskId','')
+         or not exists(
+           select 1
+           from atlas.work_items work
+           where work.id=new.work_item_id
+             and work.organization_id=new.organization_id
+             and work.source_object_type='legacy_task'
+             and work.source_object_id::text=(v_basis->>'legacyTaskId')
+         )
+       ) then
+      raise exception 'Legacy task responsibility basis does not match the exact Work source.'
+        using errcode='23514';
+    end if;
   end if;
 
   new.establishment_basis_kind:=v_kind;
@@ -205,7 +267,7 @@ begin
       using errcode='22023';
   end if;
 
-  if v_kind not in ('self_claim','self_adoption','self_initiated_outbound','legacy_governed_reconstruction')
+  if v_kind not in ('self_claim','self_adoption','self_initiated_outbound')
      or jsonb_typeof(v_basis)<>'object' then
     raise exception 'A supported structured responsibility establishment basis is required.'
       using errcode='22023';
@@ -366,6 +428,7 @@ as $function$
 declare
   v_work atlas.work_items%rowtype;
   v_existing atlas.work_allocations%rowtype;
+  v_assigner atlas.organization_memberships%rowtype;
   v_source text:=coalesce(p_provenance->>'source','');
   v_basis jsonb;
 begin
@@ -388,6 +451,18 @@ begin
   if v_work.work_state<>'open' then
     raise exception 'Responsibility can only be changed while Company Work is open.'
       using errcode='22023';
+  end if;
+
+  if p_assigned_by_membership_id is not null then
+    select * into v_assigner
+    from atlas.organization_memberships
+    where id=p_assigned_by_membership_id
+      and organization_id=v_work.organization_id
+      and active;
+    if v_assigner.id is null then
+      raise exception 'Acting membership must be active in the Work organization.'
+        using errcode='23514';
+    end if;
   end if;
 
   select * into v_existing
