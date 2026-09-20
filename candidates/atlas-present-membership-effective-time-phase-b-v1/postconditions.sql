@@ -6,7 +6,7 @@ declare
   main_org constant uuid := 'eb010000-0000-4000-8000-000000000001'::uuid;
   noctx_org constant uuid := 'eb020000-0000-4000-8000-000000000001'::uuid;
   endpoint_id constant uuid := 'eb010000-0000-4000-8000-000000000801'::uuid;
-  source_id constant uuid := 'eb010000-0000-4000-8000-000000000701'::uuid;
+  source_fixture_id constant uuid := 'eb010000-0000-4000-8000-000000000701'::uuid;
   work_id constant uuid := 'eb010000-0000-4000-8000-000000000501'::uuid;
   allocation_id constant uuid := 'eb010000-0000-4000-8000-000000000511'::uuid;
 
@@ -245,16 +245,16 @@ begin
   -- 11. Connected Source read and management remain distinct.
   perform set_config('request.jwt.claim.sub',current_uid::text,true);
   select count(*)::integer into v_count
-  from atlas.connected_sources_self_api_v1()
-  where source_id=source_id;
+  from atlas.connected_sources_self_api_v1() src
+  where src.source_id=source_fixture_id;
   if v_count<>1 then
     raise exception 'Present-effective ordinary member lost Organization Connected Source read visibility.';
   end if;
 
   perform set_config('request.jwt.claim.sub',future_uid::text,true);
   select count(*)::integer into v_count
-  from atlas.connected_sources_self_api_v1()
-  where source_id=source_id;
+  from atlas.connected_sources_self_api_v1() src
+  where src.source_id=source_fixture_id;
   if v_count<>0 then
     raise exception 'Future Membership could read Organization Connected Source.';
   end if;
@@ -264,8 +264,8 @@ begin
 
   perform set_config('request.jwt.claim.sub',setup_uid::text,true);
   select count(*)::integer into v_count
-  from atlas.connected_sources_self_api_v1()
-  where source_id=source_id;
+  from atlas.connected_sources_self_api_v1() src
+  where src.source_id=source_fixture_id;
   if v_count<>1
      or not atlas.organization_connected_source_authorized_self_v1(main_org) then
     raise exception 'Active setup_actor lost lawful Connected Source onboarding authority/read.';
