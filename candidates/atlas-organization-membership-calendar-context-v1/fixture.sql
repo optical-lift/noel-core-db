@@ -23,6 +23,33 @@ insert into atlas.organizations(id,stable_key,name,status,metadata,onboarding_st
   ('ca210000-0000-4000-8000-000000000001'::uuid,'calendar_fixture_root_org','Calendar Root Org','active','{"validation_fixture":true}'::jsonb,'ready'),
   ('ca310000-0000-4000-8000-000000000001'::uuid,'calendar_fixture_missing_org','Calendar Missing Context Org','active','{"validation_fixture":true}'::jsonb,'ready');
 
+-- Recreate the audited production Organization shape because the clone is schema-only.
+-- These rows let the production-specific Elm compatibility precondition and seed execute
+-- without weakening either production source or clone validation.
+insert into atlas.organizations(id,stable_key,name,status,metadata,onboarding_state) values
+  ('ca410000-0000-4000-8000-000000000001'::uuid,'atlas_reference_company','Atlas Reference Company','active','{"validation_fixture":true,"production_shape_fixture":true}'::jsonb,'ready'),
+  ('ca420000-0000-4000-8000-000000000001'::uuid,'elm_farm','Elm Farm','active','{"validation_fixture":true,"production_shape_fixture":true}'::jsonb,'ready'),
+  ('ca430000-0000-4000-8000-000000000001'::uuid,'feast_guild','Feast Guild','active','{"validation_fixture":true,"production_shape_fixture":true}'::jsonb,'ready');
+
+insert into atlas.organization_memberships(
+  id,organization_id,user_id,person_id,role,active,permissions,
+  eligibility_begins_on,eligibility_ends_on
+) values
+  (
+    'ca420000-0000-4000-8000-000000000011'::uuid,
+    'ca420000-0000-4000-8000-000000000001'::uuid,
+    'ca200000-0000-4000-8000-000000000001'::uuid,
+    'ca200000-0000-4000-8000-000000000011'::uuid,
+    'owner',true,'{}'::jsonb,null,null
+  ),
+  (
+    'ca420000-0000-4000-8000-000000000012'::uuid,
+    'ca420000-0000-4000-8000-000000000001'::uuid,
+    'ca100000-0000-4000-8000-000000000001'::uuid,
+    'ca100000-0000-4000-8000-000000000011'::uuid,
+    'member',true,'{}'::jsonb,'2026-09-08'::date,null
+  );
+
 insert into atlas.organization_onboarding_actors(
   organization_id,human_user_id,actor_kind,active,metadata
 ) values (
