@@ -448,11 +448,16 @@ begin
   where id=p_membership_id
     and organization_id=v_endpoint.organization_id;
 
-  if v_target.id is null
-     or not atlas.organization_membership_present_effective_at_v1(
+  if v_target.id is null then
+    raise exception 'Endpoint grant target must belong to the Endpoint Organization.'
+      using errcode='23514';
+  end if;
+
+  if p_enabled
+     and not atlas.organization_membership_present_effective_at_v1(
        v_target.id,v_target.organization_id,now()
      ) then
-    raise exception 'Endpoint grant target must be a present-effective Membership in the Endpoint Organization.'
+    raise exception 'New Endpoint authority requires a present-effective target Membership.'
       using errcode='23514';
   end if;
 
@@ -848,6 +853,126 @@ as $function$
   from appts
 $function$;
 
+create or replace function atlas.can_schedule_company_work_v1(
+  p_work_item_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path=pg_catalog,atlas,auth
+as $function$
+  select exists(
+    select 1
+    from atlas.work_items wi
+    where wi.id=p_work_item_id
+      and (
+        atlas.is_organization_owner(wi.organization_id)
+        or (
+          exists(
+            select 1
+            from atlas.organization_memberships om
+            where om.organization_id=wi.organization_id
+              and om.user_id=auth.uid()
+              and atlas.organization_membership_present_effective_at_v1(
+                om.id,om.organization_id,now()
+              )
+          )
+          and exists(
+            select 1
+            from atlas.work_execution_adapters a
+            join atlas.planned_work_occurrences pwo
+              on pwo.id=a.planned_occurrence_id
+            join atlas.farms f
+              on f.id=pwo.farm_id
+            join atlas.farm_memberships fm
+              on fm.farm_id=f.id
+            where a.work_item_id=wi.id
+              and a.organization_id=wi.organization_id
+              and a.state='active'
+              and f.organization_id=wi.organization_id
+              and fm.user_id=auth.uid()
+              and fm.active
+              and fm.role in ('owner','manager')
+          )
+        )
+      )
+  )
+$function$;
+
+comment on function atlas.can_schedule_company_work_v1(uuid) is
+'Present Company Work scheduling authorization. Organization owner authority and the farm-manager compatibility path both require present-effective Organization Membership; Farm Membership does not resurrect a future or expired institutional relationship.';
+
+create or replace function atlas.can_adjudicate_company_work_v1(
+  p_work_item_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path=pg_catalog,atlas,auth
+as $function$
+  select exists(
+    select 1
+    from atlas.work_items wi
+    where wi.id=p_work_item_id
+      and (
+        atlas.is_organization_owner(wi.organization_id)
+        or exists(
+          select 1
+          from atlas.organization_memberships om
+          join atlas.farm_memberships fm
+            on fm.user_id=om.user_id
+           and fm.active
+           and fm.role in ('owner','manager')
+          join atlas.farms f
+            on f.id=fm.farm_id
+           and f.organization_id=wi.organization_id
+          where om.organization_id=wi.organization_id
+            and om.user_id=auth.uid()
+            and atlas.organization_membership_present_effective_at_v1(
+              om.id,om.organization_id,now()
+            )
+            and (
+              (
+                wi.organization_unit_id is not null
+                and f.organization_unit_id=wi.organization_unit_id
+              )
+              or exists(
+                select 1
+                from atlas.work_execution_adapters a
+                join atlas.tasks t
+                  on t.id=a.task_id
+                where a.work_item_id=wi.id
+                  and a.organization_id=wi.organization_id
+                  and t.farm_id=f.id
+              )
+              or exists(
+                select 1
+                from atlas.work_execution_adapters a
+                join atlas.planned_work_occurrences pwo
+                  on pwo.id=a.planned_occurrence_id
+                where a.work_item_id=wi.id
+                  and a.organization_id=wi.organization_id
+                  and pwo.farm_id=f.id
+              )
+              or exists(
+                select 1
+                from atlas.worker_week_projection_sources src
+                join atlas.worker_week_projection projection
+                  on projection.id=src.projection_id
+                where src.work_item_id=wi.id
+                  and projection.farm_id=f.id
+              )
+            )
+        )
+      )
+  )
+$function$;
+
+comment on function atlas.can_adjudicate_company_work_v1(uuid) is
+'Present Company Work adjudication authorization. The farm-owner/manager compatibility path requires present-effective Organization Membership in addition to Farm Membership.';
+
 create or replace function atlas.company_work_planning_actor_membership_v1(
   p_work_item_id uuid
 )
@@ -1108,6 +1233,12 @@ begin
      ) not ilike '%current_effective_organization_membership_v1%'
      or pg_get_functiondef(
        'atlas.communication_endpoint_membership_has_capability_v1(uuid,uuid,text)'::regprocedure
+     ) not ilike '%organization_membership_present_effective_at_v1%'
+     or pg_get_functiondef(
+       'atlas.can_schedule_company_work_v1(uuid)'::regprocedure
+     ) not ilike '%organization_membership_present_effective_at_v1%'
+     or pg_get_functiondef(
+       'atlas.can_adjudicate_company_work_v1(uuid)'::regprocedure
      ) not ilike '%organization_membership_present_effective_at_v1%' then
     raise exception 'Effective-Time root seams did not bind to canonical present Membership law.';
   end if;
