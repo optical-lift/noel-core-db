@@ -55,8 +55,7 @@ create table atlas.organization_membership_calendar_contexts (
     references atlas.people(id) on delete restrict,
   established_by_principal_id uuid
     references atlas.principals(id) on delete restrict,
-  established_by_setup_actor_user_id uuid
-    references auth.users(id) on delete restrict,
+  established_by_setup_actor_user_id uuid,
   authority_evidence jsonb not null default '{}'::jsonb
     check (jsonb_typeof(authority_evidence)='object'),
   established_at timestamptz not null default now(),
