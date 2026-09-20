@@ -21,7 +21,11 @@ declare
   v_result jsonb;
   v_allocation uuid;
   v_count integer;
+  v_v1_oid oid;
   v_v2_oid oid;
+  v_claim_oid oid;
+  v_outbound_oid oid;
+  v_derived_oid oid;
 begin
   -- Historical allocation survives without invented establishment provenance.
   if not exists(
@@ -94,10 +98,51 @@ begin
   if v_v2_oid is null then
     raise exception 'Versioned exact Work responsibility establishment writer is missing.';
   end if;
+
+  v_v1_oid:=to_regprocedure(
+    'atlas.set_company_work_responsibility_internal_v1(uuid,uuid,uuid,text,jsonb)'
+  );
+  v_claim_oid:=to_regprocedure(
+    'atlas.claim_institutional_conversation_self_api_v1(uuid,text)'
+  );
+  v_outbound_oid:=to_regprocedure(
+    'atlas.ensure_outbound_conversation_responsibility_service_v1(uuid,uuid)'
+  );
+  v_derived_oid:=to_regprocedure(
+    'atlas.create_communication_derived_work_self_api_v1(uuid,uuid,text,text,text,uuid,timestamptz,integer,text)'
+  );
+
+  if v_v1_oid is null or v_claim_oid is null or v_outbound_oid is null or v_derived_oid is null then
+    raise exception 'Governed exact Work responsibility caller chain is incomplete.';
+  end if;
+
   if has_function_privilege('anon',v_v2_oid,'execute')
      or has_function_privilege('authenticated',v_v2_oid,'execute')
-     or not has_function_privilege('service_role',v_v2_oid,'execute') then
-    raise exception 'Responsibility establishment v2 must remain service-only.';
+     or has_function_privilege('service_role',v_v2_oid,'execute') then
+    raise exception 'Responsibility establishment v2 must remain database-internal with no direct role execution.';
+  end if;
+
+  if has_function_privilege('anon',v_v1_oid,'execute')
+     or has_function_privilege('authenticated',v_v1_oid,'execute')
+     or has_function_privilege('service_role',v_v1_oid,'execute') then
+    raise exception 'Responsibility compatibility writer v1 must remain database-internal with no direct role execution.';
+  end if;
+
+  if (select proowner from pg_proc where oid=v_v1_oid)
+       is distinct from (select proowner from pg_proc where oid=v_v2_oid)
+     or (select proowner from pg_proc where oid=v_claim_oid)
+       is distinct from (select proowner from pg_proc where oid=v_v1_oid)
+     or (select proowner from pg_proc where oid=v_outbound_oid)
+       is distinct from (select proowner from pg_proc where oid=v_v1_oid)
+     or (select proowner from pg_proc where oid=v_derived_oid)
+       is distinct from (select proowner from pg_proc where oid=v_v1_oid) then
+    raise exception 'Governed responsibility callers and internal writers no longer share the database-internal execution owner.';
+  end if;
+
+  if pg_get_functiondef(v_claim_oid) not ilike '%set_company_work_responsibility_internal_v1%'
+     or pg_get_functiondef(v_outbound_oid) not ilike '%set_company_work_responsibility_internal_v1%'
+     or pg_get_functiondef(v_derived_oid) not ilike '%set_company_work_responsibility_internal_v1%' then
+    raise exception 'Truthful responsibility callers no longer terminate at the governed internal compatibility router.';
   end if;
 
   insert into auth.users(id,email,created_at,updated_at)
@@ -532,10 +577,21 @@ begin
     where signature='atlas.set_company_work_responsibility_with_basis_internal_v2(uuid,uuid,uuid,text,jsonb,text,jsonb)'
       and classification='service_internal'
       and not authenticated_execute_expected
-      and service_execute_expected
+      and not service_execute_expected
       and not anonymous_execute_expected
   ) then
-    raise exception 'Responsibility establishment v2 RPC registry entry is missing.';
+    raise exception 'Responsibility establishment v2 RPC registry entry is missing or exposes direct service execution.';
+  end if;
+
+  if not exists(
+    select 1 from atlas.authenticated_rpc_registry
+    where signature='atlas.set_company_work_responsibility_internal_v1(uuid,uuid,uuid,text,jsonb)'
+      and classification='service_internal'
+      and not authenticated_execute_expected
+      and not service_execute_expected
+      and not anonymous_execute_expected
+  ) then
+    raise exception 'Responsibility compatibility v1 RPC registry entry is missing or exposes direct service execution.';
   end if;
 end;
 $validation$;
