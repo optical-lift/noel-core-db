@@ -114,7 +114,7 @@ create or replace function atlas.record_production_current_state_recovery_v1(
   p_unit text,
   p_tray_count numeric default null,
   p_confidence text default 'counted',
-  p_observed_date date default current_date,
+  p_observed_date date default null,
   p_note text default null,
   p_idempotency_key text default null
 )
@@ -125,6 +125,7 @@ set search_path='pg_catalog','atlas'
 as $function$
 declare
   v_today date;
+  v_observed_date date;
   v_tz text;
   v_state text:=lower(btrim(coalesce(p_observed_state,'')));
   v_unit text:=lower(btrim(coalesce(p_unit,'')));
@@ -163,10 +164,6 @@ begin
 
   if v_key is null or length(v_key)>120 then
     raise exception 'A recovery idempotency key of 1-120 characters is required.' using errcode='22023';
-  end if;
-
-  if p_observed_date is null then
-    raise exception 'Observed date is required.' using errcode='22023';
   end if;
 
   if v_state='failed' then
@@ -216,7 +213,8 @@ begin
   end if;
 
   v_today:=(now() at time zone v_tz)::date;
-  if p_observed_date>v_today then
+  v_observed_date:=coalesce(p_observed_date,v_today);
+  if v_observed_date>v_today then
     raise exception 'Current-state recovery observation cannot be dated in the future.' using errcode='22023';
   end if;
 
@@ -300,7 +298,7 @@ begin
       farm_id,production_lot_id,event_type,event_date,quantity,unit,
       task_id,tray_batch_id,crop_cycle_id,note,source,idempotency_key,metadata
     ) values(
-      v_lot.farm_id,v_lot.id,'current_state_observed',p_observed_date,
+      v_lot.farm_id,v_lot.id,'current_state_observed',v_observed_date,
       coalesce(p_observed_quantity,0),v_unit,
       v_task.id,v_batch.id,v_cycle.id,p_note,
       'production_continuity_recovery_v1',v_event_key,
@@ -325,7 +323,7 @@ begin
       ) values(
         v_lot.farm_id,v_lot.id,v_batch.id,v_task.id,
         case when v_state='failed' then 'failed' else 'ready' end,
-        p_observed_date,coalesce(p_observed_quantity,0),coalesce(p_tray_count,v_batch.tray_count),
+        v_observed_date,coalesce(p_observed_quantity,0),coalesce(p_tray_count,v_batch.tray_count),
         v_confidence,p_note,v_readiness_key,
         jsonb_build_object(
           'contractVersion','production_current_state_recovery_v1',
@@ -353,7 +351,7 @@ begin
         metadata=coalesce(metadata,'{}'::jsonb)||jsonb_strip_nulls(jsonb_build_object(
           'current_state_recovery_event_id',v_event.id,
           'current_state_recovery_observed_state',v_state,
-          'current_state_recovery_observed_date',p_observed_date,
+          'current_state_recovery_observed_date',v_observed_date,
           'current_state_recovery_confidence',v_confidence,
           'current_state_recovery_readiness_observation_id',v_readiness.id,
           'historical_transition_date_inferred',false
@@ -374,7 +372,7 @@ begin
           'last_biological_event','current_state_observed',
           'current_state_recovery_event_id',v_event.id,
           'current_state_recovery_observed_state',v_state,
-          'current_state_recovery_observed_date',p_observed_date,
+          'current_state_recovery_observed_date',v_observed_date,
           'current_state_recovery_confidence',v_confidence,
           'current_state_recovery_readiness_observation_id',v_readiness.id,
           'recovered_from_continuity_gap',true,
@@ -397,7 +395,7 @@ begin
         metadata=coalesce(metadata,'{}'::jsonb)||jsonb_strip_nulls(jsonb_build_object(
           'current_state_recovery_event_id',v_event.id,
           'current_state_recovery_observed_state',v_state,
-          'current_state_recovery_observed_date',p_observed_date,
+          'current_state_recovery_observed_date',v_observed_date,
           'current_state_recovery_confidence',v_confidence,
           'current_state_recovery_readiness_observation_id',v_readiness.id,
           'recovered_from_continuity_gap',true,
@@ -413,7 +411,7 @@ begin
 
   perform set_config('atlas.production_reconciler_active',coalesce(v_prior,''),true);
 
-  v_reconcile:=atlas.reconcile_production_work_v1(v_lot.id,p_observed_date);
+  v_reconcile:=atlas.reconcile_production_work_v1(v_lot.id,v_observed_date);
 
   return jsonb_strip_nulls(jsonb_build_object(
     'state','recovered',
@@ -425,7 +423,7 @@ begin
     'observedState',v_state,
     'observedQuantity',coalesce(p_observed_quantity,0),
     'unit',v_unit,
-    'observedDate',p_observed_date,
+    'observedDate',v_observed_date,
     'confidence',v_confidence,
     'historicalTransitionDateInferred',false,
     'reconcile',v_reconcile,
@@ -454,7 +452,7 @@ create or replace function atlas.owner_record_production_current_state_recovery_
   p_unit text,
   p_tray_count numeric default null,
   p_confidence text default 'counted',
-  p_observed_date date default current_date,
+  p_observed_date date default null,
   p_note text default null,
   p_idempotency_key text default null
 )
