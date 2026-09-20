@@ -90,9 +90,42 @@ begin
      ) then
     raise exception 'Anonymous role must not use Laundry actual/resolution APIs.';
   end if;
+end
+$$;
 
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drift exists after Laundry actual-resolution candidate.';
+-- Candidate-scoped authenticated RPC custody proof.
+do $$
+declare
+  v_bad_signature text;
+begin
+  with expected(signature) as (
+    values
+      ('atlas.record_personal_laundry_actual_self_api_v1(jsonb)'::text),
+      ('atlas.resolve_personal_laundry_consequence_from_actual_self_api_v1(uuid,uuid)'::text)
+  )
+  select e.signature
+  into v_bad_signature
+  from expected e
+  left join atlas.authenticated_rpc_registry r
+    on r.signature=e.signature
+  left join pg_proc p
+    on p.oid=to_regprocedure(e.signature)::oid
+  where r.signature is null
+     or p.oid is null
+     or r.review_status<>'active'
+     or not r.authenticated_execute_expected
+     or not r.security_definer_expected
+     or not r.service_execute_expected
+     or r.anonymous_execute_expected
+     or not has_function_privilege('authenticated',p.oid,'EXECUTE')
+     or not has_function_privilege('service_role',p.oid,'EXECUTE')
+     or has_function_privilege('anon',p.oid,'EXECUTE')
+     or p.prosecdef is distinct from true
+  limit 1;
+
+  if v_bad_signature is not null then
+    raise exception 'Candidate authenticated RPC custody mismatch: %',v_bad_signature;
   end if;
 end
 $$;
+

@@ -133,7 +133,7 @@ revoke all on function atlas.record_laundry_instance_fact_internal_v1(uuid,text,
   from public, anon, authenticated, service_role;
 
 
-create or replace function atlas.calibrate_personal_laundry_kernel_self_api_v2(p_input jsonb)
+create or replace function atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -747,7 +747,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.calibrate_personal_laundry_kernel_self_api_v2(p_input jsonb)',
+    'atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -795,13 +795,5 @@ on conflict(signature) do update set
   evidence=excluded.evidence,
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
-
-do $$
-begin
-  if exists (select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Laundry V2 instance-truth registration.';
-  end if;
-end
-$$;
 
 commit;

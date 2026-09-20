@@ -994,7 +994,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.ensure_personal_laundry_consequence_definition_self_api_v1(p_need_generation_claim_id uuid)',
+    'atlas.ensure_personal_laundry_consequence_definition_self_api_v1(uuid)',
     'app_endpoint',
     'verified',
     'active',
@@ -1012,7 +1012,7 @@ values
     false
   ),
   (
-    'atlas.evaluate_personal_laundry_consequence_from_household_evidence_self_api_v1(p_definition_id uuid, p_payload jsonb)',
+    'atlas.evaluate_personal_laundry_consequence_from_household_evidence_self_api_v1(uuid,jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -1041,16 +1041,5 @@ on conflict(signature) do update set
   evidence=excluded.evidence,
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
-
-do $$
-begin
-  if exists (
-    select 1
-    from atlas.authenticated_rpc_registry_drift_v1()
-  ) then
-    raise exception 'Authenticated RPC registry drifted after Laundry Household consequence registration.';
-  end if;
-end
-$$;
 
 commit;

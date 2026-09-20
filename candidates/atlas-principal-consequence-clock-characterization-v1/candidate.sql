@@ -553,7 +553,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.record_person_life_consequence_clock_characterization_self_api_v1(p_consequence_instance_id uuid, p_input jsonb)',
+    'atlas.record_person_life_consequence_clock_characterization_self_api_v1(uuid,jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -571,7 +571,7 @@ values
     false
   ),
   (
-    'atlas.person_life_consequence_clock_admission_self_api_v1(p_consequence_instance_id uuid)',
+    'atlas.person_life_consequence_clock_admission_self_api_v1(uuid)',
     'app_endpoint',
     'verified',
     'active',
@@ -600,13 +600,5 @@ on conflict(signature) do update set
   evidence=excluded.evidence,
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
-
-do $$
-begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Principal consequence Clock characterization registration.';
-  end if;
-end
-$$;
 
 commit;

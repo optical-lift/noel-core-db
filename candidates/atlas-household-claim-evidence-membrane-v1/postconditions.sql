@@ -51,7 +51,7 @@ begin
 
   if not exists (
     select 1 from atlas.authenticated_rpc_registry
-    where signature='atlas.record_current_household_claim_evidence_api_v1(p_payload jsonb)'
+    where signature='atlas.record_current_household_claim_evidence_api_v1(jsonb)'
       and review_status='active'
       and authenticated_execute_expected
       and security_definer_expected

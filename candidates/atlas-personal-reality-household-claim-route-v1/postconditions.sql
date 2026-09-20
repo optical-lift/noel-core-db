@@ -83,7 +83,7 @@ begin
   if not exists (
     select 1
     from atlas.authenticated_rpc_registry
-    where signature='atlas.apply_personal_reality_household_claim_effect_self_api_v1(p_proposal_id uuid)'
+    where signature='atlas.apply_personal_reality_household_claim_effect_self_api_v1(uuid)'
       and review_status='active'
       and authenticated_execute_expected
       and security_definer_expected

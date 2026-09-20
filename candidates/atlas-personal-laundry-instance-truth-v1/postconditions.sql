@@ -81,7 +81,7 @@ begin
   if not exists (
     select 1
     from atlas.authenticated_rpc_registry
-    where signature='atlas.calibrate_personal_laundry_kernel_self_api_v2(p_input jsonb)'
+    where signature='atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)'
       and review_status='active'
       and authenticated_execute_expected
       and security_definer_expected

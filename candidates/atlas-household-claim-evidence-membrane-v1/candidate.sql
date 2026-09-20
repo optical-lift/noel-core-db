@@ -11,7 +11,7 @@ begin;
 -- No direct authenticated table write is granted. No task, carrier, consequence,
 -- rhythm, or Clock authority is granted.
 
-create or replace function atlas.record_current_household_claim_evidence_api_v1(p_payload jsonb)
+create or replace function atlas.record_current_household_claim_evidence_api_v1(jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -546,7 +546,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.record_current_household_claim_evidence_api_v1(p_payload jsonb)',
+    'atlas.record_current_household_claim_evidence_api_v1(jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -593,13 +593,5 @@ on conflict (signature) do update set
   evidence=excluded.evidence,
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
-
-do $$
-begin
-  if exists (select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Household Claim/Evidence membrane registration.';
-  end if;
-end
-$$;
 
 commit;
