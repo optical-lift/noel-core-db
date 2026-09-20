@@ -413,10 +413,7 @@ $function$;
 
 revoke all on function atlas.set_company_work_responsibility_with_basis_internal_v2(
   uuid,uuid,uuid,text,jsonb,text,jsonb
-) from public,anon,authenticated;
-grant execute on function atlas.set_company_work_responsibility_with_basis_internal_v2(
-  uuid,uuid,uuid,text,jsonb,text,jsonb
-) to service_role;
+) from public,anon,authenticated,service_role;
 
 comment on function atlas.set_company_work_responsibility_with_basis_internal_v2(
   uuid,uuid,uuid,text,jsonb,text,jsonb
@@ -533,10 +530,14 @@ begin
 end;
 $function$;
 
+revoke all on function atlas.set_company_work_responsibility_internal_v1(
+  uuid,uuid,uuid,text,jsonb
+) from public,anon,authenticated,service_role;
+
 comment on function atlas.set_company_work_responsibility_internal_v1(
   uuid,uuid,uuid,text,jsonb
 ) is
-'Compatibility router. Known self-uptake callers delegate to v2. Generic creation, transfer, and release without a governed lifecycle basis fail closed.';
+'Database-internal compatibility router. Known self-uptake callers delegate to v2. Generic creation, transfer, and release without a governed lifecycle basis fail closed.';
 
 insert into atlas.authenticated_rpc_registry(
   signature,classification,confidence,review_status,
@@ -545,11 +546,42 @@ insert into atlas.authenticated_rpc_registry(
 ) values(
   'atlas.set_company_work_responsibility_with_basis_internal_v2(uuid,uuid,uuid,text,jsonb,text,jsonb)',
   'service_internal','verified','active',
-  false,true,true,0,0,
+  false,true,false,0,0,
   jsonb_build_object(
     'source','atlas_exact_work_responsibility_establishment_v2',
-    'purpose','Create or affirm exact Company Work responsibility only from an explicit governed establishment basis.',
-    'truthBoundary','Routing, planning, visibility, owner authority and execution capability are not responsibility establishment.',
+    'purpose','Database-internal persistence of exact Company Work responsibility after a governed domain command establishes uptake.',
+    'truthBoundary','Routing, planning, visibility, owner authority, service-role technical access and execution capability are not responsibility establishment.',
+    'directServiceExecute',false,
+    'classificationRuleVersion',3
+  ),
+  now(),false
+)
+on conflict (signature) do update set
+  classification=excluded.classification,
+  confidence=excluded.confidence,
+  review_status=excluded.review_status,
+  authenticated_execute_expected=excluded.authenticated_execute_expected,
+  security_definer_expected=excluded.security_definer_expected,
+  service_execute_expected=excluded.service_execute_expected,
+  caller_count=excluded.caller_count,
+  policy_reference_count=excluded.policy_reference_count,
+  evidence=excluded.evidence,
+  reviewed_at=excluded.reviewed_at,
+  anonymous_execute_expected=excluded.anonymous_execute_expected;
+
+insert into atlas.authenticated_rpc_registry(
+  signature,classification,confidence,review_status,
+  authenticated_execute_expected,security_definer_expected,service_execute_expected,
+  caller_count,policy_reference_count,evidence,reviewed_at,anonymous_execute_expected
+) values(
+  'atlas.set_company_work_responsibility_internal_v1(uuid,uuid,uuid,text,jsonb)',
+  'service_internal','verified','active',
+  false,true,false,6,0,
+  jsonb_build_object(
+    'source','atlas_exact_work_responsibility_establishment_v2',
+    'purpose','Database-internal compatibility router for governed responsibility callers while v1 call sites converge on explicit basis-aware commands.',
+    'truthBoundary','No direct browser or service-role execution. Database SECURITY DEFINER callers remain the only forward path.',
+    'directServiceExecute',false,
     'classificationRuleVersion',3
   ),
   now(),false
