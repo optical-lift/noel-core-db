@@ -16,6 +16,7 @@ declare
   v_viewer_member uuid;
   v_responsible_member uuid;
 
+  v_common_conversation uuid;
   v_conversation uuid;
   v_case uuid;
   v_work uuid;
@@ -153,10 +154,11 @@ begin
     'Authority response proof',
     true
   );
+  v_common_conversation:=(v_result->>'communicationConversationId')::uuid;
   v_conversation:=(v_result->>'institutionalCompatibilityId')::uuid;
 
   if v_conversation is null
-     or (v_result->>'communicationConversationId') is null then
+     or v_common_conversation is null then
     raise exception 'Authority fixture did not establish the required common Communication Conversation root.';
   end if;
 
@@ -230,8 +232,8 @@ begin
 
   -- Admin alone cannot send because admin no longer implies send.
   begin
-    perform atlas.prepare_institutional_email_send_internal_v2(
-      v_admin_member,v_endpoint,v_conversation,
+    perform atlas.prepare_communication_email_send_internal_v3(
+      v_admin_member,v_endpoint,v_common_conversation,v_conversation,
       '[{"address":"recipient@example.test"}]'::jsonb,
       '[]'::jsonb,'[]'::jsonb,
       'Admin-only send must fail','No send authority',null,
@@ -245,8 +247,8 @@ begin
   end;
 
   -- Responsible member with exact send authority may send.
-  v_result:=atlas.prepare_institutional_email_send_internal_v2(
-    v_responsible_member,v_endpoint,v_conversation,
+  v_result:=atlas.prepare_communication_email_send_internal_v3(
+    v_responsible_member,v_endpoint,v_common_conversation,v_conversation,
     '[{"address":"recipient@example.test"}]'::jsonb,
     '[]'::jsonb,'[]'::jsonb,
     'Responsible send proof','Responsible member may send',null,
@@ -268,8 +270,8 @@ begin
 
   -- send + admin still may not override somebody else's responsibility.
   begin
-    perform atlas.prepare_institutional_email_send_internal_v2(
-      v_admin_sender_member,v_endpoint,v_conversation,
+    perform atlas.prepare_communication_email_send_internal_v3(
+      v_admin_sender_member,v_endpoint,v_common_conversation,v_conversation,
       '[{"address":"recipient@example.test"}]'::jsonb,
       '[]'::jsonb,'[]'::jsonb,
       'Admin override must fail','Administration is not response takeover',null,
@@ -291,8 +293,8 @@ begin
     'participant','active','{"source":"authority_dimensions_clone_proof"}'::jsonb
   );
 
-  v_result:=atlas.prepare_institutional_email_send_internal_v2(
-    v_admin_sender_member,v_endpoint,v_conversation,
+  v_result:=atlas.prepare_communication_email_send_internal_v3(
+    v_admin_sender_member,v_endpoint,v_common_conversation,v_conversation,
     '[{"address":"recipient@example.test"}]'::jsonb,
     '[]'::jsonb,'[]'::jsonb,
     'Collaborator send proof','Participant may send because responsibility seam admits collaboration',null,
