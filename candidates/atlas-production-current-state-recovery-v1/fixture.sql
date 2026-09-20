@@ -142,7 +142,7 @@ insert into atlas.tasks(
   'farm_operation',
   'generated',
   'process_continuation',
-  'required'
+  'dependency'
 );
 
 insert into atlas.production_lot_tasks(
