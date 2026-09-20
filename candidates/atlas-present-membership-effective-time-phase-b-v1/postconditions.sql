@@ -334,7 +334,7 @@ begin
       and a.work_item_id=work_id
       and a.assignee_membership_id=expired_member
       and a.assigned_by_membership_id=current_owner
-      and a.allocation_role='responsible'
+      and a.allocation_role='participant'
       and a.state='completed'
       and a.completed_at is not null
       and a.metadata->>'historical_truth'='true'
