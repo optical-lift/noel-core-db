@@ -166,9 +166,9 @@ begin
   v_window_end:=coalesce(v_window_end,v_assignment.expected_release_date);
 
   v_principal_source:=
-       lower(coalesce(v_assignment.source,'')) like 'owner_checkpoint_%'
-    or lower(coalesce(v_assignment.source,'')) like 'owner_instruction_%'
-    or lower(coalesce(v_assignment.source,'')) like 'owner_reconciliation_%';
+       starts_with(lower(coalesce(v_assignment.source,'')),'owner_checkpoint_')
+    or starts_with(lower(coalesce(v_assignment.source,'')),'owner_instruction_')
+    or starts_with(lower(coalesce(v_assignment.source,'')),'owner_reconciliation_');
 
   v_claim_strength:=case when v_principal_source then 'committed' else 'planned' end;
   v_displacement_authority:=case when v_principal_source then 'principal' else 'farm_operations' end;
