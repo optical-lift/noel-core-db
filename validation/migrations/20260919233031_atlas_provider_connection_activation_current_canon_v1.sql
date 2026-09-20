@@ -545,6 +545,16 @@ begin
     'Provider Proof Ledger'
   ) returning id into v_ledger;
 
+  insert into atlas.ledger_organization_participations(
+    ledger_id,organization_id,participation_kind,
+    is_compatibility_primary,status,basis,metadata
+  ) values(
+    v_ledger,v_org,'operating',
+    true,'active',
+    '{"source":"provider_connection_clone_proof"}'::jsonb,
+    '{"purpose":"establish_case_organization_ledger_scope"}'::jsonb
+  );
+
   insert into atlas.ledger_entitlements(
     implementation_case_id,source_purchase_id,entitlement_number,
     state,setup_price_cents,monthly_price_cents
