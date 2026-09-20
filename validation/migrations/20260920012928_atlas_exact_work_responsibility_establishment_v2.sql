@@ -145,6 +145,24 @@ begin
     '{"source":"responsibility_basis_proof_participant"}'::jsonb
   );
 
+  begin
+    insert into atlas.work_allocations(
+      organization_id,work_item_id,assignee_membership_id,assigned_by_membership_id,
+      allocation_role,state,establishment_basis_kind,establishment_basis,metadata
+    ) values(
+      v_org,v_work_owner,v_b,v_a,'participant','active',
+      'self_adoption',
+      jsonb_build_object(
+        'contractVersion','exact_work_responsibility_establishment_v2',
+        'basisKind','self_adoption'
+      ),
+      '{"source":"invalid_collaborator_basis"}'::jsonb
+    );
+    raise exception 'Collaborator allocation accepted responsibility-establishment provenance.';
+  exception when sqlstate '23514' then
+    null;
+  end;
+
   -- Unqualified new responsibility fails at the table boundary.
   begin
     insert into atlas.work_allocations(
