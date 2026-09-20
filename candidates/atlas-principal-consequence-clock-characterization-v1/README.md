@@ -150,7 +150,7 @@ Before promotion, clone validation must prove:
 13. missing `windowStart`/`fixedStart` blocks completeness even when a deadline exists;
 14. no Clock candidate view is changed;
 15. no task / Rhythm / Owner Obligation is created;
-16. authenticated RPC registry drift remains clean;
+16. this tranche introduces no authenticated RPC custody drift for the endpoints it registers;
 17. zero candidate-introduced Atlas lint errors.
 
 ## Promotion rule

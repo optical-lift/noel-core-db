@@ -152,7 +152,7 @@ Before promotion, clone validation must prove:
 13. a newer authorized readiness Claim may intentionally change readiness;
 14. placement_state is unchanged by reconciliation;
 15. no task, Rhythm, Clock candidate, or Clock placement is created;
-16. authenticated RPC registry drift remains clean;
+16. this tranche introduces no authenticated RPC custody drift for the endpoints it registers;
 17. zero candidate-introduced Atlas lint errors.
 
 ## Promotion rule

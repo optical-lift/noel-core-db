@@ -247,7 +247,7 @@ Before promotion, clone validation must prove:
 18. no Household Rhythm row is created, changed, or deleted;
 19. no task, consequence, capacity, or Clock placement is created;
 20. the V2 read projection returns facts separately from any existing Rhythm;
-21. authenticated RPC registry drift remains clean;
+21. this tranche introduces no authenticated RPC custody drift for the endpoints it registers;
 22. zero candidate-introduced Atlas lint errors.
 
 ## Promotion rule

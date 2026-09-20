@@ -234,7 +234,7 @@ Before promotion, clone validation must prove:
 19. caller cannot supply snapshot or policies;
 20. event persistence guard recomputes snapshot, policy, and evaluation independently;
 21. same sourceKey replay is idempotent;
-22. authenticated RPC registry drift remains clean;
+22. this tranche introduces no authenticated RPC custody drift for the endpoints it registers;
 23. zero candidate-introduced Atlas lint errors.
 
 ## Promotion rule

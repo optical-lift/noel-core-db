@@ -137,7 +137,7 @@ Before promotion, clone validation must prove:
 17. consequence becomes resolved through existing Person Life machinery;
 18. resolved consequence disappears from V2 Clock candidates by status projection, not Clock mutation;
 19. no task, Rhythm, Owner Obligation, or Clock placement is created;
-20. authenticated RPC registry drift remains clean;
+20. this tranche introduces no authenticated RPC custody drift for the endpoints it registers;
 21. zero candidate-introduced Atlas lint errors.
 
 ## Promotion rule
