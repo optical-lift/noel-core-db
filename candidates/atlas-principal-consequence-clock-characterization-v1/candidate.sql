@@ -17,7 +17,7 @@ as $$
 declare
   v_blockers jsonb := '[]'::jsonb;
   v_timing jsonb;
-  v_has_timing boolean := false;
+  v_has_relevance_start boolean := false;
 begin
   if p_value is null or jsonb_typeof(p_value)<>'object' then
     return jsonb_build_object(
@@ -73,23 +73,21 @@ begin
 
   v_timing := p_value->'timing';
   if jsonb_typeof(v_timing)='object' then
-    v_has_timing :=
+    v_has_relevance_start :=
       nullif(btrim(v_timing->>'windowStart'),'') is not null
-      or nullif(btrim(v_timing->>'windowEnd'),'') is not null
-      or nullif(btrim(v_timing->>'fixedStart'),'') is not null
-      or nullif(btrim(v_timing->>'mustBeginBy'),'') is not null
-      or nullif(btrim(v_timing->>'mustFinishBy'),'') is not null;
+      or nullif(btrim(v_timing->>'fixedStart'),'') is not null;
   end if;
 
-  if not v_has_timing then
-    v_blockers := v_blockers || '"timing_characterization_required"'::jsonb;
+  if not v_has_relevance_start then
+    v_blockers := v_blockers || '"relevance_start_required"'::jsonb;
   end if;
 
   return jsonb_build_object(
     'complete',jsonb_array_length(v_blockers)=0,
     'blockers',v_blockers,
     'truthBoundary',jsonb_build_object(
-      'missingTimingDoesNotMeanOpenNow',true,
+      'missingRelevanceStartDoesNotMeanOpenNow',true,
+      'deadlineAloneDoesNotEstablishCurrentRelevance',true,
       'completenessDoesNotMeanClockAdmission',true
     )
   );
@@ -372,7 +370,8 @@ begin
       'consequenceTruthRemainsSeparate',true,
       'partialCharacterizationIsPreserved',true,
       'completeCharacterizationDoesNotMeanClockAdmission',true,
-      'missingTimingDoesNotMeanOpenNow',true,
+      'missingRelevanceStartDoesNotMeanOpenNow',true,
+      'deadlineAloneDoesNotEstablishCurrentRelevance',true,
       'doesNotCreateClockCandidate',true,
       'doesNotCreateClockPlacement',true
     )
@@ -491,7 +490,8 @@ begin
       'admissionRequiresPrincipalCarrier',true,
       'admissionRequiresExecutionReadiness',true,
       'admissionRequiresCompleteClockCharacterization',true,
-      'missingTimingNeverMeansOpenNow',true,
+      'missingRelevanceStartNeverMeansOpenNow',true,
+      'deadlineAloneDoesNotEstablishCurrentRelevance',true,
       'admissionDoesNotPlaceClock',true
     )
   );

@@ -80,9 +80,9 @@ A characterization is complete only when all of the following are known:
 - boolean `ownerRequired`;
 - non-empty `consequenceOfDelay`;
 - non-empty `reasonForFloor`;
-- at least one explicit timing boundary.
+- an explicit relevance start: `timing.windowStart` or `timing.fixedStart`.
 
-The timing requirement is crucial. Missing timing may never be interpreted as “open now.”
+The relevance-start requirement is crucial. A future deadline, `mustBeginBy`, or `mustFinishBy` does not by itself establish that the claim is relevant now. Missing relevance start may never be interpreted as “open since forever.”
 
 ## Clock admission is stricter than characterization
 
@@ -147,7 +147,7 @@ Before promotion, clone validation must prove:
 10. unresolved carrier blocks admission;
 11. non-Principal carrier blocks admission;
 12. non-ready execution blocks admission;
-13. missing timing blocks completeness;
+13. missing `windowStart`/`fixedStart` blocks completeness even when a deadline exists;
 14. no Clock candidate view is changed;
 15. no task / Rhythm / Owner Obligation is created;
 16. authenticated RPC registry drift remains clean;

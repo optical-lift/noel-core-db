@@ -21,7 +21,8 @@ begin
     raise exception 'Clock characterization is not persisted through universal person Claim/Evidence.';
   end if;
 
-  if position('missingTimingDoesNotMeanOpenNow' in v_write_def)=0
+  if position('missingRelevanceStartDoesNotMeanOpenNow' in v_write_def)=0
+     or position('deadlineAloneDoesNotEstablishCurrentRelevance' in v_write_def)=0
      or position('doesNotCreateClockCandidate' in v_write_def)=0 then
     raise exception 'Clock characterization truth boundary is incomplete.';
   end if;
