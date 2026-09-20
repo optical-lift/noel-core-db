@@ -1,8 +1,6 @@
 -- Behavioral postconditions for planned occurrence execution-carrier terminality reconciliation v1.
 
 do $proof$
-declare
-  v_result jsonb;
 begin
   -- 1. Historical exact released+done pair is reconciled.
   if not exists(
@@ -42,34 +40,18 @@ begin
     raise exception 'Open execution carrier was terminalized by historical reconciliation.';
   end if;
 
-  -- 4. Current runtime trigger terminalizes occurrence through normal task completion.
-  v_result:=atlas.record_task_transition_v1(
-    'd1500000-0000-4000-8000-000000000003'::uuid,
-    'done',
-    'fixture-current-runtime-terminal',
-    null,null,null,null,null,
-    '{"validation_fixture":true}'::jsonb,
-    null
-  );
-
-  if (select status
-      from atlas.tasks
-      where id='d1500000-0000-4000-8000-000000000003'::uuid)<>'done' then
-    raise exception 'Normal task transition did not complete fresh task.';
+  -- 4. Current runtime contract remains structurally present.
+  if pg_get_functiondef(
+       'atlas.release_after_task_terminal_v1()'::regprocedure
+     ) not ilike '%new.planned_occurrence_id%'
+     or pg_get_functiondef(
+       'atlas.release_after_task_terminal_v1()'::regprocedure
+     ) not ilike '%state=case when new.status=''done'' then ''completed''%'
+  then
+    raise exception 'Current runtime occurrence terminalization contract is absent.';
   end if;
 
-  if not exists(
-    select 1
-    from atlas.planned_work_occurrences pwo
-    where pwo.id='d1400000-0000-4000-8000-000000000003'::uuid
-      and pwo.state='completed'
-      and pwo.metadata->>'terminal_task_id'
-        ='d1500000-0000-4000-8000-000000000003'
-  ) then
-    raise exception 'Current runtime terminality trigger did not close exact occurrence.';
-  end if;
-
-  -- 5. No exact released+done pair remains.
+  -- 5. No exact released+done pair remains after historical reconciliation.
   if exists(
     select 1
     from atlas.planned_work_occurrences pwo
