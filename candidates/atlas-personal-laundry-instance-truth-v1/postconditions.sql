@@ -81,7 +81,7 @@ begin
   if not exists (
     select 1
     from atlas.authenticated_rpc_registry
-    where signature='atlas.calibrate_personal_laundry_kernel_self_api_v2(p_input jsonb)'
+    where signature='atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)'
       and review_status='active'
       and authenticated_execute_expected
       and security_definer_expected
@@ -103,3 +103,40 @@ begin
   end if;
 end
 $$;
+
+-- Candidate-scoped authenticated RPC custody proof.
+do $$
+declare
+  v_bad_signature text;
+begin
+  with expected(signature) as (
+    values
+      ('atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)'::text),
+      ('atlas.personal_laundry_kernel_self_api_v2()'::text)
+  )
+  select e.signature
+  into v_bad_signature
+  from expected e
+  left join atlas.authenticated_rpc_registry r
+    on r.signature=e.signature
+  left join pg_proc p
+    on p.oid=to_regprocedure(e.signature)::oid
+  where r.signature is null
+     or p.oid is null
+     or r.review_status<>'active'
+     or not r.authenticated_execute_expected
+     or not r.security_definer_expected
+     or not r.service_execute_expected
+     or r.anonymous_execute_expected
+     or not has_function_privilege('authenticated',p.oid,'EXECUTE')
+     or not has_function_privilege('service_role',p.oid,'EXECUTE')
+     or has_function_privilege('anon',p.oid,'EXECUTE')
+     or p.prosecdef is distinct from true
+  limit 1;
+
+  if v_bad_signature is not null then
+    raise exception 'Candidate authenticated RPC custody mismatch: %',v_bad_signature;
+  end if;
+end
+$$;
+

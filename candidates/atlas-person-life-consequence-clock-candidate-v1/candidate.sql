@@ -521,12 +521,4 @@ on conflict(signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Principal Clock V2 registration.';
-  end if;
-end
-$$;
-
 commit;

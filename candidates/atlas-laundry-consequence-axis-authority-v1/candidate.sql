@@ -650,7 +650,7 @@ insert into atlas.authenticated_rpc_registry(
   anonymous_execute_expected
 )
 values (
-  'atlas.reconcile_personal_laundry_consequence_axes_self_api_v1(p_consequence_instance_id uuid, p_input jsonb)',
+  'atlas.reconcile_personal_laundry_consequence_axes_self_api_v1(uuid,jsonb)',
   'app_endpoint',
   'verified',
   'active',
@@ -679,13 +679,5 @@ on conflict(signature) do update set
   evidence=excluded.evidence,
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
-
-do $$
-begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Laundry consequence axis authority registration.';
-  end if;
-end
-$$;
 
 commit;

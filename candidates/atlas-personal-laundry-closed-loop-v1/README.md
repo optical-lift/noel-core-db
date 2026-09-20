@@ -2,10 +2,11 @@
 
 Status: **inert combined candidate source; not migration-identified, not clone-validated, not released**.
 
-This bundle composes the ten already-canonical Personal Laundry candidate tranches in their required authority order so the complete loop can be validated against a disposable clone of current production without releasing intermediate dependencies.
+This bundle composes one Atlas infrastructure prerequisite plus the ten canonical Personal Laundry candidate tranches into the exact order required to validate the complete loop against a disposable clone of current production.
 
 Order:
 
+0. mixed-format authenticated RPC registry signature resolver;
 1. calibration / Household Rhythm authority split;
 2. current-Household Claim/Evidence membrane;
 3. progressive Laundry instance truth;
@@ -17,8 +18,27 @@ Order:
 9. physical Laundry actual → consequence resolution;
 10. deterministic Actuals → learning proposal.
 
-Later tranches intentionally depend on earlier tranches. The Production Schema Clone Validation lane starts from the current production schema and applies one exact candidate migration, so a complete non-production proof requires this ordered bundle rather than production release of intermediate dependencies.
+## Why the RPC prerequisite exists
 
-This bundle does **not** authorize production release.
+Clone validation exposed that the live `authenticated_rpc_registry_drift_v1()` diagnostic crashes on historical registry rows written in PostgreSQL's named identity-argument form.
 
-The generated migration must preserve these exact ordered bytes. Any eventual release remains a separate protected action requiring explicit authority.
+The prerequisite repairs only identity resolution:
+
+- native `regprocedure` parsing remains first authority for type-only signatures;
+- named historical signatures fall back to PostgreSQL's own identity-argument reconstruction;
+- genuine drift remains visible;
+- registry rows are not rewritten.
+
+Laundry does **not** claim authority to clear unrelated historical RPC drift.
+
+Each Laundry tranche instead proves the registry row and actual grants for the endpoint(s) it introduces. New Laundry registry signatures use canonical type-only form.
+
+## Why one bundle
+
+Later Laundry tranches intentionally depend on earlier tranches. The Production Schema Clone Validation lane starts from current production and applies one exact candidate migration. The complete non-production proof therefore must apply the ordered loop in one disposable clone rather than releasing intermediate dependencies merely to make later validation possible.
+
+## Truth boundary
+
+This bundle does not authorize production release and does not change production merely by existing in `candidates/`.
+
+Any generated migration must preserve these exact bytes. Production release remains a separate protected action requiring explicit authority.

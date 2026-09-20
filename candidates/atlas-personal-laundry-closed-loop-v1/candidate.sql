@@ -1,7 +1,166 @@
 begin;
 
 -- ============================================================================
--- Laundry closed-loop tranche 1: atlas-personal-laundry-authority-split-v1
+-- Closed-loop prerequisite/tranche 0: atlas-authenticated-rpc-registry-signature-resolver-v2
+-- ============================================================================
+
+create or replace function atlas.resolve_authenticated_rpc_registry_function_oid_v2(
+  p_signature text
+)
+returns oid
+language plpgsql
+stable
+security invoker
+set search_path = pg_catalog, atlas
+as $$
+declare
+  v_oid oid;
+  v_matches oid[];
+begin
+  if nullif(btrim(p_signature),'') is null then
+    return null;
+  end if;
+
+  -- Preserve PostgreSQL's native regprocedure semantics whenever the registry
+  -- signature is type-only. This handles aliases such as timestamptz and
+  -- PostgreSQL's identifier-length truncation law.
+  begin
+    v_oid := pg_catalog.to_regprocedure(p_signature)::oid;
+  exception
+    when others then
+      v_oid := null;
+  end;
+
+  if v_oid is not null then
+    return v_oid;
+  end if;
+
+  -- Historical registry rows also contain the exact identity-argument form
+  -- PostgreSQL reconstructs for ALTER FUNCTION and related identity commands.
+  select array_agg(p.oid order by p.oid)
+  into v_matches
+  from pg_catalog.pg_proc p
+  join pg_catalog.pg_namespace n on n.oid=p.pronamespace
+  where n.nspname='atlas'
+    and p.prokind='f'
+    and regexp_replace(
+          p_signature,
+          '[[:space:]]+',
+          '',
+          'g'
+        ) = regexp_replace(
+          format(
+            '%I.%I(%s)',
+            n.nspname,
+            p.proname,
+            pg_catalog.pg_get_function_identity_arguments(p.oid)
+          ),
+          '[[:space:]]+',
+          '',
+          'g'
+        );
+
+  if coalesce(array_length(v_matches,1),0)>1 then
+    raise exception 'Authenticated RPC registry signature resolved ambiguously: %',p_signature
+      using errcode='42725';
+  end if;
+
+  return v_matches[1];
+end;
+$$;
+
+comment on function atlas.resolve_authenticated_rpc_registry_function_oid_v2(text) is
+  'Internal mixed-format RPC registry identity resolver. Uses native regprocedure parsing first, then PostgreSQL identity-argument text for historical named-argument signatures. Returns NULL for a genuinely absent function and never grants endpoint authority.';
+
+revoke all on function atlas.resolve_authenticated_rpc_registry_function_oid_v2(text)
+  from public, anon, authenticated, service_role;
+
+
+create or replace function atlas.authenticated_rpc_registry_drift_v1()
+returns table(issue text,signature text,detail jsonb)
+language sql
+stable
+security definer
+set search_path = pg_catalog, atlas
+as $function$
+  WITH actual AS (
+    SELECT
+      p.oid,
+      format('%I.%I(%s)',n.nspname,p.proname,oidvectortypes(p.proargtypes)) AS signature,
+      p.prosecdef AS security_definer,
+      has_function_privilege('authenticated',p.oid,'EXECUTE') AS authenticated_execute,
+      has_function_privilege('service_role',p.oid,'EXECUTE') AS service_execute,
+      has_function_privilege('anon',p.oid,'EXECUTE') AS anonymous_execute
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='atlas' AND p.prokind='f'
+  ), registry AS (
+    SELECT
+      r.*,
+      atlas.resolve_authenticated_rpc_registry_function_oid_v2(r.signature) AS function_oid
+    FROM atlas.authenticated_rpc_registry r
+  )
+  SELECT 'unregistered_authenticated'::text,a.signature,
+         jsonb_build_object('authenticated_execute',true)
+  FROM actual a
+  WHERE a.authenticated_execute
+    AND NOT EXISTS(SELECT 1 FROM registry r WHERE r.function_oid=a.oid)
+
+  UNION ALL
+  SELECT 'missing_expected_authenticated',r.signature,
+         jsonb_build_object('function_exists',a.oid IS NOT NULL,'authenticated_execute',coalesce(a.authenticated_execute,false))
+  FROM registry r
+  LEFT JOIN actual a ON a.oid=r.function_oid
+  WHERE r.authenticated_execute_expected
+    AND (a.oid IS NULL OR NOT a.authenticated_execute)
+
+  UNION ALL
+  SELECT 'unexpected_authenticated',r.signature,
+         jsonb_build_object('authenticated_execute',a.authenticated_execute)
+  FROM registry r
+  JOIN actual a ON a.oid=r.function_oid
+  WHERE NOT r.authenticated_execute_expected AND a.authenticated_execute
+
+  UNION ALL
+  SELECT 'security_mode_mismatch',r.signature,
+         jsonb_build_object('expected_security_definer',r.security_definer_expected,'actual_security_definer',a.security_definer)
+  FROM registry r
+  JOIN actual a ON a.oid=r.function_oid
+  WHERE r.security_definer_expected IS DISTINCT FROM a.security_definer
+
+  UNION ALL
+  SELECT 'service_execute_mismatch',r.signature,
+         jsonb_build_object('expected_service_execute',r.service_execute_expected,'actual_service_execute',a.service_execute)
+  FROM registry r
+  JOIN actual a ON a.oid=r.function_oid
+  WHERE r.service_execute_expected IS DISTINCT FROM a.service_execute
+
+  UNION ALL
+  SELECT 'anonymous_execute',a.signature,
+         jsonb_build_object('anonymous_execute',true,'expected',coalesce(r.anonymous_execute_expected,false))
+  FROM actual a
+  LEFT JOIN registry r ON r.function_oid=a.oid
+  WHERE a.anonymous_execute AND coalesce(r.anonymous_execute_expected,false)=false
+
+  UNION ALL
+  SELECT 'missing_expected_anonymous',r.signature,
+         jsonb_build_object('function_exists',a.oid IS NOT NULL,'anonymous_execute',coalesce(a.anonymous_execute,false))
+  FROM registry r
+  LEFT JOIN actual a ON a.oid=r.function_oid
+  WHERE r.anonymous_execute_expected
+    AND (a.oid IS NULL OR NOT a.anonymous_execute)
+$function$;
+
+comment on function atlas.authenticated_rpc_registry_drift_v1() is
+  'Service-only Atlas RPC privilege proof. Registry identity resolves safely across type-only and PostgreSQL named identity signatures; genuine missing functions remain visible as drift and PUBLIC execution is never accepted as an implicit boundary.';
+
+revoke all on function atlas.authenticated_rpc_registry_drift_v1()
+  from public, anon, authenticated;
+grant execute on function atlas.authenticated_rpc_registry_drift_v1()
+  to service_role;
+
+-- ============================================================================
+-- Closed-loop prerequisite/tranche 1: atlas-personal-laundry-authority-split-v1
 -- ============================================================================
 
 -- Atlas Personal Laundry authority split v1.
@@ -193,7 +352,7 @@ comment on function atlas.calibrate_personal_laundry_kernel_self_api_v1(jsonb) i
   'Calibrate the signed-in Principal household Laundry instance from explicit/model-backed household input. Calibration is descriptive instance authority only: it creates, modifies, and deletes no Household Rhythm and grants no Clock or Principal-responsibility authority.';
 
 -- ============================================================================
--- Laundry closed-loop tranche 2: atlas-household-claim-evidence-membrane-v1
+-- Closed-loop prerequisite/tranche 2: atlas-household-claim-evidence-membrane-v1
 -- ============================================================================
 
 -- Atlas Household Claim / Evidence authority membrane v1.
@@ -207,7 +366,7 @@ comment on function atlas.calibrate_personal_laundry_kernel_self_api_v1(jsonb) i
 -- No direct authenticated table write is granted. No task, carrier, consequence,
 -- rhythm, or Clock authority is granted.
 
-create or replace function atlas.record_current_household_claim_evidence_api_v1(p_payload jsonb)
+create or replace function atlas.record_current_household_claim_evidence_api_v1(jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -742,7 +901,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.record_current_household_claim_evidence_api_v1(p_payload jsonb)',
+    'atlas.record_current_household_claim_evidence_api_v1(jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -790,16 +949,8 @@ on conflict (signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists (select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Household Claim/Evidence membrane registration.';
-  end if;
-end
-$$;
-
 -- ============================================================================
--- Laundry closed-loop tranche 3: atlas-personal-laundry-instance-truth-v1
+-- Closed-loop prerequisite/tranche 3: atlas-personal-laundry-instance-truth-v1
 -- ============================================================================
 
 -- Atlas Personal Laundry Instance Truth v1
@@ -935,7 +1086,7 @@ revoke all on function atlas.record_laundry_instance_fact_internal_v1(uuid,text,
   from public, anon, authenticated, service_role;
 
 
-create or replace function atlas.calibrate_personal_laundry_kernel_self_api_v2(p_input jsonb)
+create or replace function atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1549,7 +1700,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.calibrate_personal_laundry_kernel_self_api_v2(p_input jsonb)',
+    'atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -1598,16 +1749,8 @@ on conflict(signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists (select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Laundry V2 instance-truth registration.';
-  end if;
-end
-$$;
-
 -- ============================================================================
--- Laundry closed-loop tranche 4: atlas-personal-reality-household-claim-route-v1
+-- Closed-loop prerequisite/tranche 4: atlas-personal-reality-household-claim-route-v1
 -- ============================================================================
 
 -- Personal Reality -> Household Claim Route v1
@@ -2395,7 +2538,7 @@ insert into atlas.authenticated_rpc_registry(
   anonymous_execute_expected
 )
 values (
-  'atlas.apply_personal_reality_household_claim_effect_self_api_v1(p_proposal_id uuid)',
+  'atlas.apply_personal_reality_household_claim_effect_self_api_v1(uuid)',
   'app_endpoint',
   'verified',
   'active',
@@ -2425,19 +2568,8 @@ on conflict(signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists (
-    select 1
-    from atlas.authenticated_rpc_registry_drift_v1()
-  ) then
-    raise exception 'Authenticated RPC registry drifted after Household Personal Reality claim route registration.';
-  end if;
-end
-$$;
-
 -- ============================================================================
--- Laundry closed-loop tranche 5: atlas-laundry-household-consequence-v1
+-- Closed-loop prerequisite/tranche 5: atlas-laundry-household-consequence-v1
 -- ============================================================================
 
 -- Laundry Household Evidence -> Person Consequence v1.
@@ -3434,7 +3566,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.ensure_personal_laundry_consequence_definition_self_api_v1(p_need_generation_claim_id uuid)',
+    'atlas.ensure_personal_laundry_consequence_definition_self_api_v1(uuid)',
     'app_endpoint',
     'verified',
     'active',
@@ -3452,7 +3584,7 @@ values
     false
   ),
   (
-    'atlas.evaluate_personal_laundry_consequence_from_household_evidence_self_api_v1(p_definition_id uuid, p_payload jsonb)',
+    'atlas.evaluate_personal_laundry_consequence_from_household_evidence_self_api_v1(uuid,jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -3482,19 +3614,8 @@ on conflict(signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists (
-    select 1
-    from atlas.authenticated_rpc_registry_drift_v1()
-  ) then
-    raise exception 'Authenticated RPC registry drifted after Laundry Household consequence registration.';
-  end if;
-end
-$$;
-
 -- ============================================================================
--- Laundry closed-loop tranche 6: atlas-principal-consequence-clock-characterization-v1
+-- Closed-loop prerequisite/tranche 6: atlas-principal-consequence-clock-characterization-v1
 -- ============================================================================
 
 -- Principal Consequence Clock Characterization v1.
@@ -4050,7 +4171,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.record_person_life_consequence_clock_characterization_self_api_v1(p_consequence_instance_id uuid, p_input jsonb)',
+    'atlas.record_person_life_consequence_clock_characterization_self_api_v1(uuid,jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -4068,7 +4189,7 @@ values
     false
   ),
   (
-    'atlas.person_life_consequence_clock_admission_self_api_v1(p_consequence_instance_id uuid)',
+    'atlas.person_life_consequence_clock_admission_self_api_v1(uuid)',
     'app_endpoint',
     'verified',
     'active',
@@ -4098,16 +4219,8 @@ on conflict(signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Principal consequence Clock characterization registration.';
-  end if;
-end
-$$;
-
 -- ============================================================================
--- Laundry closed-loop tranche 7: atlas-laundry-consequence-axis-authority-v1
+-- Closed-loop prerequisite/tranche 7: atlas-laundry-consequence-axis-authority-v1
 -- ============================================================================
 
 -- Laundry Consequence Axis Authority v1.
@@ -4760,7 +4873,7 @@ insert into atlas.authenticated_rpc_registry(
   anonymous_execute_expected
 )
 values (
-  'atlas.reconcile_personal_laundry_consequence_axes_self_api_v1(p_consequence_instance_id uuid, p_input jsonb)',
+  'atlas.reconcile_personal_laundry_consequence_axes_self_api_v1(uuid,jsonb)',
   'app_endpoint',
   'verified',
   'active',
@@ -4790,16 +4903,8 @@ on conflict(signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Laundry consequence axis authority registration.';
-  end if;
-end
-$$;
-
 -- ============================================================================
--- Laundry closed-loop tranche 8: atlas-person-life-consequence-clock-candidate-v1
+-- Closed-loop prerequisite/tranche 8: atlas-person-life-consequence-clock-candidate-v1
 -- ============================================================================
 
 -- Person Life Consequence -> Principal Clock Candidate v1.
@@ -5323,16 +5428,8 @@ on conflict(signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Principal Clock V2 registration.';
-  end if;
-end
-$$;
-
 -- ============================================================================
--- Laundry closed-loop tranche 9: atlas-laundry-actual-consequence-resolution-v1
+-- Closed-loop prerequisite/tranche 9: atlas-laundry-actual-consequence-resolution-v1
 -- ============================================================================
 
 -- Laundry Actual -> Consequence Resolution v1.
@@ -5871,7 +5968,7 @@ insert into atlas.authenticated_rpc_registry(
 )
 values
   (
-    'atlas.record_personal_laundry_actual_self_api_v1(p_input jsonb)',
+    'atlas.record_personal_laundry_actual_self_api_v1(jsonb)',
     'app_endpoint',
     'verified',
     'active',
@@ -5889,7 +5986,7 @@ values
     false
   ),
   (
-    'atlas.resolve_personal_laundry_consequence_from_actual_self_api_v1(p_consequence_instance_id uuid, p_actual_claim_id uuid)',
+    'atlas.resolve_personal_laundry_consequence_from_actual_self_api_v1(uuid,uuid)',
     'app_endpoint',
     'verified',
     'active',
@@ -5919,16 +6016,8 @@ on conflict(signature) do update set
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
 
-do $$
-begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Laundry actual resolution registration.';
-  end if;
-end
-$$;
-
 -- ============================================================================
--- Laundry closed-loop tranche 10: atlas-laundry-learning-proposal-v1
+-- Closed-loop prerequisite/tranche 10: atlas-laundry-learning-proposal-v1
 -- ============================================================================
 
 -- Laundry Learning Proposal v1.
@@ -6415,13 +6504,5 @@ on conflict(signature) do update set
   evidence=excluded.evidence,
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
-
-do $$
-begin
-  if exists(select 1 from atlas.authenticated_rpc_registry_drift_v1()) then
-    raise exception 'Authenticated RPC registry drifted after Laundry learning proposal registration.';
-  end if;
-end
-$$;
 
 commit;

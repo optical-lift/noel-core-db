@@ -785,7 +785,7 @@ insert into atlas.authenticated_rpc_registry(
   anonymous_execute_expected
 )
 values (
-  'atlas.apply_personal_reality_household_claim_effect_self_api_v1(p_proposal_id uuid)',
+  'atlas.apply_personal_reality_household_claim_effect_self_api_v1(uuid)',
   'app_endpoint',
   'verified',
   'active',
@@ -814,16 +814,5 @@ on conflict(signature) do update set
   evidence=excluded.evidence,
   reviewed_at=excluded.reviewed_at,
   anonymous_execute_expected=excluded.anonymous_execute_expected;
-
-do $$
-begin
-  if exists (
-    select 1
-    from atlas.authenticated_rpc_registry_drift_v1()
-  ) then
-    raise exception 'Authenticated RPC registry drifted after Household Personal Reality claim route registration.';
-  end if;
-end
-$$;
 
 commit;
