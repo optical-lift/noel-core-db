@@ -1,0 +1,99 @@
+{
+  "contractVersion": 33,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v32.json",
+  "rule": "These already-live post-fence core research rows were applied to noel-core without canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, classify these rows as Atlas migrations, reconstruct their SQL, or authorize any future out-of-band production write.",
+  "recoveries": [
+    {
+      "version": "20260920012936",
+      "name": "unknown_structure_discovery_v1",
+      "filename": "20260920012936_unknown_structure_discovery_v1.sql",
+      "gitBlobSha1": "2b2b3e1c098ef5a800bdf1f79d1d1213bd1de3f5",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920013215",
+      "name": "unknown_structure_discovery_v1_run_contract_fix",
+      "filename": "20260920013215_unknown_structure_discovery_v1_run_contract_fix.sql",
+      "gitBlobSha1": "6e912cfb4f4b0fa259095514e5a573d16d42ebb3",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920013357",
+      "name": "unknown_structure_discovery_v1_candidate_freeze_fix",
+      "filename": "20260920013357_unknown_structure_discovery_v1_candidate_freeze_fix.sql",
+      "gitBlobSha1": "14d21c0a826cca16d88c86cfdd61dd37f6d38f97",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920013421",
+      "name": "unknown_structure_discovery_v1_target_freeze_fix",
+      "filename": "20260920013421_unknown_structure_discovery_v1_target_freeze_fix.sql",
+      "gitBlobSha1": "d0aa769f797d149f8da4e993a0ac4bea68cceb16",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920013801",
+      "name": "unknown_structure_canon_frames_v1",
+      "filename": "20260920013801_unknown_structure_canon_frames_v1.sql",
+      "gitBlobSha1": "2fcbbe74ab4c0a64beb3556e0716155cc9d1f74e",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920013920",
+      "name": "unknown_structure_cross_domain_v1",
+      "filename": "20260920013920_unknown_structure_cross_domain_v1.sql",
+      "gitBlobSha1": "903c5e2d660192696ebd8b7dad9c06dd4af095fb",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920014950",
+      "name": "unknown_structure_eq_skeleton4_helper",
+      "filename": "20260920014950_unknown_structure_eq_skeleton4_helper.sql",
+      "gitBlobSha1": "3ff4723a04f5cf473caec3982dce8fdccba31c0c",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920015922",
+      "name": "unknown_structure_validation_results_v1",
+      "filename": "20260920015922_unknown_structure_validation_results_v1.sql",
+      "gitBlobSha1": "a757ae68aca4bc9771fb01c5ee6a385492a7b0a3",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920020312",
+      "name": "unknown_structure_eq_skeleton_array_helper",
+      "filename": "20260920020312_unknown_structure_eq_skeleton_array_helper.sql",
+      "gitBlobSha1": "e650436dc2842bbc161387759289a254a7d6fdb9",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260920020958",
+      "name": "unknown_structure_bounded_execution_v1",
+      "filename": "20260920020958_unknown_structure_bounded_execution_v1.sql",
+      "gitBlobSha1": "42e62617ed9eac9ed488f86c6295bf288b7fad5b",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
