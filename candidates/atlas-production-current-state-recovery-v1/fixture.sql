@@ -126,14 +126,45 @@ insert into atlas.production_lot_crop_cycles(
   '{"validation_fixture":true}'::jsonb
 );
 
+insert into atlas.tasks(
+  id,farm_id,organization_id,title,task_type,action_key,status,metadata,
+  visibility_scope,task_scope,origin_kind,work_lane,commitment_kind
+) values(
+  'e1d00000-0000-4000-8000-000000000001'::uuid,
+  'e1200000-0000-4000-8000-000000000001'::uuid,
+  'e1000000-0000-4000-8000-000000000001'::uuid,
+  'Fixture historical sowing provenance',
+  'production_sowing',
+  'sow',
+  'done',
+  '{"validation_fixture":true,"fixture_role":"historical_sowing_provenance"}'::jsonb,
+  'system_internal',
+  'farm_operation',
+  'generated',
+  'process_continuation',
+  'dependency'
+);
+
+insert into atlas.production_lot_tasks(
+  id,production_lot_id,task_id,link_role,source,metadata
+) values(
+  'e1e00000-0000-4000-8000-000000000001'::uuid,
+  'e1700000-0000-4000-8000-000000000001'::uuid,
+  'e1d00000-0000-4000-8000-000000000001'::uuid,
+  'sowing',
+  'validation_fixture',
+  '{"validation_fixture":true}'::jsonb
+);
+
 insert into atlas.production_tray_batches(
-  id,farm_id,production_lot_id,crop_cycle_id,batch_number,batch_label,
+  id,farm_id,production_lot_id,source_task_id,crop_cycle_id,batch_number,batch_label,
   container_kind,seeds_sown,tray_count,status,sown_date,viable_seedlings,
   current_quantity,current_unit,idempotency_key,metadata
 ) values(
   'e1900000-0000-4000-8000-000000000001'::uuid,
   'e1200000-0000-4000-8000-000000000001'::uuid,
   'e1700000-0000-4000-8000-000000000001'::uuid,
+  'e1d00000-0000-4000-8000-000000000001'::uuid,
   'e1500000-0000-4000-8000-000000000001'::uuid,
   1,
   'Recovery Fixture Tray Batch',
