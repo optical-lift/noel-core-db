@@ -448,11 +448,16 @@ begin
   where id=p_membership_id
     and organization_id=v_endpoint.organization_id;
 
-  if v_target.id is null
-     or not atlas.organization_membership_present_effective_at_v1(
+  if v_target.id is null then
+    raise exception 'Endpoint grant target must belong to the Endpoint Organization.'
+      using errcode='23514';
+  end if;
+
+  if p_enabled
+     and not atlas.organization_membership_present_effective_at_v1(
        v_target.id,v_target.organization_id,now()
      ) then
-    raise exception 'Endpoint grant target must be a present-effective Membership in the Endpoint Organization.'
+    raise exception 'New Endpoint authority requires a present-effective target Membership.'
       using errcode='23514';
   end if;
 
