@@ -2,9 +2,14 @@
 
 do $$
 declare
+  v_internal_def text;
   v_write_def text;
   v_read_def text;
 begin
+  select pg_get_functiondef(
+    'atlas.record_laundry_instance_fact_internal_v1(uuid,text,text,jsonb,uuid,jsonb)'::regprocedure
+  ) into v_internal_def;
+
   select pg_get_functiondef(
     'atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)'::regprocedure
   ) into v_write_def;
@@ -13,16 +18,22 @@ begin
     'atlas.personal_laundry_kernel_self_api_v2()'::regprocedure
   ) into v_read_def;
 
-  if v_write_def is null or v_read_def is null then
-    raise exception 'Laundry V2 APIs are missing.';
+  if v_internal_def is null or v_write_def is null or v_read_def is null then
+    raise exception 'Laundry V2 authority functions are missing.';
   end if;
 
-  if position('record_current_household_claim_evidence_api_v1' in v_write_def)=0 then
-    raise exception 'Laundry V2 is not writing facts through Household Claim/Evidence authority.';
+  if position('record_current_household_claim_evidence_api_v1' in v_internal_def)=0 then
+    raise exception 'Laundry fact adapter is not persisting through Household Claim/Evidence authority.';
+  end if;
+
+  if position('record_laundry_instance_fact_internal_v1' in v_write_def)=0 then
+    raise exception 'Laundry V2 calibration is not routing facts through the Laundry fact adapter.';
   end if;
 
   if position('principal_upsert_household_rhythm_api_v1' in v_write_def)>0
-     or position('household_rhythms' in v_write_def)>0 then
+     or position('household_rhythms' in v_write_def)>0
+     or position('principal_upsert_household_rhythm_api_v1' in v_internal_def)>0
+     or position('household_rhythms' in v_internal_def)>0 then
     raise exception 'Laundry V2 improperly carries Household Rhythm mutation authority.';
   end if;
 
@@ -37,6 +48,7 @@ begin
   end if;
 
   if position('instanceFacts' in v_read_def)=0
+     or position('acceptedInstanceFacts' in v_read_def)=0
      or position('legacyConfigurationIsNotV2FactAuthority' in v_read_def)=0
      or position('rhythmIsSeparateDownstreamAuthority' in v_read_def)=0 then
     raise exception 'Laundry V2 read projection does not preserve fact/Rhythm separation.';
@@ -56,6 +68,14 @@ begin
        'EXECUTE'
      ) then
     raise exception 'Authenticated role cannot execute Laundry V2 calibration.';
+  end if;
+
+  if has_function_privilege(
+       'authenticated',
+       'atlas.record_laundry_instance_fact_internal_v1(uuid,text,text,jsonb,uuid,jsonb)'::regprocedure,
+       'EXECUTE'
+     ) then
+    raise exception 'Authenticated role must not directly execute internal Laundry fact adapter.';
   end if;
 
   if not exists (
