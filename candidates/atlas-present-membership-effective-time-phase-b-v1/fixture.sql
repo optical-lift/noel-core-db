@@ -193,7 +193,7 @@ insert into atlas.work_allocations(
   'eb010000-0000-4000-8000-000000000501'::uuid,
   'eb400000-0000-4000-8000-000000000031'::uuid,
   'eb200000-0000-4000-8000-000000000031'::uuid,
-  'responsible','completed',now()-interval '2 days',now()-interval '1 day',
+  'participant','completed',now()-interval '2 days',now()-interval '1 day',
   '{"validation_fixture":true,"historical_truth":true}'::jsonb
 );
 
