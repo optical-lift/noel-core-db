@@ -16,6 +16,8 @@ declare
   v_work_release uuid:=gen_random_uuid();
   v_work_legacy_weekly uuid:=gen_random_uuid();
   v_work_legacy_task uuid:=gen_random_uuid();
+  v_legacy_occurrence uuid:=gen_random_uuid();
+  v_legacy_task uuid:=gen_random_uuid();
   v_result jsonb;
   v_allocation uuid;
   v_count integer;
@@ -46,6 +48,26 @@ begin
   ) then
     raise exception 'Ordinary update fabricated historical responsibility provenance.';
   end if;
+
+  begin
+    update atlas.work_allocations
+    set assigned_by_membership_id=assignee_membership_id,
+        establishment_basis_kind='self_adoption',
+        establishment_basis=jsonb_build_object(
+          'contractVersion','exact_work_responsibility_establishment_v2',
+          'basisKind','self_adoption',
+          'organizationId',organization_id,
+          'workItemId',work_item_id,
+          'actorMembershipId',assignee_membership_id,
+          'assigneeMembershipId',assignee_membership_id,
+          'sourceKind','later_affirmation',
+          'sourceId',gen_random_uuid()
+        )
+    where id='95000000-0000-0000-0000-000000000001'::uuid;
+    raise exception 'Historical responsibility provenance was backfilled after the fact.';
+  exception when sqlstate '23514' then
+    null;
+  end;
 
   v_result:=atlas.set_company_work_responsibility_with_basis_internal_v2(
     '94000000-0000-0000-0000-000000000001'::uuid,
@@ -99,17 +121,20 @@ begin
   values(v_org,v_b_user,'member',true)
   returning id into v_b;
 
-  insert into atlas.work_items(id,organization_id,title,work_state,operation_class,jurisdiction_key,stable_key)
+  insert into atlas.work_items(
+    id,organization_id,title,work_state,operation_class,jurisdiction_key,stable_key,
+    source_object_type,source_object_id
+  )
   values
-    (v_work_self,v_org,'Self adoption','open','fixture','fixture.self','work-self-'||v_work_self::text),
-    (v_work_claim,v_org,'Self claim','open','fixture','fixture.claim','work-claim-'||v_work_claim::text),
-    (v_work_outbound,v_org,'Outbound follow-up','open','fixture','fixture.outbound','work-outbound-'||v_work_outbound::text),
-    (v_work_derived,v_org,'Derived self work','open','fixture','fixture.derived','work-derived-'||v_work_derived::text),
-    (v_work_owner,v_org,'Owner proposed work','open','fixture','fixture.owner','work-owner-'||v_work_owner::text),
-    (v_work_handoff,v_org,'Handoff work','open','fixture','fixture.handoff','work-handoff-'||v_work_handoff::text),
-    (v_work_release,v_org,'Release work','open','fixture','fixture.release','work-release-'||v_work_release::text),
-    (v_work_legacy_weekly,v_org,'Legacy weekly reconstruction','open','fixture','fixture.legacy','work-legacy-weekly-'||v_work_legacy_weekly::text),
-    (v_work_legacy_task,v_org,'Legacy task reconstruction','open','fixture','fixture.legacy','work-legacy-task-'||v_work_legacy_task::text);
+    (v_work_self,v_org,'Self adoption','open','fixture','fixture.self','work-self-'||v_work_self::text,null,null),
+    (v_work_claim,v_org,'Self claim','open','fixture','fixture.claim','work-claim-'||v_work_claim::text,null,null),
+    (v_work_outbound,v_org,'Outbound follow-up','open','fixture','fixture.outbound','work-outbound-'||v_work_outbound::text,null,null),
+    (v_work_derived,v_org,'Derived self work','open','fixture','fixture.derived','work-derived-'||v_work_derived::text,null,null),
+    (v_work_owner,v_org,'Owner proposed work','open','fixture','fixture.owner','work-owner-'||v_work_owner::text,null,null),
+    (v_work_handoff,v_org,'Handoff work','open','fixture','fixture.handoff','work-handoff-'||v_work_handoff::text,null,null),
+    (v_work_release,v_org,'Release work','open','fixture','fixture.release','work-release-'||v_work_release::text,null,null),
+    (v_work_legacy_weekly,v_org,'Legacy weekly reconstruction','open','fixture','fixture.legacy','work-legacy-weekly-'||v_work_legacy_weekly::text,'planned_work_occurrence',v_legacy_occurrence),
+    (v_work_legacy_task,v_org,'Legacy task reconstruction','open','fixture','fixture.legacy','work-legacy-task-'||v_work_legacy_task::text,'legacy_task',v_legacy_task);
 
   -- Collaboration is not responsibility and remains unaffected.
   insert into atlas.work_allocations(
@@ -134,6 +159,24 @@ begin
     null;
   end;
 
+  -- Legacy reconstruction cannot be spoofed onto unrelated Work.
+  begin
+    insert into atlas.work_allocations(
+      organization_id,work_item_id,assignee_membership_id,
+      allocation_role,state,metadata
+    ) values(
+      v_org,v_work_owner,v_a,
+      'responsible','active',
+      jsonb_build_object(
+        'source','legacy_weekly_harvest_occurrence_assignment',
+        'plannedOccurrenceId',v_legacy_occurrence
+      )
+    );
+    raise exception 'Legacy reconstruction source was accepted for unrelated Work.';
+  exception when sqlstate '23514' then
+    null;
+  end;
+
   -- Named legacy reconstruction carriers continue without code changes.
   insert into atlas.work_allocations(
     organization_id,work_item_id,assignee_membership_id,
@@ -143,7 +186,7 @@ begin
     'responsible','active',
     jsonb_build_object(
       'source','legacy_weekly_harvest_occurrence_assignment',
-      'plannedOccurrenceId',gen_random_uuid()
+      'plannedOccurrenceId',v_legacy_occurrence
     )
   ) returning id into v_allocation;
 
@@ -164,7 +207,7 @@ begin
     'responsible','active',
     jsonb_build_object(
       'source','explicit_worker_task_company_work_adoption_v2',
-      'legacyTaskId',gen_random_uuid()
+      'legacyTaskId',v_legacy_task
     )
   ) returning id into v_allocation;
 
@@ -201,6 +244,15 @@ begin
   end if;
 
   begin
+    update atlas.work_allocations
+    set establishment_basis=establishment_basis||jsonb_build_object('sourceId',gen_random_uuid())
+    where id=v_allocation;
+    raise exception 'Established responsibility provenance was mutable after creation.';
+  exception when sqlstate '23514' then
+    null;
+  end;
+
+  begin
     perform atlas.set_company_work_responsibility_with_basis_internal_v2(
       v_work_owner,v_a,v_b,'self_adoption',
       jsonb_build_object('sourceKind','proof_subject','sourceId',gen_random_uuid()),
@@ -220,6 +272,21 @@ begin
       '{}'::jsonb
     );
     raise exception 'Unsupported responsibility establishment kind unexpectedly succeeded.';
+  exception when sqlstate '22023' then
+    null;
+  end;
+
+  begin
+    perform atlas.set_company_work_responsibility_with_basis_internal_v2(
+      v_work_owner,v_a,v_a,'legacy_governed_reconstruction',
+      jsonb_build_object(
+        'legacySource','explicit_worker_task_company_work_adoption_v2',
+        'legacyTaskId',v_legacy_task
+      ),
+      'legacy basis is reserved for named adapters',
+      '{}'::jsonb
+    );
+    raise exception 'Forward v2 writer accepted legacy reconstruction directly.';
   exception when sqlstate '22023' then
     null;
   end;
@@ -334,6 +401,26 @@ begin
     'establish then release',
     '{"source":"responsibility_basis_clone_proof"}'::jsonb
   );
+
+  begin
+    perform atlas.set_company_work_responsibility_internal_v1(
+      v_work_release,null,gen_random_uuid(),'invalid releaser',
+      '{"source":"responsibility_basis_clone_proof_invalid_release"}'::jsonb
+    );
+    raise exception 'Unknown membership released exact Work responsibility.';
+  exception when sqlstate '23514' then
+    null;
+  end;
+
+  if not exists(
+    select 1 from atlas.work_allocations
+    where work_item_id=v_work_release
+      and allocation_role='responsible'
+      and state='active'
+      and assignee_membership_id=v_a
+  ) then
+    raise exception 'Failed invalid release changed the current responsibility.';
+  end if;
 
   v_result:=atlas.set_company_work_responsibility_internal_v1(
     v_work_release,null,v_a,'responsibility released',
