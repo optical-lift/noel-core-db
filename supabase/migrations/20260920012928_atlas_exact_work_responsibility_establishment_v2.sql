@@ -7,11 +7,21 @@ alter table atlas.work_allocations
 alter table atlas.work_allocations
   add constraint work_allocations_establishment_basis_shape_check
   check (
-    (establishment_basis_kind is null and establishment_basis is null)
+    (
+      allocation_role<>'responsible'
+      and establishment_basis_kind is null
+      and establishment_basis is null
+    )
     or (
-      establishment_basis_kind is not null
-      and establishment_basis is not null
-      and jsonb_typeof(establishment_basis)='object'
+      allocation_role='responsible'
+      and (
+        (establishment_basis_kind is null and establishment_basis is null)
+        or (
+          establishment_basis_kind is not null
+          and establishment_basis is not null
+          and jsonb_typeof(establishment_basis)='object'
+        )
+      )
     )
   );
 
