@@ -46,6 +46,8 @@ Owner compatibility grants no longer reject bounded Memberships categorically.
 
 They remain usable only while owner Membership is present-effective. A Membership update that crosses from a non-effective state back into an effective state revokes any surviving compatibility grant rather than silently reviving it after a temporal gap.
 
-## Validation still required
+## Validation packet
 
-Before promotion, add a production-schema clone fixture/postcondition packet proving issue #880 acceptance conditions, including exact future/expired/in-window Membership behavior and preservation of Principal Ledger root-governing authority.
+`fixture.sql` and `postconditions.sql` now prove the Phase B root seams against a disposable production-schema clone, including future/expired/current bounded Membership behavior, unbounded no-context behavior, bounded no-context fail-closed behavior, independent Principal Ledger root governance, Endpoint authority, Connected Sources, employee/access projections, Company Work, explicit service-date semantics, and historical Work preservation.
+
+Promotion must use the governed Supabase CLI generator and the immutable production-schema clone validation lane.
