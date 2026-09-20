@@ -111,7 +111,7 @@ values
   'general',
   'open',
   '{"validation_fixture":true,"quick_complete_allowed":true}'::jsonb,
-  'inspect',
+  null,
   'system_internal',
   'farm_operation',
   'generated',
