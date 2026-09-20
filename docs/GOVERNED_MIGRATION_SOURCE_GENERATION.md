@@ -35,8 +35,10 @@ Use `none` for an optional fixture or validation path.
 6. copies the reviewed candidate SQL bytes into the CLI-generated migration path;
 7. copies fixture/postcondition bytes into matching versioned validation paths;
 8. verifies release-lane ownership;
-9. creates an isolated `generated/...` branch;
-10. opens a pull request and records the generated migration version on the request issue.
+9. creates and pushes an isolated `generated/...` branch;
+10. records the branch, generated SHA, and migration version on the request issue.
+
+Pull-request creation remains a separate review action.
 
 ## What it cannot do
 
@@ -48,6 +50,6 @@ The generator:
 - cannot accept unmerged candidate bytes;
 - cannot generate from paths outside `candidates/`;
 - cannot bypass the separate production-schema clone validation lane;
-- cannot merge its own pull request.
+- cannot create or merge its own pull request.
 
 Generation, validation, source merge, and production release remain separate authority events.
