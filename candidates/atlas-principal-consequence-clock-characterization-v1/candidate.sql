@@ -26,32 +26,40 @@ begin
     );
   end if;
 
-  if jsonb_typeof(p_value->'expectedMinutes')<>'number'
+  if not (p_value ? 'expectedMinutes') then
+    v_blockers := v_blockers || '"expected_minutes_required"'::jsonb;
+  elsif jsonb_typeof(p_value->'expectedMinutes')<>'number'
      or (p_value->>'expectedMinutes')::numeric<=0
      or trunc((p_value->>'expectedMinutes')::numeric)<>(p_value->>'expectedMinutes')::numeric then
     v_blockers := v_blockers || '"expected_minutes_required"'::jsonb;
   end if;
 
-  if p_value->>'protectionLevel' not in ('critical','protected','standard','optional') then
+  if not (p_value ? 'protectionLevel')
+     or p_value->>'protectionLevel' not in ('critical','protected','standard','optional') then
     v_blockers := v_blockers || '"protection_level_required"'::jsonb;
   end if;
 
-  if jsonb_typeof(p_value->'floorClass')<>'number'
+  if not (p_value ? 'floorClass') then
+    v_blockers := v_blockers || '"floor_class_required"'::jsonb;
+  elsif jsonb_typeof(p_value->'floorClass')<>'number'
      or (p_value->>'floorClass')::numeric<1
      or (p_value->>'floorClass')::numeric>7
      or trunc((p_value->>'floorClass')::numeric)<>(p_value->>'floorClass')::numeric then
     v_blockers := v_blockers || '"floor_class_required"'::jsonb;
   end if;
 
-  if p_value->>'interruptibility' not in ('interruptible','low_interruptibility','should_not_interrupt') then
+  if not (p_value ? 'interruptibility')
+     or p_value->>'interruptibility' not in ('interruptible','low_interruptibility','should_not_interrupt') then
     v_blockers := v_blockers || '"interruptibility_required"'::jsonb;
   end if;
 
-  if jsonb_typeof(p_value->'delegable')<>'boolean' then
+  if not (p_value ? 'delegable')
+     or jsonb_typeof(p_value->'delegable')<>'boolean' then
     v_blockers := v_blockers || '"delegability_required"'::jsonb;
   end if;
 
-  if jsonb_typeof(p_value->'ownerRequired')<>'boolean' then
+  if not (p_value ? 'ownerRequired')
+     or jsonb_typeof(p_value->'ownerRequired')<>'boolean' then
     v_blockers := v_blockers || '"owner_required_characterization_required"'::jsonb;
   end if;
 
@@ -307,7 +315,7 @@ begin
   limit 1;
 
   if v_current.id is not null
-     and v_current.source_key<>v_source_action_id||':clock_characterization'
+     and v_current.source_key<>(v_source_action_id||':clock_characterization')
      and v_supersedes_claim_id is null then
     raise exception 'This consequence already has current accepted Clock characterization; durable correction requires supersedesClaimId.'
       using errcode='23505';
@@ -501,20 +509,24 @@ create or replace function atlas.person_life_consequence_clock_admission_self_ap
   p_consequence_instance_id uuid
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = pg_catalog, atlas, auth
-as $$
-  select case
-    when auth.uid() is null
-      then null
-    else atlas.person_life_consequence_clock_admission_state_v1(
-      auth.uid(),
-      p_consequence_instance_id
-    )
-  end;
-$$;
+as $
+declare
+  v_user_id uuid := auth.uid();
+begin
+  if v_user_id is null then
+    raise exception 'Sign in required.' using errcode='42501';
+  end if;
+
+  return atlas.person_life_consequence_clock_admission_state_v1(
+    v_user_id,
+    p_consequence_instance_id
+  );
+end;
+$;
 
 comment on function atlas.person_life_consequence_clock_admission_self_api_v1(uuid) is
   'Read the signed-in owner admission state for one open Person Life Consequence. Returns blockers instead of manufacturing missing Clock characterization, carrier, or readiness.';
