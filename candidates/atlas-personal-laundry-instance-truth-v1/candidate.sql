@@ -109,10 +109,8 @@ begin
        ) then
       raise exception 'Unsupported responsibility.mode.' using errcode='22023';
     end if;
-    if v_responsibility ? 'personId'
-       or v_responsibility ? 'memberId'
-       or v_responsibility ? 'userId' then
-      raise exception 'Laundry V2 responsibility records mode only; identity-bearing carrier assignment requires a governed relationship authority.'
+    if (v_responsibility - 'mode') <> '{}'::jsonb then
+      raise exception 'Laundry V2 responsibility accepts mode only; identity, scheduling, notes, and carrier details require their own governed authority.'
         using errcode='22023';
     end if;
     v_fact_count := v_fact_count + 1;
@@ -333,7 +331,7 @@ begin
     v_fact_name := 'ordinary_responsibility';
     v_claim_type := 'ordinary_responsibility';
     v_source_key := v_source_action_id||':ordinary_responsibility';
-    v_fact_value := v_responsibility;
+    v_fact_value := jsonb_build_object('mode',v_responsibility_mode);
 
     begin
       v_supersedes_claim_id := nullif(v_supersedes->>'ordinary_responsibility','')::uuid;
