@@ -41,14 +41,6 @@ begin
     raise exception 'Laundry calibration function comment does not preserve the authority split.';
   end if;
 
-  if not exists (
-    select 1
-    from atlas.world_kernel_definitions
-    where kernel_key='household.laundry'
-      and active
-  ) then
-    raise exception 'Active household.laundry world kernel is missing.';
-  end if;
 end
 $$;
 

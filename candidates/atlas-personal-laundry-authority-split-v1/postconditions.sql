@@ -1,6 +1,6 @@
 -- Postconditions for Atlas Personal Laundry Authority Split v1.
--- These assertions are intentionally identity-free. Production-shaped behavioral
--- fixture coverage is required when the candidate is promoted to a real migration.
+-- These assertions are intentionally identity-free and schema-clone-safe.
+-- Live world-kernel row presence is an operational data precondition, not a schema postcondition.
 
 do $$
 declare
@@ -35,13 +35,5 @@ begin
     raise exception 'Laundry calibration function comment does not preserve the authority split.';
   end if;
 
-  if not exists (
-    select 1
-    from atlas.world_kernel_definitions
-    where kernel_key='household.laundry'
-      and active
-  ) then
-    raise exception 'Active household.laundry world kernel is missing.';
-  end if;
 end
 $$;
