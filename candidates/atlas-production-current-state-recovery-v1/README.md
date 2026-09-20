@@ -32,7 +32,7 @@ V1 exposes an owner wrapper only. It does not infer Anna or any other worker res
 - transplant_ready
 - failed
 
-The command records an immutable production_lot_event with event_type=current_state_observed and preserves historicalTransitionDateInferred=false.
+The command records an immutable production_lot_event with event_type=current_state_observed and preserves historicalTransitionDateInferred=false. If observed_date is omitted, it is resolved only after the farm is loaded, using that farm's civil timezone rather than the database/session current_date.
 
 For hardening it projects:
 - tray: hardening
