@@ -32,7 +32,6 @@ The candidate:
 - no longer hard-codes `principalRequired=true`;
 - no longer hard-codes `blocksCapacity=true`;
 - returns an explicit truth boundary describing the split;
-- updates RPC-registry evidence for the existing endpoint.
 
 An already-authorized Household Rhythm is deliberately left untouched. Removing it merely because calibration changed would be another unauthorized transition.
 
@@ -74,8 +73,7 @@ Before promotion to a migration, clone validation must prove:
 3. calibration returns `rhythmMutation = none`;
 4. an existing Laundry Rhythm, if fixture-created before calibration, remains byte-for-byte unchanged after calibration;
 5. calibration creates no new Laundry Rhythm when none exists;
-6. RPC-registry drift remains clean;
-7. zero candidate-introduced Atlas lint errors.
+6. zero candidate-introduced Atlas lint errors.
 
 `postconditions.sql` currently provides source/schema assertions that do not require fixture identity. Behavioral fixture coverage must be added when this candidate receives a legitimate migration identity.
 

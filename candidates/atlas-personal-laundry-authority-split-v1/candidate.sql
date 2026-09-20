@@ -188,12 +188,4 @@ $$;
 comment on function atlas.calibrate_personal_laundry_kernel_self_api_v1(jsonb) is
   'Calibrate the signed-in Principal household Laundry instance from explicit/model-backed household input. Calibration is descriptive instance authority only: it creates, modifies, and deletes no Household Rhythm and grants no Clock or Principal-responsibility authority.';
 
-update atlas.authenticated_rpc_registry
-set evidence = coalesce(evidence, '{}'::jsonb) || jsonb_build_object(
-      'laundryCalibrationAuthoritySplit',
-      'Laundry calibration establishes household-specific instance description only. It does not create, modify, or delete Household Rhythm; usualPattern is descriptive evidence rather than recurrence/Clock authority.'
-    ),
-    reviewed_at = now()
-where signature = 'atlas.calibrate_personal_laundry_kernel_self_api_v1(p_input jsonb)';
-
 commit;
