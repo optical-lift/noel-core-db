@@ -16,7 +16,7 @@ begin
     'seedlings',
     4,
     'counted',
-    current_date,
+    null,
     'Observed current hardening cohort; historical start date remains unknown.',
     'fixture-hardening-current-state'
   );
@@ -35,6 +35,7 @@ begin
       and e.unit='seedlings'
       and e.task_id='e1b00000-0000-4000-8000-000000000001'::uuid
       and e.metadata->>'observedCurrentState'='hardening'
+      and e.event_date=(now() at time zone 'America/Chicago')::date
       and coalesce((e.metadata->>'historicalTransitionDateInferred')::boolean,true)=false
   ) then
     raise exception 'Current hardening evidence is incomplete or backdates history.';
@@ -169,7 +170,25 @@ begin
     raise exception 'Recovery carrier accepted an unrelated Production Lot.';
   end if;
 
-  -- 5. Core remains internal; owner wrapper is the browser-facing authority membrane.
+  -- 5. Omitted observed_date is governed by farm civil time, not database current_date.
+  if lower(pg_get_function_arguments(
+       'atlas.record_production_current_state_recovery_v1(uuid,uuid,text,numeric,text,numeric,text,date,text,text)'::regprocedure
+     )) not like '%p_observed_date date default null::date%'
+     or lower(pg_get_function_arguments(
+       'atlas.owner_record_production_current_state_recovery_v1(uuid,uuid,text,numeric,text,numeric,text,date,text,text)'::regprocedure
+     )) not like '%p_observed_date date default null::date%'
+  then
+    raise exception 'Recovery APIs do not default observed_date to farm-time resolution.';
+  end if;
+
+  if pg_get_functiondef(
+       'atlas.record_production_current_state_recovery_v1(uuid,uuid,text,numeric,text,numeric,text,date,text,text)'::regprocedure
+     ) not ilike '%v_observed_date:=coalesce(p_observed_date,v_today)%'
+  then
+    raise exception 'Recovery core does not resolve omitted observation date from farm civil time.';
+  end if;
+
+  -- 6. Core remains internal; owner wrapper is the browser-facing authority membrane.
   if has_function_privilege(
        'authenticated',
        'atlas.record_production_current_state_recovery_v1(uuid,uuid,text,numeric,text,numeric,text,date,text,text)',
