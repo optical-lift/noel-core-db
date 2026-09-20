@@ -127,7 +127,7 @@ Before promotion:
 9. old Evidence and superseded Claim remain readable through the Household read membrane;
 10. another Principal cannot read or correct the Household history;
 11. no task/Rhythm/consequence/Clock row is created;
-12. authenticated RPC registry drift remains clean;
+12. this tranche introduces no authenticated RPC custody drift for the endpoints it registers;
 13. zero candidate-introduced Atlas lint errors.
 
 ## Promotion rule

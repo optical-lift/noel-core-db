@@ -128,7 +128,7 @@ Before promotion, clone validation must prove:
 18. learner creates no consequence;
 19. learner creates no Clock candidate or placement;
 20. accepted household truth is unchanged;
-21. authenticated RPC registry drift remains clean;
+21. this tranche introduces no authenticated RPC custody drift for the endpoints it registers;
 22. zero candidate-introduced Atlas lint errors.
 
 ## Promotion rule

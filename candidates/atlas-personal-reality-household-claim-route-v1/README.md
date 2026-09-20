@@ -160,7 +160,7 @@ Before promotion, clone validation must prove:
 14. proposal/event/capture workflow state remains consistent;
 15. no task, Rhythm, consequence, carrier, capacity, or Clock row is created;
 16. authenticated clients cannot directly execute the internal promotion writer;
-17. authenticated RPC registry drift remains clean;
+17. this tranche introduces no authenticated RPC custody drift for the endpoints it registers;
 18. zero candidate-introduced Atlas lint errors.
 
 ## Promotion rule
