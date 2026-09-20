@@ -144,16 +144,21 @@ begin
   end if;
 
   -- Admin alone may not claim response responsibility.
-  insert into atlas.institutional_conversations(
-    organization_id,stable_key,subject,conversation_state,opened_at,last_activity_at
-  ) values(
-    v_org,'authority-response-'||substr(gen_random_uuid()::text,1,8),
-    'Authority response proof','open',now(),now()
-  ) returning id into v_conversation;
+  v_result:=atlas.ensure_organization_communication_command_pair_service_v1(
+    v_owner_member,
+    v_endpoint,
+    null,
+    null,
+    null,
+    'Authority response proof',
+    true
+  );
+  v_conversation:=(v_result->>'institutionalCompatibilityId')::uuid;
 
-  insert into atlas.institutional_conversation_endpoints(
-    institutional_conversation_id,communication_endpoint_id,endpoint_role
-  ) values(v_conversation,v_endpoint,'primary');
+  if v_conversation is null
+     or (v_result->>'communicationConversationId') is null then
+    raise exception 'Authority fixture did not establish the required common Communication Conversation root.';
+  end if;
 
   insert into atlas.institutional_conversation_response_cases(
     institutional_conversation_id,organization_id,case_number,case_state
