@@ -159,9 +159,9 @@ begin
     join atlas.implementation_threads t on t.id=f.implementation_thread_id
     where f.id=p_source_finding_id
       and t.implementation_case_id=p_implementation_case_id
-      and f.status='accepted'
+      and f.status='governed'
   ) then
-    raise exception 'Source finding must be accepted and belong to this Implementation Case.'
+    raise exception 'Source finding must be governed and belong to this Implementation Case.'
       using errcode='23514';
   end if;
 
@@ -219,6 +219,10 @@ declare
   v_existing uuid;
   v_existing_name text;
   v_existing_kind text;
+  v_existing_status text;
+  v_existing_parent uuid;
+  v_existing_begins timestamptz;
+  v_existing_ends timestamptz;
   v_relationship_kind text;
   v_begins timestamptz;
   v_ends timestamptz;
@@ -297,10 +301,18 @@ begin
         );
       end if;
 
-      select r.id into v_existing
+      select r.id,r.status into v_existing,v_existing_status
       from atlas.institutional_person_records r
-      where r.organization_id=v_org and r.person_id=v_person and r.status='active'
+      where r.organization_id=v_org and r.person_id=v_person
       limit 1;
+
+      if v_existing is not null and v_existing_status<>'active' then
+        return jsonb_build_object(
+          'ok',true,'establishmentItemId',v_item.id,'sentence',v_item.title,
+          'operationKey',v_op,'state','canonical_conflict',
+          'reason','institutional_person_record_exists_but_is_not_active'
+        );
+      end if;
 
       return jsonb_build_object(
         'ok',true,'establishmentItemId',v_item.id,'sentence',v_item.title,
@@ -369,13 +381,18 @@ begin
       );
     end if;
 
-    select u.id,u.name,u.unit_kind into v_existing,v_existing_name,v_existing_kind
+    select u.id,u.name,u.unit_kind,u.parent_unit_id
+      into v_existing,v_existing_name,v_existing_kind,v_existing_parent
     from atlas.organization_units u
     where u.organization_id=v_org and u.stable_key=btrim(v_b->>'stableKey')
     limit 1;
 
     if v_existing is not null
-       and (v_existing_name<>btrim(v_b->>'name') or v_existing_kind<>btrim(v_b->>'unitKind')) then
+       and (
+         v_existing_name<>btrim(v_b->>'name')
+         or v_existing_kind<>btrim(v_b->>'unitKind')
+         or v_existing_parent is distinct from v_parent
+       ) then
       return jsonb_build_object(
         'ok',true,'establishmentItemId',v_item.id,'sentence',v_item.title,
         'operationKey',v_op,'state','canonical_conflict',
@@ -606,13 +623,28 @@ begin
       );
     end if;
 
-    select a.id into v_existing
+    select a.id,a.appointment_kind,a.begins_at,a.ends_at
+      into v_existing,v_existing_kind,v_existing_begins,v_existing_ends
     from atlas.organization_position_appointments a
     where a.organization_id=v_org
       and a.institutional_person_record_id=v_ipr
       and a.position_id=v_position
       and a.status='active' and a.ends_at is null
     limit 1;
+
+    if v_existing is not null
+       and (
+         v_existing_kind<>v_relationship_kind
+         or v_existing_begins<>v_begins
+         or v_existing_ends is distinct from v_ends
+       ) then
+      return jsonb_build_object(
+        'ok',true,'establishmentItemId',v_item.id,'sentence',v_item.title,
+        'operationKey',v_op,'state','canonical_conflict',
+        'reason','active_appointment_has_different_canonical_semantics',
+        'appointmentId',v_existing
+      );
+    end if;
 
     return jsonb_build_object(
       'ok',true,'establishmentItemId',v_item.id,'sentence',v_item.title,
@@ -711,7 +743,7 @@ begin
   elsif p_operation_key='position_responsibility.establish.v1' then
     select
       p.display_title || ' carries ' || r.name || '.',
-      'current',
+      case when p.status='active' and r.status='active' then 'current' else 'historical' end,
       jsonb_build_array(
         jsonb_build_object('kind','organization_position','id',p.id,'label',p.display_title),
         jsonb_build_object('kind','organization_responsibility','id',r.id,'label',r.name)
