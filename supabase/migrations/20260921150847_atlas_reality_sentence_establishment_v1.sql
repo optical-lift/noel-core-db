@@ -825,8 +825,7 @@ begin
       using errcode='22023';
   end if;
 
-  select f.*,t.implementation_case_id
-    into v_finding,v_case_id
+  select f.* into v_finding
   from atlas.implementation_findings f
   join atlas.implementation_threads t on t.id=f.implementation_thread_id
   join atlas.implementation_cases c on c.id=t.implementation_case_id
@@ -837,6 +836,10 @@ begin
   if v_finding.id is null then
     raise exception 'Open implementation Finding not found.' using errcode='23503';
   end if;
+
+  select t.implementation_case_id into strict v_case_id
+  from atlas.implementation_threads t
+  where t.id=v_finding.implementation_thread_id;
 
   if not exists(
     select 1
