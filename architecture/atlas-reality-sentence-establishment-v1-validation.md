@@ -224,11 +224,11 @@ This proves the Workbench is not a shadow text database.
 Create two candidates for the same operation:
 
 1. `manual_structured`;
-2. `machine_proposed` from an accepted `implementation_finding`.
+2. `machine_proposed` from a governed `implementation_finding`.
 
 Prove both reach the same preview/establishment command path.
 
-Prove a rejected/unaccepted finding cannot be used as `source_finding_id`.
+Prove a non-governed finding cannot be used as `source_finding_id`.
 
 ## No-side-effect audit
 
