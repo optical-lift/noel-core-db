@@ -165,12 +165,14 @@ where m.id=s.organization_membership_id
 
 update atlas.work_allocations wa
 set assignee_institutional_person_record_id=assignee.institutional_person_record_id,
-    assigned_by_institutional_person_record_id=assigner.institutional_person_record_id,
+    assigned_by_institutional_person_record_id=(
+      select assigner.institutional_person_record_id
+      from atlas.organization_memberships assigner
+      where assigner.id=wa.assigned_by_membership_id
+        and assigner.organization_id=wa.organization_id
+    ),
     updated_at=now()
 from atlas.organization_memberships assignee
-left join atlas.organization_memberships assigner
-  on assigner.id=wa.assigned_by_membership_id
- and assigner.organization_id=wa.organization_id
 where assignee.id=wa.assignee_membership_id
   and assignee.organization_id=wa.organization_id
   and assignee.institutional_person_record_id is not null;
