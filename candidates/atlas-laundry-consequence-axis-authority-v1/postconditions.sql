@@ -42,9 +42,31 @@ begin
     raise exception 'Laundry readiness resolution boundary is incomplete.';
   end if;
 
-  if position('Preserve the separately' in v_guard_def)=0
-     or position('Placement is intentionally outside this authority.' in v_guard_def)=0 then
-    raise exception 'Laundry consequence axis persistence guard does not preserve independent authority.';
+  if position(
+       'personal_laundry_carrier_resolution_from_responsibility_claim_v1'
+       in lower(v_guard_def)
+     )=0
+     or position(
+       'personal_laundry_execution_readiness_from_claim_v1'
+       in lower(v_guard_def)
+     )=0
+     or position(
+       'new.carrier_ref:=old.carrier_ref'
+       in regexp_replace(lower(v_guard_def),'[[:space:]]+','','g')
+     )=0
+     or position(
+       'new.carrier_state:=old.carrier_state'
+       in regexp_replace(lower(v_guard_def),'[[:space:]]+','','g')
+     )=0
+     or position(
+       'new.execution_readiness:=old.execution_readiness'
+       in regexp_replace(lower(v_guard_def),'[[:space:]]+','','g')
+     )=0
+     or position(
+       'new.placement_stateisdistinctfromold.placement_state'
+       in regexp_replace(lower(v_guard_def),'[[:space:]]+','','g')
+     )=0 then
+    raise exception 'Laundry consequence axis persistence guard does not preserve source-backed carrier/readiness axes while excluding placement authority.';
   end if;
 
   if not exists (
