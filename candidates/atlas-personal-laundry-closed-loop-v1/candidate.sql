@@ -4131,7 +4131,7 @@ language plpgsql
 stable
 security definer
 set search_path = pg_catalog, atlas, auth
-as $
+as $$
 declare
   v_user_id uuid := auth.uid();
 begin
@@ -4144,8 +4144,7 @@ begin
     p_consequence_instance_id
   );
 end;
-$;
-
+$$;
 comment on function atlas.person_life_consequence_clock_admission_self_api_v1(uuid) is
   'Read the signed-in owner admission state for one open Person Life Consequence. Returns blockers instead of manufacturing missing Clock characterization, carrier, or readiness.';
 
