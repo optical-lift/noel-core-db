@@ -180,8 +180,6 @@ $function$;
 
 revoke all on function atlas.reality_establishment_registry_v1()
   from public,anon,authenticated;
-grant execute on function atlas.reality_establishment_registry_v1()
-  to service_role;
 
 create or replace function atlas.reality_establishment_operation_exists_v1(p_operation_key text)
 returns boolean
@@ -199,8 +197,6 @@ $function$;
 
 revoke all on function atlas.reality_establishment_operation_exists_v1(text)
   from public,anon,authenticated;
-grant execute on function atlas.reality_establishment_operation_exists_v1(text)
-  to service_role;
 
 -- Domain command: Person + Organization -> Institutional Person Record.
 -- Name never silently resolves identity.
@@ -627,17 +623,5 @@ revoke all on function atlas.establish_position_responsibility_internal_v1(uuid,
 revoke all on function atlas.establish_position_appointment_internal_v1(uuid,uuid,uuid,text,timestamptz,timestamptz,jsonb)
   from public,anon,authenticated;
 
-grant execute on function atlas.establish_institutional_person_record_internal_v1(uuid,text,uuid,text,jsonb)
-  to service_role;
-grant execute on function atlas.establish_organization_unit_internal_v1(uuid,uuid,text,text,text,jsonb)
-  to service_role;
-grant execute on function atlas.establish_organization_position_internal_v1(uuid,uuid,text,text,text,jsonb)
-  to service_role;
-grant execute on function atlas.establish_organization_responsibility_internal_v1(uuid,text,text,text,jsonb)
-  to service_role;
-grant execute on function atlas.establish_position_responsibility_internal_v1(uuid,uuid,uuid,text,jsonb)
-  to service_role;
-grant execute on function atlas.establish_position_appointment_internal_v1(uuid,uuid,uuid,text,timestamptz,timestamptz,jsonb)
-  to service_role;
 
 commit;
