@@ -1,0 +1,42 @@
+name: Temporary Reality Sentence Migration Identity
+
+on:
+  push:
+    branches:
+      - feature/reality-sentence-establishment-v1
+    paths:
+      - .github/workflows/reality-sentence-migration-identity.yml
+
+permissions:
+  contents: read
+
+jobs:
+  allocate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          test "$(supabase --version)" = "2.116.0"
+
+      - name: Allocate canonical migration identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/reality-sentence-migration-identity"
+          mkdir -p "$work"
+          cd "$work"
+          supabase init --force >/dev/null
+          supabase migration new atlas_reality_sentence_establishment_v1 >/dev/null
+          mapfile -t files < <(find supabase/migrations -maxdepth 1 -type f -name '*_atlas_reality_sentence_establishment_v1.sql' -printf '%f\n')
+          if [[ "${#files[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one generated migration filename; found ${#files[@]}."
+            exit 1
+          fi
+          echo "PINNED_SUPABASE_CLI=$(supabase --version)"
+          echo "CANONICAL_MIGRATION_FILENAME=${files[0]}"
