@@ -98,6 +98,152 @@ $function$;
 revoke all on function atlas.implementation_reality_scope_self_v1(uuid,uuid)
   from public,anon,authenticated;
 
+-- Implementation Finding adjudication is append-only evidence of the human
+-- decision that allows a Finding to become governed source material.
+create table atlas.implementation_finding_adjudications (
+  id uuid primary key default gen_random_uuid(),
+  implementation_finding_id uuid not null
+    references atlas.implementation_findings(id) on delete restrict,
+  decision text not null check (decision in ('govern','reject')),
+  resulting_status text not null check (resulting_status in ('governed','rejected')),
+  adjudicated_by_user_id uuid not null references auth.users(id) on delete restrict,
+  basis text,
+  created_at timestamptz not null default now(),
+  unique (implementation_finding_id),
+  check (basis is null or btrim(basis)<>'')
+);
+
+comment on table atlas.implementation_finding_adjudications is
+  'Append-only practitioner adjudication receipt for implementation Findings. Governance makes a Finding eligible as Reality Sentence source evidence; it does not establish source-domain truth.';
+
+alter table atlas.implementation_finding_adjudications enable row level security;
+revoke all on table atlas.implementation_finding_adjudications
+  from public,anon,authenticated,service_role;
+
+create or replace function atlas.guard_implementation_finding_adjudication_immutable_v1()
+returns trigger
+language plpgsql
+security definer
+set search_path=pg_catalog
+as $function$
+begin
+  raise exception 'Implementation Finding adjudication receipts are append-only.'
+    using errcode='23514';
+end;
+$function$;
+
+revoke all on function atlas.guard_implementation_finding_adjudication_immutable_v1()
+  from public,anon,authenticated,service_role;
+
+create trigger implementation_finding_adjudication_immutable_v1
+before update or delete on atlas.implementation_finding_adjudications
+for each row execute function atlas.guard_implementation_finding_adjudication_immutable_v1();
+
+create or replace function atlas.adjudicate_implementation_finding_self_api_v1(
+  p_implementation_finding_id uuid,
+  p_decision text,
+  p_basis text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path=pg_catalog,atlas,auth
+as $function$
+declare
+  v_uid uuid:=auth.uid();
+  v_finding atlas.implementation_findings%rowtype;
+  v_case_id uuid;
+  v_result_status text;
+  v_existing atlas.implementation_finding_adjudications%rowtype;
+  v_receipt_id uuid;
+begin
+  if v_uid is null or not atlas.implementation_practitioner_authorized_self_v1() then
+    raise exception 'Practitioner authority required.' using errcode='42501';
+  end if;
+
+  if p_decision not in ('govern','reject') then
+    raise exception 'Finding adjudication decision must be govern or reject.'
+      using errcode='22023';
+  end if;
+
+  select f.*,t.implementation_case_id
+    into v_finding,v_case_id
+  from atlas.implementation_findings f
+  join atlas.implementation_threads t on t.id=f.implementation_thread_id
+  join atlas.implementation_cases c on c.id=t.implementation_case_id
+  where f.id=p_implementation_finding_id
+    and c.state not in ('closed','cancelled')
+  for update of f;
+
+  if v_finding.id is null then
+    raise exception 'Open implementation Finding not found.' using errcode='23503';
+  end if;
+
+  if not exists(
+    select 1
+    from atlas.implementation_case_participants cp
+    where cp.implementation_case_id=v_case_id
+      and cp.relationship_kind='practitioner'
+      and cp.active
+      and cp.human_user_id=v_uid
+  ) then
+    raise exception 'Current practitioner is not assigned to this implementation case.'
+      using errcode='42501';
+  end if;
+
+  v_result_status:=case p_decision when 'govern' then 'governed' else 'rejected' end;
+
+  select * into v_existing
+  from atlas.implementation_finding_adjudications a
+  where a.implementation_finding_id=v_finding.id;
+
+  if v_existing.id is not null then
+    if v_existing.decision=p_decision
+       and v_finding.status=v_existing.resulting_status then
+      return jsonb_build_object(
+        'ok',true,
+        'alreadyAdjudicated',true,
+        'implementationFindingId',v_finding.id,
+        'adjudicationId',v_existing.id,
+        'status',v_existing.resulting_status
+      );
+    end if;
+    raise exception 'Implementation Finding already has a different adjudication.'
+      using errcode='23505';
+  end if;
+
+  if v_finding.status not in ('proposed','unresolved') then
+    raise exception 'Only proposed or unresolved Findings may be adjudicated.'
+      using errcode='23514';
+  end if;
+
+  insert into atlas.implementation_finding_adjudications(
+    implementation_finding_id,decision,resulting_status,
+    adjudicated_by_user_id,basis
+  ) values(
+    v_finding.id,p_decision,v_result_status,v_uid,
+    nullif(btrim(coalesce(p_basis,'')),'')
+  )
+  returning id into v_receipt_id;
+
+  update atlas.implementation_findings
+  set status=v_result_status,
+      updated_at=now()
+  where id=v_finding.id;
+
+  return jsonb_build_object(
+    'ok',true,
+    'alreadyAdjudicated',false,
+    'implementationFindingId',v_finding.id,
+    'adjudicationId',v_receipt_id,
+    'status',v_result_status
+  );
+end;
+$function$;
+
+revoke all on function atlas.adjudicate_implementation_finding_self_api_v1(uuid,text,text)
+  from public,anon,authenticated,service_role;
+
 -- Manual, machine-proposed, plain-language, and source-derived capture converge here.
 -- No canonical domain truth is created.
 create or replace function atlas.create_implementation_reality_sentence_self_api_v1(
@@ -1169,6 +1315,21 @@ revoke all on function atlas.implementation_reality_authoring_context_self_api_v
   from public,anon,authenticated,service_role;
 
 -- Narrow browser membrane. All substantive authorization remains inside Atlas functions.
+create or replace function public.adjudicate_implementation_finding_self_api_v1(
+  p_implementation_finding_id uuid,
+  p_decision text,
+  p_basis text default null
+)
+returns jsonb
+language sql
+security definer
+set search_path=pg_catalog
+as $function$
+select atlas.adjudicate_implementation_finding_self_api_v1(
+  p_implementation_finding_id,p_decision,p_basis
+);
+$function$;
+
 create or replace function public.implementation_reality_authoring_context_self_api_v1(
   p_implementation_case_id uuid
 )
@@ -1251,6 +1412,8 @@ as $function$
 select atlas.implementation_reality_sentences_self_api_v1(p_implementation_case_id);
 $function$;
 
+revoke all on function public.adjudicate_implementation_finding_self_api_v1(uuid,text,text)
+  from public,anon,authenticated;
 revoke all on function public.implementation_reality_authoring_context_self_api_v1(uuid)
   from public,anon,authenticated;
 revoke all on function public.implementation_reality_establishment_registry_self_api_v1()
@@ -1265,6 +1428,8 @@ revoke all on function public.establish_implementation_reality_sentence_self_api
 revoke all on function public.implementation_reality_sentences_self_api_v1(uuid)
   from public,anon,authenticated;
 
+grant execute on function public.adjudicate_implementation_finding_self_api_v1(uuid,text,text)
+  to authenticated,service_role;
 grant execute on function public.implementation_reality_authoring_context_self_api_v1(uuid)
   to authenticated,service_role;
 grant execute on function public.implementation_reality_establishment_registry_self_api_v1()
