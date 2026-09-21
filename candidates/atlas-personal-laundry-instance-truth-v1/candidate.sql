@@ -133,7 +133,7 @@ revoke all on function atlas.record_laundry_instance_fact_internal_v1(uuid,text,
   from public, anon, authenticated, service_role;
 
 
-create or replace function atlas.calibrate_personal_laundry_kernel_self_api_v2(jsonb)
+create or replace function atlas.calibrate_personal_laundry_kernel_self_api_v2(p_input jsonb)
 returns jsonb
 language plpgsql
 security definer

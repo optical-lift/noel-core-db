@@ -11,7 +11,7 @@ begin;
 -- No direct authenticated table write is granted. No task, carrier, consequence,
 -- rhythm, or Clock authority is granted.
 
-create or replace function atlas.record_current_household_claim_evidence_api_v1(jsonb)
+create or replace function atlas.record_current_household_claim_evidence_api_v1(p_payload jsonb)
 returns jsonb
 language plpgsql
 security definer
