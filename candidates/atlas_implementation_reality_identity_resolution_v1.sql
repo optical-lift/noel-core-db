@@ -56,7 +56,7 @@ begin
     where b.implementation_case_id=p_implementation_case_id
       and b.organization_id is not null
       and b.ended_at is null
-      and b.state in ('bound','active')
+      and b.state in ('bound','activated')
   ) scope_orgs;
 
   if v_scope_count=0 then
@@ -101,7 +101,7 @@ begin
         where b.implementation_case_id=p_implementation_case_id
           and b.organization_id is not null
           and b.ended_at is null
-          and b.state in ('bound','active')
+          and b.state in ('bound','activated')
       ) o
       where v_query='' or strpos(lower(o.name),v_query)>0
       order by match_rank,o.name,o.id
@@ -142,7 +142,7 @@ begin
             where b.implementation_case_id=$1
               and b.organization_id is not null
               and b.ended_at is null
-              and b.state in ('bound','active')
+              and b.state in ('bound','activated')
           ) scope_orgs
           join atlas.organizations o on o.id=scope_orgs.organization_id
           join atlas.institutional_person_records ipr
@@ -189,7 +189,7 @@ begin
             where b.implementation_case_id=p_implementation_case_id
               and b.organization_id is not null
               and b.ended_at is null
-              and b.state in ('bound','active')
+              and b.state in ('bound','activated')
           ) scope_orgs
           join atlas.organizations o on o.id=scope_orgs.organization_id
           join atlas.organization_memberships m
@@ -238,7 +238,7 @@ begin
         where b.implementation_case_id=p_implementation_case_id
           and b.organization_id is not null
           and b.ended_at is null
-          and b.state in ('bound','active')
+          and b.state in ('bound','activated')
       ) scope_orgs
       join atlas.organizations o on o.id=scope_orgs.organization_id
       join atlas.organization_positions p
@@ -282,7 +282,7 @@ begin
         where b.implementation_case_id=p_implementation_case_id
           and b.organization_id is not null
           and b.ended_at is null
-          and b.state in ('bound','active')
+          and b.state in ('bound','activated')
       ) scope_orgs
       join atlas.organizations o on o.id=scope_orgs.organization_id
       join atlas.organization_responsibilities r

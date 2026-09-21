@@ -303,6 +303,7 @@ insert into atlas.ledger_entitlement_bindings(
   organization_unit_id,
   bound_by_participant_id,
   state,
+  activated_at,
   binding_basis,
   metadata,
   ledger_id
@@ -313,7 +314,8 @@ insert into atlas.ledger_entitlement_bindings(
   'f4200000-0000-4000-8000-000000000201'::uuid,
   null,
   'f4200000-0000-4000-8000-000000000121'::uuid,
-  'bound',
+  'activated',
+  now(),
   '{"validationFixture":true}'::jsonb,
   '{"validationFixture":true}'::jsonb,
   'f4200000-0000-4000-8000-000000000261'::uuid
