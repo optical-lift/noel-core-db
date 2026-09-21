@@ -6,11 +6,12 @@ begin;
 --   human/source evidence -> typed proposed reality -> adjudication/preview
 --   -> owning-domain command -> canonical consequence.
 --
--- This migration does not establish Organization, Person, institutional-person,
--- Position, Responsibility, appointment, membership, work, authority, or any
--- other client-domain truth. It gives Implementation one durable typed custody
--- object for proposed Reality Sentences and removes the legacy practitioner
--- shortcut that could label free-text establishment items "established".
+-- This migration is additive infrastructure only. It does not establish
+-- Organization, Person, institutional-person, Position, Responsibility,
+-- appointment, membership, work, authority, or any other client-domain truth.
+-- It gives Implementation one durable typed custody object for proposed Reality
+-- Sentences while deliberately preserving the legacy establishment-item writer
+-- unchanged. Closing legacy text authority is a separate behavioral cutover.
 
 create table atlas.implementation_reality_candidates (
   id uuid primary key default gen_random_uuid(),
@@ -527,100 +528,10 @@ comment on function public.implementation_reality_candidates_self_api_v1(uuid) i
   'Assigned-practitioner read membrane for typed Implementation Reality Candidates.';
 
 
--- Repair the pre-Reality-Sentence compatibility writer.
---
--- Historical rows with status=established are preserved. New practitioner
--- self-service writes may no longer manufacture that status from free text.
--- Canonical establishment must instead be represented by an owning-domain
--- consequence and then projected back to Implementation.
-create or replace function atlas.save_implementation_establishment_item_self_api_v1(
-  p_implementation_case_id uuid,
-  p_category text,
-  p_title text,
-  p_detail text default '',
-  p_status text default 'proposed'
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = pg_catalog, atlas, auth
-as $function$
-declare
-  v_id uuid;
-begin
-  if not atlas.implementation_practitioner_authorized_self_v1() then
-    raise exception 'Practitioner authority required.'
-      using errcode='42501';
-  end if;
-
-  if not exists (
-    select 1
-    from atlas.implementation_cases c
-    where c.id=p_implementation_case_id
-      and c.state not in ('closed','cancelled')
-  ) then
-    raise exception 'Open implementation case not found.'
-      using errcode='23503';
-  end if;
-
-  if p_category not in (
-    'institution',
-    'ledger_scope',
-    'people_authority',
-    'implementation_authority',
-    'boundary',
-    'unresolved'
-  ) then
-    raise exception 'Invalid establishment category.'
-      using errcode='22023';
-  end if;
-
-  if p_status not in ('proposed','unresolved') then
-    raise exception 'Implementation text may be proposed or unresolved only; established reality requires an owning-domain canonical consequence.'
-      using errcode='22023';
-  end if;
-
-  insert into atlas.implementation_establishment_items(
-    implementation_case_id,
-    category,
-    title,
-    detail,
-    status,
-    author_user_id,
-    basis
-  ) values (
-    p_implementation_case_id,
-    p_category,
-    btrim(p_title),
-    coalesce(p_detail,''),
-    p_status,
-    auth.uid(),
-    jsonb_build_object(
-      'source','practitioner_workbench',
-      'authorityBoundary','candidate_only_after_reality_sentence_v1'
-    )
-  )
-  returning id into v_id;
-
-  return jsonb_build_object(
-    'ok',true,
-    'id',v_id,
-    'status',p_status,
-    'canonicalMutation',false
-  );
-end;
-$function$;
-
-revoke all on function atlas.save_implementation_establishment_item_self_api_v1(
-  uuid,text,text,text,text
-) from public, anon, authenticated, service_role;
-
-comment on function atlas.save_implementation_establishment_item_self_api_v1(
-  uuid,text,text,text,text
-) is
-  'Legacy Implementation establishment-item writer retained for compatibility. Practitioner input may persist only proposed/unresolved material; established status is no longer a self-service text authority.';
-
-comment on table atlas.implementation_establishment_items is
-  'Legacy Implementation coordination material. Historical established rows are preserved, but new practitioner text cannot become canonical truth through this table; Reality Candidate promotion must resolve through an owning-domain consequence.';
+-- Additive-cutover law:
+-- this migration must not redefine or narrow the legacy
+-- save_implementation_establishment_item_self_api_v1 writer.
+-- The authority cutover is intentionally deferred to its own migration after
+-- the compatible Atlas application has moved to Reality Candidate custody.
 
 commit;
