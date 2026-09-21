@@ -75,7 +75,8 @@ begin
     'atlas.establish_organization_position_internal_v1(uuid,uuid,text,text,text,jsonb)',
     'atlas.establish_organization_responsibility_internal_v1(uuid,text,text,text,jsonb)',
     'atlas.establish_position_responsibility_internal_v1(uuid,uuid,uuid,text,jsonb)',
-    'atlas.establish_position_appointment_internal_v1(uuid,uuid,uuid,text,timestamptz,timestamptz,jsonb)'
+    'atlas.establish_position_appointment_internal_v1(uuid,uuid,uuid,text,timestamptz,timestamptz,jsonb)',
+    'atlas.implementation_reality_authoring_context_self_api_v1(uuid)'
   ] loop
     if to_regprocedure(v_sig) is null then
       raise exception 'Missing Reality Sentence internal command: %',v_sig;
@@ -88,6 +89,7 @@ begin
   end loop;
 
   foreach v_sig in array array[
+    'public.implementation_reality_authoring_context_self_api_v1(uuid)',
     'public.implementation_reality_establishment_registry_self_api_v1()',
     'public.create_implementation_reality_sentence_self_api_v1(uuid,text,text,jsonb,text,uuid,text)',
     'public.preview_implementation_reality_sentence_self_api_v1(uuid)',
@@ -189,6 +191,16 @@ begin
 
   if not atlas.implementation_practitioner_authorized_self_v1() then
     raise exception 'Synthetic Reality Sentence practitioner did not resolve as authorized.';
+  end if;
+
+  v_read:=atlas.implementation_reality_authoring_context_self_api_v1(v_case);
+  if v_read->>'state'<>'ready'
+     or (v_read#>>'{organization,id}')::uuid<>v_org
+     or jsonb_array_length(v_read->'organizationUnits')<>0
+     or jsonb_array_length(v_read->'institutionalPeople')<>0
+     or jsonb_array_length(v_read->'positions')<>0
+     or jsonb_array_length(v_read->'responsibilities')<>0 then
+    raise exception 'Initial authoring context did not resolve exact empty bound Organization scope: %',v_read;
   end if;
 
   -- Generic legacy saver may not manufacture Reality Sentence establishment.
@@ -416,6 +428,29 @@ begin
       and a.status='active'
   ) then
     raise exception 'Accountless Position Appointment did not establish canonically.';
+  end if;
+
+  v_read:=atlas.implementation_reality_authoring_context_self_api_v1(v_case);
+  if v_read->>'state'<>'ready'
+     or not exists(
+       select 1 from jsonb_array_elements(v_read->'organizationUnits') u
+       where (u->>'id')::uuid=v_unit and u->>'name'='Production'
+     )
+     or not exists(
+       select 1 from jsonb_array_elements(v_read->'institutionalPeople') p
+       where (p->>'institutionalPersonRecordId')::uuid=v_ipr
+         and (p->>'personId')::uuid=v_person
+         and p->>'displayName'='Sarah'
+     )
+     or not exists(
+       select 1 from jsonb_array_elements(v_read->'positions') p
+       where (p->>'id')::uuid=v_position and p->>'displayTitle'='Farm Steward'
+     )
+     or not exists(
+       select 1 from jsonb_array_elements(v_read->'responsibilities') r
+       where (r->>'id')::uuid=v_responsibility and r->>'name'='Production stewardship'
+     ) then
+    raise exception 'Authoring context did not project newly established canonical semantic choices: %',v_read;
   end if;
 
   -- No work/access side effects.
