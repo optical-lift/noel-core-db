@@ -124,17 +124,15 @@ insert into atlas.organizations(
   'ready'
 );
 
-insert into atlas.people(id,stable_key,display_name,status,metadata) values
+insert into atlas.people(id,display_name,status,metadata) values
 (
   'f4200000-0000-4000-8000-000000000211'::uuid,
-  'resolver_anna_inside',
   'Anna Resolver',
   'active',
   '{"validationFixture":true}'::jsonb
 ),
 (
   'f4200000-0000-4000-8000-000000000212'::uuid,
-  'resolver_anna_outside',
   'Anna Resolver Outside',
   'active',
   '{"validationFixture":true}'::jsonb
