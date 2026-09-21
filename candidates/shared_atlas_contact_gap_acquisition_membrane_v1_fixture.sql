@@ -65,8 +65,7 @@ insert into local_intel.relationship_definitions(
   'Validation fixture relationship kind for a person holding a role at an organization.',
   true,
   '{"validationFixture":true}'::jsonb
-)
-on conflict (relationship_kind) do nothing;
+);
 
 insert into local_intel.entity_relationships(
   id,subject_entity_id,relationship_kind,object_entity_id,role_title,is_current,
