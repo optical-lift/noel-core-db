@@ -73,14 +73,8 @@ begin
     raise exception 'Unbound Person leaked into case-scoped resolver.';
   end if;
 
-  if to_regclass('atlas.institutional_person_records') is null then
-    if v_items->0->>'matchBasis'<>'organization_membership_compatibility' then
-      raise exception 'Pre-Institutional-Person compatibility resolver did not declare its narrower basis: %',v_result;
-    end if;
-  else
-    if v_items->0->>'matchBasis'<>'institutional_person_record' then
-      raise exception 'Institutional Person resolver did not use the canonical Organization-scoped Person record: %',v_result;
-    end if;
+  if v_items->0->>'matchBasis'<>'organization_membership_compatibility' then
+    raise exception 'Reality Person resolver did not declare its live compatibility basis: %',v_result;
   end if;
 
   -- 3. Position and Responsibility lookup are bounded by the same case scope.
@@ -196,9 +190,9 @@ begin
     raise exception 'Reality identity resolver no longer proves practitioner + case-bound scope.';
   end if;
 
-  if v_def not like '%institutional_person_records%'
+  if v_def like '%institutional_person_records%'
      or v_def not like '%organization_membership_compatibility%' then
-    raise exception 'Reality Person resolver lost canonical/fallback custody declaration.';
+    raise exception 'Reality Person resolver must remain production-live-only until Institutional Person Record is released.';
   end if;
 end;
 $validation$;
