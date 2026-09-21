@@ -147,7 +147,7 @@ The practitioner types ordinary language. Interpretation may propose `reality_op
 
 ### Machine proposed
 
-An existing accepted `implementation_finding` can become the source of a Reality Sentence candidate. Acceptance of the finding does not establish the domain consequence.
+An existing governed `implementation_finding` can become the source of a Reality Sentence candidate. Governance of the finding does not establish the domain consequence.
 
 ### Source derived
 
@@ -491,7 +491,7 @@ Keep that behavior.
 
 Add a later explicit transition:
 
-`accepted implementation_finding → Reality Sentence candidate`
+`governed implementation_finding → Reality Sentence candidate`
 
 The finding remains evidence. The Reality Sentence candidate owns structured command resolution. The domain owns truth establishment.
 
@@ -541,7 +541,7 @@ Then the exact generated migration must receive:
 The first executable proof is successful only when all of these hold:
 
 1. A practitioner can create a manual structured Reality Sentence candidate without AI.
-2. An accepted machine finding can converge into the same candidate path.
+2. A governed machine finding can converge into the same candidate path.
 3. Candidate creation writes no domain truth.
 4. Preview exposes the exact owning operation and consequence.
 5. An accountless new human can become Canonical Person + Institutional Person Record without `auth.users`.
