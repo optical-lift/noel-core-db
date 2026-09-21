@@ -597,7 +597,11 @@ begin
       'phone',nullif(btrim(v_finding->>'phone'),''),
       'website_url',nullif(btrim(v_finding->>'websiteUrl'),''),
       'fields',coalesce(case when jsonb_typeof(v_finding->'fields')='object' then v_finding->'fields' end,'{}'::jsonb),
-      'metadata',jsonb_build_object(
+      'metadata',
+      coalesce(
+        case when jsonb_typeof(v_finding->'metadata')='object' then v_finding->'metadata' end,
+        '{}'::jsonb
+      )||jsonb_build_object(
         'origin','atlas_contact_gap_acquisition',
         'atlasExecutionRunId',v_attempt.execution_run_id,
         'atlasAcquisitionAttemptId',v_attempt.id,
@@ -605,8 +609,11 @@ begin
         'providerKey',v_provider,
         'modelRef',v_model,
         'providerResponseId',v_response_id,
-        'machineSourceUrl',v_source_url
-      )||coalesce(case when jsonb_typeof(v_finding->'metadata')='object' then v_finding->'metadata' end,'{}'::jsonb)
+        'machineSourceUrl',v_source_url,
+        'visibility','public',
+        'contact_scope',case when v_gap_kind='entity_field_gap' then 'direct' else 'source_associated' end,
+        'contact_context','public_web_source'
+      )
     );
 
     v_ingest_result:=local_intel.ingest_search_discovery_evidence_v1(v_ingest_payload);

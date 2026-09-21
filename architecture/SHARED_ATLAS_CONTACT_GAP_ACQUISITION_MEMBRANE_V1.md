@@ -103,6 +103,14 @@ Every finding's `sourceUrl` must occur in the supplied source set. A model-gener
 
 The database registers those URLs in `local_intel.sources`, then sends each supported finding through the existing universal `local_intel.ingest_search_discovery_evidence_v1` intake.
 
+## Public contact publication consequence
+
+This membrane acquires contact facts only from machine-returned public web sources. When an exact canonical-entity field gap is satisfied by such evidence, the resulting contact point is recorded as public evidence so the governed Shared Directory can consume the fact immediately.
+
+For exact entity-field gaps, the contact route is direct to that canonical entity. The membrane's own provenance keys and publication semantics override any model-returned metadata; extraction cannot downgrade, rewrite, or spoof the machine source URL, attempt identity, visibility, or contact scope.
+
+This does not make private or source-restricted contacts public. Only contact facts accepted through this bounded public-web acquisition membrane receive this consequence.
+
 ## Identity rules
 
 ### Existing canonical entity gap
