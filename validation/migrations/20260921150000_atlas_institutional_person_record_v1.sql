@@ -16,6 +16,7 @@ declare
   v_membership uuid;
   v_membership_person uuid;
   v_membership_record uuid;
+  v_result_bridge_def text;
 begin
   if to_regclass('atlas.institutional_person_records') is null then
     raise exception 'Institutional Person Record table is missing.';
@@ -94,6 +95,48 @@ begin
      or has_table_privilege('anon','atlas.institutional_person_records','INSERT')
      or has_table_privilege('authenticated','atlas.institutional_person_records','INSERT') then
     raise exception 'Institutional Person Record widened direct browser table authority.';
+  end if;
+
+  if not exists(
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid=t.tgrelid
+    join pg_namespace n on n.oid=c.relnamespace
+    join pg_proc p on p.oid=t.tgfoid
+    where n.nspname='atlas'
+      and c.relname='work_execution_results'
+      and t.tgname='work_execution_results_append_only_v1'
+      and not t.tgisinternal
+      and p.proname='block_company_work_result_history_mutation_v1'
+  ) then
+    raise exception 'Company Work result append-only protection is missing.';
+  end if;
+
+  if not exists(
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid=t.tgrelid
+    join pg_namespace n on n.oid=c.relnamespace
+    join pg_proc p on p.oid=t.tgfoid
+    where n.nspname='atlas'
+      and c.relname='work_execution_results'
+      and t.tgname='work_execution_result_institutional_person_bridge_v1'
+      and not t.tgisinternal
+      and p.proname='bridge_work_execution_result_institutional_person_v1'
+      and (t.tgtype & 2)=2
+      and (t.tgtype & 4)=4
+  ) then
+    raise exception 'Future Work results are not insert-bridged to Institutional Person Record.';
+  end if;
+
+  select lower(pg_get_functiondef(
+    'atlas.bridge_work_execution_result_institutional_person_v1()'::regprocedure
+  )) into v_result_bridge_def;
+
+  if v_result_bridge_def not like '%reported_by_organization_membership_id%'
+     or v_result_bridge_def not like '%institutional_person_record_id%'
+     or v_result_bridge_def like '%update atlas.work_execution_results%' then
+    raise exception 'Work result Institutional Person bridge is not insert-only and membership-derived.';
   end if;
 
   insert into atlas.organizations(id,stable_key,name)
