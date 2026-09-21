@@ -425,9 +425,29 @@ If the underlying canonical relation later changes, the rendered Reality Entry c
 
 ## 19. Workbench read shape
 
-The first case-scoped Reality Sentence read should return two explicit sets:
+The Workbench requires two distinct read contracts.
 
-### Candidates
+### Semantic authoring context
+
+Before a human constructs a sentence, Atlas returns only canonical choices already inside the exact bound Implementation Case / root-Ledger Organization scope:
+
+- Organization identity;
+- active Organization Units;
+- active Institutional Person Records + canonical Person display identity;
+- active Organization Positions;
+- active Organization Responsibilities.
+
+This read is the source for sentence-builder selectors. The browser must not query canonical tables directly, paste UUIDs, or receive cross-Organization Person candidates merely because they share a display name.
+
+The first implementation seam is `implementation_reality_authoring_context_self_api_v1`.
+
+Existing-Person reconciliation across institutional boundaries remains a separate identity-resolver problem. The first UI may create an explicit new Person and may use already-known institutional people for appointments; it must not solve cross-Atlas identity by name matching.
+
+### Reality Sentence state
+
+The case-scoped Reality Sentence read returns two explicit sets:
+
+#### Candidates
 
 - establishment item id;
 - original sentence;
@@ -439,7 +459,7 @@ The first case-scoped Reality Sentence read should return two explicit sets:
 - source finding/evidence references;
 - candidate status.
 
-### Established Reality Entries
+#### Established Reality Entries
 
 - establishment item/provenance id;
 - canonical consequence ids;
@@ -514,27 +534,30 @@ Existing unrelated historical RPC grant problems are outside this tranche unless
 
 ## 23. Production/release boundary
 
-This architecture candidate is deliberately **not** placed in `supabase/migrations/`.
+The executable source has now been canonicalized under a migration identity allocated by pinned Supabase CLI v2.116.0:
 
-Reasons:
+`20260921150847_atlas_reality_sentence_establishment_v1.sql`
 
-1. the dependent Institutional Person Record migration is merged in source but not yet released to production;
-2. repository policy requires canonical migration identities to be generated through the pinned Supabase CLI workflow;
-3. a chat-authored filename must not become canonical migration identity;
-4. production mutation is separate authority and is not granted by implementation work.
+The branch also contains a matching rollback-only production-shaped validation proof.
 
-When prerequisites are satisfied, the executable SQL candidate should be converted through:
+This does **not** make the migration releasable yet.
 
-`supabase migration new atlas_reality_sentence_establishment_v1`
+Current dependency order is:
 
-Then the exact generated migration must receive:
+```text
+20260921150000 Institutional Person Record
+→ production-schema clone validation
+→ separate governed production release
+→ fresh production state verification
+→ 20260921150847 Reality Sentence establishment
+→ its own fresh production-schema clone validation
+→ separate governed production release
+→ Atlas application deployment
+```
 
-- matching validation migration;
-- production-shaped DML fixture if needed;
-- rollback-only postconditions;
-- Database Custody CI;
-- fresh protected production-schema clone validation;
-- separate governed production release.
+The Reality Sentence migration explicitly fails closed when the Institutional Person Record prerequisite is absent.
+
+Production mutation remains a separate authority event. Source creation, source merge, clone validation, and application compilation do not imply permission to release either database migration or deploy Atlas.
 
 ## 24. Acceptance proof
 
