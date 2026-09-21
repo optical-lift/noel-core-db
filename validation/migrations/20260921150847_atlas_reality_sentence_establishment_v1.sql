@@ -76,7 +76,8 @@ begin
     'atlas.establish_organization_responsibility_internal_v1(uuid,text,text,text,jsonb)',
     'atlas.establish_position_responsibility_internal_v1(uuid,uuid,uuid,text,jsonb)',
     'atlas.establish_position_appointment_internal_v1(uuid,uuid,uuid,text,timestamptz,timestamptz,jsonb)',
-    'atlas.implementation_reality_authoring_context_self_api_v1(uuid)'
+    'atlas.implementation_reality_authoring_context_self_api_v1(uuid)',
+    'atlas.adjudicate_implementation_finding_self_api_v1(uuid,text,text)'
   ] loop
     if to_regprocedure(v_sig) is null then
       raise exception 'Missing Reality Sentence internal command: %',v_sig;
@@ -89,6 +90,7 @@ begin
   end loop;
 
   foreach v_sig in array array[
+    'public.adjudicate_implementation_finding_self_api_v1(uuid,text,text)',
     'public.implementation_reality_authoring_context_self_api_v1(uuid)',
     'public.implementation_reality_establishment_registry_self_api_v1()',
     'public.create_implementation_reality_sentence_self_api_v1(uuid,text,text,jsonb,text,uuid,text)',
@@ -524,8 +526,38 @@ begin
   insert into atlas.implementation_findings(
     id,implementation_thread_id,statement,status,author_user_id
   ) values
-    (v_governed_finding,v_thread,'Production already exists.','governed',v_practitioner_user),
-    (v_rejected_finding,v_thread,'Rejected machine claim.','rejected',v_practitioner_user);
+    (v_governed_finding,v_thread,'Production already exists.','proposed',v_practitioner_user),
+    (v_rejected_finding,v_thread,'Rejected machine claim.','proposed',v_practitioner_user);
+
+  v_result:=atlas.adjudicate_implementation_finding_self_api_v1(
+    v_governed_finding,'govern','Validation governed source evidence.'
+  );
+  if v_result->>'status'<>'governed'
+     or not exists(
+       select 1 from atlas.implementation_finding_adjudications a
+       where a.implementation_finding_id=v_governed_finding
+         and a.decision='govern'
+         and a.resulting_status='governed'
+         and a.adjudicated_by_user_id=v_practitioner_user
+     ) then
+    raise exception 'Implementation Finding governance did not produce an append-only receipt: %',v_result;
+  end if;
+
+  v_result:=atlas.adjudicate_implementation_finding_self_api_v1(
+    v_rejected_finding,'reject','Validation rejected source evidence.'
+  );
+  if v_result->>'status'<>'rejected' then
+    raise exception 'Implementation Finding rejection did not establish rejected status: %',v_result;
+  end if;
+
+  begin
+    update atlas.implementation_finding_adjudications
+    set basis='tampered'
+    where implementation_finding_id=v_governed_finding;
+    raise exception 'Implementation Finding adjudication receipt was mutable.';
+  exception when sqlstate '23514' then
+    null;
+  end;
 
   v_result:=atlas.create_implementation_reality_sentence_self_api_v1(
     v_case,
