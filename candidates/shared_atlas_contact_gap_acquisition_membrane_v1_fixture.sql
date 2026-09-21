@@ -52,6 +52,22 @@ insert into local_intel.entities(
   'f4000000-0000-4000-8000-000000000111'::uuid
 );
 
+insert into local_intel.relationship_definitions(
+  relationship_kind,relationship_category,subject_entity_types,object_entity_types,
+  is_hierarchical,is_person_organization,description,is_active,metadata
+) values (
+  'holds_role_at',
+  'role',
+  array['person']::text[],
+  array['business','organization','nonprofit']::text[],
+  false,
+  true,
+  'Validation fixture relationship kind for a person holding a role at an organization.',
+  true,
+  '{"validationFixture":true}'::jsonb
+)
+on conflict (relationship_kind) do nothing;
+
 insert into local_intel.entity_relationships(
   id,subject_entity_id,relationship_kind,object_entity_id,role_title,is_current,
   verification_state,metadata,role_function,truth_state,conflict_state
