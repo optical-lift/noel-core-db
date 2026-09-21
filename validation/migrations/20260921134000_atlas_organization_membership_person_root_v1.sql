@@ -71,14 +71,15 @@ begin
   end if;
 
   -- Prove a real Person↔Organization relationship can exist without auth.users.
-  select id into v_org
-  from atlas.organizations
-  order by created_at,id
-  limit 1;
-
-  if v_org is null then
-    raise exception 'Validation requires at least one Organization in the production clone.';
-  end if;
+  insert into atlas.organizations(stable_key,name,status,metadata,onboarding_state)
+  values(
+    'validation:organization-membership-person-root-v1',
+    'Relationship Delivery Validation Organization',
+    'active',
+    jsonb_build_object('source','organization_membership_person_root_v1_validation'),
+    'new'
+  )
+  returning id into v_org;
 
   insert into atlas.people(display_name,status,metadata)
   values(
@@ -118,5 +119,6 @@ begin
 
   delete from atlas.organization_memberships where id=v_membership;
   delete from atlas.people where id=v_person;
+  delete from atlas.organizations where id=v_org;
 end;
 $$;
