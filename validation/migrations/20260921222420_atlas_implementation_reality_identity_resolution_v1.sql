@@ -10,6 +10,8 @@ declare
   v_outside_org constant uuid := 'f4200000-0000-4000-8000-000000000202'::uuid;
   v_bound_person constant uuid := 'f4200000-0000-4000-8000-000000000211'::uuid;
   v_outside_person constant uuid := 'f4200000-0000-4000-8000-000000000212'::uuid;
+  v_accountless_person constant uuid := 'f4200000-0000-4000-8000-000000000215'::uuid;
+  v_outside_accountless_person constant uuid := 'f4200000-0000-4000-8000-000000000216'::uuid;
   v_bound_position constant uuid := 'f4200000-0000-4000-8000-000000000241'::uuid;
   v_outside_position constant uuid := 'f4200000-0000-4000-8000-000000000242'::uuid;
   v_bound_responsibility constant uuid := 'f4200000-0000-4000-8000-000000000251'::uuid;
@@ -73,8 +75,39 @@ begin
     raise exception 'Unbound Person leaked into case-scoped resolver.';
   end if;
 
-  if v_items->0->>'matchBasis'<>'organization_membership_compatibility' then
-    raise exception 'Current production Person resolver did not declare its compatibility basis: %',v_result;
+  if v_items->0->>'matchBasis'<>'institutional_person_record' then
+    raise exception 'Person resolver did not use canonical Institutional Person Record reachability: %',v_result;
+  end if;
+
+  -- An institutional Person needs no login or Organization Membership to be
+  -- discoverable inside the case-bound Organization.
+  if exists(
+    select 1 from atlas.person_auth_credentials pac
+    where pac.person_id=v_accountless_person and pac.status='active'
+  ) or exists(
+    select 1 from atlas.organization_memberships m
+    where m.organization_id=v_bound_org and m.person_id=v_accountless_person
+  ) then
+    raise exception 'Accountless resolver proof Person unexpectedly has login or Organization Membership.';
+  end if;
+
+  v_result:=public.implementation_reality_identity_options_self_api_v1(
+    v_bound_case,'person','Anna Accountless',12
+  );
+  v_items:=coalesce(v_result->'items','[]'::jsonb);
+
+  if jsonb_array_length(v_items)<>1
+     or (v_items->0->>'canonicalId')::uuid<>v_accountless_person
+     or v_items->0->>'matchBasis'<>'institutional_person_record'
+     or (v_items->0->>'institutionalPersonRecordId')::uuid
+          <>'f4200000-0000-4000-8000-000000000217'::uuid then
+    raise exception 'Accountless Institutional Person was not resolved canonically: %',v_result;
+  end if;
+
+  if v_items @> jsonb_build_array(
+       jsonb_build_object('canonicalId',v_outside_accountless_person)
+     ) then
+    raise exception 'Out-of-scope accountless Institutional Person leaked into resolver.';
   end if;
 
   -- 3. Position and Responsibility lookup are bounded by the same case scope.
@@ -190,14 +223,15 @@ begin
     raise exception 'Reality identity resolver no longer proves practitioner + case-bound scope.';
   end if;
 
-  if v_def like '%atlas.institutional_person_records%'
-     or v_def like '%join atlas.institutional_person_records%' then
-    raise exception 'Current production Reality resolver references unreleased Institutional Person Record storage.';
+  if v_def not like '%join atlas.institutional_person_records%'
+     or v_def not like '%institutional_person_record%'
+     or v_def not like '%institutionalpersonrecordid%' then
+    raise exception 'Reality Person resolver lost canonical Institutional Person Record reachability.';
   end if;
 
-  if v_def not like '%organization_membership_compatibility%'
-     or v_def not like '%join atlas.organization_memberships%' then
-    raise exception 'Current production Reality Person resolver lost its explicit compatibility custody path.';
+  if v_def like '%organization_membership_compatibility%'
+     or v_def like '%join atlas.organization_memberships%' then
+    raise exception 'Reality Person resolver regressed to Organization Membership compatibility.';
   end if;
 end;
 $validation$;

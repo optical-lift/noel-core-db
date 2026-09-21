@@ -136,6 +136,36 @@ insert into atlas.people(id,display_name,status,metadata) values
   'Anna Resolver Outside',
   'active',
   '{"validationFixture":true}'::jsonb
+),
+(
+  'f4200000-0000-4000-8000-000000000215'::uuid,
+  'Anna Accountless',
+  'active',
+  '{"validationFixture":true,"accountless":true}'::jsonb
+),
+(
+  'f4200000-0000-4000-8000-000000000216'::uuid,
+  'Anna Accountless',
+  'active',
+  '{"validationFixture":true,"accountless":true,"outsideScope":true}'::jsonb
+);
+
+insert into atlas.institutional_person_records(
+  id,organization_id,person_id,status,establishment_basis
+) values
+(
+  'f4200000-0000-4000-8000-000000000217'::uuid,
+  'f4200000-0000-4000-8000-000000000201'::uuid,
+  'f4200000-0000-4000-8000-000000000215'::uuid,
+  'active',
+  '{"validationFixture":true,"basisKind":"accountless_resolution_proof"}'::jsonb
+),
+(
+  'f4200000-0000-4000-8000-000000000218'::uuid,
+  'f4200000-0000-4000-8000-000000000202'::uuid,
+  'f4200000-0000-4000-8000-000000000216'::uuid,
+  'active',
+  '{"validationFixture":true,"basisKind":"outside_scope_accountless_proof"}'::jsonb
 );
 
 insert into atlas.person_auth_credentials(
