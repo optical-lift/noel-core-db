@@ -109,103 +109,59 @@ begin
     ) matches;
 
   elsif p_kind='person' then
-    -- Institutional Person Record is the canonical Organization-scoped Person
-    -- reachability contract once that migration is live. The compatibility
-    -- membership path keeps this resolver independently clone-validatable
-    -- against the current production schema and is intentionally narrower.
-    if to_regclass('atlas.institutional_person_records') is not null then
-      execute $sql$
-        select coalesce(jsonb_agg(item order by match_rank,label,canonical_id),'[]'::jsonb)
-        from (
-          select
-            p.id as canonical_id,
-            p.display_name as label,
-            case
-              when $2<>'' and lower(p.display_name)=$2 then 0
-              when $2<>'' and strpos(lower(p.display_name),$2)=1 then 1
-              else 2
-            end as match_rank,
-            jsonb_build_object(
-              'kind','person',
-              'canonicalId',p.id,
-              'label',p.display_name,
-              'organizationId',o.id,
-              'organizationLabel',o.name,
-              'matchBasis','institutional_person_record'
-            ) as item
-          from (
-            select distinct b.organization_id
-            from atlas.ledger_entitlement_bindings b
-            join atlas.organizations bo
-              on bo.id=b.organization_id
-             and bo.status='active'
-            where b.implementation_case_id=$1
-              and b.organization_id is not null
-              and b.ended_at is null
-              and b.state in ('bound','activated')
-          ) scope_orgs
-          join atlas.organizations o on o.id=scope_orgs.organization_id
-          join atlas.institutional_person_records ipr
-            on ipr.organization_id=o.id
-           and ipr.status='active'
-          join atlas.people p
-            on p.id=ipr.person_id
-           and p.status='active'
-          where $2='' or strpos(lower(p.display_name),$2)>0
-          order by match_rank,p.display_name,p.id
-          limit $3
-        ) matches
-      $sql$
-      into v_items
-      using p_implementation_case_id,v_query,v_limit;
-    else
-      select coalesce(jsonb_agg(item order by match_rank,label,canonical_id),'[]'::jsonb)
-      into v_items
+    -- Current production compatibility path only.
+    --
+    -- Institutional Person Record is the intended canonical Organization-scoped
+    -- reachability boundary, but that table is not live in production yet.
+    -- This resolver therefore stays on active Organization Membership + canonical
+    -- Person until a later migration can cut it over without referencing an
+    -- absent relation in the production schema.
+    select coalesce(jsonb_agg(item order by match_rank,label,canonical_id),'[]'::jsonb)
+    into v_items
+    from (
+      select *
       from (
-        select *
+        select distinct on (p.id,o.id)
+          p.id as canonical_id,
+          p.display_name as label,
+          case
+            when v_query<>'' and lower(p.display_name)=v_query then 0
+            when v_query<>'' and strpos(lower(p.display_name),v_query)=1 then 1
+            else 2
+          end as match_rank,
+          jsonb_build_object(
+            'kind','person',
+            'canonicalId',p.id,
+            'label',p.display_name,
+            'organizationId',o.id,
+            'organizationLabel',o.name,
+            'matchBasis','organization_membership_compatibility'
+          ) as item
         from (
-          select distinct on (p.id,o.id)
-            p.id as canonical_id,
-            p.display_name as label,
-            case
-              when v_query<>'' and lower(p.display_name)=v_query then 0
-              when v_query<>'' and strpos(lower(p.display_name),v_query)=1 then 1
-              else 2
-            end as match_rank,
-            jsonb_build_object(
-              'kind','person',
-              'canonicalId',p.id,
-              'label',p.display_name,
-              'organizationId',o.id,
-              'organizationLabel',o.name,
-              'matchBasis','organization_membership_compatibility'
-            ) as item
-          from (
-            select distinct b.organization_id
-            from atlas.ledger_entitlement_bindings b
-            join atlas.organizations bo
-              on bo.id=b.organization_id
-             and bo.status='active'
-            where b.implementation_case_id=p_implementation_case_id
-              and b.organization_id is not null
-              and b.ended_at is null
-              and b.state in ('bound','activated')
-          ) scope_orgs
-          join atlas.organizations o on o.id=scope_orgs.organization_id
-          join atlas.organization_memberships m
-            on m.organization_id=o.id
-           and m.active
-           and m.person_id is not null
-          join atlas.people p
-            on p.id=m.person_id
-           and p.status='active'
-          where v_query='' or strpos(lower(p.display_name),v_query)>0
-          order by p.id,o.id,match_rank,p.display_name
-        ) deduped
-        order by match_rank,label,canonical_id
-        limit v_limit
-      ) matches;
-    end if;
+          select distinct b.organization_id
+          from atlas.ledger_entitlement_bindings b
+          join atlas.organizations bo
+            on bo.id=b.organization_id
+           and bo.status='active'
+          where b.implementation_case_id=p_implementation_case_id
+            and b.organization_id is not null
+            and b.ended_at is null
+            and b.state in ('bound','activated')
+        ) scope_orgs
+        join atlas.organizations o on o.id=scope_orgs.organization_id
+        join atlas.organization_memberships m
+          on m.organization_id=o.id
+         and m.active
+         and m.person_id is not null
+        join atlas.people p
+          on p.id=m.person_id
+         and p.status='active'
+        where v_query='' or strpos(lower(p.display_name),v_query)>0
+        order by p.id,o.id,match_rank,p.display_name
+      ) deduped
+      order by match_rank,label,canonical_id
+      limit v_limit
+    ) matches;
 
   elsif p_kind='organization_position' then
     select coalesce(jsonb_agg(item order by match_rank,label,canonical_id),'[]'::jsonb)
