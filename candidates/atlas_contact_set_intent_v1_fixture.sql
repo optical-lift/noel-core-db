@@ -1,4 +1,6 @@
--- Clone-only DML fixture for Atlas Contact-Set Intent v1.
+-- Clone-only pre-migration DML fixture for Atlas Contact-Set Intent v1.
+-- The production-shaped clone applies fixtures before the candidate migration,
+-- so this file may reference only objects already present in production.
 insert into atlas.organizations(id,stable_key,name,status,onboarding_state,metadata)
 values(
   'f1000000-0000-4000-8000-000000000101'::uuid,
@@ -7,26 +9,4 @@ values(
   'active',
   'new',
   '{"validationFixture":true}'::jsonb
-);
-
-insert into atlas.contact_set_intent_requests(
-  id,organization_id,requested_by_user_id,source_action_id,source_surface,literal_request,capture_context
-) values
-(
-  'f1000000-0000-4000-8000-000000000102'::uuid,
-  'f1000000-0000-4000-8000-000000000101'::uuid,
-  'f1000000-0000-4000-8000-000000000103'::uuid,
-  'validation-ready',
-  'validation',
-  'Go find emails for bank people in those towns.',
-  '{"conversationRefs":["town-set:marshfield-lebanon-springfield"]}'::jsonb
-),
-(
-  'f1000000-0000-4000-8000-000000000104'::uuid,
-  'f1000000-0000-4000-8000-000000000101'::uuid,
-  'f1000000-0000-4000-8000-000000000103'::uuid,
-  'validation-clarify',
-  'validation',
-  'Go find emails for bank people in those towns.',
-  '{}'::jsonb
 );

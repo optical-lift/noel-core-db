@@ -1,5 +1,27 @@
 begin;
 
+insert into atlas.contact_set_intent_requests(
+  id,organization_id,requested_by_user_id,source_action_id,source_surface,literal_request,capture_context
+) values
+(
+  'f1000000-0000-4000-8000-000000000102'::uuid,
+  'f1000000-0000-4000-8000-000000000101'::uuid,
+  'f1000000-0000-4000-8000-000000000103'::uuid,
+  'validation-ready',
+  'validation',
+  'Go find emails for bank people in those towns.',
+  '{"conversationRefs":["town-set:marshfield-lebanon-springfield"]}'::jsonb
+),
+(
+  'f1000000-0000-4000-8000-000000000104'::uuid,
+  'f1000000-0000-4000-8000-000000000101'::uuid,
+  'f1000000-0000-4000-8000-000000000103'::uuid,
+  'validation-clarify',
+  'validation',
+  'Go find emails for bank people in those towns.',
+  '{}'::jsonb
+);
+
 do $validation$
 declare
   v_ready jsonb;
@@ -28,12 +50,17 @@ begin
     'target',jsonb_build_object(
       'description','decision-adjacent people at banks',
       'organizationKinds',jsonb_build_array('bank'),
-      'personFunctions',jsonb_build_array('decision_adjacent')
+      'namedOrganizations','[]'::jsonb,
+      'personFunctions',jsonb_build_array('decision_adjacent'),
+      'titles','[]'::jsonb,
+      'include','[]'::jsonb,
+      'exclude','[]'::jsonb,
+      'similaritySeedEntityIds','[]'::jsonb
     ),
     'geography',jsonb_build_object(
       'mode','contextual',
       'placeLabels',jsonb_build_array('Marshfield','Lebanon','Springfield'),
-      'basis',jsonb_build_object('captureContextRef','town-set:marshfield-lebanon-springfield')
+      'basis','town-set:marshfield-lebanon-springfield'
     ),
     'fields',jsonb_build_object(
       'required',jsonb_build_array('email'),
@@ -42,7 +69,11 @@ begin
     'population',jsonb_build_object('desiredCount',null,'mode','best_supported'),
     'ledgerEffect',jsonb_build_object('attachToLedger',true,'effortTag','contact_discovery'),
     'resolvedReferences',jsonb_build_array(
-      jsonb_build_object('phrase','those towns','resolution',jsonb_build_array('Marshfield','Lebanon','Springfield'))
+      jsonb_build_object(
+        'phrase','those towns',
+        'kind','geography',
+        'resolution',jsonb_build_array('Marshfield','Lebanon','Springfield')
+      )
     ),
     'unresolvedReferences','[]'::jsonb,
     'clarificationQuestion',null
@@ -84,9 +115,20 @@ begin
   v_clarify:=jsonb_build_object(
     'intentFamily','build_target_contact_set',
     'objective','mixed',
-    'target',jsonb_build_object('description','decision-adjacent people at banks'),
-    'geography',jsonb_build_object('mode','contextual'),
-    'fields',jsonb_build_object('required',jsonb_build_array('email')),
+    'target',jsonb_build_object(
+      'description','decision-adjacent people at banks',
+      'organizationKinds',jsonb_build_array('bank'),
+      'namedOrganizations','[]'::jsonb,
+      'personFunctions',jsonb_build_array('decision_adjacent'),
+      'titles','[]'::jsonb,
+      'include','[]'::jsonb,
+      'exclude','[]'::jsonb,
+      'similaritySeedEntityIds','[]'::jsonb
+    ),
+    'geography',jsonb_build_object('mode','contextual','placeLabels','[]'::jsonb,'basis',null),
+    'fields',jsonb_build_object('required',jsonb_build_array('email'),'optional','[]'::jsonb),
+    'population',jsonb_build_object('desiredCount',null,'mode','best_supported'),
+    'ledgerEffect',jsonb_build_object('attachToLedger',true,'effortTag','contact_discovery'),
     'resolvedReferences','[]'::jsonb,
     'unresolvedReferences',jsonb_build_array(
       jsonb_build_object('phrase','those towns','kind','geography')
