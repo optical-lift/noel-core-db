@@ -97,8 +97,6 @@ $function$;
 
 revoke all on function atlas.implementation_reality_scope_self_v1(uuid,uuid)
   from public,anon,authenticated;
-grant execute on function atlas.implementation_reality_scope_self_v1(uuid,uuid)
-  to service_role;
 
 -- Manual, machine-proposed, plain-language, and source-derived capture converge here.
 -- No canonical domain truth is created.
@@ -190,9 +188,6 @@ $function$;
 revoke all on function atlas.create_implementation_reality_sentence_self_api_v1(
   uuid,text,text,jsonb,text,uuid,text
 ) from public,anon,authenticated;
-grant execute on function atlas.create_implementation_reality_sentence_self_api_v1(
-  uuid,text,text,jsonb,text,uuid,text
-) to service_role;
 
 -- Deterministic preview. It can inspect canonical reality but creates no domain truth.
 create or replace function atlas.preview_implementation_reality_sentence_self_api_v1(
@@ -667,8 +662,6 @@ $function$;
 
 revoke all on function atlas.preview_implementation_reality_sentence_self_api_v1(uuid)
   from public,anon,authenticated;
-grant execute on function atlas.preview_implementation_reality_sentence_self_api_v1(uuid)
-  to service_role;
 
 -- Canonical rerender: established display is derived from live domain truth, not authored text.
 create or replace function atlas.render_reality_consequence_v1(
@@ -790,8 +783,6 @@ $function$;
 
 revoke all on function atlas.render_reality_consequence_v1(text,jsonb)
   from public,anon,authenticated;
-grant execute on function atlas.render_reality_consequence_v1(text,jsonb)
-  to service_role;
 
 -- Atomic promotion through the owning domain command.
 create or replace function atlas.establish_implementation_reality_sentence_self_api_v1(
@@ -927,8 +918,6 @@ $function$;
 
 revoke all on function atlas.establish_implementation_reality_sentence_self_api_v1(uuid)
   from public,anon,authenticated;
-grant execute on function atlas.establish_implementation_reality_sentence_self_api_v1(uuid)
-  to service_role;
 
 create or replace function atlas.implementation_reality_sentences_self_api_v1(
   p_implementation_case_id uuid
@@ -1001,8 +990,6 @@ $function$;
 
 revoke all on function atlas.implementation_reality_sentences_self_api_v1(uuid)
   from public,anon,authenticated;
-grant execute on function atlas.implementation_reality_sentences_self_api_v1(uuid)
-  to service_role;
 
 -- Narrow browser membrane. All substantive authorization remains inside Atlas functions.
 create or replace function public.implementation_reality_establishment_registry_self_api_v1()
