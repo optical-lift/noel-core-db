@@ -1650,7 +1650,196 @@ $function$;
 revoke all on function atlas.implementation_reality_sentences_self_api_v1(uuid)
   from public,anon,authenticated;
 
+-- Case-scoped semantic options for the human sentence builder.
+-- Returns canonical identities already present inside the exact bound Organization.
+-- It never performs fuzzy Person matching and never exposes cross-Organization options.
+create or replace function atlas.implementation_reality_authoring_context_self_api_v1(
+  p_implementation_case_id uuid
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=pg_catalog,atlas,auth
+as $function$
+declare
+  v_binding_count integer;
+  v_binding atlas.ledger_entitlement_bindings%rowtype;
+  v_organization atlas.organizations%rowtype;
+  v_units jsonb;
+  v_people jsonb;
+  v_positions jsonb;
+  v_responsibilities jsonb;
+begin
+  if auth.uid() is null or not atlas.implementation_practitioner_authorized_self_v1() then
+    raise exception 'Practitioner authority required.' using errcode='42501';
+  end if;
+
+  if not exists(
+    select 1
+    from atlas.implementation_case_participants cp
+    join atlas.implementation_cases c on c.id=cp.implementation_case_id
+    where cp.implementation_case_id=p_implementation_case_id
+      and cp.relationship_kind='practitioner'
+      and cp.active
+      and cp.human_user_id=auth.uid()
+      and c.state not in ('closed','cancelled')
+  ) then
+    raise exception 'Current practitioner is not assigned to this open Implementation Case.'
+      using errcode='42501';
+  end if;
+
+  select count(*) into v_binding_count
+  from atlas.ledger_entitlement_bindings b
+  where b.implementation_case_id=p_implementation_case_id
+    and b.organization_id is not null
+    and b.organization_unit_id is null
+    and b.state in ('bound','activated')
+    and b.ended_at is null;
+
+  if v_binding_count=0 then
+    return jsonb_build_object(
+      'ok',true,
+      'contractVersion','implementation_reality_authoring_context_v1',
+      'implementationCaseId',p_implementation_case_id,
+      'state','implementation_scope_unbound',
+      'organization',null,
+      'organizationUnits','[]'::jsonb,
+      'institutionalPeople','[]'::jsonb,
+      'positions','[]'::jsonb,
+      'responsibilities','[]'::jsonb
+    );
+  elsif v_binding_count<>1 then
+    return jsonb_build_object(
+      'ok',true,
+      'contractVersion','implementation_reality_authoring_context_v1',
+      'implementationCaseId',p_implementation_case_id,
+      'state','canonical_conflict',
+      'reason','multiple_active_root_implementation_bindings',
+      'organization',null,
+      'organizationUnits','[]'::jsonb,
+      'institutionalPeople','[]'::jsonb,
+      'positions','[]'::jsonb,
+      'responsibilities','[]'::jsonb
+    );
+  end if;
+
+  select b.* into strict v_binding
+  from atlas.ledger_entitlement_bindings b
+  where b.implementation_case_id=p_implementation_case_id
+    and b.organization_id is not null
+    and b.organization_unit_id is null
+    and b.state in ('bound','activated')
+    and b.ended_at is null;
+
+  if not coalesce(
+    (atlas.implementation_reality_scope_self_v1(
+      p_implementation_case_id,
+      v_binding.organization_id
+    )->>'ok')::boolean,
+    false
+  ) then
+    return jsonb_build_object(
+      'ok',true,
+      'contractVersion','implementation_reality_authoring_context_v1',
+      'implementationCaseId',p_implementation_case_id,
+      'state','canonical_conflict',
+      'reason','bound_scope_failed_revalidation',
+      'organization',null,
+      'organizationUnits','[]'::jsonb,
+      'institutionalPeople','[]'::jsonb,
+      'positions','[]'::jsonb,
+      'responsibilities','[]'::jsonb
+    );
+  end if;
+
+  select * into strict v_organization
+  from atlas.organizations o
+  where o.id=v_binding.organization_id
+    and o.status='active';
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id',u.id,
+    'parentUnitId',u.parent_unit_id,
+    'stableKey',u.stable_key,
+    'name',u.name,
+    'unitKind',u.unit_kind
+  ) order by u.name,u.id),'[]'::jsonb)
+  into v_units
+  from atlas.organization_units u
+  where u.organization_id=v_organization.id
+    and u.status='active';
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'institutionalPersonRecordId',ipr.id,
+    'personId',p.id,
+    'displayName',p.display_name
+  ) order by coalesce(p.display_name,''),p.id),'[]'::jsonb)
+  into v_people
+  from atlas.institutional_person_records ipr
+  join atlas.people p on p.id=ipr.person_id
+  where ipr.organization_id=v_organization.id
+    and ipr.status='active'
+    and p.status='active';
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id',p.id,
+    'organizationUnitId',p.organization_unit_id,
+    'stableKey',p.stable_key,
+    'displayTitle',p.display_title,
+    'positionKind',p.position_kind
+  ) order by p.display_title,p.id),'[]'::jsonb)
+  into v_positions
+  from atlas.organization_positions p
+  where p.organization_id=v_organization.id
+    and p.status='active';
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id',r.id,
+    'stableKey',r.stable_key,
+    'name',r.name,
+    'responsibilityKind',r.responsibility_kind
+  ) order by r.name,r.id),'[]'::jsonb)
+  into v_responsibilities
+  from atlas.organization_responsibilities r
+  where r.organization_id=v_organization.id
+    and r.status='active';
+
+  return jsonb_build_object(
+    'ok',true,
+    'contractVersion','implementation_reality_authoring_context_v1',
+    'implementationCaseId',p_implementation_case_id,
+    'state','ready',
+    'organization',jsonb_build_object(
+      'id',v_organization.id,
+      'stableKey',v_organization.stable_key,
+      'name',v_organization.name,
+      'ledgerId',v_binding.ledger_id
+    ),
+    'organizationUnits',v_units,
+    'institutionalPeople',v_people,
+    'positions',v_positions,
+    'responsibilities',v_responsibilities
+  );
+end;
+$function$;
+
+revoke all on function atlas.implementation_reality_authoring_context_self_api_v1(uuid)
+  from public,anon,authenticated,service_role;
+
 -- Narrow browser membrane. All substantive authorization remains inside Atlas functions.
+create or replace function public.implementation_reality_authoring_context_self_api_v1(
+  p_implementation_case_id uuid
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path=pg_catalog
+as $function$
+select atlas.implementation_reality_authoring_context_self_api_v1(p_implementation_case_id);
+$function$;
+
 create or replace function public.implementation_reality_establishment_registry_self_api_v1()
 returns jsonb
 language plpgsql
@@ -1721,6 +1910,8 @@ as $function$
 select atlas.implementation_reality_sentences_self_api_v1(p_implementation_case_id);
 $function$;
 
+revoke all on function public.implementation_reality_authoring_context_self_api_v1(uuid)
+  from public,anon,authenticated;
 revoke all on function public.implementation_reality_establishment_registry_self_api_v1()
   from public,anon,authenticated;
 revoke all on function public.create_implementation_reality_sentence_self_api_v1(
@@ -1733,6 +1924,8 @@ revoke all on function public.establish_implementation_reality_sentence_self_api
 revoke all on function public.implementation_reality_sentences_self_api_v1(uuid)
   from public,anon,authenticated;
 
+grant execute on function public.implementation_reality_authoring_context_self_api_v1(uuid)
+  to authenticated,service_role;
 grant execute on function public.implementation_reality_establishment_registry_self_api_v1()
   to authenticated,service_role;
 grant execute on function public.create_implementation_reality_sentence_self_api_v1(
