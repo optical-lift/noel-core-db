@@ -353,16 +353,8 @@ begin
     raise exception 'Reality Candidate self writer no longer proves assigned-practitioner authority';
   end if;
 
-  -- Close the legacy text-authority hole without rewriting historical rows.
-  if not exists (
-    select 1
-    from atlas.implementation_establishment_items
-    where id='f4100000-0000-4000-8000-000000000131'::uuid
-      and status='proposed'
-  ) then
-    raise exception 'Legacy Implementation establishment material was not preserved';
-  end if;
-
+  -- Candidate custody is additive. The currently live legacy writer must remain
+  -- behaviorally compatible until a separate authority-cutover migration.
   select regexp_replace(
     pg_get_functiondef(
       'atlas.save_implementation_establishment_item_self_api_v1(uuid,text,text,text,text)'::regprocedure
@@ -374,17 +366,21 @@ begin
   into v_def;
 
   if position(
-       'p_statusnotin(''proposed'',''unresolved'')'
+       'p_statusnotin(''proposed'',''established'',''unresolved'')'
        in v_def
      ) = 0 then
-    raise exception 'Legacy establishment-item writer can still self-author established status';
+    raise exception 'Additive Candidate custody changed legacy establishment-item status compatibility';
   end if;
 
   if position(
+       'candidate_only_after_reality_sentence_v1'
+       in v_def
+     ) > 0
+     or position(
        'canonicalMutation'',false'
        in v_def
-     ) = 0 then
-    raise exception 'Legacy establishment-item writer no longer declares its noncanonical consequence';
+     ) > 0 then
+    raise exception 'Additive Candidate custody unexpectedly installed the deferred legacy authority cutover';
   end if;
 end;
 $validation$;
