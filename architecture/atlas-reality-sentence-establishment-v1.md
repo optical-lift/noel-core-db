@@ -509,9 +509,26 @@ Current artifact review promotes an accepted machine extraction to an `implement
 
 Keep that behavior.
 
-Add a later explicit transition:
+The first executable convergence path is now:
 
-`governed implementation_finding → Reality Sentence candidate`
+```text
+artifact/source interpretation
+→ proposed implementation_finding
+→ practitioner Govern / Reject
+→ append-only Finding adjudication receipt
+→ governed implementation_finding
+→ Reality Sentence candidate with source_finding_id
+→ structured identity/command resolution
+→ domain establishment
+```
+
+`implementation_finding_adjudications` preserves the human decision separately from the Finding's current status projection.
+
+Only an assigned practitioner on the exact open Implementation Case may Govern or Reject a Finding.
+
+A governed Finding becomes eligible evidence for a Reality Sentence. It does **not** choose the semantic bindings, owning command, or consequence. The practitioner still resolves those through the same sentence authoring membrane used for direct manual input.
+
+A rejected Finding cannot become Reality Sentence source evidence.
 
 The finding remains evidence. The Reality Sentence candidate owns structured command resolution. The domain owns truth establishment.
 
