@@ -177,14 +177,6 @@ where assignee.id=wa.assignee_membership_id
   and assignee.organization_id=wa.organization_id
   and assignee.institutional_person_record_id is not null;
 
-update atlas.work_execution_results r
-set reported_by_institutional_person_record_id=m.institutional_person_record_id
-from atlas.organization_memberships m
-where m.id=r.reported_by_organization_membership_id
-  and m.organization_id=r.organization_id
-  and m.institutional_person_record_id is not null
-  and r.reported_by_institutional_person_record_id is distinct from m.institutional_person_record_id;
-
 do $backfill_guard$
 begin
   if exists(
@@ -307,7 +299,51 @@ comment on column atlas.work_allocations.assignee_institutional_person_record_id
   'Additive canonical-human bridge for exact Company Work responsibility. Membership remains required by the current v2 responsibility writer until the dedicated convergence migration replaces that execution contract.';
 
 comment on column atlas.work_execution_results.reported_by_institutional_person_record_id is
-  'Canonical institutional-human attribution for a reported Work result when known. Auth user and membership IDs are supporting credential/relationship provenance, not the only possible actor identity.';
+  'Canonical institutional-human attribution for a reported Work result when known. Historical append-only result rows may remain null; future inserts bridge from Organization Membership without rewriting result history. Auth user and membership IDs remain supporting provenance.';
+
+-- Work result history is append-only. Historical rows must not be rewritten
+-- merely to add a new identity bridge. Future inserts may derive the durable
+-- Institutional Person Record from their reporting Organization Membership.
+create or replace function atlas.bridge_work_execution_result_institutional_person_v1()
+returns trigger
+language plpgsql
+security definer
+set search_path=pg_catalog,atlas
+as $function$
+declare
+  v_record_id uuid;
+begin
+  if new.reported_by_organization_membership_id is null then
+    return new;
+  end if;
+
+  select m.institutional_person_record_id
+  into v_record_id
+  from atlas.organization_memberships m
+  where m.id=new.reported_by_organization_membership_id
+    and m.organization_id=new.organization_id;
+
+  if v_record_id is null then
+    return new;
+  end if;
+
+  if new.reported_by_institutional_person_record_id is null then
+    new.reported_by_institutional_person_record_id:=v_record_id;
+  elsif new.reported_by_institutional_person_record_id<>v_record_id then
+    raise exception 'Work result reporting membership conflicts with Institutional Person Record.'
+      using errcode='23514';
+  end if;
+
+  return new;
+end;
+$function$;
+
+revoke all on function atlas.bridge_work_execution_result_institutional_person_v1()
+  from public,anon,authenticated,service_role;
+
+create trigger work_execution_result_institutional_person_bridge_v1
+before insert on atlas.work_execution_results
+for each row execute function atlas.bridge_work_execution_result_institutional_person_v1();
 
 create or replace function atlas.guard_institutional_person_appointment_bridge_v1()
 returns trigger
