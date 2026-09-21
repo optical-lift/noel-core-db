@@ -580,7 +580,9 @@ begin
   limit 1 for update;
 
   if v_existing.id is not null then
-    if v_existing.appointment_kind=v_kind then
+    if v_existing.appointment_kind=v_kind
+       and v_existing.begins_at=p_begins_at
+       and v_existing.ends_at is not distinct from p_ends_at then
       return jsonb_build_object(
         'state','unchanged','consequenceKind','organization_position_appointment',
         'organizationId',p_organization_id,
@@ -588,7 +590,7 @@ begin
         'positionId',p_position_id,'appointmentId',v_existing.id
       );
     end if;
-    raise exception 'Active appointment already exists with different appointment kind.'
+    raise exception 'Active appointment already exists with different canonical appointment semantics.'
       using errcode='23505';
   end if;
 
