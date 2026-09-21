@@ -158,8 +158,20 @@ begin
     where cp.entity_id='f4000000-0000-4000-8000-000000000131'::uuid
       and cp.contact_type='email'
       and cp.normalized_value='avery@river-bank-gap.example.invalid'
+      and cp.visibility='public'
+      and cp.contact_scope='direct'
   ) then
-    raise exception 'Source-backed email did not enrich the canonical person';
+    raise exception 'Source-backed public email did not enrich the canonical person with public direct contact custody';
+  end if;
+
+  if not exists(
+    select 1 from local_intel.v_best_entity_contact_route_v1 cr
+    where cr.entity_id='f4000000-0000-4000-8000-000000000131'::uuid
+      and cr.contact_type='email'
+      and cr.contact_value='avery@river-bank-gap.example.invalid'
+      and cr.effective_contactability='direct_contactable'
+  ) then
+    raise exception 'Source-backed public email is not visible through the governed Shared Directory contact route';
   end if;
 
   if not exists(
