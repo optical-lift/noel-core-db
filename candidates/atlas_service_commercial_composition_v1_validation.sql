@@ -185,6 +185,25 @@ begin
     '{"validationFixture":true}'::jsonb
   );
 
+  v_result:=atlas.propose_atlas_service_item_payer_service_v1(
+    v_ledger_setup_item,
+    v_payer,
+    '{"source":"billing-contact suggestion"}'::jsonb
+  );
+
+  if v_result->>'payerState'<>'proposed'
+     or v_result->>'itemState'<>'elected' then
+    raise exception 'Proposed payer altered commercial election/readiness state: %',v_result;
+  end if;
+
+  if (
+    select state
+    from atlas.atlas_service_commercial_composition_items
+    where id=v_ledger_setup_item
+  )<>'elected' then
+    raise exception 'Proposed payer made elected item settlement-ready.';
+  end if;
+
   begin
     perform atlas.accept_atlas_service_item_payer_service_v1(
       v_ledger_setup_item,
@@ -271,6 +290,63 @@ begin
     raise exception 'Settlement admitted non-ready item.';
   exception when sqlstate '23514' then
     null;
+  end;
+
+  -- A discovered/elected commercial item may be withdrawn without deletion or settlement.
+  declare
+    v_withdraw_item uuid;
+  begin
+    v_withdraw_item:=atlas.add_atlas_service_commercial_candidate_item_service_v1(
+      v_composition_id,
+      'declined-ledger',
+      'ledger_implementation_additional_scope',
+      'one_time',
+      220000,
+      1,
+      null,
+      true,
+      '{"source":"discovery"}'::jsonb
+    );
+
+    perform atlas.propose_atlas_service_commercial_item_service_v1(
+      v_withdraw_item,
+      '{"reason":"possible second Ledger"}'::jsonb
+    );
+
+    perform atlas.elect_atlas_service_commercial_item_service_v1(
+      v_withdraw_item,
+      '{"authorizedBy":"fixture-commercial-approver","decision":"elect"}'::jsonb
+    );
+
+    perform atlas.accept_atlas_service_item_payer_service_v1(
+      v_withdraw_item,
+      v_payer,
+      '{"authorizedBy":"fixture-payer","decision":"accept responsibility"}'::jsonb
+    );
+
+    v_result:=atlas.withdraw_atlas_service_commercial_item_service_v1(
+      v_withdraw_item,
+      '{"decision":"do not implement"}'::jsonb
+    );
+
+    if v_result->>'state'<>'withdrawn'
+       or not exists(
+         select 1
+         from atlas.atlas_service_commercial_composition_items
+         where id=v_withdraw_item
+           and state='withdrawn'
+       ) then
+      raise exception 'Commercial withdrawal did not preserve withdrawn item history: %',v_result;
+    end if;
+
+    if exists(
+      select 1
+      from atlas.atlas_service_item_payer_responsibilities
+      where composition_item_id=v_withdraw_item
+        and state='accepted'
+    ) then
+      raise exception 'Commercial withdrawal left accepted payer responsibility active.';
+    end if;
   end;
 
   -- One settlement batches independently meaningful items.
