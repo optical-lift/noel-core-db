@@ -119,6 +119,8 @@ candidate/proposed/elected
 
 V1 does not silently auto-elect a Ledger item.
 
+An unsettled candidate/proposed/elected item may be explicitly withdrawn. Withdrawal preserves the Item and ends any accepted payer responsibility rather than deleting commercial history.
+
 ## 6. Explicit-election boundary
 
 Every item has `requires_explicit_election`.
@@ -261,6 +263,7 @@ V1 exposes only service-internal commands:
 - elect/withdraw Item;
 - establish Payer Profile;
 - accept Payer Responsibility;
+- withdraw an unsettled Item;
 - record successful Settlement.
 
 Browser roles receive no direct table access and no execute grant on these mutation functions.
