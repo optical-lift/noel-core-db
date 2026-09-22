@@ -41,6 +41,15 @@ begin
       using errcode='22023';
   end if;
 
+  if p_establishment_basis->>'kind' not in (
+    'setup_sponsor_confirmation',
+    'verified_purchase_scope',
+    'adjudicated_existing_reality'
+  ) then
+    raise exception 'Unsupported Initial Scope establishment basis.'
+      using errcode='22023';
+  end if;
+
   if p_scope_origin not in ('existing_governed_scope','new_principal_scope') then
     raise exception 'Invalid initial scope origin.'
       using errcode='22023';
@@ -345,6 +354,15 @@ begin
      or jsonb_typeof(p_establishment_basis)<>'object'
      or v_basis_kind='' then
     raise exception 'Initial scope establishment basis with kind is required.'
+      using errcode='22023';
+  end if;
+
+  if v_basis_kind not in (
+    'setup_sponsor_confirmation',
+    'verified_purchase_scope',
+    'adjudicated_existing_reality'
+  ) then
+    raise exception 'Unsupported Initial Scope establishment basis.'
       using errcode='22023';
   end if;
 
