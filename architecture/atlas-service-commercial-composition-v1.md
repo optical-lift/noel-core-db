@@ -1,6 +1,6 @@
 # Atlas Service Commercial Composition v1
 
-**Status:** architecture contract + executable qualification target  
+**Status:** production-live commercial composition infrastructure; acquisition adapters not yet cut over  
 **Date:** 2026-09-22  
 **Product contract:** `optical-lift/atlas/docs/architecture/atlas-commercial-composition-and-deferred-settlement-v1.md`  
 **Scope:** Atlas's own SaaS/implementation billing control plane  
@@ -365,3 +365,65 @@ Atlas entry / discovery
 ```
 
 The commercial control plane now matches the product claim: one Atlas can discover very different worlds without requiring the customer to choose a different product before Atlas knows what they are carrying.
+
+
+## 18. Production receipt — 2026-09-22
+
+Atlas Service Commercial Composition v1 crossed its first production boundary on September 22, 2026.
+
+Canonical lineage:
+
+- architecture/candidate PR #1192 → merge `b63c1a4577090dc4ef35a0073e8ef90fa2dafb99`;
+- governed generation request #1193;
+- generated migration `20260922194953_atlas_service_commercial_composition_v1.sql`;
+- generated package SHA `a2b5b64973cdc7e03f68002fa783995aa051f1dd`;
+- generated package PR #1194 → merge `20fd5b60c8e7b5bb381f4b2293da9e5f483869b3`;
+- Production Schema Clone Validation request #1195 / run `35776381104` → PASS;
+- governed production release request #1197;
+- protected Production Database Release run `35777131183` → PASS;
+- production migration ledger contains version `20260922194953`.
+
+The passing production-schema clone proved the full control-plane distinction:
+
+```text
+authenticated journey anchor
+→ Commercial Composition before Principal exists
+→ candidate base + Ledger items
+→ proposal without election
+→ explicit-election Ledger item cannot elect without evidence
+→ billing identity remains separate from Person/Principal truth
+→ accepted payer responsibility
+→ settlement-ready
+→ multiple independently meaningful items
+→ one successful batched Settlement
+→ one-time item settled
+→ recurring items active
+```
+
+The same proof confirmed that this movement creates none of the downstream truths merely by composing/settling:
+
+- no Personal Atlas Purchase;
+- no Implementation Purchase;
+- no Ledger Entitlement;
+- no Organization;
+- no Connection;
+- no generic Commercial Order.
+
+Direct production verification confirms:
+
+- all six commercial-control-plane relations are live;
+- `authenticated` has no direct SELECT access to Composition, Item, Payer, or Settlement tables;
+- `authenticated` cannot execute the service-only Composition opener;
+- `anon` cannot execute the Settlement recorder;
+- `service_role` can execute the intended service mutation membrane;
+- provider-backed batching therefore remains server-owned.
+
+The three registered architecture-truth authorities remain `incomplete` deliberately:
+
+- `atlas_service_commercial_composition`;
+- `atlas_service_payer_responsibility`;
+- `atlas_service_settlement`.
+
+They remain incomplete because the current Personal Atlas checkout and Ledger implementation checkout still write their existing purchase authorities directly. The new control plane is production-live infrastructure but is not yet the sole product acquisition path.
+
+The next promotion boundary is therefore an adapter/cutover tranche, not more Commercial Composition ontology.
