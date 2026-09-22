@@ -11,8 +11,9 @@ declare
   v_acceptance atlas.work_result_acceptances%rowtype;
   v_def text;
 begin
-  -- Owner role by itself is no longer Result-decision authority for fixture rows
-  -- created after migration cutover.
+  -- The harness loads fixture reality before the migration. Existing owners must
+  -- therefore receive an explicit compatibility-cutover grant rather than
+  -- continuing to rely on a runtime owner wildcard.
   perform set_config(
     'request.jwt.claim.sub',
     'f4b00000-0000-4000-8000-000000000001',
@@ -24,18 +25,43 @@ begin
     'f4b00000-0000-4000-8000-000000000031'::uuid
   );
 
+  if coalesce((v_authority->>'authorized')::boolean,false)=false
+     or v_authority->>'grantBasisKind'<>'organization_owner_compatibility_cutover'
+     or v_authority->>'scopeKind'<>'organization' then
+    raise exception 'Pre-cutover owner did not receive explicit compatibility authority: %',v_authority;
+  end if;
+
+  -- Remove that explicit grant. Ownership must not recreate decision authority.
+  v_grant:=atlas.set_company_work_adjudication_authority_self_api_v1(
+    'f4b00000-0000-4000-8000-000000000031'::uuid,
+    'organization',
+    'f4b00000-0000-4000-8000-000000000020'::uuid,
+    false,
+    'prove owner role alone does not recreate adjudication authority'
+  );
+
+  if v_grant->>'grantState'<>'revoked'
+     or v_grant->>'grantBasisKind'<>'organization_owner_compatibility_cutover' then
+    raise exception 'Compatibility-cutover grant did not revoke cleanly: %',v_grant;
+  end if;
+
+  v_authority:=atlas.company_work_result_adjudication_authority_v1(
+    'f4b00000-0000-4000-8000-000000000111'::uuid,
+    'f4b00000-0000-4000-8000-000000000031'::uuid
+  );
+
   if coalesce((v_authority->>'authorized')::boolean,true)
      or v_authority->>'reason'<>'explicit_adjudication_grant_required' then
-    raise exception 'Owner role was treated as Result-adjudication authority: %',v_authority;
+    raise exception 'Owner role recreated Result-adjudication authority after grant revocation: %',v_authority;
   end if;
 
   begin
     perform atlas.organization_decide_company_work_result_self_api_v1(
       'f4b00000-0000-4000-8000-000000000111'::uuid,
       'accepted',
-      'owner without grant must fail'
+      'owner without active grant must fail'
     );
-    raise exception 'Owner decided Company Work Result without explicit grant.';
+    raise exception 'Owner decided Company Work Result after explicit grant revocation.';
   exception when sqlstate '42501' then
     null;
   end;
@@ -44,7 +70,7 @@ begin
     perform atlas.company_work_result_decision_requirement_self_api_v1(
       'f4b00000-0000-4000-8000-000000000111'::uuid
     );
-    raise exception 'Owner saw grant-governed Decision Requirement without grant.';
+    raise exception 'Owner saw grant-governed Decision Requirement after grant revocation.';
   exception when sqlstate '42501' then
     null;
   end;
