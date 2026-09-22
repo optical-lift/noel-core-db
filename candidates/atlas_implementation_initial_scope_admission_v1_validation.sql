@@ -240,6 +240,17 @@ begin
     raise exception 'Authenticated practitioner Initial Scope membranes are unavailable.';
   end if;
 
+  select regexp_replace(
+    lower(pg_get_functiondef(
+      'atlas.bind_initial_implementation_scope_internal_v1(uuid,uuid,uuid,uuid,uuid,uuid,uuid,jsonb,text)'::regprocedure
+    )),
+    '[[:space:]]+','','g'
+  ) into v_def;
+
+  if v_def not like '%price_class=''baseline_first''%' then
+    raise exception 'Initial Scope binding helper no longer requires the baseline-first entitlement.';
+  end if;
+
   select lower(pg_get_functiondef(
     'atlas.admit_existing_implementation_scope_self_api_v1(uuid,uuid,uuid,uuid,jsonb)'::regprocedure
   )) into v_def;
@@ -257,6 +268,11 @@ begin
     )),
     '[[:space:]]+','','g'
   ) into v_def;
+
+  if v_def not like '%price_class=''baseline_first''%' then
+    raise exception 'New Initial Scope command no longer restricts institutional birth to the baseline-first entitlement.';
+  end if;
+
 
   if v_def not like '%establish_organization_ledger_for_principal_v1%'
      or v_def not like '%false,false%'
