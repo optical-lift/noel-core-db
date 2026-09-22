@@ -164,6 +164,14 @@ begin
 
   if exists(
     select 1
+    from atlas.institutional_person_records ipr
+    where ipr.organization_id=v_new_org
+  ) then
+    raise exception 'New initial scope establishment manufactured Institutional Person identity.';
+  end if;
+
+  if exists(
+    select 1
     from atlas.organization_onboarding_actors a
     where a.organization_id=v_new_org
   ) then
@@ -243,15 +251,24 @@ begin
     raise exception 'Existing Initial Scope command lost sponsor/Principal authority or regressed to legacy text authority.';
   end if;
 
-  select lower(pg_get_functiondef(
-    'atlas.establish_new_implementation_scope_self_api_v1(uuid,uuid,text,jsonb)'::regprocedure
-  )) into v_def;
+  select regexp_replace(
+    lower(pg_get_functiondef(
+      'atlas.establish_new_implementation_scope_self_api_v1(uuid,uuid,text,jsonb)'::regprocedure
+    )),
+    '[[:space:]]+','','g'
+  ) into v_def;
 
   if v_def not like '%establish_organization_ledger_for_principal_v1%'
-     or v_def not like '%false,%false%'
+     or v_def not like '%false,false%'
      or v_def like '%organization_memberships%'
      or v_def like '%implementation_establishment_items%' then
     raise exception 'New Initial Scope command widened beyond canonical no-membership institutional birth.';
+  end if;
+
+  if v_def not like '%setup_sponsor_confirmation%'
+     or v_def not like '%verified_purchase_scope%'
+     or v_def not like '%adjudicated_existing_reality%' then
+    raise exception 'New Initial Scope command lost its governed establishment-basis vocabulary.';
   end if;
 end;
 $validation$;
