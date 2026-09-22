@@ -262,6 +262,7 @@ V1 exposes only service-internal commands:
 - propose Item;
 - elect/withdraw Item;
 - establish Payer Profile;
+- propose Payer Responsibility;
 - accept Payer Responsibility;
 - withdraw an unsettled Item;
 - record successful Settlement.
