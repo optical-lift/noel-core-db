@@ -212,4 +212,12 @@ insert into atlas.ledger_entitlements(
   1,'atlas_ledger','baseline_first','available',0,0,
   '{"validationFixture":true}'::jsonb,
   '{"validationFixture":true}'::jsonb
+),
+(
+  'f4500000-0000-4000-8000-000000000342'::uuid,
+  'f4500000-0000-4000-8000-000000000111'::uuid,
+  'f4500000-0000-4000-8000-000000000101'::uuid,
+  2,'atlas_ledger','additional_same_family','available',0,0,
+  '{"validationFixture":true,"additional":true}'::jsonb,
+  '{"validationFixture":true}'::jsonb
 );

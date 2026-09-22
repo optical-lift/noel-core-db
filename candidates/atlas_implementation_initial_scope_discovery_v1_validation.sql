@@ -135,6 +135,10 @@ begin
     raise exception 'Initial Scope discovery contains mutation authority.';
   end if;
 
+  if v_def not like '%price_class=''baseline_first''%' then
+    raise exception 'Initial Scope discovery no longer restricts admission to the baseline-first Ledger entitlement.';
+  end if;
+
   if v_def like '%livebindingcaseid%'
      or v_def like '%''livebindingid''%' then
     raise exception 'Initial Scope discovery exposes unrelated implementation binding identifiers.';
