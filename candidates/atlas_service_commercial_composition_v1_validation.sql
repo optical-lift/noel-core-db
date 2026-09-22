@@ -6,6 +6,7 @@ declare
   v_base_item uuid;
   v_ledger_setup_item uuid;
   v_ledger_monthly_item uuid;
+  v_withdraw_item uuid;
   v_payer uuid;
   v_other_payer uuid;
   v_result jsonb;
@@ -90,11 +91,37 @@ begin
     '{"source":"institutional discovery"}'::jsonb
   );
 
+  v_withdraw_item:=atlas.add_atlas_service_commercial_candidate_item_service_v1(
+    v_composition_id,
+    'declined-second-ledger',
+    'ledger_implementation_additional_scope',
+    'one_time',
+    220000,
+    1,
+    null,
+    true,
+    '{"source":"discovered optional scope"}'::jsonb
+  );
+
   v_position:=atlas.atlas_service_commercial_composition_position_v1(v_composition_id);
 
-  if (v_position#>>'{counts,candidate}')::integer<>3
+  if (v_position#>>'{counts,candidate}')::integer<>4
      or (v_position->>'settlementReadyOneTimeCents')::integer<>0 then
     raise exception 'Candidate commercial need became billable: %',v_position;
+  end if;
+
+  v_result:=atlas.propose_atlas_service_commercial_item_service_v1(
+    v_withdraw_item,
+    '{"reason":"optional second scope discovered"}'::jsonb
+  );
+
+  v_result:=atlas.withdraw_atlas_service_commercial_item_service_v1(
+    v_withdraw_item,
+    '{"decision":"not implementing this scope"}'::jsonb
+  );
+
+  if v_result->>'state'<>'withdrawn' then
+    raise exception 'Declined commercial scope was not preserved as withdrawn: %',v_result;
   end if;
 
   v_result:=atlas.propose_atlas_service_commercial_item_service_v1(
