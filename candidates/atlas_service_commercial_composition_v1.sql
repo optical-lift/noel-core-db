@@ -587,6 +587,81 @@ grant execute on function atlas.ensure_atlas_service_payer_profile_service_v1(
 ) to service_role;
 
 
+create or replace function atlas.propose_atlas_service_item_payer_service_v1(
+  p_item_id uuid,
+  p_payer_profile_id uuid,
+  p_proposal_evidence jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path=pg_catalog,atlas
+as $function$
+declare
+  v_item atlas.atlas_service_commercial_composition_items%rowtype;
+  v_payer atlas.atlas_service_payer_profiles%rowtype;
+  v_resp atlas.atlas_service_item_payer_responsibilities%rowtype;
+begin
+  if p_proposal_evidence is null or jsonb_typeof(p_proposal_evidence)<>'object' then
+    raise exception 'Payer proposal evidence must be a JSON object.' using errcode='22023';
+  end if;
+
+  select * into v_item
+  from atlas.atlas_service_commercial_composition_items
+  where id=p_item_id;
+
+  if v_item.id is null then
+    raise exception 'Commercial Composition Item not found.' using errcode='P0002';
+  end if;
+
+  if v_item.state not in ('candidate','proposed','elected','settlement_ready') then
+    raise exception 'Payer may be proposed only for unsettled commercial items.'
+      using errcode='23514';
+  end if;
+
+  select * into v_payer
+  from atlas.atlas_service_payer_profiles
+  where id=p_payer_profile_id
+    and status='active';
+
+  if v_payer.id is null or v_payer.composition_id<>v_item.composition_id then
+    raise exception 'Active payer must belong to the same Commercial Composition.'
+      using errcode='23514';
+  end if;
+
+  select * into v_resp
+  from atlas.atlas_service_item_payer_responsibilities
+  where composition_item_id=v_item.id
+    and payer_profile_id=v_payer.id
+    and state='proposed'
+  limit 1;
+
+  if v_resp.id is null then
+    insert into atlas.atlas_service_item_payer_responsibilities(
+      composition_item_id,payer_profile_id,state,metadata
+    ) values(
+      v_item.id,v_payer.id,'proposed',
+      jsonb_build_object('proposalEvidence',p_proposal_evidence)
+    )
+    returning * into v_resp;
+  end if;
+
+  return jsonb_build_object(
+    'itemId',v_item.id,
+    'payerProfileId',v_payer.id,
+    'payerResponsibilityId',v_resp.id,
+    'payerState',v_resp.state,
+    'itemState',v_item.state
+  );
+end;
+$function$;
+
+revoke all on function atlas.propose_atlas_service_item_payer_service_v1(uuid,uuid,jsonb)
+  from public,anon,authenticated;
+grant execute on function atlas.propose_atlas_service_item_payer_service_v1(uuid,uuid,jsonb)
+  to service_role;
+
+
 create or replace function atlas.accept_atlas_service_item_payer_service_v1(
   p_item_id uuid,
   p_payer_profile_id uuid,
@@ -952,6 +1027,7 @@ insert into atlas.architecture_truth_authorities(
   ],
   array[
     'atlas.ensure_atlas_service_payer_profile_service_v1',
+    'atlas.propose_atlas_service_item_payer_service_v1',
     'atlas.accept_atlas_service_item_payer_service_v1'
   ],
   array[]::text[],
@@ -1039,6 +1115,12 @@ insert into atlas.authenticated_rpc_registry(
   'atlas.ensure_atlas_service_payer_profile_service_v1(uuid,text,text,text,uuid,uuid,text,text,jsonb)',
   'service_internal','verified','active',false,true,true,0,1,
   '{"source":"atlas_service_commercial_composition_v1","purpose":"Preserve payer/billing identity separately from Atlas identity and institutional identity.","classificationRuleVersion":3}'::jsonb,
+  false
+),
+(
+  'atlas.propose_atlas_service_item_payer_service_v1(uuid,uuid,jsonb)',
+  'service_internal','verified','active',false,true,true,0,1,
+  '{"source":"atlas_service_commercial_composition_v1","purpose":"Record a candidate payer relationship without accepting financial responsibility or making an item settlement-ready.","classificationRuleVersion":3}'::jsonb,
   false
 ),
 (
