@@ -132,7 +132,7 @@ create table if not exists atlas.atlas_service_payer_profiles (
 );
 
 create unique index if not exists atlas_service_payer_profiles_provider_customer_unique
-  on atlas.atlas_service_payer_profiles(provider,provider_customer_id)
+  on atlas.atlas_service_payer_profiles(composition_id,provider,provider_customer_id)
   where provider is not null and provider_customer_id is not null;
 
 alter table atlas.atlas_service_payer_profiles enable row level security;
@@ -454,6 +454,67 @@ grant execute on function atlas.elect_atlas_service_commercial_item_service_v1(u
   to service_role;
 
 
+create or replace function atlas.withdraw_atlas_service_commercial_item_service_v1(
+  p_item_id uuid,
+  p_withdrawal_evidence jsonb
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path=pg_catalog,atlas
+as $function$
+declare
+  v_item atlas.atlas_service_commercial_composition_items%rowtype;
+begin
+  if p_withdrawal_evidence is null
+     or jsonb_typeof(p_withdrawal_evidence)<>'object'
+     or p_withdrawal_evidence='{}'::jsonb then
+    raise exception 'Commercial withdrawal evidence required.'
+      using errcode='23514';
+  end if;
+
+  select * into v_item
+  from atlas.atlas_service_commercial_composition_items
+  where id=p_item_id
+  for update;
+
+  if v_item.id is null then
+    raise exception 'Commercial Composition Item not found.' using errcode='P0002';
+  end if;
+
+  if v_item.state not in ('candidate','proposed','elected','settlement_ready') then
+    raise exception 'Only unsettled commercial items may be withdrawn.'
+      using errcode='23514';
+  end if;
+
+  update atlas.atlas_service_item_payer_responsibilities
+  set state='ended',
+      ended_at=now(),
+      metadata=metadata||jsonb_build_object('withdrawalEvidence',p_withdrawal_evidence),
+      updated_at=now()
+  where composition_item_id=v_item.id
+    and state='accepted';
+
+  update atlas.atlas_service_commercial_composition_items
+  set state='withdrawn',
+      metadata=metadata||jsonb_build_object('withdrawalEvidence',p_withdrawal_evidence),
+      updated_at=now()
+  where id=v_item.id
+  returning * into v_item;
+
+  return jsonb_build_object(
+    'itemId',v_item.id,
+    'state',v_item.state
+  );
+end;
+$function$;
+
+revoke all on function atlas.withdraw_atlas_service_commercial_item_service_v1(uuid,jsonb)
+  from public,anon,authenticated;
+grant execute on function atlas.withdraw_atlas_service_commercial_item_service_v1(uuid,jsonb)
+  to service_role;
+
+
 create or replace function atlas.ensure_atlas_service_payer_profile_service_v1(
   p_composition_id uuid,
   p_payer_kind text,
@@ -490,7 +551,8 @@ begin
      and nullif(btrim(coalesce(p_provider_customer_id,'')),'') is not null then
     select id into v_id
     from atlas.atlas_service_payer_profiles
-    where provider=btrim(p_provider)
+    where composition_id=p_composition_id
+      and provider=btrim(p_provider)
       and provider_customer_id=btrim(p_provider_customer_id);
 
     if v_id is not null then
@@ -693,6 +755,15 @@ begin
         using errcode='22023';
     end if;
 
+    if (
+      select count(*)
+      from jsonb_array_elements(p_lines) duplicate_line
+      where duplicate_line->>'itemId'=v_line->>'itemId'
+    )<>1 then
+      raise exception 'Settlement may include each Composition Item only once.'
+        using errcode='23505';
+    end if;
+
     select * into v_item
     from atlas.atlas_service_commercial_composition_items i
     where i.id=(v_line->>'itemId')::uuid
@@ -719,14 +790,9 @@ begin
         using errcode='23514';
     end if;
 
-    if exists(
-      select 1
-      from jsonb_array_elements(p_lines) other
-      where other->>'itemId'=v_line->>'itemId'
-        and other is distinct from v_line
-    ) then
-      raise exception 'Settlement may include each Composition Item only once.'
-        using errcode='23505';
+    if v_line_amount<>(v_item.unit_amount_cents*v_item.quantity) then
+      raise exception 'V1 Settlement line amount must equal the elected Composition Item amount.'
+        using errcode='23514';
     end if;
 
     v_total:=v_total+v_line_amount;
@@ -848,6 +914,7 @@ insert into atlas.architecture_truth_authorities(
     'atlas.add_atlas_service_commercial_candidate_item_service_v1',
     'atlas.propose_atlas_service_commercial_item_service_v1',
     'atlas.elect_atlas_service_commercial_item_service_v1',
+    'atlas.withdraw_atlas_service_commercial_item_service_v1',
     'atlas.atlas_service_commercial_composition_position_v1'
   ],
   array[
@@ -948,6 +1015,12 @@ insert into atlas.authenticated_rpc_registry(
   'atlas.elect_atlas_service_commercial_item_service_v1(uuid,jsonb)',
   'service_internal','verified','active',false,true,true,0,1,
   '{"source":"atlas_service_commercial_composition_v1","purpose":"Record an upstream-authorized explicit commercial election; this function does not itself establish user authority.","classificationRuleVersion":3}'::jsonb,
+  false
+),
+(
+  'atlas.withdraw_atlas_service_commercial_item_service_v1(uuid,jsonb)',
+  'service_internal','verified','active',false,true,true,0,1,
+  '{"source":"atlas_service_commercial_composition_v1","purpose":"Withdraw an unsettled commercial item while preserving discovery/election history.","classificationRuleVersion":3}'::jsonb,
   false
 ),
 (
