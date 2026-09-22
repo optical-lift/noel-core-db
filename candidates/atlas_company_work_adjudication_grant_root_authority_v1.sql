@@ -20,7 +20,7 @@ begin
     alter table atlas.company_work_adjudication_authority_grants
       add constraint company_work_adjudication_grants_grantor_principal_fkey
       foreign key (granted_by_principal_id)
-      references atlas.principals(id) on delete set null;
+      references atlas.principals(id) on delete restrict;
   end if;
 
   if not exists (
@@ -31,7 +31,7 @@ begin
     alter table atlas.company_work_adjudication_authority_grants
       add constraint company_work_adjudication_grants_grantor_ledger_authority_fkey
       foreign key (granted_by_principal_ledger_authority_id)
-      references atlas.principal_ledger_authorities(id) on delete set null;
+      references atlas.principal_ledger_authorities(id) on delete restrict;
   end if;
 end;
 $constraints$;
@@ -77,8 +77,8 @@ begin
     raise exception 'Organization required.' using errcode='22023';
   end if;
 
-  select count(*)::integer,min(lop.ledger_id)
-  into v_count,v_ledger_id
+  select count(*)::integer
+  into v_count
   from atlas.ledger_organization_participations lop
   join atlas.ledgers l on l.id=lop.ledger_id
   where lop.organization_id=p_organization_id
@@ -87,10 +87,21 @@ begin
     and lop.is_compatibility_primary
     and l.status='active';
 
-  if v_count<>1 or v_ledger_id is null then
+  if v_count<>1 then
     raise exception 'Exactly one active primary governing Ledger is required for Company Work grant administration.'
       using errcode='23514';
   end if;
+
+  select lop.ledger_id
+  into v_ledger_id
+  from atlas.ledger_organization_participations lop
+  join atlas.ledgers l on l.id=lop.ledger_id
+  where lop.organization_id=p_organization_id
+    and lop.status='active'
+    and lop.participation_kind='governing'
+    and lop.is_compatibility_primary
+    and l.status='active'
+  limit 1;
 
   select c.person_id,c.principal_id,c.principal_ledger_authority_id
   into v_person_id,v_principal_id,v_authority_id
@@ -192,8 +203,8 @@ begin
         using errcode='23514';
     end if;
 
-    select count(*)::integer,min(lop.ledger_id)
-    into v_root_count,v_root_ledger_id
+    select count(*)::integer
+    into v_root_count
     from atlas.ledger_organization_participations lop
     join atlas.ledgers l on l.id=lop.ledger_id
     where lop.organization_id=new.organization_id
@@ -202,9 +213,23 @@ begin
       and lop.is_compatibility_primary
       and l.status='active';
 
-    if v_root_count<>1
-       or v_root_ledger_id is null
-       or v_root_authority.ledger_id<>v_root_ledger_id then
+    if v_root_count<>1 then
+      raise exception 'Root-governing adjudication grant provenance requires exactly one Organization primary governing Ledger.'
+        using errcode='23514';
+    end if;
+
+    select lop.ledger_id
+    into v_root_ledger_id
+    from atlas.ledger_organization_participations lop
+    join atlas.ledgers l on l.id=lop.ledger_id
+    where lop.organization_id=new.organization_id
+      and lop.status='active'
+      and lop.participation_kind='governing'
+      and lop.is_compatibility_primary
+      and l.status='active'
+    limit 1;
+
+    if v_root_authority.ledger_id<>v_root_ledger_id then
       raise exception 'Root-governing adjudication grant provenance must match the Organization exact primary governing Ledger.'
         using errcode='23514';
     end if;
