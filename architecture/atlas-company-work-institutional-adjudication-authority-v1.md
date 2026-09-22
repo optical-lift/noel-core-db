@@ -1,6 +1,6 @@
 # Atlas Company Work Institutional Adjudication Authority v1
 
-**Status:** architecture contract + executable qualification target  
+**Status:** production-live Company Work institutional adjudication authority  
 **Date:** 2026-09-22  
 **Parent laws:** `atlas-authority-dimensions-current-canon-v1`, `atlas-authority-required-reconciliation-company-work-v1`  
 **First governed decision:** Company Work Result acceptance / rejection  
@@ -367,3 +367,60 @@ root grant authority
 ```
 
 This replaces the role wildcard at the decision membrane with an explicit institutional authority relation.
+
+
+## 20. Production receipt — 2026-09-22
+
+Company Work institutional Result-adjudication authority crossed production on September 22, 2026.
+
+Canonical lineage:
+
+- architecture/candidate PR #1163 → merge `6b507be7deb9f48b874514117719a229616e106d`;
+- first generated package `20260922172810` retired unreleased after clone fixture incompatibility;
+- fixture repair PR #1167 → merge `0f5503cd530030fd4997e1aeaa37faea6e300601`;
+- second generated package `20260922174937` retired unreleased after clone postcondition exposed fixture-before-migration cutover ordering;
+- cutover-validation repair PR #1175 → merge `e43f18e6e1d2b8cff0d9b3ac7419cf855ca0621d`;
+- governed generation request #1176;
+- released migration `20260922175802_atlas_company_work_institutional_adjudication_authority_v1.sql`;
+- generated package SHA `f0b2e84389557225c93c5c367ff20295d8da2ebd`;
+- generated package PR #1177 → merge `19f17041a029073b38bf0177a1d1b54f4c1dff6e`;
+- Production Schema Clone Validation request #1178 / run `35764178430` → PASS;
+- governed production release request #1179;
+- protected Production Database Release run `35764764504` → PASS;
+- production migration ledger contains `20260922175802`.
+
+Production now contains:
+
+- `atlas.company_work_adjudication_authority_grants`;
+- internal `atlas.company_work_result_adjudication_authority_v1(uuid,uuid)`;
+- authenticated grant administration `atlas.set_company_work_adjudication_authority_self_api_v1(uuid,text,uuid,boolean,text)`;
+- authenticated Result decision `atlas.organization_decide_company_work_result_self_api_v1(uuid,text,text)`.
+
+Direct production verification confirms:
+
+- the internal authority resolver is not executable by `authenticated`;
+- raw grant-table SELECT is not available to `authenticated`;
+- grant administration and the Result decision command are executable by `authenticated`;
+- `anon` cannot execute the Result decision command;
+- current production owner compatibility has been materialized as exactly one active Organization-scope `result_acceptance` grant with basis `organization_owner_compatibility_cutover`.
+
+The production-schema clone proved:
+
+```text
+pre-cutover owner
+→ explicit compatibility grant
+
+compatibility grant revoked
+→ owner role alone does not recreate adjudication authority
+
+owner root governance
+→ explicit exact-Work / Organization grant to another member
+→ exact resolver admits only matching scope
+→ grant-governed Result decision
+→ Result Acceptance preserves authority-grant provenance
+→ Reconciliation settles
+```
+
+The decision membrane no longer treats owner, manager, Farm role, Position title, durable Responsibility, exact Work responsibility, or Principal status as Result-adjudication authority by themselves.
+
+The remaining transitional compatibility is explicit data that may be revoked or superseded; it is no longer a runtime role wildcard.
