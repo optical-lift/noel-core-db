@@ -16,7 +16,7 @@ insert into atlas.atlas_service_commercial_price_policies(
   'Validation copy of the production base Atlas monthly policy required by acquisition compatibility reconciliation.',
   '{"source":"validation_fixture_from_live_price_policy"}'::jsonb
 )
-on conflict(price_key) do nothing;
+;
 
 insert into auth.users(id,email,created_at,updated_at)
 values (
