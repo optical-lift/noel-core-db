@@ -769,8 +769,8 @@ begin
 
     if (
       select count(*)
-      from jsonb_array_elements(p_lines) duplicate_line
-      where duplicate_line->>'itemId'=v_line->>'itemId'
+      from jsonb_array_elements(p_lines) duplicate_line(value)
+      where duplicate_line.value->>'itemId'=v_line->>'itemId'
     )<>1 then
       raise exception 'Settlement may include each Composition Item only once.'
         using errcode='23505';
@@ -1006,7 +1006,7 @@ insert into atlas.authenticated_rpc_registry(
   evidence,anonymous_execute_expected
 ) values
 (
-  'atlas.open_atlas_service_commercial_composition_service_v1(uuid,uuid,uuid,text,timestamptz,jsonb)',
+  'atlas.open_atlas_service_commercial_composition_service_v1(uuid,uuid,uuid,text,timestamp with time zone,jsonb)',
   'service_internal','verified','active',false,true,true,0,1,
   '{"source":"atlas_service_commercial_composition_v1","purpose":"Open a pre-settlement Atlas service Commercial Composition without creating purchase/entitlement truth.","classificationRuleVersion":3}'::jsonb,
   false
@@ -1048,7 +1048,7 @@ insert into atlas.authenticated_rpc_registry(
   false
 ),
 (
-  'atlas.record_atlas_service_settlement_service_v1(uuid,uuid,text,text,text,jsonb,timestamptz,jsonb)',
+  'atlas.record_atlas_service_settlement_service_v1(uuid,uuid,text,text,text,jsonb,timestamp with time zone,jsonb)',
   'service_internal','verified','active',false,true,true,0,1,
   '{"source":"atlas_service_commercial_composition_v1","purpose":"Record one successful provider settlement across multiple compatible settlement-ready items for one accepted payer.","classificationRuleVersion":3}'::jsonb,
   false
