@@ -17,21 +17,21 @@ values
   'adjudication-proof-other@example.invalid',now(),now()
 );
 
-insert into atlas.people(id,stable_key,display_name,status,metadata)
+insert into atlas.people(id,display_name,status,metadata)
 values
 (
   'f4b00000-0000-4000-8000-000000000011'::uuid,
-  'adjudication-proof-owner','Adjudication Proof Owner','active',
+  'Adjudication Proof Owner','active',
   '{"validationFixture":true}'::jsonb
 ),
 (
   'f4b00000-0000-4000-8000-000000000012'::uuid,
-  'adjudication-proof-grantee','Adjudication Proof Grantee','active',
+  'Adjudication Proof Grantee','active',
   '{"validationFixture":true}'::jsonb
 ),
 (
   'f4b00000-0000-4000-8000-000000000013'::uuid,
-  'adjudication-proof-other','Adjudication Proof Other','active',
+  'Adjudication Proof Other','active',
   '{"validationFixture":true}'::jsonb
 );
 
