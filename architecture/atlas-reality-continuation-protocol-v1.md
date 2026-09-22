@@ -1,6 +1,6 @@
 # Atlas Reality Continuation Protocol v1
 
-**Status:** architecture contract + read-only qualification target  
+**Status:** production-live read-only architecture contract  
 **Date:** 2026-09-22  
 **Parent law:** `architecture/atlas-reality-transition-protocol-v1.md`  
 **Depends on:** production-live Reality Transition Receipt v1  
@@ -627,3 +627,39 @@ Reality
 ```
 
 This gives Atlas recursive coherence without creating a universal mutation engine.
+## 25. Production receipt — 2026-09-22
+
+Reality Continuation v1 crossed its first production boundary on September 22, 2026.
+
+Canonical source lineage:
+
+- architecture/candidate PR #1135 → merge `5d277068f0dd6b79a012c1ca96da0a1c9879131d`;
+- generated package `20260922143035` was retired after clone-only fixture failure; never released;
+- fixture repair PR #1139 → merge `94ea797ec2b672511747b6ac21b9adc83f6c69c0`;
+- generated package `20260922144256` was retired before release after source review found caller truth-boundary values could override universal flags;
+- fail-closed hardening PR #1143 → merge `270f01d341c3b58ca656823dcd5ef4d1b7ec83f5`;
+- final generated migration `20260922145102_atlas_reality_continuation_protocol_v1.sql`;
+- final generated package PR #1145 → merge `6c94364eda0ed3be5435d4e21fb7305fa32bf408`;
+- Production Schema Clone Validation run `35743240860` → PASS;
+- governed production release request #1147;
+- Production Database Release run `35747655264` → PASS.
+
+Production now exposes internal-only:
+
+- `atlas.reality_continuation_normalize_v1(jsonb)`;
+- `atlas.company_work_result_continuation_v1(uuid)`;
+- `atlas.commercial_financial_continuation_v1(uuid)`;
+- `atlas.bed_readiness_continuation_v1(uuid)`.
+
+Direct production verification confirms:
+
+- no `anon` or `authenticated` execute grant exists on any of the four functions;
+- caller attempts to weaken universal truth-boundary flags are normalized back to the enforced read-only/no-authority values;
+- settled Company Work produces zero fabricated continuation targets;
+- unresolved Commercial Financial Reality produces exact blocked reconsideration targets;
+- one satisfied bed-readiness dependency may coexist with a still-blocked downstream Task because other dependencies remain unresolved.
+
+This is sufficient to promote the Continuation grammar as production-live **read-only cross-domain infrastructure**.
+
+It still does not justify a generic dependency store, workflow engine, event bus, resolver registry, scheduler, or universal mutation layer.
+
