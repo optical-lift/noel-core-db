@@ -25,6 +25,23 @@ insert into atlas.ledgers(
   'Reality Transition Receipt Fixture Ledger'
 );
 
+-- The real Organization Ledger projection resolves through the Organization's
+-- active compatibility-primary Ledger participation. A bare Ledger row is not
+-- sufficient authority for institutional consequence projection.
+insert into atlas.ledger_organization_participations(
+  id,ledger_id,organization_id,participation_kind,is_compatibility_primary,
+  status,basis,metadata
+) values (
+  'f4800000-0000-4000-8000-000000000021'::uuid,
+  'f4800000-0000-4000-8000-000000000020'::uuid,
+  'f4800000-0000-4000-8000-000000000010'::uuid,
+  'governing',
+  true,
+  'active',
+  '{"kind":"validation_fixture","reason":"exercise real Organization Ledger compatibility law"}'::jsonb,
+  '{"validationFixture":true}'::jsonb
+);
+
 insert into atlas.work_result_contract_policies(
   contract_key,source_domain,acceptance_mode,active,description,metadata
 ) values (
