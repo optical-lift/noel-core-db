@@ -190,6 +190,28 @@ insert into atlas.person_auth_credentials(
   '{"validationFixture":true}'::jsonb
 );
 
+insert into atlas.person_auth_credentials(
+  id,person_id,credential_kind,auth_user_id,status,bound_at,provenance
+) values
+(
+  'f4200000-0000-4000-8000-000000000213'::uuid,
+  'f4200000-0000-4000-8000-000000000211'::uuid,
+  'supabase_auth_user',
+  'f4200000-0000-4000-8000-000000000002'::uuid,
+  'active',
+  now(),
+  '{"validationFixture":true}'::jsonb
+),
+(
+  'f4200000-0000-4000-8000-000000000214'::uuid,
+  'f4200000-0000-4000-8000-000000000212'::uuid,
+  'supabase_auth_user',
+  'f4200000-0000-4000-8000-000000000003'::uuid,
+  'active',
+  now(),
+  '{"validationFixture":true}'::jsonb
+);
+
 insert into atlas.organization_memberships(
   id,organization_id,user_id,person_id,role,active,permissions
 ) values
