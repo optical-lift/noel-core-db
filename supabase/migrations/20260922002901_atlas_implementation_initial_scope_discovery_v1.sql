@@ -86,6 +86,7 @@ begin
   into v_entitlements
   from atlas.ledger_entitlements le
   where le.implementation_case_id=p_implementation_case_id
+    and le.price_class='baseline_first'
     and le.state in ('available','reserved');
 
   if jsonb_array_length(v_bindings)>0 then
