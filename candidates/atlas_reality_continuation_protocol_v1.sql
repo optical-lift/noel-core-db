@@ -116,13 +116,13 @@ begin
       end
     )),
     'targets',v_targets,
-    'truthBoundary',jsonb_build_object(
+    'truthBoundary',v_truth||jsonb_build_object(
       'readOnly',true,
       'doesNotInvokeResolver',true,
       'doesNotCreateDependency',true,
       'doesNotDetermineOutcome',true,
       'doesNotGrantAuthority',true
-    )||v_truth,
+    ),
     'provenance',v_provenance
   );
 end;
