@@ -357,12 +357,12 @@ begin
      or has_table_privilege('authenticated','atlas.atlas_service_settlements','SELECT')
      or has_function_privilege(
        'authenticated',
-       'atlas.open_atlas_service_commercial_composition_service_v1(uuid,uuid,uuid,text,timestamptz,jsonb)',
+       'atlas.open_atlas_service_commercial_composition_service_v1(uuid,uuid,uuid,text,timestamp with time zone,jsonb)',
        'EXECUTE'
      )
      or has_function_privilege(
        'anon',
-       'atlas.record_atlas_service_settlement_service_v1(uuid,uuid,text,text,text,jsonb,timestamptz,jsonb)',
+       'atlas.record_atlas_service_settlement_service_v1(uuid,uuid,text,text,text,jsonb,timestamp with time zone,jsonb)',
        'EXECUTE'
      ) then
     raise exception 'Commercial Composition service boundary leaked to browser roles.';
