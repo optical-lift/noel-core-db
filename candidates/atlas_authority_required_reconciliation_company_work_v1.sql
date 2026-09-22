@@ -83,15 +83,17 @@ begin
     );
   end if;
 
-  select count(*)::integer,
-         min(value) filter (
-           where value->>'handlingMode'='authority_required'
-             and value#>>'{resolver,key}'='company_work_result_adjudication'
-         )
-    into v_authority_target_count,v_target
+  select count(*)::integer
+    into v_authority_target_count
   from jsonb_array_elements(coalesce(v_plan->'targets','[]'::jsonb)) x(value)
   where value->>'handlingMode'='authority_required'
     and value#>>'{resolver,key}'='company_work_result_adjudication';
+
+  select value into v_target
+  from jsonb_array_elements(coalesce(v_plan->'targets','[]'::jsonb)) x(value)
+  where value->>'handlingMode'='authority_required'
+    and value#>>'{resolver,key}'='company_work_result_adjudication'
+  limit 1;
 
   if v_authority_target_count<>1 or v_target_count<>1 then
     return jsonb_build_object(
