@@ -105,6 +105,18 @@ begin
     raise exception 'Initial Scope discovery lost dynamic capability detection.';
   end if;
 
+  if regexp_count(v_def,'implementation_initial_scope_options_v2')<>4
+     or regexp_count(v_def,'''existingadmissioncommandavailable''')<>4
+     or regexp_count(v_def,'''newadmissioncommandavailable''')<>4
+     or regexp_count(v_def,'''canadmitexistingscope''')<>4
+     or regexp_count(v_def,'''canestablishneworganization''')<>4 then
+    raise exception 'Initial Scope discovery response states are not contract-v2 capability-complete.';
+  end if;
+
+  if v_def like '%implementation_initial_scope_options_v1%' then
+    raise exception 'Initial Scope discovery retained an obsolete v1 response branch.';
+  end if;
+
   if v_def like '%insert into%'
      or v_def like '%update atlas.%'
      or v_def like '%delete from%' then
