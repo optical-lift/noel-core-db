@@ -726,6 +726,18 @@ begin
     and provider_settlement_key=btrim(p_provider_settlement_key);
 
   if v_existing is not null then
+    if not exists(
+      select 1
+      from atlas.atlas_service_settlements s
+      where s.id=v_existing
+        and s.composition_id=p_composition_id
+        and s.payer_profile_id=p_payer_profile_id
+        and s.currency=v_currency
+    ) then
+      raise exception 'Provider settlement key already belongs to a different commercial settlement context.'
+        using errcode='23505';
+    end if;
+
     return v_existing;
   end if;
 
@@ -904,7 +916,7 @@ insert into atlas.architecture_truth_authorities(
   'atlas_service_commerce',
   'What commercial Atlas/Ledger/Connection obligations have been discovered, proposed, elected, and made settlement-ready without pretending those stages are purchases or entitlements?',
   'atlas_service_commercial_compositions + atlas_service_commercial_composition_items',
-  'candidate',
+  'incomplete',
   array[
     'atlas.atlas_service_commercial_compositions',
     'atlas.atlas_service_commercial_composition_items'
@@ -933,7 +945,7 @@ insert into atlas.architecture_truth_authorities(
   'atlas_service_commerce',
   'Who has accepted financial responsibility for an elected Atlas service commercial item?',
   'atlas_service_payer_profiles + atlas_service_item_payer_responsibilities',
-  'candidate',
+  'incomplete',
   array[
     'atlas.atlas_service_payer_profiles',
     'atlas.atlas_service_item_payer_responsibilities'
@@ -954,7 +966,7 @@ insert into atlas.architecture_truth_authorities(
   'atlas_service_commerce',
   'Which elected Atlas service items were financially settled together for one payer?',
   'atlas_service_settlements + atlas_service_settlement_lines',
-  'candidate',
+  'incomplete',
   array[
     'atlas.atlas_service_settlements',
     'atlas.atlas_service_settlement_lines'
