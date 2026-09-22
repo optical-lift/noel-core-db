@@ -134,6 +134,11 @@ begin
      or v_def like '%delete from%' then
     raise exception 'Initial Scope discovery contains mutation authority.';
   end if;
+
+  if v_def like '%livebindingcaseid%'
+     or v_def like '%''livebindingid''%' then
+    raise exception 'Initial Scope discovery exposes unrelated implementation binding identifiers.';
+  end if;
 end;
 $validation$;
 
