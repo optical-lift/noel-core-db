@@ -117,7 +117,7 @@ begin
   if jsonb_array_length(v_bindings)>0 then
     return jsonb_build_object(
       'ok',true,
-      'contractVersion','implementation_initial_scope_options_v1',
+      'contractVersion','implementation_initial_scope_options_v2',
       'state','bound',
       'bindings',v_bindings,
       'availableEntitlements',v_entitlements,
@@ -143,11 +143,14 @@ begin
   if v_setup_sponsor_participant_id is null then
     return jsonb_build_object(
       'ok',true,
-      'contractVersion','implementation_initial_scope_options_v1',
+      'contractVersion','implementation_initial_scope_options_v2',
       'state','setup_sponsor_required',
       'bindings','[]'::jsonb,
       'availableEntitlements',v_entitlements,
       'items','[]'::jsonb,
+      'existingAdmissionCommandAvailable',false,
+      'newAdmissionCommandAvailable',false,
+      'canAdmitExistingScope',false,
       'canEstablishNewOrganization',false
     );
   end if;
@@ -174,11 +177,14 @@ begin
   if v_sponsor_person_id is null or v_sponsor_principal_id is null then
     return jsonb_build_object(
       'ok',true,
-      'contractVersion','implementation_initial_scope_options_v1',
+      'contractVersion','implementation_initial_scope_options_v2',
       'state','setup_sponsor_principal_required',
       'bindings','[]'::jsonb,
       'availableEntitlements',v_entitlements,
       'items','[]'::jsonb,
+      'existingAdmissionCommandAvailable',false,
+      'newAdmissionCommandAvailable',false,
+      'canAdmitExistingScope',false,
       'canEstablishNewOrganization',false
     );
   end if;
