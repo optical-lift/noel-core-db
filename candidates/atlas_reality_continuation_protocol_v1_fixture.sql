@@ -370,6 +370,20 @@ insert into atlas.maintenance_objects(
   '{"validationFixture":true}'::jsonb
 );
 
+-- Schema-only production clones do not include operation-class reference data.
+-- Seed the exact canonical class that the real task classifier assigns to this
+-- synthetic planting Task. This preserves both the classifier and FK law.
+insert into atlas.operation_classes(
+  stable_key,label,operation_domain,definition,active,metadata
+) values (
+  'establish_aboveground',
+  'Establish aboveground',
+  'cultivation',
+  'Establish a crop or plant whose working target is primarily aboveground growth, including sowing, potting up, set-out, and ordinary transplanting.',
+  true,
+  '{"validationFixture":true}'::jsonb
+);
+
 insert into atlas.tasks(
   id,title,task_type,status,due_date,metadata,action_key,
   organization_id,task_scope,visibility_scope,origin_kind,
