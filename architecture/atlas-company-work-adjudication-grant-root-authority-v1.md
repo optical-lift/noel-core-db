@@ -1,6 +1,6 @@
 # Atlas Company Work Adjudication Grant Root Authority v1
 
-**Status:** architecture contract + executable qualification target  
+**Status:** production-live Company Work adjudication grant root authority  
 **Date:** 2026-09-22  
 **Parent law:** `atlas-company-work-institutional-adjudication-authority-v1.md`  
 **Existing root source:** Principal → Ledger `root_governing` authority  
@@ -289,3 +289,62 @@ Principal
 ```
 
 This removes Organization-owner role from the Company Work grant-establishment membrane without inventing a new universal authority model.
+
+
+## 18. Production receipt — 2026-09-22
+
+Company Work adjudication grant administration crossed production on September 22, 2026.
+
+Canonical lineage:
+
+- architecture/candidate PR #1182 → merge `62787f342af18926f73ade35b6d1a67fcd6f7ba6`;
+- first generated package `20260922181844` retired unreleased after the clone fixture safety scanner rejected disposable string labels containing the standalone token `grant`;
+- fixture-safety repair PR #1186 → merge `cdc18728ca823148df9057ceb5932be176bd0dec`;
+- governed generation request #1187;
+- released migration `20260922182354_atlas_company_work_adjudication_grant_root_authority_v1.sql`;
+- generated package SHA `d4bba84b26589a062dbff2f71dd838b236a3f8e9`;
+- generated package PR #1188 → merge `b3b13077292d710c825a7e99140ab77bde77fe26`;
+- Production Schema Clone Validation request #1189 / run `35766967386` → PASS;
+- governed production release request #1190;
+- protected Production Database Release run `35767980927` → PASS;
+- production migration ledger contains version `20260922182354`.
+
+Production now requires the existing Principal/Ledger root-governing relation to administer Company Work adjudication grants:
+
+```text
+Organization primary governing Ledger
+→ current Principal root_governing authority
+→ Company Work grant administration
+```
+
+The passing clone proved that Organization role and authority are no longer conflated at this membrane:
+
+```text
+role=owner + no root-governing Ledger authority
+→ denied
+
+role=member + exact root-governing Ledger authority
+→ admitted
+```
+
+Direct production verification confirms:
+
+- the internal Company Work grant-root context is not browser-executable;
+- the authenticated grant-administration RPC remains callable but proves root authority internally;
+- anonymous users cannot execute grant administration;
+- authenticated users cannot directly SELECT the Company Work adjudication-grant table;
+- one historical active `organization_owner_compatibility_cutover` Result-adjudication grant remains explicit compatibility data;
+- no live `explicit_root_governing_grant` exists merely because this migration released.
+
+This completes the upstream authority cutover for the first Company Work human-judgment loop:
+
+```text
+Principal/Ledger root governance
+→ explicit adjudication grant
+→ exact Result authority
+→ human judgment
+→ canonical consequence
+→ Reality Reconciliation
+```
+
+It still does not justify a universal grant-administration engine or a universal Decision Requirement system.
