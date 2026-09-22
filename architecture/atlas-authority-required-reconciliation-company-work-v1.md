@@ -1,6 +1,6 @@
 # Atlas Authority-Required Reconciliation — Company Work Proof v1
 
-**Status:** architecture contract + executable qualification target  
+**Status:** production-live Company Work authority-required reconciliation proof  
 **Date:** 2026-09-22  
 **Parent law:** `architecture/atlas-reality-reconciliation-protocol-v1.md`  
 **Authority law:** `architecture/atlas-authority-dimensions-current-canon-v1.md`  
@@ -363,3 +363,55 @@ Reality changes
 ```
 
 This closes the first human-judgment reconciliation loop without creating a generic workflow engine.
+
+
+## 18. Production receipt — 2026-09-22
+
+The first authority-required reconciliation proof crossed production on September 22, 2026.
+
+Canonical lineage:
+
+- architecture/candidate PR #1157 → merge `60b08eadcad4b803e733d43a603feb43cedef439`;
+- governed generation request #1158;
+- generated migration `20260922163955_atlas_authority_required_reconciliation_company_work_v1.sql`;
+- generated package SHA `d35afa8cc2de96ea615486329c105d686c7aa63e`;
+- generated package PR #1159 → merge `3a2b8a022c234ea31a2b18509fdf900929a7d9cb`;
+- Production Schema Clone Validation request #1160;
+- Production Schema Clone Validation run `35755771236` → PASS;
+- governed production release request #1161;
+- Production Database Release run `35757926840` → PASS;
+- production migration ledger contains version `20260922163955`.
+
+Production now exposes:
+
+- internal-only `atlas.company_work_result_decision_requirement_v1(uuid)`;
+- authenticated self read `atlas.company_work_result_decision_requirement_self_api_v1(uuid)`;
+- authenticated derived list `atlas.company_work_decision_requirements_self_api_v1(integer)`.
+
+Direct production verification confirms:
+
+- `authenticated` cannot execute the internal Decision Requirement reader;
+- `authenticated` can execute both actor-safe self projections;
+- `anon` can execute neither self projection;
+- no new Company Work mutation command was introduced by this tranche;
+- no generic persisted Decision Requirement / approval / reconciliation queue was introduced;
+- the current actor-authority basis remains explicitly labeled `transitional_organization_owner_compatibility`, rather than being promoted into universal management authority.
+
+The production-schema clone proved the full closed loop:
+
+```text
+unaccepted manager-acceptance Result
+→ Reconciliation = authority_required
+→ Decision Requirement
+→ non-owner denied
+→ exact current owner admitted
+→ existing result-acceptance command
+→ canonical Company Work completion/consequence
+→ Reconciliation re-read
+→ settled
+→ Decision Requirement disappears
+```
+
+This establishes the first lawful human-judgment reconciliation artery.
+
+It still does not justify a universal Decision Requirement engine, generic approval queue, generic authority resolver, automatic human judgment, or manager authority inferred from a Farm adapter role.
