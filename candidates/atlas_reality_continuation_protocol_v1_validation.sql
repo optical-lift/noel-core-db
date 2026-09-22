@@ -22,6 +22,32 @@ begin
   exception when sqlstate '22023' then null;
   end;
 
+  -- Universal truth-boundary invariants cannot be weakened by caller input.
+  v_value:=atlas.reality_continuation_normalize_v1(
+    '{
+      "contractVersion":"reality_continuation_v1",
+      "source":{"domain":"validation","kind":"source","ref":"1"},
+      "targets":[],
+      "truthBoundary":{
+        "readOnly":false,
+        "doesNotInvokeResolver":false,
+        "doesNotCreateDependency":false,
+        "doesNotDetermineOutcome":false,
+        "doesNotGrantAuthority":false,
+        "domainSpecificNote":"preserved"
+      }
+    }'::jsonb
+  );
+
+  if coalesce((v_value#>>'{truthBoundary,readOnly}')::boolean,false)=false
+     or coalesce((v_value#>>'{truthBoundary,doesNotInvokeResolver}')::boolean,false)=false
+     or coalesce((v_value#>>'{truthBoundary,doesNotCreateDependency}')::boolean,false)=false
+     or coalesce((v_value#>>'{truthBoundary,doesNotDetermineOutcome}')::boolean,false)=false
+     or coalesce((v_value#>>'{truthBoundary,doesNotGrantAuthority}')::boolean,false)=false
+     or v_value#>>'{truthBoundary,domainSpecificNote}'<>'preserved' then
+    raise exception 'Continuation normalizer allowed universal truth-boundary weakening: %',v_value;
+  end if;
+
   -- Company Work unresolved result names adjudication as continuation but does
   -- not accept/complete it.
   v_value:=atlas.company_work_result_continuation_v1(
