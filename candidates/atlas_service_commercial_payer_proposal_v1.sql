@@ -79,16 +79,45 @@ grant execute on function atlas.propose_atlas_service_item_payer_service_v1(uuid
   to service_role;
 
 
-update atlas.architecture_truth_authorities
-set canonical_functions=array[
-      'atlas.ensure_atlas_service_payer_profile_service_v1',
-      'atlas.propose_atlas_service_item_payer_service_v1',
-      'atlas.accept_atlas_service_item_payer_service_v1'
-    ],
-    source_custody='Billing identity is commercial evidence and must not silently establish Person, Principal, Organization, setup sponsor, institutional authority, or payer acceptance.',
-    rationale='Preserves proposed payer responsibility separately from accepted financial responsibility and from Atlas/institutional identity.',
-    updated_at=now()
-where authority_key='atlas_service_payer_responsibility';
+insert into atlas.architecture_truth_authorities(
+  authority_key,domain_key,truth_question,authority_owner,authority_status,
+  canonical_relations,canonical_functions,supporting_relations,
+  consumer_surfaces,known_competitors,source_custody,rationale,updated_at
+) values (
+  'atlas_service_payer_responsibility',
+  'atlas_service_commerce',
+  'Who has accepted financial responsibility for an elected Atlas service commercial item?',
+  'atlas_service_payer_profiles + atlas_service_item_payer_responsibilities',
+  'incomplete',
+  array[
+    'atlas.atlas_service_payer_profiles',
+    'atlas.atlas_service_item_payer_responsibilities'
+  ],
+  array[
+    'atlas.ensure_atlas_service_payer_profile_service_v1',
+    'atlas.propose_atlas_service_item_payer_service_v1',
+    'atlas.accept_atlas_service_item_payer_service_v1'
+  ],
+  array[]::text[],
+  array[]::text[],
+  array[]::text[],
+  'Billing identity is commercial evidence and must not silently establish Person, Principal, Organization, setup sponsor, institutional authority, or payer acceptance.',
+  'Preserves proposed payer responsibility separately from accepted financial responsibility and from Atlas/institutional identity.',
+  now()
+)
+on conflict(authority_key) do update set
+  domain_key=excluded.domain_key,
+  truth_question=excluded.truth_question,
+  authority_owner=excluded.authority_owner,
+  authority_status=excluded.authority_status,
+  canonical_relations=excluded.canonical_relations,
+  canonical_functions=excluded.canonical_functions,
+  supporting_relations=excluded.supporting_relations,
+  consumer_surfaces=excluded.consumer_surfaces,
+  known_competitors=excluded.known_competitors,
+  source_custody=excluded.source_custody,
+  rationale=excluded.rationale,
+  updated_at=now();
 
 
 insert into atlas.authenticated_rpc_registry(
