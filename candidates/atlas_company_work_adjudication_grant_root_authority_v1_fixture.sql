@@ -7,30 +7,30 @@ insert into auth.users(id,email,created_at,updated_at)
 values
 (
   'f4c00000-0000-4000-8000-000000000001'::uuid,
-  'grant-root-principal@example.invalid',now(),now()
+  'authority-root-principal@example.invalid',now(),now()
 ),
 (
   'f4c00000-0000-4000-8000-000000000002'::uuid,
-  'grant-root-owner@example.invalid',now(),now()
+  'authority-root-owner@example.invalid',now(),now()
 ),
 (
   'f4c00000-0000-4000-8000-000000000003'::uuid,
-  'grant-root-target@example.invalid',now(),now()
+  'authority-root-target@example.invalid',now(),now()
 );
 
 insert into atlas.people(id,display_name,status,metadata)
 values
 (
   'f4c00000-0000-4000-8000-000000000011'::uuid,
-  'Grant Root Principal','active','{"validationFixture":true}'::jsonb
+  'Authority Root Principal','active','{"validationFixture":true}'::jsonb
 ),
 (
   'f4c00000-0000-4000-8000-000000000012'::uuid,
-  'Grant Root Owner','active','{"validationFixture":true}'::jsonb
+  'Authority Root Owner','active','{"validationFixture":true}'::jsonb
 ),
 (
   'f4c00000-0000-4000-8000-000000000013'::uuid,
-  'Grant Root Target','active','{"validationFixture":true}'::jsonb
+  'Authority Root Target','active','{"validationFixture":true}'::jsonb
 );
 
 insert into atlas.person_auth_credentials(
@@ -57,8 +57,8 @@ insert into atlas.organizations(
   id,stable_key,name,status,metadata,onboarding_state
 ) values (
   'f4c00000-0000-4000-8000-000000000020'::uuid,
-  'grant-root-authority-proof-org',
-  'Grant Root Authority Proof Organization',
+  'authority-root-proof-org',
+  'Authority Root Proof Organization',
   'active','{"validationFixture":true}'::jsonb,'ready'
 );
 
@@ -66,11 +66,11 @@ insert into atlas.ledgers(
   id,stable_key,organization_id,ledger_kind,status,metadata,name
 ) values (
   'f4c00000-0000-4000-8000-000000000021'::uuid,
-  'grant-root-authority-proof-ledger',
+  'authority-root-proof-ledger',
   'f4c00000-0000-4000-8000-000000000020'::uuid,
   'governed_reality','active',
   '{"validationFixture":true}'::jsonb,
-  'Grant Root Authority Proof Ledger'
+  'Authority Root Proof Ledger'
 );
 
 insert into atlas.ledger_organization_participations(
@@ -81,7 +81,7 @@ insert into atlas.ledger_organization_participations(
   'f4c00000-0000-4000-8000-000000000021'::uuid,
   'f4c00000-0000-4000-8000-000000000020'::uuid,
   'governing',true,'active',
-  '{"kind":"validation_fixture","reason":"prove exact Company Work grant root"}'::jsonb,
+  '{"kind":"validation_fixture","reason":"prove exact Company Work authority root"}'::jsonb,
   '{"validationFixture":true}'::jsonb
 );
 
@@ -117,8 +117,8 @@ insert into atlas.principals(
   'f4c00000-0000-4000-8000-000000000041'::uuid,
   'f4c00000-0000-4000-8000-000000000001'::uuid,
   'f4c00000-0000-4000-8000-000000000020'::uuid,
-  'grant-root-principal',
-  'Grant Root Principal',
+  'authority-root-principal',
+  'Authority Root Principal',
   'active',
   '{"validationFixture":true}'::jsonb,
   'f4c00000-0000-4000-8000-000000000011'::uuid
@@ -149,7 +149,7 @@ insert into atlas.work_items(
 ) values (
   'f4c00000-0000-4000-8000-000000000101'::uuid,
   'f4c00000-0000-4000-8000-000000000020'::uuid,
-  'Grant root proof Work',
+  'Authority root proof Work',
   'open','grant_root_authority_proof_v1',
   '{"validationFixture":true}'::jsonb
 );
@@ -162,7 +162,7 @@ insert into atlas.work_execution_results(
   'f4c00000-0000-4000-8000-000000000020'::uuid,
   'f4c00000-0000-4000-8000-000000000101'::uuid,
   'completed','grant_root_authority_proof_v1',
-  'grant-root-authority-proof-result',
+  'authority-root-proof-result',
   '{"workerObservation":"fixture"}'::jsonb,
   '2026-09-22 18:20:00+00',
   '{"validationFixture":true}'::jsonb
