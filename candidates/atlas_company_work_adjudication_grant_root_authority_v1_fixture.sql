@@ -140,7 +140,7 @@ insert into atlas.work_result_contract_policies(
 ) values (
   'grant_root_authority_proof_v1',
   'organization','manager_acceptance',true,
-  'Validation-only Company Work result contract for grant-root proof.',
+  'Validation-only Company Work result contract for authority-root proof.',
   '{"validationFixture":true}'::jsonb
 );
 
