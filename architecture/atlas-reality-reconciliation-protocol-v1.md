@@ -1,6 +1,6 @@
 # Atlas Reality Reconciliation Protocol v1
 
-**Status:** architecture contract + executable qualification target  
+**Status:** production-live cross-domain reconciliation architecture contract  
 **Date:** 2026-09-22  
 **Parent law:** `architecture/atlas-reality-continuation-protocol-v1.md`  
 **Depends on:** production-live Reality Transition Receipt v1 + Reality Continuation v1  
@@ -697,3 +697,36 @@ Reality
 ```
 
 This is orchestration without a generic trigger engine.
+
+
+## 23. Production receipt — 2026-09-22
+
+Reality Reconciliation v1 crossed its first production boundary on September 22, 2026.
+
+Canonical source lineage:
+
+- architecture/candidate PR #1151 → merge `6c48234cd633caed52a75c61fe924c5c145ad134`;
+- generated migration `20260922154707_atlas_reality_reconciliation_protocol_v1.sql`;
+- generated package PR #1153 → merge `a1dfca1a33c1aa9a8c07637b462e2134ae005317`;
+- production-schema validation request #1154;
+- governed production release request #1155;
+- production migration ledger now contains `20260922154707_atlas_reality_reconciliation_protocol_v1`.
+
+Direct production verification confirms:
+
+- `atlas.reality_reconciliation_plan_normalize_v1(jsonb)` is live;
+- `atlas.company_work_result_reconciliation_plan_v1(uuid)` is live;
+- `atlas.commercial_financial_reconciliation_plan_v1(uuid)` is live;
+- `atlas.bed_readiness_reconciliation_plan_v1(uuid)` is live;
+- `atlas.reconcile_bed_readiness_continuation_service_v1(uuid,timestamptz)` is live;
+- `authenticated` has no direct execute grant on the Company Work reconciliation-plan reader;
+- `authenticated` has no direct execute grant on the bounded Bed Readiness reconciler.
+
+This is sufficient to promote Reconciliation v1 as production-live infrastructure.
+
+The production boundary remains intentionally asymmetric:
+
+- Company Work `authority_required` remains a human/domain decision;
+- Commercial `external_evidence_required` remains dependent on admitted source evidence;
+- Bed Readiness alone has a qualified bounded automatic reconciliation adapter;
+- no generic queue, resolver registry, dynamic dispatcher, or universal authority executor exists.
