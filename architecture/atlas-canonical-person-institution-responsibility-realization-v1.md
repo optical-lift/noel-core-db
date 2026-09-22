@@ -13,6 +13,16 @@ This contract is based on an audit of the existing production `noel-core` organi
 - `atlas-event-effect-governed-uptake-v1.md`;
 - `atlas-effective-position-authority-v1.md`.
 
+## September 21, 2026 implementation correction
+
+The earlier production audit in this document treated `Organization Membership` as the practical Person↔Organization affiliation carrier. That remains useful compatibility evidence for authenticated participants, but it is **not** sufficient as the universal institutional-human root because the live Membership schema requires `auth.users`.
+
+Source migration `20260921150000_atlas_institutional_person_record_v1.sql` therefore introduces `atlas.institutional_person_records` as the Organization-scoped fact that a canonical Person is known to the institution without requiring a login.
+
+This does **not** reverse the decision against a generic Person↔institution permission/responsibility table. Institutional Person Record creates no Position, employee status, seat, Responsibility, visibility, decision authority, action permission, or Company Work. Those remain separate governed relations.
+
+Accordingly, references below that use Organization Membership as the necessary Person↔Organization identity carrier should now be read as authenticated compatibility paths. Future accountless institutional projections resolve through Canonical Person + Institutional Person Record, then compose Position/Responsibility/Work/access evidence independently.
+
 ## Purpose
 
 Settle whether Atlas needs a new generic Person↔institution relationship object before a worker projection such as `/anna` can be grounded correctly.
