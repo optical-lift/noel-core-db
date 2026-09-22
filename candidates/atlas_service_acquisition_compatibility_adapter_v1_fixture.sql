@@ -6,14 +6,14 @@ insert into atlas.atlas_service_commercial_price_policies(
   'atlas-initial-setup-legacy-v1',
   'atlas_initial_setup','one_time',3995,'USD',null,
   false,'transitional','2026-09-01',
-  'Validation copy of the production Personal Atlas setup policy required by acquisition compatibility reconciliation.',
+  'Validation mirror of the production Personal Atlas setup policy required by acquisition compatibility reconciliation.',
   '{"source":"validation_fixture_from_live_price_policy"}'::jsonb
 ),
 (
   'atlas-base-monthly-v1',
   'atlas_base_recurring','recurring',700,'USD','month',
   false,'active','2026-09-01',
-  'Validation copy of the production base Atlas monthly policy required by acquisition compatibility reconciliation.',
+  'Validation mirror of the production base Atlas monthly policy required by acquisition compatibility reconciliation.',
   '{"source":"validation_fixture_from_live_price_policy"}'::jsonb
 )
 ;
