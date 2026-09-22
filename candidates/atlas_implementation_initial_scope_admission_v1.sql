@@ -60,6 +60,7 @@ begin
   from atlas.ledger_entitlements le
   where le.id=p_ledger_entitlement_id
     and le.implementation_case_id=p_implementation_case_id
+    and le.price_class='baseline_first'
   for update;
 
   if v_entitlement.id is null then
@@ -431,6 +432,7 @@ begin
   from atlas.ledger_entitlements le
   where le.id=p_ledger_entitlement_id
     and le.implementation_case_id=p_implementation_case_id
+    and le.price_class='baseline_first'
     and le.state in ('available','reserved')
   for update;
 
