@@ -1,2 +1,3 @@
 -- Clone-only fixture for Atlas Service Commercial Price Policy v1.
--- No fixture rows are needed; the candidate migration carries standing policy.
+-- The candidate migration itself carries the standing policy rows.
+select 1;
