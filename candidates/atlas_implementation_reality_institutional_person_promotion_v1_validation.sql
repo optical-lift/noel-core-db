@@ -78,9 +78,11 @@ begin
 
   if v_preview->>'state'<>'ready'
      or not coalesce((v_preview->>'canPromote')::boolean,false)
+     or not coalesce((v_preview->>'promotionCommandAvailable')::boolean,false)
+     or not coalesce((v_preview->>'canExecutePromotion')::boolean,false)
      or v_preview->'consequence'->>'kind'<>'institutional_person_record'
      or v_preview->'consequence'->>'mode'<>'create_relation' then
-    raise exception 'Valid Institutional Person Reality Candidate did not preview ready: %',v_preview;
+    raise exception 'Valid Institutional Person Reality Candidate did not preview executable after mutation release: %',v_preview;
   end if;
 
   -- An equally canonical identity outside the case-bound Organization remains blocked.
@@ -261,6 +263,24 @@ begin
        'EXECUTE'
      ) then
     raise exception 'Authenticated practitioner membrane is not executable.';
+  end if;
+
+  if to_regprocedure(
+       'public.preview_implementation_reality_candidate_promotion_self_api_v1(uuid)'
+     ) is null
+     or to_regprocedure(
+       'public.promote_implementation_reality_candidate_self_api_v1(uuid)'
+     ) is null then
+    raise exception 'Promotion command requires the separate preview membrane and public promotion writer.';
+  end if;
+
+  select lower(pg_get_functiondef(
+    'public.preview_implementation_reality_candidate_promotion_self_api_v1(uuid)'::regprocedure
+  )) into v_def;
+
+  if v_def not like '%promotioncommandavailable%'
+     or v_def not like '%canexecutepromotion%' then
+    raise exception 'Separately released promotion preview lost dynamic command capability signaling.';
   end if;
 
   select lower(pg_get_functiondef(
