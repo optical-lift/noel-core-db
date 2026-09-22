@@ -415,3 +415,25 @@ unaccepted manager-acceptance Result
 This establishes the first lawful human-judgment reconciliation artery.
 
 It still does not justify a universal Decision Requirement engine, generic approval queue, generic authority resolver, automatic human judgment, or manager authority inferred from a Farm adapter role.
+
+
+## 19. Authority cutover update — 2026-09-22
+
+The authority basis recorded in the original production receipt has now been superseded.
+
+Migration `20260922175802_atlas_company_work_institutional_adjudication_authority_v1` replaced runtime owner-only Result adjudication with explicit Company Work adjudication grants.
+
+Current movement:
+
+```text
+Decision Requirement
+→ explicit_company_work_adjudication_grant
+→ company_work_result_adjudication_authority_v1
+→ organization_decide_company_work_result_self_api_v1
+```
+
+Existing production owner capability was preserved by materializing an explicit `organization_owner_compatibility_cutover` grant.
+
+That grant is data/provenance compatibility, not owner role inference. If revoked, ownership alone does not recreate Result-adjudication authority.
+
+Therefore the earlier `transitional_organization_owner_compatibility` decision basis is historical for the first proof and is no longer the current production decision membrane.
