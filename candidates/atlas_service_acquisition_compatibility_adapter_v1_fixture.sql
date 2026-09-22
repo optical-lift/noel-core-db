@@ -1,3 +1,23 @@
+insert into atlas.atlas_service_commercial_price_policies(
+  price_key,item_kind,charge_kind,unit_amount_cents,currency,billing_interval,
+  requires_explicit_election,policy_status,effective_from,source_note,metadata
+) values
+(
+  'atlas-initial-setup-legacy-v1',
+  'atlas_initial_setup','one_time',3995,'USD',null,
+  false,'transitional','2026-09-01',
+  'Validation mirror of the production Personal Atlas setup policy required by acquisition compatibility reconciliation.',
+  '{"source":"validation_fixture_from_live_price_policy"}'::jsonb
+),
+(
+  'atlas-base-monthly-v1',
+  'atlas_base_recurring','recurring',700,'USD','month',
+  false,'active','2026-09-01',
+  'Validation mirror of the production base Atlas monthly policy required by acquisition compatibility reconciliation.',
+  '{"source":"validation_fixture_from_live_price_policy"}'::jsonb
+)
+;
+
 insert into auth.users(id,email,created_at,updated_at)
 values (
   'a5c10000-0000-4000-8000-000000000001'::uuid,
