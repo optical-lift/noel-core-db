@@ -170,9 +170,7 @@ begin
           'ledgerStableKey',l.stable_key,
           'authorityKind',a.authority_kind,
           'participationKind',lop.participation_kind,
-          'availableForAdmission',case when live_binding.id is null then true else false end,
-          'liveBindingId',live_binding.id,
-          'liveBindingCaseId',live_binding.implementation_case_id
+          'availableForAdmission',case when live_binding.id is null then true else false end
         ) as item
       from atlas.principal_ledger_authorities a
       join atlas.ledgers l
@@ -188,7 +186,7 @@ begin
         on o.id=lop.organization_id
        and o.status='active'
       left join lateral (
-        select b.id,b.implementation_case_id
+        select b.id
         from atlas.ledger_entitlement_bindings b
         where b.ledger_id=l.id
           and b.organization_unit_id is null
