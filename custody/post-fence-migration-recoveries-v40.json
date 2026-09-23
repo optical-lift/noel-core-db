@@ -1,0 +1,207 @@
+{
+  "contractVersion": 40,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v39.json",
+  "rule": "These already-live rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260923192517",
+      "name": "atlas_evidence_disclosure_membrane_v1",
+      "filename": "20260923192517_atlas_evidence_disclosure_membrane_v1.sql",
+      "gitBlobSha1": "9b37237099ec1adb67b648d2ce769279d8c4cc9f",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923200254",
+      "name": "reality_alignment_substrate_schema_v1",
+      "filename": "20260923200254_reality_alignment_substrate_schema_v1.sql",
+      "gitBlobSha1": "048adbd6036b5bf71e8b28f8459c996408f377c0",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923200407",
+      "name": "reality_alignment_body_map_bridge_v1",
+      "filename": "20260923200407_reality_alignment_body_map_bridge_v1.sql",
+      "gitBlobSha1": "9a2be7b3337291c7c9a3f02341eb53671f4c4021",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923200621",
+      "name": "atlas_universal_ledger_source_resolution_v1",
+      "filename": "20260923200621_atlas_universal_ledger_source_resolution_v1.sql",
+      "gitBlobSha1": "186161cb183d7d7fbde947c47c4ef80a0926573d",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923200648",
+      "name": "reality_first_unified_viewport_v1",
+      "filename": "20260923200648_reality_first_unified_viewport_v1.sql",
+      "gitBlobSha1": "acaf81b75aaa15da0ae637a4194c055539842102",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923200727",
+      "name": "reality_alignment_materializer_refinement_v1",
+      "filename": "20260923200727_reality_alignment_materializer_refinement_v1.sql",
+      "gitBlobSha1": "b6296472da00d2227b09f8467c000ef2fa9772fc",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923201311",
+      "name": "atlas_identity_resolution_engine_v1",
+      "filename": "20260923201311_atlas_identity_resolution_engine_v1.sql",
+      "gitBlobSha1": "b72f587f15a90644042c2f130034c1b05f3dc8c6",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923201351",
+      "name": "bootstrap_human_identity_confirmation_v1",
+      "filename": "20260923201351_bootstrap_human_identity_confirmation_v1.sql",
+      "gitBlobSha1": "11c462ea67c2ab5ec26ce4bb7d3b49b44cc31652",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923201710",
+      "name": "reality_witness_adapter_registry_v1",
+      "filename": "20260923201710_reality_witness_adapter_registry_v1.sql",
+      "gitBlobSha1": "85dd046cde971ebed9a0c2f35e28f00205e99ef5",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923201921",
+      "name": "reality_witness_object_projection_v1",
+      "filename": "20260923201921_reality_witness_object_projection_v1.sql",
+      "gitBlobSha1": "317cfa455a12b5fc6af7bd83713d3b8955b61c38",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923202023",
+      "name": "reality_witness_projection_complete_v2",
+      "filename": "20260923202023_reality_witness_projection_complete_v2.sql",
+      "gitBlobSha1": "d0cb1505188ade8f7a94bc46c6203fed113ab7ec",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923202134",
+      "name": "reality_witness_generic_aligner_v1",
+      "filename": "20260923202134_reality_witness_generic_aligner_v1.sql",
+      "gitBlobSha1": "725130e3c4e7b170a084ccebc075d0b8924d6875",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923202220",
+      "name": "atlas_identifier_semantics_temporal_resolution_v2",
+      "filename": "20260923202220_atlas_identifier_semantics_temporal_resolution_v2.sql",
+      "gitBlobSha1": "7ad8525859b13d0fc2292e806f2079c294430780",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923202259",
+      "name": "reality_shape_viewport_v1",
+      "filename": "20260923202259_reality_shape_viewport_v1.sql",
+      "gitBlobSha1": "f721db8e0cf9db23a728e942022c5ff02fe15ac1",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923202307",
+      "name": "atlas_semantic_resolution_commit_v2",
+      "filename": "20260923202307_atlas_semantic_resolution_commit_v2.sql",
+      "gitBlobSha1": "7f8af4b4da0a2c6dccc848e9923ec65e555a3e5a",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923202511",
+      "name": "repair_semantic_resolution_candidate_summary_v2",
+      "filename": "20260923202511_repair_semantic_resolution_candidate_summary_v2.sql",
+      "gitBlobSha1": "641613b34fd296291840f30129c64e7b124a18db",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923202649",
+      "name": "reality_witness_atlas_person_resolution_v1",
+      "filename": "20260923202649_reality_witness_atlas_person_resolution_v1.sql",
+      "gitBlobSha1": "528cd3789835fd0db1ef93694d27ffc53c2281c3",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923202713",
+      "name": "reality_witness_matcher_atlas_person_v1",
+      "filename": "20260923202713_reality_witness_matcher_atlas_person_v1.sql",
+      "gitBlobSha1": "97d6aac14f14e21ca56c60e1f3581ce3aa7dd82b",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923203404",
+      "name": "atlas_claimant_safe_identity_disclosure_v1",
+      "filename": "20260923203404_atlas_claimant_safe_identity_disclosure_v1.sql",
+      "gitBlobSha1": "7b64e5f1b5cdb7e3c053bc5e0a83e7d98950e0ae",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923203501",
+      "name": "repair_claimant_safe_identity_projection_v1",
+      "filename": "20260923203501_repair_claimant_safe_identity_projection_v1.sql",
+      "gitBlobSha1": "8bd3eebc6b4345590adf51bfb1e4a4665f96070d",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923203516",
+      "name": "reality_motif_substrate_v1",
+      "filename": "20260923203516_reality_motif_substrate_v1.sql",
+      "gitBlobSha1": "6ae0ae629f2948cdb41129e24c3861d7084077da",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923203717",
+      "name": "reality_motif_enumerator_v1",
+      "filename": "20260923203717_reality_motif_enumerator_v1.sql",
+      "gitBlobSha1": "679d4b8b43579ba793ba2fff4a40426b77a93762",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
