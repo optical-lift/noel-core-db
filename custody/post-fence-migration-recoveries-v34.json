@@ -1,0 +1,63 @@
+{
+  "contractVersion": 34,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v33.json",
+  "rule": "These already-live Atlas rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260923130758",
+      "name": "atlas_organization_purpose_context_routing_v1",
+      "filename": "20260923130758_atlas_organization_purpose_context_routing_v1.sql",
+      "gitBlobSha1": "638da590c1213da50f84f164d1a59360b20d8026",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923132341",
+      "name": "atlas_community_event_occurrence_succession_bridge_v1",
+      "filename": "20260923132341_atlas_community_event_occurrence_succession_bridge_v1.sql",
+      "gitBlobSha1": "b3a53006e96f06bceb2b1df0a6bbc26484722309",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923133622",
+      "name": "atlas_community_event_governed_writer_membrane_v1",
+      "filename": "20260923133622_atlas_community_event_governed_writer_membrane_v1.sql",
+      "gitBlobSha1": "348e3061c949445be918566a5c4c56b43bec26cb",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923134913",
+      "name": "atlas_organization_context_occurrence_projection_v1",
+      "filename": "20260923134913_atlas_organization_context_occurrence_projection_v1.sql",
+      "gitBlobSha1": "5cefb3acb8efcc21052e4dec91193ed723af4267",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923135608",
+      "name": "normalize_elm_purpose_context_keys_v1",
+      "filename": "20260923135608_normalize_elm_purpose_context_keys_v1.sql",
+      "gitBlobSha1": "6f7ce22f2ede9c3123c95e58fb721f398f884576",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923140750",
+      "name": "atlas_legacy_campaign_ownership_cleanup_v1",
+      "filename": "20260923140750_atlas_legacy_campaign_ownership_cleanup_v1.sql",
+      "gitBlobSha1": "506c921beb9cb173c88f0b9a69dd47707c24244c",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
