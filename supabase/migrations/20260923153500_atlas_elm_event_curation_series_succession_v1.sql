@@ -105,6 +105,7 @@ begin
       when 'elm-arise' then 'arise'
       when 'elm-family-ultimate' then 'family_ultimate'
       when 'elm-community-flower-mornings' then 'community_flower_mornings'
+      when '417-christmas-market-2026' then 'christmas_market_417_2026'
       else replace(v_rule.series_key,'-','_')
     end;
 
