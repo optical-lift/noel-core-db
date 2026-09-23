@@ -1,0 +1,45 @@
+{
+  "contractVersion": 38,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v37.json",
+  "rule": "These already-live rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260923183202",
+      "name": "atlas_organization_recurrence_exceptions_v1",
+      "filename": "20260923183202_atlas_organization_recurrence_exceptions_v1.sql",
+      "gitBlobSha1": "c1889d138d560524ce12a88ad14c8db32caa79b7",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923183246",
+      "name": "atlas_recurrence_realization_conflict_v1",
+      "filename": "20260923183246_atlas_recurrence_realization_conflict_v1.sql",
+      "gitBlobSha1": "670d6fdbbba06f9ae38c34f3199f086ad0ce6fe0",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923183320",
+      "name": "atlas_recurrence_realization_guard_v1",
+      "filename": "20260923183320_atlas_recurrence_realization_guard_v1.sql",
+      "gitBlobSha1": "f5a712346148c49389f6d812ff7bf623dda0e5a9",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923184053",
+      "name": "atlas_combined_temporal_projection_v1",
+      "filename": "20260923184053_atlas_combined_temporal_projection_v1.sql",
+      "gitBlobSha1": "332ce05db0e31bf44a2b7e109996fdd475b5882c",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
