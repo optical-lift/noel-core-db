@@ -16,6 +16,26 @@ The public/shared layer may contain canonical name, aliases, public contact rout
 
 The Organization-private Atlas layer may contain relationship state, role tags, interactions, notes, follow-up, commercial profile, item preferences, correspondence, order history, sourcing history, and domain-specific extensions. Those facts do not become shared merely because they refer to a shared entity UUID.
 
+
+## Mandatory operating gate for Atlas / Supabase directory work
+
+This contract governs **every** Atlas or Supabase read, write, import, enrichment, contact lookup, directory lookup, business lookup, entity lookup, relationship update, and event/occurrence write involving an external-world person, organization, business, place, or event.
+
+Before reading broadly or writing anything durable:
+
+1. **Resolve canonical shared identity first.** Search Shared Intelligence for the real-world referent before consulting or creating Ledger-local records.
+2. **Do not create a duplicate canonical entity because a different Ledger needs to know something about it.** An Atlas Organization attaches to the existing shared UUID.
+3. **Classify each fact by custody before writing it.**
+   - Public/world facts and source-backed identity facts belong with the canonical Shared Intelligence entity.
+   - Organization-specific knowledge, notes, roles, preferences, interactions, judgments, commercial history, workflow state, and other private operating facts belong only in that Organization's Atlas overlay.
+4. **Never use another Organization's overlay as shared truth.** Private Ledger facts are not promoted into the shared layer merely because they concern the same canonical entity.
+5. **Never reconstruct a second directory from a domain table.** Buyer, vendor, venue, campaign, registration, calendar, outreach, contact, and other domain tables may extend or reference the canonical entity; they do not become independent identity authorities.
+6. **If a legacy/domain row appears to represent an entity already present in Shared Intelligence, resolve/bind it rather than admitting another identity.**
+7. **When gathering data for a user, retrieve Shared Directory + that user's authorized Ledger overlay first.** External research is enrichment only after stored reality has been checked.
+
+If canonical resolution is uncertain, stop at the uncertainty boundary rather than creating a convenience duplicate.
+
+
 ## Canonical binding
 
 Atlas already represents external parties through Organization-scoped `atlas.identity_subjects`. A subject is a contextual identity handle, not the universal identity.
@@ -53,6 +73,34 @@ For an Atlas-grounded request about known people, businesses, buyers, suppliers,
 7. Any useful external discovery must resolve against Shared Intelligence before a new canonical entity is admitted.
 
 External search is therefore an acquisition/enrichment source, not the primary directory.
+
+
+## Canonical occurrence / event extension
+
+The same non-duplication law applies to real-world occurrences and events.
+
+A real event happens once in reality. It must not acquire separate canonical records merely because multiple Atlas Ledgers care about it, publish it, register for it, host it, sell into it, attend it, or annotate it.
+
+The composition is:
+
+```text
+Shared canonical occurrence
++ canonical participating / hosting / venue entities
++ one Atlas Organization's private occurrence overlay
+= that Organization's event/calendar/relationship view
+```
+
+Therefore:
+
+- a public community event should resolve to one canonical occurrence;
+- the host, organizer, venue, participating businesses, and other real-world parties should resolve to canonical Shared Intelligence entity UUIDs;
+- an Atlas Ledger may privately tag that occurrence with calendar inclusion, relevance, notes, follow-up, relationship meaning, internal status, campaign use, attendance, commercial context, or other organization-owned facts;
+- another Atlas Ledger may independently attach its own private meaning to the same occurrence without seeing the first Ledger's overlay;
+- publishing an event on an Elm, Organization, household, or personal calendar does **not** authorize creating another copy of the real event;
+- registration, ticketing, program, attendance, and operational subsystems may reference or extend the canonical occurrence but must not silently become a second event-identity authority.
+
+Where existing legacy tables contain event-like rows, future work must resolve whether they are canonical occurrence authority, a private overlay, or a compatibility carrier before adding more event data. New convenience duplication is prohibited.
+
 
 ## Privacy boundary
 
