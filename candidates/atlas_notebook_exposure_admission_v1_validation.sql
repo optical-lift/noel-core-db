@@ -206,6 +206,30 @@ begin
   );
   v_owner_org_id := (v_org->'organization'->>'id')::uuid;
 
+  perform atlas.set_notebook_spread_instance_v2(
+    (v_bootstrap->>'principalId')::uuid,
+    'ledger:'||v_owner_org_id::text,
+    'organization',
+    v_owner_org_id::text,
+    'organization',
+    'organization_ledger',
+    v_owner_org_id::text,
+    'recent-ledger-orientation',
+    'rolling-30-days',
+    'thread:organization-ledger:'||v_owner_org_id::text,
+    coalesce(v_org->'organization'->>'name','Notebook Admission Owner Org'),
+    'Organizations',
+    null,
+    'resolved',
+    'open',
+    '{}'::jsonb,
+    jsonb_build_object(
+      'proof','existing_carrier_for_admission',
+      'organizationId',v_owner_org_id
+    ),
+    jsonb_build_object('validationOnly',true)
+  );
+
   v_org := atlas.establish_organization_ledger_self_api_v1(
     'Notebook Admission Member Org',
     true,
@@ -214,6 +238,30 @@ begin
   v_member_org_id := (v_org->'organization'->>'id')::uuid;
   v_member_membership_id := (v_org->'membership'->>'id')::uuid;
   v_hidden_key := 'ledger:'||v_member_org_id::text;
+
+  perform atlas.set_notebook_spread_instance_v2(
+    (v_bootstrap->>'principalId')::uuid,
+    v_hidden_key,
+    'organization',
+    v_member_org_id::text,
+    'organization',
+    'organization_ledger',
+    v_member_org_id::text,
+    'recent-ledger-orientation',
+    'rolling-30-days',
+    'thread:organization-ledger:'||v_member_org_id::text,
+    coalesce(v_org->'organization'->>'name','Notebook Admission Member Org'),
+    'Organizations',
+    null,
+    'resolved',
+    'open',
+    '{}'::jsonb,
+    jsonb_build_object(
+      'proof','existing_carrier_for_admission',
+      'organizationId',v_member_org_id
+    ),
+    jsonb_build_object('validationOnly',true)
+  );
 
   -- Prove the durable carrier really exists before removing exposure.
   v_raw := atlas.notebook_spread_instance_self_api_v1(v_hidden_key);
