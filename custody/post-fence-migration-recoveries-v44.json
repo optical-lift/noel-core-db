@@ -1,0 +1,18 @@
+{
+  "contractVersion": 44,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v43.json",
+  "rule": "These already-live rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260923205431",
+      "name": "atlas_canonical_party_bulk_ingestion_control_plane_v1",
+      "filename": "20260923205431_atlas_canonical_party_bulk_ingestion_control_plane_v1.sql",
+      "gitBlobSha1": "b00c3a9c07b905ca857b666aaad03c699b9662d0",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
