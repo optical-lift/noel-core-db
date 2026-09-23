@@ -172,8 +172,8 @@ The following occurrences are currently active in Elm's real `community_calendar
 
 Current routed counts for this Oct.–Nov. window:
 
-- `community_calendar`: 9 active occurrence memberships
-- `educational_events`: 6 active occurrence memberships
+- `community_calendar`: 21 active occurrence memberships
+- `educational_events`: 8 active occurrence memberships
 - `local_resources`: 0 active occurrence memberships
 
 ---
@@ -231,11 +231,37 @@ The known existing-record conflicts were reconciled on 2026-09-23 without creati
 - The Nov. 26 Thursdays-at-Elm seasonal evening is now **cancelled** in both canonical occurrence state and the Elm operational overlay, preserving the operator instruction: **Thanksgiving — No Thursday at Elm.**
 - The cancelled Nov. 26 event no longer projects into the public Elm calendar.
 
-### Missing/unresolved calendar items
+### Newly established from the operator calendar specification
 
-Several operator-supplied events still need canonical occurrence resolution and routing into `community_calendar`. Some also require canonical venue/entity resolution.
+The following previously missing events were established as canonical occurrences and routed into `community_calendar` on 2026-09-23, reusing already-canonical host/venue identities:
 
-Known venue/entity gaps previously identified include:
+- Oct. 2 — Elm Farm First Friday
+- Oct. 3 — Spook-tacular Pop-Up at 3M Marketplace
+- Oct. 6 — Webster Title Night + Family Jay Night at Daniel Webster Elementary
+- Oct. 17 — Soap Making with Katie Langenberg at Elm Farm
+- Oct. 17 — Trunk or Treat at Marshfield Fitness & Tanning
+- Oct. 24 — 65706 Not-So-Spooky Mini Sampler at The Wild Honey Boutique
+- Oct. 24 — Fall Family Photos at Southside Acres
+- Oct. 25 — Fall Family Photos at Southside Acres
+- Oct. 30 — Trunk or Treat + Bonfire at Elm Farm
+- Nov. 5 — Paint Your Own Masterpiece at Ellis O. Jackson Park Safe Room
+- Nov. 6 — Elm Farm First Friday
+- Nov. 7 — Winter Jam at 3M Marketplace
+
+Soap Making with Katie Langenberg and Paint Your Own Masterpiece were also routed into `educational_events`.
+
+Elm First Friday (Oct. 2 and Nov. 6) and Trunk or Treat + Bonfire (Oct. 30) have Elm operational `community_events` overlays because both start and end times are known. The soap-making class has a canonical exact start time but no supplied end time, so no end time was invented merely to satisfy an operational overlay.
+
+### Still unresolved
+
+The following operator-calendar entries have not yet been established/routed because required canonical venue identity or event coordinates are still unresolved:
+
+- Oct. 8 — Board of Aldermen, Marshfield City Hall
+- Oct. 10 — Dexter Breeders Fall Classic, Webster County Fairgrounds
+- Oct. 31 — Halloween; no event time/location supplied
+- Nov. 28 — Gobble Wobble, R.A. Barr Stadium
+
+Known venue/entity gaps:
 
 - Marshfield City Hall
 - Webster County Fairgrounds
