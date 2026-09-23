@@ -2,7 +2,16 @@
 -- Establish only events whose host/venue identity is already canonical or Elm-owned.
 -- Do not manufacture unresolved City Hall / Fairgrounds / Stadium identities here.
 
-do $$
+-- community_events is a generic Organization operational overlay. Event kind is
+-- descriptive Organization data, not a closed Elm-specific vocabulary.
+alter table atlas.community_events
+  drop constraint if exists community_events_event_kind_check;
+
+alter table atlas.community_events
+  add constraint community_events_event_kind_nonblank_v1
+  check (btrim(event_kind) <> '');
+
+do $
 declare
   v_org constant uuid := 'fc4ad5aa-2d09-4ea6-ba50-eaf0f34fc3f2';
   v_farm constant uuid := '6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f';
