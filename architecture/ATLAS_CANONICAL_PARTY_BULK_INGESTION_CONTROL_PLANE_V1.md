@@ -148,3 +148,17 @@ The next ingestion tranche should be **Observation → Canonical Admission**:
 4. rejected observation → durable rejection reason.
 
 That admission service should be the only path by which this bulk pipeline changes canonical party truth.
+## Canonical admission gate implemented
+
+The control plane now feeds `architecture/ATLAS_OBSERVATION_CANONICAL_ADMISSION_GATE_V1.md`.
+
+New canonical-party evidence must pass through `local_intel.admit_ingestion_observation_service_v1`.
+
+That gate:
+
+- preserves durable source-record → canonical-entity continuity;
+- admits resolved-existing observations as governed evidence;
+- requires explicit human approval before a `new_entity_candidate` can create a canonical party;
+- keeps new entities minimal rather than copying source contact fields into legacy scalar columns;
+- enforces Evidence + Disclosure source-class ceilings during evidence admission;
+- blocks ambiguous and rejected observations from changing canonical truth.
