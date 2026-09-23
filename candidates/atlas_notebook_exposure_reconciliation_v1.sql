@@ -33,12 +33,11 @@ begin
     raise exception 'Authentication required.' using errcode='42501';
   end if;
 
-  if coalesce(p_exposure->'encounter'->>'state','') <> 'eligible'
-     or coalesce(p_exposure->'place'->>'disposition','none') not in ('stable','transient') then
-    return null;
-  end if;
-
   if v_contract_key='person.life_definition.v1' then
+    if coalesce(p_exposure->'encounter'->>'state','') <> 'eligible'
+       or coalesce(p_exposure->'place'->>'disposition','none') not in ('stable','transient') then
+      return null;
+    end if;
     v_definition_id := nullif(p_exposure->'subjectRef'->>'id','');
     if v_definition_id is null then
       raise exception 'Eligible Person Life exposure omitted definition identity.' using errcode='23514';
@@ -240,6 +239,11 @@ begin
   end if;
 
   if v_contract_key='principal.connections_orientation.v1' then
+    if coalesce(p_exposure->'encounter'->>'state','') <> 'eligible'
+       or coalesce(p_exposure->'place'->>'disposition','none') not in ('stable','transient') then
+      return null;
+    end if;
+
     v_principal_id := coalesce(
       nullif(p_exposure->'sourceBinding'->>'sourceId',''),
       nullif(p_exposure->'subjectRef'->>'id','')
@@ -493,11 +497,10 @@ begin
       v_key := 'ledger:'||(v_item->'contextRef'->>'id');
     end if;
 
-    v_spec := case
-      when v_encounter='eligible' and v_place in ('stable','transient')
-        then atlas.notebook_exposure_carrier_spec_self_v1(v_item)
-      else null
-    end;
+    -- The domain adapter may return an identity-only historical specification
+    -- even when encounter is no longer eligible. That lets the reconciler
+    -- collision-check the durable key before closing anything.
+    v_spec := atlas.notebook_exposure_carrier_spec_self_v1(v_item);
 
     v_existing := null;
     if v_key is not null then
@@ -604,6 +607,10 @@ begin
       v_binding_directive := 'retire';
       if v_key is null or v_existing.id is null then
         v_action := 'no_op';
+      elsif v_spec is null then
+        v_action := 'invalid';
+      elsif not v_identity_match then
+        v_action := 'invalid_collision';
       elsif v_existing.spread_state='open' then
         v_action := 'close_place';
       elsif v_active_binding_count>0 then
