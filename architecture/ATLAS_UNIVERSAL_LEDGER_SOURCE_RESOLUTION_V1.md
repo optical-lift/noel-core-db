@@ -29,11 +29,13 @@ Resolution unifies identity. It does not unify custody.
 
 ## Ledger
 
-`atlas.ledgers` is the generalized private-custody boundary. A Ledger may be owned by an Atlas Organization, Principal, or Household.
+`atlas.ledgers` is already Atlas's governed-reality custody object. This kernel reuses it rather than inventing a second Ledger table.
 
-A Ledger answers **whose private knowledge is this?** It does not answer **who is the real-world party?** That remains Shared Intelligence canonical identity.
+Authority and participation already live beside it through `atlas.principal_ledger_authorities` and `atlas.ledger_organization_participations`. Existing establishment functions remain the lawful way to create/authorize Ledgers.
 
-v1 creates a primary Organization Ledger for every existing Atlas Organization but does not rewrite existing Organization-scoped tables.
+A Ledger answers **whose governed/private reality is this?** It does not answer **who is the real-world party?** That remains Shared Intelligence canonical identity.
+
+This tranche does not rewrite existing Organization-scoped tables or manufacture replacement Ledgers. It gives any existing authorized Ledger a universal source-ingestion seam.
 
 ## Source connection
 
@@ -75,7 +77,7 @@ A Salesforce contact, Gmail contact, Stripe customer, QuickBooks vendor, Mailchi
 
 ## Lightweight operating model
 
-Postgres keeps only durable custody and identity-continuity objects. Bulky raw files belong in object storage; staging/search/recommendation projections should remain disposable.
+Postgres keeps only durable custody and identity-continuity objects. Bulky raw files belong in object storage; staging/search/recommendation projections should remain disposable. Source-connection rows deliberately contain no provider credentials or refresh secrets.
 
 ## Core law
 
