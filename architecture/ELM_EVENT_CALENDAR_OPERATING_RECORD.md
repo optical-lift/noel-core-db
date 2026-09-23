@@ -374,3 +374,44 @@ This allows a single calendar context to contain both events and meaningful date
 
 See `architecture/ATLAS_TEMPORAL_MARKER_ROUTING_V1.md` for the governing temporal model.
 
+## 12. Recurrence and single-date exceptions
+
+Calendar recurrence is now explicit Organization schedule reality rather than implicit JSON or duplicated event rows.
+
+Atlas uses:
+
+```text
+atlas.organization_recurrence_rules
+atlas.organization_recurrence_exceptions
+atlas.organization_recurrence_instances
+```
+
+For Thursdays at Elm, recurrence authority is now:
+
+- `thursdays_community_mornings` — first and third Thursday, 9:30–11:30 a.m.
+- `thursdays_seasonal_evenings` — second and fourth Thursday, 6:30–8:30 p.m.
+
+The old `community_programs.cadence` remains only as a compatibility description.
+
+The Nov. 26, 2026 evening recurrence instance is generated from the normal fourth-Thursday rule, then modified by a `skip` exception linked to the canonical Thanksgiving temporal binding. Its attached canonical occurrence remains cancelled historical/operational reality.
+
+This produces the correct distinction:
+
+```text
+recurrence rule
+    says: fourth Thursday evening is normally expected
+
+Thanksgiving temporal marker
+    says: Nov. 26 carries holiday meaning
+
+recurrence exception
+    says: skip this Organization schedule instance
+
+cancelled canonical occurrence
+    says: an event record had existed and was cancelled
+```
+
+Changing or moving one recurrence instance does not silently rewrite canonical occurrence reality. Atlas marks schedule/reality disagreement as a recurrence realization `conflict` until reconciled.
+
+See `architecture/ATLAS_ORGANIZATION_RECURRENCE_EXCEPTIONS_V1.md`.
+
