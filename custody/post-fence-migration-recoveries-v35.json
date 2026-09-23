@@ -1,0 +1,27 @@
+{
+  "contractVersion": 35,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v34.json",
+  "rule": "These already-live Atlas rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260923151041",
+      "name": "atlas_legacy_campaign_writer_membrane_v1",
+      "filename": "20260923151041_atlas_legacy_campaign_writer_membrane_v1.sql",
+      "gitBlobSha1": "f850cbbac8f0d989939245f620b99454836ba0c3",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923151821",
+      "name": "atlas_elm_event_curation_series_succession_v1",
+      "filename": "20260923151821_atlas_elm_event_curation_series_succession_v1.sql",
+      "gitBlobSha1": "1efaf028709f60209e4380a79cb7bd381e58eb61",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
