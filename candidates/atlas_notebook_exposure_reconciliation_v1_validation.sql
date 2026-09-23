@@ -121,7 +121,7 @@ begin
     ),
     'timing','{}'::jsonb,
     'requirements',jsonb_build_array(
-      jsonb_build_object('label','preserve durable identity')
+      jsonb_build_object('requirementKind','proof_requirement','label','preserve durable identity')
     ),
     'constraints','[]'::jsonb,
     'ambiguities','[]'::jsonb,
