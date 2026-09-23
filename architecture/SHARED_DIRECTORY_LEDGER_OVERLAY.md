@@ -144,6 +144,119 @@ Therefore:
 Where existing legacy tables contain event-like rows, future work must resolve whether they are canonical occurrence authority, a private overlay, or a compatibility carrier before adding more event data. New convenience duplication is prohibited.
 
 
+## Organization purpose / context routing
+
+Canonical identity and one Organization-private Ledger overlay are necessary, but they are not sufficient for real operation.
+
+One Organization may need to use the same canonical entity or occurrence in many different internal purposes at the same time. Those uses must not create duplicate identities, duplicate contacts, duplicate donors, duplicate businesses, or duplicate occurrences.
+
+The governing composition is:
+
+```text
+canonical Shared Intelligence reality
+→ one requesting Organization's private binding / relationship
+→ many Organization-owned purpose/context memberships
+→ purpose-specific projections and workflows
+```
+
+Examples include:
+
+- a mission organization relating to one canonical donor/business across a youth program, annual fundraiser, building project, and volunteer campaign;
+- Elm relating to one canonical business as a wholesale buyer, educational-event host, local resource provider, outreach target, and participant in a specific public occurrence;
+- one canonical occurrence appearing in an educational calendar, resource calendar, campaign, attendance plan, or operational program without being copied into a separate event database.
+
+### Context is not identity
+
+A purpose/context answers:
+
+> Why is this already-resolved entity or occurrence relevant here?
+
+It does **not** answer:
+
+> Who/what is this in reality?
+
+The canonical entity or occurrence owns identity. The Atlas Organization owns the context and the context-specific payload.
+
+A context membership may therefore carry private, use-specific facts such as:
+
+- role within that context;
+- inclusion / exclusion state;
+- category or display grouping;
+- assigned person or team;
+- sponsorship or donor status;
+- invitation / outreach status;
+- program-specific commitment;
+- publication/display note;
+- resource category;
+- internal priority;
+- attendance or participation intent;
+- follow-up state;
+- context-local notes;
+- other structured metadata that is true only inside that Organization's use of the referent.
+
+Those facts must not be written back onto the canonical Shared Intelligence entity merely because the entity is shared.
+
+### One relationship, many uses
+
+For canonical entities, the existing Shared Directory binding remains the Organization's identity/relationship seam. Purpose routing should reuse that Organization-scoped subject/relationship rather than admitting another contact row.
+
+Conceptually:
+
+```text
+local_intel.entities
+→ Atlas Organization identity binding / relationship overlay
+→ Context A membership + Context A payload
+→ Context B membership + Context B payload
+→ Context C membership + Context C payload
+```
+
+Removing an entity from Context A must not remove the canonical entity, the Organization's broader relationship to it, or its membership in Context B or C.
+
+### Occurrences follow the same law
+
+For canonical occurrences, Atlas needs one Organization-scoped occurrence binding analogous to the existing Shared Directory entity binding.
+
+Conceptually:
+
+```text
+local_intel.occurrences
+→ Atlas Organization occurrence binding / overlay
+→ Context A membership + Context A payload
+→ Context B membership + Context B payload
+```
+
+A calendar is therefore a projection of occurrence memberships in a purpose/context, not an event identity store.
+
+Likewise:
+
+- a donor list is a projection of entity memberships in a fundraising context;
+- a program roster is a projection of entity memberships in a program context;
+- a resource guide is a projection of entity memberships in a resource context;
+- an educational-events calendar is a projection of occurrence memberships selected for that context.
+
+### Durable context vs. temporary contact-set working state
+
+`atlas.contact_set_intent_requests` and `atlas.contact_set_execution_runs` are Intelligence working-state and execution-snapshot carriers. They may discover, resolve, and attach canonical entities, but they do not become the durable purpose/context routing system.
+
+A durable purpose/context must survive the particular search or model operation that found its members and must remain usable by ordinary deterministic Atlas projections and workflows.
+
+### Required properties of the routing layer
+
+The eventual executable routing layer must preserve at least these invariants:
+
+1. every context is owned by exactly one Atlas Organization;
+2. context membership is Organization-private unless a separate governed publication projection exposes selected facts;
+3. one canonical entity may belong to many contexts in the same Organization without duplication;
+4. one canonical occurrence may belong to many contexts in the same Organization without duplication;
+5. each membership may carry its own context-specific structured payload;
+6. membership deletion removes only that use, not canonical identity or the broader Organization relationship/binding;
+7. another Atlas Organization may create its own contexts and payloads against the same canonical identity without seeing the first Organization's data;
+8. projections such as calendars, donor lists, resource directories, campaign sets, and program rosters consume context memberships rather than manufacturing new identity stores.
+
+This establishes the durable pattern:
+
+> **one reality → one Ledger binding → many lawful uses**
+
 ## Privacy boundary
 
 The Shared Directory self API authorizes by effective Organization membership. The `local_intel` tables remain private and are not directly granted to browser roles.
