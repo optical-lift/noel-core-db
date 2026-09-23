@@ -201,7 +201,7 @@ This is the fuller calendar supplied by the operator. It is the calendar specifi
 - **Oct. 24** — Fall Family Photos, 3:00 p.m., Southside Acres
 - **Oct. 25** — Fall Family Photos, 7:00 p.m., Southside Acres
 - **Oct. 30** — Trunk or Treat + Bonfire, 4:00–8:00 p.m., Elm Farm
-- **Oct. 31** — Halloween; no time/location supplied
+- **Oct. 31** — Halloween — represented as a canonical temporal marker, not an occurrence
 
 ### November 2026
 
@@ -211,12 +211,13 @@ This is the fuller calendar supplied by the operator. It is the calendar specifi
 - **Nov. 7** — Winter Jam, 10:00 a.m.–3:00 p.m., 3M Marketplace
 - **Nov. 12** — Thursdays at Elm, 6:30–8:30 p.m., Elm Farm
 - **Nov. 19** — Thursdays at Elm, 9:30–11:30 a.m., Elm Farm
-- **Nov. 26** — Thanksgiving; **No Thursday at Elm**
+- **Nov. 26** — Thanksgiving — canonical temporal marker; Elm calendar payload records **No Thursday at Elm**
 - **Nov. 28** — Gobble Wobble, 7:30 a.m., R.A. Barr Stadium
 
 Future note:
 
 - **Dec. 21** — Winter solstice evening, details TBD
+- **Dec. 25** — Christmas — canonical temporal marker, not an occurrence
 - First Friday continues into winter, details TBD
 
 ---
@@ -264,11 +265,28 @@ The Board of Aldermen meeting and 2026 Missouri Dexter Breeders Fall Classic wer
 
 The Nov. 28 Gobble Wobble remains routed in `community_calendar` with occurrence status `needs_verification`: its 7:30 a.m. 2026 date/time came from the operator calendar specification, while the stadium identity/location is independently verified.
 
-### Still unresolved
+### Temporal-marker reconciliation completed
 
-- **Oct. 31 — Halloween:** no event time/location was supplied, so Atlas has not manufactured a canonical occurrence merely to fill the date.
+Halloween, Thanksgiving, and Christmas are not treated as event occurrences merely because they belong on the calendar.
 
-Do not invent missing event coordinates merely to make the calendar appear complete.
+Atlas now has canonical date-native temporal markers for:
+
+- **Halloween 2026 — Oct. 31** (`observance`)
+- **Thanksgiving 2026 — Nov. 26** (`holiday`)
+- **Christmas 2026 — Dec. 25** (`holiday`)
+
+Elm binds those markers into `community_calendar` through `atlas.organization_temporal_bindings`.
+
+Thanksgiving's Elm-private membership payload records:
+
+- `programmingClosure = true`
+- `calendarNote = "No Thursday at Elm"`
+
+The previously existing Nov. 26 Thursdays-at-Elm occurrence remains a cancelled historical/operational occurrence. It is not the Thanksgiving holiday identity.
+
+Halloween has **no manufactured occurrence**. Its presence on the calendar comes entirely from temporal reality.
+
+Do not invent event coordinates merely to make a meaningful date look like an occurrence.
 
 ---
 
@@ -325,3 +343,34 @@ The event-calendar architecture is an instance of the wider Atlas rule:
 A calendar, educational-events view, resource guide, registration list, attendance view, or event series is a **projection/use of reality**, not another reality table.
 
 For future Atlas Ledger businesses, the same reusable context keys and occurrence-routing method can be used independently inside each Organization. Elm is an implementation of the pattern, not the schema template.
+
+## 11. Date-native temporal reality
+
+The calendar now spans two canonical time-bearing reality classes:
+
+```text
+local_intel.occurrences
+    = something happens in time
+
+local_intel.temporal_markers
+    = a date or date range itself carries meaning
+```
+
+Organizations bind date meaning through:
+
+```text
+atlas.organization_temporal_bindings
+```
+
+and purpose-context membership now accepts:
+
+```text
+external_relationship
+occurrence_binding
+temporal_binding
+```
+
+This allows a single calendar context to contain both events and meaningful dates without collapsing them into one ontology.
+
+See `architecture/ATLAS_TEMPORAL_MARKER_ROUTING_V1.md` for the governing temporal model.
+
