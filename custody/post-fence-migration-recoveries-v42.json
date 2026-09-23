@@ -1,0 +1,18 @@
+{
+  "contractVersion": 42,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v41.json",
+  "rule": "These already-live rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260923204048",
+      "name": "reality_motif_materialization_v1",
+      "filename": "20260923204048_reality_motif_materialization_v1.sql",
+      "gitBlobSha1": "dd5288581a5a3851d8484626e8225fd1414a30fc",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
