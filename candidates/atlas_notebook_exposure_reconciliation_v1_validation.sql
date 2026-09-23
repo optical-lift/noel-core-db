@@ -28,6 +28,18 @@ declare
   v_def text;
   v_count integer;
   v_binding_count integer;
+  v_life_carrier_ctid_before tid;
+  v_life_carrier_ctid_after tid;
+  v_life_binding_ctid_before tid;
+  v_life_binding_ctid_after tid;
+  v_connections_carrier_ctid_before tid;
+  v_connections_carrier_ctid_after tid;
+  v_connections_binding_ctid_before tid;
+  v_connections_binding_ctid_after tid;
+  v_ledger_carrier_ctid_before tid;
+  v_ledger_carrier_ctid_after tid;
+  v_ledger_binding_ctid_before tid;
+  v_ledger_binding_ctid_after tid;
   v_failed_closed boolean := false;
 begin
   if to_regprocedure('atlas.person_position_self_api_v1()') is null
@@ -216,9 +228,82 @@ begin
     raise exception 'Connections reconciliation replaced the permanent carrier instead of preserving it.';
   end if;
 
+  select s.ctid
+    into v_life_carrier_ctid_before
+  from atlas.notebook_spread_instances s
+  where s.id=v_life_spread_id;
+
+  select b.ctid
+    into v_life_binding_ctid_before
+  from atlas.notebook_spread_source_bindings b
+  where b.spread_instance_id=v_life_spread_id
+    and b.binding_state='active'
+    and b.retired_at is null
+    and b.source_domain='person'
+    and b.source_kind='life_definition_v1'
+    and b.source_id=v_definition_id::text
+    and b.relationship_kind='progress'
+  limit 1;
+
+  select s.ctid
+    into v_connections_carrier_ctid_before
+  from atlas.notebook_spread_instances s
+  where s.id=v_connections_id;
+
+  select b.ctid
+    into v_connections_binding_ctid_before
+  from atlas.notebook_spread_source_bindings b
+  where b.spread_instance_id=v_connections_id
+    and b.binding_state='active'
+    and b.retired_at is null
+    and b.source_domain='principal'
+    and b.source_kind='connected_sources_v1'
+    and b.relationship_kind='evidence'
+  limit 1;
+
   v_result := atlas.reconcile_notebook_exposure_self_api_v1();
   if coalesce((v_result->>'changedCount')::integer,-1)<>0 then
     raise exception 'Repeated Person Life/Connections reconciliation was not idempotent: %',v_result;
+  end if;
+
+  select s.ctid
+    into v_life_carrier_ctid_after
+  from atlas.notebook_spread_instances s
+  where s.id=v_life_spread_id;
+
+  select b.ctid
+    into v_life_binding_ctid_after
+  from atlas.notebook_spread_source_bindings b
+  where b.spread_instance_id=v_life_spread_id
+    and b.binding_state='active'
+    and b.retired_at is null
+    and b.source_domain='person'
+    and b.source_kind='life_definition_v1'
+    and b.source_id=v_definition_id::text
+    and b.relationship_kind='progress'
+  limit 1;
+
+  select s.ctid
+    into v_connections_carrier_ctid_after
+  from atlas.notebook_spread_instances s
+  where s.id=v_connections_id;
+
+  select b.ctid
+    into v_connections_binding_ctid_after
+  from atlas.notebook_spread_source_bindings b
+  where b.spread_instance_id=v_connections_id
+    and b.binding_state='active'
+    and b.retired_at is null
+    and b.source_domain='principal'
+    and b.source_kind='connected_sources_v1'
+    and b.relationship_kind='evidence'
+  limit 1;
+
+  if v_life_carrier_ctid_after is distinct from v_life_carrier_ctid_before
+     or v_life_binding_ctid_after is distinct from v_life_binding_ctid_before
+     or v_connections_carrier_ctid_after is distinct from v_connections_carrier_ctid_before
+     or v_connections_binding_ctid_after is distinct from v_connections_binding_ctid_before then
+    raise exception 'A reconciliation plan reported no-op but still performed a durable carrier/binding write.';
   end if;
 
   update atlas.person_life_definitions
@@ -451,9 +536,48 @@ begin
     raise exception 'Restored Ledger did not re-enter admitted NotebookAddress resolution: %',v_address;
   end if;
 
+  select s.ctid
+    into v_ledger_carrier_ctid_before
+  from atlas.notebook_spread_instances s
+  where s.id=v_ledger_spread_id;
+
+  select b.ctid
+    into v_ledger_binding_ctid_before
+  from atlas.notebook_spread_source_bindings b
+  where b.spread_instance_id=v_ledger_spread_id
+    and b.binding_state='active'
+    and b.retired_at is null
+    and b.source_domain='organization'
+    and b.source_kind='ledger_recent_v1'
+    and b.source_id=v_org_id::text
+    and b.relationship_kind='evidence'
+  limit 1;
+
   v_result := atlas.reconcile_notebook_exposure_self_api_v1();
   if coalesce((v_result->>'changedCount')::integer,-1)<>0 then
     raise exception 'Repeated restored-Ledger reconciliation was not idempotent: %',v_result;
+  end if;
+
+  select s.ctid
+    into v_ledger_carrier_ctid_after
+  from atlas.notebook_spread_instances s
+  where s.id=v_ledger_spread_id;
+
+  select b.ctid
+    into v_ledger_binding_ctid_after
+  from atlas.notebook_spread_source_bindings b
+  where b.spread_instance_id=v_ledger_spread_id
+    and b.binding_state='active'
+    and b.retired_at is null
+    and b.source_domain='organization'
+    and b.source_kind='ledger_recent_v1'
+    and b.source_id=v_org_id::text
+    and b.relationship_kind='evidence'
+  limit 1;
+
+  if v_ledger_carrier_ctid_after is distinct from v_ledger_carrier_ctid_before
+     or v_ledger_binding_ctid_after is distinct from v_ledger_binding_ctid_before then
+    raise exception 'Restored Ledger no-op reconciliation still performed a durable write.';
   end if;
 
   if coalesce((v_result->'truthBoundary'->>'domainTruthCreated')::boolean,true)
