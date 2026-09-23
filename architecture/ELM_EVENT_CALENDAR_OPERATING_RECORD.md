@@ -172,7 +172,7 @@ The following occurrences are currently active in Elm's real `community_calendar
 
 Current routed counts for this Oct.–Nov. window:
 
-- `community_calendar`: 21 active occurrence memberships
+- `community_calendar`: 24 active occurrence memberships
 - `educational_events`: 8 active occurrence memberships
 - `local_resources`: 0 active occurrence memberships
 
@@ -252,22 +252,23 @@ Soap Making with Katie Langenberg and Paint Your Own Masterpiece were also route
 
 Elm First Friday (Oct. 2 and Nov. 6) and Trunk or Treat + Bonfire (Oct. 30) have Elm operational `community_events` overlays because both start and end times are known. The soap-making class has a canonical exact start time but no supplied end time, so no end time was invented merely to satisfy an operational overlay.
 
+### Additional venue/event reconciliation completed
+
+On 2026-09-23, the remaining named venue identities were resolved without creating duplicate places:
+
+- **Board of Aldermen, Oct. 8:** the official City of Marshfield calendar places this meeting at the **City of Marshfield Annex, 915 S Marshall**, not City Hall. The City of Marshfield remains the canonical event entity; the Annex is a separately resolved canonical place.
+- **Dexter Breeders Fall Classic, Oct. 10:** **Webster County Fairgrounds** was resolved as an official name variant of the already-canonical **Ellis O. Jackson Park**, 614 N Marshall St. No second fairgrounds entity was created.
+- **Gobble Wobble, Nov. 28:** **R.A. Barr Stadium** was established as a canonical place using the Marshfield R-I Schools GPS listing at 540 N Elm St.
+
+The Board of Aldermen meeting and 2026 Missouri Dexter Breeders Fall Classic were independently verified from official/current sources and routed into `community_calendar`.
+
+The Nov. 28 Gobble Wobble remains routed in `community_calendar` with occurrence status `needs_verification`: its 7:30 a.m. 2026 date/time came from the operator calendar specification, while the stadium identity/location is independently verified.
+
 ### Still unresolved
 
-The following operator-calendar entries have not yet been established/routed because required canonical venue identity or event coordinates are still unresolved:
+- **Oct. 31 — Halloween:** no event time/location was supplied, so Atlas has not manufactured a canonical occurrence merely to fill the date.
 
-- Oct. 8 — Board of Aldermen, Marshfield City Hall
-- Oct. 10 — Dexter Breeders Fall Classic, Webster County Fairgrounds
-- Oct. 31 — Halloween; no event time/location supplied
-- Nov. 28 — Gobble Wobble, R.A. Barr Stadium
-
-Known venue/entity gaps:
-
-- Marshfield City Hall
-- Webster County Fairgrounds
-- R.A. Barr Stadium
-
-Do not create convenience duplicates when resolving them.
+Do not invent missing event coordinates merely to make the calendar appear complete.
 
 ---
 
