@@ -168,22 +168,6 @@ create table if not exists atlas.restricted_vault_entitlements (
       or
       (entitlement_state='expired')
     ),
-  constraint restricted_vault_entitlements_record_scope_v1
-    check (
-      not exists (
-        select 1
-        from unnest(record_class_scope) x
-        where x !~ '^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$'
-      )
-    ),
-  constraint restricted_vault_entitlements_purpose_scope_v1
-    check (
-      not exists (
-        select 1
-        from unnest(purpose_scope) x
-        where x !~ '^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$'
-      )
-    ),
   constraint restricted_vault_entitlements_basis_v1
     check (jsonb_typeof(grant_basis)='object'),
   constraint restricted_vault_entitlements_metadata_v1
