@@ -101,7 +101,7 @@ A writer must supply:
 - an externally wrapped data key;
 - a declared crypto profile;
 - the vault's external KMS key reference/version;
-- a content hash of the plaintext or canonical payload produced by the trusted crypto layer;
+- a SHA-256 hash of the encrypted ciphertext envelope produced by the trusted crypto layer;
 - purpose, record class, and retention metadata.
 
 The database never receives a plaintext field for the protected payload.
