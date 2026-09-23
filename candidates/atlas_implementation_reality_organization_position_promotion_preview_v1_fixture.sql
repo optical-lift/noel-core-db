@@ -1,6 +1,7 @@
 -- Clone-only fixture for Atlas Implementation Reality Position Promotion Preview v1.
--- Candidate rows are seeded in the currently-live Position grammar (object=Organization)
--- and converted post-migration to object=Organization Unit by validation.
+-- Candidate rows are seeded with unaffected already-live Institutional Person grammar.
+-- Post-migration validation converts them to Position candidates only after the
+-- operation-shape constraint has been corrected to object=Organization Unit.
 
 insert into auth.users(id) values
   ('f4600000-0000-4000-8000-000000000001'::uuid),
@@ -145,9 +146,9 @@ insert into atlas.implementation_reality_candidates(
 (
   'f4600000-0000-4000-8000-000000000301'::uuid,
   'f4600000-0000-4000-8000-000000000111'::uuid,
-  'implementation_reality_candidate_v2','organization_position.establish',
+  'implementation_reality_candidate_v2','institutional_person_record.establish',
   'manual_semantic_construction','Operations has Position Operations Lead.',
-  '{"kind":"organization_position","label":"Operations Lead","resolution":"proposed"}'::jsonb,
+  '{"kind":"person","label":"Operations Lead","resolution":"proposed"}'::jsonb,
   '{"kind":"organization","label":"Position Proof","resolution":"canonical","canonicalId":"f4600000-0000-4000-8000-000000000201"}'::jsonb,
   null,'{"positionKind":"operations"}'::jsonb,'[]'::jsonb,null,'proposed',
   'f4600000-0000-4000-8000-000000000001'::uuid,'{"validationFixture":true}'::jsonb
@@ -155,9 +156,9 @@ insert into atlas.implementation_reality_candidates(
 (
   'f4600000-0000-4000-8000-000000000302'::uuid,
   'f4600000-0000-4000-8000-000000000111'::uuid,
-  'implementation_reality_candidate_v2','organization_position.establish',
+  'implementation_reality_candidate_v2','institutional_person_record.establish',
   'manual_semantic_construction','Missing position kind.',
-  '{"kind":"organization_position","label":"No Kind Position","resolution":"proposed"}'::jsonb,
+  '{"kind":"person","label":"No Kind Position","resolution":"proposed"}'::jsonb,
   '{"kind":"organization","label":"Position Proof","resolution":"canonical","canonicalId":"f4600000-0000-4000-8000-000000000201"}'::jsonb,
   null,'{}'::jsonb,'[]'::jsonb,null,'proposed',
   'f4600000-0000-4000-8000-000000000001'::uuid,'{"validationFixture":true}'::jsonb
@@ -165,9 +166,9 @@ insert into atlas.implementation_reality_candidates(
 (
   'f4600000-0000-4000-8000-000000000303'::uuid,
   'f4600000-0000-4000-8000-000000000111'::uuid,
-  'implementation_reality_candidate_v2','organization_position.establish',
+  'implementation_reality_candidate_v2','institutional_person_record.establish',
   'manual_semantic_construction','Duplicate position.',
-  '{"kind":"organization_position","label":"Existing Lead","resolution":"proposed"}'::jsonb,
+  '{"kind":"person","label":"Existing Lead","resolution":"proposed"}'::jsonb,
   '{"kind":"organization","label":"Position Proof","resolution":"canonical","canonicalId":"f4600000-0000-4000-8000-000000000201"}'::jsonb,
   null,'{"positionKind":"management"}'::jsonb,'[]'::jsonb,null,'proposed',
   'f4600000-0000-4000-8000-000000000001'::uuid,'{"validationFixture":true}'::jsonb
@@ -175,9 +176,9 @@ insert into atlas.implementation_reality_candidates(
 (
   'f4600000-0000-4000-8000-000000000304'::uuid,
   'f4600000-0000-4000-8000-000000000111'::uuid,
-  'implementation_reality_candidate_v2','organization_position.establish',
+  'implementation_reality_candidate_v2','institutional_person_record.establish',
   'manual_semantic_construction','Unresolved unit.',
-  '{"kind":"organization_position","label":"Unknown Unit Position","resolution":"proposed"}'::jsonb,
+  '{"kind":"person","label":"Unknown Unit Position","resolution":"proposed"}'::jsonb,
   '{"kind":"organization","label":"Position Proof","resolution":"canonical","canonicalId":"f4600000-0000-4000-8000-000000000201"}'::jsonb,
   null,'{"positionKind":"staff"}'::jsonb,'[]'::jsonb,null,'proposed',
   'f4600000-0000-4000-8000-000000000001'::uuid,'{"validationFixture":true}'::jsonb
@@ -185,9 +186,9 @@ insert into atlas.implementation_reality_candidates(
 (
   'f4600000-0000-4000-8000-000000000305'::uuid,
   'f4600000-0000-4000-8000-000000000111'::uuid,
-  'implementation_reality_candidate_v2','organization_position.establish',
+  'implementation_reality_candidate_v2','institutional_person_record.establish',
   'manual_semantic_construction','Outside unit.',
-  '{"kind":"organization_position","label":"Outside Position","resolution":"proposed"}'::jsonb,
+  '{"kind":"person","label":"Outside Position","resolution":"proposed"}'::jsonb,
   '{"kind":"organization","label":"Position Proof","resolution":"canonical","canonicalId":"f4600000-0000-4000-8000-000000000201"}'::jsonb,
   null,'{"positionKind":"staff"}'::jsonb,'[]'::jsonb,null,'proposed',
   'f4600000-0000-4000-8000-000000000001'::uuid,'{"validationFixture":true}'::jsonb
@@ -195,9 +196,9 @@ insert into atlas.implementation_reality_candidates(
 (
   'f4600000-0000-4000-8000-000000000306'::uuid,
   'f4600000-0000-4000-8000-000000000111'::uuid,
-  'implementation_reality_candidate_v2','organization_position.establish',
+  'implementation_reality_candidate_v2','institutional_person_record.establish',
   'manual_semantic_construction','Technical identifier candidate.',
-  '{"kind":"organization_position","label":"Technical Position","resolution":"proposed"}'::jsonb,
+  '{"kind":"person","label":"Technical Position","resolution":"proposed"}'::jsonb,
   '{"kind":"organization","label":"Position Proof","resolution":"canonical","canonicalId":"f4600000-0000-4000-8000-000000000201"}'::jsonb,
   null,'{"positionKind":"staff","stableKey":"do_not_author"}'::jsonb,'[]'::jsonb,null,'proposed',
   'f4600000-0000-4000-8000-000000000001'::uuid,'{"validationFixture":true}'::jsonb
