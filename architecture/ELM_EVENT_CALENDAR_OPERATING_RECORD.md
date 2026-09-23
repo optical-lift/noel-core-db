@@ -155,20 +155,20 @@ The following occurrences are currently active in Elm's real `community_calendar
 
 | Date | Time | Event | Venue | Other routed context |
 |---|---|---|---|---|
-| Oct. 1 | 9:30–11:00 a.m. | Come Flower Farm With Us | Elm Farm | `educational_events` |
+| Oct. 1 | 9:30–11:30 a.m. | Come Flower Farm With Us | Elm Farm | `educational_events` |
 | Oct. 8 | 6:30–8:30 p.m. | Knot + Grow: Macramé Plant Hanger Workshop | Elm Farm | `educational_events` |
 | Oct. 10 | 7:00 a.m.–noon | Marshfield Saddle Club Last Swap Meet | Marshfield Saddle Club | — |
 | Oct. 13 | 5:00–8:00 p.m. | 2026 Marshfield Area Chamber of Commerce Annual Meeting | Shook Elementary School – Safe Room | — |
-| Oct. 15 | 9:30–11:00 a.m. | Come Flower Farm With Us | Elm Farm | `educational_events` |
+| Oct. 15 | 9:30–11:30 a.m. | Come Flower Farm With Us | Elm Farm | `educational_events` |
 | Oct. 22 | 6:30–8:30 p.m. | Clay + Color: Handmade Clay Jewelry Workshop | Elm Farm | `educational_events` |
 
 ### November 2026
 
 | Date | Time | Event | Venue | Other routed context |
 |---|---|---|---|---|
-| Nov. 5 | 9:30–11:00 a.m. | Come Flower Farm With Us | Elm Farm | `educational_events` |
+| Nov. 5 | 9:30–11:30 a.m. | Come Flower Farm With Us | Elm Farm | `educational_events` |
 | Nov. 12 | 6:30–8:30 p.m. | Thursdays at Elm Seasonal Evening | Elm Farm | — |
-| Nov. 19 | 9:30–11:00 a.m. | Come Flower Farm With Us | Elm Farm | `educational_events` |
+| Nov. 19 | 9:30–11:30 a.m. | Come Flower Farm With Us | Elm Farm | `educational_events` |
 
 Current routed counts for this Oct.–Nov. window:
 
@@ -221,28 +221,15 @@ Future note:
 
 ---
 
-## 7. Known reconciliation debt
+## 7. Reconciliation status
 
-These are known differences between the operator-supplied calendar specification and current canonical/operational data. They must be resolved by updating the existing canonical occurrence/overlay, not by creating duplicates.
+The known existing-record conflicts were reconciled on 2026-09-23 without creating duplicate occurrences.
 
-### Time differences
+### Completed
 
-Current canonicalized Elm morning events end at **11:00 a.m.**, while the operator-supplied schedule says **11:30 a.m.** for:
-
-- Oct. 1
-- Oct. 15
-- Nov. 5
-- Nov. 19
-
-The intended calendar specification is 9:30–11:30 a.m.; existing records require reconciliation.
-
-### Nov. 26 conflict
-
-A legacy Atlas operational event exists for a Nov. 26 seasonal evening, but the operator-supplied calendar explicitly says:
-
-**Thanksgiving — No Thursday at Elm.**
-
-The existing occurrence/overlay must be reconciled rather than duplicated.
+- Oct. 1, Oct. 15, Nov. 5, and Nov. 19 Elm community mornings now end at **11:30 a.m.** in both canonical occurrence time and the Elm operational overlay.
+- The Nov. 26 Thursdays-at-Elm seasonal evening is now **cancelled** in both canonical occurrence state and the Elm operational overlay, preserving the operator instruction: **Thanksgiving — No Thursday at Elm.**
+- The cancelled Nov. 26 event no longer projects into the public Elm calendar.
 
 ### Missing/unresolved calendar items
 
