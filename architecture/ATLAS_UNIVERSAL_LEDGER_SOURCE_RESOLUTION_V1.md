@@ -87,3 +87,19 @@ source representation is local
 private knowledge keeps its custody
 resolution joins identity without joining privacy
 ```
+
+## Identity resolution engine
+
+The source-record kernel is now paired with `architecture/ATLAS_IDENTITY_RESOLUTION_ENGINE_V1.md`.
+
+A source-party record may contribute two resolver signal classes:
+
+- a Ledger-private normalized identifier that may match only against Shared Intelligence evidence explicitly permitted for identity resolution;
+- an opaque `private_blind_match` token computed outside Postgres with a versioned keyed HMAC.
+
+Cleartext source identifiers are never cross-compared directly between Ledgers.
+
+A human confirmation can bootstrap a previously unseen private blind identifier to a canonical entity. Later authorized Ledgers presenting the same opaque token may recover the same canonical identity without learning the original private value, the contributing Ledger, or how many other Ledgers know the party.
+
+Resolver cases preserve `auto_resolvable`, `needs_review`, and `new_candidate` boundaries rather than silently creating duplicate identities.
+
