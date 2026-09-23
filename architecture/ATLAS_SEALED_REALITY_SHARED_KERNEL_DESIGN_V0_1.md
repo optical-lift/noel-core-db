@@ -734,3 +734,72 @@ between domain authority and replaceable cryptographic carriers
 ## 23. Shared governing sentence
 
 > **The domain decides whether an operation is lawful. The Sealed Reality kernel carries that lawful authority through one bounded execution without enlarging it, revealing more than necessary, or becoming the source of the authority itself.**
+
+## 24. Phase A implementation receipt
+
+Phase A is now implemented by:
+
+`supabase/migrations/20260924050000_atlas_sealed_reality_phase_a_handles_adapters_v1.sql`
+
+Released objects:
+
+- `atlas.sealed_reality_domain_adapters`;
+- `atlas.sealed_reality_handles`;
+- `atlas.register_sealed_reality_handle_service_v1`;
+- `atlas.resolve_sealed_reality_operation_authority_service_v1`;
+- explicit internal personnel and treasury authority adapters.
+
+Current registered domains:
+
+```text
+restricted_personnel_record
+  → restricted_personnel_record_v1
+
+sealed_treasury_endpoint
+  → sealed_treasury_endpoint_v1
+```
+
+The dispatcher is explicit code. It does not dynamically execute function names from registry metadata.
+
+### Validation
+
+Rollback validation passed.
+
+Proved:
+
+- Personnel and Treasury domain objects receive stable, idempotent Sealed Reality Handles.
+- Registering a personnel handle requires existing personnel-vault governance authority.
+- Registering a treasury handle requires existing treasury delegation authority.
+- The Personnel adapter does not enlarge authority: `reveal` remains denied until the existing `vault_record_read` capability exists.
+- The Personnel adapter preserves the personnel record's purpose boundary.
+- Once existing Personnel authority exists, the adapter resolves the operation to `ephemeral_reveal` through the replaceable `restricted_vault_envelope_v1` carrier.
+- The Treasury adapter does not enlarge authority: `reveal_full` remains denied until the existing Treasury domain grants it.
+- Treasury `observe_existence` remains a no-carrier metadata operation.
+- Treasury `verify_destination` preserves existing purpose-scoped operation authority, boolean result policy, and current carrier routing.
+- A Treasury grant for `vendor_payout` does not authorize the same operation for `payroll`.
+- No shared warrant, receipt, or execution path was introduced; existing Personnel and Treasury behavior remains authoritative.
+
+No validation domain objects or handles persisted.
+
+### Phase boundary
+
+Phase A therefore establishes:
+
+```text
+domain object
+→ stable Sealed Reality Handle
+→ explicit domain authority adapter
+→ normalized authority decision envelope
+```
+
+It does not yet establish:
+
+```text
+shared execution warrant
+shared carrier completion
+shared receipt
+shared audit lineage
+```
+
+Those remain Phase B.
+
