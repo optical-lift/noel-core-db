@@ -6,6 +6,7 @@ declare
   v_user_personal constant uuid := '91111111-1111-4111-8111-111111111111'::uuid;
   v_user_one_org constant uuid := '92222222-2222-4222-8222-222222222222'::uuid;
   v_user_multi_org constant uuid := '93333333-3333-4333-8333-333333333333'::uuid;
+  v_user_no_person constant uuid := '94444444-4444-4444-8444-444444444444'::uuid;
 
   v_bootstrap jsonb;
   v_org_result jsonb;
@@ -20,7 +21,8 @@ begin
   values
     (v_user_personal,'person-position-personal@example.test',now(),now()),
     (v_user_one_org,'person-position-one-org@example.test',now(),now()),
-    (v_user_multi_org,'person-position-multi-org@example.test',now(),now());
+    (v_user_multi_org,'person-position-multi-org@example.test',now(),now()),
+    (v_user_no_person,'person-position-no-person@example.test',now(),now());
 
   insert into atlas.personal_atlas_purchases(
     provider,
@@ -142,7 +144,7 @@ begin
       v_org_id,
       'person_position_primary',
       'Primary',
-      'operating_unit'
+      'operating_business'
     )
     returning id into v_unit_id;
   end if;
