@@ -77,6 +77,48 @@ External search is therefore an acquisition/enrichment source, not the primary d
 
 ## Canonical occurrence / event extension
 
+## Occurrence authority succession
+
+The earlier Elm Local calendar implementation split canonical event identity by ownership:
+
+- `atlas.community_events` for Elm-owned events; and
+- `local_intel.occurrences` for outside-community events.
+
+That split is retired as an authority model.
+
+**Canonical occurrence identity is owned by `local_intel.occurrences` for all real-world events, regardless of who hosts, owns, programs, publishes, attends, sells into, registers for, or annotates them.**
+
+`atlas.community_events` remains valid only as Atlas Organization program / operational context for an occurrence. It may carry Organization-owned program state such as farm/program membership, registration/participation context, capacity, visibility, operational preparation, internal status, and other Ledger-specific meaning, but it must not establish a second event identity.
+
+The required dependency direction is:
+
+```text
+local_intel.occurrences
+  = canonical real-world occurrence
+
+local_intel.entities
+  = canonical host / organizer / venue / participant identities
+
+Atlas Organization-scoped event/program state
+  = private or Organization-owned overlay bound to the canonical occurrence
+
+public calendar / registration / program views
+  = projections composed from canonical occurrence + authorized overlay
+```
+
+Accordingly:
+
+1. Every new real-world event must first resolve or establish one canonical `local_intel.occurrences` row.
+2. Every known host, organizer, venue, business, organization, or other participant must resolve to canonical Shared Intelligence entity identity rather than a duplicated event-local contact record.
+3. Elm-owned status is a relationship/overlay fact, not an alternate occurrence identity class.
+4. `atlas.community_events` must eventually bind explicitly to the canonical occurrence it operationalizes. Until that binding exists, it is transitional event/program state and must not be treated as independent canonical event truth.
+5. `public.elm_local_calendar_events_v1` is non-canonical presentation/projection. Its legacy `source_system = 'atlas' | 'local_intel'` distinction does not define event authority and must not be used to justify duplicate occurrence records.
+6. Registration, ticketing, staffing, preparation, hospitality, outreach, campaign, attendance, and commercial systems may extend the canonical occurrence through governed references, but none may create a competing event identity.
+7. Existing Elm events represented only in `atlas.community_events` are succession debt: future work should reconcile them to canonical occurrences rather than perpetuate the split.
+8. Existing external events already in `local_intel.occurrences` must not be recreated in `atlas.community_events` merely because Elm wants to display, track, or annotate them.
+
+The succession target is one event reality with many lawful Organization-specific meanings, not parallel event databases partitioned by ownership.
+
 The same non-duplication law applies to real-world occurrences and events.
 
 A real event happens once in reality. It must not acquire separate canonical records merely because multiple Atlas Ledgers care about it, publish it, register for it, host it, sell into it, attend it, or annotate it.
