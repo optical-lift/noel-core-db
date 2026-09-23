@@ -4,7 +4,6 @@
 
 begin;
 
-
 -- Current durable responsibility v2.
 -- Institutional Person Record + Position Appointment are the current human/institution
 -- and position roots. Organization Membership and Identity Subject remain optional
@@ -136,7 +135,95 @@ as $function$
   left join atlas.organization_units su
     on rs.scope_kind='organization_unit'
    and su.id=case
-     when rs.scope_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}
+     when rs.scope_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+       then rs.scope_id::uuid
+     else null
+   end
+   and su.organization_id=rs.organization_id
+   and su.status='active'
+  where pe.id=p_person_id
+    and pe.status='active'
+    and (p_organization_id is null or ipr.organization_id=p_organization_id)
+  order by o.stable_key,u.stable_key,p.stable_key,r.stable_key,rs.scope_kind,rs.scope_id,rs.id;
+$function$;
+
+comment on function atlas.effective_person_organization_responsibilities_current_v2(uuid,uuid) is
+  'Canonical current effective Person↔Organization durable-responsibility read rooted in canonical Person + active Institutional Person Record + current Position Appointment + current Position→Responsibility definition + bounded Responsibility Scope. Organization Membership and Identity Subject are optional compatibility/provenance carriers, not required responsibility roots. Unsupported or unresolved Scope remains indeterminate. Current-only until append-only position/responsibility/scope definition history exists.';
+
+revoke all on function atlas.effective_person_organization_responsibilities_current_v2(uuid,uuid)
+  from public, anon, authenticated;
+grant execute on function atlas.effective_person_organization_responsibilities_current_v2(uuid,uuid)
+  to postgres, service_role;
+
+insert into atlas.architecture_truth_authorities(
+  authority_key,
+  domain_key,
+  truth_question,
+  authority_owner,
+  authority_status,
+  canonical_relations,
+  canonical_functions,
+  supporting_relations,
+  consumer_surfaces,
+  known_competitors,
+  source_custody,
+  rationale
+) values (
+  'person_organization_current_durable_responsibility',
+  'institutional_responsibility',
+  'What bounded Organization responsibility does this canonical Person currently carry through current institutional placement?',
+  'atlas.effective_person_organization_responsibilities_current_v2(uuid,uuid)',
+  'canonical',
+  array[
+    'atlas.people',
+    'atlas.institutional_person_records',
+    'atlas.organization_position_appointments',
+    'atlas.organization_positions',
+    'atlas.organization_position_responsibilities',
+    'atlas.organization_responsibilities',
+    'atlas.organization_responsibility_scopes',
+    'atlas.organization_units'
+  ],
+  array[
+    'atlas.effective_person_organization_responsibilities_current_v2(uuid,uuid)'
+  ],
+  array[
+    'atlas.organization_memberships',
+    'atlas.identity_subjects',
+    'atlas.organization_employee_seats',
+    'atlas.work_allocations'
+  ],
+  array[
+    'Person Position',
+    'future Person-specific Ledger projection',
+    'future governed effect-uptake relationship evidence'
+  ],
+  array[
+    'atlas.effective_person_organization_responsibilities_current_v1(uuid,uuid)',
+    'atlas.resolve_person_organization_responsibility_current_v1(uuid,uuid,uuid,text,text)',
+    'organization_memberships.role treated as durable responsibility',
+    'employee seat treated as durable responsibility',
+    'work_allocations treated as standing institutional responsibility'
+  ],
+  'optical-lift/noel-core-db:candidates/atlas_person_position_self_projection_v0.sql',
+  'Institutional Person Record is now the canonical Organization-scoped human relation and Position Appointment is canonically bound to it. Current durable responsibility therefore must not require Organization Membership or Identity Subject. Those older carriers remain useful provenance/compatibility evidence but cannot own responsibility existence.'
+)
+on conflict (authority_key)
+do update set
+  domain_key=excluded.domain_key,
+  truth_question=excluded.truth_question,
+  authority_owner=excluded.authority_owner,
+  authority_status=excluded.authority_status,
+  canonical_relations=excluded.canonical_relations,
+  canonical_functions=excluded.canonical_functions,
+  supporting_relations=excluded.supporting_relations,
+  consumer_surfaces=excluded.consumer_surfaces,
+  known_competitors=excluded.known_competitors,
+  source_custody=excluded.source_custody,
+  rationale=excluded.rationale,
+  updated_at=now();
+
+create or replace function atlas.person_position_self_api_v1()
 returns jsonb
 language plpgsql
 stable
