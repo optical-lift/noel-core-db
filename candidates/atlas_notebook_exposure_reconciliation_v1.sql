@@ -3,6 +3,8 @@
 -- carrier/source-binding lifecycle. It creates no source-domain truth and does
 -- not grant source-read, Today, action, or execution authority.
 
+begin;
+
 create or replace function atlas.notebook_exposure_carrier_spec_self_v1(
   p_exposure jsonb
 )
@@ -878,3 +880,5 @@ revoke all on function atlas.reconcile_notebook_exposure_self_api_v1()
   from public,anon;
 grant execute on function atlas.reconcile_notebook_exposure_self_api_v1()
   to authenticated,service_role;
+
+commit;
