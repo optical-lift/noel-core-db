@@ -137,3 +137,20 @@ preserve ambiguity
 remember confirmed identity
 never turn private identifiers into a directory
 ```
+
+## v2 semantic succession
+
+The v1 resolver is now succeeded for new identity-resolution work by `architecture/ATLAS_IDENTIFIER_SEMANTICS_TEMPORAL_RESOLUTION_V2.md`.
+
+Resolver v2 adds:
+
+- identifier cardinality semantics instead of assuming one identifier → one party;
+- canonical entity-type constraints;
+- temporal validity for source signals and private blind bindings;
+- evidence-family correlation control;
+- exclusive-identifier conflict preservation;
+- shared-identifier multi-binding;
+- an explicit claimant-disclosure rule that remains separate from resolution authority.
+
+v1 remains available only for compatibility. New connectors and resolution flows should use the v2 signal, evaluator, and commit services.
+
