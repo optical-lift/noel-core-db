@@ -148,14 +148,8 @@ select
   case when r.source_jurisdiction='neutral_anatomy' then 'supporting' else 'primary' end
 from r
 join a using(object_type,object_id)
-join p using(object_type,object_id)
-order by
-  case when r.source_jurisdiction='neutral_anatomy' then 1 else 0 end,
-  r.matched_region_count desc,
-  r.matched_feature_count desc,
-  lane_label,
-  r.display_label;
-$$;
+join p using(object_type,object_id);
+$;
 
 create or replace function intelligence.render_body_map_vocabulary_page_v2(
   p_query jsonb,
