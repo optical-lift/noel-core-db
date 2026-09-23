@@ -249,20 +249,7 @@ begin
     p_principal_id,
     v_endpoint.id,
     v_operation.operation_key,
-    case when cardinality(
-      coalesce((
-        select g.purpose_scope
-        from atlas.sealed_treasury_operation_grants g
-        where g.endpoint_id=v_endpoint.id
-          and g.principal_id=p_principal_id
-          and g.operation_key=v_operation.operation_key
-          and g.grant_state='active'
-          and g.valid_from<=now()
-          and (g.valid_until is null or g.valid_until>now())
-        order by g.created_at desc
-        limit 1
-      ),'{}'::text[])
-    )=0 then null else v_purpose end
+    v_purpose
   );
 
   if not v_authorized then
