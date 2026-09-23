@@ -430,11 +430,32 @@ begin
     raise exception 'Owner Ledger gain did not establish its exact governed binding.';
   end if;
 
+  -- Prove exposure loss cannot close a durability-key collision merely
+  -- because the historical key exists.
+  update atlas.notebook_spread_instances
+  set subject_kind='validation_collision_probe'
+  where id=v_ledger_spread_id;
+
   update atlas.organization_memberships
   set role='member',
       updated_at=now()
   where id=v_membership_id
     and organization_id=v_org_id;
+
+  v_plan := atlas.notebook_exposure_reconciliation_plan_self_api_v1();
+
+  if not exists (
+    select 1
+    from jsonb_array_elements(v_plan->'items') i(value)
+    where i.value->>'durabilityKey'=v_ledger_key
+      and i.value->>'action'='invalid_collision'
+  ) then
+    raise exception 'Ledger exposure loss did not fail closed on a durability-key identity collision: %',v_plan;
+  end if;
+
+  update atlas.notebook_spread_instances
+  set subject_kind='organization_ledger'
+  where id=v_ledger_spread_id;
 
   v_result := atlas.reconcile_notebook_exposure_self_api_v1();
 
