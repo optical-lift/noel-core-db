@@ -567,3 +567,52 @@ A Sealed Reality implementation is not valid unless it can prove:
 ## 18. Governing sentence
 
 > **Atlas does not begin with who holds the key. Atlas begins with who has standing in the reality, what operation is lawful, and under whose authority. Cryptography exists to preserve that order.**
+
+## 19. Second-domain proof completed: Sealed Treasury Authority
+
+The second genuinely different proof domain is now implemented in
+`architecture/ATLAS_SEALED_TREASURY_AUTHORITY_SECOND_DOMAIN_PROOF_V1.md`
+and migration
+`20260924043000_atlas_sealed_treasury_second_domain_proof_v1.sql`.
+
+It proves the constitution outside personnel custody:
+
+```text
+Personnel:
+  person-associated restricted reality
+
+Treasury:
+  institution-governed financial destination authority
+```
+
+The treasury proof passed these controls:
+
+- Ledger governing authority may establish the sealed treasury reality but does not inherit `reveal_full`;
+- `verify_destination` can return only a boolean through a short-lived one-time operation warrant;
+- purpose-scoped authority does not leak into another purpose;
+- one-time warrants cannot be replayed;
+- `reveal_full` requires a separately granted, explicitly time-bounded authority;
+- plaintext-like reveal output is rejected by the canonical receipt membrane;
+- the database stores governance plus an opaque carrier locator, not the protected financial destination itself.
+
+Across Personnel + Treasury, Atlas now has cross-domain evidence for these shared constitutional nouns:
+
+```text
+standing
+sealed reality
+operation authority
+purpose scope
+time scope
+delegation
+bounded result
+reveal exception
+carrier independence
+audit lineage
+```
+
+Treasury additionally proves the usefulness of a short-lived **operation warrant** between governance and a cryptographic carrier.
+
+This satisfies the two-domain promotion threshold for **designing** a shared Sealed Reality kernel.
+
+It does not authorize flattening personnel and treasury into one generic table without first preserving their distinct standing laws and domain-owned lifecycle truth.
+
