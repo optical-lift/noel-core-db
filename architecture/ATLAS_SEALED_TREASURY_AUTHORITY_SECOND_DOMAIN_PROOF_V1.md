@@ -295,3 +295,24 @@ It is not permission to erase the two domain-specific authorities or flatten the
 ## 12. Governing sentence
 
 > **The treasury secret is not handed to whoever administers the institution. The institution governs lawful operations upon it, and each operation must earn its own authority.**
+
+## 13. Validation receipt
+
+Rollback validation passed.
+
+Proved:
+
+- Ledger authority can establish the endpoint without inheriting full reveal authority;
+- existence can be observed without invoking the sensitive carrier;
+- an ungranted verification request is denied and durably audited;
+- a purpose-scoped verification grant issues a short-lived one-time carrier warrant;
+- carrier completion can return a boolean without revealing the treasury destination;
+- replaying the consumed warrant fails;
+- the same operation grant cannot be reused for a different purpose;
+- full reveal authority cannot be granted for more than one hour in this proof domain;
+- a full-reveal carrier callback cannot persist plaintext-like output in the canonical receipt;
+- successful full reveal leaves only `{"delivered":true}` as durable result;
+- no account/routing/card/plaintext secret-value columns exist on the treasury endpoint table.
+
+No validation endpoint, grants, warrants, receipts, or audit rows persisted.
+
