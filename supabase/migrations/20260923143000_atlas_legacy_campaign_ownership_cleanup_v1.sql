@@ -36,6 +36,53 @@ comment on table atlas.legacy_local_intel_campaign_context_mappings is
 comment on table atlas.legacy_local_intel_campaign_contact_membership_mappings is
   'Compatibility map from pre-governance local_intel campaign contact rows to Organization-private purpose-context memberships over canonical Shared Intelligence entities.';
 
+-- Resolve one pre-existing identity-review hold without creating a second subject:
+-- the legacy buyer relationship for Jagged Edge already points to this exact
+-- Organization subject/relationship, and the canonical Shared Intelligence
+-- entity has the same business identity. Bind that canonical entity to the
+-- existing subject rather than creating another identity.
+insert into atlas.identity_subject_external_identifiers(
+  organization_id,
+  subject_id,
+  provider_key,
+  identifier_type,
+  identifier_value,
+  identifier_normalized,
+  is_current,
+  priority,
+  metadata
+)
+select
+  'fc4ad5aa-2d09-4ea6-ba50-eaf0f34fc3f2'::uuid,
+  'f0bdeadf-6b91-4835-992e-b964b46d6eb1'::uuid,
+  'local_intel',
+  'entity_id',
+  '5bfeeb23-e13f-45fc-beef-d26acc099742',
+  '5bfeeb23-e13f-45fc-beef-d26acc099742',
+  true,
+  1,
+  jsonb_build_object(
+    'basis','legacy_buyer_exact_identity_reconciliation',
+    'legacyBuyerRelationshipId','6362f9eb-cc65-485a-acc0-51c6f57a4064',
+    'canonicalEntityName','Jagged Edge Salon Featuring B''s Esthetics'
+  )
+where not exists (
+  select 1
+  from atlas.identity_subject_external_identifiers i
+  where i.organization_id='fc4ad5aa-2d09-4ea6-ba50-eaf0f34fc3f2'::uuid
+    and i.subject_id='f0bdeadf-6b91-4835-992e-b964b46d6eb1'::uuid
+    and i.provider_key='local_intel'
+    and i.identifier_type='entity_id'
+    and i.identifier_normalized='5bfeeb23-e13f-45fc-beef-d26acc099742'
+    and i.is_current
+);
+
+update atlas.buyer_relationship_reconstruction
+set entity_id='5bfeeb23-e13f-45fc-beef-d26acc099742'::uuid,
+    updated_at=now()
+where id='6362f9eb-cc65-485a-acc0-51c6f57a4064'::uuid
+  and entity_id is null;
+
 do $$
 declare
   v_org uuid := 'fc4ad5aa-2d09-4ea6-ba50-eaf0f34fc3f2';
