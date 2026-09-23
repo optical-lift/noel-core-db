@@ -172,7 +172,7 @@ begin
       'operatorCalendarSource','operator_calendar_spec_2026_09_23'
     )
   )
-  on conflict (local_context_id,stable_key) do update
+  on conflict (stable_key) do update
   set entity_id=excluded.entity_id,
       title=excluded.title,
       occurrence_type=excluded.occurrence_type,
@@ -234,7 +234,7 @@ begin
       'operatorCalendarSource','operator_calendar_spec_2026_09_23'
     )
   )
-  on conflict (local_context_id,stable_key) do update
+  on conflict (stable_key) do update
   set entity_id=excluded.entity_id,
       title=excluded.title,
       occurrence_type=excluded.occurrence_type,
@@ -293,7 +293,7 @@ begin
       'verificationNote','2026 event date/time supplied by operator; independent 2026 event source not yet located.'
     )
   )
-  on conflict (local_context_id,stable_key) do update
+  on conflict (stable_key) do update
   set entity_id=excluded.entity_id,
       title=excluded.title,
       occurrence_type=excluded.occurrence_type,
