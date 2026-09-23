@@ -1,0 +1,736 @@
+# Atlas Sealed Reality Shared Kernel — Cross-Domain Design v0.1
+
+**Status:** Shared-kernel design candidate.  
+**Promotion basis:** Restricted Personnel + Sealed Treasury two-domain proof.  
+**Governing constitution:** `architecture/ATLAS_SEALED_REALITY_CONSTITUTION_V0_1.md`.  
+**Database status:** Not yet released as a shared schema. This document defines the exact promotion boundary before migration.
+
+## 1. What survived both domains
+
+The two proof domains are genuinely different:
+
+```text
+Restricted Personnel
+  protected reality:
+    personnel record / derived assertion
+
+  primary standing:
+    person-associated personnel custody relation
+
+  domain-specific scope:
+    record class
+    vault subject
+    purpose
+
+Sealed Treasury
+  protected reality:
+    institution-governed financial destination
+
+  primary standing:
+    Ledger / institutional governance
+
+  domain-specific scope:
+    treasury endpoint
+    operation
+    purpose
+```
+
+The common structure is not "a vault."
+
+The common structure is:
+
+```text
+domain-owned reality
+        ↓
+domain-owned standing / authority decision
+        ↓
+named operation
+        ↓
+purpose + time boundary
+        ↓
+short-lived execution authority
+        ↓
+replaceable carrier
+        ↓
+bounded result
+        ↓
+append-only audit lineage
+```
+
+That is the shared kernel candidate.
+
+## 2. What must remain domain-owned
+
+The shared kernel must **not** own or infer:
+
+- who has standing in a personnel relationship;
+- who has standing in an institution;
+- personnel record classes;
+- treasury endpoint lifecycle;
+- employment law;
+- treasury/payment law;
+- whether a person or institution may delegate authority;
+- domain-specific revocation consequences;
+- domain-specific recovery law;
+- canonical payment state;
+- canonical personnel state;
+- the protected plaintext.
+
+Those remain in their owning domains.
+
+This prevents the shared kernel from becoming a universal permission table.
+
+## 3. The shared kernel's one truthful question
+
+The shared kernel owns:
+
+> **Given that a domain authority has established that this Principal may perform this named operation for this purpose, how is that authority carried safely through one execution and reduced to a bounded durable result?**
+
+It does not answer:
+
+> Who should be allowed?
+
+That answer belongs to the domain adapter.
+
+## 4. Shared object: Sealed Reality Handle
+
+The first shared noun should be a **Sealed Reality Handle**, not an Authority Capsule and not a generic encrypted blob.
+
+Conceptually:
+
+```text
+Sealed Reality Handle
+
+id
+domain_key
+domain_object_id
+handle_state
+created_at
+metadata
+```
+
+Its meaning is only:
+
+```text
+this domain-owned object participates in Sealed Reality operation governance
+```
+
+It does not duplicate the domain object.
+
+It does not contain plaintext.
+
+It does not establish standing.
+
+It does not establish reveal authority.
+
+It is a stable cross-domain execution handle.
+
+### Proposed table
+
+```text
+atlas.sealed_reality_handles
+  id uuid
+  domain_key text
+  domain_object_id uuid
+  handle_state active|retired
+  metadata jsonb
+  created_at
+  updated_at
+
+unique(domain_key, domain_object_id)
+```
+
+The two initial domain keys would be:
+
+```text
+restricted_personnel_record
+sealed_treasury_endpoint
+```
+
+A future domain must explicitly register its own adapter before it may create handles.
+
+## 5. Domain adapter contract
+
+Every Sealed Reality domain must implement an authority adapter.
+
+The adapter contract answers a narrow question:
+
+```text
+resolve_operation_authority(
+  sealed_reality_handle,
+  principal,
+  operation,
+  purpose,
+  context
+)
+```
+
+and returns a decision envelope:
+
+```json
+{
+  "authorized": true,
+  "authorityVersion": "restricted_personnel_v1",
+  "authorityBasis": { "...": "domain-owned proof" },
+  "resultPolicy": "boolean",
+  "revealsPlaintext": false,
+  "carrier": {
+    "carrierKey": "some_carrier",
+    "carrierLocator": "opaque locator",
+    "carrierVersion": "..."
+  },
+  "warrantTtlSeconds": 180
+}
+```
+
+or:
+
+```json
+{
+  "authorized": false,
+  "authorityVersion": "restricted_personnel_v1",
+  "denialReason": "operation_authority_required"
+}
+```
+
+The shared kernel must not manufacture or reinterpret this authority decision.
+
+## 6. Adapter registry
+
+The kernel may have a small explicit registry:
+
+```text
+atlas.sealed_reality_domain_adapters
+
+domain_key
+adapter_version
+adapter_state
+authority_resolver_key
+metadata
+```
+
+For v1, the resolver dispatcher should be explicit code with known adapter keys.
+
+Do **not** store arbitrary SQL function names and dynamically execute them from user-controlled registry values.
+
+The initial dispatcher should contain only reviewed branches:
+
+```text
+restricted_personnel_record
+  → personnel authority adapter
+
+sealed_treasury_endpoint
+  → treasury authority adapter
+```
+
+Adding a domain is therefore a governed schema/code change, not a metadata trick.
+
+## 7. Shared operation vocabulary is namespaced, not universalized
+
+The kernel should not pretend that all domains have the same operations.
+
+Use:
+
+```text
+domain_key + operation_key
+```
+
+Examples:
+
+```text
+restricted_personnel_record / reveal
+restricted_personnel_record / verify
+restricted_personnel_record / derive_assertion
+
+sealed_treasury_endpoint / verify_destination
+sealed_treasury_endpoint / compare_destination
+sealed_treasury_endpoint / submit_payment_destination
+sealed_treasury_endpoint / reveal_full
+```
+
+Common semantic families may later emerge, but the v1 shared kernel must not rename domain truth merely to make the tables look uniform.
+
+## 8. Result policy is shared
+
+The two domains prove that durable results can be smaller than the protected fact.
+
+The shared kernel may own a small result-policy vocabulary:
+
+```text
+none
+boolean
+string
+receipt
+scalar
+ephemeral_reveal
+```
+
+The domain adapter chooses the allowed policy.
+
+The shared completion membrane validates it.
+
+### Rule
+
+```text
+carrier output
+    must fit the operation's declared result policy
+
+otherwise
+    reject completion
+```
+
+For `ephemeral_reveal`:
+
+```text
+plaintext delivery may occur outside canonical storage
+
+durable result:
+  {"delivered": true}
+```
+
+The shared kernel must never persist revealed plaintext merely because the carrier returned it.
+
+## 9. Shared operation warrant
+
+The treasury proof established a useful cross-domain primitive that personnel does not yet use: the **one-time operation warrant**.
+
+This should be promoted.
+
+### Proposed table
+
+```text
+atlas.sealed_reality_operation_warrants
+
+id
+sealed_reality_handle_id
+principal_id
+domain_key
+operation_key
+purpose_key
+authority_version
+authority_basis
+result_policy
+reveals_plaintext
+carrier_key
+carrier_locator
+carrier_version
+warrant_token_hash
+warrant_state
+issued_at
+expires_at
+consumed_at
+revoked_at
+reason_text
+request_context
+created_at
+```
+
+The raw bearer token is returned once to the trusted caller/carrier.
+
+Only its cryptographic hash is retained.
+
+### Invariants
+
+- short-lived;
+- one-time;
+- bound to one Sealed Reality Handle;
+- bound to one Principal;
+- bound to one operation;
+- bound to one purpose;
+- carrier snapshot fixed at issuance;
+- result policy fixed at issuance;
+- authority basis fixed at issuance;
+- replay rejected.
+
+## 10. Shared operation receipt
+
+### Proposed table
+
+```text
+atlas.sealed_reality_operation_receipts
+
+id
+warrant_id unique
+outcome
+safe_result
+carrier_receipt_ref
+completed_at
+metadata
+```
+
+The receipt records the governed effect of the operation without becoming a second copy of the protected reality.
+
+Examples:
+
+```text
+verify
+  → true
+
+compare
+  → false
+
+submit
+  → provider/carrier receipt reference
+
+derive
+  → bounded scalar/assertion
+
+reveal
+  → {"delivered": true}
+```
+
+## 11. Shared audit lineage
+
+Both proof domains require durable access/accountability history.
+
+### Proposed table
+
+```text
+atlas.sealed_reality_operation_events
+
+id
+sealed_reality_handle_id
+principal_id
+domain_key
+event_key
+outcome
+operation_key
+purpose_key
+warrant_id
+receipt_id
+reason_text
+context
+occurred_at
+created_at
+```
+
+Append-only.
+
+Events should include:
+
+```text
+operation_request_allowed
+operation_request_denied
+warrant_issued
+carrier_completed
+carrier_failed
+warrant_expired
+warrant_revoked
+audit_read
+```
+
+The event log must not contain plaintext protected values.
+
+## 12. Shared request service
+
+The central service shape should be:
+
+```text
+atlas.request_sealed_reality_operation_service_v1(
+  handle_id,
+  principal_id,
+  operation_key,
+  purpose_key,
+  reason,
+  context
+)
+```
+
+Execution:
+
+```text
+1. load handle
+2. dispatch to the handle's domain authority adapter
+3. if denied:
+     write durable denied event
+     return denial
+4. if authorized and no carrier is required:
+     return bounded domain-safe response
+5. if carrier required:
+     issue short-lived one-time warrant
+     snapshot authority/result/carrier contract
+     write audit event
+     return bearer warrant + carrier instructions
+```
+
+The service never independently grants authority.
+
+## 13. Shared completion service
+
+```text
+atlas.complete_sealed_reality_operation_service_v1(
+  warrant_token,
+  outcome,
+  carrier_key,
+  safe_result,
+  carrier_receipt_ref,
+  metadata
+)
+```
+
+Execution:
+
+```text
+1. hash bearer token
+2. locate and lock warrant
+3. require issued + unexpired + unconsumed
+4. require carrier identity match
+5. validate result against snapshotted result policy
+6. consume warrant
+7. write receipt
+8. write append-only event
+9. return safe result
+```
+
+For ephemeral reveal:
+
+```text
+accepted durable result:
+  {"delivered": true}
+
+rejected:
+  any plaintext-like result
+```
+
+## 14. Why durable grants should NOT be promoted yet
+
+Personnel currently has:
+
+```text
+restricted_vault_entitlements
+  capability
+  record_class_scope
+  purpose_scope
+```
+
+Treasury has:
+
+```text
+sealed_treasury_operation_grants
+  operation
+  purpose_scope
+```
+
+The overlap is tempting.
+
+Do not merge them yet.
+
+The record-class scope in Personnel is meaningful domain law. Treasury does not have it.
+
+A generic `scope jsonb` permission table would merely hide domain differences.
+
+Therefore v1 promotion should stop at:
+
+```text
+domain authority decision
+→ shared warrant
+→ shared carrier completion
+→ shared bounded receipt/audit
+```
+
+Durable authority remains domain-owned.
+
+This is the key anti-flattening boundary.
+
+## 15. Why standing should NOT become a shared table yet
+
+The constitution names standing as a shared concept, but the two domains do not yet prove one shared storage shape for it.
+
+Personnel standing can arise from:
+
+```text
+person
+personnel custody
+employment/institution relation
+vault subject
+```
+
+Treasury standing arises from:
+
+```text
+institution
+Ledger governance
+delegated treasury operation authority
+```
+
+A generic `standing_party` table would currently be a vocabulary abstraction, not a proven reality abstraction.
+
+Therefore:
+
+> **Standing is shared constitutional language, but remains domain-owned executable truth in shared-kernel v1.**
+
+## 16. Carrier boundary
+
+The shared kernel should understand only this carrier contract:
+
+```text
+carrier_key
+carrier_locator
+carrier_version
+warrant
+operation
+purpose
+bounded input reference / request context
+```
+
+It must not require that the carrier be:
+
+- KMS;
+- Atlas-owned;
+- cloud-owned;
+- device-held;
+- threshold;
+- HSM-backed;
+- enclave-backed;
+- MPC;
+- selective-disclosure credential.
+
+Carrier type is implementation detail unless the domain's authority law depends upon it.
+
+## 17. Personnel migration path
+
+Do not replace the Personnel Vault tables.
+
+Instead:
+
+```text
+restricted_vault_record
+        ↓
+sealed_reality_handle
+        ↓
+personnel authority adapter
+        ↓
+shared warrant/receipt/event kernel
+```
+
+Initial personnel operation mapping may be:
+
+```text
+verify
+  → vault_assertion_read or approved verification carrier path
+
+derive_assertion
+  → vault_assertion_write path
+
+reveal
+  → vault_record_read authority
+  → ephemeral_reveal result policy
+
+write
+  remains domain-owned command
+```
+
+Personnel record lifecycle and encrypted payload storage remain in the Personnel domain.
+
+## 18. Treasury migration path
+
+Treasury already closely resembles the target execution kernel.
+
+Migration should be:
+
+```text
+sealed_treasury_endpoint
+        ↓
+sealed_reality_handle
+        ↓
+treasury authority adapter
+        ↓
+shared warrant/receipt/event kernel
+```
+
+After equivalent behavior is proven, the treasury-specific warrant/receipt/event tables may be retired.
+
+Treasury endpoint and treasury operation grants remain domain-owned.
+
+## 19. No caller receives universal "sealed access"
+
+The shared kernel must never introduce:
+
+```text
+sealed_reality_admin
+superuser_reveal
+global_decrypt
+all_domains_read
+```
+
+Its shared administration authority may eventually include only things such as:
+
+```text
+register approved domain adapter
+retire handle
+inspect non-secret kernel health
+repair carrier routing
+```
+
+None implies reveal.
+
+## 20. Kernel health
+
+A future health projection may answer:
+
+```text
+active handles
+warrants issued
+warrants expired unused
+carrier failures
+reveal operations requested
+denied operations
+replayed warrant attempts
+orphaned handles
+adapter-version drift
+```
+
+without exposing protected values.
+
+## 21. Promotion sequence
+
+The shared kernel should be released in this order:
+
+### Phase A — handles + adapter registry
+
+Register personnel records and treasury endpoints as domain-owned Sealed Reality Handles.
+
+No behavior cutover.
+
+### Phase B — shared warrant / receipt / event kernel
+
+Add the shared execution carrier membrane.
+
+Treasury first because its current operation model already proves the shape.
+
+### Phase C — treasury cutover
+
+Treasury authority stays domain-owned, but operation execution moves to the shared kernel.
+
+Prove behavior equivalence.
+
+### Phase D — personnel adapter
+
+Add personnel record operation adapter and migrate protected read/derived-operation execution behind shared warrants.
+
+### Phase E — retirement
+
+Only after both domains run through the shared execution kernel:
+
+- retire treasury-specific warrant/receipt/event execution tables;
+- retain treasury domain authority tables;
+- retain personnel domain authority and payload tables.
+
+## 22. What this kernel is
+
+```text
+not a universal permission engine
+not a universal secrets database
+not a KMS
+not an ACL system
+not a replacement for domain law
+
+it is:
+
+a governed one-operation execution membrane
+between domain authority and replaceable cryptographic carriers
+```
+
+## 23. Shared governing sentence
+
+> **The domain decides whether an operation is lawful. The Sealed Reality kernel carries that lawful authority through one bounded execution without enlarging it, revealing more than necessary, or becoming the source of the authority itself.**
