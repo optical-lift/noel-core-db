@@ -429,7 +429,9 @@ declare
   v_binding jsonb;
   v_existing atlas.notebook_spread_instances%rowtype;
   v_identity_match boolean;
+  v_carrier_projection_match boolean;
   v_binding_match boolean;
+  v_binding_payload_match boolean;
   v_active_binding_count integer;
   v_action text;
   v_binding_directive text;
@@ -521,7 +523,19 @@ begin
         and v_existing.thread_key = v_spec->>'threadKey';
     end if;
 
+    v_carrier_projection_match := false;
+    if v_existing.id is not null and v_spec is not null then
+      v_carrier_projection_match :=
+        v_existing.title = v_spec->>'title'
+        and v_existing.section_key = v_spec->>'sectionKey'
+        and v_existing.recipe_key is not distinct from nullif(v_spec->>'recipeKey','')
+        and v_existing.composition_contract = coalesce(v_spec->'compositionContract','{}'::jsonb)
+        and v_existing.basis = coalesce(v_spec->'basis','{}'::jsonb)
+        and v_existing.metadata = coalesce(v_spec->'metadata','{}'::jsonb);
+    end if;
+
     v_binding_match := false;
+    v_binding_payload_match := false;
     v_active_binding_count := 0;
     if v_existing.id is not null then
       select count(*)::integer
@@ -543,6 +557,23 @@ begin
             and b.source_id=v_binding->>'sourceId'
             and b.relationship_kind=v_binding->>'relationshipKind'
         ) into v_binding_match;
+
+        select exists (
+          select 1
+          from atlas.notebook_spread_source_bindings b
+          where b.spread_instance_id=v_existing.id
+            and b.binding_state='active'
+            and b.retired_at is null
+            and b.source_domain=v_binding->>'sourceDomain'
+            and b.source_kind=v_binding->>'sourceKind'
+            and b.source_id=v_binding->>'sourceId'
+            and b.relationship_kind=v_binding->>'relationshipKind'
+            and b.basis = coalesce(v_spec->'bindingBasis','{}'::jsonb)
+            and b.metadata = coalesce(
+              v_spec->'bindingMetadata',
+              coalesce(v_binding->'metadata','{}'::jsonb)
+            )
+        ) into v_binding_payload_match;
       end if;
     end if;
 
@@ -562,7 +593,9 @@ begin
         v_action := 'reopen_place';
       elsif v_desired_state='closed' and v_existing.spread_state='open' then
         v_action := 'close_place';
-      elsif v_binding is not null and not v_binding_match then
+      elsif not v_carrier_projection_match then
+        v_action := 'refresh_carrier';
+      elsif v_binding is not null and (not v_binding_match or not v_binding_payload_match) then
         v_action := 'replace_binding';
       else
         v_action := 'no_op';
@@ -734,63 +767,69 @@ begin
         get diagnostics v_rows = row_count;
         if v_rows>0 then v_changed := true; end if;
       end if;
-    elsif v_binding_directive='ensure_active' then
-      if v_spec is null or v_binding is null or v_key is null then
-        raise exception 'Eligible notebook reconciliation omitted carrier specification or source binding.'
-          using errcode='23514';
-      end if;
-
-      v_spread_id := atlas.set_notebook_spread_instance_v2(
-        v_principal_id,
-        v_spec->>'spreadKey',
-        v_spec->'scope'->>'kind',
-        v_spec->'scope'->>'id',
-        v_spec->'subject'->>'domain',
-        v_spec->'subject'->>'kind',
-        v_spec->'subject'->>'id',
-        v_spec->>'purposeKey',
-        v_spec->>'horizonKey',
-        v_spec->>'threadKey',
-        v_spec->>'title',
-        v_spec->>'sectionKey',
-        v_spec->>'recipeKey',
-        coalesce(nullif(v_spec->>'creationMode',''),'resolved'),
-        v_item->>'desiredCarrierState',
-        coalesce(v_spec->'compositionContract','{}'::jsonb),
-        coalesce(v_spec->'basis','{}'::jsonb),
-        coalesce(v_spec->'metadata','{}'::jsonb)
-      );
-
+    else
       if v_action <> 'no_op' then
+        if v_spec is null or v_key is null then
+          raise exception 'Eligible notebook reconciliation omitted carrier specification.'
+            using errcode='23514';
+        end if;
+
+        v_spread_id := atlas.set_notebook_spread_instance_v2(
+          v_principal_id,
+          v_spec->>'spreadKey',
+          v_spec->'scope'->>'kind',
+          v_spec->'scope'->>'id',
+          v_spec->'subject'->>'domain',
+          v_spec->'subject'->>'kind',
+          v_spec->'subject'->>'id',
+          v_spec->>'purposeKey',
+          v_spec->>'horizonKey',
+          v_spec->>'threadKey',
+          v_spec->>'title',
+          v_spec->>'sectionKey',
+          v_spec->>'recipeKey',
+          coalesce(nullif(v_spec->>'creationMode',''),'resolved'),
+          v_item->>'desiredCarrierState',
+          coalesce(v_spec->'compositionContract','{}'::jsonb),
+          coalesce(v_spec->'basis','{}'::jsonb),
+          coalesce(v_spec->'metadata','{}'::jsonb)
+        );
         v_changed := true;
+      else
+        v_spread_id := v_existing.id;
       end if;
 
-      update atlas.notebook_spread_source_bindings
-      set binding_state='retired',
-          retired_at=coalesce(retired_at,now()),
-          updated_at=now()
-      where spread_instance_id=v_spread_id
-        and binding_state='active'
-        and retired_at is null
-        and source_domain=v_binding->>'sourceDomain'
-        and source_id=v_binding->>'sourceId'
-        and (
-          source_kind <> v_binding->>'sourceKind'
-          or relationship_kind <> v_binding->>'relationshipKind'
-        );
-      get diagnostics v_rows = row_count;
-      if v_rows>0 then v_changed := true; end if;
+      if v_binding_directive='ensure_active' and v_action <> 'no_op' then
+        if v_binding is null or v_spread_id is null then
+          raise exception 'Eligible notebook reconciliation omitted source binding.'
+            using errcode='23514';
+        end if;
 
-      perform atlas.bind_notebook_spread_source_v1(
-        v_spread_id,
-        v_binding->>'sourceDomain',
-        v_binding->>'sourceKind',
-        v_binding->>'sourceId',
-        v_binding->>'relationshipKind',
-        'active',
-        coalesce(v_spec->'bindingBasis','{}'::jsonb),
-        coalesce(v_spec->'bindingMetadata',coalesce(v_binding->'metadata','{}'::jsonb))
-      );
+        update atlas.notebook_spread_source_bindings
+        set binding_state='retired',
+            retired_at=coalesce(retired_at,now()),
+            updated_at=now()
+        where spread_instance_id=v_spread_id
+          and binding_state='active'
+          and retired_at is null
+          and source_domain=v_binding->>'sourceDomain'
+          and source_id=v_binding->>'sourceId'
+          and (
+            source_kind <> v_binding->>'sourceKind'
+            or relationship_kind <> v_binding->>'relationshipKind'
+          );
+
+        perform atlas.bind_notebook_spread_source_v1(
+          v_spread_id,
+          v_binding->>'sourceDomain',
+          v_binding->>'sourceKind',
+          v_binding->>'sourceId',
+          v_binding->>'relationshipKind',
+          'active',
+          coalesce(v_spec->'bindingBasis','{}'::jsonb),
+          coalesce(v_spec->'bindingMetadata',coalesce(v_binding->'metadata','{}'::jsonb))
+        );
+      end if;
     end if;
 
     if v_changed then
