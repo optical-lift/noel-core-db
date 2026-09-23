@@ -307,8 +307,7 @@ begin
   end if;
 
   update atlas.person_life_definitions
-  set status='retired',
-      updated_at=now()
+  set status='retired'
   where id=v_definition_id
     and owner_user_id=v_life_user;
 
@@ -340,8 +339,7 @@ begin
   end if;
 
   update atlas.person_life_definitions
-  set status='active',
-      updated_at=now()
+  set status='active'
   where id=v_definition_id
     and owner_user_id=v_life_user;
 
