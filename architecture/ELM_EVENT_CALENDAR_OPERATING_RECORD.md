@@ -446,3 +446,45 @@ If a recurrence instance is moved or otherwise disagrees with its attached canon
 
 See `architecture/ATLAS_COMBINED_TEMPORAL_PROJECTION_V1.md`.
 
+## 14. Event-specific businesses, partners, vendors, and sponsors
+
+Elm event planning must not create a second business directory inside the calendar.
+
+Event-specific business participation is represented through:
+
+```text
+canonical local_intel entity
+        ↓
+Elm external_relationship
+        +
+canonical occurrence
+        ↓
+Elm organization_occurrence_binding
+        ↓
+atlas.organization_occurrence_relationship_links
+```
+
+The link carries:
+
+- `role_keys` such as `vendor`, `sponsor`, `instructor`, `participating_merchant`, or `recommended_nearby`;
+- Organization-private `engagement_state`;
+- explicit `calendar_display_state` of `hidden`, `eligible`, or `published`;
+- optional public label/note and display order;
+- private payload/provenance.
+
+Prospective and unknown Elm relationships are lawful event-planning candidates. They do not need to be promoted to generic `relationship_state='active'` merely to be invited. Inactive or ended relationships are not eligible for new event links.
+
+Event outreach remains append-only relationship history in `atlas.external_relationship_interactions`, with optional `occurrence_relationship_link_id` tying the email/call/text to the exact event-specific relationship.
+
+The combined temporal calendar projection v2:
+
+```text
+atlas.organization_context_temporal_projection_service_v2
+```
+
+adds `publishedRelatedEntities` only for links whose `calendar_display_state='published'`.
+
+Candidate, invited, or otherwise hidden relationships cannot leak onto the rendered calendar merely because Elm has linked or contacted them.
+
+See `architecture/ATLAS_OCCURRENCE_RELATIONSHIP_LINKS_V1.md`.
+
