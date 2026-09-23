@@ -30,10 +30,23 @@ begin
 
   perform set_config('request.jwt.claim.sub',v_practitioner::text,true);
 
-  -- Fixture DML runs before candidate migration. Convert the currently lawful
-  -- object=Organization placeholders after grammar is corrected to object=Unit.
+  -- Fixture DML runs before candidate migration. Convert unaffected, lawful
+  -- Institutional Person placeholders only after Position grammar is corrected.
   update atlas.implementation_reality_candidates
-  set object_binding=case id
+  set operation_id='organization_position.establish',
+      subject_binding=jsonb_build_object(
+        'kind','organization_position',
+        'label',case id
+          when v_ready then 'Operations Lead'
+          when v_missing_kind then 'No Kind Position'
+          when v_duplicate then 'Existing Lead'
+          when v_unresolved_unit then 'Unknown Unit Position'
+          when v_outside then 'Outside Position'
+          when v_technical then 'Technical Position'
+        end,
+        'resolution','proposed'
+      ),
+      object_binding=case id
     when v_unresolved_unit then jsonb_build_object(
       'kind','organization_unit','label','Unknown Unit','resolution','unresolved'
     )
