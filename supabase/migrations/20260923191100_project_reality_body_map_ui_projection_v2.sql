@@ -149,7 +149,7 @@ select
 from r
 join a using(object_type,object_id)
 join p using(object_type,object_id);
-$;
+$$;
 
 create or replace function intelligence.render_body_map_vocabulary_page_v2(
   p_query jsonb,
