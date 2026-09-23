@@ -616,3 +616,26 @@ This satisfies the two-domain promotion threshold for **designing** a shared Sea
 
 It does not authorize flattening personnel and treasury into one generic table without first preserving their distinct standing laws and domain-owned lifecycle truth.
 
+## 20. Shared-kernel design candidate established
+
+The cross-domain execution kernel is now designed in
+`architecture/ATLAS_SEALED_REALITY_SHARED_KERNEL_DESIGN_V0_1.md`.
+
+The design deliberately promotes only the structure that survived both Personnel and Treasury:
+
+```text
+domain-owned authority decision
+→ shared one-time operation warrant
+→ replaceable carrier
+→ bounded result
+→ append-only audit lineage
+```
+
+It does **not** promote durable grants or standing into generic shared tables.
+
+Personnel record-class scope and Treasury operation grants remain domain-owned because the two-domain proof does not establish one truthful shared storage shape for those authorities.
+
+The first shared executable noun proposed is therefore the **Sealed Reality Handle**, followed by the shared warrant/receipt/event execution membrane.
+
+No shared database migration is authorized merely by this design document. Promotion should proceed in the phased cutover defined there, beginning with handles + explicit domain adapters and no behavior change.
+
