@@ -1,0 +1,45 @@
+{
+  "contractVersion": 36,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v35.json",
+  "rule": "These already-live rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260923161022",
+      "name": "atlas_buyer_identity_interaction_succession_completion_v1",
+      "filename": "20260923161022_atlas_buyer_identity_interaction_succession_completion_v1.sql",
+      "gitBlobSha1": "0747e321fe82d9002ccf85b795757f771b96d8b5",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923170653",
+      "name": "atlas_flower_commercial_extension_parentage_v1",
+      "filename": "20260923170653_atlas_flower_commercial_extension_parentage_v1.sql",
+      "gitBlobSha1": "32c559561179c4a090134daa6b886d455a0ebced",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923173345",
+      "name": "elm_public_calendar_canonical_occurrence_compatibility_v2",
+      "filename": "20260923173345_elm_public_calendar_canonical_occurrence_compatibility_v2.sql",
+      "gitBlobSha1": "3902f1e18b4bf1530b58b2f5bb2da5659c941dee",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260923173503",
+      "name": "repair_elm_public_calendar_projector_v2",
+      "filename": "20260923173503_repair_elm_public_calendar_projector_v2.sql",
+      "gitBlobSha1": "8a367393695b444093aa42e4de4e8217f512916d",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
