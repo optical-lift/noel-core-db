@@ -41,10 +41,7 @@ begin
     );
   end if;
 
-  v_person_id := nullif(v_position->'person'->>'personId','');
-  if v_person_id is null then
-    v_person_id := nullif(v_position->>'personId','');
-  end if;
+  v_person_id := nullif(v_position->'identity'->>'personId','');
 
   for v_household in
     select value
@@ -245,10 +242,7 @@ begin
     );
   end if;
 
-  v_person_id := coalesce(
-    nullif(v_position->'person'->>'personId',''),
-    nullif(v_position->>'personId','')
-  );
+  v_person_id := nullif(v_position->'identity'->>'personId','');
 
   for v_farm in
     select f.id as farm_id,
@@ -521,10 +515,7 @@ begin
     );
   end if;
 
-  v_person_id := coalesce(
-    nullif(v_position->'person'->>'personId',''),
-    nullif(v_position->>'personId','')
-  );
+  v_person_id := nullif(v_position->'identity'->>'personId','');
 
   for v_endpoint in
     select ep.id as endpoint_id,
