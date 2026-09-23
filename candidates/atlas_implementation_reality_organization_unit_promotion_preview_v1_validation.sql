@@ -30,6 +30,41 @@ begin
 
   perform set_config('request.jwt.claim.sub',v_practitioner::text,true);
 
+  -- The clone harness applies fixture DML before the candidate migration.
+  -- Convert the lawful pre-migration placeholder candidates only after the
+  -- migration has extended Reality Sentence grammar to organization_unit.establish.
+  update atlas.implementation_reality_candidates c
+  set operation_id='organization_unit.establish',
+      subject_binding=jsonb_build_object(
+        'kind','organization_unit',
+        'label',case c.id
+          when v_ready then 'Operations'
+          when v_nested then 'Field Operations'
+          when v_missing_kind then 'No Kind Unit'
+          when v_duplicate then 'Existing Unit'
+          when v_unresolved_parent then 'Nested Unit'
+          when v_outside then 'Outside Unit'
+        end,
+        'resolution','proposed'
+      ),
+      context_binding=case c.id
+        when v_nested then jsonb_build_object(
+          'kind','organization_unit',
+          'label','Existing Parent',
+          'resolution','canonical',
+          'canonicalId','f4400000-0000-4000-8000-000000000211'
+        )
+        when v_unresolved_parent then jsonb_build_object(
+          'kind','organization_unit',
+          'label','Unknown Parent',
+          'resolution','unresolved'
+        )
+        else null
+      end
+  where c.id in (
+    v_ready,v_nested,v_missing_kind,v_duplicate,v_unresolved_parent,v_outside
+  );
+
   select jsonb_agg(to_jsonb(u) order by u.id)
   into v_before_units
   from atlas.organization_units u;
