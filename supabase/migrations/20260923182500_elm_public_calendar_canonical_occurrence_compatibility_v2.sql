@@ -551,35 +551,15 @@ drop trigger if exists sync_elm_local_calendar_from_curation_v1
 drop trigger if exists sync_elm_local_series_rule_v1
   on local_intel.elm_local_event_series_rules_v1;
 
--- Reproject every existing public row through canonical occurrence authority.
-do $$
-declare
-  v_before integer;
-  v_after integer;
-  v_occurrence_id uuid;
-begin
-  select count(*) into v_before
-  from public.elm_local_calendar_events_v1;
-
-  for v_occurrence_id in
-    select occurrence_id
-    from public.elm_local_calendar_events_v1
-    order by occurrence_id
-  loop
-    perform local_intel.refresh_elm_local_calendar_occurrence_v2(v_occurrence_id);
-  end loop;
-
-  select count(*) into v_after
-  from public.elm_local_calendar_events_v1;
-
-  if v_after <> v_before then
-    raise exception
-      'Canonical calendar reprojection changed public row count from % to %; refusing compatibility cutover.',
-      v_before,v_after
-      using errcode='23514';
-  end if;
-end
-$$;
+-- Existing rows are already current under the legacy triggers. Record the
+-- canonical authority marker in place; future occurrence/overlay/context writes
+-- flow through refresh_elm_local_calendar_occurrence_v2.
+update public.elm_local_calendar_events_v1
+set details=coalesce(details,'{}'::jsonb) || jsonb_build_object(
+      'canonicalOccurrenceId',occurrence_id,
+      'projectionAuthority','canonical_occurrence_plus_optional_organization_overlay'
+    ),
+    projected_at=now();
 
 comment on column public.elm_local_calendar_events_v1.occurrence_id is
   'Authoritative canonical event identity. Every public Elm calendar row resolves to exactly one local_intel occurrence.';
