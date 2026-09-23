@@ -128,6 +128,33 @@ begin
   );
   v_definition_id := (v_create->>'definitionId')::uuid;
 
+  -- Exposure and admission must never manufacture notebook carriers. Establish
+  -- the already-existing durable carrier explicitly so this proof tests only
+  -- the Person-relative encounter/admission decision over canonical truth.
+  perform atlas.set_notebook_spread_instance_v2(
+    (v_bootstrap->>'principalId')::uuid,
+    'life:'||v_definition_id::text,
+    'person',
+    v_life_user::text,
+    'person',
+    'life_definition',
+    v_definition_id::text,
+    'person-life-definition',
+    'current',
+    'life:'||v_definition_id::text,
+    'Notebook Admission Life',
+    'Life',
+    null,
+    'resolved',
+    'open',
+    '{}'::jsonb,
+    jsonb_build_object(
+      'proof','existing_carrier_for_admission',
+      'definitionId',v_definition_id
+    ),
+    jsonb_build_object('validationOnly',true)
+  );
+
   v_index := atlas.notebook_index_admitted_self_api_v1();
 
   select count(*)::integer
