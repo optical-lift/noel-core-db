@@ -214,3 +214,22 @@ the Ledger may know the vault exists
 the vault may know the personnel secret
 the rest of Atlas receives only what a separate membrane explicitly permits
 ```
+
+## Sealed Reality constitutional succession
+
+This personnel vault is the first proof domain governed by
+`architecture/ATLAS_SEALED_REALITY_CONSTITUTION_V0_1.md`.
+
+Accordingly:
+
+- `kms_key_ref` is a cryptographic carrier reference, not the source of authority;
+- vault entitlements are an initial operation-authority implementation, not proof that one generic permission table should govern every sealed domain;
+- safe assertions establish the reveal-vs-derived-operation distinction;
+- infrastructure administration must remain distinct from content/reveal authority;
+- the current centralized envelope/KMS shape is replaceable by recipient-bound, threshold, device-held, secure-compute, or other carriers without redefining the personnel reality;
+- Atlas must not promote a universal Sealed Reality schema from this personnel domain alone. A second genuinely different domain must prove the shared abstraction first.
+
+The governing sentence is:
+
+> Atlas does not begin with who holds the key. Atlas begins with who has standing in the reality, what operation is lawful, and under whose authority. Cryptography exists to preserve that order.
+
