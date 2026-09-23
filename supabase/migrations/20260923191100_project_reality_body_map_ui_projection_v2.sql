@@ -2,6 +2,8 @@ begin;
 
 drop function if exists intelligence.render_body_map_vocabulary_page_v1(jsonb,integer);
 drop function if exists intelligence.project_body_map_vocabulary_for_ui_v1(jsonb,integer);
+drop function if exists intelligence.render_body_map_vocabulary_page_v2(jsonb,integer);
+drop function if exists intelligence.project_body_map_vocabulary_for_ui_v2(jsonb,integer);
 
 create or replace function intelligence.project_body_map_vocabulary_for_ui_v2(
   p_query jsonb,
