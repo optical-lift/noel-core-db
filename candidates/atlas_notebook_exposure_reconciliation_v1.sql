@@ -33,11 +33,12 @@ begin
     raise exception 'Authentication required.' using errcode='42501';
   end if;
 
+  if coalesce(p_exposure->'encounter'->>'state','') <> 'eligible'
+     or coalesce(p_exposure->'place'->>'disposition','none') not in ('stable','transient') then
+    return null;
+  end if;
+
   if v_contract_key='person.life_definition.v1' then
-    if coalesce(p_exposure->'encounter'->>'state','') <> 'eligible'
-       or coalesce(p_exposure->'place'->>'disposition','none') not in ('stable','transient') then
-      return null;
-    end if;
     v_definition_id := nullif(p_exposure->'subjectRef'->>'id','');
     if v_definition_id is null then
       raise exception 'Eligible Person Life exposure omitted definition identity.' using errcode='23514';
@@ -239,11 +240,6 @@ begin
   end if;
 
   if v_contract_key='principal.connections_orientation.v1' then
-    if coalesce(p_exposure->'encounter'->>'state','') <> 'eligible'
-       or coalesce(p_exposure->'place'->>'disposition','none') not in ('stable','transient') then
-      return null;
-    end if;
-
     v_principal_id := coalesce(
       nullif(p_exposure->'sourceBinding'->>'sourceId',''),
       nullif(p_exposure->'subjectRef'->>'id','')
@@ -433,9 +429,7 @@ declare
   v_binding jsonb;
   v_existing atlas.notebook_spread_instances%rowtype;
   v_identity_match boolean;
-  v_carrier_projection_match boolean;
   v_binding_match boolean;
-  v_binding_payload_match boolean;
   v_active_binding_count integer;
   v_action text;
   v_binding_directive text;
@@ -497,10 +491,11 @@ begin
       v_key := 'ledger:'||(v_item->'contextRef'->>'id');
     end if;
 
-    -- The domain adapter may return an identity-only historical specification
-    -- even when encounter is no longer eligible. That lets the reconciler
-    -- collision-check the durable key before closing anything.
-    v_spec := atlas.notebook_exposure_carrier_spec_self_v1(v_item);
+    v_spec := case
+      when v_encounter='eligible' and v_place in ('stable','transient')
+        then atlas.notebook_exposure_carrier_spec_self_v1(v_item)
+      else null
+    end;
 
     v_existing := null;
     if v_key is not null then
@@ -526,19 +521,7 @@ begin
         and v_existing.thread_key = v_spec->>'threadKey';
     end if;
 
-    v_carrier_projection_match := false;
-    if v_existing.id is not null and v_spec is not null then
-      v_carrier_projection_match :=
-        v_existing.title = v_spec->>'title'
-        and v_existing.section_key = v_spec->>'sectionKey'
-        and v_existing.recipe_key is not distinct from nullif(v_spec->>'recipeKey','')
-        and v_existing.composition_contract = coalesce(v_spec->'compositionContract','{}'::jsonb)
-        and v_existing.basis = coalesce(v_spec->'basis','{}'::jsonb)
-        and v_existing.metadata = coalesce(v_spec->'metadata','{}'::jsonb);
-    end if;
-
     v_binding_match := false;
-    v_binding_payload_match := false;
     v_active_binding_count := 0;
     if v_existing.id is not null then
       select count(*)::integer
@@ -560,23 +543,6 @@ begin
             and b.source_id=v_binding->>'sourceId'
             and b.relationship_kind=v_binding->>'relationshipKind'
         ) into v_binding_match;
-
-        select exists (
-          select 1
-          from atlas.notebook_spread_source_bindings b
-          where b.spread_instance_id=v_existing.id
-            and b.binding_state='active'
-            and b.retired_at is null
-            and b.source_domain=v_binding->>'sourceDomain'
-            and b.source_kind=v_binding->>'sourceKind'
-            and b.source_id=v_binding->>'sourceId'
-            and b.relationship_kind=v_binding->>'relationshipKind'
-            and b.basis = coalesce(v_spec->'bindingBasis','{}'::jsonb)
-            and b.metadata = coalesce(
-              v_spec->'bindingMetadata',
-              coalesce(v_binding->'metadata','{}'::jsonb)
-            )
-        ) into v_binding_payload_match;
       end if;
     end if;
 
@@ -596,9 +562,7 @@ begin
         v_action := 'reopen_place';
       elsif v_desired_state='closed' and v_existing.spread_state='open' then
         v_action := 'close_place';
-      elsif not v_carrier_projection_match then
-        v_action := 'refresh_carrier';
-      elsif v_binding is not null and (not v_binding_match or not v_binding_payload_match) then
+      elsif v_binding is not null and not v_binding_match then
         v_action := 'replace_binding';
       else
         v_action := 'no_op';
@@ -607,10 +571,6 @@ begin
       v_binding_directive := 'retire';
       if v_key is null or v_existing.id is null then
         v_action := 'no_op';
-      elsif v_spec is null then
-        v_action := 'invalid';
-      elsif not v_identity_match then
-        v_action := 'invalid_collision';
       elsif v_existing.spread_state='open' then
         v_action := 'close_place';
       elsif v_active_binding_count>0 then
@@ -774,13 +734,18 @@ begin
         get diagnostics v_rows = row_count;
         if v_rows>0 then v_changed := true; end if;
       end if;
-    else
-      if v_action <> 'no_op' then
-        if v_spec is null or v_key is null then
-          raise exception 'Eligible notebook reconciliation omitted carrier specification.'
-            using errcode='23514';
-        end if;
+    elsif v_binding_directive='ensure_active' then
+      if v_spec is null or v_binding is null or v_key is null then
+        raise exception 'Eligible notebook reconciliation omitted carrier specification or source binding.'
+          using errcode='23514';
+      end if;
 
+      -- A true no-op must be physically idempotent. Do not touch carrier or
+      -- binding timestamps when the plan already proves the durable identity,
+      -- desired state, and governed active binding are current.
+      if v_action='no_op' then
+        v_spread_id := v_existing.id;
+      else
         v_spread_id := atlas.set_notebook_spread_instance_v2(
           v_principal_id,
           v_spec->>'spreadKey',
@@ -802,15 +767,6 @@ begin
           coalesce(v_spec->'metadata','{}'::jsonb)
         );
         v_changed := true;
-      else
-        v_spread_id := v_existing.id;
-      end if;
-
-      if v_binding_directive='ensure_active' and v_action <> 'no_op' then
-        if v_binding is null or v_spread_id is null then
-          raise exception 'Eligible notebook reconciliation omitted source binding.'
-            using errcode='23514';
-        end if;
 
         update atlas.notebook_spread_source_bindings
         set binding_state='retired',
@@ -825,6 +781,8 @@ begin
             source_kind <> v_binding->>'sourceKind'
             or relationship_kind <> v_binding->>'relationshipKind'
           );
+        get diagnostics v_rows = row_count;
+        if v_rows>0 then v_changed := true; end if;
 
         perform atlas.bind_notebook_spread_source_v1(
           v_spread_id,
