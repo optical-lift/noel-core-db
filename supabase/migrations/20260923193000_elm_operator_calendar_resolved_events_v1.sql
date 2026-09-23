@@ -11,7 +11,7 @@ alter table atlas.community_events
   add constraint community_events_event_kind_nonblank_v1
   check (btrim(event_kind) <> '');
 
-do $
+do $$
 declare
   v_org constant uuid := 'fc4ad5aa-2d09-4ea6-ba50-eaf0f34fc3f2';
   v_farm constant uuid := '6a503d9f-4008-4ddb-b3f0-cc6ab825dc9f';
