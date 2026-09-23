@@ -81,7 +81,7 @@ It may not mutate Position truth, candidate state, appointments, responsibilitie
 
 After preview release, the owning-domain command will add:
 
-`public.promote_implementation_reality_organization_position_self_api_v1(uuid)`
+`public.promote_implementation_reality_position_self_api_v1(uuid)`
 
 It must rerun preview, generate an internal collision-safe stable key, establish/reuse only lawful Position truth, record the receipt on the candidate, and rerender from canonical Position custody.
 

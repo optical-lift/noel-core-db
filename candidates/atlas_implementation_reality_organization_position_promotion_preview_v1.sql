@@ -133,7 +133,7 @@ $function$;
 revoke all on function atlas.render_organization_position_reality_consequence_v1(uuid)
   from public,anon,authenticated,service_role;
 
-create or replace function atlas.preview_implementation_reality_organization_position_promotion_self_api_v1(
+create or replace function atlas.preview_implementation_reality_position_promotion_v1(
   p_candidate_id uuid
 )
 returns jsonb
@@ -482,10 +482,10 @@ begin
 end;
 $function$;
 
-revoke all on function atlas.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid)
+revoke all on function atlas.preview_implementation_reality_position_promotion_v1(uuid)
   from public,anon,authenticated,service_role;
 
-create or replace function public.preview_implementation_reality_organization_position_promotion_self_api_v1(
+create or replace function public.preview_implementation_reality_position_promotion_self_api_v1(
   p_candidate_id uuid
 )
 returns jsonb
@@ -499,12 +499,12 @@ declare
   v_promotion_proc regprocedure;
   v_promotion_command_available boolean:=false;
 begin
-  v_result:=atlas.preview_implementation_reality_organization_position_promotion_self_api_v1(
+  v_result:=atlas.preview_implementation_reality_position_promotion_v1(
     p_candidate_id
   );
 
   v_promotion_proc:=to_regprocedure(
-    'public.promote_implementation_reality_organization_position_self_api_v1(uuid)'
+    'public.promote_implementation_reality_position_self_api_v1(uuid)'
   );
 
   v_promotion_command_available:=
@@ -520,13 +520,13 @@ begin
 end;
 $function$;
 
-revoke all on function public.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid)
+revoke all on function public.preview_implementation_reality_position_promotion_self_api_v1(uuid)
   from public,anon,service_role;
 
-grant execute on function public.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid)
+grant execute on function public.preview_implementation_reality_position_promotion_self_api_v1(uuid)
   to authenticated;
 
-comment on function public.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid) is
+comment on function public.preview_implementation_reality_position_promotion_self_api_v1(uuid) is
   'Read-only readiness membrane for organization_position.establish. Position binds to canonical Organization Unit; positionKind is semantic payload; Organization is derived from Unit custody.';
 
 commit;

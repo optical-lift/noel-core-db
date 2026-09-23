@@ -17,13 +17,13 @@ declare
   v_def text;
 begin
   if to_regprocedure(
-    'public.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid)'
+    'public.preview_implementation_reality_position_promotion_self_api_v1(uuid)'
   ) is null then
     raise exception 'Public Position promotion preview membrane is missing.';
   end if;
 
   if to_regprocedure(
-    'public.promote_implementation_reality_organization_position_self_api_v1(uuid)'
+    'public.promote_implementation_reality_position_self_api_v1(uuid)'
   ) is not null then
     raise exception 'Read-only Position preview unexpectedly contains mutation command.';
   end if;
@@ -58,7 +58,7 @@ begin
   into v_before_candidates
   from atlas.implementation_reality_candidates c;
 
-  v_result:=public.preview_implementation_reality_organization_position_promotion_self_api_v1(v_ready);
+  v_result:=public.preview_implementation_reality_position_promotion_self_api_v1(v_ready);
   if v_result->>'state'<>'ready'
      or not coalesce((v_result->>'canPromote')::boolean,false)
      or coalesce((v_result->>'promotionCommandAvailable')::boolean,true)
@@ -69,33 +69,33 @@ begin
     raise exception 'Valid Position candidate was not read-ready: %',v_result;
   end if;
 
-  v_result:=public.preview_implementation_reality_organization_position_promotion_self_api_v1(v_missing_kind);
+  v_result:=public.preview_implementation_reality_position_promotion_self_api_v1(v_missing_kind);
   if v_result->>'state'<>'semantic_payload_required'
      or coalesce((v_result->>'canPromote')::boolean,false) then
     raise exception 'Missing positionKind became promotion-ready: %',v_result;
   end if;
 
-  v_result:=public.preview_implementation_reality_organization_position_promotion_self_api_v1(v_duplicate);
+  v_result:=public.preview_implementation_reality_position_promotion_self_api_v1(v_duplicate);
   if v_result->>'state'<>'canonical_identity_exists'
      or v_result->>'existingPositionId'<>'f4600000-0000-4000-8000-000000000221'
      or coalesce((v_result->>'canPromote')::boolean,false) then
     raise exception 'Existing Position identity was silently duplicated: %',v_result;
   end if;
 
-  v_result:=public.preview_implementation_reality_organization_position_promotion_self_api_v1(v_unresolved_unit);
+  v_result:=public.preview_implementation_reality_position_promotion_self_api_v1(v_unresolved_unit);
   if v_result->>'state'<>'identity_resolution_required'
      or v_result->>'slot'<>'object'
      or coalesce((v_result->>'canPromote')::boolean,false) then
     raise exception 'Unresolved Unit became promotion-ready: %',v_result;
   end if;
 
-  v_result:=public.preview_implementation_reality_organization_position_promotion_self_api_v1(v_outside);
+  v_result:=public.preview_implementation_reality_position_promotion_self_api_v1(v_outside);
   if v_result->>'state'<>'outside_implementation_scope'
      or coalesce((v_result->>'canPromote')::boolean,false) then
     raise exception 'Out-of-scope Unit became promotion-ready: %',v_result;
   end if;
 
-  v_result:=public.preview_implementation_reality_organization_position_promotion_self_api_v1(v_technical);
+  v_result:=public.preview_implementation_reality_position_promotion_self_api_v1(v_technical);
   if v_result->>'state'<>'technical_identifier_not_allowed'
      or coalesce((v_result->>'canPromote')::boolean,false) then
     raise exception 'Technical stable key became Position authoring input: %',v_result;
@@ -114,7 +114,7 @@ begin
     raise exception 'Position promotion preview mutated canonical or candidate state.';
   end if;
 
-  create function public.promote_implementation_reality_organization_position_self_api_v1(
+  create function public.promote_implementation_reality_position_self_api_v1(
     p_candidate_id uuid
   )
   returns jsonb
@@ -123,12 +123,12 @@ begin
     select jsonb_build_object('ok',true)
   $$;
 
-  revoke all on function public.promote_implementation_reality_organization_position_self_api_v1(uuid)
+  revoke all on function public.promote_implementation_reality_position_self_api_v1(uuid)
     from public,anon,authenticated,service_role;
-  grant execute on function public.promote_implementation_reality_organization_position_self_api_v1(uuid)
+  grant execute on function public.promote_implementation_reality_position_self_api_v1(uuid)
     to authenticated;
 
-  v_result:=public.preview_implementation_reality_organization_position_promotion_self_api_v1(v_ready);
+  v_result:=public.preview_implementation_reality_position_promotion_self_api_v1(v_ready);
   if not coalesce((v_result->>'canPromote')::boolean,false)
      or not coalesce((v_result->>'promotionCommandAvailable')::boolean,false)
      or not coalesce((v_result->>'canExecutePromotion')::boolean,false) then
@@ -137,12 +137,12 @@ begin
 
   if has_function_privilege(
        'anon',
-       'public.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid)',
+       'public.preview_implementation_reality_position_promotion_self_api_v1(uuid)',
        'EXECUTE'
      )
      or has_function_privilege(
        'authenticated',
-       'atlas.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid)',
+       'atlas.preview_implementation_reality_position_promotion_v1(uuid)',
        'EXECUTE'
      ) then
     raise exception 'Position preview leaked around public practitioner membrane.';
@@ -150,14 +150,14 @@ begin
 
   if not has_function_privilege(
        'authenticated',
-       'public.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid)',
+       'public.preview_implementation_reality_position_promotion_self_api_v1(uuid)',
        'EXECUTE'
      ) then
     raise exception 'Authenticated practitioner cannot execute Position preview.';
   end if;
 
   select lower(pg_get_functiondef(
-    'atlas.preview_implementation_reality_organization_position_promotion_self_api_v1(uuid)'::regprocedure
+    'atlas.preview_implementation_reality_position_promotion_v1(uuid)'::regprocedure
   )) into v_def;
 
   if v_def like '%insert into%'
