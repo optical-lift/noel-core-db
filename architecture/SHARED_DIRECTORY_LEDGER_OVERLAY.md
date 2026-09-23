@@ -286,3 +286,40 @@ The architecture is not considered proven merely because the functions exist. Th
 > A canonical business exists once in Shared Intelligence. Organization A attaches it as a buyer and records a private call note. Organization B may independently attach the same canonical UUID. Both Organizations see the same shared identity/public contact facts. Only Organization A sees Organization A's call note. No second canonical business record is created.
 
 For the Feast Guild use case, a request such as “give Katie the best buyers to contact today” must begin from Shared Directory + Feast Guild relationship/domain overlays. It must not begin with web search.
+
+## Evidence + disclosure membrane
+
+Shared Intelligence may ingest source-backed evidence broadly, but evidence intake does not itself authorize display or outreach.
+
+The governed path is:
+
+```text
+source-backed evidence
+        ↓
+claim-level provenance + source class
+        ↓
+disclosure posture + permitted uses
+        ↓
+identity resolution / directory display / contactability
+```
+
+Canonical identity and disclosure rights are separate concerns.
+
+A claim may be:
+
+- `public_contactable`
+- `public_directory`
+- `resolution_only`
+- `restricted`
+- `suppressed`
+
+`resolution_only` evidence may help prevent duplicate canonical entities while remaining unavailable to ordinary directory and outreach projections.
+
+The presence of a value in legacy canonical fields such as `local_intel.entities.email`, `phone`, or `website_url` is not sufficient authority for governed outreach. Contactability must pass through claim-level evidence whose source class, disclosure posture, permitted uses, contact intent, lifecycle state, and suppression state allow the requested use.
+
+A source being public does not make every fact from that source contactable. In particular, government registrations, parcel/ownership records, permits, and similar public records may be authoritative for identity while remaining non-contactable.
+
+System-level contact suppressions are separate from an Organization's private relationship preferences. A shared suppression can block directory display or outreach without exposing another Organization's private history.
+
+See `architecture/ATLAS_EVIDENCE_DISCLOSURE_MEMBRANE_V1.md`.
+
