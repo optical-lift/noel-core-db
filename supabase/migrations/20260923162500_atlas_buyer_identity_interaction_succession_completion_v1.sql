@@ -165,6 +165,7 @@ begin
         'quotedWeeklyPrice',v_event.quoted_weekly_price,
         'agreedStartDate',v_event.agreed_start_date,
         'recordedByMembershipId',v_event.recorded_by_membership_id,
+        'sourceTaskId',v_event.source_task_id,
         'legacyMetadata',coalesce(v_event.metadata,'{}'::jsonb),
         'successionBasis','legacy_buyer_contact_event'
       ))
@@ -176,10 +177,6 @@ begin
       raise exception 'Could not create generic interaction for legacy buyer contact %',v_event.id
         using errcode='P0001';
     end if;
-
-    update atlas.external_relationship_interactions
-    set source_task_id=v_event.source_task_id
-    where id=v_interaction_id;
 
     insert into atlas.legacy_buyer_contact_external_interaction_mappings(
       buyer_contact_event_id,
@@ -200,7 +197,6 @@ as $function$
 declare
   v_relationship_id uuid;
   v_organization_id uuid;
-  v_mapping atlas.legacy_buyer_contact_external_interaction_mappings%rowtype;
   v_interaction jsonb;
   v_interaction_id uuid;
 begin
@@ -217,77 +213,49 @@ begin
       using errcode='23514';
   end if;
 
-  select *
-  into v_mapping
-  from atlas.legacy_buyer_contact_external_interaction_mappings m
-  where m.buyer_contact_event_id=new.id;
-
-  if v_mapping.buyer_contact_event_id is null then
-    v_interaction := atlas.record_shared_directory_interaction_service_v1(
-      v_organization_id,
-      v_relationship_id,
-      'buyer_outreach',
-      new.occurred_at,
-      new.contact_method,
-      new.outcome,
-      new.contact_name,
-      new.follow_up,
-      new.notes,
-      jsonb_strip_nulls(jsonb_build_object(
-        'legacyBuyerContactEventId',new.id,
-        'legacyBuyerRelationshipId',new.buyer_relationship_id,
-        'contactDetails',new.contact_details,
-        'salesChannel',new.sales_channel,
-        'offerKey',new.offer_key,
-        'quantity',new.quantity,
-        'quotedWeeklyPrice',new.quoted_weekly_price,
-        'agreedStartDate',new.agreed_start_date,
-        'recordedByMembershipId',new.recorded_by_membership_id,
-        'legacyMetadata',coalesce(new.metadata,'{}'::jsonb),
-        'compatibilityBridge','legacy_buyer_contact_writer_membrane_v1'
-      ))
-    );
-
-    v_interaction_id := nullif(v_interaction->>'interactionId','')::uuid;
-
-    update atlas.external_relationship_interactions
-    set source_task_id=new.source_task_id
-    where id=v_interaction_id;
-
-    insert into atlas.legacy_buyer_contact_external_interaction_mappings(
-      buyer_contact_event_id,
-      external_relationship_interaction_id
-    )
-    values(new.id,v_interaction_id);
-  else
-    v_interaction_id := v_mapping.external_relationship_interaction_id;
-
-    update atlas.external_relationship_interactions
-    set occurred_at=new.occurred_at,
-        interaction_kind='buyer_outreach',
-        channel=new.contact_method,
-        outcome=new.outcome,
-        contact_label=new.contact_name,
-        follow_up=new.follow_up,
-        note=new.notes,
-        source_task_id=new.source_task_id,
-        metadata=coalesce(metadata,'{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object(
-          'legacyBuyerContactEventId',new.id,
-          'legacyBuyerRelationshipId',new.buyer_relationship_id,
-          'contactDetails',new.contact_details,
-          'salesChannel',new.sales_channel,
-          'offerKey',new.offer_key,
-          'quantity',new.quantity,
-          'quotedWeeklyPrice',new.quoted_weekly_price,
-          'agreedStartDate',new.agreed_start_date,
-          'recordedByMembershipId',new.recorded_by_membership_id,
-          'legacyMetadata',coalesce(new.metadata,'{}'::jsonb),
-          'compatibilityBridge','legacy_buyer_contact_writer_membrane_v1'
-        ))
-    where id=v_interaction_id
-      and organization_id=v_organization_id
-      and external_relationship_id=v_relationship_id;
+  if exists(
+    select 1
+    from atlas.legacy_buyer_contact_external_interaction_mappings m
+    where m.buyer_contact_event_id=new.id
+  ) then
+    raise exception
+      'Legacy buyer contact event already has an external interaction successor.'
+      using errcode='23505';
   end if;
+
+  v_interaction := atlas.record_shared_directory_interaction_service_v1(
+    v_organization_id,
+    v_relationship_id,
+    'buyer_outreach',
+    new.occurred_at,
+    new.contact_method,
+    new.outcome,
+    new.contact_name,
+    new.follow_up,
+    new.notes,
+    jsonb_strip_nulls(jsonb_build_object(
+      'legacyBuyerContactEventId',new.id,
+      'legacyBuyerRelationshipId',new.buyer_relationship_id,
+      'contactDetails',new.contact_details,
+      'salesChannel',new.sales_channel,
+      'offerKey',new.offer_key,
+      'quantity',new.quantity,
+      'quotedWeeklyPrice',new.quoted_weekly_price,
+      'agreedStartDate',new.agreed_start_date,
+      'recordedByMembershipId',new.recorded_by_membership_id,
+      'sourceTaskId',new.source_task_id,
+      'legacyMetadata',coalesce(new.metadata,'{}'::jsonb),
+      'compatibilityBridge','legacy_buyer_contact_writer_membrane_v1'
+    ))
+  );
+
+  v_interaction_id := nullif(v_interaction->>'interactionId','')::uuid;
+
+  insert into atlas.legacy_buyer_contact_external_interaction_mappings(
+    buyer_contact_event_id,
+    external_relationship_interaction_id
+  )
+  values(new.id,v_interaction_id);
 
   if new.source_task_id is not null then
     update atlas.tasks t
@@ -309,10 +277,32 @@ drop trigger if exists sync_legacy_buyer_contact_event_to_external_interaction_v
   on atlas.buyer_contact_events;
 
 create trigger sync_legacy_buyer_contact_event_to_external_interaction_v1
-after insert or update
+after insert
 on atlas.buyer_contact_events
 for each row
 execute function atlas.sync_legacy_buyer_contact_event_to_external_interaction_v1();
+
+create or replace function atlas.reject_legacy_buyer_contact_event_mutation_v1()
+returns trigger
+language plpgsql
+security definer
+set search_path to 'pg_catalog','atlas'
+as $function$
+begin
+  raise exception
+    'Legacy buyer contact events are append-only after external-interaction succession. Record a later interaction or correction instead.'
+    using errcode='55000';
+end
+$function$;
+
+drop trigger if exists reject_legacy_buyer_contact_event_mutation_v1
+  on atlas.buyer_contact_events;
+
+create trigger reject_legacy_buyer_contact_event_mutation_v1
+before update or delete
+on atlas.buyer_contact_events
+for each row
+execute function atlas.reject_legacy_buyer_contact_event_mutation_v1();
 
 create or replace function atlas.guard_legacy_buyer_relationship_identity_v1()
 returns trigger
@@ -384,8 +374,8 @@ execute function atlas.guard_legacy_buyer_relationship_identity_v1();
 comment on table atlas.buyer_relationship_reconstruction is
   'Legacy compatibility mirror after universal external-relationship succession. New relationship identity must be established through canonical Shared Intelligence entity resolution and atlas.external_relationships.';
 comment on table atlas.buyer_contact_events is
-  'Legacy buyer-contact compatibility mirror. Organization-private interaction authority is atlas.external_relationship_interactions; inserts/updates are synchronously governed by atlas.sync_legacy_buyer_contact_event_to_external_interaction_v1().';
+  'Legacy buyer-contact compatibility mirror. Organization-private interaction authority is atlas.external_relationship_interactions; new inserts are synchronously promoted and legacy event updates/deletes are rejected because generic interaction history is append-only.';
 comment on function atlas.sync_legacy_buyer_contact_event_to_external_interaction_v1() is
-  'Compatibility membrane ensuring every legacy buyer contact write has exactly one generic Organization-private external relationship interaction successor.';
+  'Compatibility membrane ensuring every new legacy buyer contact insert has exactly one generic Organization-private external relationship interaction successor.';
 comment on function atlas.guard_legacy_buyer_relationship_identity_v1() is
   'Prevents new legacy buyer identity creation/deletion, prevents identity reassignment, and mirrors allowed legacy status updates onto the generic external relationship overlay.';
