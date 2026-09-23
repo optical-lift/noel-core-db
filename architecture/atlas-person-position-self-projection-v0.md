@@ -236,3 +236,65 @@ This candidate does not implement:
 - Work mutation;
 - Organization/Position/Responsibility mutation;
 - any production or application change.
+
+
+## Clone failure and repair boundary
+
+The first generated migration package, `20260923005346_atlas_person_position_self_projection_v1`, was **not released**.
+
+Production Schema Clone Validation run `35804043903` failed before candidate behavior executed. The canonical harness rejected the validation fixture because it contained a procedural `DO` block. The fixture contract permits DML-only prerequisite setup; behavioral/procedural construction belongs in the migration postconditions.
+
+That failure exposed a second, independent architecture issue during repair review:
+
+- `20260921150000_atlas_institutional_person_record_v1` made **Institutional Person Record** the canonical Organization-scoped human relation;
+- Position Appointments are now canonically bound to `institutional_person_record_id`;
+- `organization_membership_id` and `identity_subject_id` on Position Appointment are compatibility/provenance carriers and may be absent;
+- the older `effective_person_organization_responsibilities_current_v1` still required Organization Membership + Identity Subject in its current-responsibility path.
+
+The repaired candidate therefore does **not** manufacture those older carriers merely to satisfy the proof.
+
+Instead it adds:
+
+`atlas.effective_person_organization_responsibilities_current_v2(person_id, organization_id)`
+
+with the current governing path:
+
+```text
+Person
+→ active Institutional Person Record
+→ current Position Appointment
+→ Position
+→ Position Responsibility
+→ Responsibility Scope
+→ current durable responsibility
+```
+
+Organization Membership and Identity Subject remain optional evidence/provenance.
+
+The v1 reader remains in place for compatibility. Person Position v0 consumes v2.
+
+### Repair proof
+
+The repaired validation deliberately proves one Person who has:
+
+- an authenticated Person + Principal + Household;
+- a separate Organization Membership as participation/compatibility evidence;
+- an Institutional Person Record;
+- a current Position Appointment whose `organization_membership_id` is null;
+- that same Position Appointment's `identity_subject_id` is null;
+- one bounded durable Responsibility.
+
+Person Position must still recover the durable Responsibility through the IPR-rooted appointment while leaving the optional older carriers absent.
+
+That proof prevents the compatibility layer from silently becoming constitutional identity again.
+
+### Fixture custody
+
+The candidate fixture is now strictly DML-only:
+
+- prerequisite `auth.users` rows;
+- prerequisite Personal Atlas purchase rows.
+
+All calls, procedural setup, Position/Responsibility construction, and assertions live in the postcondition file executed after the candidate migration on the disposable production-schema clone.
+
+The failed `20260923005346` package is immutable historical evidence and must be superseded by a freshly generated migration after this repaired candidate reaches canonical source.
