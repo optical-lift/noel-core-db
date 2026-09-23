@@ -154,3 +154,12 @@ not identity
 identifier meaning + party type + time + independent corroboration
 determine what the match is allowed to prove
 ```
+
+## Claimant-safe disclosure succession
+
+Resolver v2 may determine that a signup/claimant probably refers to an existing canonical entity, but resolver evidence is not itself safe to show back to that claimant.
+
+Claimant-facing identity presentation must pass through `architecture/ATLAS_CLAIMANT_SAFE_IDENTITY_DISCLOSURE_V1.md` and `atlas.claimant_safe_identity_projection_service_v1`.
+
+A private blind match, private source record, or private Ledger association may establish recognition while producing only an `anonymous_match` claimant projection. Public names, public contact facts, and public affiliations appear only when they carry separate disclosure authority.
+
