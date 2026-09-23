@@ -75,7 +75,8 @@ begin
   v_result := atlas.person_position_self_api_v1();
 
   if v_result->>'state' <> 'person_required'
-     or v_result->'identity' is not null then
+     or not (v_result ? 'identity')
+     or jsonb_typeof(v_result->'identity') <> 'null' then
     raise exception 'Credential without canonical Person was promoted into Person Position: %',v_result;
   end if;
 
@@ -108,7 +109,8 @@ begin
     raise exception 'Personal-only Position did not resolve canonical Person: %',v_result;
   end if;
 
-  if v_result->'principalRoot' is null
+  if not (v_result ? 'principalRoot')
+     or jsonb_typeof(v_result->'principalRoot') <> 'object'
      or jsonb_array_length(coalesce(v_result->'householdContexts','[]'::jsonb)) <> 1 then
     raise exception 'Personal-only Position did not preserve Principal / Household root: %',v_result;
   end if;
