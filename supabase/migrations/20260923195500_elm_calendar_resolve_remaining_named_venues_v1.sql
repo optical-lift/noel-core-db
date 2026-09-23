@@ -48,7 +48,7 @@ begin
       'parent_entity_id',v_city_org
     )
   )
-  on conflict (stable_key) do update
+  on conflict (local_context_id,stable_key) do update
   set name=excluded.name,
       address_line1=excluded.address_line1,
       city=excluded.city,
@@ -85,7 +85,7 @@ begin
       'parent_entity_id','22ca7920-8aaa-49d3-96d8-e36268868603'::uuid
     )
   )
-  on conflict (stable_key) do update
+  on conflict (local_context_id,stable_key) do update
   set name=excluded.name,
       address_line1=excluded.address_line1,
       city=excluded.city,
@@ -172,7 +172,7 @@ begin
       'operatorCalendarSource','operator_calendar_spec_2026_09_23'
     )
   )
-  on conflict (stable_key) do update
+  on conflict (local_context_id,stable_key) do update
   set entity_id=excluded.entity_id,
       title=excluded.title,
       occurrence_type=excluded.occurrence_type,
@@ -234,7 +234,7 @@ begin
       'operatorCalendarSource','operator_calendar_spec_2026_09_23'
     )
   )
-  on conflict (stable_key) do update
+  on conflict (local_context_id,stable_key) do update
   set entity_id=excluded.entity_id,
       title=excluded.title,
       occurrence_type=excluded.occurrence_type,
@@ -293,7 +293,7 @@ begin
       'verificationNote','2026 event date/time supplied by operator; independent 2026 event source not yet located.'
     )
   )
-  on conflict (stable_key) do update
+  on conflict (local_context_id,stable_key) do update
   set entity_id=excluded.entity_id,
       title=excluded.title,
       occurrence_type=excluded.occurrence_type,
