@@ -415,3 +415,34 @@ Changing or moving one recurrence instance does not silently rewrite canonical o
 
 See `architecture/ATLAS_ORGANIZATION_RECURRENCE_EXCEPTIONS_V1.md`.
 
+## 13. Combined temporal calendar projection
+
+Elm's `community_calendar` can now be read through:
+
+```text
+atlas.organization_context_temporal_projection_service_v1
+```
+
+The projection returns one chronological typed stream across:
+
+- `occurrence`
+- `temporal_marker`
+- `recurrence_instance`
+
+For Oct.–Nov. 2026, the current combined projection returns:
+
+- 17 standalone occurrence items
+- 8 recurrence-instance items
+- 2 temporal-marker items (Halloween and Thanksgiving)
+
+The seven cleanly realized Thursdays-at-Elm instances are represented by their recurrence instances with the canonical occurrences nested inside them, preventing duplicate calendar cards.
+
+Thanksgiving renders as two distinct realities on Nov. 26:
+
+1. a `temporal_marker` for Thanksgiving;
+2. a `recurrence_instance` for the normal fourth-Thursday evening, marked `skipped`, linked to the Thanksgiving exception, with the cancelled canonical occurrence preserved inside it.
+
+If a recurrence instance is moved or otherwise disagrees with its attached canonical occurrence, Atlas does not choose one silently. The recurrence item is returned with `realizationState='conflict'`, and the canonical occurrence is also returned as its own `occurrence` item at its actual coordinate.
+
+See `architecture/ATLAS_COMBINED_TEMPORAL_PROJECTION_V1.md`.
+
