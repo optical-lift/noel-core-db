@@ -462,6 +462,16 @@ begin
   );
 
   if v_preview->>'state'<>'ready' then
+    if exists(
+      select 1
+      from jsonb_array_elements(v_preview->'violations') x
+      where x->>'key'='existing_requirement_conflicts'
+    ) then
+      raise exception 'Commercial Order fulfillment requirement conflicts with existing structural truth: %',
+        (v_preview->'violations')::text
+        using errcode='23505';
+    end if;
+
     raise exception 'Commercial Order fulfillment requirements are blocked: %',
       (v_preview->'violations')::text
       using errcode='22023';
