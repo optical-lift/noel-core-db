@@ -27,6 +27,7 @@ declare
   v_sets jsonb:='[]'::jsonb;
   v_owned_count integer;
   v_external_count integer;
+  v_at_date date:=coalesce(p_at_date,current_date);
 begin
   if p_basket is null or jsonb_typeof(p_basket)<>'object'
      or p_basket->>'contractVersion'<>'feast_guild_flower_basket_v1' then
@@ -151,21 +152,24 @@ begin
         on r.id=o.supplier_relationship_id
        and r.organization_id=p_source_organization_id
        and r.relationship_state='active'
-      join atlas.external_relationship_roles rr
-        on rr.external_relationship_id=r.id
-       and rr.role_key='supplier'
-       and rr.role_state='active'
       join lateral (
         select x.*
         from atlas.external_supply_offer_observations x
         where x.external_supply_offering_id=o.id
-          and (x.effective_from is null or x.effective_from<=p_at_date)
-          and (x.effective_until is null or x.effective_until>=p_at_date)
+          and (x.effective_from is null or x.effective_from<=v_at_date)
+          and (x.effective_until is null or x.effective_until>=v_at_date)
         order by x.observed_at desc,x.created_at desc,x.id desc
         limit 1
       ) obs on true
       where o.organization_id=p_source_organization_id
         and o.status='active'
+        and exists(
+          select 1
+          from atlas.external_relationship_roles rr
+          where rr.external_relationship_id=r.id
+            and rr.role_key='supplier'
+            and rr.role_state='active'
+        )
         and (
           o.source_unit is null
           or lower(o.source_unit)=v_unit
@@ -175,7 +179,7 @@ begin
       order by o.source_label,o.id
     loop
       v_candidate:=atlas.feast_guild_flower_external_offer_candidate_v1(
-        v_line_packet,v_offering,v_observation,p_at_date
+        v_line_packet,v_offering,v_observation,v_at_date
       );
       v_candidates:=v_candidates||jsonb_build_array(v_candidate);
       v_external_count:=v_external_count+1;
@@ -195,7 +199,7 @@ begin
     'basketKey',v_basket_key,
     'sourceOrganizationId',p_source_organization_id,
     'elmFarmId',p_elm_farm_id,
-    'atDate',p_at_date,
+    'atDate',v_at_date,
     'requestedForDate',v_requested_date,
     'lineCandidateSets',v_sets,
     'truthBoundary',jsonb_build_object(
