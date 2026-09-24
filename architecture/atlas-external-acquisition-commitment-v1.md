@@ -220,3 +220,67 @@ supplier terms observed
 -> later Spend when outlay occurs
 
 Planning no longer pretends to be purchasing, and purchasing no longer pretends to be Spend.
+
+
+---
+
+## Fulfillment refinement — 2026-09-24
+
+The later External Acquisition Fulfillment Intake authority refines this contract.
+
+The coarse V1 lifecycle idea:
+
+`received`
+
+is retired as a free-standing acquisition event.
+
+Actual receipt/performance now belongs to source-owned fulfillment records:
+
+- `atlas.external_acquisition_fulfillments`;
+- `atlas.external_acquisition_fulfillment_lines`;
+- `atlas.external_acquisition_fulfillment_allocations`.
+
+The acquisition lifecycle event writer is therefore narrowed to:
+
+- `cancelled`;
+- `closed`.
+
+Current coverage transfers quantitatively.
+
+For one committed requirement allocation of 40 units:
+
+~~~text
+20 accepted through actual fulfillment
++
+20 still outstanding under supplier commitment
+=
+40 secured
+~~~
+
+When the remaining 20 are later accepted:
+
+~~~text
+40 accepted fulfillment coverage
++
+0 residual supplier commitment
+=
+40 secured
+~~~
+
+If the commitment is cancelled after only 20 are accepted:
+
+~~~text
+20 accepted fulfillment coverage
++
+20 released supplier commitment
+=
+20 currently secured
+~~~
+
+This is the governing handoff law.
+
+Cancellation does not erase accepted reality.
+
+Receipt/performance does not create inventory.
+
+A fulfilled acquisition may close only after actual fulfillment records establish the fitting state.
