@@ -321,3 +321,116 @@ The implementation is valid only if rollback validation proves:
 ## 14. Governing sentence
 
 > **Atlas may recognize a person's own authority over a sealed fact only after it has separately proved that the operating Principal is the human with standing in that reality; login, recognition, device possession, and institutional permission are not substitutes for that proof.**
+
+## 15. Implementation receipt
+
+Implemented by:
+
+`supabase/migrations/20260924073000_atlas_verified_personnel_subject_standing_v1.sql`
+
+Released identity/standing objects:
+
+- `atlas.person_canonical_entity_bindings`;
+- `atlas.establish_verified_person_canonical_binding_service_v1`;
+- `atlas.resolve_restricted_vault_subject_standing_internal_v1`;
+- `atlas.principal_has_restricted_vault_subject_standing_v1`;
+- `atlas.restricted_vault_subject_operation_policies`;
+- `atlas.restricted_vault_subject_operation_allowed_v1`.
+
+The Restricted Personnel adapter now treats `reveal_to_device` as having two possible domain-owned authority sources:
+
+```text
+existing institutional vault_record_read
+
+OR
+
+verified subject standing
++ explicit record-class subject-operation policy
+```
+
+The shared Sealed Reality warrant snapshots which source actually authorized the operation.
+
+### Initial subject-standing policies
+
+Active v1 policy rows exist only for:
+
+```text
+identity_document / reveal_to_device
+tax_identity / reveal_to_device
+banking_payroll / reveal_to_device
+```
+
+All other Personnel record classes remain fail-closed for subject-standing-only authority.
+
+### Individual local-decrypt carrier
+
+`fetch_principal_device_recipient_envelope_for_warrant_service_v1` now returns one locally usable encrypted reveal bundle under the already-authorized one-time warrant:
+
+- recipient-bound encrypted record data key;
+- encrypted Restricted Personnel ciphertext;
+- encryption context;
+- ciphertext hash and crypto profile.
+
+It intentionally does **not** return:
+
+- the existing KMS-wrapped record data key;
+- KMS key reference/version;
+- plaintext record data key;
+- protected plaintext.
+
+The central KMS carrier is therefore not part of the device reveal execution once a recipient-bound envelope already exists.
+
+### Validation
+
+Rollback validation passed.
+
+Proved:
+
+- an authenticated Principal does not become a Personnel subject merely because they are signed in;
+- an active device and recipient envelope do not create subject standing;
+- verified Atlas Person↔canonical-person binding is required before the Principal matches the Personnel subject;
+- the same verified binding replays idempotently;
+- a conflicting verified Person↔canonical-person binding fails closed;
+- no institutional `vault_record_read` entitlement was present in the individual-standing validation case;
+- verified subject standing alone authorized `identity_document / reveal_to_device`;
+- the resulting shared warrant recorded `authoritySource = verified_subject_standing`;
+- `performance_review` remained denied because no subject-standing policy exists for that record class;
+- the device carrier returned ciphertext plus the recipient-bound key envelope, not the KMS wrapper or plaintext;
+- durable completion remained only `{"delivered":true}`.
+
+All validation identity bindings, people, vault objects, devices, envelopes, warrants, and receipts rolled back.
+
+Post-validation live state:
+
+```text
+verified Person↔canonical bindings = 0
+Principal cryptographic devices = 0
+recipient-bound key envelopes = 0
+reveal_to_device warrants = 0
+reveal_to_device receipts = 0
+active subject-operation policies = 3
+```
+
+No real person's identity was bound by this tranche.
+
+## 16. New frontier
+
+The first individual-governed execution path is now structurally real:
+
+```text
+authenticated Principal
+→ separately verified human identity
+→ matching Personnel subject standing
+→ explicit self-governed record-class policy
+→ active personal device
+→ recipient-bound record key
+→ one-time Sealed Reality warrant
+→ local plaintext reveal
+```
+
+The next unresolved question is no longer whether Atlas can let individual standing become an authority source.
+
+It can.
+
+The next question is how the **claimant verification ceremony** earns a verified Person↔canonical-person binding without leaking private resolver evidence or allowing a mistaken/self-asserted claim to become durable identity truth.
+
