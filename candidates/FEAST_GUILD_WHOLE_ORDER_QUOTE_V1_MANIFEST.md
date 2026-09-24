@@ -78,6 +78,21 @@ florist basket
 17. `candidates/fixtures/flowerbuyer_open_market_observed_fixture_v1.json`
    - human-readable source fixture from the two authenticated Open Market records observed on 2026-09-24.
 
+18. `architecture/baisch-skinner-published-price-sheet-adapter-v1.md`
+   - transport-independent semantics for Baisch & Skinner periodic published price sheets after lossless normalization.
+
+19. `candidates/atlas_baisch_skinner_price_sheet_adapter_v1.sql`
+   - deterministic document identity, raw Connected Source packaging, row interpretation, and batch interpretation.
+
+20. `candidates/atlas_baisch_skinner_price_sheet_admission_v1.sql`
+   - row and whole-document admission into External Supply Offer truth while preserving unresolved currency/availability/logistics.
+
+21. `candidates/atlas_baisch_skinner_price_sheet_adapter_v1_validation.sql`
+   - rollback proof for source structure, explicit-vs-unstated denominator handling, LOCAL/origin boundary, append-only revisions, admission, and downstream quote blocking.
+
+22. `candidates/fixtures/baisch_skinner_cut_flower_price_sheet_normalized_fixture_v1.json`
+   - normalized source fixture preserving parent/subsection/highlight/ambiguous/composite cases from the observed 2026-09-19 through 2026-09-25 list.
+
 ## Dependency
 
 Do not install this candidate by itself against current production.
@@ -131,7 +146,14 @@ When private GitHub Actions are available again:
 10. run:
    `candidates/atlas_flowerbuyer_open_market_adapter_v1_validation.sql`
 
-11. only after all parent + quote-adapter + source-policy + candidate-gathering + Flowerbuyer adapter proofs pass, decide whether the layers should become one ordered release set or separate governed migrations.
+11. install:
+   - `candidates/atlas_baisch_skinner_price_sheet_adapter_v1.sql`
+   - `candidates/atlas_baisch_skinner_price_sheet_admission_v1.sql`
+
+12. run:
+   `candidates/atlas_baisch_skinner_price_sheet_adapter_v1_validation.sql`
+
+13. only after all parent + quote-adapter + source-policy + candidate-gathering + Flowerbuyer + Baisch/Skinner adapter proofs pass, decide whether the layers should become one ordered release set or separate governed migrations.
 
 Do not create migration history from either candidate bundle directly.
 
@@ -404,6 +426,63 @@ Current unresolved Flowerbuyer facts before fully automatic protected quoting:
 - complete account/order fee semantics beyond source-stated shipping inclusion;
 - explicit biological grow-origin evidence or governed grower-origin mapping;
 - production freshness/revalidation cadence.
+
+
+## Baisch & Skinner published price-sheet checkpoint
+
+The observed Baisch & Skinner list is modeled as a periodic source document rather than live inventory.
+
+Source-established document facts:
+
+~~~text
+Cut Flower Price List
+2026-09-19 through 2026-09-25
+prices subject to change
+highlighted = new item OR price change
+~~~
+
+The adapter consumes a losslessly normalized document, preserving source path, parent/child layout, subsection headings, highlighted state, ambiguous rows, and composite cells.
+
+Examples of deliberately different interpretation:
+
+~~~text
+Carnations 0.65
+-> displayed source price = 0.65
+-> currency unresolved
+-> denominator unresolved
+-> availability unresolved
+
+Delphinium S.A. / Hybrid-10 Stem 20.95
+-> displayed source price = 20.95
+-> price quantity = 10
+-> price unit = stem
+-> currency unresolved
+-> availability unresolved
+
+Sunflowers x5 10.95
+-> source quantity hint = 5
+-> unit unresolved
+-> price denominator unresolved
+
+LOCAL / Sunflowers 9.95
+-> provider category LOCAL preserved
+-> Feast Guild regional/domestic source preference unresolved
+~~~
+
+A whole normalized sheet can be stored as one raw Connected Source Observation and batch-admitted into External Supply Offer source truth. Ambiguous continuation rows, composite unresolved source cells, and subsection headings are skipped rather than invented.
+
+A same-period revised list keeps the same source-document identity while a changed payload produces another append-only raw observation.
+
+The Baisch source is therefore usable immediately for supplier-market evidence, but protected automatic quoting remains blocked until required missing facts are established, especially:
+
+- currency;
+- price denominator where unstated;
+- actual availability/capacity;
+- requested delivery feasibility;
+- freight / fee completeness;
+- biological grow origin when source preference matters.
+
+The correct next Baisch conversation is not "Can we ingest your list?" Atlas can. It is "Which of these missing meanings are stable account rules we can establish once?"
 
 ## GitHub Actions lock boundary
 
