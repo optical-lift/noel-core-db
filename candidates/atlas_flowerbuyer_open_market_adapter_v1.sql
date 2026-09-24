@@ -131,7 +131,7 @@ create or replace function atlas.flowerbuyer_open_market_record_interpret_v1(
 )
 returns jsonb
 language plpgsql
-immutable
+stable
 set search_path=pg_catalog,atlas
 as $function$
 declare
@@ -521,7 +521,7 @@ create or replace function atlas.flowerbuyer_open_market_batch_interpret_v1(
 )
 returns jsonb
 language plpgsql
-immutable
+stable
 set search_path=pg_catalog,atlas
 as $function$
 declare
