@@ -9,6 +9,8 @@ declare
   v_read jsonb;
   v_current jsonb;
   v_observation_id uuid;
+  v_connected_source_id uuid;
+  v_raw_observation_id uuid;
   v_before_orders integer;
   v_before_spend integer;
   v_before_ready integer;
@@ -45,6 +47,51 @@ begin
   select count(*) into v_before_spend from atlas.organization_spend_occurrences;
   select count(*) into v_before_ready from atlas.flower_ready_inventory_lots;
   select count(*) into v_before_sell_prices from atlas.commercial_offering_prices;
+
+  insert into atlas.connected_sources(
+    custodian_user_id,custodian_organization_id,custodian_organization_unit_id,
+    provider_key,provider_account_key,display_label,authorization_state,
+    granted_scopes,capabilities,metadata
+  ) values (
+    null,v_supplier.organization_id,v_supplier.organization_unit_id,
+    'validation_supplier_source','validation-account','Validation Supplier Source',
+    'connected','{}'::text[],
+    '{"catalogRead":true,"priceRead":true}'::jsonb,
+    '{"fixture":"external_supply_validation"}'::jsonb
+  )
+  returning id into v_connected_source_id;
+
+  perform atlas.record_connected_source_observation_batch_service_v1(
+    v_connected_source_id,
+    'price_listing',
+    jsonb_build_array(
+      jsonb_build_object(
+        'key','baisch-20260919-carnations',
+        'payload',jsonb_build_object(
+          'sourceLabel','Carnations',
+          'priceAmount',0.65,
+          'priceBasisText',null,
+          'documentTitle','Cut Flower Price List',
+          'validFrom','2026-09-19',
+          'validUntil','2026-09-25'
+        )
+      )
+    ),
+    '2026-09-23T12:00:00Z'::timestamptz,
+    '{"captureMethod":"uploaded_supplier_artifact","fixture":"baisch_price_list_2026_09_19"}'::jsonb
+  );
+
+  select id into v_raw_observation_id
+  from atlas.connected_source_observations
+  where connected_source_id=v_connected_source_id
+    and provider_object_kind='price_listing'
+    and provider_object_key='baisch-20260919-carnations'
+  order by created_at desc,id desc
+  limit 1;
+
+  if v_raw_observation_id is null then
+    raise exception 'Raw connected-source observation fixture was not recorded.';
+  end if;
 
   v_offering_id:=atlas.ensure_external_supply_offering_service_v1(
     v_supplier.organization_id,
@@ -105,6 +152,7 @@ begin
       'supplier_price_list',
       'validation:baisch-cut-flower-price-list:2026-09-19_2026-09-25',
       null,
+      null,
       '{"fixture":"real_source_explicit_denominator"}'::jsonb
     );
 
@@ -151,6 +199,7 @@ begin
     'supplier_price_list',
     'validation:baisch-cut-flower-price-list:2026-09-19_2026-09-25',
     null,
+    v_raw_observation_id,
     '{"fixture":"real_source_shape"}'::jsonb
   );
 
@@ -183,6 +232,7 @@ begin
     'supplier_price_list',
     'validation:baisch-cut-flower-price-list:2026-09-19_2026-09-25',
     null,
+    v_raw_observation_id,
     '{"fixture":"real_source_shape"}'::jsonb
   );
 
@@ -208,6 +258,7 @@ begin
       'supplier_price_list',
       'validation:baisch-cut-flower-price-list:changed',
       null,
+      v_raw_observation_id,
       '{}'::jsonb
     );
     raise exception 'Observation key accepted different source terms.';
@@ -225,6 +276,7 @@ begin
      or v_current->>'priceBasisState'<>'unknown'
      or v_current->>'currency' is not null
      or v_current->>'availabilityState'<>'unknown'
+     or (v_current->>'connectedSourceObservationId')::uuid is distinct from v_raw_observation_id
      or coalesce((v_current->'terms'->>'priceSubjectToChange')::boolean,false)=false then
     raise exception 'Real-source-shaped current observation was not preserved faithfully: %',v_read;
   end if;
@@ -250,7 +302,7 @@ begin
       null,null,null,null,null,null,
       'unknown',
       '{}'::jsonb,'{}'::jsonb,
-      'supplier_quote',null,null,'{}'::jsonb
+      'supplier_quote',null,null,null,'{}'::jsonb
     );
     raise exception 'Source-explicit price basis without denominator was admitted.';
   exception when sqlstate '23514' then
@@ -270,7 +322,7 @@ begin
       null,null,null,null,null,null,
       'unknown',
       '{}'::jsonb,'{}'::jsonb,
-      'supplier_quote',null,null,'{}'::jsonb
+      'supplier_quote',null,null,null,'{}'::jsonb
     );
     raise exception 'Unknown price basis with a normalized denominator was admitted.';
   exception when sqlstate '23514' then
@@ -289,7 +341,7 @@ begin
       null,null,null,null,null,null,null,null,
       'unknown',
       '{}'::jsonb,'{}'::jsonb,
-      'supplier_price_list',null,null,'{}'::jsonb
+      'supplier_price_list',null,null,null,'{}'::jsonb
     );
     raise exception 'Invalid effective window was admitted.';
   exception when sqlstate '23514' then
