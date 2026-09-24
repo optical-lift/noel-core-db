@@ -441,3 +441,24 @@ The next constitutional question is not another cryptographic primitive. It is:
 
 Until that identity/standing bridge is proven, device authority must not be mistaken for subject standing.
 
+## 19. Standing bridge succession
+
+The boundary described above is now partially resolved by:
+
+`architecture/ATLAS_VERIFIED_PERSONNEL_SUBJECT_STANDING_V1.md`
+
+Atlas can now prove, through an explicit verified Atlas Person↔canonical-person binding, that an operating Principal is the same human represented by one Restricted Personnel subject.
+
+For the narrowly approved v1 self-governed record classes:
+
+```text
+identity_document
+tax_identity
+banking_payroll
+```
+
+that verified subject standing can itself authorize `reveal_to_device` without an institutional `vault_record_read` grant.
+
+Device possession still remains a separate requirement.
+
+The unresolved identity frontier is now the claimant-verification ceremony that is allowed to establish the verified Person↔canonical-person binding.
