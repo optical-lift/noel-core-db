@@ -269,6 +269,8 @@ current admitted external supply observations
 
 Elm Ready inventory uses `available_quantity`, not the original prepared/birth quantity.
 
+Because flower inventory is perishable, remaining quantity alone is insufficient. Automatic Elm qualification also requires explicit usable-through/freshness evidence covering the florist requested date. Existing Ready lots without that evidence remain visible source truth but are not automatically offerable.
+
 External candidates preserve:
 
 - current price basis and currency;
