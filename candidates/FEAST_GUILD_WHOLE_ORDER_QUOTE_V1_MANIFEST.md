@@ -48,6 +48,15 @@ florist basket
 7. `candidates/atlas_feast_guild_flower_source_selection_policy_v1_validation.sql`
    - rollback proof for source preference boundaries, fail-closed economics, and mixed-source whole-order quoting.
 
+8. `architecture/feast-guild-flower-candidate-gathering-v1.md`
+   - source-discovery contract for actual Elm Ready inventory and admitted External Supply Offers.
+
+9. `candidates/atlas_feast_guild_flower_candidate_gathering_v1.sql`
+   - normalized flower requirement matching, Elm Ready candidate projection, external pack/landed-cost candidate projection, and source-reading candidate-set service.
+
+10. `candidates/atlas_feast_guild_flower_candidate_gathering_v1_validation.sql`
+   - rollback proof from source-owned supplier observation -> candidate gathering -> Feast Guild source selection -> protected quote, plus pure Ready-inventory boundary proofs.
+
 ## Dependency
 
 Do not install this candidate by itself against current production.
@@ -86,7 +95,13 @@ When private GitHub Actions are available again:
 6. run:
    `candidates/atlas_feast_guild_flower_source_selection_policy_v1_validation.sql`
 
-7. only after all parent + quote-adapter + source-policy proofs pass, decide whether the layers should become one ordered release set or separate governed migrations.
+7. install:
+   `candidates/atlas_feast_guild_flower_candidate_gathering_v1.sql`
+
+8. run:
+   `candidates/atlas_feast_guild_flower_candidate_gathering_v1_validation.sql`
+
+9. only after all parent + quote-adapter + source-policy + candidate-gathering proofs pass, decide whether the layers should become one ordered release set or separate governed migrations.
 
 Do not create migration history from either candidate bundle directly.
 
@@ -226,6 +241,56 @@ The existing Baisch & Skinner fixture remains useful source evidence but is inte
 Where that source does not explicitly establish currency, price denominator, availability, freight, or other required terms, the quote path must preserve those facts as unresolved.
 
 This candidate must not “clean up” source ambiguity for convenience.
+
+
+## Candidate gathering checkpoint
+
+The quote path no longer requires an operator to hand-build candidate plans.
+
+The candidate gathering layer reads:
+
+~~~text
+Elm Ready inventory position
++
+current admitted external supply observations
+→ per-line candidate sets
+→ Feast Guild source policy
+→ selected plans
+→ protected quote
+~~~
+
+Elm Ready inventory uses `available_quantity`, not the original prepared/birth quantity.
+
+External candidates preserve:
+
+- current price basis and currency;
+- pack and minimum-order math;
+- explicit quantity capacity;
+- requested-date evidence;
+- freight;
+- handling/provider fees;
+- source-preference evidence.
+
+Unknown fields remain unresolved.
+
+### Remaining Elm economic boundary
+
+Current Elm Ready inventory has retail valuation but no governed owned-inventory economic cost basis.
+
+Therefore the candidate gatherer deliberately emits:
+
+~~~text
+Elm Ready candidate:
+  physical availability = source-backed
+  source tier = elm_owned_or_grown
+  economic cost = unresolved
+~~~
+
+It does **not** use retail price, Retail Flower Product Price Book value, or historical sale price as cost.
+
+Until an owned-inventory cost basis is established, Elm inventory can be discovered and shown as the most-preferred physical source but cannot automatically defeat or beat an external supplier in the +10% landed-cost comparison.
+
+That is now the next explicit business/economic decision boundary.
 
 ## GitHub Actions lock boundary
 
