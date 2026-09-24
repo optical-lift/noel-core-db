@@ -78,7 +78,7 @@ begin
     "readyDate":"2026-09-24",
     "retailUnitValue":2.00,
     "retailCurrency":"USD",
-    "metadata":{"flowerFamily":"carnation","grade":"standard","productForm":"stem"}
+    "metadata":{"flowerFamily":"carnation","grade":"standard","productForm":"stem","usableThroughDate":"2026-09-26"}
   }'::jsonb;
 
   v_owned:=atlas.feast_guild_flower_owned_ready_candidate_v1(v_line,v_ready);
@@ -151,6 +151,21 @@ begin
       and n.value->>'state'='unsatisfied'
   ) then
     raise exception 'Owned Ready future date was treated as currently usable: %',v_owned;
+  end if;
+
+  -- Ready quantity without freshness evidence is not enough for florist fulfillment.
+  v_owned:=atlas.feast_guild_flower_owned_ready_candidate_v1(
+    v_line,
+    jsonb_set(v_ready,'{metadata}',(v_ready->'metadata')-'usableThroughDate',false)
+  );
+
+  if not exists(
+    select 1
+    from jsonb_array_elements(v_owned->'qualificationNodes') n(value)
+    where n.value->>'requirementKey'='source_freshness'
+      and n.value->>'state'='unresolved'
+  ) then
+    raise exception 'Ready inventory without usable-through evidence was treated as fresh: %',v_owned;
   end if;
 
   -- Complete external offer: 90 requested, 100-stem pack, $38 per 100, complete landed terms.
