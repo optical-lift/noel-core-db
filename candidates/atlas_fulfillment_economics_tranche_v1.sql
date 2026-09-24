@@ -1,8 +1,8 @@
 -- Atlas Fulfillment Economics Tranche v1 — disposable validation bundle
 -- Candidate-only bundle. Not a canonical release migration.
--- Applies external-supply, qualification, neutral-composition, price-evaluation,
--- Commercial Order -> Company Work, Company Work coverage-position, and
--- multi-requirement pooled/break-bulk planning candidates atomically.
+-- Applies external-supply, qualification, neutral-composition, shared pricing law,
+-- ordinary price evaluation, Commercial Order -> Company Work, coverage position,
+-- pooled/break-bulk planning, and pooled price-protection candidates atomically.
 -- Intended only for the no-cost production-schema-clone harness / disposable local database.
 
 begin;
@@ -1676,6 +1676,249 @@ on conflict(signature) do update set
 -- ============================================================================
 
 -- ============================================================================
+-- BEGIN candidates/atlas_commercial_price_from_cost_basis_v1.sql
+-- ============================================================================
+create or replace function atlas.commercial_price_from_cost_basis_v1(
+  p_quantity numeric,
+  p_unit text,
+  p_total_cost numeric,
+  p_currency text,
+  p_policy jsonb,
+  p_context jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+immutable
+set search_path=pg_catalog,atlas
+as $function$
+declare
+  v_unit text;
+  v_currency text;
+  v_method text;
+  v_rate numeric;
+  v_min_unit_price numeric:=null;
+  v_rounding jsonb;
+  v_round_mode text:=null;
+  v_round_increment numeric:=null;
+
+  v_unit_cost numeric;
+  v_raw_unit_price numeric;
+  v_base_unit_price numeric;
+  v_proposed_unit_price numeric;
+  v_proposed_total numeric;
+  v_gross_profit numeric;
+  v_realized_margin numeric;
+  v_realized_markup numeric;
+begin
+  if p_quantity is null or p_quantity<=0 then
+    raise exception 'Pricing quantity must be greater than zero.'
+      using errcode='22023';
+  end if;
+
+  v_unit:=nullif(btrim(coalesce(p_unit,'')),'');
+  if v_unit is null then
+    raise exception 'Pricing unit is required.'
+      using errcode='22023';
+  end if;
+
+  if p_total_cost is null or p_total_cost<0 then
+    raise exception 'Pricing total cost basis must be nonnegative.'
+      using errcode='22023';
+  end if;
+
+  v_currency:=upper(btrim(coalesce(p_currency,'')));
+  if v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'Pricing currency must be a three-letter uppercase code.'
+      using errcode='22023';
+  end if;
+
+  if p_policy is null or jsonb_typeof(p_policy)<>'object' then
+    raise exception 'Pricing policy input must be a JSON object.'
+      using errcode='22023';
+  end if;
+
+  if p_policy->>'contractVersion'<>'commercial_price_policy_input_v1' then
+    raise exception 'Pricing policy contractVersion must be commercial_price_policy_input_v1.'
+      using errcode='22023';
+  end if;
+
+  if p_context is null or jsonb_typeof(p_context)<>'object' then
+    raise exception 'Pricing context must be a JSON object.'
+      using errcode='22023';
+  end if;
+
+  v_method:=lower(btrim(coalesce(p_policy->>'method','')));
+  if v_method not in ('gross_margin','markup') then
+    raise exception 'Pricing method must be gross_margin or markup.'
+      using errcode='22023';
+  end if;
+
+  if jsonb_typeof(p_policy->'rate')<>'number' then
+    raise exception 'Pricing policy rate must be numeric.'
+      using errcode='22023';
+  end if;
+  v_rate:=(p_policy->>'rate')::numeric;
+
+  if v_method='gross_margin' and (v_rate<0 or v_rate>=1) then
+    raise exception 'Gross-margin rate must be >= 0 and < 1.'
+      using errcode='22023';
+  end if;
+
+  if v_method='markup' and v_rate<0 then
+    raise exception 'Markup rate must be >= 0.'
+      using errcode='22023';
+  end if;
+
+  if p_policy ? 'minimumUnitPrice' then
+    if jsonb_typeof(p_policy->'minimumUnitPrice')<>'number' then
+      raise exception 'minimumUnitPrice must be numeric when present.'
+        using errcode='22023';
+    end if;
+    v_min_unit_price:=(p_policy->>'minimumUnitPrice')::numeric;
+    if v_min_unit_price<0 then
+      raise exception 'minimumUnitPrice must be nonnegative.'
+        using errcode='22023';
+    end if;
+  end if;
+
+  if p_policy ? 'currency' then
+    if upper(btrim(coalesce(p_policy->>'currency','')))<>v_currency then
+      raise exception 'Policy currency % does not match cost-basis currency %.',
+        p_policy->>'currency',v_currency
+        using errcode='22023';
+    end if;
+  end if;
+
+  if p_policy ? 'rounding' then
+    v_rounding:=p_policy->'rounding';
+    if jsonb_typeof(v_rounding)<>'object' then
+      raise exception 'rounding must be an object when present.'
+        using errcode='22023';
+    end if;
+
+    v_round_mode:=lower(btrim(coalesce(v_rounding->>'mode','')));
+    if v_round_mode<>'ceil' then
+      raise exception 'V1 rounding mode must be ceil.'
+        using errcode='22023';
+    end if;
+
+    if jsonb_typeof(v_rounding->'increment')<>'number' then
+      raise exception 'rounding.increment must be numeric.'
+        using errcode='22023';
+    end if;
+
+    v_round_increment:=(v_rounding->>'increment')::numeric;
+    if v_round_increment<=0 then
+      raise exception 'rounding.increment must be greater than zero.'
+        using errcode='22023';
+    end if;
+  end if;
+
+  v_unit_cost:=p_total_cost/p_quantity;
+
+  if v_method='gross_margin' then
+    v_raw_unit_price:=v_unit_cost/(1-v_rate);
+  else
+    v_raw_unit_price:=v_unit_cost*(1+v_rate);
+  end if;
+
+  v_base_unit_price:=greatest(
+    v_raw_unit_price,
+    coalesce(v_min_unit_price,v_raw_unit_price)
+  );
+
+  if v_round_increment is not null then
+    v_proposed_unit_price:=ceil(v_base_unit_price/v_round_increment)*v_round_increment;
+  else
+    v_proposed_unit_price:=v_base_unit_price;
+  end if;
+
+  v_proposed_total:=v_proposed_unit_price*p_quantity;
+  v_gross_profit:=v_proposed_total-p_total_cost;
+
+  if v_proposed_total<>0 then
+    v_realized_margin:=v_gross_profit/v_proposed_total;
+  end if;
+
+  if p_total_cost<>0 then
+    v_realized_markup:=v_gross_profit/p_total_cost;
+  end if;
+
+  return jsonb_build_object(
+    'contractVersion','commercial_price_from_cost_basis_v1',
+    'state','priced',
+    'currency',v_currency,
+    'quantity',p_quantity,
+    'unit',v_unit,
+    'totalCostBasis',p_total_cost,
+    'costPerUnit',v_unit_cost,
+    'policy',jsonb_build_object(
+      'contractVersion','commercial_price_policy_input_v1',
+      'method',v_method,
+      'rate',v_rate,
+      'minimumUnitPrice',v_min_unit_price,
+      'rounding',case
+        when v_round_increment is null then null
+        else jsonb_build_object('mode','ceil','increment',v_round_increment)
+      end
+    ),
+    'rawUnitPrice',v_raw_unit_price,
+    'proposedUnitPrice',v_proposed_unit_price,
+    'proposedTotal',v_proposed_total,
+    'grossProfitAgainstCostBasis',v_gross_profit,
+    'realizedGrossMarginAgainstCostBasis',v_realized_margin,
+    'realizedMarkupAgainstCostBasis',v_realized_markup,
+    'context',p_context,
+    'truthBoundary',jsonb_build_object(
+      'readOnly',true,
+      'costBasisMustBeGovernedUpstream',true,
+      'doesNotPersistPricingPolicy',true,
+      'doesNotCreateStandingPrice',true,
+      'doesNotCreateCommercialOfferSnapshot',true,
+      'doesNotCreateOrder',true,
+      'doesNotAuthorizePurchase',true,
+      'doesNotExecute',true
+    )
+  );
+end;
+$function$;
+
+
+revoke all on function atlas.commercial_price_from_cost_basis_v1(numeric,text,numeric,text,jsonb,jsonb)
+  from public,anon,authenticated;
+grant execute on function atlas.commercial_price_from_cost_basis_v1(numeric,text,numeric,text,jsonb,jsonb)
+  to service_role;
+
+
+insert into atlas.authenticated_rpc_registry(
+  signature,classification,confidence,review_status,
+  authenticated_execute_expected,security_definer_expected,
+  service_execute_expected,caller_count,policy_reference_count,
+  evidence,anonymous_execute_expected
+) values (
+  'atlas.commercial_price_from_cost_basis_v1(numeric,text,numeric,text,jsonb,jsonb)',
+  'service_internal','verified','active',
+  false,false,true,0,1,
+  '{"source":"atlas_pooled_commercial_price_protection_v1","purpose":"Shared pure pricing law from an explicit governed cost basis and explicit pricing policy.","classificationRuleVersion":3}'::jsonb,
+  false
+)
+on conflict(signature) do update set
+  classification=excluded.classification,
+  confidence=excluded.confidence,
+  review_status=excluded.review_status,
+  authenticated_execute_expected=excluded.authenticated_execute_expected,
+  security_definer_expected=excluded.security_definer_expected,
+  service_execute_expected=excluded.service_execute_expected,
+  caller_count=excluded.caller_count,
+  policy_reference_count=excluded.policy_reference_count,
+  evidence=excluded.evidence,
+  anonymous_execute_expected=excluded.anonymous_execute_expected,
+  reviewed_at=now();
+-- ============================================================================
+-- END candidates/atlas_commercial_price_from_cost_basis_v1.sql
+-- ============================================================================
+
+-- ============================================================================
 -- BEGIN candidates/atlas_commercial_price_evaluation_v1.sql
 -- ============================================================================
 create or replace function atlas.commercial_price_evaluate_v1(
@@ -1693,22 +1936,7 @@ declare
   v_total_cost numeric;
   v_quantity numeric;
   v_unit text;
-  v_unit_cost numeric;
-
-  v_method text;
-  v_rate numeric;
-  v_min_unit_price numeric:=null;
-  v_rounding jsonb;
-  v_round_mode text:=null;
-  v_round_increment numeric:=null;
-
-  v_raw_unit_price numeric;
-  v_base_unit_price numeric;
-  v_proposed_unit_price numeric;
-  v_proposed_total numeric;
-  v_gross_profit numeric;
-  v_realized_margin numeric;
-  v_realized_markup numeric;
+  v_price jsonb;
 begin
   v_position:=atlas.fulfillment_composition_position_v1(p_fulfillment_packet);
 
@@ -1775,144 +2003,42 @@ begin
   v_quantity:=(v_position->>'requiredQuantity')::numeric;
   v_unit:=v_position->>'unit';
 
-  if v_quantity is null or v_quantity<=0 then
-    raise exception 'Fulfillment position requires positive quantity for price evaluation.'
-      using errcode='22023';
-  end if;
-
-  if p_policy is null or jsonb_typeof(p_policy)<>'object' then
-    raise exception 'Pricing policy input must be a JSON object.'
-      using errcode='22023';
-  end if;
-
-  if p_policy->>'contractVersion'<>'commercial_price_policy_input_v1' then
-    raise exception 'Pricing policy contractVersion must be commercial_price_policy_input_v1.'
-      using errcode='22023';
-  end if;
-
-  v_method:=lower(btrim(coalesce(p_policy->>'method','')));
-  if v_method not in ('gross_margin','markup') then
-    raise exception 'Pricing method must be gross_margin or markup.'
-      using errcode='22023';
-  end if;
-
-  if jsonb_typeof(p_policy->'rate')<>'number' then
-    raise exception 'Pricing policy rate must be numeric.'
-      using errcode='22023';
-  end if;
-  v_rate:=(p_policy->>'rate')::numeric;
-
-  if v_method='gross_margin' and (v_rate<0 or v_rate>=1) then
-    raise exception 'Gross-margin rate must be >= 0 and < 1.'
-      using errcode='22023';
-  end if;
-
-  if v_method='markup' and v_rate<0 then
-    raise exception 'Markup rate must be >= 0.'
-      using errcode='22023';
-  end if;
-
-  if p_policy ? 'minimumUnitPrice' then
-    if jsonb_typeof(p_policy->'minimumUnitPrice')<>'number' then
-      raise exception 'minimumUnitPrice must be numeric when present.'
-        using errcode='22023';
-    end if;
-    v_min_unit_price:=(p_policy->>'minimumUnitPrice')::numeric;
-    if v_min_unit_price<0 then
-      raise exception 'minimumUnitPrice must be nonnegative.'
-        using errcode='22023';
-    end if;
-  end if;
-
-  if p_policy ? 'currency' then
-    if upper(btrim(coalesce(p_policy->>'currency','')))<>v_currency then
-      raise exception 'Policy currency % does not match known fulfillment currency %.',
-        p_policy->>'currency',v_currency
-        using errcode='22023';
-    end if;
-  end if;
-
-  if p_policy ? 'rounding' then
-    v_rounding:=p_policy->'rounding';
-    if jsonb_typeof(v_rounding)<>'object' then
-      raise exception 'rounding must be an object when present.'
-        using errcode='22023';
-    end if;
-
-    v_round_mode:=lower(btrim(coalesce(v_rounding->>'mode','')));
-    if v_round_mode<>'ceil' then
-      raise exception 'V1 rounding mode must be ceil.'
-        using errcode='22023';
-    end if;
-
-    if jsonb_typeof(v_rounding->'increment')<>'number' then
-      raise exception 'rounding.increment must be numeric.'
-        using errcode='22023';
-    end if;
-    v_round_increment:=(v_rounding->>'increment')::numeric;
-    if v_round_increment<=0 then
-      raise exception 'rounding.increment must be greater than zero.'
-        using errcode='22023';
-    end if;
-  end if;
-
-  v_unit_cost:=v_total_cost/v_quantity;
-
-  if v_method='gross_margin' then
-    v_raw_unit_price:=v_unit_cost/(1-v_rate);
-  else
-    v_raw_unit_price:=v_unit_cost*(1+v_rate);
-  end if;
-
-  v_base_unit_price:=greatest(
-    v_raw_unit_price,
-    coalesce(v_min_unit_price,v_raw_unit_price)
+  v_price:=atlas.commercial_price_from_cost_basis_v1(
+    v_quantity,
+    v_unit,
+    v_total_cost,
+    v_currency,
+    p_policy,
+    jsonb_build_object(
+      'source','fulfillment_composition_position_v1',
+      'planKey',v_position->>'planKey'
+    )
   );
-
-  if v_round_increment is not null then
-    v_proposed_unit_price:=ceil(v_base_unit_price/v_round_increment)*v_round_increment;
-  else
-    v_proposed_unit_price:=v_base_unit_price;
-  end if;
-
-  v_proposed_total:=v_proposed_unit_price*v_quantity;
-  v_gross_profit:=v_proposed_total-v_total_cost;
-
-  if v_proposed_total<>0 then
-    v_realized_margin:=v_gross_profit/v_proposed_total;
-  end if;
-
-  if v_total_cost<>0 then
-    v_realized_markup:=v_gross_profit/v_total_cost;
-  end if;
 
   return jsonb_build_object(
     'contractVersion','commercial_price_evaluation_v1',
     'state','priced',
-    'currency',v_currency,
-    'quantity',v_quantity,
-    'unit',v_unit,
-    'totalKnownFulfillmentCost',v_total_cost,
-    'costPerUnit',v_unit_cost,
-    'policy',jsonb_build_object(
-      'contractVersion','commercial_price_policy_input_v1',
-      'method',v_method,
-      'rate',v_rate,
-      'minimumUnitPrice',v_min_unit_price,
-      'rounding',case
-        when v_round_increment is null then null
-        else jsonb_build_object('mode','ceil','increment',v_round_increment)
-      end
-    ),
-    'rawUnitPrice',v_raw_unit_price,
-    'proposedUnitPrice',v_proposed_unit_price,
-    'proposedTotal',v_proposed_total,
-    'grossProfit',v_gross_profit,
-    'realizedGrossMargin',v_realized_margin,
-    'realizedMarkup',v_realized_markup,
+    'currency',v_price->>'currency',
+    'quantity',(v_price->>'quantity')::numeric,
+    'unit',v_price->>'unit',
+    'totalKnownFulfillmentCost',(v_price->>'totalCostBasis')::numeric,
+    'costPerUnit',(v_price->>'costPerUnit')::numeric,
+    'policy',v_price->'policy',
+    'rawUnitPrice',(v_price->>'rawUnitPrice')::numeric,
+    'proposedUnitPrice',(v_price->>'proposedUnitPrice')::numeric,
+    'proposedTotal',(v_price->>'proposedTotal')::numeric,
+    'grossProfit',(v_price->>'grossProfitAgainstCostBasis')::numeric,
+    'realizedGrossMargin',
+      case when v_price->>'realizedGrossMarginAgainstCostBasis' is null then null
+           else (v_price->>'realizedGrossMarginAgainstCostBasis')::numeric end,
+    'realizedMarkup',
+      case when v_price->>'realizedMarkupAgainstCostBasis' is null then null
+           else (v_price->>'realizedMarkupAgainstCostBasis')::numeric end,
+    'sharedPriceResult',v_price,
     'fulfillmentPosition',v_position,
     'truthBoundary',jsonb_build_object(
       'readOnly',true,
+      'sharedPricingLaw',true,
       'derivedTermsOnly',true,
       'doesNotPersistPricingPolicy',true,
       'doesNotCreateStandingPrice',true,
@@ -1924,7 +2050,6 @@ begin
   );
 end;
 $function$;
-
 
 revoke all on function atlas.commercial_price_evaluate_v1(jsonb,jsonb)
   from public,anon,authenticated;
@@ -3652,6 +3777,332 @@ on conflict(signature) do update set
   reviewed_at=now();
 -- ============================================================================
 -- END candidates/atlas_work_requirement_pool_position_v1.sql
+-- ============================================================================
+
+-- ============================================================================
+-- BEGIN candidates/atlas_pooled_commercial_price_protection_v1.sql
+-- ============================================================================
+create or replace function atlas.work_requirement_pool_price_evaluate_v1(
+  p_pool_packet jsonb,
+  p_policy jsonb
+)
+returns jsonb
+language plpgsql
+stable
+set search_path=pg_catalog,atlas
+as $function$
+declare
+  v_pool jsonb;
+  v_basis text;
+  v_pricing_policy jsonb;
+
+  v_known_pool_cost numeric;
+  v_currency text;
+  v_output_quantity numeric;
+  v_planned_quantity numeric;
+  v_excess_quantity numeric;
+  v_unit text;
+
+  v_source_price jsonb;
+  v_full_price jsonb;
+  v_selected_price jsonb;
+
+  v_source_current_revenue numeric;
+  v_source_whole_pool_profit numeric;
+  v_source_whole_pool_margin numeric;
+
+  v_full_current_revenue numeric;
+  v_full_whole_pool_profit numeric;
+  v_full_whole_pool_margin numeric;
+
+  v_selected_current_revenue numeric;
+  v_selected_whole_pool_profit numeric;
+  v_selected_whole_pool_margin numeric;
+
+  v_requirement_prices jsonb:='[]'::jsonb;
+begin
+  v_pool:=atlas.work_requirement_pool_position_v1(p_pool_packet);
+
+  if v_pool->>'state'<>'ready' then
+    return jsonb_build_object(
+      'contractVersion','work_requirement_pool_price_evaluation_v1',
+      'state','blocked',
+      'reason','invalid_pool_position',
+      'poolPosition',v_pool,
+      'truthBoundary',jsonb_build_object(
+        'readOnly',true,
+        'blockedCreatesNoCommercialTerms',true
+      )
+    );
+  end if;
+
+  if v_pool->>'demandPosition'<>'all_covered' then
+    return jsonb_build_object(
+      'contractVersion','work_requirement_pool_price_evaluation_v1',
+      'state','blocked',
+      'reason','aggregate_demand_not_fully_covered',
+      'poolPosition',v_pool,
+      'truthBoundary',jsonb_build_object(
+        'readOnly',true,
+        'incompleteFulfillmentDoesNotBecomeCustomerPrice',true
+      )
+    );
+  end if;
+
+  if v_pool->>'economicState'<>'known' then
+    return jsonb_build_object(
+      'contractVersion','work_requirement_pool_price_evaluation_v1',
+      'state','blocked',
+      'reason',case v_pool->>'economicState'
+        when 'unresolved' then 'required_pool_cost_unresolved'
+        when 'known_multi_currency' then 'multi_currency_without_governed_conversion'
+        when 'no_cost_evidence' then 'no_pool_cost_evidence'
+        else 'pool_economic_position_not_known'
+      end,
+      'poolPosition',v_pool,
+      'truthBoundary',jsonb_build_object(
+        'readOnly',true,
+        'unknownCostIsNeverZero',true,
+        'noImplicitFxConversion',true
+      )
+    );
+  end if;
+
+  if p_policy is null or jsonb_typeof(p_policy)<>'object' then
+    raise exception 'Pooled pricing policy must be a JSON object.'
+      using errcode='22023';
+  end if;
+
+  if p_policy->>'contractVersion'<>'work_requirement_pool_price_policy_v1' then
+    raise exception 'Pooled pricing policy contractVersion must be work_requirement_pool_price_policy_v1.'
+      using errcode='22023';
+  end if;
+
+  v_basis:=lower(btrim(coalesce(p_policy->>'costRecoveryBasis','')));
+  if v_basis not in ('full_pool_on_planned_output','source_output') then
+    raise exception 'costRecoveryBasis must be full_pool_on_planned_output or source_output.'
+      using errcode='22023';
+  end if;
+
+  v_pricing_policy:=p_policy->'pricingPolicy';
+  if v_pricing_policy is null or jsonb_typeof(v_pricing_policy)<>'object' then
+    raise exception 'pricingPolicy must be an explicit JSON object.'
+      using errcode='22023';
+  end if;
+
+  v_known_pool_cost:=(v_pool->>'knownPoolCost')::numeric;
+  v_currency:=v_pool->>'knownCostCurrency';
+  v_output_quantity:=(v_pool->>'outputQuantity')::numeric;
+  v_planned_quantity:=(v_pool->>'plannedOutputQuantity')::numeric;
+  v_excess_quantity:=(v_pool->>'excessOutputQuantity')::numeric;
+  v_unit:=v_pool->>'outputUnit';
+
+  if v_planned_quantity<=0 then
+    return jsonb_build_object(
+      'contractVersion','work_requirement_pool_price_evaluation_v1',
+      'state','blocked',
+      'reason','no_planned_output',
+      'poolPosition',v_pool
+    );
+  end if;
+
+  v_source_price:=atlas.commercial_price_from_cost_basis_v1(
+    v_output_quantity,
+    v_unit,
+    v_known_pool_cost,
+    v_currency,
+    v_pricing_policy,
+    jsonb_build_object(
+      'source','work_requirement_pool_position_v1',
+      'poolKey',v_pool->>'poolKey',
+      'costRecoveryBasis','source_output',
+      'scenarioOnly',(v_excess_quantity>0)
+    )
+  );
+
+  v_full_price:=atlas.commercial_price_from_cost_basis_v1(
+    v_planned_quantity,
+    v_unit,
+    v_known_pool_cost,
+    v_currency,
+    v_pricing_policy,
+    jsonb_build_object(
+      'source','work_requirement_pool_position_v1',
+      'poolKey',v_pool->>'poolKey',
+      'costRecoveryBasis','full_pool_on_planned_output',
+      'scenarioOnly',false
+    )
+  );
+
+  v_source_current_revenue:=(v_source_price->>'proposedUnitPrice')::numeric*v_planned_quantity;
+  v_source_whole_pool_profit:=v_source_current_revenue-v_known_pool_cost;
+  if v_source_current_revenue<>0 then
+    v_source_whole_pool_margin:=v_source_whole_pool_profit/v_source_current_revenue;
+  end if;
+
+  v_full_current_revenue:=(v_full_price->>'proposedUnitPrice')::numeric*v_planned_quantity;
+  v_full_whole_pool_profit:=v_full_current_revenue-v_known_pool_cost;
+  if v_full_current_revenue<>0 then
+    v_full_whole_pool_margin:=v_full_whole_pool_profit/v_full_current_revenue;
+  end if;
+
+  if v_basis='source_output' and v_excess_quantity>0 then
+    return jsonb_build_object(
+      'contractVersion','work_requirement_pool_price_evaluation_v1',
+      'state','blocked',
+      'reason','excess_recovery_not_established',
+      'selectedCostRecoveryBasis',v_basis,
+      'poolPosition',v_pool,
+      'scenarioComparison',jsonb_build_object(
+        'sourceOutput',jsonb_build_object(
+          'protectionState','unprotected_without_excess_recovery',
+          'priceResult',v_source_price,
+          'currentPlannedRevenue',v_source_current_revenue,
+          'wholePoolGrossProfitIfExcessRecoversZero',v_source_whole_pool_profit,
+          'wholePoolGrossMarginIfExcessRecoversZero',v_source_whole_pool_margin
+        ),
+        'fullPoolOnPlannedOutput',jsonb_build_object(
+          'protectionState','protected_against_zero_excess_recovery',
+          'priceResult',v_full_price,
+          'currentPlannedRevenue',v_full_current_revenue,
+          'wholePoolGrossProfit',v_full_whole_pool_profit,
+          'wholePoolGrossMargin',v_full_whole_pool_margin
+        )
+      ),
+      'truthBoundary',jsonb_build_object(
+        'readOnly',true,
+        'futureExcessSaleIsNotRecoveryEvidence',true,
+        'blockedCreatesNoCommercialTerms',true,
+        'doesNotCreateOfferSnapshot',true,
+        'doesNotCreateOrder',true,
+        'doesNotPurchase',true
+      )
+    );
+  end if;
+
+  if v_basis='source_output' then
+    v_selected_price:=v_source_price;
+  else
+    v_selected_price:=v_full_price;
+  end if;
+
+  v_selected_current_revenue:=(v_selected_price->>'proposedUnitPrice')::numeric*v_planned_quantity;
+  v_selected_whole_pool_profit:=v_selected_current_revenue-v_known_pool_cost;
+  if v_selected_current_revenue<>0 then
+    v_selected_whole_pool_margin:=v_selected_whole_pool_profit/v_selected_current_revenue;
+  end if;
+
+  select coalesce(
+    jsonb_agg(
+      jsonb_build_object(
+        'useKey',rp.value->>'useKey',
+        'workRequirementId',rp.value->>'workRequirementId',
+        'plannedQuantity',(rp.value->>'plannedFromPool')::numeric,
+        'unit',rp.value->>'unit',
+        'proposedUnitPrice',(v_selected_price->>'proposedUnitPrice')::numeric,
+        'proposedTotal',
+          (rp.value->>'plannedFromPool')::numeric*(v_selected_price->>'proposedUnitPrice')::numeric
+      )
+      order by rp.value->>'useKey'
+    ),
+    '[]'::jsonb
+  )
+  into v_requirement_prices
+  from jsonb_array_elements(v_pool->'requirementPositions') as rp(value);
+
+  return jsonb_build_object(
+    'contractVersion','work_requirement_pool_price_evaluation_v1',
+    'state','priced',
+    'organizationId',v_pool->'organizationId',
+    'poolKey',v_pool->>'poolKey',
+    'selectedCostRecoveryBasis',v_basis,
+    'currency',v_currency,
+    'unit',v_unit,
+    'knownPoolCost',v_known_pool_cost,
+    'plannedOutputQuantity',v_planned_quantity,
+    'excessOutputQuantity',v_excess_quantity,
+    'protectedCostBasisQuantity',(v_selected_price->>'quantity')::numeric,
+    'protectedCostBasis',(v_selected_price->>'totalCostBasis')::numeric,
+    'protectedCostPerUnit',(v_selected_price->>'costPerUnit')::numeric,
+    'protectedProposedUnitPrice',(v_selected_price->>'proposedUnitPrice')::numeric,
+    'protectedProposedRevenueOnPlannedOutput',v_selected_current_revenue,
+    'protectedWholePoolGrossProfit',v_selected_whole_pool_profit,
+    'protectedWholePoolGrossMargin',v_selected_whole_pool_margin,
+    'selectedPriceResult',v_selected_price,
+    'requirementPrices',v_requirement_prices,
+    'scenarioComparison',jsonb_build_object(
+      'sourceOutput',jsonb_build_object(
+        'protectionState',case
+          when v_excess_quantity=0 then 'protected_no_excess'
+          else 'unprotected_without_excess_recovery'
+        end,
+        'priceResult',v_source_price,
+        'currentPlannedRevenue',v_source_current_revenue,
+        'wholePoolGrossProfitIfExcessRecoversZero',v_source_whole_pool_profit,
+        'wholePoolGrossMarginIfExcessRecoversZero',v_source_whole_pool_margin
+      ),
+      'fullPoolOnPlannedOutput',jsonb_build_object(
+        'protectionState','protected_against_zero_excess_recovery',
+        'priceResult',v_full_price,
+        'currentPlannedRevenue',v_full_current_revenue,
+        'wholePoolGrossProfit',v_full_whole_pool_profit,
+        'wholePoolGrossMargin',v_full_whole_pool_margin
+      )
+    ),
+    'poolPosition',v_pool,
+    'truthBoundary',jsonb_build_object(
+      'readOnly',true,
+      'costRecoveryBasisIsExplicit',true,
+      'futureExcessSaleIsNotRecoveryEvidence',true,
+      'onePoolWidePolicyEvaluated',true,
+      'requirementPricesAreDerivedNotOffers',true,
+      'doesNotPersistPricingPolicy',true,
+      'doesNotCreateStandingPrice',true,
+      'doesNotCreateOfferSnapshot',true,
+      'doesNotCreateOrder',true,
+      'doesNotCreateAllocation',true,
+      'doesNotCreatePurchase',true,
+      'doesNotCreateSpend',true,
+      'doesNotCreateInventory',true,
+      'doesNotExecute',true
+    )
+  );
+end;
+$function$;
+
+
+revoke all on function atlas.work_requirement_pool_price_evaluate_v1(jsonb,jsonb)
+  from public,anon,authenticated;
+grant execute on function atlas.work_requirement_pool_price_evaluate_v1(jsonb,jsonb)
+  to service_role;
+
+
+insert into atlas.authenticated_rpc_registry(
+  signature,classification,confidence,review_status,
+  authenticated_execute_expected,security_definer_expected,
+  service_execute_expected,caller_count,policy_reference_count,
+  evidence,anonymous_execute_expected
+) values (
+  'atlas.work_requirement_pool_price_evaluate_v1(jsonb,jsonb)',
+  'service_internal','verified','active',
+  false,false,true,0,1,
+  '{"source":"atlas_pooled_commercial_price_protection_v1","purpose":"Read-only protected pooled pricing from explicit break-bulk economics, explicit cost-recovery basis, and shared pricing law.","classificationRuleVersion":3}'::jsonb,
+  false
+)
+on conflict(signature) do update set
+  classification=excluded.classification,
+  confidence=excluded.confidence,
+  review_status=excluded.review_status,
+  authenticated_execute_expected=excluded.authenticated_execute_expected,
+  security_definer_expected=excluded.security_definer_expected,
+  service_execute_expected=excluded.service_execute_expected,
+  caller_count=excluded.caller_count,
+  policy_reference_count=excluded.policy_reference_count,
+  evidence=excluded.evidence,
+  anonymous_execute_expected=excluded.anonymous_execute_expected,
+  reviewed_at=now();
+-- ============================================================================
+-- END candidates/atlas_pooled_commercial_price_protection_v1.sql
 -- ============================================================================
 
 commit;
