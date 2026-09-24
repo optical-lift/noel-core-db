@@ -1,0 +1,97 @@
+{
+  "manifestVersion": "atlas_supplier_source_ingestion_manifest_v1",
+  "organization": "Elm Farm",
+  "providers": [
+    {
+      "providerKey": "dvflora",
+      "displayLabel": "DVFlora Wholesale",
+      "accountState": "pending_creation",
+      "desiredCapabilities": [
+        "catalog_read",
+        "account_price_read",
+        "availability_read",
+        "pack_basis_read",
+        "origin_read",
+        "american_grown_flag_read",
+        "shipping_quote_read",
+        "order_terms_read",
+        "export_or_api_if_available"
+      ],
+      "initialObjectKinds": [
+        "catalog_listing",
+        "price_listing",
+        "availability_listing",
+        "shipping_quote",
+        "account_terms"
+      ]
+    },
+    {
+      "providerKey": "mellano",
+      "displayLabel": "Mellano & Company",
+      "accountState": "pending_creation",
+      "desiredCapabilities": [
+        "catalog_read",
+        "account_price_read",
+        "availability_read",
+        "pack_basis_read",
+        "origin_read",
+        "grower_read",
+        "shipping_quote_read",
+        "order_terms_read",
+        "export_or_api_if_available"
+      ],
+      "initialObjectKinds": [
+        "catalog_listing",
+        "price_listing",
+        "availability_listing",
+        "shipping_quote",
+        "account_terms"
+      ]
+    },
+    {
+      "providerKey": "flowerbuyer",
+      "displayLabel": "Flowerbuyer",
+      "accountState": "pending_creation",
+      "desiredCapabilities": [
+        "market_listing_read",
+        "auction_price_read",
+        "availability_quantity_read",
+        "pack_basis_read",
+        "origin_read",
+        "grower_read",
+        "hub_location_read",
+        "shipping_quote_read",
+        "market_history_read",
+        "export_or_api_if_available"
+      ],
+      "initialObjectKinds": [
+        "market_listing",
+        "shipping_quote",
+        "account_terms"
+      ]
+    }
+  ],
+  "initialCommodityTestBasket": [
+    "carnations",
+    "mini_carnations",
+    "roses",
+    "alstroemeria",
+    "chrysanthemums_or_pomps",
+    "snapdragons",
+    "lisianthus",
+    "hydrangea",
+    "sunflowers",
+    "eucalyptus_or_greens",
+    "american_grown_specialty_item"
+  ],
+  "truthBoundary": {
+    "credentialsNeverInManifest": true,
+    "providerPresenceDoesNotMeanAvailability": true,
+    "providerWarehouseDoesNotMeanOrigin": true,
+    "rawPayloadPrecedesNormalization": true,
+    "supplierIdentityMustBeResolvedBeforePromotion": true,
+    "noPurchaseAuthority": true,
+    "noInventoryCreation": true,
+    "noCustomerPriceCreation": true
+  }
+}
