@@ -127,6 +127,14 @@ begin
   loop
     v_line_count:=v_line_count+1;
     v_line_block_reasons:='[]'::jsonb;
+    v_plan:=null;
+    v_plan_candidate:=null;
+    v_plan_nodes:='[]'::jsonb;
+    v_fulfillment_packet:=null;
+    v_qualification:=null;
+    v_price:=null;
+    v_source_facts:='{}'::jsonb;
+    v_selection_basis:='{}'::jsonb;
 
     if jsonb_typeof(v_line)<>'object' then
       raise exception 'Every basket line must be a JSON object.'
