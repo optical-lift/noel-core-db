@@ -63,6 +63,21 @@ florist basket
 12. `candidates/atlas_feast_guild_flower_candidate_gathering_v1_validation.sql`
    - rollback proof from source-owned supplier observation -> candidate gathering -> Feast Guild source selection -> protected quote, plus pure Ready-inventory boundary proofs.
 
+13. `architecture/flowerbuyer-open-market-adapter-v1.md`
+   - provider semantics and transport boundary for authenticated Flowerbuyer Open Market structured data.
+
+14. `candidates/atlas_flowerbuyer_open_market_adapter_v1.sql`
+   - deterministic raw record keys, Connected Source record preparation, and pure Open Market interpretation.
+
+15. `candidates/atlas_flowerbuyer_open_market_admission_v1.sql`
+   - explicit raw-observation -> External Supply Offer admission bridge requiring a resolved supplier relationship.
+
+16. `candidates/atlas_flowerbuyer_open_market_adapter_v1_validation.sql`
+   - rollback proof for observed Flowerbuyer pricing/pack/availability/date semantics, logistics-vs-origin separation, raw-source custody, and source-offer admission.
+
+17. `candidates/fixtures/flowerbuyer_open_market_observed_fixture_v1.json`
+   - human-readable source fixture from the two authenticated Open Market records observed on 2026-09-24.
+
 ## Dependency
 
 Do not install this candidate by itself against current production.
@@ -109,7 +124,14 @@ When private GitHub Actions are available again:
 8. run:
    `candidates/atlas_feast_guild_flower_candidate_gathering_v1_validation.sql`
 
-9. only after all parent + quote-adapter + source-policy + candidate-gathering proofs pass, decide whether the layers should become one ordered release set or separate governed migrations.
+9. install:
+   - `candidates/atlas_flowerbuyer_open_market_adapter_v1.sql`
+   - `candidates/atlas_flowerbuyer_open_market_admission_v1.sql`
+
+10. run:
+   `candidates/atlas_flowerbuyer_open_market_adapter_v1_validation.sql`
+
+11. only after all parent + quote-adapter + source-policy + candidate-gathering + Flowerbuyer adapter proofs pass, decide whether the layers should become one ordered release set or separate governed migrations.
 
 Do not create migration history from either candidate bundle directly.
 
@@ -301,6 +323,87 @@ It does **not** use retail price, Retail Flower Product Price Book value, or his
 Until an owned-inventory cost basis is established, Elm inventory can be discovered and shown as the most-preferred physical source but cannot automatically defeat or beat an external supplier in the +10% landed-cost comparison.
 
 That is now the next explicit business/economic decision boundary.
+
+
+## Flowerbuyer Open Market provider checkpoint
+
+Authenticated Open Market inspection on 2026-09-24 established a structured `productdetails` response containing `ProductsDetail.OpenMarketData`.
+
+Observed provider semantics are now encoded candidate-only.
+
+### Proven fields
+
+~~~text
+FBProductCode        -> durable Flowerbuyer product identity
+AuctionProductCode   -> volatile market-listing identity component
+CustomerPrice / 100  -> account-visible acquisition unit price
+StemOrBunch ST       -> stem
+StemOrBunch BU       -> bunch
+Pack                 -> pricing units per box
+BoxesForSale         -> finite boxes offered
+Pack * BoxesForSale  -> observable unit capacity
+StrDeliveryDate      -> source-stated delivery date
+GrowerNumber         -> provider grower reference
+~~~
+
+Observed arithmetic:
+
+~~~text
+Acacia:
+CustomerPrice 907 -> USD 9.07/bunch
+Pack 20         -> USD 181.40/box
+BoxesForSale 2  -> 40 bunches observable capacity
+
+Rose:
+CustomerPrice 118 -> USD 1.18/stem
+Pack 125         -> USD 147.50/box
+BoxesForSale 2   -> 250 stems observable capacity
+~~~
+
+The source comment explicitly states FedEx shipping cost is included in price for the observed rows, so the adapter records `freightIncluded=true` and does not add `DirectShippingCharge` a second time.
+
+`UnitPrice` and `DirectShippingCharge` are preserved as provider component fields only; their observed sum does not equal `CustomerPrice`, so Atlas does not invent the residual component.
+
+### Origin boundary
+
+Flowerbuyer fields:
+
+~~~text
+CountryCode
+Location
+OriginatingCity
+PointOfEntry
+~~~
+
+are treated as provider logistics fields, not biological grow-origin evidence.
+
+A Rose record with `CountryCode=US`, `Location=USA`, `OriginatingCity=Miami3`, and `PointOfEntry=MI` therefore remains source-preference unresolved.
+
+### Transport boundary
+
+No production retrieval method is established yet.
+
+The adapter is deliberately transport-independent and can accept raw Open Market records from:
+
+- an official Flowerbuyer API/feed;
+- an authorized portal endpoint;
+- an authorized browser capture workflow;
+- an email fallback.
+
+Atlas does not assume permission to poll the currently observed structured portal endpoint.
+
+### Durable admission boundary
+
+A stored raw Flowerbuyer Connected Source Observation may be admitted into External Supply Offer truth only when an explicit supplier External Relationship is supplied.
+
+Provider identity, grower reference, logistics location, biological origin, and vendor-of-record identity remain distinct.
+
+Current unresolved Flowerbuyer facts before fully automatic protected quoting:
+
+- wholesaler-approved retrieval method;
+- complete account/order fee semantics beyond source-stated shipping inclusion;
+- explicit biological grow-origin evidence or governed grower-origin mapping;
+- production freshness/revalidation cadence.
 
 ## GitHub Actions lock boundary
 
