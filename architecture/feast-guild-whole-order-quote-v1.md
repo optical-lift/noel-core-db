@@ -5,7 +5,7 @@
 **Branch:** `architecture/feast-guild-whole-order-quote-v1`  
 **Parent checkpoint:** `architecture/atlas-external-supply-offer-v1` @ `78f705484ba0302395eae784ee5861e0da80d597`  
 **Production boundary:** not released; do not promote while private GitHub Actions are unavailable  
-**First proof:** one multi-line florist basket prepared from explicit qualified fulfillment plans
+**First proof:** one multi-line florist basket automatically sourced under the Feast Guild V1 source-selection policy and prepared as a protected quote
 
 ## 1. Purpose
 
@@ -27,7 +27,7 @@ The missing layer is deliberately thin and flower-specific:
 
 This adapter answers that question.
 
-It does **not** choose a wholesaler autonomously. Source choice remains a separate planning/decision responsibility until a governed Feast Guild source-ranking policy is established.
+Feast Guild source choice is now governed by architecture/feast-guild-flower-source-selection-policy-v1.md. The quote adapter may still consume an explicitly selected plan, while atlas.feast_guild_flower_quote_prepare_from_candidates_v1(...) may first choose the lawful line plan under the fixed Feast Guild source policy and then pass it into this quote-preparation contract.
 
 ## 2. Governing movement
 
@@ -190,33 +190,38 @@ A later reviewed command may freeze a complete result through the existing immut
 
 An incomplete result may be preserved as incomplete evidence, but must not be treated as a provider-observed/action-result offer.
 
-## 8. Source selection boundary
+## 8. Source selection policy
 
-V1 intentionally does not encode a Feast Guild rule such as:
+Feast Guild V1 now establishes:
 
 ~~~text
-Elm
-→ Missouri
-→ U.S.
-→ imported
+1. Elm-owned / Elm-grown
+2. Regional U.S.-grown
+3. Other U.S.-grown
+4. Imported
 ~~~
 
-or a maximum premium Feast Guild will pay for a preferred source.
+Qualification comes first.
 
-Those are real policy questions and must be supplied explicitly when established.
+Automatic selection compares complete known landed economic cost and allows the better-preference source when its landed cost is no more than 10% above the cheapest qualified known-cost candidate.
 
-The selected line plan may preserve:
+The policy is owned by:
 
-~~~json
-{
-  "selectionBasis": {
-    "decisionKind": "fixture_selected",
-    "reason": "first whole-order proof"
-  }
-}
-~~~
+architecture/feast-guild-flower-source-selection-policy-v1.md
 
-but the quote adapter does not claim the selection was optimal.
+The automatic selector is:
+
+atlas.feast_guild_flower_source_plan_select_v1(jsonb,jsonb)
+
+Whole-basket orchestration is:
+
+atlas.feast_guild_flower_quote_prepare_from_candidates_v1(jsonb,jsonb,jsonb,jsonb)
+
+A selected plan preserves its exact policy basis, including cheapest lawful cost, preference ceiling, selected tier, selected landed cost, and premium paid for preference.
+
+A more-preferred candidate above the 10% band remains visible but cannot be automatically selected. Using it requires separate operator approval authority.
+
+The quote adapter itself still verifies the selected plan; source policy does not bypass qualification, exact coverage, or known economics.
 
 ## 9. Whole-pack economics
 
