@@ -755,6 +755,12 @@ begin
       v_alloc_total:=0;
       v_alloc_keys:='{}'::text[];
       v_alloc_requirement_ids:='{}'::uuid[];
+      v_offering_id:=null;
+      v_observation_id:=null;
+      v_ordered_quantity:=null;
+      v_ordered_unit:=null;
+      v_output_quantity:=null;
+      v_output_unit:=null;
 
       if jsonb_typeof(v_line)<>'object' then
         v_violations:=v_violations||jsonb_build_array(jsonb_build_object('key','line_not_object','lineIndex',v_line_count));
@@ -863,6 +869,9 @@ begin
           for v_alloc in select value from jsonb_array_elements(v_line->'allocations')
           loop
             v_allocation_count:=v_allocation_count+1;
+            v_requirement_id:=null;
+            v_alloc_quantity:=null;
+            v_alloc_unit:=null;
             if jsonb_typeof(v_alloc)<>'object' then
               v_violations:=v_violations||jsonb_build_array(jsonb_build_object('key','allocation_not_object','lineKey',v_line_key));
               continue;
