@@ -1,0 +1,54 @@
+{
+  "templateVersion": "elm_supplier_account_intake_v1",
+  "providerKey": "",
+  "displayLabel": "",
+  "providerAccountKey": "",
+  "accountHint": "",
+  "accountStatus": "pending_review",
+  "loginCredential": {
+    "secretStoredSeparately": true,
+    "credentialKindsExpected": [
+      "password"
+    ],
+    "neverPlaceSecretHere": true
+  },
+  "businessAccount": {
+    "customerNumber": null,
+    "resaleOrTaxExemptStatus": null,
+    "shipToLocations": [],
+    "paymentTerms": null
+  },
+  "capabilityReview": {
+    "catalogRead": "unknown",
+    "accountPriceRead": "unknown",
+    "availabilityRead": "unknown",
+    "quantityAvailableRead": "unknown",
+    "packBasisRead": "unknown",
+    "originRead": "unknown",
+    "growerRead": "unknown",
+    "americanGrownFlagRead": "unknown",
+    "shippingQuoteRead": "unknown",
+    "orderMinimumRead": "unknown",
+    "orderCutoffRead": "unknown",
+    "csvExport": "unknown",
+    "xlsxExport": "unknown",
+    "pdfExport": "unknown",
+    "apiAccess": "unknown",
+    "stableMachineReadableEndpoint": "unknown"
+  },
+  "representativeArtifacts": {
+    "catalogOrListingArtifact": null,
+    "productDetailArtifact": null,
+    "shippingOrCartArtifact": null,
+    "accountTermsArtifact": null
+  },
+  "firstIngestion": {
+    "captureMethod": null,
+    "observedAt": null,
+    "commodityRowsCaptured": [],
+    "rawObservationBatchRecorded": false,
+    "threeRowsPromotedToSupplyTruth": false,
+    "lineageVerified": false
+  },
+  "notes": null
+}
