@@ -79,7 +79,7 @@ begin
       using errcode='22023';
   end if;
 
-  if jsonb_typeof(p_basket->'lines')<>'array'
+  if jsonb_typeof(p_basket->'lines') is distinct from 'array'
      or jsonb_array_length(p_basket->'lines')=0 then
     raise exception 'Basket lines must be a non-empty JSON array.'
       using errcode='22023';
@@ -157,7 +157,7 @@ begin
     end if;
     v_line_keys:=array_append(v_line_keys,v_line_key);
 
-    if jsonb_typeof(v_line->'quantity')<>'number' then
+    if jsonb_typeof(v_line->'quantity') is distinct from 'number' then
       raise exception 'Basket line % quantity must be numeric.',v_line_key
         using errcode='22023';
     end if;
@@ -200,7 +200,7 @@ begin
     end if;
 
     if v_plan is not null then
-      if jsonb_typeof(v_plan->'candidateRef')<>'object' then
+      if jsonb_typeof(v_plan->'candidateRef') is distinct from 'object' then
         v_line_block_reasons:=v_line_block_reasons||jsonb_build_array(
           jsonb_build_object('reason','missing_candidate_ref','lineKey',v_line_key)
         );
@@ -208,7 +208,7 @@ begin
         v_plan_candidate:=v_plan->'candidateRef';
       end if;
 
-      if jsonb_typeof(v_plan->'qualificationNodes')<>'array' then
+      if jsonb_typeof(v_plan->'qualificationNodes') is distinct from 'array' then
         v_line_block_reasons:=v_line_block_reasons||jsonb_build_array(
           jsonb_build_object('reason','missing_qualification_nodes','lineKey',v_line_key)
         );
@@ -217,7 +217,7 @@ begin
         v_plan_nodes:=v_plan->'qualificationNodes';
       end if;
 
-      if jsonb_typeof(v_plan->'fulfillmentPacket')<>'object' then
+      if jsonb_typeof(v_plan->'fulfillmentPacket') is distinct from 'object' then
         v_line_block_reasons:=v_line_block_reasons||jsonb_build_array(
           jsonb_build_object('reason','missing_fulfillment_packet','lineKey',v_line_key)
         );
@@ -360,7 +360,7 @@ begin
           );
         end if;
 
-        if jsonb_typeof(v_fulfillment_packet->'requirement'->'quantity')<>'number'
+        if jsonb_typeof(v_fulfillment_packet->'requirement'->'quantity') is distinct from 'number'
            or (v_fulfillment_packet->'requirement'->>'quantity')::numeric<>v_quantity
            or lower(btrim(coalesce(v_fulfillment_packet->'requirement'->>'unit','')))<>v_unit then
           v_line_block_reasons:=v_line_block_reasons||jsonb_build_array(
