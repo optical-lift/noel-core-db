@@ -15,9 +15,11 @@ It composes the already-defined candidate contracts into one florist-facing prep
 
 ~~~text
 florist basket
-→ explicit selected line plans
+→ candidate source plans
 → Candidate -> Requirement Qualification
-→ Neutral Fulfillment Composition
+→ exact known landed economics
+→ Feast Guild source preference policy
+→ selected line plans
 → Commercial Price Evaluation
 → whole-order aggregation
 → Commercial Offer Snapshot-ready packet
@@ -36,6 +38,15 @@ florist basket
 
 4. `candidates/fixtures/feast_guild_whole_order_quote_fixture_v1.json`
    - human-readable fixture, arithmetic, source-fact presentation, and expected states.
+
+5. `architecture/feast-guild-flower-source-selection-policy-v1.md`
+   - Feast Guild-specific source tiers and fixed +10% landed-cost preference band.
+
+6. `candidates/atlas_feast_guild_flower_source_selection_policy_v1.sql`
+   - immutable V1 policy, candidate evaluation, deterministic source selection, and whole-basket candidate-to-quote orchestration.
+
+7. `candidates/atlas_feast_guild_flower_source_selection_policy_v1_validation.sql`
+   - rollback proof for source preference boundaries, fail-closed economics, and mixed-source whole-order quoting.
 
 ## Dependency
 
@@ -69,7 +80,13 @@ When private GitHub Actions are available again:
 4. run:
    `candidates/atlas_feast_guild_whole_order_quote_v1_validation.sql`
 
-5. only after all parent + adapter proofs pass, decide whether the parent and adapter should become one ordered release set or separate governed migrations.
+5. install:
+   `candidates/atlas_feast_guild_flower_source_selection_policy_v1.sql`
+
+6. run:
+   `candidates/atlas_feast_guild_flower_source_selection_policy_v1_validation.sql`
+
+7. only after all parent + quote-adapter + source-policy proofs pass, decide whether the layers should become one ordered release set or separate governed migrations.
 
 Do not create migration history from either candidate bundle directly.
 
@@ -108,6 +125,63 @@ Expected state:
 - Commercial Offer Snapshot draft `offerState = complete`.
 
 These are validation numbers only, not live Feast Guild prices.
+
+
+## Feast Guild source-selection law
+
+The previously unresolved source-selection boundary is now decided for V1.
+
+Automatic line selection uses:
+
+~~~text
+1. elm_owned_or_grown
+2. regional_us
+3. us_grown
+4. imported
+~~~
+
+Rules:
+
+- qualification precedes preference;
+- comparison basis = complete known landed economic cost;
+- policy currency = USD;
+- maximum automatic preference premium = 10% above the cheapest qualified known-cost candidate;
+- exactly +10% is allowed;
+- anything above +10% is not automatically selected;
+- within the best in-band tier, lower landed cost wins;
+- unknown freight, unresolved qualification, or unsupported source tier cannot enter automatic selection;
+- an out-of-band more-preferred candidate remains visible and requires separate operator approval authority.
+
+The automatic +10% band cannot be widened by a caller parameter.
+
+### Automatic whole-order fixture
+
+The source-policy validation also proves a three-line mixed-source basket:
+
+~~~text
+Carnations:
+  imported lawful cost = $38
+  Elm lawful cost      = $41
+  selected             = Elm
+  customer line        = 90 × $0.66 = $59.40
+
+White roses:
+  imported             = $55
+  U.S.-grown           = $58
+  regional U.S.        = $62 (outside 10% band)
+  selected             = U.S.-grown
+  customer line        = 50 × $1.66 = $83.00
+
+Eucalyptus:
+  imported             = $25
+  regional U.S.        = $27.50 (exactly +10%)
+  selected             = regional U.S.
+  customer line        = 5 × $7.86 = $39.30
+
+Whole prepared quote   = $181.70
+~~~
+
+Those values are validation fixtures only, not live supplier or Feast Guild prices.
 
 ## Expected incomplete proof
 
