@@ -190,9 +190,9 @@ Later whole-order optimization may consider shared freight or supplier minimums 
 
 Returns the immutable V1 institutional policy.
 
-### atlas.feast_guild_flower_source_plan_select_v1(jsonb,jsonb,jsonb)
+### atlas.feast_guild_flower_source_plan_select_v1(jsonb,jsonb)
 
-Inputs are a basket-line requirement packet, a candidate plan array, and optional explicit policy input. Normal operation uses the V1 policy.
+Inputs are a basket-line requirement packet and a candidate plan array. The function always uses the immutable V1 Feast Guild policy; the preference band is not caller-supplied.
 
 The function is read-only. It returns a selected plan when automatic selection is lawful, or a blocked state when no candidate can be selected safely, plus full evaluation evidence.
 
