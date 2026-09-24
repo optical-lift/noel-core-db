@@ -319,7 +319,8 @@ begin
   v_authority_version:=v_decision->>'authorityVersion';
   v_authority_basis:=coalesce(v_decision->'authorityBasis','{}'::jsonb);
 
-  if v_result_policy not in ('none','boolean','string','scalar','receipt','ephemeral_reveal')
+  if v_result_policy is null
+     or v_result_policy not in ('none','boolean','string','scalar','receipt','ephemeral_reveal')
      or btrim(coalesce(v_authority_version,''))=''
      or jsonb_typeof(v_authority_basis)<>'object'
      or (v_reveals_plaintext and v_result_policy<>'ephemeral_reveal')
@@ -364,6 +365,7 @@ begin
   if jsonb_typeof(v_carrier)<>'object'
      or v_carrier_key !~ '^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$'
      or v_carrier_locator=''
+     or v_ttl is null
      or v_ttl<30
      or v_ttl>900 then
     raise exception 'Domain adapter returned an invalid carrier/warrant contract.'
@@ -545,25 +547,29 @@ begin
         using errcode='22023';
 
     elsif v_warrant.result_policy='boolean'
-       and v_type<>'boolean' then
+       and (p_safe_result is null or v_type is distinct from 'boolean') then
       raise exception 'This operation may return only a boolean.'
         using errcode='22023';
 
     elsif v_warrant.result_policy='string'
        and (
-         v_type<>'string'
+         p_safe_result is null
+         or v_type is distinct from 'string'
          or length(p_safe_result#>>'{}')>256
        ) then
       raise exception 'This operation may return only a bounded string.'
         using errcode='22023';
 
     elsif v_warrant.result_policy='scalar'
-       and v_type not in ('boolean','string','number','null') then
+       and (
+         p_safe_result is null
+         or v_type not in ('boolean','string','number','null')
+       ) then
       raise exception 'This operation may return only a scalar.'
         using errcode='22023';
 
     elsif v_warrant.result_policy='receipt'
-       and v_type<>'object' then
+       and (p_safe_result is null or v_type is distinct from 'object') then
       raise exception 'This operation must return a bounded receipt object.'
         using errcode='22023';
 
