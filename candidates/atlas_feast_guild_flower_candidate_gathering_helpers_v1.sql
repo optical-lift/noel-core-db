@@ -165,6 +165,7 @@ declare
   v_available numeric;
   v_ready_unit text:=nullif(lower(btrim(coalesce(p_ready->>'unit',''))),'');
   v_ready_date date;
+  v_usable_through date;
   v_exactness text:=lower(btrim(coalesce(p_ready->>'quantityExactness','')));
   v_output_qty numeric;
   v_facts jsonb;
@@ -173,6 +174,7 @@ declare
   v_availability_state text;
   v_capacity_state text;
   v_date_state text;
+  v_freshness_state text;
 begin
   if jsonb_typeof(p_line->'quantity') is distinct from 'number'
      or v_basket_key is null or v_line_key is null or v_req_unit is null then
@@ -199,6 +201,12 @@ begin
     else null
   end;
 
+  v_usable_through:=case
+    when nullif(btrim(coalesce(p_ready->'metadata'->>'usableThroughDate','')),'') is not null
+      then (p_ready->'metadata'->>'usableThroughDate')::date
+    else null
+  end;
+
   v_availability_state:=case
     when v_available is null then 'unresolved'
     when v_available>0 and v_exactness='exact' then 'satisfied'
@@ -216,6 +224,12 @@ begin
   v_date_state:=case
     when v_ready_date is null then 'unresolved'
     when v_ready_date<=v_req_date then 'satisfied'
+    else 'unsatisfied'
+  end;
+
+  v_freshness_state:=case
+    when v_usable_through is null then 'unresolved'
+    when v_usable_through>=v_req_date then 'satisfied'
     else 'unsatisfied'
   end;
 
@@ -275,6 +289,16 @@ begin
         'fact','readyDate='||coalesce(v_ready_date::text,'unknown')||
                '; requestedForDate='||v_req_date::text
       ))
+    ),
+    jsonb_build_object(
+      'requirementKey','source_freshness',
+      'required',true,
+      'state',v_freshness_state,
+      'evidence',jsonb_build_array(jsonb_build_object(
+        'sourceRef',v_ready_id,
+        'fact','usableThroughDate='||coalesce(v_usable_through::text,'unknown')||
+               '; requestedForDate='||v_req_date::text
+      ))
     )
   );
 
@@ -309,7 +333,8 @@ begin
         'qualificationState',case
           when v_availability_state='satisfied'
            and v_capacity_state='satisfied'
-           and v_date_state='satisfied' then 'qualified'
+           and v_date_state='satisfied'
+           and v_freshness_state='satisfied' then 'qualified'
           else 'unresolved'
         end,
         'sourceQuantity',v_output_qty,
@@ -354,7 +379,8 @@ begin
       'source','flower_ready_inventory_position_v1',
       'usesAvailableQuantity',true,
       'usesBirthQuantityAsAvailability',false,
-      'retailValuationUsedAsCost',false
+      'retailValuationUsedAsCost',false,
+      'freshnessRequiresUsableThroughEvidence',true
     )
   );
 end;
