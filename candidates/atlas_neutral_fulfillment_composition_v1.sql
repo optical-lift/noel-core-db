@@ -438,6 +438,7 @@ declare
   v_cost_totals jsonb:='{}'::jsonb;
   v_currency_count integer:=0;
   v_cost_count integer:=0;
+  v_known_cost_count integer:=0;
   v_unresolved_required_cost_count integer:=0;
   v_economic_state text;
   v_blocking_plan_unresolved_count integer:=0;
@@ -462,6 +463,7 @@ begin
   v_req_unit:=v_validation->>'requirementUnit';
   v_output_qty:=(v_validation->>'outputQuantity')::numeric;
   v_cost_count:=(v_validation->>'costComponentCount')::integer;
+  v_known_cost_count:=(v_validation->>'knownCostComponentCount')::integer;
   v_unresolved_required_cost_count:=(v_validation->>'unresolvedRequiredCostComponentCount')::integer;
 
   v_coverage_state:=case
@@ -486,7 +488,7 @@ begin
     group by upper(c->>'currency')
   ) q;
 
-  if v_cost_count=0 then
+  if v_cost_count=0 or (v_known_cost_count=0 and v_unresolved_required_cost_count=0) then
     v_economic_state:='no_cost_evidence';
   elsif v_unresolved_required_cost_count>0 then
     v_economic_state:='unresolved';
