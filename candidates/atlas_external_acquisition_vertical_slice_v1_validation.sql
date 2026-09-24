@@ -270,8 +270,15 @@ begin
 
   v_coverage:=atlas.external_acquisition_commitment_coverage_facts_v1(v_commitment_id);
 
-  if v_coverage->>'normalizedCoverageState'<>'secured'
-     or jsonb_array_length(v_coverage->'facts')<>3 then
+  if v_coverage->>'coverageMode'<>'split_commitment_and_accepted_fulfillment'
+     or jsonb_array_length(v_coverage->'facts')<>3
+     or exists(
+       select 1
+       from jsonb_array_elements(v_coverage->'facts') x
+       where x->'coverageFact'->>'state'<>'secured'
+          or x->'coverageFact'->'metadata'->>'coverageLayer'
+             <>'remaining_supplier_commitment'
+     ) then
     raise exception 'Vertical slice acquisition coverage facts failed: %',v_coverage;
   end if;
 
