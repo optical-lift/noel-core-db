@@ -5293,7 +5293,6 @@ declare
   v_commitment atlas.external_acquisition_commitments%rowtype;
   v_latest_event atlas.external_acquisition_commitment_events%rowtype;
   v_state text;
-  v_terminal_basis text;
   v_lines jsonb;
   v_events jsonb;
 begin
@@ -5314,20 +5313,6 @@ begin
 
   v_state:=coalesce(v_latest_event.event_kind,'committed');
 
-  if exists(
-    select 1 from atlas.external_acquisition_commitment_events e
-    where e.external_acquisition_commitment_id=v_commitment.id
-      and e.event_kind='received'
-  ) then
-    v_terminal_basis:='received';
-  elsif exists(
-    select 1 from atlas.external_acquisition_commitment_events e
-    where e.external_acquisition_commitment_id=v_commitment.id
-      and e.event_kind='cancelled'
-  ) then
-    v_terminal_basis:='cancelled';
-  end if;
-
   select coalesce(
     jsonb_agg(
       jsonb_build_object(
@@ -5344,8 +5329,9 @@ begin
         'knownLineAmount',l.known_line_amount,
         'currency',l.currency,
         'acceptedTerms',l.accepted_terms,
-        'allocatedCoverageQuantity',coalesce(x.allocated_quantity,0),
-        'unallocatedCoverageOutputQuantity',l.coverage_output_quantity-coalesce(x.allocated_quantity,0),
+        'committedAllocatedCoverageQuantity',coalesce(x.allocated_quantity,0),
+        'unallocatedCoverageOutputQuantity',
+          l.coverage_output_quantity-coalesce(x.allocated_quantity,0),
         'allocations',coalesce(x.allocations,'[]'::jsonb)
       )
       order by l.line_key,l.id
@@ -5406,7 +5392,10 @@ begin
     'expectedFulfillmentFromAt',v_commitment.expected_fulfillment_from_at,
     'expectedFulfillmentByAt',v_commitment.expected_fulfillment_by_at,
     'state',v_state,
-    'terminalBasis',v_terminal_basis,
+    'terminalBasis',case
+      when v_state in ('cancelled','closed') then 'cancelled'
+      else null
+    end,
     'economicState',v_commitment.economic_state,
     'knownCommittedAmount',v_commitment.known_committed_amount,
     'currency',v_commitment.currency,
@@ -5424,6 +5413,7 @@ begin
     'metadata',v_commitment.metadata,
     'truthBoundary',jsonb_build_object(
       'buySideCommitment',true,
+      'actualFulfillmentOwnedByLaterFulfillmentAuthority',true,
       'notSpend',true,
       'notPayment',true,
       'notInventory',true,
@@ -5432,7 +5422,6 @@ begin
   );
 end;
 $function$;
-
 
 create or replace function atlas.record_external_acquisition_commitment_event_service_v1(
   p_external_acquisition_commitment_id uuid,
@@ -5580,49 +5569,40 @@ set search_path=pg_catalog,atlas
 as $function$
 declare
   v_position jsonb;
-  v_terminal_basis text;
-  v_current_state text;
-  v_normalized_state text;
-  v_handoff boolean:=false;
+  v_state text;
   v_facts jsonb;
 begin
-  v_position:=atlas.external_acquisition_commitment_position_v1(p_external_acquisition_commitment_id);
-  v_terminal_basis:=v_position->>'terminalBasis';
-  v_current_state:=v_position->>'state';
-
-  if v_terminal_basis='cancelled' then
-    v_normalized_state:='released';
-  elsif v_terminal_basis='received' then
-    v_normalized_state:='unresolved';
-    v_handoff:=true;
-  else
-    v_normalized_state:='secured';
-  end if;
+  v_position:=atlas.external_acquisition_commitment_position_v1(
+    p_external_acquisition_commitment_id
+  );
+  v_state:=v_position->>'state';
 
   select coalesce(
     jsonb_agg(
       jsonb_build_object(
         'workRequirementId',a.work_requirement_id,
         'coverageFact',jsonb_build_object(
-          'coverageKey','external_acquisition:'||p_external_acquisition_commitment_id::text||':'||a.id::text,
+          'coverageKey','external_acquisition_commitment_residual:'||a.id::text,
           'sourceRef',jsonb_build_object(
             'sourceDomain','external_acquisition_requirement_allocation',
             'sourceRef',a.id::text
           ),
-          'state',v_normalized_state,
+          'state',case when v_state in ('cancelled','closed')
+            then 'released'
+            else 'secured'
+          end,
           'quantity',a.coverage_quantity,
           'unit',a.coverage_unit,
           'evidence',jsonb_build_array(jsonb_build_object(
             'source','external_acquisition_commitment',
             'externalAcquisitionCommitmentId',p_external_acquisition_commitment_id,
-            'externalAcquisitionCommitmentLineId',l.id,
-            'allocationId',a.id
+            'externalAcquisitionCommitmentLineId',
+              a.external_acquisition_commitment_line_id,
+            'externalAcquisitionRequirementAllocationId',a.id
           )),
           'metadata',jsonb_build_object(
-            'commitmentState',v_current_state,
-            'terminalBasis',v_terminal_basis,
-            'handoffRequired',v_handoff,
-            'allocationKey',a.allocation_key
+            'coverageLayer','remaining_supplier_commitment',
+            'commitmentState',v_state
           )
         )
       )
@@ -5639,15 +5619,13 @@ begin
   return jsonb_build_object(
     'contractVersion','external_acquisition_commitment_coverage_facts_v1',
     'externalAcquisitionCommitmentId',p_external_acquisition_commitment_id,
-    'commitmentState',v_current_state,
-    'terminalBasis',v_terminal_basis,
-    'normalizedCoverageState',v_normalized_state,
-    'handoffRequired',v_handoff,
+    'commitmentState',v_state,
+    'coverageMode','split_commitment_and_accepted_fulfillment',
     'facts',v_facts,
     'truthBoundary',jsonb_build_object(
       'readOnly',true,
-      'sourceOwnedCoverageFacts',true,
-      'receivedRequiresReceivingOrInventoryHandoff',true,
+      'preFulfillmentCoverageIsResidualSupplierCommitmentOnly',true,
+      'actualFulfillmentOwnedByLaterFulfillmentAuthority',true,
       'doesNotCreateCoverageRow',true,
       'doesNotCreateInventory',true,
       'doesNotCreateSpend',true
@@ -5655,7 +5633,6 @@ begin
   );
 end;
 $function$;
-
 
 alter table atlas.external_acquisition_commitments enable row level security;
 alter table atlas.external_acquisition_commitment_lines enable row level security;
