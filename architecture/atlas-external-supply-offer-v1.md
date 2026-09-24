@@ -390,6 +390,38 @@ This architecture contract does not yet authorize a migration, procurement comma
 
 The next step is to obtain/inspect at least one real supplier source artifact and qualify these fields against it before generating executable migration SQL.
 
+
+
+## Universal infrastructure placement
+
+This contract is one **external-acquisition adapter** beneath Atlas's broader universal fulfillment infrastructure.
+
+It does not define the universal fulfillment model.
+
+The governing movement is:
+
+~~~text
+External Relationship (supplier)
+→ External Supply Offering
+→ Supply Offer Observation
+→ External Acquisition Candidate adapter
+→ universal Fulfillment Requirement qualification
+→ candidate Fulfillment Plan / Economic Composition
+~~~
+
+Other candidate families may come from owned inventory, internal labor/capacity, expected production, equipment, rental, subcontracted capability, or other governed source domains.
+
+Therefore:
+
+- do not make External Supply Offering the parent of all Fulfillment Candidates;
+- do not require every Fulfillment Candidate to have a supplier;
+- do not encode flower-specific qualification into this source contract;
+- do not make supplier observation create a customer-facing Commercial Offering;
+- do not make source availability equal Requirement Coverage;
+- preserve this object's narrow question: **what has an external source offered this Organization under source-backed terms?**
+
+The Feast Guild flower proof consumes this adapter. It does not define it.
+
 ## 18. Resulting architecture
 
 ~~~text
