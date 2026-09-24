@@ -169,7 +169,7 @@ begin
     '2026-09-24T17:30:00Z'::timestamptz
   );
   if v_result->'observationDraft'->>'priceBasisState'<>'unknown'
-     or v_result->'observationDraft'->'priceAmount' is not null then
+     or v_result->'observationDraft'->>'priceAmount' is not null then
     raise exception 'Unknown Flowerbuyer unit became priced source truth: %',v_result;
   end if;
 
@@ -177,7 +177,7 @@ begin
     v_rose - 'CustomerPrice',
     '2026-09-24T17:30:00Z'::timestamptz
   );
-  if v_result->'observationDraft'->'priceAmount' is not null
+  if v_result->'observationDraft'->>'priceAmount' is not null
      or not exists(
        select 1
        from jsonb_array_elements(v_result->'unresolvedSemantics') x(value)
