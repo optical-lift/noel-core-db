@@ -172,7 +172,7 @@ create table if not exists atlas.external_acquisition_commitment_events (
     references atlas.external_acquisition_commitments(id) on delete restrict,
   event_key text not null,
   event_kind text not null
-    check (event_kind in ('cancelled','received','closed')),
+    check (event_kind in ('cancelled','closed')),
   occurred_at timestamptz not null,
   source_kind text not null,
   source_ref text,
@@ -1359,8 +1359,8 @@ begin
       using errcode='P0002';
   end if;
 
-  if v_key='' or v_kind not in ('cancelled','received','closed') or p_occurred_at is null then
-    raise exception 'Event key, supported event kind, and occurred time are required.'
+  if v_key='' or v_kind not in ('cancelled','closed') or p_occurred_at is null then
+    raise exception 'Event key, cancelled/closed event kind, and occurred time are required.'
       using errcode='22023';
   end if;
 
@@ -1418,9 +1418,9 @@ begin
   v_current_state:=v_position->>'state';
 
   if not (
-    (v_current_state='committed' and v_kind in ('cancelled','received'))
+    (v_current_state='committed' and v_kind='cancelled')
     or
-    (v_current_state in ('cancelled','received') and v_kind='closed')
+    (v_current_state='cancelled' and v_kind='closed')
   ) then
     raise exception 'Invalid External Acquisition Commitment transition: % -> %.',
       v_current_state,v_kind
