@@ -366,3 +366,45 @@ Do not create a generic pricing-policy table until another live domain proves:
 - shared customer/account/category application rules.
 
 Until then, policy enters explicitly from the fitting domain/institution adapter.
+
+
+---
+
+## 16. Shared pricing-law extraction — 2026-09-24
+
+The pooled/break-bulk work proved that Atlas should not maintain separate gross-margin/markup formulas for ordinary fulfillment and pooled fulfillment.
+
+The canonical calculation seam is now:
+
+`atlas.commercial_price_from_cost_basis_v1(numeric,text,numeric,text,jsonb,jsonb)`
+
+It receives an already-governed cost basis and owns only:
+
+- gross-margin calculation;
+- markup calculation;
+- minimum unit-price floor;
+- upward rounding;
+- realized margin/markup calculation.
+
+`atlas.commercial_price_evaluate_v1(jsonb,jsonb)` now remains the ordinary-fulfillment adapter:
+
+~~~text
+Fulfillment Composition Position
+→ known exact cost basis
+→ shared pricing law
+→ ordinary proposed terms
+~~~
+
+The pooled path uses the same shared pricing law after a separate cost-recovery-basis decision.
+
+This separation matters:
+
+~~~text
+pricing law
+!=
+cost-recovery-basis law
+~~~
+
+A pricing formula cannot decide whether excess inventory is economically recovered.
+
+That judgment belongs upstream in the fitting fulfillment/pooling adapter.
