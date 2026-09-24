@@ -9,6 +9,9 @@ declare
   v_requirement_id uuid;
   v_result jsonb;
   v_commitment_id uuid;
+  v_commitment_line_id uuid;
+  v_commitment_allocation_id uuid;
+  v_fulfillment_id uuid;
   v_coverage jsonb;
   v_fact jsonb;
   v_position jsonb;
@@ -156,11 +159,83 @@ begin
      or (v_position->>'knownCommittedAmount')::numeric<>1200
      or v_position->'lines'->0->>'orderedUnit'<>'labor_hour'
      or v_position->'lines'->0->>'coverageOutputUnit'<>'labor_hour'
-     or (v_position->'lines'->0->>'allocatedCoverageQuantity')::numeric<>16 then
+     or (v_position->'lines'->0->>'committedAllocatedCoverageQuantity')::numeric<>16 then
     raise exception 'Service-shaped acquisition position leaked goods assumptions: %',v_position;
   end if;
 
+  select l.id into v_commitment_line_id
+  from atlas.external_acquisition_commitment_lines l
+  where l.external_acquisition_commitment_id=v_commitment_id
+    and l.line_key='installer-labor';
+
+  select a.id into v_commitment_allocation_id
+  from atlas.external_acquisition_requirement_allocations a
+  where a.external_acquisition_commitment_line_id=v_commitment_line_id
+    and a.work_requirement_id=v_requirement_id;
+
+  -- Actual external service performance uses the same fulfillment intake authority.
+  v_result:=atlas.record_external_acquisition_fulfillment_service_v1(
+    jsonb_build_object(
+      'contractVersion','external_acquisition_fulfillment_input_v1',
+      'externalAcquisitionCommitmentId',v_commitment_id,
+      'fulfillmentKey','fixture:subcontract-performance-16-hours',
+      'fulfillmentKind','service_performance',
+      'occurredAt','2026-10-02T21:00:00Z',
+      'source',jsonb_build_object(
+        'kind','authorized_human_report',
+        'ref','fixture:subcontract-performance'
+      ),
+      'lines',jsonb_build_array(
+        jsonb_build_object(
+          'lineKey','installer-labor-performance',
+          'externalAcquisitionCommitmentLineId',v_commitment_line_id,
+          'deliveredOutputQuantity',16,
+          'acceptedOutputQuantity',16,
+          'rejectedOutputQuantity',0,
+          'unresolvedOutputQuantity',0,
+          'coverageOutputUnit','labor_hour',
+          'condition',jsonb_build_object(
+            'summary','performance accepted'
+          ),
+          'allocations',jsonb_build_array(
+            jsonb_build_object(
+              'allocationKey','installer-capacity-performed',
+              'externalAcquisitionRequirementAllocationId',v_commitment_allocation_id,
+              'acceptedCoverageQuantity',16,
+              'coverageUnit','labor_hour'
+            )
+          )
+        )
+      ),
+      'metadata',jsonb_build_object(
+        'fixture','atlas_external_acquisition_cross_domain_v1'
+      )
+    )
+  );
+
+  v_fulfillment_id:=(v_result->>'externalAcquisitionFulfillmentId')::uuid;
+
+  if v_fulfillment_id is null
+     or coalesce((v_result->>'created')::boolean,false)=false then
+    raise exception 'Service-shaped external fulfillment failed: %',v_result;
+  end if;
+
+  v_position:=atlas.external_acquisition_commitment_position_v1(v_commitment_id);
+
+  if v_position->>'state'<>'fulfilled'
+     or (v_position->'lines'->0->>'acceptedOutputQuantity')::numeric<>16
+     or (v_position->'lines'->0->>'acceptedAllocatedQuantity')::numeric<>16
+     or (v_position->'lines'->0->>'remainingExpectedOutputQuantity')::numeric<>0 then
+    raise exception 'Service fulfillment position leaked goods-specific or handoff assumptions: %',v_position;
+  end if;
+
   v_coverage:=atlas.external_acquisition_commitment_coverage_facts_v1(v_commitment_id);
+  if jsonb_array_length(v_coverage->'facts')<>1
+     or v_coverage->'facts'->0->'coverageFact'->'metadata'->>'coverageLayer'
+        <>'accepted_external_fulfillment' then
+    raise exception 'Service fulfillment did not fully transfer coverage to accepted performance: %',v_coverage;
+  end if;
+
   select value into v_fact
   from jsonb_array_elements(v_coverage->'facts')
   where (value->>'workRequirementId')::uuid=v_requirement_id
@@ -182,7 +257,7 @@ begin
     raise exception 'Service acquisition created Spend or flower inventory.';
   end if;
 
-  raise notice 'PASS atlas_external_acquisition_cross_domain_v1: one external subcontract-service commitment secures 16 labor-hours with no goods/flower-specific schema or Spend/inventory side effects';
+  raise notice 'PASS atlas_external_acquisition_cross_domain_v1: one external subcontract-service commitment and actual 16-hour service performance use the same acquisition/fulfillment authority with no goods/flower-specific schema or Spend/inventory side effects';
 end;
 $validation$;
 
