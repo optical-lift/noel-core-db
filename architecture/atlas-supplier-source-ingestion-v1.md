@@ -137,7 +137,7 @@ Desired capability probes:
 
 ### Flowerbuyer
 
-Proposed provider key:
+Provider key:
 
 `flowerbuyer`
 
@@ -145,19 +145,58 @@ Display label:
 
 `Flowerbuyer`
 
-Desired capability probes:
+Observed authenticated Open Market capabilities on 2026-09-24:
 
-- live auction/listing prices;
-- pack quantity;
-- FOB/hub location;
-- farm/grower/origin;
-- availability/quantity offered;
-- delivery/tender/shipping terms;
-- account-specific fees;
-- historical/market report access;
-- export/download/API capability, if any.
+- structured `productdetails` response with `ProductsDetail.OpenMarketData`;
+- provider product identity through `FBProductCode`;
+- volatile market-listing identity through `AuctionProductCode` plus auction/delivery dates;
+- account-visible unit price through `CustomerPrice`;
+- pricing unit through `StemOrBunch`;
+- box pack through `Pack`;
+- finite current box count through `BoxesForSale`;
+- account purchase-state flags;
+- source-stated delivery date;
+- provider grower reference;
+- direct-shipping/FedEx fields;
+- source comment capable of stating that FedEx shipping is included in displayed price;
+- provider logistics fields including `CountryCode`, `Location`, `OriginatingCity`, and `PointOfEntry`.
 
-Flowerbuyer may expose a marketplace lot whose economic source/grower differs from Flowerbuyer itself. Provider identity and supplier identity must therefore remain separate.
+Established adapter rule:
+
+~~~text
+CustomerPrice / 100
+=
+account-visible acquisition price per StemOrBunch unit
+~~~
+
+Observed examples:
+
+~~~text
+907 / 100 = USD 9.07 per bunch
+20 bunches/box -> USD 181.40 per box
+
+118 / 100 = USD 1.18 per stem
+125 stems/box -> USD 147.50 per box
+~~~
+
+The Open Market logistics fields do **not** establish biological grow origin. In particular, `CountryCode=US`, `Location=USA`, `OriginatingCity=Miami3`, and `PointOfEntry=MI` must not create a `us_grown` sourcing classification.
+
+`UnitPrice` and `DirectShippingCharge` are preserved as provider component fields but are not used to reconstruct the acquisition price because their observed sum does not equal `CustomerPrice`.
+
+Current unresolved Flowerbuyer questions:
+
+- supported/authorized automated retrieval method;
+- full fee-completeness rule beyond source-stated shipping inclusion;
+- explicit grow-origin field or grower-origin mapping;
+- exact semantics of undocumented provider component fields.
+
+Implementation contract:
+
+- `architecture/flowerbuyer-open-market-adapter-v1.md`
+- `candidates/atlas_flowerbuyer_open_market_adapter_v1.sql`
+- `candidates/atlas_flowerbuyer_open_market_admission_v1.sql`
+
+Flowerbuyer may expose a marketplace lot whose economic source/grower differs from Flowerbuyer itself. Provider identity, provider grower reference, logistics location, biological origin, and supplier/vendor-of-record identity therefore remain separate.
 
 ## 4. Account facts Marshall should return
 
