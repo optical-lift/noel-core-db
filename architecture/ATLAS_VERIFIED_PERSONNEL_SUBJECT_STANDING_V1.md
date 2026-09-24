@@ -434,3 +434,18 @@ It can.
 
 The next question is how the **claimant verification ceremony** earns a verified Person↔canonical-person binding without leaking private resolver evidence or allowing a mistaken/self-asserted claim to become durable identity truth.
 
+## 17. Claimant ceremony succession
+
+The claimant-verification frontier identified above is now implemented by:
+
+`architecture/ATLAS_CLAIMANT_IDENTITY_VERIFICATION_CEREMONY_V1.md`
+
+and migration:
+
+`20260924080000_atlas_claimant_identity_verification_ceremony_v1.sql`.
+
+A verified Person↔canonical-person binding may now be created through a separate
+claimant-safe proof ceremony rather than from resolver recognition or claimant assent.
+
+The remaining boundary is the concrete external proof adapter that earns each factor receipt.
+
