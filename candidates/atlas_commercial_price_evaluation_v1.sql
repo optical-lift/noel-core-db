@@ -15,22 +15,7 @@ declare
   v_total_cost numeric;
   v_quantity numeric;
   v_unit text;
-  v_unit_cost numeric;
-
-  v_method text;
-  v_rate numeric;
-  v_min_unit_price numeric:=null;
-  v_rounding jsonb;
-  v_round_mode text:=null;
-  v_round_increment numeric:=null;
-
-  v_raw_unit_price numeric;
-  v_base_unit_price numeric;
-  v_proposed_unit_price numeric;
-  v_proposed_total numeric;
-  v_gross_profit numeric;
-  v_realized_margin numeric;
-  v_realized_markup numeric;
+  v_price jsonb;
 begin
   v_position:=atlas.fulfillment_composition_position_v1(p_fulfillment_packet);
 
@@ -97,144 +82,42 @@ begin
   v_quantity:=(v_position->>'requiredQuantity')::numeric;
   v_unit:=v_position->>'unit';
 
-  if v_quantity is null or v_quantity<=0 then
-    raise exception 'Fulfillment position requires positive quantity for price evaluation.'
-      using errcode='22023';
-  end if;
-
-  if p_policy is null or jsonb_typeof(p_policy)<>'object' then
-    raise exception 'Pricing policy input must be a JSON object.'
-      using errcode='22023';
-  end if;
-
-  if p_policy->>'contractVersion'<>'commercial_price_policy_input_v1' then
-    raise exception 'Pricing policy contractVersion must be commercial_price_policy_input_v1.'
-      using errcode='22023';
-  end if;
-
-  v_method:=lower(btrim(coalesce(p_policy->>'method','')));
-  if v_method not in ('gross_margin','markup') then
-    raise exception 'Pricing method must be gross_margin or markup.'
-      using errcode='22023';
-  end if;
-
-  if jsonb_typeof(p_policy->'rate')<>'number' then
-    raise exception 'Pricing policy rate must be numeric.'
-      using errcode='22023';
-  end if;
-  v_rate:=(p_policy->>'rate')::numeric;
-
-  if v_method='gross_margin' and (v_rate<0 or v_rate>=1) then
-    raise exception 'Gross-margin rate must be >= 0 and < 1.'
-      using errcode='22023';
-  end if;
-
-  if v_method='markup' and v_rate<0 then
-    raise exception 'Markup rate must be >= 0.'
-      using errcode='22023';
-  end if;
-
-  if p_policy ? 'minimumUnitPrice' then
-    if jsonb_typeof(p_policy->'minimumUnitPrice')<>'number' then
-      raise exception 'minimumUnitPrice must be numeric when present.'
-        using errcode='22023';
-    end if;
-    v_min_unit_price:=(p_policy->>'minimumUnitPrice')::numeric;
-    if v_min_unit_price<0 then
-      raise exception 'minimumUnitPrice must be nonnegative.'
-        using errcode='22023';
-    end if;
-  end if;
-
-  if p_policy ? 'currency' then
-    if upper(btrim(coalesce(p_policy->>'currency','')))<>v_currency then
-      raise exception 'Policy currency % does not match known fulfillment currency %.',
-        p_policy->>'currency',v_currency
-        using errcode='22023';
-    end if;
-  end if;
-
-  if p_policy ? 'rounding' then
-    v_rounding:=p_policy->'rounding';
-    if jsonb_typeof(v_rounding)<>'object' then
-      raise exception 'rounding must be an object when present.'
-        using errcode='22023';
-    end if;
-
-    v_round_mode:=lower(btrim(coalesce(v_rounding->>'mode','')));
-    if v_round_mode<>'ceil' then
-      raise exception 'V1 rounding mode must be ceil.'
-        using errcode='22023';
-    end if;
-
-    if jsonb_typeof(v_rounding->'increment')<>'number' then
-      raise exception 'rounding.increment must be numeric.'
-        using errcode='22023';
-    end if;
-    v_round_increment:=(v_rounding->>'increment')::numeric;
-    if v_round_increment<=0 then
-      raise exception 'rounding.increment must be greater than zero.'
-        using errcode='22023';
-    end if;
-  end if;
-
-  v_unit_cost:=v_total_cost/v_quantity;
-
-  if v_method='gross_margin' then
-    v_raw_unit_price:=v_unit_cost/(1-v_rate);
-  else
-    v_raw_unit_price:=v_unit_cost*(1+v_rate);
-  end if;
-
-  v_base_unit_price:=greatest(
-    v_raw_unit_price,
-    coalesce(v_min_unit_price,v_raw_unit_price)
+  v_price:=atlas.commercial_price_from_cost_basis_v1(
+    v_quantity,
+    v_unit,
+    v_total_cost,
+    v_currency,
+    p_policy,
+    jsonb_build_object(
+      'source','fulfillment_composition_position_v1',
+      'planKey',v_position->>'planKey'
+    )
   );
-
-  if v_round_increment is not null then
-    v_proposed_unit_price:=ceil(v_base_unit_price/v_round_increment)*v_round_increment;
-  else
-    v_proposed_unit_price:=v_base_unit_price;
-  end if;
-
-  v_proposed_total:=v_proposed_unit_price*v_quantity;
-  v_gross_profit:=v_proposed_total-v_total_cost;
-
-  if v_proposed_total<>0 then
-    v_realized_margin:=v_gross_profit/v_proposed_total;
-  end if;
-
-  if v_total_cost<>0 then
-    v_realized_markup:=v_gross_profit/v_total_cost;
-  end if;
 
   return jsonb_build_object(
     'contractVersion','commercial_price_evaluation_v1',
     'state','priced',
-    'currency',v_currency,
-    'quantity',v_quantity,
-    'unit',v_unit,
-    'totalKnownFulfillmentCost',v_total_cost,
-    'costPerUnit',v_unit_cost,
-    'policy',jsonb_build_object(
-      'contractVersion','commercial_price_policy_input_v1',
-      'method',v_method,
-      'rate',v_rate,
-      'minimumUnitPrice',v_min_unit_price,
-      'rounding',case
-        when v_round_increment is null then null
-        else jsonb_build_object('mode','ceil','increment',v_round_increment)
-      end
-    ),
-    'rawUnitPrice',v_raw_unit_price,
-    'proposedUnitPrice',v_proposed_unit_price,
-    'proposedTotal',v_proposed_total,
-    'grossProfit',v_gross_profit,
-    'realizedGrossMargin',v_realized_margin,
-    'realizedMarkup',v_realized_markup,
+    'currency',v_price->>'currency',
+    'quantity',(v_price->>'quantity')::numeric,
+    'unit',v_price->>'unit',
+    'totalKnownFulfillmentCost',(v_price->>'totalCostBasis')::numeric,
+    'costPerUnit',(v_price->>'costPerUnit')::numeric,
+    'policy',v_price->'policy',
+    'rawUnitPrice',(v_price->>'rawUnitPrice')::numeric,
+    'proposedUnitPrice',(v_price->>'proposedUnitPrice')::numeric,
+    'proposedTotal',(v_price->>'proposedTotal')::numeric,
+    'grossProfit',(v_price->>'grossProfitAgainstCostBasis')::numeric,
+    'realizedGrossMargin',
+      case when v_price->>'realizedGrossMarginAgainstCostBasis' is null then null
+           else (v_price->>'realizedGrossMarginAgainstCostBasis')::numeric end,
+    'realizedMarkup',
+      case when v_price->>'realizedMarkupAgainstCostBasis' is null then null
+           else (v_price->>'realizedMarkupAgainstCostBasis')::numeric end,
+    'sharedPriceResult',v_price,
     'fulfillmentPosition',v_position,
     'truthBoundary',jsonb_build_object(
       'readOnly',true,
+      'sharedPricingLaw',true,
       'derivedTermsOnly',true,
       'doesNotPersistPricingPolicy',true,
       'doesNotCreateStandingPrice',true,
@@ -246,7 +129,6 @@ begin
   );
 end;
 $function$;
-
 
 revoke all on function atlas.commercial_price_evaluate_v1(jsonb,jsonb)
   from public,anon,authenticated;
