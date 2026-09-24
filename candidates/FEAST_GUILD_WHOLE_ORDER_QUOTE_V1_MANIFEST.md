@@ -51,10 +51,16 @@ florist basket
 8. `architecture/feast-guild-flower-candidate-gathering-v1.md`
    - source-discovery contract for actual Elm Ready inventory and admitted External Supply Offers.
 
-9. `candidates/atlas_feast_guild_flower_candidate_gathering_v1.sql`
-   - normalized flower requirement matching, Elm Ready candidate projection, external pack/landed-cost candidate projection, and source-reading candidate-set service.
+9. `candidates/atlas_feast_guild_flower_candidate_gathering_helpers_v1.sql`
+   - normalized flower requirement matching and Elm Ready candidate projection.
 
-10. `candidates/atlas_feast_guild_flower_candidate_gathering_v1_validation.sql`
+10. `candidates/atlas_feast_guild_flower_candidate_gathering_external_v1.sql`
+   - external pack/minimum arithmetic, availability/date qualification, source-tier preservation, and explicit landed-cost completeness.
+
+11. `candidates/atlas_feast_guild_flower_candidate_gathering_service_v1.sql`
+   - service-only current-source reader that assembles per-line candidate sets from Elm Ready inventory and admitted External Supply Offers.
+
+12. `candidates/atlas_feast_guild_flower_candidate_gathering_v1_validation.sql`
    - rollback proof from source-owned supplier observation -> candidate gathering -> Feast Guild source selection -> protected quote, plus pure Ready-inventory boundary proofs.
 
 ## Dependency
@@ -95,8 +101,10 @@ When private GitHub Actions are available again:
 6. run:
    `candidates/atlas_feast_guild_flower_source_selection_policy_v1_validation.sql`
 
-7. install:
-   `candidates/atlas_feast_guild_flower_candidate_gathering_v1.sql`
+7. install, in order:
+   - `candidates/atlas_feast_guild_flower_candidate_gathering_helpers_v1.sql`
+   - `candidates/atlas_feast_guild_flower_candidate_gathering_external_v1.sql`
+   - `candidates/atlas_feast_guild_flower_candidate_gathering_service_v1.sql`
 
 8. run:
    `candidates/atlas_feast_guild_flower_candidate_gathering_v1_validation.sql`
