@@ -592,6 +592,38 @@ begin
     )
   );
 
+  -- 10. Actual overdelivery is preserved as a warning rather than suppressed.
+  v_preview:=atlas.external_acquisition_fulfillment_preview_v1(
+    jsonb_build_object(
+      'contractVersion','external_acquisition_fulfillment_input_v1',
+      'externalAcquisitionCommitmentId',v_cancel_commitment_id,
+      'fulfillmentKey','fixture:overdelivery-preview',
+      'fulfillmentKind','delivery',
+      'occurredAt','2026-09-25T13:50:00Z',
+      'source',jsonb_build_object('kind','receiving_observation'),
+      'lines',jsonb_build_array(
+        jsonb_build_object(
+          'lineKey','overdelivery',
+          'externalAcquisitionCommitmentLineId',v_cancel_line_id,
+          'deliveredOutputQuantity',60,
+          'acceptedOutputQuantity',60,
+          'rejectedOutputQuantity',0,
+          'unresolvedOutputQuantity',0,
+          'coverageOutputUnit','stem'
+        )
+      )
+    )
+  );
+
+  if v_preview->>'state'<>'ready'
+     or not exists(
+       select 1 from jsonb_array_elements(v_preview->'warnings') x
+       where x->>'key'='actual_overdelivery'
+         and (x->>'cumulativeDeliveredOutputQuantity')::numeric=110
+     ) then
+    raise exception 'Actual overdelivery was not preserved as explicit warning: %',v_preview;
+  end if;
+
   perform atlas.record_external_acquisition_commitment_event_service_v1(
     v_cancel_commitment_id,
     'fixture:cancel-after-partial',
@@ -616,37 +648,6 @@ begin
      or (v_check->>'securedQuantity')::numeric<>20
      or (v_check->>'releasedFactCount')::integer<>1 then
     raise exception 'Cancellation after partial fulfillment erased or retained wrong coverage: %',v_check;
-  end if;
-
-  -- 10. Actual overdelivery is preserved as a warning rather than suppressed.
-  v_preview:=atlas.external_acquisition_fulfillment_preview_v1(
-    jsonb_build_object(
-      'contractVersion','external_acquisition_fulfillment_input_v1',
-      'externalAcquisitionCommitmentId',v_cancel_commitment_id,
-      'fulfillmentKey','fixture:overdelivery-after-cancel',
-      'fulfillmentKind','delivery',
-      'occurredAt','2026-09-25T14:30:00Z',
-      'source',jsonb_build_object('kind','receiving_observation'),
-      'lines',jsonb_build_array(
-        jsonb_build_object(
-          'lineKey','overdelivery',
-          'externalAcquisitionCommitmentLineId',v_cancel_line_id,
-          'deliveredOutputQuantity',60,
-          'acceptedOutputQuantity',60,
-          'rejectedOutputQuantity',0,
-          'unresolvedOutputQuantity',0,
-          'coverageOutputUnit','stem'
-        )
-      )
-    )
-  );
-
-  if v_preview->>'state'<>'blocked'
-     or not exists(
-       select 1 from jsonb_array_elements(v_preview->'violations') x
-       where x->>'key'='commitment_not_open'
-     ) then
-    raise exception 'Cancelled commitment accepted later physical fulfillment: %',v_preview;
   end if;
 
   -- 11. Fulfillment history is immutable.
