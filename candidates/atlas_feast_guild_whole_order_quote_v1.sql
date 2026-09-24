@@ -601,7 +601,7 @@ insert into atlas.authenticated_rpc_registry(
   evidence,anonymous_execute_expected
 ) values (
   'atlas.feast_guild_flower_quote_prepare_v1(jsonb,jsonb,jsonb,jsonb)',
-  'service_internal','candidate','active',
+  'service_internal','provisional','active',
   false,false,true,0,1,
   '{"source":"atlas_feast_guild_whole_order_quote_v1","purpose":"Read-only Feast Guild flower basket adapter over universal qualification, fulfillment composition, and protected price evaluation.","classificationRuleVersion":3}'::jsonb,
   false
