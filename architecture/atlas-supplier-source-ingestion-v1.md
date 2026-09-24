@@ -50,7 +50,7 @@ Atlas already has:
 
 This owns an Organization's connection to an external provider/account.
 
-For Elm, each of the three accounts should become a separate organization-connected source.
+For Elm, each of the three accounts should become a separate organization-connected source. If the account is truly Elm-unit-specific, bind it to the Elm organization unit after registration. If it is intentionally organization-wide, the supplier-observation bridge may consume it across fitting units while preserving the source's organization custody.
 
 ### Secret custody
 
