@@ -37,9 +37,9 @@ A line owns supplier offering identity, accepted supplier line identity, ordered
 
 A requirement allocation owns how much of one committed external line secures one existing Company Work Requirement. This is external-acquisition source truth, not a generic Atlas coverage row.
 
-Events own append-only lifecycle changes such as cancelled, received, and closed.
+Events own append-only lifecycle changes such as cancelled and closed.
 
-V1 does not model partial receipt.
+Actual supplier delivery/performance is owned by the later External Acquisition Fulfillment Intake authority, including partial fulfillment.
 
 ## Not Commercial Order
 
@@ -138,25 +138,44 @@ Same key plus different structural packet conflicts.
 
 Initial state is committed.
 
-Allowed transitions:
+Before actual supplier fulfillment exists, the commitment lifecycle event surface is intentionally narrow:
+
 - committed -> cancelled
-- committed -> received
 - cancelled -> closed
-- received -> closed
+
+After External Acquisition Fulfillment Intake is present, the commitment position is derived from actual supplier delivery/performance and may report:
+
+- committed;
+- partially_fulfilled;
+- fulfillment_unresolved;
+- fulfilled_with_exception;
+- fulfilled;
+- cancelled;
+- closed.
+
+A fulfilled or fulfilled-with-exception commitment may then close.
+
+There is no free-standing received event.
 
 No transition follows closed.
 
-V1 received means the whole acquisition crossed the external receipt/performance boundary.
-
 ## Coverage adapter
 
-Committed allocations emit normalized secured coverage facts.
+Before any actual supplier fulfillment exists, commitment allocations emit residual supplier-commitment coverage.
 
-Cancelled allocations emit released coverage facts.
+External Acquisition Fulfillment Intake later transfers accepted quantity out of that residual commitment coverage and into accepted-fulfillment coverage.
 
-Received allocations emit unresolved coverage facts with a handoff-required marker. Current coverage must then come from receiving/inventory/performance truth, which avoids double-counting supplier commitment and received assets as two resources.
+Example for a 40-unit commitment allocation:
 
-Closed follows the substantive terminal event: cancelled remains released; received remains handoff-required.
+- 20 accepted actual fulfillment;
+- 20 residual supplier commitment;
+- 40 total secured coverage.
+
+Cancellation releases only the residual commitment portion. Accepted actual fulfillment remains secured.
+
+Rejected or unresolved supplier output does not become secured coverage.
+
+This avoids both double-counting and handoff gaps.
 
 ## Pooled wholesale proof
 
