@@ -63,6 +63,56 @@ begin
     raise exception 'External supply offering was not created.';
   end if;
 
+  -- Second real-source shape: the supplier label itself explicitly states a
+  -- 10-stem denominator (Delphinium S.A. / Hybrid-10 Stem, 20.95).
+  declare
+    v_explicit_offering_id uuid;
+    v_explicit_result jsonb;
+  begin
+    v_explicit_offering_id:=atlas.ensure_external_supply_offering_service_v1(
+      v_supplier.organization_id,
+      v_supplier.organization_unit_id,
+      v_supplier.id,
+      'validation-baisch-delphinium-hybrid-10-stem',
+      null,
+      'Delphinium S.A. / Hybrid-10 Stem',
+      'cut_flower',
+      'stem',
+      '{"sourceFamily":"delphinium","sourceVariant":"Hybrid-10 Stem"}'::jsonb,
+      '{"fixture":"baisch_price_list_2026_09_19"}'::jsonb
+    );
+
+    v_explicit_result:=atlas.record_external_supply_offer_observation_service_v1(
+      v_explicit_offering_id,
+      'validation-baisch-20260919-delphinium-hybrid-10-stem',
+      '2026-09-23T12:00:00Z'::timestamptz,
+      '2026-09-19',
+      '2026-09-25',
+      20.95,
+      null,
+      'source_explicit',
+      10,
+      'stem',
+      10,
+      'stem',
+      null,
+      null,
+      null,
+      null,
+      'unknown',
+      '{"priceSubjectToChange":true}'::jsonb,
+      '{"supplier":"Baisch & Skinner Wholesale Floral Distributor","documentTitle":"Cut Flower Price List","sourceSection":"CUT FLOWERS","parentLabel":"Delphinium S.A.","rawLabel":"Hybrid-10 Stem","highlighted":false}'::jsonb,
+      'supplier_price_list',
+      'validation:baisch-cut-flower-price-list:2026-09-19_2026-09-25',
+      null,
+      '{"fixture":"real_source_explicit_denominator"}'::jsonb
+    );
+
+    if coalesce((v_explicit_result->>'created')::boolean,false)=false then
+      raise exception 'Source-explicit denominator observation was not created: %',v_explicit_result;
+    end if;
+  end;
+
   if atlas.ensure_external_supply_offering_service_v1(
     v_supplier.organization_id,
     v_supplier.organization_unit_id,
