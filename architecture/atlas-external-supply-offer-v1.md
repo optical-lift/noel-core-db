@@ -403,3 +403,97 @@ External Relationship (supplier)
 ~~~
 
 The object earns its place only because current Atlas has no source-owned durable meaning that answers the supplier-side commercial question without corrupting sell-side pricing, Spend, inventory, or generic Evidence into substitute authority.
+
+
+## 19. First real-source qualification: Baisch & Skinner cut-flower price list
+
+A user-supplied Baisch & Skinner Wholesale Floral Distributor price list dated September 19-25, 2026 was reviewed as the first real supplier artifact.
+
+The artifact materially corrects the pre-source schema assumptions.
+
+### 19.1 What the source actually establishes
+
+The page establishes:
+
+- supplier identity from the document masthead;
+- one dated source document titled "Cut Flower Price List";
+- a stated source window of September 19-25, 2026;
+- source row labels and numeric price amounts;
+- source grouping such as CUT FLOWERS, GREENS, BRANCHES, and LOCAL;
+- some labels that explicitly carry quantity-like notation, including "Sunflowers x5", "Mini x10", "Hellebores x10", "Hybrid-10 Stem", "Hybrid-5 Stem", and "Phael Spray x 1";
+- a source warning that prices are subject to change;
+- visual highlighting whose legend says highlighted rows are new items or price changes.
+
+The source therefore proves that raw source presentation/context has economic meaning and should survive ingestion.
+
+### 19.2 What the source does not establish
+
+The page does not, by itself, establish:
+
+- currency;
+- a price denominator/unit for most rows;
+- whether most numeric prices are per stem, bunch, pack, or another unit;
+- freight;
+- handling;
+- minimum order;
+- lead time;
+- order cutoff;
+- available quantity;
+- a positive availability assertion for each listed line.
+
+The uploaded filename includes "Availability", but the document itself is headed "Cut Flower Price List" and contains no quantity-available column. Atlas must not turn presence on this sheet into inventory/availability truth.
+
+### 19.3 Required schema corrections
+
+The first draft incorrectly required currency, price_quantity, and price_unit on every observation.
+
+That is not source-faithful.
+
+V1 must instead allow:
+
+- currency = null when the source does not state currency;
+- price_quantity = null and price_unit = null when the price denominator is not source-explicit or human-confirmed;
+- an explicit price_basis_state such as source_explicit | confirmed | unknown;
+- source_context JSON preserving source section/path, raw row label, parent/variant context when needed, and visual emphasis/change marking;
+- availability_state defaulting to unknown unless the source actually states availability;
+- effective_from/effective_until from the document window while separately preserving the term that prices are subject to change.
+
+A row may therefore truthfully mean:
+
+~~~text
+source label = Carnations
+price amount = 0.65
+currency = unknown
+price basis = unknown
+availability = unknown
+effective window = 2026-09-19 through 2026-09-25
+terms.priceSubjectToChange = true
+~~~
+
+That is more useful than guessing "0.65 USD per stem."
+
+### 19.4 Hierarchy and variant handling
+
+The source frequently expresses commercial identity through a parent/variant visual hierarchy rather than one globally unique row label.
+
+Examples include parent families with subordinate sizes/colors/grades, and labels whose meaning depends on the source column/section.
+
+V1 should not create a universal flower taxonomy from this layout.
+
+For first ingestion, the durable source offering may use a fully-qualified source label plus source_context. A later deterministic normalization/adjudication step may map source-described attributes into requirement-compatible specifications.
+
+### 19.5 Migration gate cleared, with narrower scope
+
+This source is sufficient to draft executable schema for:
+
+- External Supply Offering identity;
+- append-only Supply Offer Observation;
+- unknown/explicit price-basis state;
+- source validity/freshness;
+- source context/provenance;
+- unknown availability;
+- service-only write/read membranes.
+
+It is not sufficient to design freight, minimum-order, or procurement-authority subsystems.
+
+Those remain deferred until source evidence actually requires them.
