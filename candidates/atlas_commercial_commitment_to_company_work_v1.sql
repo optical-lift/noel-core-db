@@ -42,6 +42,8 @@ declare
   v_normalized jsonb:='[]'::jsonb;
 
   v_cancelled boolean:=false;
+  v_commitment_at timestamptz;
+  v_commitment_time_basis text;
   v_compatible boolean;
   v_would_create integer:=0;
   v_existing_count integer:=0;
@@ -71,6 +73,23 @@ begin
       using errcode='P0002';
   end if;
 
+  select min(e.occurred_at)
+  into v_commitment_at
+  from atlas.commercial_order_events e
+  where e.commercial_order_id=v_order.id
+    and e.event_kind='recorded';
+
+  if v_commitment_at is null then
+    v_commitment_at:=v_order.created_at;
+    v_commitment_time_basis:='order_created_at_fallback';
+    v_warnings:=v_warnings||jsonb_build_array(jsonb_build_object(
+      'key','commitment_time_fallback',
+      'message','No recorded Commercial Order event exists; using order.created_at as commitment timestamp fallback.'
+    ));
+  else
+    v_commitment_time_basis:='commercial_order_event_recorded';
+  end if;
+
   select exists(
     select 1
     from atlas.commercial_order_events e
@@ -93,8 +112,8 @@ begin
     v_line:=null;
     v_quantity:=null;
     v_unit:=null;
-    v_requirement_began_at:=v_order.created_at;
-    v_earliest_relevant_at:=v_order.created_at;
+    v_requirement_began_at:=v_commitment_at;
+    v_earliest_relevant_at:=v_commitment_at;
     v_latest_satisfactory_at:=null;
     v_existing:=null;
 
@@ -335,7 +354,7 @@ begin
         and v_existing.summary is not distinct from v_summary
         and v_existing.source_object_type=v_source_type
         and v_existing.source_object_id=v_source_id
-        and v_existing.established_at=v_order.created_at
+        and v_existing.established_at=v_commitment_at
         and v_existing.requirement_began_at is not distinct from v_requirement_began_at
         and v_existing.earliest_relevant_at is not distinct from v_earliest_relevant_at
         and v_existing.latest_satisfactory_at is not distinct from v_latest_satisfactory_at
@@ -368,7 +387,7 @@ begin
       'sourceObjectType',v_source_type,
       'sourceObjectId',v_source_id,
       'sourceOrderLineId',v_line_id,
-      'establishedAt',v_order.created_at,
+      'establishedAt',v_commitment_at,
       'requirementBeganAt',v_requirement_began_at,
       'earliestRelevantAt',v_earliest_relevant_at,
       'latestSatisfactoryAt',v_latest_satisfactory_at,
@@ -389,6 +408,8 @@ begin
     'organizationId',v_order.organization_id,
     'organizationUnitId',v_order.organization_unit_id,
     'orderCreatedAt',v_order.created_at,
+    'commitmentOccurredAt',v_commitment_at,
+    'commitmentTimeBasis',v_commitment_time_basis,
     'orderCancelled',v_cancelled,
     'requirementCount',jsonb_array_length(p_requirements),
     'wouldCreateCount',v_would_create,
@@ -432,6 +453,7 @@ declare
   v_existing_count integer:=0;
   v_expected_metadata jsonb;
   v_compatible boolean;
+  v_created boolean;
 begin
   v_preview:=atlas.commercial_order_fulfillment_requirements_preview_v1(
     p_commercial_order_id,
@@ -450,6 +472,7 @@ begin
     from jsonb_array_elements(v_preview->'requirements')
   loop
     v_requirement_id:=null;
+    v_created:=false;
     v_expected_metadata:=v_req->'metadata';
 
     if nullif(v_req->>'existingWorkRequirementId','') is not null then
@@ -495,6 +518,7 @@ begin
       returning id into v_requirement_id;
 
       if v_requirement_id is not null then
+        v_created:=true;
         v_created_count:=v_created_count+1;
       else
         select * into v_existing
@@ -537,17 +561,7 @@ begin
       'requirementKey',v_req->>'requirementKey',
       'stableKey',v_req->>'stableKey',
       'workRequirementId',v_requirement_id,
-      'created',(
-        select wr.created_at=(v_req->>'establishedAt')::timestamptz
-               and wr.id=v_requirement_id
-               and not exists(
-                 select 1
-                 from jsonb_array_elements(v_preview->'requirements') pr
-                 where pr->>'existingWorkRequirementId'=v_requirement_id::text
-               )
-        from atlas.work_requirements wr
-        where wr.id=v_requirement_id
-      ),
+      'created',v_created,
       'sourceObjectType',v_req->>'sourceObjectType',
       'sourceObjectId',v_req->>'sourceObjectId'
     ));
