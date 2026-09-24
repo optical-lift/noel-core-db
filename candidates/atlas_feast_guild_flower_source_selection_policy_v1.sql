@@ -55,6 +55,7 @@ declare
   v_preference jsonb;
   v_preference_tier text;
   v_preference_evidence jsonb;
+  v_preference_evidence_item jsonb;
   v_tier_rank integer;
 
   v_requirement jsonb;
@@ -176,6 +177,18 @@ begin
       v_reasons:=v_reasons||jsonb_build_array(jsonb_build_object(
         'reason','source_preference_evidence_missing'
       ));
+    else
+      for v_preference_evidence_item in
+        select value from jsonb_array_elements(v_preference_evidence)
+      loop
+        if jsonb_typeof(v_preference_evidence_item)<>'object'
+           or nullif(btrim(coalesce(v_preference_evidence_item->>'sourceRef','')),'') is null
+           or nullif(btrim(coalesce(v_preference_evidence_item->>'fact','')),'') is null then
+          v_reasons:=v_reasons||jsonb_build_array(jsonb_build_object(
+            'reason','source_preference_evidence_invalid'
+          ));
+        end if;
+      end loop;
     end if;
 
     select (t.value->>'rank')::integer
