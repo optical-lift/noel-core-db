@@ -644,6 +644,16 @@ begin
     end;
   end if;
 
+  if v_authorized_at is not null
+     and v_committed_at is not null
+     and v_authorized_at>v_committed_at then
+    v_violations:=v_violations||jsonb_build_array(jsonb_build_object(
+      'key','authorization_after_commitment',
+      'authorizedAt',v_authorized_at,
+      'committedAt',v_committed_at
+    ));
+  end if;
+
   v_economics:=p_input->'economics';
   if v_economics is null or jsonb_typeof(v_economics)<>'object' then
     v_violations:=v_violations||jsonb_build_array(jsonb_build_object('key','invalid_economics'));
@@ -1286,10 +1296,18 @@ declare
   v_source_kind text;
   v_hash text;
   v_existing atlas.external_acquisition_commitment_events%rowtype;
+  v_commitment atlas.external_acquisition_commitments%rowtype;
+  v_latest_at timestamptz;
   v_id uuid;
 begin
-  v_position:=atlas.external_acquisition_commitment_position_v1(p_external_acquisition_commitment_id);
-  v_current_state:=v_position->>'state';
+  select * into v_commitment
+  from atlas.external_acquisition_commitments
+  where id=p_external_acquisition_commitment_id;
+
+  if v_commitment.id is null then
+    raise exception 'External Acquisition Commitment not found.'
+      using errcode='P0002';
+  end if;
 
   if v_key='' or v_kind not in ('cancelled','received','closed') or p_occurred_at is null then
     raise exception 'Event key, supported event kind, and occurred time are required.'
@@ -1305,16 +1323,6 @@ begin
   if p_metadata is null or jsonb_typeof(p_metadata)<>'object' then
     raise exception 'Event metadata must be an object.'
       using errcode='22023';
-  end if;
-
-  if not (
-    (v_current_state='committed' and v_kind in ('cancelled','received'))
-    or
-    (v_current_state in ('cancelled','received') and v_kind='closed')
-  ) then
-    raise exception 'Invalid External Acquisition Commitment transition: % -> %.',
-      v_current_state,v_kind
-      using errcode='23514';
   end if;
 
   v_source_kind:=lower(btrim(p_source->>'kind'));
@@ -1356,6 +1364,30 @@ begin
     );
   end if;
 
+  v_position:=atlas.external_acquisition_commitment_position_v1(p_external_acquisition_commitment_id);
+  v_current_state:=v_position->>'state';
+
+  if not (
+    (v_current_state='committed' and v_kind in ('cancelled','received'))
+    or
+    (v_current_state in ('cancelled','received') and v_kind='closed')
+  ) then
+    raise exception 'Invalid External Acquisition Commitment transition: % -> %.',
+      v_current_state,v_kind
+      using errcode='23514';
+  end if;
+
+  select max(e.occurred_at)
+  into v_latest_at
+  from atlas.external_acquisition_commitment_events e
+  where e.external_acquisition_commitment_id=p_external_acquisition_commitment_id;
+
+  if p_occurred_at<v_commitment.committed_at
+     or (v_latest_at is not null and p_occurred_at<v_latest_at) then
+    raise exception 'External Acquisition Commitment events must not precede commitment time or prior lifecycle evidence.'
+      using errcode='23514';
+  end if;
+
   insert into atlas.external_acquisition_commitment_events(
     external_acquisition_commitment_id,event_key,event_kind,occurred_at,
     source_kind,source_ref,evidence_record_id,connected_source_observation_id,
@@ -1378,7 +1410,6 @@ begin
   );
 end;
 $function$;
-
 
 create or replace function atlas.external_acquisition_commitment_coverage_facts_v1(
   p_external_acquisition_commitment_id uuid
