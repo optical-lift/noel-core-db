@@ -672,25 +672,46 @@ begin
     raise exception 'Service role cannot execute external acquisition writer.';
   end if;
 
-  -- 19. Public service functions are not SECURITY DEFINER.
-  if exists(
+  -- 19. Consequential writers are SECURITY DEFINER; read evaluators are not.
+  if not exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='atlas'
+      and p.proname='record_external_acquisition_commitment_service_v1'
+      and p.prosecdef
+  )
+  or not exists(
+    select 1
+    from pg_proc p
+    join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='atlas'
+      and p.proname='record_external_acquisition_commitment_event_service_v1'
+      and p.prosecdef
+  )
+  or exists(
     select 1
     from pg_proc p
     join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='atlas'
       and p.proname in (
         'external_acquisition_commitment_preview_v1',
-        'record_external_acquisition_commitment_service_v1',
         'external_acquisition_commitment_position_v1',
-        'record_external_acquisition_commitment_event_service_v1',
         'external_acquisition_commitment_coverage_facts_v1'
       )
       and p.prosecdef
   ) then
-    raise exception 'External acquisition API unexpectedly uses SECURITY DEFINER.';
+    raise exception 'External acquisition SECURITY DEFINER boundary is incorrect.';
   end if;
 
-  raise notice 'PASS atlas_external_acquisition_commitment_v1: authorized immutable buy-side commitment, known/partial/unresolved obligation, 40/30/20 secured coverage, 10-unit remainder, lifecycle release/handoff, and no Spend/inventory side effects hold';
+  if has_table_privilege('service_role','atlas.external_acquisition_commitments','INSERT')
+     or has_table_privilege('service_role','atlas.external_acquisition_commitment_lines','INSERT')
+     or has_table_privilege('service_role','atlas.external_acquisition_requirement_allocations','INSERT')
+     or has_table_privilege('service_role','atlas.external_acquisition_commitment_events','INSERT') then
+    raise exception 'Service role can bypass governed External Acquisition writers with direct table insert.';
+  end if;
+
+  raise notice 'PASS atlas_external_acquisition_commitment_v1: authorized immutable buy-side commitment, governed write boundary, known/partial/unresolved obligation, 40/30/20 secured coverage, 10-unit remainder, lifecycle release/handoff, and no Spend/inventory side effects hold';
 end;
 $validation$;
 
