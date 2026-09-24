@@ -3,8 +3,6 @@ begin;
 do $validation$
 declare
   v_result jsonb;
-  v_resource_requirement_id uuid;
-  v_resource_ready boolean;
 
   v_before_work bigint;
   v_before_orders bigint;
@@ -131,52 +129,36 @@ begin
     raise exception 'Optional unresolved preference incorrectly blocked qualification: %',v_result;
   end if;
 
-  -- 6. Existing live Atlas Resource Requirement can enter the seam without
-  -- rewriting its source truth. The adapter simply reports the existing helper result.
-  select trr.id
-  into v_resource_requirement_id
-  from atlas.task_resource_requirements trr
-  where trr.resource_id is not null
-  order by trr.created_at,trr.id
-  limit 1;
-
-  if v_resource_requirement_id is null then
-    raise exception 'Qualification validation requires one existing task resource requirement fixture.';
-  end if;
-
-  v_resource_ready:=atlas.resource_requirement_ready_v1(v_resource_requirement_id);
-
+  -- 6. A materially different, non-flower shape uses the same evaluator.
   v_result:=atlas.fulfillment_candidate_qualification_v1(
-    jsonb_build_object(
-      'sourceDomain','task_resource_requirement',
-      'sourceRef',v_resource_requirement_id::text
-    ),
-    jsonb_build_object(
-      'sourceDomain','atlas_resource',
-      'sourceRef',(
-        select trr.resource_id::text
-        from atlas.task_resource_requirements trr
-        where trr.id=v_resource_requirement_id
-      )
-    ),
-    jsonb_build_array(
-      jsonb_build_object(
-        'requirementKey','resource_ready',
-        'required',true,
-        'state',case when v_resource_ready then 'satisfied' else 'unsatisfied' end,
-        'evidence',jsonb_build_array(jsonb_build_object(
-          'source','atlas.resource_requirement_ready_v1',
-          'requirementId',v_resource_requirement_id
-        ))
-      )
-    ),
-    '{"adapter":"existing_resource_requirement"}'::jsonb
+    '{"sourceDomain":"accepted_scope_requirement","sourceRef":"fixture:flooring-material"}'::jsonb,
+    '{"sourceDomain":"external_supply_offering","sourceRef":"fixture:oak-flooring"}'::jsonb,
+    '[
+      {
+        "requirementKey":"material_species",
+        "required":true,
+        "state":"satisfied",
+        "evidence":[{"source":"supplier_specification","value":"white_oak"}]
+      },
+      {
+        "requirementKey":"minimum_grade",
+        "required":true,
+        "state":"satisfied",
+        "evidence":[{"source":"supplier_specification","value":"select"}]
+      },
+      {
+        "requirementKey":"finish_color_preference",
+        "required":false,
+        "state":"unresolved"
+      }
+    ]'::jsonb,
+    '{"adapter":"construction_leak_test"}'::jsonb
   );
 
-  if v_result->>'qualificationState'
-       is distinct from case when v_resource_ready then 'qualified' else 'incompatible' end then
-    raise exception 'Existing Resource Requirement adapter disagrees with source authority: ready %, result %',
-      v_resource_ready,v_result;
+  if v_result->>'qualificationState'<>'qualified'
+     or coalesce((v_result->>'mayEnterPlanning')::boolean,false)=false
+     or (v_result->'evaluation'->>'optionalUnresolvedCount')::integer<>1 then
+    raise exception 'Construction-shaped qualification leak test failed: %',v_result;
   end if;
 
   -- 7. Empty set fails closed.
