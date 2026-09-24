@@ -803,3 +803,138 @@ shared audit lineage
 
 Those remain Phase B.
 
+## 25. Phase B implementation receipt
+
+Phase B is now implemented by:
+
+- `supabase/migrations/20260924053000_atlas_sealed_reality_phase_b_execution_kernel_v1.sql`;
+- `supabase/migrations/20260924054500_atlas_sealed_reality_phase_b_validation_repair_v1.sql`.
+
+Released shared execution objects:
+
+- `atlas.sealed_reality_operation_warrants`;
+- `atlas.sealed_reality_operation_receipts`;
+- `atlas.sealed_reality_operation_events`;
+- `atlas.request_sealed_reality_operation_service_v1`;
+- `atlas.complete_sealed_reality_operation_service_v1`.
+
+The Phase B kernel consumes the Phase A normalized domain-authority decision. It does not create durable grants and does not decide standing.
+
+### Shared warrant law
+
+A carrier-backed authorized operation now produces one short-lived bearer warrant bound to:
+
+```text
+Sealed Reality Handle
+Principal
+domain adapter + version
+operation
+purpose
+authority version + basis snapshot
+result policy
+reveal classification
+carrier key / locator / version
+expiry
+```
+
+Only the SHA-256 hash of the bearer token is stored.
+
+Warrants expire within 15 minutes and are one-time. A consumed warrant cannot be replayed.
+
+### Shared completion law
+
+Carrier completion:
+
+1. hashes and resolves the presented bearer warrant;
+2. requires issued + unexpired state;
+3. requires the carrier key snapshotted at issuance;
+4. validates the durable result against the snapshotted result policy;
+5. consumes the warrant;
+6. writes one immutable receipt;
+7. writes append-only audit lineage.
+
+Result-policy enforcement includes:
+
+```text
+boolean
+  → boolean only
+
+string
+  → bounded string only
+
+scalar
+  → bounded JSON scalar only
+
+receipt
+  → bounded object only
+
+ephemeral_reveal
+  → {"delivered":true} only
+
+failed execution
+  → optional bounded {"errorClass":"..."} only
+```
+
+The canonical shared receipt therefore cannot become a second copy of an exceptionally revealed value.
+
+### No-carrier boundary
+
+An authorized decision with `requiresCarrier=false` is **not** falsely executed by the shared kernel.
+
+Phase B returns:
+
+```text
+authorized = true
+requiresCarrier = false
+executionState = domain_owned
+```
+
+and records only that authority was resolved.
+
+The owning domain remains responsible for any actual no-carrier effect.
+
+### Validation
+
+Rollback validation passed independently against both proof domains.
+
+Personnel proved:
+
+- existing Personnel authority can issue a shared one-time `reveal` warrant;
+- the carrier remains `restricted_vault_envelope_v1`;
+- the shared kernel rejects a non-acknowledgement durable result for an ephemeral reveal;
+- successful reveal completion persists only `{"delivered":true}`.
+
+Treasury proved:
+
+- a no-carrier `observe_existence` authority decision does not create a shared warrant;
+- the shared kernel does not enlarge existing Treasury authority;
+- after a domain-owned `verify_destination` grant, the shared kernel preserves the boolean result policy and Treasury carrier routing;
+- carrier completion persists the bounded boolean result;
+- the one-time warrant cannot be replayed;
+- `vendor_payout` authority does not leak into `payroll`;
+- shared event rows reject mutation;
+- shared receipt rows reject deletion.
+
+All validation data rolled back. The live shared warrant, receipt, and event tables remained empty after validation.
+
+### Release repair note
+
+The initial Phase B migration was applied, then its source file was temporarily hardened after release. To preserve exact post-fence migration-source custody, the original applied migration bytes were restored and the hardening was released as the separate `20260924054500` repair migration.
+
+The repair makes result-policy validation fail closed on missing values and explicitly rejects missing/invalid warrant TTLs.
+
+### Phase boundary
+
+Phase B establishes the shared execution carrier membrane.
+
+It does **not** cut either domain over from its existing execution service.
+
+The next phase is Phase C:
+
+```text
+Treasury domain authority
+→ shared Sealed Reality request/completion kernel
+```
+
+with behavioral equivalence proved before the treasury-specific execution warrant/receipt/event path is retired.
+
