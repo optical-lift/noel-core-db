@@ -268,13 +268,21 @@ The fitting line/order UUID.
 
 ### `established_at`
 
-Commercial Order `created_at`.
+Use the earliest `commercial_order_events.event_kind = recorded` `occurred_at` when present.
 
-This matters for reconstruction. If the adapter runs later, it does not pretend the institutional responsibility began later than the commitment.
+That event timestamp preserves the real-world order/commitment occurrence for reconstructed or imported orders.
+
+If no recorded event exists, V1 may fall back to Commercial Order `created_at`, but the preview must explicitly report:
+
+`commitmentTimeBasis = order_created_at_fallback`
+
+and emit a warning.
+
+The adapter must never silently treat ingestion time as business-event time when better source-backed order-event time exists.
 
 ### `requirement_began_at`
 
-Domain-supplied or defaults to order `created_at`.
+Domain-supplied or defaults to the resolved commitment occurrence time.
 
 ### `earliest_relevant_at`
 
@@ -660,7 +668,7 @@ V1 must prove:
 6. rerun is idempotent;
 7. same stable key with changed truth conflicts;
 8. cancelled order blocks new requirements;
-9. requirement establishment time equals order commitment creation time;
+9. requirement establishment time uses source-backed recorded-order occurrence when available and only explicitly falls back to storage creation time;
 10. quantity/unit remain metadata, not new Company Work columns;
 11. specification remains domain-owned metadata;
 12. no Work Items are created;
