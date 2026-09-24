@@ -25,9 +25,6 @@ declare
   v_position jsonb;
   v_coverage jsonb;
 
-  v_received_input jsonb;
-  v_received_commitment_id uuid;
-
   v_before_spend bigint;
   v_before_inventory bigint;
   v_before_orders bigint;
@@ -498,13 +495,19 @@ begin
     raise exception 'Unresolved acquisition economics failed: %',v_preview;
   end if;
 
-  -- 13. Committed allocations emit secured coverage and exactly cover 40/30/20.
+  -- 13. Before physical/service fulfillment, commitment allocations emit secured residual coverage.
   v_coverage:=atlas.external_acquisition_commitment_coverage_facts_v1(v_commitment_id);
 
-  if v_coverage->>'normalizedCoverageState'<>'secured'
-     or coalesce((v_coverage->>'handoffRequired')::boolean,true)
-     or jsonb_array_length(v_coverage->'facts')<>3 then
-    raise exception 'Committed acquisition coverage adapter failed: %',v_coverage;
+  if v_coverage->>'coverageMode'<>'split_commitment_and_accepted_fulfillment'
+     or jsonb_array_length(v_coverage->'facts')<>3
+     or exists(
+       select 1
+       from jsonb_array_elements(v_coverage->'facts') x
+       where x->'coverageFact'->>'state'<>'secured'
+          or x->'coverageFact'->'metadata'->>'coverageLayer'
+             <>'remaining_supplier_commitment'
+     ) then
+    raise exception 'Committed acquisition residual coverage adapter failed: %',v_coverage;
   end if;
 
   select value into v_fact
@@ -522,7 +525,7 @@ begin
     raise exception 'External acquisition did not secure 40-unit Work Requirement: %',v_result;
   end if;
 
-  -- 14. Cancellation releases source coverage.
+  -- 14. Cancellation releases only outstanding supplier-commitment coverage.
   v_result:=atlas.record_external_acquisition_commitment_event_service_v1(
     v_commitment_id,
     'fixture:cancel',
@@ -552,12 +555,16 @@ begin
 
   v_coverage:=atlas.external_acquisition_commitment_coverage_facts_v1(v_commitment_id);
 
-  if v_coverage->>'normalizedCoverageState'<>'released'
-     or coalesce((v_coverage->>'handoffRequired')::boolean,true) then
-    raise exception 'Cancelled acquisition did not release coverage: %',v_coverage;
+  if jsonb_array_length(v_coverage->'facts')<>3
+     or exists(
+       select 1
+       from jsonb_array_elements(v_coverage->'facts') x
+       where x->'coverageFact'->>'state'<>'released'
+     ) then
+    raise exception 'Cancelled acquisition did not release residual commitment coverage: %',v_coverage;
   end if;
 
-  -- Cancelled cannot transition to received; may close.
+  -- There is no free-standing received lifecycle event anymore.
   begin
     perform atlas.record_external_acquisition_commitment_event_service_v1(
       v_commitment_id,'fixture:bad-receive','received',
@@ -565,11 +572,12 @@ begin
       '{"kind":"supplier_confirmation"}'::jsonb,
       '{}'::jsonb
     );
-    raise exception 'Cancelled acquisition transitioned to received.';
-  exception when sqlstate '23514' then
+    raise exception 'Deprecated free-standing received event was admitted.';
+  exception when sqlstate '22023' then
     null;
   end;
 
+  -- A cancelled commitment may close.
   perform atlas.record_external_acquisition_commitment_event_service_v1(
     v_commitment_id,'fixture:close','closed',
     '2026-09-24T15:10:00Z',
@@ -589,30 +597,11 @@ begin
     null;
   end;
 
-  -- 15. Separate received path requires receiving/inventory handoff.
-  v_received_input:=jsonb_set(v_input,'{commitmentKey}','"fixture:received-path"'::jsonb,false);
-  v_result:=atlas.record_external_acquisition_commitment_service_v1(v_received_input);
-  v_received_commitment_id:=(v_result->>'externalAcquisitionCommitmentId')::uuid;
-
-  perform atlas.record_external_acquisition_commitment_event_service_v1(
-    v_received_commitment_id,'fixture:received','received',
-    '2026-09-25T14:00:00Z',
-    '{"kind":"supplier_confirmation","ref":"fixture:received"}'::jsonb,
-    '{}'::jsonb
-  );
-
-  v_coverage:=atlas.external_acquisition_commitment_coverage_facts_v1(v_received_commitment_id);
-
-  if v_coverage->>'normalizedCoverageState'<>'unresolved'
-     or coalesce((v_coverage->>'handoffRequired')::boolean,false)=false then
-    raise exception 'Received acquisition did not require coverage handoff: %',v_coverage;
-  end if;
-
-  -- 16. Accepted commitment truth is immutable.
+  -- 15. Accepted commitment truth is immutable.
   begin
     update atlas.external_acquisition_commitments
     set accepted_terms='{"mutated":true}'::jsonb
-    where id=v_received_commitment_id;
+    where id=v_commitment_id;
     raise exception 'Immutable acquisition commitment was updated.';
   exception when sqlstate '55000' then
     null;
@@ -620,13 +609,13 @@ begin
 
   begin
     delete from atlas.external_acquisition_commitment_lines
-    where external_acquisition_commitment_id=v_received_commitment_id;
+    where external_acquisition_commitment_id=v_commitment_id;
     raise exception 'Immutable acquisition line was deleted.';
   exception when sqlstate '55000' then
     null;
   end;
 
-  -- 17. Consequential writer still creates no Spend/inventory/payment/sell-side/new Work.
+  -- 16. Consequential writer still creates no Spend/inventory/payment/sell-side/new Work.
   if (select count(*) from atlas.organization_spend_occurrences)<>v_before_spend
      or (select count(*) from atlas.flower_ready_inventory_lots)<>v_before_inventory
      or (select count(*) from atlas.commercial_orders)<>v_before_orders
@@ -635,7 +624,7 @@ begin
     raise exception 'External acquisition lifecycle created downstream Spend/inventory/payment/order/new-Work truth.';
   end if;
 
-  -- 18. Browser roles cannot invoke internal authority.
+  -- 17. Browser roles cannot invoke internal authority.
   if has_function_privilege(
        'authenticated',
        'atlas.external_acquisition_commitment_preview_v1(jsonb)',
@@ -672,7 +661,7 @@ begin
     raise exception 'Service role cannot execute external acquisition writer.';
   end if;
 
-  -- 19. Consequential writers are SECURITY DEFINER; read evaluators are not.
+  -- 18. Consequential writers are SECURITY DEFINER; read evaluators are not.
   if not exists(
     select 1
     from pg_proc p
@@ -711,7 +700,7 @@ begin
     raise exception 'Service role can bypass governed External Acquisition writers with direct table insert.';
   end if;
 
-  raise notice 'PASS atlas_external_acquisition_commitment_v1: authorized immutable buy-side commitment, governed write boundary, known/partial/unresolved obligation, 40/30/20 secured coverage, 10-unit remainder, lifecycle release/handoff, and no Spend/inventory side effects hold';
+  raise notice 'PASS atlas_external_acquisition_commitment_v1: authorized immutable buy-side commitment, governed write boundary, known/partial/unresolved obligation, 40/30/20 secured coverage, 10-unit remainder, residual-release semantics, and no Spend/inventory side effects hold';
 end;
 $validation$;
 
