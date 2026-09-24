@@ -1,0 +1,146 @@
+{
+  "fixtureVersion": "atlas_external_supply_offer_real_source_examples_v1",
+  "source": {
+    "supplierLabel": "Baisch & Skinner Wholesale Floral Distributor",
+    "documentTitle": "Cut Flower Price List",
+    "validFrom": "2026-09-19",
+    "validUntil": "2026-09-25",
+    "priceSubjectToChange": true,
+    "currencyStatedBySource": null,
+    "globalPriceUnitStatedBySource": null,
+    "availabilityQuantityStatedBySource": false
+  },
+  "examples": [
+    {
+      "stableKey": "baisch-carnations",
+      "sourceLabel": "Carnations",
+      "sourceContext": {
+        "section": "CUT FLOWERS",
+        "rawLabel": "Carnations"
+      },
+      "priceAmount": 0.65,
+      "currency": null,
+      "priceBasisState": "unknown",
+      "priceQuantity": null,
+      "priceUnit": null,
+      "availabilityState": "unknown"
+    },
+    {
+      "stableKey": "baisch-minicarnations",
+      "sourceLabel": "MiniCarnations",
+      "sourceContext": {
+        "section": "CUT FLOWERS",
+        "rawLabel": "MiniCarnations"
+      },
+      "priceAmount": 6.25,
+      "currency": null,
+      "priceBasisState": "unknown",
+      "priceQuantity": null,
+      "priceUnit": null,
+      "availabilityState": "unknown"
+    },
+    {
+      "stableKey": "baisch-sunflowers-x5",
+      "sourceLabel": "Sunflowers x5",
+      "sourceContext": {
+        "section": "CUT FLOWERS",
+        "rawLabel": "Sunflowers x5",
+        "rawQuantityNotation": "x5"
+      },
+      "priceAmount": 10.95,
+      "currency": null,
+      "priceBasisState": "unknown",
+      "priceQuantity": null,
+      "priceUnit": null,
+      "availabilityState": "unknown"
+    },
+    {
+      "stableKey": "baisch-sunflowers-mini-x10",
+      "sourceLabel": "Sunflowers / Mini x10",
+      "sourceContext": {
+        "section": "CUT FLOWERS",
+        "parentLabel": "Sunflowers x5",
+        "rawLabel": "Mini x10",
+        "rawQuantityNotation": "x10"
+      },
+      "priceAmount": 12.95,
+      "currency": null,
+      "priceBasisState": "unknown",
+      "priceQuantity": null,
+      "priceUnit": null,
+      "availabilityState": "unknown"
+    },
+    {
+      "stableKey": "baisch-delphinium-sa",
+      "sourceLabel": "Delphinium S.A.",
+      "sourceContext": {
+        "section": "CUT FLOWERS",
+        "rawLabel": "Delphinium S.A."
+      },
+      "priceAmount": 20.35,
+      "currency": null,
+      "priceBasisState": "unknown",
+      "priceQuantity": null,
+      "priceUnit": null,
+      "availabilityState": "unknown"
+    },
+    {
+      "stableKey": "baisch-delphinium-sa-hybrid-10-stem",
+      "sourceLabel": "Delphinium S.A. / Hybrid-10 Stem",
+      "sourceContext": {
+        "section": "CUT FLOWERS",
+        "parentLabel": "Delphinium S.A.",
+        "rawLabel": "Hybrid-10 Stem"
+      },
+      "priceAmount": 20.95,
+      "currency": null,
+      "priceBasisState": "source_explicit",
+      "priceQuantity": 10,
+      "priceUnit": "stem",
+      "packQuantity": 10,
+      "packUnit": "stem",
+      "availabilityState": "unknown"
+    },
+    {
+      "stableKey": "baisch-delphinium-sa-hybrid-5-stem",
+      "sourceLabel": "Delphinium S.A. / Hybrid-5 Stem",
+      "sourceContext": {
+        "section": "CUT FLOWERS",
+        "parentLabel": "Delphinium S.A.",
+        "rawLabel": "Hybrid-5 Stem"
+      },
+      "priceAmount": 18.95,
+      "currency": null,
+      "priceBasisState": "source_explicit",
+      "priceQuantity": 5,
+      "priceUnit": "stem",
+      "packQuantity": 5,
+      "packUnit": "stem",
+      "availabilityState": "unknown"
+    },
+    {
+      "stableKey": "baisch-hellebores-x10",
+      "sourceLabel": "Hellebores x10",
+      "sourceContext": {
+        "section": "CUT FLOWERS",
+        "rawLabel": "Hellebores x10",
+        "rawQuantityNotation": "x10"
+      },
+      "priceAmount": 32.95,
+      "currency": null,
+      "priceBasisState": "unknown",
+      "priceQuantity": null,
+      "priceUnit": null,
+      "availabilityState": "unknown"
+    }
+  ],
+  "truthBoundary": {
+    "sourceExamplesOnly": true,
+    "notInventory": true,
+    "notPurchaseAuthorization": true,
+    "notSellSidePrice": true,
+    "doesNotInferCurrency": true,
+    "doesNotInferUnstatedPriceUnit": true,
+    "doesNotInferAvailabilityFromPresenceOnSheet": true
+  }
+}
