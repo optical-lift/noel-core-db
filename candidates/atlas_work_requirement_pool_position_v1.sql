@@ -14,6 +14,7 @@ declare
   v_cost jsonb;
   v_requirement atlas.work_requirements%rowtype;
   v_coverage jsonb;
+  v_organization_id uuid;
 
   v_pool_key text;
   v_source_quantity numeric;
@@ -224,6 +225,18 @@ begin
           'workRequirementId',v_work_requirement_id
         ));
         continue;
+      end if;
+
+      if v_organization_id is null then
+        v_organization_id:=v_requirement.organization_id;
+      elsif v_requirement.organization_id is distinct from v_organization_id then
+        v_violations:=v_violations||jsonb_build_array(jsonb_build_object(
+          'key','cross_organization_pool',
+          'useKey',v_use_key,
+          'workRequirementId',v_work_requirement_id,
+          'expectedOrganizationId',v_organization_id,
+          'actualOrganizationId',v_requirement.organization_id
+        ));
       end if;
 
       if v_requirement.state<>'active' then
@@ -567,24 +580,25 @@ begin
 
     select coalesce(
       jsonb_agg(
-        rp || jsonb_build_object(
+        rp.value || jsonb_build_object(
           'proportionalCostBasis',
-          (rp->>'plannedFromPool')::numeric * v_source_basis_unit_cost,
+          (rp.value->>'plannedFromPool')::numeric * v_source_basis_unit_cost,
           'costCurrency',
           v_known_currency
         )
-        order by rp->>'useKey'
+        order by rp.value->>'useKey'
       ),
       '[]'::jsonb
     )
     into v_requirement_positions
-    from jsonb_array_elements(v_requirement_positions) rp;
+    from jsonb_array_elements(v_requirement_positions) as rp(value);
   end if;
 
   return jsonb_build_object(
     'contractVersion','work_requirement_pool_position_v1',
     'state','ready',
     'poolKey',v_pool_key,
+    'organizationId',v_organization_id,
     'sourceRef',v_source_ref,
     'sourceQuantity',v_source_quantity,
     'sourceUnit',v_source_unit,
