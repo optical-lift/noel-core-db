@@ -1,0 +1,403 @@
+{
+  "fixtureVersion": "feast_guild_whole_order_quote_fixture_v1",
+  "fixtureOnly": true,
+  "pricingPolicy": {
+    "contractVersion": "commercial_price_policy_input_v1",
+    "method": "gross_margin",
+    "rate": 0.30,
+    "currency": "USD",
+    "rounding": {
+      "mode": "ceil",
+      "increment": 0.01
+    }
+  },
+  "quoteContext": {
+    "organizationId": "00000000-0000-0000-0000-000000000001",
+    "organizationUnitId": null,
+    "snapshotKey": "fixture-thursday-whole-order-v1",
+    "title": "Fixture Thursday florist order",
+    "validFrom": "2026-09-24T15:00:00Z",
+    "validUntil": "2026-09-24T18:00:00Z",
+    "sourceRef": "fixture:feast-guild-whole-order-quote-v1"
+  },
+  "complete": {
+    "basket": {
+      "contractVersion": "feast_guild_flower_basket_v1",
+      "basketKey": "fixture-whole-order-complete",
+      "requestedForDate": "2026-09-25",
+      "lines": [
+        {
+          "lineKey": "carnations",
+          "description": "Standard Carnations",
+          "quantity": 90,
+          "unit": "stem",
+          "requirements": [
+            {
+              "requirementKey": "flower_family",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"equals": "carnation"}
+            },
+            {
+              "requirementKey": "grade",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"equals": "standard"}
+            },
+            {
+              "requirementKey": "requested_date",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"onOrBefore": "2026-09-25"}
+            }
+          ]
+        },
+        {
+          "lineKey": "white-roses-60cm",
+          "description": "White Roses 60 cm",
+          "quantity": 50,
+          "unit": "stem",
+          "requirements": [
+            {
+              "requirementKey": "flower_family",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"equals": "rose"}
+            },
+            {
+              "requirementKey": "color",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"equals": "white"}
+            },
+            {
+              "requirementKey": "stem_length_cm",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"minimum": 60}
+            },
+            {
+              "requirementKey": "requested_date",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"onOrBefore": "2026-09-25"}
+            }
+          ]
+        },
+        {
+          "lineKey": "eucalyptus",
+          "description": "Eucalyptus",
+          "quantity": 5,
+          "unit": "bunch",
+          "requirements": [
+            {
+              "requirementKey": "product_family",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"equals": "eucalyptus"}
+            },
+            {
+              "requirementKey": "requested_date",
+              "required": true,
+              "evidenceRequired": true,
+              "expected": {"onOrBefore": "2026-09-25"}
+            }
+          ]
+        }
+      ]
+    },
+    "selectedLinePlans": [
+      {
+        "lineKey": "carnations",
+        "candidateRef": {
+          "sourceDomain": "external_supply_offering",
+          "sourceRef": "fixture:supplier:carnation-standard"
+        },
+        "qualificationNodes": [
+          {
+            "requirementKey": "flower_family",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:carnation-standard", "fact": "flowerFamily=carnation"}]
+          },
+          {
+            "requirementKey": "grade",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:carnation-standard", "fact": "grade=standard"}]
+          },
+          {
+            "requirementKey": "requested_date",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:carnation-standard", "fact": "availableBy=2026-09-25"}]
+          }
+        ],
+        "fulfillmentPacket": {
+          "contractVersion": "neutral_fulfillment_composition_v1",
+          "requirementRef": {
+            "sourceDomain": "feast_guild_flower_basket_v1",
+            "sourceRef": "fixture-whole-order-complete:carnations"
+          },
+          "requirement": {
+            "quantity": 90,
+            "unit": "stem",
+            "requiredBy": "2026-09-25T12:00:00Z"
+          },
+          "planKey": "fixture-plan:carnations:100-pack",
+          "allocations": [
+            {
+              "allocationKey": "fixture-carnation-pack",
+              "candidateRef": {
+                "sourceDomain": "external_supply_offering",
+                "sourceRef": "fixture:supplier:carnation-standard"
+              },
+              "qualificationState": "qualified",
+              "sourceQuantity": 100,
+              "sourceUnit": "stem",
+              "outputQuantity": 90,
+              "outputUnit": "stem",
+              "excess": {
+                "quantity": 10,
+                "unit": "stem",
+                "dispositionState": "unresolved_recovery"
+              },
+              "costComponents": [
+                {
+                  "componentKey": "landed_supplier_cost",
+                  "state": "known",
+                  "required": true,
+                  "amount": 38.00,
+                  "currency": "USD",
+                  "details": {
+                    "fixture": true,
+                    "includesFreight": true
+                  }
+                }
+              ]
+            }
+          ],
+          "metadata": {"fixture": "feast_guild_whole_order_quote_fixture_v1"}
+        },
+        "customerFacingSourceFacts": {
+          "sourceClass": "imported",
+          "originCountry": "fixture-country",
+          "originEvidenceState": "fixture_explicit"
+        },
+        "selectionBasis": {
+          "decisionKind": "fixture_selected",
+          "reason": "prove pack-excess economics without encoding live sourcing policy"
+        }
+      },
+      {
+        "lineKey": "white-roses-60cm",
+        "candidateRef": {
+          "sourceDomain": "external_supply_offering",
+          "sourceRef": "fixture:supplier:white-rose-60"
+        },
+        "qualificationNodes": [
+          {
+            "requirementKey": "flower_family",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:white-rose-60", "fact": "flowerFamily=rose"}]
+          },
+          {
+            "requirementKey": "color",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:white-rose-60", "fact": "color=white"}]
+          },
+          {
+            "requirementKey": "stem_length_cm",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:white-rose-60", "fact": "stemLengthCm=60"}]
+          },
+          {
+            "requirementKey": "requested_date",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:white-rose-60", "fact": "availableBy=2026-09-25"}]
+          }
+        ],
+        "fulfillmentPacket": {
+          "contractVersion": "neutral_fulfillment_composition_v1",
+          "requirementRef": {
+            "sourceDomain": "feast_guild_flower_basket_v1",
+            "sourceRef": "fixture-whole-order-complete:white-roses-60cm"
+          },
+          "requirement": {
+            "quantity": 50,
+            "unit": "stem",
+            "requiredBy": "2026-09-25T12:00:00Z"
+          },
+          "planKey": "fixture-plan:white-roses-60cm",
+          "allocations": [
+            {
+              "allocationKey": "fixture-white-rose-source",
+              "candidateRef": {
+                "sourceDomain": "external_supply_offering",
+                "sourceRef": "fixture:supplier:white-rose-60"
+              },
+              "qualificationState": "qualified",
+              "sourceQuantity": 50,
+              "sourceUnit": "stem",
+              "outputQuantity": 50,
+              "outputUnit": "stem",
+              "costComponents": [
+                {
+                  "componentKey": "landed_supplier_cost",
+                  "state": "known",
+                  "required": true,
+                  "amount": 55.00,
+                  "currency": "USD",
+                  "details": {
+                    "fixture": true,
+                    "includesFreight": true
+                  }
+                }
+              ]
+            }
+          ],
+          "metadata": {"fixture": "feast_guild_whole_order_quote_fixture_v1"}
+        },
+        "customerFacingSourceFacts": {
+          "sourceClass": "american_grown",
+          "originCountry": "US",
+          "originState": "CA",
+          "originEvidenceState": "fixture_explicit"
+        },
+        "selectionBasis": {
+          "decisionKind": "fixture_selected",
+          "reason": "prove exact specification and customer-facing source facts"
+        }
+      },
+      {
+        "lineKey": "eucalyptus",
+        "candidateRef": {
+          "sourceDomain": "external_supply_offering",
+          "sourceRef": "fixture:supplier:eucalyptus"
+        },
+        "qualificationNodes": [
+          {
+            "requirementKey": "product_family",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:eucalyptus", "fact": "productFamily=eucalyptus"}]
+          },
+          {
+            "requirementKey": "requested_date",
+            "required": true,
+            "state": "satisfied",
+            "evidence": [{"sourceRef": "fixture:eucalyptus", "fact": "availableBy=2026-09-25"}]
+          }
+        ],
+        "fulfillmentPacket": {
+          "contractVersion": "neutral_fulfillment_composition_v1",
+          "requirementRef": {
+            "sourceDomain": "feast_guild_flower_basket_v1",
+            "sourceRef": "fixture-whole-order-complete:eucalyptus"
+          },
+          "requirement": {
+            "quantity": 5,
+            "unit": "bunch",
+            "requiredBy": "2026-09-25T12:00:00Z"
+          },
+          "planKey": "fixture-plan:eucalyptus",
+          "allocations": [
+            {
+              "allocationKey": "fixture-eucalyptus-source",
+              "candidateRef": {
+                "sourceDomain": "external_supply_offering",
+                "sourceRef": "fixture:supplier:eucalyptus"
+              },
+              "qualificationState": "qualified",
+              "sourceQuantity": 5,
+              "sourceUnit": "bunch",
+              "outputQuantity": 5,
+              "outputUnit": "bunch",
+              "costComponents": [
+                {
+                  "componentKey": "landed_supplier_cost",
+                  "state": "known",
+                  "required": true,
+                  "amount": 25.00,
+                  "currency": "USD",
+                  "details": {
+                    "fixture": true,
+                    "includesFreight": true
+                  }
+                }
+              ]
+            }
+          ],
+          "metadata": {"fixture": "feast_guild_whole_order_quote_fixture_v1"}
+        },
+        "customerFacingSourceFacts": {
+          "sourceClass": "regional_us",
+          "originCountry": "US",
+          "originEvidenceState": "fixture_explicit"
+        },
+        "selectionBasis": {
+          "decisionKind": "fixture_selected",
+          "reason": "prove whole-order aggregation"
+        }
+      }
+    ],
+    "expected": {
+      "state": "complete",
+      "pricedLineCount": 3,
+      "blockedLineCount": 0,
+      "currency": "USD",
+      "linePrices": {
+        "carnations": {"unitPrice": 0.61, "total": 54.90},
+        "white-roses-60cm": {"unitPrice": 1.58, "total": 79.00},
+        "eucalyptus": {"unitPrice": 7.15, "total": 35.75}
+      },
+      "wholeOrderTotal": 169.65,
+      "snapshotOfferState": "complete"
+    }
+  },
+  "incomplete": {
+    "derivation": "same basket and selected plans as complete fixture, but eucalyptus landed cost is split into known merchandise cost plus required unresolved freight",
+    "eucalyptusReplacementCostComponents": [
+      {
+        "componentKey": "supplier_merchandise",
+        "state": "known",
+        "required": true,
+        "amount": 25.00,
+        "currency": "USD"
+      },
+      {
+        "componentKey": "freight",
+        "state": "unresolved",
+        "required": true,
+        "details": {
+          "reason": "supplier has not supplied freight quote"
+        }
+      }
+    ],
+    "expected": {
+      "state": "incomplete",
+      "pricedLineCount": 2,
+      "blockedLineCount": 1,
+      "pricedSubtotal": 133.90,
+      "wholeOrderTotal": null,
+      "snapshotOfferState": "incomplete_evidence",
+      "blockingLineKey": "eucalyptus",
+      "pricingReason": "required_cost_unresolved"
+    }
+  },
+  "truthBoundary": {
+    "allEconomicValuesAreValidationFixtures": true,
+    "notLiveSupplierTerms": true,
+    "notLiveFeastGuildPrices": true,
+    "noSupplierSelectionPolicyEstablished": true,
+    "noPurchaseAuthority": true,
+    "noOrderCreation": true,
+    "noSnapshotCreation": true,
+    "noInventoryCreation": true,
+    "unknownFreightNeverBecomesZero": true
+  }
+}
