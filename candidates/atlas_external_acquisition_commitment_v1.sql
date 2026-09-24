@@ -339,7 +339,11 @@ begin
     where id=new.work_requirement_id;
 
     if v_line.id is null or v_commitment.id is null or v_requirement.id is null
-       or v_requirement.organization_id is distinct from v_commitment.organization_id then
+       or v_requirement.organization_id is distinct from v_commitment.organization_id
+       or (
+         v_commitment.organization_unit_id is not null
+         and v_requirement.organization_unit_id is distinct from v_commitment.organization_unit_id
+       ) then
       raise exception 'Acquisition allocation must remain inside the commitment organization scope.'
         using errcode='23514';
     end if;
@@ -910,6 +914,10 @@ begin
 
             if v_requirement.id is null
                or v_requirement.organization_id is distinct from v_org_id
+               or (
+                 v_unit_id is not null
+                 and v_requirement.organization_unit_id is distinct from v_unit_id
+               )
                or v_requirement.state<>'active'
                or jsonb_typeof(v_requirement.metadata->'commercialFulfillment'->'quantity')<>'number'
                or nullif(btrim(coalesce(v_requirement.metadata->'commercialFulfillment'->>'unit','')),'') is null then
@@ -1019,6 +1027,7 @@ create or replace function atlas.record_external_acquisition_commitment_service_
 )
 returns jsonb
 language plpgsql
+security definer
 set search_path=pg_catalog,atlas
 as $function$
 declare
@@ -1326,6 +1335,7 @@ create or replace function atlas.record_external_acquisition_commitment_event_se
 )
 returns jsonb
 language plpgsql
+security definer
 set search_path=pg_catalog,atlas,extensions
 as $function$
 declare
@@ -1552,10 +1562,10 @@ revoke all on atlas.external_acquisition_requirement_allocations
 revoke all on atlas.external_acquisition_commitment_events
   from public,anon,authenticated,service_role;
 
-grant select,insert on atlas.external_acquisition_commitments to service_role;
-grant select,insert on atlas.external_acquisition_commitment_lines to service_role;
-grant select,insert on atlas.external_acquisition_requirement_allocations to service_role;
-grant select,insert on atlas.external_acquisition_commitment_events to service_role;
+grant select on atlas.external_acquisition_commitments to service_role;
+grant select on atlas.external_acquisition_commitment_lines to service_role;
+grant select on atlas.external_acquisition_requirement_allocations to service_role;
+grant select on atlas.external_acquisition_commitment_events to service_role;
 
 revoke all on function atlas.external_acquisition_commitment_preview_v1(jsonb)
   from public,anon,authenticated;
@@ -1657,7 +1667,7 @@ insert into atlas.authenticated_rpc_registry(
 (
   'atlas.record_external_acquisition_commitment_service_v1(jsonb)',
   'service_internal','verified','active',
-  false,false,true,0,1,
+  false,true,true,0,1,
   '{"source":"atlas_external_acquisition_commitment_v1","purpose":"Persist immutable external supplier acquisition commitment, lines, and source-owned Company Work allocations; creates no Spend or inventory.","classificationRuleVersion":3}'::jsonb,
   false
 ),
@@ -1671,7 +1681,7 @@ insert into atlas.authenticated_rpc_registry(
 (
   'atlas.record_external_acquisition_commitment_event_service_v1(uuid,text,text,timestamptz,jsonb,jsonb)',
   'service_internal','verified','active',
-  false,false,true,0,1,
+  false,true,true,0,1,
   '{"source":"atlas_external_acquisition_commitment_v1","purpose":"Append governed cancellation/receipt/closure lifecycle evidence to one External Acquisition Commitment.","classificationRuleVersion":3}'::jsonb,
   false
 ),
