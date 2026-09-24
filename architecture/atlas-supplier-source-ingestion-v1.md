@@ -198,6 +198,57 @@ Implementation contract:
 
 Flowerbuyer may expose a marketplace lot whose economic source/grower differs from Flowerbuyer itself. Provider identity, provider grower reference, logistics location, biological origin, and supplier/vendor-of-record identity therefore remain separate.
 
+## 3A. Observed Baisch & Skinner published price-sheet source
+
+Baisch & Skinner is now a fourth concrete supplier-source pattern.
+
+Provider key:
+
+`baisch_skinner`
+
+Observed published source:
+
+`Cut Flower Price List`
+
+Observed period:
+
+`2026-09-19 through 2026-09-25`
+
+Observed source properties:
+
+- periodic document-level publication;
+- source-stated price period;
+- prices explicitly subject to change;
+- source highlighting means new item **or** price change;
+- rows carry product labels and numeric displayed prices;
+- some rows carry explicit count/unit language;
+- some rows carry count-like shorthand without a unit;
+- section/subsection/indentation structure carries source identity;
+- no global source currency is printed on the observed sheet;
+- no global price denominator is printed;
+- no available quantity is printed;
+- no freight, minimum, cutoff, or requested-delivery promise is printed.
+
+Architecture:
+
+- `architecture/baisch-skinner-published-price-sheet-adapter-v1.md`
+- `candidates/atlas_baisch_skinner_price_sheet_adapter_v1.sql`
+- `candidates/atlas_baisch_skinner_price_sheet_admission_v1.sql`
+
+The input to the provider adapter is a losslessly normalized document, not PDF pixels. The upstream normalization method may change without changing supplier truth semantics.
+
+The source must not be upgraded into inventory or complete landed economics merely because it is current.
+
+Important boundaries:
+
+- `Carnations 0.65` preserves a numeric source price but does not establish currency or denominator;
+- `Hybrid-10 Stem 20.95` may establish a 10-stem source denominator because the source itself states it;
+- `Sunflowers x5` preserves a count hint but not an unstated unit;
+- the printed `LOCAL` subsection does not establish Feast Guild `regional_us` or `us_grown`;
+- a same-period revised sheet is a new append-only raw observation under the same source document identity.
+
+If Baisch later confirms stable account conventions such as USD, list-presence availability, standard pack bases, freight, or shorthand meanings, those should become a versioned provider/account-semantics contract rather than being inferred from florist industry custom.
+
 ## 4. Account facts Marshall should return
 
 For each provider, we need:
