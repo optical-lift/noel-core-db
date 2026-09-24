@@ -353,6 +353,101 @@ begin
     raise exception 'Tier-evidence fail-closed behavior failed: %',v_result;
   end if;
 
+  -- Unresolved qualification cannot enter ranking even when the source tier and cost look attractive.
+  v_candidates:=jsonb_build_array(
+    jsonb_set(
+      atlas._fixture_feast_guild_source_candidate_v1(
+        'fixture-policy-tests','test-line',100,'stem',
+        'elm-unresolved-spec','elm_owned_or_grown',90
+      ),
+      '{qualificationNodes,0,state}'::text[],
+      '"unresolved"'::jsonb,
+      false
+    ),
+    atlas._fixture_feast_guild_source_candidate_v1(
+      'fixture-policy-tests','test-line',100,'stem',
+      'import-known-100','imported',100
+    )
+  );
+
+  v_result:=atlas.feast_guild_flower_source_plan_select_v1(v_line,v_candidates);
+
+  if v_result->'selectedCandidateRef'->>'sourceRef'<>'import-known-100'
+     or not exists(
+       select 1
+       from jsonb_array_elements(v_result->'candidateEvaluations') e(value),
+            jsonb_array_elements(e.value->'reasons') r(value)
+       where e.value->'candidateRef'->>'sourceRef'='elm-unresolved-spec'
+         and r.value->>'reason'='candidate_not_qualified'
+     ) then
+    raise exception 'Unresolved qualification entered source ranking: %',v_result;
+  end if;
+
+  -- A warehouse/provider location is not source-tier evidence.
+  v_candidates:=jsonb_build_array(
+    (
+      atlas._fixture_feast_guild_source_candidate_v1(
+        'fixture-policy-tests','test-line',100,'stem',
+        'warehouse-missouri-90','regional_us',90
+      )
+      - 'sourcePreference'
+    )
+    || jsonb_build_object(
+      'customerFacingSourceFacts',
+      jsonb_build_object(
+        'warehouseState','MO',
+        'providerLocation','Missouri'
+      )
+    ),
+    atlas._fixture_feast_guild_source_candidate_v1(
+      'fixture-policy-tests','test-line',100,'stem',
+      'import-known-100','imported',100
+    )
+  );
+
+  v_result:=atlas.feast_guild_flower_source_plan_select_v1(v_line,v_candidates);
+
+  if v_result->'selectedCandidateRef'->>'sourceRef'<>'import-known-100'
+     or not exists(
+       select 1
+       from jsonb_array_elements(v_result->'candidateEvaluations') e(value),
+            jsonb_array_elements(e.value->'reasons') r(value)
+       where e.value->'candidateRef'->>'sourceRef'='warehouse-missouri-90'
+         and r.value->>'reason'='source_preference_missing'
+     ) then
+    raise exception 'Warehouse/provider geography was allowed to establish source tier: %',v_result;
+  end if;
+
+  -- A non-empty but structurally meaningless evidence object is still not evidence.
+  v_candidates:=jsonb_build_array(
+    jsonb_set(
+      atlas._fixture_feast_guild_source_candidate_v1(
+        'fixture-policy-tests','test-line',100,'stem',
+        'elm-empty-evidence-object','elm_owned_or_grown',95
+      ),
+      '{sourcePreference,evidence,0}'::text[],
+      '{}'::jsonb,
+      false
+    ),
+    atlas._fixture_feast_guild_source_candidate_v1(
+      'fixture-policy-tests','test-line',100,'stem',
+      'import-known-100','imported',100
+    )
+  );
+
+  v_result:=atlas.feast_guild_flower_source_plan_select_v1(v_line,v_candidates);
+
+  if v_result->'selectedCandidateRef'->>'sourceRef'<>'import-known-100'
+     or not exists(
+       select 1
+       from jsonb_array_elements(v_result->'candidateEvaluations') e(value),
+            jsonb_array_elements(e.value->'reasons') r(value)
+       where e.value->'candidateRef'->>'sourceRef'='elm-empty-evidence-object'
+         and r.value->>'reason'='source_preference_evidence_invalid'
+     ) then
+    raise exception 'Invalid source-tier evidence entered source ranking: %',v_result;
+  end if;
+
   -- Pack excess remains inside landed economics: $38 source cost covers 90 requested stems.
   v_line:='{
     "basketKey":"fixture-pack-excess",
