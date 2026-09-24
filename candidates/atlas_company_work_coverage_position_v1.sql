@@ -60,6 +60,12 @@ begin
     v_required_quantity:=(v_requirement.metadata->'commercialFulfillment'->>'quantity')::numeric;
     v_required_unit:=btrim(v_requirement.metadata->'commercialFulfillment'->>'unit');
     v_quantified:=true;
+    if v_required_quantity<=0 then
+      v_violations:=v_violations||jsonb_build_array(jsonb_build_object(
+        'key','invalid_requirement_quantity_metadata',
+        'message','Quantified Work Requirement quantity must be greater than zero.'
+      ));
+    end if;
   elsif (v_requirement.metadata->'commercialFulfillment' ? 'quantity')
      or (v_requirement.metadata->'commercialFulfillment' ? 'unit') then
     v_violations:=v_violations||jsonb_build_array(jsonb_build_object(
@@ -102,6 +108,14 @@ begin
        or nullif(btrim(coalesce(v_fact->'sourceRef'->>'sourceRef','')),'') is null then
       v_violations:=v_violations||jsonb_build_array(jsonb_build_object(
         'key','invalid_source_ref',
+        'coverageKey',v_key
+      ));
+    end if;
+
+    if v_fact ? 'metadata'
+       and jsonb_typeof(v_fact->'metadata')<>'object' then
+      v_violations:=v_violations||jsonb_build_array(jsonb_build_object(
+        'key','invalid_coverage_metadata',
         'coverageKey',v_key
       ));
     end if;
@@ -155,7 +169,7 @@ begin
             'coverageUnit',v_unit
           ));
         end if;
-      elsif v_fact ? 'quantity' or v_fact ? 'unit' then
+      elsif (v_fact ? 'quantity') or (v_fact ? 'unit') then
         if jsonb_typeof(v_fact->'quantity')='number' then
           v_quantity:=(v_fact->>'quantity')::numeric;
         end if;
