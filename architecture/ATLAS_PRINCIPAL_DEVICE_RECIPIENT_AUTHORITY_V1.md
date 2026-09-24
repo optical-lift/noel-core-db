@@ -364,3 +364,80 @@ This tranche is successful if Atlas can prove:
 ## 16. Governing sentence
 
 > **Atlas may know which device is authorized to receive a cryptographic capability without possessing the private authority that makes that capability usable.**
+
+## 17. Implementation receipt
+
+Implemented by:
+
+- `supabase/migrations/20260924070000_atlas_principal_device_recipient_authority_v1.sql`;
+- Atlas application module `lib/sealed-reality/principal-device-authority.ts`;
+- Atlas application contract `docs/PRINCIPAL_DEVICE_RECIPIENT_AUTHORITY_V1.md`.
+
+Released database objects include:
+
+- `atlas.principal_cryptographic_devices`;
+- `atlas.sealed_reality_recipient_key_envelopes`;
+- self registration/list/revocation APIs;
+- service-role possession-proof activation;
+- recipient-envelope recording;
+- Personnel `reveal_to_device` authority resolution;
+- recipient-envelope warrant redemption.
+
+### Database validation
+
+Rollback validation passed.
+
+Proved:
+
+- signed-in self registration binds the public device authority to the current Principal;
+- registration creates `pending`, not `active`;
+- no private JWK member is retained;
+- a pending device cannot receive an active recipient key envelope;
+- a trusted possession-proof activation is required before the device becomes active;
+- an envelope is bound to one Sealed Reality Handle, Principal, and device;
+- recording the envelope does not grant reveal authority;
+- existing Personnel `vault_record_read` authority is still required in v1;
+- after that authority exists, `reveal_to_device` issues a shared one-time warrant for `principal_device_recipient_v1`;
+- a different device cannot redeem the warrant;
+- the correct device receives only recipient-bound encrypted key-envelope material;
+- durable shared completion remains only `{"delivered":true}`.
+
+All validation rows rolled back.
+
+Post-validation live counts were zero for:
+
+- Principal cryptographic devices;
+- recipient-bound key envelopes;
+- `reveal_to_device` warrants;
+- `reveal_to_device` receipts.
+
+### Application crypto validation
+
+The Atlas TypeScript module compiled under the repository's strict DOM/WebCrypto TypeScript profile.
+
+Runtime WebCrypto validation proved:
+
+- device signing private key is non-extractable;
+- device wrapping private key is non-extractable;
+- ECDSA possession challenge signs and verifies;
+- P-256 ECDH + HKDF-SHA-256 + AES-256-GCM wraps and unwraps a 32-byte data key correctly;
+- wrapped data-key size is 48 bytes (32-byte key + 16-byte GCM tag);
+- context hash matches the database constitution;
+- changing the recipient context causes unwrap failure.
+
+No production key material was created or persisted.
+
+## 18. Remaining boundary
+
+The cryptographic carrier now exists, but **individual standing itself is not yet the source of Personnel reveal authority**.
+
+v1 still requires the existing Personnel-domain `vault_record_read` capability before the recipient-device warrant may be issued.
+
+That is deliberate.
+
+The next constitutional question is not another cryptographic primitive. It is:
+
+> How does Atlas prove that a Principal is the human subject with standing in a sealed Personnel reality, so that the person's own authority can govern appropriate operations without depending on institutional grant?
+
+Until that identity/standing bridge is proven, device authority must not be mistaken for subject standing.
+
