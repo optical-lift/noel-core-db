@@ -116,6 +116,8 @@ create table if not exists atlas.external_supply_offer_observations (
   source_ref text,
   evidence_record_id uuid
     references atlas.evidence_records(id) on delete restrict,
+  connected_source_observation_id uuid
+    references atlas.connected_source_observations(id) on delete restrict,
   observation_sha256 text not null
     check (observation_sha256 ~ '^[0-9a-f]{64}$'),
   metadata jsonb not null default '{}'::jsonb
@@ -251,6 +253,19 @@ begin
      or v_offering.organization_id is distinct from new.organization_id
      or v_offering.organization_unit_id is distinct from new.organization_unit_id then
     raise exception 'Supply offer observation must share the external supply offering organization/unit scope.'
+      using errcode='23514';
+  end if;
+
+  if new.connected_source_observation_id is not null
+     and not exists(
+       select 1
+       from atlas.connected_source_observations cso
+       join atlas.connected_sources cs on cs.id=cso.connected_source_id
+       where cso.id=new.connected_source_observation_id
+         and cs.custodian_organization_id=new.organization_id
+         and cs.custodian_organization_unit_id is not distinct from new.organization_unit_id
+     ) then
+    raise exception 'Connected source observation must belong to the same organization/unit scope.'
       using errcode='23514';
   end if;
 
@@ -393,6 +408,7 @@ create or replace function atlas.record_external_supply_offer_observation_servic
   p_source_kind text default 'supplier_price_list',
   p_source_ref text default null,
   p_evidence_record_id uuid default null,
+  p_connected_source_observation_id uuid default null,
   p_metadata jsonb default '{}'::jsonb
 )
 returns jsonb
@@ -460,6 +476,7 @@ begin
           'sourceKind',v_source_kind,
           'sourceRef',nullif(btrim(p_source_ref),''),
           'evidenceRecordId',p_evidence_record_id,
+          'connectedSourceObservationId',p_connected_source_observation_id,
           'metadata',coalesce(p_metadata,'{}'::jsonb)
         )::text,
         'UTF8'
@@ -495,7 +512,7 @@ begin
     pack_quantity,pack_unit,minimum_order_quantity,minimum_order_unit,
     lead_time_value,lead_time_unit,availability_state,
     terms,source_context,source_kind,source_ref,evidence_record_id,
-    observation_sha256,metadata
+    connected_source_observation_id,observation_sha256,metadata
   ) values (
     v_offering.organization_id,v_offering.organization_unit_id,v_offering.id,
     v_key,p_observed_at,p_effective_from,p_effective_until,
@@ -510,6 +527,7 @@ begin
     v_source_kind,
     nullif(btrim(p_source_ref),''),
     p_evidence_record_id,
+    p_connected_source_observation_id,
     v_hash,
     coalesce(p_metadata,'{}'::jsonb)
   )
@@ -600,7 +618,8 @@ begin
           'sourceContext',x.source_context,
           'sourceKind',x.source_kind,
           'sourceRef',x.source_ref,
-          'evidenceRecordId',x.evidence_record_id
+          'evidenceRecordId',x.evidence_record_id,
+          'connectedSourceObservationId',x.connected_source_observation_id
         ) end
       )
       order by o.source_label,o.id
@@ -661,11 +680,11 @@ grant execute on function atlas.ensure_external_supply_offering_service_v1(
 
 revoke all on function atlas.record_external_supply_offer_observation_service_v1(
   uuid,text,timestamptz,date,date,numeric,text,text,numeric,text,numeric,text,
-  numeric,text,numeric,text,text,jsonb,jsonb,text,text,uuid,jsonb
+  numeric,text,numeric,text,text,jsonb,jsonb,text,text,uuid,uuid,jsonb
 ) from public,anon,authenticated;
 grant execute on function atlas.record_external_supply_offer_observation_service_v1(
   uuid,text,timestamptz,date,date,numeric,text,text,numeric,text,numeric,text,
-  numeric,text,numeric,text,text,jsonb,jsonb,text,text,uuid,jsonb
+  numeric,text,numeric,text,text,jsonb,jsonb,text,text,uuid,uuid,jsonb
 ) to service_role;
 
 revoke all on function atlas.external_supply_offers_for_supplier_service_v1(uuid,date)
@@ -696,7 +715,9 @@ insert into atlas.architecture_truth_authorities(
   array[
     'atlas.external_relationships',
     'atlas.external_relationship_roles',
-    'atlas.evidence_records'
+    'atlas.evidence_records',
+    'atlas.connected_sources',
+    'atlas.connected_source_observations'
   ],
   array[]::text[],
   array[
@@ -737,7 +758,7 @@ insert into atlas.authenticated_rpc_registry(
   false
 ),
 (
-  'atlas.record_external_supply_offer_observation_service_v1(uuid,text,timestamptz,date,date,numeric,text,text,numeric,text,numeric,text,numeric,text,numeric,text,text,jsonb,jsonb,text,text,uuid,jsonb)',
+  'atlas.record_external_supply_offer_observation_service_v1(uuid,text,timestamptz,date,date,numeric,text,text,numeric,text,numeric,text,numeric,text,numeric,text,text,jsonb,jsonb,text,text,uuid,uuid,jsonb)',
   'service_internal','verified','active',
   false,true,true,0,1,
   '{"source":"atlas_external_supply_offer_v1","purpose":"Record one append-only source-backed supplier commercial observation.","classificationRuleVersion":3}'::jsonb,
