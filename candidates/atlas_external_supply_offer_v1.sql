@@ -263,7 +263,10 @@ begin
        join atlas.connected_sources cs on cs.id=cso.connected_source_id
        where cso.id=new.connected_source_observation_id
          and cs.custodian_organization_id=new.organization_id
-         and cs.custodian_organization_unit_id is not distinct from new.organization_unit_id
+         and (
+           cs.custodian_organization_unit_id is null
+           or cs.custodian_organization_unit_id is not distinct from new.organization_unit_id
+         )
      ) then
     raise exception 'Connected source observation must belong to the same organization/unit scope.'
       using errcode='23514';
