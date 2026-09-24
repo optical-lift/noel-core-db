@@ -191,8 +191,8 @@ begin
     true
   );
 
-  select count(*),min(r.value)
-  into v_row_count,v_row
+  select count(*)
+  into v_row_count
   from jsonb_array_elements(p_document->'rows') r(value)
   where r.value->>'rowKey'=v_row_key;
 
@@ -200,6 +200,12 @@ begin
     raise exception 'Baisch & Skinner rowKey must match exactly one normalized row; found %.',v_row_count
       using errcode='22023';
   end if;
+
+  select r.value
+  into v_row
+  from jsonb_array_elements(p_document->'rows') r(value)
+  where r.value->>'rowKey'=v_row_key
+  limit 1;
 
   v_row_kind:=lower(btrim(coalesce(v_row->>'rowKind','unknown')));
   v_identity_state:=lower(btrim(coalesce(v_row->>'identityState','unresolved')));
