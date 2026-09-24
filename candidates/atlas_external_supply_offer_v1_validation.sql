@@ -2,6 +2,9 @@ begin;
 
 do $validation$
 declare
+  v_org_id uuid;
+  v_supplier_subject_id uuid;
+  v_non_supplier_subject_id uuid;
   v_supplier atlas.external_relationships%rowtype;
   v_non_supplier atlas.external_relationships%rowtype;
   v_offering_id uuid;
@@ -16,32 +19,62 @@ declare
   v_before_ready integer;
   v_before_sell_prices integer;
 begin
-  select r.* into v_supplier
-  from atlas.external_relationships r
-  join atlas.external_relationship_roles rr
-    on rr.external_relationship_id=r.id
-   and rr.role_key='supplier'
-   and rr.role_state='active'
-  order by r.created_at,r.id
-  limit 1;
+  -- Production-clone validation is schema-only, so create all fixture identity
+  -- and relationship truth inside this rollback transaction.
+  insert into atlas.organizations(stable_key,name,status,metadata)
+  values(
+    'fixture_external_supply_validation_v1',
+    'Fixture External Supply Organization',
+    'active',
+    '{"fixture":"atlas_external_supply_offer_v1"}'::jsonb
+  )
+  returning id into v_org_id;
 
-  if v_supplier.id is null then
-    raise exception 'External supply validation requires one active supplier relationship fixture.';
-  end if;
+  insert into atlas.identity_subjects(organization_id,creation_basis)
+  values(
+    v_org_id,
+    '{"fixture":"supplier_subject"}'::jsonb
+  )
+  returning id into v_supplier_subject_id;
 
-  select r.* into v_non_supplier
-  from atlas.external_relationships r
-  where r.organization_id=v_supplier.organization_id
-    and r.organization_unit_id is not distinct from v_supplier.organization_unit_id
-    and not exists(
-      select 1
-      from atlas.external_relationship_roles rr
-      where rr.external_relationship_id=r.id
-        and rr.role_key='supplier'
-        and rr.role_state='active'
-    )
-  order by r.created_at,r.id
-  limit 1;
+  insert into atlas.external_relationships(
+    organization_id,organization_unit_id,subject_id,stable_key,relationship_state,metadata
+  ) values (
+    v_org_id,null,v_supplier_subject_id,
+    'fixture-supplier','active',
+    '{"fixture":"atlas_external_supply_offer_v1"}'::jsonb
+  )
+  returning * into v_supplier;
+
+  insert into atlas.external_relationship_roles(
+    external_relationship_id,role_key,role_state,basis
+  ) values (
+    v_supplier.id,'supplier','active',
+    '{"fixture":"atlas_external_supply_offer_v1"}'::jsonb
+  );
+
+  insert into atlas.identity_subjects(organization_id,creation_basis)
+  values(
+    v_org_id,
+    '{"fixture":"non_supplier_subject"}'::jsonb
+  )
+  returning id into v_non_supplier_subject_id;
+
+  insert into atlas.external_relationships(
+    organization_id,organization_unit_id,subject_id,stable_key,relationship_state,metadata
+  ) values (
+    v_org_id,null,v_non_supplier_subject_id,
+    'fixture-non-supplier','active',
+    '{"fixture":"atlas_external_supply_offer_v1"}'::jsonb
+  )
+  returning * into v_non_supplier;
+
+  insert into atlas.external_relationship_roles(
+    external_relationship_id,role_key,role_state,basis
+  ) values (
+    v_non_supplier.id,'customer','active',
+    '{"fixture":"atlas_external_supply_offer_v1"}'::jsonb
+  );
 
   select count(*) into v_before_orders from atlas.commercial_orders;
   select count(*) into v_before_spend from atlas.organization_spend_occurrences;
