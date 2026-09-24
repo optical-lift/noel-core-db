@@ -39,6 +39,8 @@ Candidate quantity uses available_quantity, not birth quantity. The live positio
 
 V1 gathers a Ready lot only when farm matches the configured Elm source farm, available quantity is positive, quantity exactness is exact, Ready date is on or before the florist requested date, and unit equals the requested line unit.
 
+Because cut flowers are perishable, mathematical availability is not enough. Automatic qualification additionally requires explicit usable-through/freshness evidence covering the florist requested date. A Ready lot with remaining ledger quantity but no usable-through evidence remains physically unresolved for a new florist quote.
+
 Source preference tier is elm_owned_or_grown with evidence referencing the Ready lot and Elm farm.
 
 ## Critical Elm economic boundary
@@ -191,21 +193,22 @@ V1 must prove:
 1. Ready inventory uses available quantity, not birth quantity.
 2. Insufficient Elm available quantity cannot satisfy a larger florist request.
 3. Elm Ready date after requested date is not usable current coverage.
-4. Elm retail valuation is never used as owned cost.
-5. Elm cost remains unresolved without governed economic basis.
-6. External 90-stem demand from a 100-stem pack produces 100 source stems and explicit 10-stem excess.
-7. A $38 / 100-stem price basis produces $38 merchandise cost for that pack.
-8. Unknown freight remains unresolved.
-9. Explicit included freight does not create a second freight charge.
-10. Missing fee completeness remains unresolved.
-11. Explicit quantity capacity must cover source purchase quantity.
-12. Unavailable source is incompatible.
-13. Unknown/limited availability remains unresolved unless stronger evidence resolves it.
-14. Price effective date is not treated as delivery date.
-15. Unsupported flower requirement remains unresolved.
-16. Source tier without evidence cannot pass automatic selection.
-17. A gathered external candidate can flow through source selection and quote preparation when all required evidence is complete.
-18. Gathering creates no reservation, purchase, Spend, inventory, Work, Offer Snapshot, Order, payment, or fulfillment truth.
+4. Elm Ready quantity without usable-through/freshness evidence remains unresolved.
+5. Elm retail valuation is never used as owned cost.
+6. Elm cost remains unresolved without governed economic basis.
+7. External 90-stem demand from a 100-stem pack produces 100 source stems and explicit 10-stem excess.
+8. A $38 / 100-stem price basis produces $38 merchandise cost for that pack.
+9. Unknown freight remains unresolved.
+10. Explicit included freight does not create a second freight charge.
+11. Missing fee completeness remains unresolved.
+12. Explicit quantity capacity must cover source purchase quantity.
+13. Unavailable source is incompatible.
+14. Unknown/limited availability remains unresolved unless stronger evidence resolves it.
+15. Price effective date is not treated as delivery date.
+16. Unsupported flower requirement remains unresolved.
+17. Source tier without evidence cannot pass automatic selection.
+18. A gathered external candidate can flow through source selection and quote preparation when all required evidence is complete.
+19. Gathering creates no reservation, purchase, Spend, inventory, Work, Offer Snapshot, Order, payment, or fulfillment truth.
 
 ## Production boundary
 
