@@ -560,7 +560,7 @@ begin
     elsif v_warrant.result_policy='scalar'
        and v_type not in ('boolean','string','number','null') then
       raise exception 'This operation may return only a scalar.'
-        using errcode='22023');
+        using errcode='22023';
 
     elsif v_warrant.result_policy='receipt'
        and v_type<>'object' then
