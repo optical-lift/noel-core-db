@@ -1,0 +1,242 @@
+{
+  "contractVersion": "baisch_skinner_cut_flower_price_sheet_normalized_v1",
+  "providerKey": "baisch_skinner",
+  "documentTitle": "Cut Flower Price List",
+  "validFrom": "2026-09-19",
+  "validUntil": "2026-09-25",
+  "priceSubjectToChange": true,
+  "highlightMeaning": "new_item_or_price_change",
+  "normalization": {
+    "sourceKind": "published_price_sheet",
+    "sourceFormat": "normalized_from_published_document",
+    "preservesLayoutMeaning": true,
+    "doesNotInferCurrency": true,
+    "doesNotInferAvailability": true,
+    "doesNotInferUnstatedPriceUnit": true
+  },
+  "rows": [
+    {
+      "rowKey": "cut_flowers|carnations",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "sourcePath": [
+        "Carnations"
+      ],
+      "rawLabel": "Carnations",
+      "displayPriceText": "0.65",
+      "displayPrice": 0.65,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|carnations|tinted",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "parentRowKey": "cut_flowers|carnations",
+      "sourcePath": [
+        "Carnations",
+        "Tinted"
+      ],
+      "rawLabel": "Tinted",
+      "displayPriceText": "0.95",
+      "displayPrice": 0.95,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|minicarnations",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "sourcePath": [
+        "MiniCarnations"
+      ],
+      "rawLabel": "MiniCarnations",
+      "displayPriceText": "6.25",
+      "displayPrice": 6.25,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|sunflowers_x5",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "sourcePath": [
+        "Sunflowers x5"
+      ],
+      "rawLabel": "Sunflowers x5",
+      "displayPriceText": "10.95",
+      "displayPrice": 10.95,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|sunflowers_x5|mini_x10",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "parentRowKey": "cut_flowers|sunflowers_x5",
+      "sourcePath": [
+        "Sunflowers x5",
+        "Mini x10"
+      ],
+      "rawLabel": "Mini x10",
+      "displayPriceText": "12.95",
+      "displayPrice": 12.95,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|hellebores_x10",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "sourcePath": [
+        "Hellebores x10"
+      ],
+      "rawLabel": "Hellebores x10",
+      "displayPriceText": "32.95",
+      "displayPrice": 32.95,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|delphinium_sa",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "sourcePath": [
+        "Delphinium S.A."
+      ],
+      "rawLabel": "Delphinium S.A.",
+      "displayPriceText": "20.35",
+      "displayPrice": 20.35,
+      "highlighted": true,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|delphinium_sa|hybrid_10_stem",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "parentRowKey": "cut_flowers|delphinium_sa",
+      "sourcePath": [
+        "Delphinium S.A.",
+        "Hybrid-10 Stem"
+      ],
+      "rawLabel": "Hybrid-10 Stem",
+      "displayPriceText": "20.95",
+      "displayPrice": 20.95,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|delphinium_sa|hybrid_5_stem",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "parentRowKey": "cut_flowers|delphinium_sa",
+      "sourcePath": [
+        "Delphinium S.A.",
+        "Hybrid-5 Stem"
+      ],
+      "rawLabel": "Hybrid-5 Stem",
+      "displayPriceText": "18.95",
+      "displayPrice": 18.95,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "cut_flowers|orphan_60cm_colors",
+      "rowKind": "context_ambiguous",
+      "section": "CUT FLOWERS",
+      "sourcePath": [
+        "60CM Colors"
+      ],
+      "rawLabel": "60CM Colors",
+      "displayPriceText": "1.60",
+      "displayPrice": 1.6,
+      "highlighted": true,
+      "identityState": "unresolved",
+      "normalizationNotes": [
+        "Printed source does not provide a resolvable parent/product identity in this normalized context."
+      ]
+    },
+    {
+      "rowKey": "cut_flowers|anthuriums|composite_mini_small",
+      "rowKind": "composite_unresolved",
+      "section": "CUT FLOWERS",
+      "parentRowKey": "cut_flowers|anthuriums",
+      "sourcePath": [
+        "Anthuriums"
+      ],
+      "rawLabel": "Mini 6.95 Small 8.95",
+      "displayPriceText": null,
+      "displayPrice": null,
+      "highlighted": false,
+      "identityState": "unresolved",
+      "normalizationNotes": [
+        "One source cell contains multiple label/price pairs; not losslessly separated."
+      ]
+    },
+    {
+      "rowKey": "cut_flowers|local",
+      "rowKind": "subsection_header",
+      "section": "CUT FLOWERS",
+      "subsection": "LOCAL",
+      "sourcePath": [
+        "LOCAL"
+      ],
+      "rawLabel": "LOCAL",
+      "displayPriceText": null,
+      "displayPrice": null,
+      "highlighted": false,
+      "identityState": "not_applicable"
+    },
+    {
+      "rowKey": "cut_flowers|local|sunflowers",
+      "rowKind": "item",
+      "section": "CUT FLOWERS",
+      "subsection": "LOCAL",
+      "sourcePath": [
+        "LOCAL",
+        "Sunflowers"
+      ],
+      "rawLabel": "Sunflowers",
+      "displayPriceText": "9.95",
+      "displayPrice": 9.95,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "greens|thai_leaves_stem",
+      "rowKind": "item",
+      "section": "GREENS",
+      "sourcePath": [
+        "Thai Leaves-stem"
+      ],
+      "rawLabel": "Thai Leaves-stem",
+      "displayPriceText": "1.25",
+      "displayPrice": 1.25,
+      "highlighted": false,
+      "identityState": "resolved"
+    },
+    {
+      "rowKey": "greens|mood_moss_cs",
+      "rowKind": "item",
+      "section": "GREENS",
+      "sourcePath": [
+        "Mood Moss-cs"
+      ],
+      "rawLabel": "Mood Moss-cs",
+      "displayPriceText": "53.95",
+      "displayPrice": 53.95,
+      "highlighted": false,
+      "identityState": "resolved"
+    }
+  ],
+  "truthBoundary": {
+    "normalizedSourceEvidence": true,
+    "notInventory": true,
+    "notPurchaseAuthorization": true,
+    "notSellSidePrice": true,
+    "doesNotInferCurrency": true,
+    "doesNotInferAvailabilityFromListPresence": true,
+    "doesNotInferLocalCategoryAsFeastGuildRegion": true,
+    "doesNotInferUnstatedPriceUnit": true
+  }
+}
