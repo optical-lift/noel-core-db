@@ -938,3 +938,115 @@ Treasury domain authority
 
 with behavioral equivalence proved before the treasury-specific execution warrant/receipt/event path is retired.
 
+## 26. Phase C implementation receipt — Treasury cutover
+
+Phase C is now implemented by:
+
+`supabase/migrations/20260924060000_atlas_sealed_reality_phase_c_treasury_cutover_v1.sql`.
+
+Treasury standing, durable operation grants, endpoint lifecycle, and no-carrier domain effects remain Treasury-owned.
+
+Carrier-backed Treasury execution now flows through the shared Sealed Reality kernel:
+
+```text
+Treasury endpoint
+→ Treasury domain authority adapter
+→ shared Sealed Reality warrant
+→ Treasury carrier
+→ shared bounded receipt
+→ shared append-only execution lineage
+```
+
+### Compatibility behavior
+
+The existing Treasury service contracts remain callable:
+
+- `atlas.create_sealed_treasury_endpoint_service_v1`;
+- `atlas.request_sealed_treasury_operation_service_v1`;
+- `atlas.complete_sealed_treasury_operation_service_v1`;
+- `atlas.read_sealed_treasury_operation_events_service_v1`.
+
+Their domain semantics remain Treasury-owned, but carrier-backed request/completion now delegate to the shared kernel.
+
+New Treasury endpoint creation automatically establishes its `sealed_treasury_endpoint` Sealed Reality Handle after bootstrap governance has been created.
+
+The migration also contains a conservative backfill for pre-cutover active endpoints whose creator still holds the bootstrap `delegate_operation` grant.
+
+### No-carrier preservation
+
+Treasury operations with `requiresCarrier=false` remain domain-owned.
+
+For `observe_existence`, the compatibility service preserves the existing endpoint projection while the shared kernel records only the authority-resolution lineage.
+
+No shared execution warrant is minted for a no-carrier operation.
+
+### Audit continuity
+
+The existing Treasury audit service now projects:
+
+```text
+legacy/domain Treasury events
++
+shared Sealed Reality execution events
+```
+
+through the same Treasury audit contract.
+
+This preserves domain history while moving execution lineage to the shared kernel.
+
+### Legacy execution tables
+
+The Treasury-specific execution tables remain present in this phase:
+
+- `atlas.sealed_treasury_operation_warrants`;
+- `atlas.sealed_treasury_operation_receipts`;
+- `atlas.sealed_treasury_operation_events`.
+
+However, carrier-backed Treasury request/completion no longer writes new Treasury-specific warrant or receipt rows.
+
+The event table remains relevant for historical/domain events such as endpoint creation and operation-grant governance until retirement is separately proven.
+
+### Validation
+
+Rollback validation passed.
+
+Proved:
+
+- new Treasury endpoints automatically receive a Sealed Reality Handle;
+- `observe_existence` preserves its existing no-carrier response shape;
+- ungranted `verify_destination` remains denied with `operation_authority_required`;
+- existing Treasury operation grants remain the source of authority;
+- governed `verify_destination` requests mint a shared Sealed Reality warrant, not a Treasury-specific warrant;
+- the compatibility request preserves carrier key, carrier locator, result policy, operation, purpose, and expiry semantics;
+- carrier mismatch preserves the prior Treasury authorization failure behavior;
+- completion writes a shared bounded receipt, not a Treasury-specific receipt;
+- shared one-time warrant replay is rejected;
+- Treasury audit compatibility includes both domain history and shared carrier completion;
+- legacy Treasury warrant and receipt tables receive no new rows from the cutover path.
+
+All validation data rolled back.
+
+Post-validation live counts were zero for:
+
+- Treasury endpoints;
+- Treasury Sealed Reality Handles;
+- shared Treasury warrants;
+- shared Treasury receipts;
+- legacy Treasury warrants;
+- legacy Treasury receipts.
+
+### Phase boundary
+
+Treasury carrier-backed execution is now cut over.
+
+The next phase is Phase D:
+
+```text
+Restricted Personnel domain authority / encrypted payload
+→ shared Sealed Reality warrant
+→ restricted personnel carrier
+→ shared bounded receipt / audit
+```
+
+Personnel payload custody and Personnel durable authority remain domain-owned.
+
