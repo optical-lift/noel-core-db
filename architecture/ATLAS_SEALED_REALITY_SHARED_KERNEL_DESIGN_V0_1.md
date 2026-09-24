@@ -1050,3 +1050,197 @@ Restricted Personnel domain authority / encrypted payload
 
 Personnel payload custody and Personnel durable authority remain domain-owned.
 
+## 27. Phase D implementation receipt — Restricted Personnel cutover
+
+Phase D is now implemented by:
+
+- `supabase/migrations/20260924063000_atlas_sealed_reality_phase_d_personnel_cutover_v1.sql`;
+- `supabase/migrations/20260924064500_atlas_sealed_reality_phase_d_personnel_history_repair_v1.sql`.
+
+Personnel custody, durable vault entitlements, encrypted payload storage, record classes, assertions, and plaintext decryption remain Personnel-owned.
+
+The protected encrypted-record delivery path now flows through the shared Sealed Reality execution membrane:
+
+```text
+Restricted Personnel record
+→ Personnel domain authority adapter
+→ shared Sealed Reality warrant
+→ restricted_vault_envelope_v1 carrier
+→ encrypted envelope delivered
+→ shared bounded receipt
+→ shared append-only execution lineage
+```
+
+### Handle registration
+
+Lawful Personnel record creation now automatically establishes a stable
+`restricted_personnel_record` Sealed Reality Handle.
+
+This registration is a structural consequence of an already-authorized
+`vault_record_write`.
+
+It does **not** require a second administrative capability and grants no read authority.
+
+A conservative backfill registers handles for pre-cutover Personnel records.
+
+### Protected read operation
+
+Phase D adds the Personnel operation:
+
+```text
+read_encrypted_envelope
+```
+
+Its authority remains the existing domain law:
+
+```text
+vault_record_read
++
+record-class scope
++
+purpose scope
+```
+
+The shared adapter does not enlarge that authority.
+
+The operation contract is:
+
+```text
+requiresCarrier = true
+carrier = restricted_vault_envelope_v1
+resultPolicy = receipt
+revealsPlaintext = false
+```
+
+The existing `read_restricted_vault_record_envelope_service_v1` remains callable with its
+existing response contract. Internally it now:
+
+1. resolves the stable Personnel Sealed Reality Handle;
+2. asks the shared kernel for one `read_encrypted_envelope` warrant;
+3. acts as the ciphertext-envelope carrier;
+4. completes that warrant once;
+5. durably retains only `{"delivered":true}`;
+6. returns the same encrypted envelope fields to the authorized caller.
+
+The database still does not decrypt the Personnel payload.
+
+### Plaintext reveal remains separate
+
+The Personnel adapter retains a distinct future operation:
+
+```text
+reveal
+```
+
+with:
+
+```text
+resultPolicy = ephemeral_reveal
+revealsPlaintext = true
+carrier = restricted_vault_plaintext_reveal_v1
+```
+
+Phase D does not implement that carrier.
+
+This distinction is intentional:
+
+```text
+authorized delivery of ciphertext
+≠
+authorized plaintext reveal
+```
+
+The application/KMS boundary must not claim plaintext reveal completion merely because the encrypted envelope was retrieved.
+
+### Audit continuity
+
+The existing Personnel audit service now projects:
+
+```text
+Personnel-domain audit history
++
+shared Sealed Reality protected-read execution lineage
+```
+
+through the same `restricted_vault_audit_read_v1` contract.
+
+Shared execution events are translated into Personnel-compatible actions such as:
+
+```text
+record_read_attempt
+record_read_warrant_issued
+record_envelope_delivery
+record_read_warrant_expired
+```
+
+Personnel record/assertion lifecycle events remain in the domain audit table.
+
+### Historical record compatibility repair
+
+Initial Phase D validation surfaced an important distinction:
+
+```text
+record lifecycle state
+≠
+Sealed Reality Handle lifecycle
+```
+
+The initial cutover retired the old Handle when a Personnel record was superseded.
+That would have silently removed a historical read path that the existing Personnel
+service had allowed.
+
+The `20260924064500` repair therefore establishes the Handle as a stable execution
+identity independent of `current/superseded/retired` record state.
+
+Supersession remains Personnel-domain truth.
+
+Whether historical access is allowed remains a Personnel authority decision; Handle
+retirement must not be inferred merely from record supersession.
+
+### Validation
+
+Rollback validation passed after the history-lifecycle repair.
+
+Proved:
+
+- lawful Personnel record writes automatically establish stable Sealed Reality Handles;
+- a read without existing `vault_record_read` authority remains denied;
+- denied reads mint no shared warrant;
+- after existing domain authority is granted, the compatibility read returns the same ciphertext envelope fields;
+- exactly one shared `read_encrypted_envelope` warrant and one shared receipt are produced;
+- the warrant is consumed before the encrypted envelope is returned;
+- no shared durable result contains the encrypted record itself; it retains only `{"delivered":true}`;
+- Personnel audit compatibility includes both record-domain history and shared execution lineage;
+- a superseding Personnel record receives its own stable Handle;
+- the superseded record's Handle remains stable rather than being silently revoked;
+- historical Personnel record reads therefore preserve prior service behavior while continuing to require existing domain authority.
+
+All validation data rolled back.
+
+Post-validation live counts were zero for:
+
+- Personnel records;
+- Personnel Sealed Reality Handles;
+- shared Personnel warrants;
+- shared Personnel receipts.
+
+### Phase boundary
+
+Phase D cuts encrypted Personnel-record delivery over to the shared execution kernel.
+
+It does **not** move these domain-owned operations into shared authority:
+
+- record write;
+- assertion write;
+- assertion read;
+- vault entitlement grant/revoke;
+- subject binding;
+- vault lifecycle.
+
+It also does not yet implement plaintext decryption/reveal.
+
+The next architectural tranche should therefore not flatten more Personnel tables merely
+for symmetry. The meaningful next question is whether to complete the actual
+`restricted_vault_plaintext_reveal_v1` carrier path, or proceed to Phase E retirement
+only after deciding which legacy execution structures are truly redundant.
+
