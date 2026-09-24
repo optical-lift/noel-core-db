@@ -146,6 +146,8 @@ The transformation/yield law is supplied by the source/domain adapter. V1 never 
 
 Each proposed use references an existing Company Work Requirement.
 
+V1 requires at least one planned use, and every referenced Work Requirement must belong to the same Organization. A source pool may not cross institutional custody.
+
 That gives Atlas canonical demand quantity and unit from:
 
 ~~~text
@@ -272,9 +274,10 @@ sum(outstandingAfterPool)
 
 Pool utilization state:
 
-- `unused` — no output planned;
 - `partial_use` — planned < output;
 - `fully_used` — planned = output.
+
+V1 requires at least one positive planned use, so an unused pool is outside this contract.
 
 If planned > output, packet is invalid.
 
@@ -602,7 +605,8 @@ V1 must prove:
 14. excess never silently disappears;
 15. evaluator creates no Work Requirement, allocation, reservation, purchase, Spend, inventory, payment, or fulfillment truth;
 16. flower and construction-shaped requirements use the same evaluator;
-17. browser roles cannot invoke it.
+17. browser roles cannot invoke it;
+18. a single pool cannot cross Organization custody.
 
 ---
 
