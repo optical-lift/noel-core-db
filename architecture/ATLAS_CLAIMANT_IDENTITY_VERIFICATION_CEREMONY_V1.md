@@ -404,3 +404,134 @@ v1 is valid only if rollback proof shows:
 ## 19. Governing sentence
 
 > **Atlas may privately recognize a likely identity, but durable human standing is established only by a separate claimant-safe verification ceremony whose proof threshold is independent of the private evidence that produced the match.**
+
+## 20. Implementation receipt
+
+Implemented by:
+
+`supabase/migrations/20260924080000_atlas_claimant_identity_verification_ceremony_v1.sql`
+
+Released ceremony objects include:
+
+- `atlas.claimant_identity_factor_kinds`;
+- `atlas.claimant_identity_verification_policies`;
+- `atlas.claimant_identity_verification_cases`;
+- `atlas.claimant_identity_verification_factors`;
+- `atlas.start_claimant_identity_case_service_v1`;
+- `atlas.record_claimant_identity_factor_service_v1`;
+- `atlas.commit_claimant_identity_case_service_v1`;
+- `atlas.claimant_identity_case_self_api_v1`;
+- `atlas.cancel_claimant_identity_case_self_api_v1`.
+
+### v1 threshold
+
+The active `person_binding_v1` policy requires:
+
+```text
+minimum passed factors = 2
+minimum distinct families = 2
+at least one high-assurance factor = true
+case TTL = 30 minutes
+```
+
+Active factor kinds are:
+
+```text
+verified_contact_possession
+  family = contact_possession
+  assurance = medium
+
+government_identity_document
+  family = identity_document
+  assurance = high
+
+trusted_in_person
+  family = trusted_presence
+  assurance = high
+```
+
+### Claimant disclosure boundary
+
+Trusted case creation freezes the existing claimant-safe projection and strips
+`canonicalEntityId` before storing the claimant-facing snapshot.
+
+Authenticated claimant self-read returns that frozen safe projection plus bounded factor-status information.
+
+It does not return:
+
+- canonical candidate id;
+- candidate basis hash;
+- proof-artifact hashes;
+- verifier identifiers;
+- private resolver evidence.
+
+### Proof/commit separation
+
+Factor recording may move a case to `ready_to_commit`, but it cannot create durable identity truth.
+
+Only the separate trusted commit service may call
+`atlas.establish_verified_person_canonical_binding_service_v1`.
+
+The commit service:
+
+- re-checks expiry;
+- re-checks the threshold;
+- re-checks active canonical-person state;
+- derives one ceremony artifact hash from the passed-factor receipts;
+- creates the verified binding;
+- records the resulting binding id on the historical case.
+
+Existing Person↔canonical conflict law remains authoritative.
+
+### Validation
+
+Rollback validation passed.
+
+Proved:
+
+- authenticated callers cannot execute trusted case-start, factor-record, or commit mutation services;
+- case start and claimant self-read expose only the claimant-safe snapshot;
+- one high-assurance factor is insufficient;
+- two passed factors from the same family are insufficient;
+- distinct medium + high families satisfy the threshold;
+- factor collection alone creates no verified Person↔canonical binding;
+- another authenticated Atlas Person cannot read or cancel the case;
+- claimant cancellation creates no binding;
+- a pre-existing contradictory verified identity binding causes commit to fail closed into `conflicted`;
+- common raw secret/evidence metadata keys such as email, phone, OTP, document, blind token, and resolver evidence are rejected from ceremony metadata.
+
+All validation cases, factors, canonical test people, and verified bindings rolled back.
+
+Post-validation live state:
+
+```text
+claimant verification cases = 0
+claimant verification factors = 0
+verified Person↔canonical bindings = 0
+active factor kinds = 3
+active verification policies = 1
+```
+
+No real claimant identity was bound by this tranche.
+
+## 21. New frontier
+
+The ceremony kernel now proves:
+
+```text
+private recognition
+≠
+claimant disclosure
+≠
+verification proof
+≠
+durable identity commitment
+```
+
+What remains is the first real proof adapter.
+
+The next bounded implementation should be one concrete verifier—most naturally
+`verified_contact_possession`—that can issue/verify a challenge without storing the
+raw contact value in the ceremony kernel and without revealing whether the contact
+matched because of private resolver evidence.
+
