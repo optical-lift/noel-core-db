@@ -1,0 +1,3 @@
+create index if not exists ledger_booking_request_assignments_delegated_from_idx
+  on ledger.booking_request_approval_assignments(delegated_from_assignment_id)
+  where delegated_from_assignment_id is not null;
