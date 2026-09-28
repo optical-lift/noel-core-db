@@ -1,0 +1,13 @@
+{
+  "contractVersion": 45,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v44.json",
+  "rule": "These already-live rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {"version":"20260923223647","name":"atlas_observation_canonical_admission_gate_v1","filename":"20260923223647_atlas_observation_canonical_admission_gate_v1.sql","gitBlobSha1":"5daea3cd01a38007c766308bea28246f6cdab87c","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260923225044","name":"atlas_restricted_personnel_vault_kernel_v1","filename":"20260923225044_atlas_restricted_personnel_vault_kernel_v1.sql","gitBlobSha1":"a2181f7ed22d9f31601b359bf68645290b9eed0a","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260923234356","name":"atlas_sealed_treasury_second_domain_proof_v1","filename":"20260923234356_atlas_sealed_treasury_second_domain_proof_v1.sql","gitBlobSha1":"f817a8bdab081b653fdcbc3c99d03a3dda47f073","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"},
+    {"version":"20260923235424","name":"atlas_sealed_reality_phase_a_handles_adapters_v1","filename":"20260923235424_atlas_sealed_reality_phase_a_handles_adapters_v1.sql","gitBlobSha1":"260793b5bcd7cc5dc3e6da1931f09e602fb2a191","logicalOwner":"atlas","disposition":"recovered_exact_live_bytes","reason":"post_fence_live_migration_bypassed_source_custody"}
+  ]
+}
