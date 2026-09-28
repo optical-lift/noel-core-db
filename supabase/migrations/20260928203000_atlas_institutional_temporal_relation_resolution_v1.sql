@@ -68,7 +68,7 @@ declare
   v_institution jsonb;
   v_relations jsonb:='[]'::jsonb;
   v_entities jsonb:='[]'::jsonb;
-  v_captured_at timestamptz:=clock_timestamp();
+  v_captured_at timestamptz:=statement_timestamp();
 begin
   if auth.uid() is null then
     raise exception 'Authenticated user required.' using errcode='42501';
@@ -116,17 +116,36 @@ begin
   from reality.entities e
   where e.id=p_institution_entity_id;
 
-  with position_ids as (
-    select distinct er.object_entity_id as entity_id
-    from reality.entity_relationships er
-    where er.relationship_kind='institution_has_position'
-      and er.subject_entity_id=p_institution_entity_id
+  -- The self read is deliberately Person-path bounded. It does not enumerate the
+  -- Institution's complete Position/Responsibility graph. Position identities enter
+  -- the read only when this Person has appointment history to them and that Position
+  -- has Institution scope history. Responsibility identities enter only through those
+  -- Person-relevant Positions.
+  with person_position_ids as (
+    select distinct appointment.object_entity_id as entity_id
+    from reality.entity_relationships appointment
+    where appointment.relationship_kind='occupies_position'
+      and appointment.subject_entity_id=v_person_id
+      and exists(
+        select 1
+        from reality.entity_relationships position_scope
+        where position_scope.relationship_kind='institution_has_position'
+          and position_scope.subject_entity_id=p_institution_entity_id
+          and position_scope.object_entity_id=appointment.object_entity_id
+      )
   ),
-  responsibility_ids as (
-    select distinct er.object_entity_id as entity_id
-    from reality.entity_relationships er
-    where er.relationship_kind='institution_has_responsibility'
-      and er.subject_entity_id=p_institution_entity_id
+  person_responsibility_ids as (
+    select distinct pr.object_entity_id as entity_id
+    from reality.entity_relationships pr
+    where pr.relationship_kind='position_carries_responsibility'
+      and pr.subject_entity_id in (select entity_id from person_position_ids)
+      and exists(
+        select 1
+        from reality.entity_relationships responsibility_scope
+        where responsibility_scope.relationship_kind='institution_has_responsibility'
+          and responsibility_scope.subject_entity_id=p_institution_entity_id
+          and responsibility_scope.object_entity_id=pr.object_entity_id
+      )
   ),
   bounded as (
     select er.*
@@ -137,18 +156,20 @@ begin
        and er.object_entity_id=p_institution_entity_id)
       or
       (er.relationship_kind='institution_has_position'
-       and er.subject_entity_id=p_institution_entity_id)
-      or
-      (er.relationship_kind='institution_has_responsibility'
-       and er.subject_entity_id=p_institution_entity_id)
+       and er.subject_entity_id=p_institution_entity_id
+       and er.object_entity_id in (select entity_id from person_position_ids))
       or
       (er.relationship_kind='occupies_position'
        and er.subject_entity_id=v_person_id
-       and er.object_entity_id in (select entity_id from position_ids))
+       and er.object_entity_id in (select entity_id from person_position_ids))
       or
       (er.relationship_kind='position_carries_responsibility'
-       and er.subject_entity_id in (select entity_id from position_ids)
-       and er.object_entity_id in (select entity_id from responsibility_ids))
+       and er.subject_entity_id in (select entity_id from person_position_ids)
+       and er.object_entity_id in (select entity_id from person_responsibility_ids))
+      or
+      (er.relationship_kind='institution_has_responsibility'
+       and er.subject_entity_id=p_institution_entity_id
+       and er.object_entity_id in (select entity_id from person_responsibility_ids))
   )
   select coalesce(
     jsonb_agg(
@@ -172,16 +193,36 @@ begin
   into v_relations
   from bounded b;
 
-  with relevant_ids as (
-    select distinct er.object_entity_id as entity_id
-    from reality.entity_relationships er
-    where er.relationship_kind='institution_has_position'
-      and er.subject_entity_id=p_institution_entity_id
+  with person_position_ids as (
+    select distinct appointment.object_entity_id as entity_id
+    from reality.entity_relationships appointment
+    where appointment.relationship_kind='occupies_position'
+      and appointment.subject_entity_id=v_person_id
+      and exists(
+        select 1
+        from reality.entity_relationships position_scope
+        where position_scope.relationship_kind='institution_has_position'
+          and position_scope.subject_entity_id=p_institution_entity_id
+          and position_scope.object_entity_id=appointment.object_entity_id
+      )
+  ),
+  person_responsibility_ids as (
+    select distinct pr.object_entity_id as entity_id
+    from reality.entity_relationships pr
+    where pr.relationship_kind='position_carries_responsibility'
+      and pr.subject_entity_id in (select entity_id from person_position_ids)
+      and exists(
+        select 1
+        from reality.entity_relationships responsibility_scope
+        where responsibility_scope.relationship_kind='institution_has_responsibility'
+          and responsibility_scope.subject_entity_id=p_institution_entity_id
+          and responsibility_scope.object_entity_id=pr.object_entity_id
+      )
+  ),
+  relevant_ids as (
+    select entity_id from person_position_ids
     union
-    select distinct er.object_entity_id
-    from reality.entity_relationships er
-    where er.relationship_kind='institution_has_responsibility'
-      and er.subject_entity_id=p_institution_entity_id
+    select entity_id from person_responsibility_ids
   )
   select coalesce(
     jsonb_agg(
@@ -214,6 +255,8 @@ begin
       'complete',true,
       'boundedToPersonEntityId',v_person_id,
       'boundedToInstitutionEntityId',p_institution_entity_id,
+      'personPathComplete',true,
+      'institutionWideStructure',false,
       'relationFamilies',jsonb_build_array(
         'institutional_standing',
         'institution_has_position',
@@ -227,6 +270,7 @@ begin
     'truthBoundary',jsonb_build_object(
       'readDoesNotCreateReality',true,
       'readDoesNotGrantAuthority',true,
+      'readDoesNotEnumerateInstitutionWideStructure',true,
       'positionDoesNotGrantExecutionAuthority',true,
       'responsibilityDefinitionDoesNotGrantExecutionAuthority',true,
       'seatOrOwnershipInference',false,
@@ -245,4 +289,4 @@ grant execute on function atlas.institutional_relation_history_self_api_v1(uuid)
   to authenticated;
 
 comment on function atlas.institutional_relation_history_self_api_v1(uuid) is
-  'Complete bounded canonical institutional relation history for the authenticated Reality Person and one exact Institution. Read-only source membrane; downstream Relation Resolution supplies explicit as_of semantics.';
+  'Complete Person-path-bounded canonical institutional relation history for the authenticated Reality Person and one exact Institution. Does not enumerate Institution-wide structure. Downstream Relation Resolution supplies explicit as_of semantics.';
