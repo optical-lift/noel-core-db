@@ -169,6 +169,46 @@ stale Grounds observation
 → historical as-of still returns stale observation
 ```
 
+## Application-proof source-law correction
+
+The earlier Atlas fan-in proof used an in-memory basis called `grounds_standard` with a synthetic `max_height_inches=6` and `fresh_for_hours=4`.
+
+Read-only production review found no canonical Grounds-wide source that establishes those values.
+
+Production does contain legacy `atlas.mowing_area_state` rows with target cut height data, but those rows belong to old `atlas.growing_objects` mowing subareas such as Field Rows, Curve Garden Edges, Follow Me Paths, and U-Pick walkways. They are not the canonical `reality.resources` Grounds subject. Some of those rows also preserve historical correction metadata.
+
+Therefore:
+
+```text
+legacy mowing subarea target
+!=
+canonical Grounds-wide standard
+```
+
+and the first live source-backed integration proof must **not** preserve the synthetic six-inch/four-hour rule merely because the old recovery fixture used it.
+
+The first source-backed Elm proof should instead test the exact law the new source membrane can warrant without inventing another source fact:
+
+```text
+no admitted observation for canonical Grounds
+→ resource-observation read = indeterminate
+→ governed observation-acquisition relation unresolved
++
+current Person-carried grounds_readiness Responsibility
++
+current explicit Responsibility→Grounds applicability
+→ supported acquire-current-Grounds-observation encounter
+
+canonical Grounds observation admitted
+→ canonical source readback
+→ observation-acquisition relation resolves
+→ same operational policy returns silence
+```
+
+This proves the constitutional writeback/re-resolution loop without pretending Atlas already has a canonical mowing-height or freshness standard for the whole Grounds resource.
+
+A later physical-maintenance relation may incorporate mowing standards only after those standards themselves have a lawful canonical source and subject mapping.
+
 ## Environment boundary reached
 
 This validation environment has no local PostgreSQL/Supabase runtime and no existing Supabase development branch.
@@ -182,6 +222,7 @@ source law reviewed
 + production dependencies verified read-only
 + live Elm semantic seam verified read-only
 + test coverage reviewed
++ first application proof corrected to remove synthetic source law
 ≠
 isolated migration/test execution passed
 ```
@@ -201,8 +242,12 @@ Run, in an isolated PostgreSQL/Supabase harness based on the current production 
 
 Only after all of those pass should Atlas application adapters be promoted from design to implementation against these resolver envelopes.
 
+The first application integration should then use the corrected observation-acquisition proof above. It should not claim `maintenance_standard_satisfied` until a governed physical-standard source exists.
+
 ## Governing conclusion
 
-No architectural incompatibility was found in the preflight.
+No architectural incompatibility was found in the source migration preflight.
 
-The tranche is **ready for isolated execution**, not yet admitted as released source infrastructure.
+One unsupported assumption was found in the **older application recovery proof** and removed from the intended live proof path: a synthetic Grounds-wide maintenance standard cannot be promoted into source truth.
+
+The source tranche is **ready for isolated execution**, not yet admitted as released source infrastructure.
