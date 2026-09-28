@@ -1,22 +1,9 @@
--- Rollback-only concrete fixture for the Elm Grounds clarification source path.
+-- Rollback-only concrete fixture for the Elm Grounds source path.
 --
--- This deliberately uses isolated fixture identities while preserving the semantic
--- shape of the live Elm case discovered during architecture recovery:
---
---   Elm Farm business entity
---     └─ Elm Farm Site resource
---          └─ Grounds resource
---
---   Elm institutional grounds_readiness Responsibility
---     └─ exact Responsibility-scope → Grounds applicability
---
---   stale Grounds observation
---     → source read still returns that historical observation
---   fresh Grounds observation
---     → latest source read moves forward without deleting history
---
--- The fixture proves source membranes only. Person/appointment/current Responsibility
--- carriage remains owned by the separate institutional Responsibility resolver.
+-- Immediate post-write reads use clock_timestamp() for recorded_as_of because
+-- recorded_at is admission time, while now() is frozen at transaction start.
+-- Historical observed_as_of remains explicit so later evidence does not rewrite
+-- earlier observed reality.
 
 begin;
 
@@ -52,41 +39,15 @@ begin
   returning id into v_observer_entity_id;
 
   insert into reality.resources (
-    owner_entity_id,
-    stable_key,
-    label,
-    resource_kind,
-    resource_state,
-    reservable,
-    capacity_mode
+    owner_entity_id, stable_key, label, resource_kind, resource_state, reservable, capacity_mode
   ) values (
-    v_elm_entity_id,
-    'elm_farm_site_' || v_suffix,
-    'Elm Farm Site',
-    'site',
-    'active',
-    false,
-    'exclusive'
+    v_elm_entity_id, 'elm_farm_site_' || v_suffix, 'Elm Farm Site', 'site', 'active', false, 'exclusive'
   ) returning id into v_site_resource_id;
 
   insert into reality.resources (
-    owner_entity_id,
-    parent_resource_id,
-    stable_key,
-    label,
-    resource_kind,
-    resource_state,
-    reservable,
-    capacity_mode
+    owner_entity_id, parent_resource_id, stable_key, label, resource_kind, resource_state, reservable, capacity_mode
   ) values (
-    v_elm_entity_id,
-    v_site_resource_id,
-    'grounds_' || v_suffix,
-    'Grounds',
-    'zone',
-    'active',
-    false,
-    'exclusive'
+    v_elm_entity_id, v_site_resource_id, 'grounds_' || v_suffix, 'Grounds', 'zone', 'active', false, 'exclusive'
   ) returning id into v_grounds_resource_id;
 
   insert into atlas.organizations (stable_key, name)
@@ -94,30 +55,16 @@ begin
   returning id into v_elm_org_id;
 
   insert into atlas.organization_responsibilities (
-    organization_id,
-    stable_key,
-    name,
-    responsibility_kind
+    organization_id, stable_key, name, responsibility_kind
   ) values (
-    v_elm_org_id,
-    'grounds_readiness',
-    'Grounds readiness',
-    'stewardship'
+    v_elm_org_id, 'grounds_readiness', 'Grounds readiness', 'stewardship'
   ) returning id into v_ground_readiness_id;
 
-  -- The scope remains institutional. It is deliberately not the physical Grounds ID.
   insert into atlas.organization_responsibility_scopes (
-    organization_id,
-    responsibility_id,
-    scope_kind,
-    scope_id,
-    relation_kind
+    organization_id, responsibility_id, scope_kind, scope_id, relation_kind
   ) values (
-    v_elm_org_id,
-    v_ground_readiness_id,
-    'organization_unit',
-    'fixture-elm-operating-business-' || v_suffix,
-    'stewards'
+    v_elm_org_id, v_ground_readiness_id, 'organization_unit',
+    'fixture-elm-operating-business-' || v_suffix, 'stewards'
   ) returning id into v_elm_scope_id;
 
   if v_elm_scope_id::text = v_grounds_resource_id::text then
@@ -128,33 +75,22 @@ begin
     execute 'select count(*) from atlas.tasks' into v_tasks_before;
   end if;
 
-  -- Explicit governance joins the institutional Responsibility scope to the exact
-  -- physical Grounds subject for this exact clarification operation.
   v_app_receipt := atlas.admit_organization_responsibility_resource_applicability_service_v1(
-    v_elm_scope_id,
-    v_grounds_resource_id,
-    'acquire_current_grounds_observation',
-    v_app_from,
-    null,
-    'fixture:elm:grounds:applicability:' || v_suffix,
+    v_elm_scope_id, v_grounds_resource_id, 'acquire_current_grounds_observation',
+    v_app_from, null, 'fixture:elm:grounds:applicability:' || v_suffix,
     jsonb_build_object(
       'fixture', 'elm_grounds_v1',
       'institutional_semantic', 'grounds_readiness',
       'physical_subject_semantic', 'Grounds'
     )
   );
-
   if v_app_receipt->>'state' <> 'admitted' then
     raise exception 'Elm Grounds applicability admission failed: %', v_app_receipt;
   end if;
 
   v_app_resolution := atlas.resolve_organization_responsibility_resource_applicability_current_v1(
-    v_elm_scope_id,
-    v_grounds_resource_id,
-    'acquire_current_grounds_observation',
-    now()
+    v_elm_scope_id, v_grounds_resource_id, 'acquire_current_grounds_observation', now()
   );
-
   if v_app_resolution->>'state' <> 'established_current'
      or (v_app_resolution#>>'{item,resourceId}')::uuid <> v_grounds_resource_id
      or (v_app_resolution#>>'{item,responsibilityScopeId}')::uuid <> v_elm_scope_id
@@ -162,81 +98,60 @@ begin
     raise exception 'Elm Grounds applicability did not resolve exact governed identities: %', v_app_resolution;
   end if;
 
-  -- Yesterday's observation is real but potentially stale for a downstream freshness rule.
   v_stale_receipt := reality.record_resource_observation_service_v1(
-    v_grounds_resource_id,
-    'surface_height_v1',
+    v_grounds_resource_id, 'surface_height_v1',
     jsonb_build_object(
       'height_inches', 8,
       'measurement_method', 'visual_estimate',
       'fixture_semantic', 'stale_before_clarification'
     ),
-    'fixture-observer:' || v_suffix,
-    v_stale_at,
+    'fixture-observer:' || v_suffix, v_stale_at,
     'fixture:elm:grounds:observation:stale:' || v_suffix,
     v_observer_entity_id,
     jsonb_build_object('fixture', 'elm_grounds_v1', 'sequence', 1)
   );
-
   if v_stale_receipt->>'state' <> 'admitted' then
     raise exception 'Elm stale Grounds observation admission failed: %', v_stale_receipt;
   end if;
 
   v_latest := reality.resolve_resource_observation_latest_v1(
-    v_grounds_resource_id,
-    'surface_height_v1',
-    now(),
-    now()
+    v_grounds_resource_id, 'surface_height_v1', now(), clock_timestamp()
   );
-
   if v_latest->>'state' <> 'established_latest'
      or v_latest->>'observationId' <> v_stale_receipt->>'observationId'
      or (v_latest#>>'{observationPayload,height_inches}')::numeric <> 8 then
     raise exception 'stale source observation was not recoverable before clarification: %', v_latest;
   end if;
 
-  -- Fresh clarification result enters through the same canonical source writer.
   v_fresh_receipt := reality.record_resource_observation_service_v1(
-    v_grounds_resource_id,
-    'surface_height_v1',
+    v_grounds_resource_id, 'surface_height_v1',
     jsonb_build_object(
       'height_inches', 4,
       'measurement_method', 'visual_estimate',
       'fixture_semantic', 'fresh_after_clarification'
     ),
-    'fixture-observer:' || v_suffix,
-    v_fresh_at,
+    'fixture-observer:' || v_suffix, v_fresh_at,
     'fixture:elm:grounds:observation:fresh:' || v_suffix,
     v_observer_entity_id,
     jsonb_build_object('fixture', 'elm_grounds_v1', 'sequence', 2)
   );
-
   if v_fresh_receipt->>'state' <> 'admitted' then
     raise exception 'Elm fresh Grounds observation admission failed: %', v_fresh_receipt;
   end if;
 
   v_latest := reality.resolve_resource_observation_latest_v1(
-    v_grounds_resource_id,
-    'surface_height_v1',
-    now(),
-    now()
+    v_grounds_resource_id, 'surface_height_v1', now(), clock_timestamp()
   );
-
   if v_latest->>'state' <> 'established_latest'
      or v_latest->>'observationId' <> v_fresh_receipt->>'observationId'
      or (v_latest#>>'{observationPayload,height_inches}')::numeric <> 4 then
     raise exception 'fresh Grounds observation did not become latest source answer: %', v_latest;
   end if;
 
-  -- Historical as-of still recovers the stale source observation. Fresh clarification
-  -- changes the present answer but does not erase what was observed before it.
   v_historical := reality.resolve_resource_observation_latest_v1(
-    v_grounds_resource_id,
-    'surface_height_v1',
-    v_stale_at + interval '1 minute',
-    now()
+    v_grounds_resource_id, 'surface_height_v1',
+    v_stale_at + interval '1 minute', clock_timestamp()
   );
-
   if v_historical->>'state' <> 'established_latest'
      or v_historical->>'observationId' <> v_stale_receipt->>'observationId'
      or (v_historical#>>'{observationPayload,height_inches}')::numeric <> 8 then
@@ -252,7 +167,6 @@ begin
     raise exception 'Elm fixture expected both stale and fresh Grounds observations to remain canonical';
   end if;
 
-  -- The physical hierarchy remains source truth as well.
   if not exists (
     select 1
       from reality.resources g
