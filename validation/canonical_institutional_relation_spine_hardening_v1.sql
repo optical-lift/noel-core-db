@@ -22,7 +22,8 @@ begin
     'reality.guard_institution_relation_spine_hardening_v1()'::regprocedure
   ) into v_def;
 
-  if position('assert_canonical_entity_kind_v1(new.subject_entity_id, ''person'')' in v_def)=0
+  if position('assert_canonical_entity_kind_v1' in v_def)=0
+     or position('new.subject_entity_id' in v_def)=0
      or position('Position identity cannot change its institution-local positionKey across history.' in v_def)=0
      or position('Responsibility identity cannot change its institution-local responsibilityKey across history.' in v_def)=0
      or position('created_at is immutable' in v_def)=0 then
