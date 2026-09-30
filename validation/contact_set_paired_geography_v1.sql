@@ -14,6 +14,7 @@ declare
   v_request_ok uuid:='56000000-0000-4000-8000-000000000021';
   v_request_gap uuid:='56000000-0000-4000-8000-000000000022';
   v_prop jsonb;
+  v_prop_id uuid;
   v_result jsonb;
   v_validation jsonb;
   v_interp jsonb;
@@ -51,13 +52,24 @@ begin
   perform reality.establish_place_profile_service_v1(v_place_b,'locality','US',null,null,null,null,jsonb_build_object('fixture',true),jsonb_build_object('fixture',true),'{}'::jsonb);
 
   v_prop:=reality.record_relationship_proposition_service_v1(v_branch_a,'branch_of',v_root,'established',null,null,jsonb_build_object('fixture',true),jsonb_build_object('fixture',true),'fixture:paired-contact:branch-a-root');
-  perform reality.adjudicate_relationship_proposition_service_v1((v_prop->>'propositionId')::uuid,'accept','fixture',jsonb_build_object('fixture',true),null);
+  v_prop_id:=(v_prop->>'propositionId')::uuid;
+  perform reality.add_relationship_proposition_evidence_service_v1(v_prop_id,'fixture_evidence',jsonb_build_object('source','synthetic'),jsonb_build_object('supports',true),'Synthetic validation evidence.',now(),jsonb_build_object('fixture',true));
+  perform reality.adjudicate_relationship_proposition_service_v1(v_prop_id,'accept','Synthetic validation evidence.',jsonb_build_object('authority','validation_fixture'),null);
+
   v_prop:=reality.record_relationship_proposition_service_v1(v_branch_b,'branch_of',v_root,'established',null,null,jsonb_build_object('fixture',true),jsonb_build_object('fixture',true),'fixture:paired-contact:branch-b-root');
-  perform reality.adjudicate_relationship_proposition_service_v1((v_prop->>'propositionId')::uuid,'accept','fixture',jsonb_build_object('fixture',true),null);
+  v_prop_id:=(v_prop->>'propositionId')::uuid;
+  perform reality.add_relationship_proposition_evidence_service_v1(v_prop_id,'fixture_evidence',jsonb_build_object('source','synthetic'),jsonb_build_object('supports',true),'Synthetic validation evidence.',now(),jsonb_build_object('fixture',true));
+  perform reality.adjudicate_relationship_proposition_service_v1(v_prop_id,'accept','Synthetic validation evidence.',jsonb_build_object('authority','validation_fixture'),null);
+
   v_prop:=reality.record_relationship_proposition_service_v1(v_branch_a,'located_in',v_place_a,'established',null,null,jsonb_build_object('fixture',true),jsonb_build_object('fixture',true),'fixture:paired-contact:branch-a-place');
-  perform reality.adjudicate_relationship_proposition_service_v1((v_prop->>'propositionId')::uuid,'accept','fixture',jsonb_build_object('fixture',true),null);
+  v_prop_id:=(v_prop->>'propositionId')::uuid;
+  perform reality.add_relationship_proposition_evidence_service_v1(v_prop_id,'fixture_evidence',jsonb_build_object('source','synthetic'),jsonb_build_object('supports',true),'Synthetic validation evidence.',now(),jsonb_build_object('fixture',true));
+  perform reality.adjudicate_relationship_proposition_service_v1(v_prop_id,'accept','Synthetic validation evidence.',jsonb_build_object('authority','validation_fixture'),null);
+
   v_prop:=reality.record_relationship_proposition_service_v1(v_branch_b,'located_in',v_place_b,'established',null,null,jsonb_build_object('fixture',true),jsonb_build_object('fixture',true),'fixture:paired-contact:branch-b-place');
-  perform reality.adjudicate_relationship_proposition_service_v1((v_prop->>'propositionId')::uuid,'accept','fixture',jsonb_build_object('fixture',true),null);
+  v_prop_id:=(v_prop->>'propositionId')::uuid;
+  perform reality.add_relationship_proposition_evidence_service_v1(v_prop_id,'fixture_evidence',jsonb_build_object('source','synthetic'),jsonb_build_object('supports',true),'Synthetic validation evidence.',now(),jsonb_build_object('fixture',true));
+  perform reality.adjudicate_relationship_proposition_service_v1(v_prop_id,'accept','Synthetic validation evidence.',jsonb_build_object('authority','validation_fixture'),null);
 
   -- Fully resolved paired request: same root must qualify exactly once.
   v_interp:=jsonb_build_object(
