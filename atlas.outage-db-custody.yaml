@@ -3,10 +3,12 @@ snapshot_date: "2026-10-02"
 status: preservation_audit_active
 repository_main:
   sha: d3b528b56d7630abf9d6fc67ee92c4475b8fa4ab
-  date: "2026-09-24"
+  committed_at_utc: "2026-09-24T01:00:57Z"
 live_project:
   project_id: zirqkouammpwxlqfbsvf
   migrations_observed_through: "2026-10-02"
+  conservative_post_freeze_migration_denominator: 170
+  note: 170 production migration records are dated 2026-09-24 through 2026-10-02; 162 have version identifiers greater than 20260924010057. Use 170 for preservation accounting so the audit errs toward inclusion.
 branch_census:
   complete: true
   surviving_branches: 805
@@ -15,6 +17,7 @@ rules:
   treat_main_as_production_reconstructable: false
   rerun_migrations_to_force_alignment: false
   wholesale_terminal_branch_merge: false
+  missing_from_production_implies_rejected: false
 custody_lines:
   scheduling_geography_spatial:
     state: production_live_source_not_main
@@ -46,6 +49,29 @@ custody_lines:
     terminal_branch: work/atlas-financial-obligation-settlement-v1
     terminal_sha: 20257b660543649fb97a6f8ed7fb87f93fddcbf2
     production_status: not_seen_in_inspected_live_migration_ledger
+  reality_first_work_derivation:
+    state: branch_only_preserve
+    branch: architecture/reality-first-work-derivation-v1
+    production_status: source_only_architecture_checkpoint
+  production_bed_preparation_actual:
+    state: branch_only_preserve
+    branch: architecture/production-bed-preparation-source-actual-v1
+    migrations:
+      - 20260929153000_atlas_production_bed_preparation_source_actual_v1.sql
+      - 20260929153100_atlas_production_bed_preparation_evidence_guard_v1.sql
+    production_status: confirmed_absent_from_live_migration_ledger
+  governed_subject_observation_applicability:
+    state: branch_only_preserve
+    branch: governed-subject-observation-applicability-v1
+    migrations:
+      - 20260928201500_governed_subject_observation_applicability_v1.sql
+      - 20260928202000_tighten_governed_subject_membrane_privileges_v1.sql
+    production_status: confirmed_absent_from_live_migration_ledger
+  reality_sentence_governed_history:
+    state: branch_only_preserve
+    branch: architecture/reality-sentence-governed-history-v1
+    migration: 20260929190000_atlas_reality_sentence_governed_history_v1.sql
+    production_status: confirmed_absent_from_live_migration_ledger
   delegated_agent:
     state: production_live_source_lineage_reconciliation
     early_branch: feat/atlas-delegated-agent-command-gateway-v1
@@ -53,7 +79,15 @@ custody_lines:
   public_commitment:
     state: production_live_source_not_main
     branch: feat/atlas-public-commitment-membrane-v1
-    migration: 20260927230200_atlas_public_commitment_membrane_v1.sql
+    source_migration: 20260927230200_atlas_public_commitment_membrane_v1.sql
+    live_related_versions:
+      - 20260927212858
+      - 20260927213513
+      - 20260927220258
+      - 20260927220341
+      - 20260927220440
+      - 20260927220539
+      - 20260927231727
   institutional_email:
     state: semantic_reconciliation_required
     branches:
@@ -70,12 +104,14 @@ custody_lines:
     note: promotion/candidate/identity/scope contracts span live migrations and later branch-only work
   foundry_workbench:
     state: unresolved_never_delete
-    note: production and prior work establish Foundry/Workbench state, but complete migration-to-branch provenance is not yet mapped
+    live_versions:
+      - 20260927213513
+    note: production and prior work establish Foundry/Workbench state, but complete migration-to-branch provenance is not yet mapped; literal branch and Dropbox title searches are insufficient negative evidence
   transcript_core:
     state: cross_repository_source_custody_required
     note: live Noel migrations plus standalone transcript-core and Newsroom source must be reconciled
 completion_requires:
-  - every_live_post_main_migration_mapped_to_source_or_marked_unresolved
+  - all_170_conservative_post_freeze_live_migrations_accounted_for_by_source_or_unresolved_state
   - every_branch_only_terminal_tip_classified
   - divergent_side_tips_preserved
   - foundry_workbench_mapping_resolved
