@@ -1,0 +1,83 @@
+version: 1
+snapshot_date: "2026-10-02"
+status: preservation_audit_active
+repository_main:
+  sha: d3b528b56d7630abf9d6fc67ee92c4475b8fa4ab
+  date: "2026-09-24"
+live_project:
+  project_id: zirqkouammpwxlqfbsvf
+  migrations_observed_through: "2026-10-02"
+branch_census:
+  complete: true
+  surviving_branches: 805
+rules:
+  delete_post_main_branches: false
+  treat_main_as_production_reconstructable: false
+  rerun_migrations_to_force_alignment: false
+  wholesale_terminal_branch_merge: false
+custody_lines:
+  scheduling_geography_spatial:
+    state: production_live_source_not_main
+    terminal_branch: architecture/spatial-intake-v1
+    terminal_sha: 0bc768cac28f902f2a2d5794507d6c4ea2c5c212
+    ancestry:
+      - architecture/reality-ledger-booking-offering-requirements-routing-v1
+      - architecture/reality-ledger-temporal-enrichment-occupancy-v1
+      - architecture/atlas-ledger-target-intelligence-v1
+      - architecture/reality-relationship-substrate-v1
+      - architecture/reality-entity-topology-v1
+      - architecture/reality-organization-topology-v1
+      - architecture/geographic-substrate-v1
+      - architecture/spatial-operating-kernel-v1
+      - architecture/spatial-intake-v1
+  household_consequence_realization:
+    state: production_live_source_not_main
+    terminal_branch: architecture/institutional-communication-realization-provider-v1
+    terminal_sha: 8dc3637d60550f1330327bc3227d6ef79aa741a9
+    includes:
+      - household_rhythm_shadow_state_self_api
+      - household_rhythm_shadow_observation_custody
+      - governed_consequence_authority
+      - governed_realization_authority
+      - institutional_communication_realization_provider_read
+      - institutional_communication_realization_provider_read_hardening
+  financial_obligation_evidence:
+    state: branch_only_preserve
+    terminal_branch: work/atlas-financial-obligation-settlement-v1
+    terminal_sha: 20257b660543649fb97a6f8ed7fb87f93fddcbf2
+    production_status: not_seen_in_inspected_live_migration_ledger
+  delegated_agent:
+    state: production_live_source_lineage_reconciliation
+    early_branch: feat/atlas-delegated-agent-command-gateway-v1
+    note: live production contains a later expanded delegated-agent kernel beyond this early source line
+  public_commitment:
+    state: production_live_source_not_main
+    branch: feat/atlas-public-commitment-membrane-v1
+    migration: 20260927230200_atlas_public_commitment_membrane_v1.sql
+  institutional_email:
+    state: semantic_reconciliation_required
+    branches:
+      - recovery/institutional-email-runtime-v1
+      - work/institutional-email-relay-v1
+      - work/institutional-email-outbound-v1
+    recovery_tip_sha: 6dbbcbcc66c4fac56d3f15bb6a094a5212e0b616
+    note: relay and outbound each retain unique history relative to recovery branch
+  implementation_reality:
+    state: mixed_live_and_branch_only_current_contract_reconciliation
+    preserve_examples:
+      - architecture/atlas-implementation-reality-organization-unit-command-v1-current
+      - architecture/reality-sentence-governed-history-v1
+    note: promotion/candidate/identity/scope contracts span live migrations and later branch-only work
+  foundry_workbench:
+    state: unresolved_never_delete
+    note: production and prior work establish Foundry/Workbench state, but complete migration-to-branch provenance is not yet mapped
+  transcript_core:
+    state: cross_repository_source_custody_required
+    note: live Noel migrations plus standalone transcript-core and Newsroom source must be reconciled
+completion_requires:
+  - every_live_post_main_migration_mapped_to_source_or_marked_unresolved
+  - every_branch_only_terminal_tip_classified
+  - divergent_side_tips_preserved
+  - foundry_workbench_mapping_resolved
+  - transcript_core_cross_repository_custody_resolved
+  - implementation_reality_current_contract_reconciliation_complete
