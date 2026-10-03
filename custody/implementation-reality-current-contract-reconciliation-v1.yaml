@@ -1,0 +1,97 @@
+version: 1
+snapshot_date: "2026-10-03"
+classification: cross_repository_current_contract_reconciliation
+subject: implementation_reality
+production_mutation: none
+
+atlas_current_contract:
+  repository: optical-lift/atlas
+  pull_request: 173
+  branch: architecture/implementation-reality-current-contract-replay-v2
+  base_sha: 4ac02324cc8912c6b5f54b5e9df5ea9f6e37f38b
+  exact_candidate_sha: 5659d64517b54c0d54beb733f53cfe140e9ecad0
+  commit_count_above_base: 1
+  state: frozen_draft_exact_head_verifier_pending
+  production_deployment: none
+  database_mutation: none
+  production_release_allowed: false
+  database_release_allowed: false
+  direct_old_branch_merge_allowed: false
+  authoritative_registry: atlas.current.yaml
+  recovery_registry: atlas.recovery.yaml
+  contract_source: lib/implementation-reality/current-contract.ts
+
+noel_dependencies:
+  ordered_pair_validation_run_id: 37088542806
+  ordered_pair_result: success
+  identity_resolution_v2:
+    pr: 1379
+    migration_version: "20261003013634"
+    migration: 20261003013634_atlas_implementation_reality_identity_resolution_v2
+    head_sha: b1d20881a92c79f843e5fe24e17211cf34a267ec
+    pr_state: open_draft
+    production_ledger_status: absent
+    validation_state: generated_clone_validated_ordered_pair_unreleased
+    contract_alignment:
+      expected_rpc: public.implementation_reality_identity_options_self_api_v2
+      expected_new_identity_kind: organization_unit
+      expected_legacy_behavior: delegate_non_organization_unit_kinds_to_v1
+      expected_scope: current_implementation_case_bound_organizations_only
+      expected_mutation_authority: none_read_only_resolver
+      result: aligned
+  position_responsibility_definition_v1:
+    pr: 1380
+    migration_version: "20261003013635"
+    migration: 20261003013635_atlas_implementation_reality_position_responsibility_definition_v1
+    head_sha: 7851dc1dd170cb54f11c164dacb9401dd6676205
+    pr_state: open_draft
+    production_ledger_status: absent
+    validation_state: generated_clone_validated_ordered_pair_unreleased
+    contract_alignment:
+      operation_id: position_responsibility_definition.establish
+      canonical_subject: organization_position
+      canonical_object: organization_responsibility
+      canonical_context: organization
+      expected_preview_rpc: public.preview_implementation_reality_position_responsibility_definition_self_api_v1
+      expected_promote_rpc: public.promote_implementation_reality_position_responsibility_definition_self_api_v1
+      expected_authority: assigned_practitioner_plus_verified_setup_sponsor_ledger_authority
+      expected_current_atlas_behavior: promotion_blocked_until_governed_release
+      result: aligned
+
+production_truth:
+  queried_project: zirqkouammpwxlqfbsvf
+  queried_versions:
+    - "20261003013634"
+    - "20261003013635"
+  matching_live_migration_rows: 0
+  conclusion: neither_validated_candidate_is_released_or_live
+
+reconciliation:
+  semantic_contract_alignment: confirmed
+  noel_ordered_pair_validation: confirmed
+  noel_release: false
+  noel_production_mutation: none
+  atlas_exact_candidate_verification:
+    required_sha: 5659d64517b54c0d54beb733f53cfe140e9ecad0
+    workflow_runs_on_exact_sha: 0
+    state: pending
+    substitute_signal_allowed: false
+  atlas_merge_authorized: false
+  atlas_deployment_authorized: false
+  noel_merge_authorized_by_this_receipt: false
+  noel_release_authorized_by_this_receipt: false
+  validated_does_not_imply_released: true
+
+adjudication:
+  outage_recovery_contract_reconciliation: resolved
+  keep_noel_pr_1379_open: true
+  keep_noel_pr_1380_open: true
+  keep_atlas_pr_173_open_draft: true
+  preserve_replay_v1_as_historical_evidence: true
+  next_gate: >-
+    Run the existing Atlas recovery verifier against exact candidate SHA
+    5659d64517b54c0d54beb733f53cfe140e9ecad0 when lawful Actions execution is available.
+    Only after that exact-head verification may Atlas PR #173 be considered green. Separately,
+    Noel PRs #1379 and #1380 require explicit governed release review before either migration may
+    be merged or released. No part of this reconciliation authorizes production deployment or
+    database mutation.
