@@ -1,0 +1,23 @@
+create index if not exists company_work_transfer_offer_organization_idx
+  on atlas.company_work_responsibility_transfer_offers(organization_id);
+
+create index if not exists company_work_transfer_offer_work_item_idx
+  on atlas.company_work_responsibility_transfer_offers(work_item_id);
+
+create index if not exists company_work_transfer_offer_from_allocation_idx
+  on atlas.company_work_responsibility_transfer_offers(from_allocation_id);
+
+create index if not exists company_work_transfer_offer_offerer_membership_idx
+  on atlas.company_work_responsibility_transfer_offers(offered_by_membership_id_compatibility);
+
+create index if not exists company_work_transfer_offer_target_membership_idx
+  on atlas.company_work_responsibility_transfer_offers(target_membership_id_compatibility);
+
+create index if not exists company_work_transfer_offer_resolver_person_idx
+  on atlas.company_work_responsibility_transfer_offers(resolved_by_person_entity_id);
+
+create index if not exists company_work_transfer_offer_resolver_membership_idx
+  on atlas.company_work_responsibility_transfer_offers(resolved_by_membership_id_compatibility);
+
+create index if not exists company_work_transfer_offer_accepted_allocation_idx
+  on atlas.company_work_responsibility_transfer_offers(accepted_allocation_id);
