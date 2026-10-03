@@ -33,10 +33,10 @@ begin
   if position('case_bound_organization_unit' in v_internal_source)=0 then
     raise exception 'Organization Unit options do not preserve case-bound match basis.';
   end if;
-  if position("b.state in ('bound','activated')" in v_internal_source)=0 then
+  if position('b.state in (''bound'',''activated'')' in v_internal_source)=0 then
     raise exception 'Organization Unit resolution is not restricted to current bound/activated case scope.';
   end if;
-  if position("u.status='active'" in v_internal_source)=0 then
+  if position('u.status=''active''' in v_internal_source)=0 then
     raise exception 'Organization Unit resolution is not restricted to active Units.';
   end if;
   if position('implementation_reality_identity_options_self_api_v1' in v_internal_source)=0 then
