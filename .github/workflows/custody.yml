@@ -36,6 +36,9 @@ jobs:
       - name: Verify production schema validation contract
         run: bash scripts/check-production-schema-validation-contract.sh
 
+      - name: Report live production custody drift census
+        run: bash scripts/audit-live-production-custody-summary.sh
+
       - name: Verify global live production custody
         run: bash scripts/check-live-production-custody.sh
 
