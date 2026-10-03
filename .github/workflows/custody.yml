@@ -36,14 +36,11 @@ jobs:
       - name: Verify production schema validation contract
         run: bash scripts/check-production-schema-validation-contract.sh
 
-      - name: Audit global live production custody
-        continue-on-error: true
+      - name: Verify global live production custody
         run: bash scripts/check-live-production-custody.sh
 
-      - name: Audit Atlas live release lane
-        continue-on-error: true
+      - name: Verify Atlas live release lane
         run: bash scripts/check-live-production-custody-lane.sh atlas
 
-      - name: Audit WNPH live release lane
-        continue-on-error: true
+      - name: Verify WNPH live release lane
         run: bash scripts/check-live-production-custody-lane.sh wnph
