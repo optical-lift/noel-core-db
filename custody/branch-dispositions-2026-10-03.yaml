@@ -1,0 +1,176 @@
+version: 1
+kind: branch_semantic_disposition_receipt
+snapshot_date: 2026-10-03
+status: priority_scope_complete_global_scope_incomplete
+repository: optical-lift/noel-core-db
+base_main_sha: 525690dfba18b84b360926a83ce41b5f72d1a2d9
+
+scope:
+  mechanical_branch_census_snapshot: 805
+  exhaustive_semantic_review_of_all_805: false
+  reviewed_scope: >-
+    Priority branch-only custody lines named by the outage recovery spine plus the seven
+    stale open generated carriers explicitly identified there. This receipt must not be
+    read as a semantic disposition of every historical branch.
+
+rules:
+  direct_merge_old_branch: false
+  preserve_before_replay: true
+  production_absence_means_rejected: false
+  validation_branch_may_supersede_source_carrier: true
+
+priority_branch_only_lines:
+  financial_obligation_evidence:
+    branch: work/atlas-financial-obligation-settlement-v1
+    compare_to_main:
+      ahead_by: 13
+      behind_by: 23
+      merge_base: d3b528b56d7630abf9d6fc67ee92c4475b8fa4ab
+    production_status: confirmed_absent_from_live_migration_ledger
+    content_shape: >-
+      Large financial/accounting stack: more than fifty migration/validation artifacts plus
+      financial evidence and review documentation.
+    disposition: preserve_replay_later_as_dedicated_finance_program
+    direct_merge: false
+    reason: >-
+      This is substantial unreleased architecture and behavior, not a forgotten one-file fix.
+      Replay must be against current accounting, source-custody, and Atlas contracts.
+
+  reality_first_work_derivation:
+    branch: architecture/reality-first-work-derivation-v1
+    compare_to_main:
+      ahead_by: 1
+      behind_by: 23
+      merge_base: d3b528b56d7630abf9d6fc67ee92c4475b8fa4ab
+    unique_content:
+      - architecture/atlas-reality-first-work-derivation-current-canon-v1.md
+    disposition: preserve_historical_current_canon_reference
+    direct_merge: false
+    reason: source_only_architecture_checkpoint_no_executable_release
+
+  production_bed_preparation_actual:
+    branch: architecture/production-bed-preparation-source-actual-v1
+    compare_to_main:
+      ahead_by: 2
+      behind_by: 23
+      merge_base: d3b528b56d7630abf9d6fc67ee92c4475b8fa4ab
+    production_status: confirmed_absent_from_live_migration_ledger
+    unique_migrations:
+      - 20260929153000_atlas_production_bed_preparation_source_actual_v1.sql
+      - 20260929153100_atlas_production_bed_preparation_evidence_guard_v1.sql
+    disposition: preserve_replay_candidate
+    direct_merge: false
+    reason: >-
+      Small coherent branch-only feature with source documentation, but it never became live
+      production state and must be revalidated against current production/work contracts.
+
+  governed_subject_observation_applicability:
+    source_branch: governed-subject-observation-applicability-v1
+    validation_branch: validation/governed-subject-observation-applicability-v1
+    source_compare_to_main:
+      ahead_by: 7
+      behind_by: 23
+    validation_compare_to_main:
+      ahead_by: 14
+      behind_by: 23
+    production_status: confirmed_absent_from_live_migration_ledger
+    unique_migrations:
+      - 20260928201500_governed_subject_observation_applicability_v1.sql
+      - 20260928202000_tighten_governed_subject_membrane_privileges_v1.sql
+    disposition:
+      source_branch: superseded_as_preferred_replay_carrier
+      validation_branch: preserve_preferred_replay_source
+    direct_merge: false
+    reason: >-
+      Validation branch contains the same executable pair plus fuller PostgreSQL/behavioral
+      validation and harness evidence, making it the stronger source for a future current-contract replay.
+
+  reality_sentence_governed_history:
+    branch: architecture/reality-sentence-governed-history-v1
+    compare_to_main:
+      ahead_by: 1
+      behind_by: 23
+      merge_base: d3b528b56d7630abf9d6fc67ee92c4475b8fa4ab
+    production_status: confirmed_absent_from_live_migration_ledger
+    unique_migration: 20260929190000_atlas_reality_sentence_governed_history_v1.sql
+    disposition: preserve_hold_for_implementation_reality_current_contract_reconciliation
+    direct_merge: false
+    reason: >-
+      The historical governed-history migration intersects the currently frozen Implementation
+      Reality replay and must be evaluated against the v2 Reality Sentence contract before replay.
+
+  institutional_email:
+    recovery_branch: recovery/institutional-email-runtime-v1
+    relay_branch: work/institutional-email-relay-v1
+    outbound_branch: work/institutional-email-outbound-v1
+    adjudication_receipt_branch: recovery/institutional-email-adjudication-receipt-v1
+    recovery_compare_to_main:
+      ahead_by: 37
+      behind_by: 1030
+    relay_compare_to_main:
+      ahead_by: 1
+      behind_by: 1073
+      unique_content: supabase/migrations/20260911043745_atlas_communication_inbound_relay_v1.sql
+    outbound_compare_to_main:
+      ahead_by: 1
+      behind_by: 1071
+      unique_content: tools/communications/atlas-outbound-worker.py
+    adjudication_receipt_compare_to_main:
+      ahead_by: 0
+      behind_by: 7
+    disposition:
+      recovery_branch: preserve_replay_later_on_current_provider_foundation
+      relay_branch: preserve_unique_historical_input_to_replay
+      outbound_branch: preserve_unique_historical_input_to_replay
+      adjudication_receipt_branch: contained_by_main_no_unique_tip
+    direct_merge: false
+    reason: >-
+      The recovery branch contains a substantial but old-foundation email runtime and validation
+      stack; relay and outbound retain unique historical source. Rebuild on the current provider
+      membrane rather than merging thousand-commit-old branch ancestry.
+
+stale_open_generated_carriers:
+  - pr: 940
+    capability: atlas_production_bed_assignment_destination_claim_v1
+    disposition: re_audit_then_replay_or_supersede
+    direct_merge: false
+  - pr: 995
+    capability: relationship_delivery_kernel_v1
+    disposition: re_audit_then_replay_or_supersede
+    direct_merge: false
+  - pr: 1073
+    capability: reality_identity_resolution_person_credential_fixture
+    disposition: re_audit_fixture_against_current_identity_contract
+    direct_merge: false
+  - pr: 1231
+    capability: atlas_service_acquisition_compatibility_adapter_v1
+    disposition: re_audit_then_replay_or_supersede
+    direct_merge: false
+  - pr: 1247
+    capability: atlas_person_position_self_projection_v1
+    disposition: re_audit_against_current_person_position_contract
+    direct_merge: false
+  - pr: 1270
+    capability: atlas_notebook_exposure_admission_v1
+    disposition: re_audit_against_current_notebook_exposure_contract
+    direct_merge: false
+  - pr: 1280
+    capability: atlas_domain_exposure_participating_domains_v2
+    disposition: re_audit_against_current_domain_exposure_contract
+    direct_merge: false
+
+current_release_carriers_not_part_of_branch_cleanup:
+  - pr: 1379
+    capability: atlas_implementation_reality_identity_resolution_v2
+    state: generated_clone_validated_ordered_pair_unreleased
+  - pr: 1380
+    capability: atlas_implementation_reality_position_responsibility_definition_v1
+    state: generated_clone_validated_ordered_pair_unreleased
+  note: >-
+    These are current governed release candidates, not historical branch debris. Preserve their
+    exact heads and do not merge or release while Atlas current-contract verification is frozen.
+
+next_semantic_scope:
+  - re_audit_open_prs_940_995_1073_1231_1247_1270_1280_against_current_main
+  - enumerate_remaining_outage_checkpoint_and_terminal_branches_not_named_above
+  - classify_each_remaining_tip_as_recover_superseded_historical_or_abandon
