@@ -1,0 +1,117 @@
+create table if not exists atlas.delegated_agent_carriers (
+  id uuid primary key default gen_random_uuid(),
+  stable_key text not null unique,
+  display_name text not null,
+  carrier_kind text not null check (carrier_kind in ('ai_agent','automation','tool_process')),
+  provider_key text,
+  status text not null default 'active' check (status in ('active','retired')),
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  retired_at timestamptz,
+  check (stable_key ~ '^[a-z][a-z0-9_]*$')
+);
+create table if not exists atlas.delegated_agent_authorizations (
+  id uuid primary key default gen_random_uuid(),
+  carrier_id uuid not null references atlas.delegated_agent_carriers(id),
+  principal_id uuid not null references atlas.principals(id),
+  ledger_id uuid references ledger.ledgers(id),
+  delegating_seat_id uuid references ledger.seats(id),
+  authorization_state text not null default 'active' check (authorization_state in ('active','suspended','revoked','expired')),
+  max_execution_class text not null default 'prepare' check (max_execution_class in ('read','prepare','commit')),
+  allowed_command_keys text[] not null default '{}'::text[],
+  denied_command_keys text[] not null default '{}'::text[],
+  scope jsonb not null default '{}'::jsonb,
+  confirmation_policy jsonb not null default '{}'::jsonb,
+  purpose text not null,
+  basis jsonb not null default '{}'::jsonb,
+  begins_at timestamptz not null default now(),
+  ends_at timestamptz,
+  created_by_user_id uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  revoked_at timestamptz,
+  check (ends_at is null or ends_at > begins_at),
+  check (not (allowed_command_keys && denied_command_keys))
+);
+create table if not exists atlas.delegated_agent_credentials (
+  id uuid primary key default gen_random_uuid(),
+  authorization_id uuid not null references atlas.delegated_agent_authorizations(id),
+  token_hash text not null unique,
+  credential_state text not null default 'active' check (credential_state in ('active','rotated','revoked','expired')),
+  begins_at timestamptz not null default now(),
+  expires_at timestamptz,
+  last_used_at timestamptz,
+  created_at timestamptz not null default now(),
+  rotated_at timestamptz,
+  revoked_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  check (token_hash ~ '^[0-9a-f]{64}$'),
+  check (expires_at is null or expires_at > begins_at)
+);
+create table if not exists atlas.agent_command_definitions (
+  command_key text not null,
+  command_version integer not null default 1,
+  label text not null,
+  scope_kind text not null default 'ledger' check (scope_kind in ('personal','ledger','either')),
+  execution_class text not null check (execution_class in ('read','prepare','commit')),
+  confirmation_requirement text not null default 'none' check (confirmation_requirement in ('none','principal_explicit')),
+  operation_class_key text references atlas.operation_classes(stable_key),
+  capability_key text,
+  capability_version integer,
+  handler_key text not null,
+  status text not null default 'active' check (status in ('draft','active','retired')),
+  input_contract jsonb not null default '{}'::jsonb,
+  target_contract jsonb not null default '{}'::jsonb,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  retired_at timestamptz,
+  primary key (command_key, command_version),
+  check (command_key ~ '^[a-z][a-z0-9_.]*$'),
+  check ((capability_key is null and capability_version is null) or (capability_key is not null and capability_version is not null))
+);
+create table if not exists atlas.agent_command_invocations (
+  id uuid primary key default gen_random_uuid(),
+  authorization_id uuid not null references atlas.delegated_agent_authorizations(id),
+  credential_id uuid not null references atlas.delegated_agent_credentials(id),
+  carrier_id uuid not null references atlas.delegated_agent_carriers(id),
+  principal_id uuid not null references atlas.principals(id),
+  ledger_id uuid references ledger.ledgers(id),
+  delegating_seat_id uuid references ledger.seats(id),
+  command_key text not null,
+  command_version integer not null,
+  idempotency_key text not null,
+  target jsonb not null default '{}'::jsonb,
+  input jsonb not null default '{}'::jsonb,
+  authority_snapshot jsonb not null default '{}'::jsonb,
+  invocation_state text not null check (invocation_state in ('rejected','needs_confirmation','authorized','executing','succeeded','failed','cancelled')),
+  confirmation_required boolean not null default false,
+  confirmed_by_user_id uuid,
+  confirmed_at timestamptz,
+  result jsonb not null default '{}'::jsonb,
+  failure jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  authorized_at timestamptz,
+  execution_started_at timestamptz,
+  completed_at timestamptz,
+  unique (authorization_id, idempotency_key),
+  foreign key (command_key, command_version) references atlas.agent_command_definitions(command_key, command_version)
+);
+create table if not exists atlas.agent_command_invocation_events (
+  id uuid primary key default gen_random_uuid(),
+  invocation_id uuid not null references atlas.agent_command_invocations(id),
+  event_kind text not null,
+  from_state text,
+  to_state text not null,
+  actor_kind text not null check (actor_kind in ('agent','principal','service')),
+  actor_user_id uuid,
+  reason text,
+  evidence jsonb not null default '{}'::jsonb,
+  occurred_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+create index if not exists delegated_agent_authorizations_lookup_idx on atlas.delegated_agent_authorizations (carrier_id, principal_id, ledger_id, authorization_state);
+create index if not exists delegated_agent_credentials_authorization_idx on atlas.delegated_agent_credentials (authorization_id, credential_state);
+create index if not exists agent_command_invocations_principal_idx on atlas.agent_command_invocations (principal_id, created_at desc);
+create index if not exists agent_command_invocations_state_idx on atlas.agent_command_invocations (invocation_state, created_at desc);
