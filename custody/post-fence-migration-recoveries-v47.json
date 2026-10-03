@@ -1,0 +1,126 @@
+{
+  "contractVersion": 47,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v46.json",
+  "rule": "These already-live rows reached noel-core during the Actions outage while their original source files were not retained in surviving Git history. Reconstruct each exact migration body from the authoritative production migration ledger and preserve the independently verified Git blob identity as historical evidence. This recovery supplies live-custody matching evidence only; it does not replay SQL, authorize the historical release path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260927212442",
+      "name": "add_booking_request_selection_capture_v1",
+      "filename": "20260927212442_add_booking_request_selection_capture_v1.sql",
+      "gitBlobSha1": "e01129be80dfe62297e2606bfb7eb1361b782224",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927212858",
+      "name": "add_booking_agreement_commitment_gate_v1",
+      "filename": "20260927212858_add_booking_agreement_commitment_gate_v1.sql",
+      "gitBlobSha1": "3a3f62e51d1a236a2a6df7b82979874da3f12df3",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927213513",
+      "name": "create_foundry_store_v0_1",
+      "filename": "20260927213513_create_foundry_store_v0_1.sql",
+      "gitBlobSha1": "ef3249485f57e02ec39e14dd375eb43620ef51df",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927213719",
+      "name": "booking_payment_schedule_and_confirmation_gate_v1",
+      "filename": "20260927213719_booking_payment_schedule_and_confirmation_gate_v1.sql",
+      "gitBlobSha1": "55f782c209d14544bf0877eff01c1ef1e90babfd",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927214203",
+      "name": "govern_private_venue_payment_rule_v1",
+      "filename": "20260927214203_govern_private_venue_payment_rule_v1.sql",
+      "gitBlobSha1": "2b295ad0d6b3f709e4e2bb05f5201e6397a7e993",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927214247",
+      "name": "venue_payment_rule_calculator_v1",
+      "filename": "20260927214247_venue_payment_rule_calculator_v1.sql",
+      "gitBlobSha1": "6101a7595804d053e62c6ef3a5df5d818ce8e16c",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927214304",
+      "name": "restrict_direct_booking_payment_schedule_writes_v1",
+      "filename": "20260927214304_restrict_direct_booking_payment_schedule_writes_v1.sql",
+      "gitBlobSha1": "a96f20196b4168ee41cd813efb6e4cb65b8f91a4",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927214324",
+      "name": "validate_commitment_booking_policy_config_v1",
+      "filename": "20260927214324_validate_commitment_booking_policy_config_v1.sql",
+      "gitBlobSha1": "3dd6f91f2a14191f70f4c3d7d73fb5cfb32ae7db",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927220258",
+      "name": "public_commitment_membrane_schema_v1",
+      "filename": "20260927220258_public_commitment_membrane_schema_v1.sql",
+      "gitBlobSha1": "dd5a0ad9245d72fc5a795c42f78bcbe338c7d26f",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927220341",
+      "name": "public_commitment_membrane_identity_surface_v1",
+      "filename": "20260927220341_public_commitment_membrane_identity_surface_v1.sql",
+      "gitBlobSha1": "709f04ed7b512fc9fd65946e8ce3143de2929a55",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927220440",
+      "name": "public_commitment_booking_selection_v1",
+      "filename": "20260927220440_public_commitment_booking_selection_v1.sql",
+      "gitBlobSha1": "f8d88e79a4a13ba6af7c6299b57eedbdc95a684c",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927220502",
+      "name": "elm_public_venue_commitment_surface_v1",
+      "filename": "20260927220502_elm_public_venue_commitment_surface_v1.sql",
+      "gitBlobSha1": "0bce62a62606ed22b4c36e82e6003373166b2d23",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260927220539",
+      "name": "public_commitment_booking_materialization_v1",
+      "filename": "20260927220539_public_commitment_booking_materialization_v1.sql",
+      "gitBlobSha1": "b5791b70f41dfe6bebf7c2211ea1fbe93b7dd94b",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}

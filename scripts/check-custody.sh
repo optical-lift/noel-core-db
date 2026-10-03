@@ -106,9 +106,10 @@ declare -A sealed_registry_sha=(
   ["custody/post-fence-migration-recoveries-v44.json"]="035fba7f0e47bfcc829b09ecd5f5bef5f3685f15"
   ["custody/post-fence-migration-recoveries-v45.json"]="6691ab5dbfd787ac04604f8db7d2ebe298cf34da"
   ["custody/post-fence-migration-recoveries-v46.json"]="40394b2a458c3858020346a483ce3afd3ec6afae"
+  ["custody/post-fence-migration-recoveries-v47.json"]="2132f09077b9315e099464a5a92a04c235b0538c"
 )
 
-for version in $(seq 4 46); do
+for version in $(seq 4 47); do
   registry="custody/post-fence-migration-recoveries-v${version}.json"
   if [ ! -f "$registry" ]; then
     echo "Missing $registry"
@@ -134,7 +135,7 @@ import json, re
 from pathlib import Path
 
 specs = []
-for version in range(4, 47):
+for version in range(4, 48):
     path = Path(f'custody/post-fence-migration-recoveries-v{version}.json')
     inherits = None if version == 4 else f'post-fence-migration-recoveries-v{version - 1}.json'
     specs.append((path, version, inherits))
@@ -183,7 +184,7 @@ for path, contract_version, inherits in specs:
             )
         seen[filename] = sha
 
-assert len(seen) == 266
+assert len(seen) == 279
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
@@ -229,4 +230,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 266 sealed retrospective recovery identities preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 279 sealed retrospective recovery identities preserve exact live bytes."
