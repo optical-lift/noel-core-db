@@ -1,4 +1,4 @@
-version: 4
+version: 5
 snapshot_date: "2026-10-03"
 status: current_recovery_spine
 
@@ -23,14 +23,16 @@ repository_main_at_recovery_start:
   note: Implementation Reality command source custody is present; production-live outage families remain unreconciled into main source history.
 
 latest_recovery_main:
-  sha: 5c58902c4432b5216686bfb4b4567af24dcd0ecb
-  completed_live_source_migration_count: 108
-  remaining_live_source_migration_count: 54
+  sha: ed1ce127413707514b15e4a12570e20e453edb07
+  completed_live_source_migration_count: 122
+  remaining_live_source_migration_count: 40
   production_mutation: none
   note: >-
     Canonical Noel main now contains exact source custody for Smart Contacts, the cumulative
-    Reality Ledger / booking / spatial trunk, and Household Rhythm / governed realization-provider
-    migrations. Remaining families retain their explicit unresolved or semantic-reconciliation state.
+    Reality Ledger / booking / spatial trunk, Household Rhythm / governed realization-provider,
+    and Booking Commitment / Foundry / Public Gateway. The Sep. 27 family was reconstructed
+    byte-for-byte from the authoritative live migration ledger rather than approximated from its
+    later consolidated source. Remaining families retain explicit unresolved or semantic-reconciliation state.
 
 source_recovery_receipts:
   shared_intelligence_smart_contacts:
@@ -61,6 +63,15 @@ source_recovery_receipts:
     includes:
       household_rhythm_shadow: 2
       governed_consequence_realization_provider: 4
+  booking_commitment_foundry_public_gateway:
+    migration_count: 14
+    pr: 1387
+    merge_sha: ed1ce127413707514b15e4a12570e20e453edb07
+    custody_ci_run_id: 37136634784
+    state: merged_exact_live_ledger_source_custody_only
+    production_mutation: none
+    recovery_registry: custody/post-fence-migration-recoveries-v47.json
+    recovery_method: authoritative_production_migration_statement_bytes_with_independent_git_blob_sha1_verification
 
 live_project:
   project_id: zirqkouammpwxlqfbsvf
@@ -115,26 +126,19 @@ production_families:
     migration_count: 14
     first_version: "20260927212442"
     last_version: "20260927231727"
-    state: production_live_partial_source_custody_unresolved
+    state: production_live_source_restored_main_exact_from_live_migration_ledger
     preserved_public_commitment_branch: feat/atlas-public-commitment-membrane-v1
     preserved_public_commitment_sha: c98ea7e4a40adab7ca1f5bb269b31ba48aeb2acb
     checkpoint_branch: checkpoint/outage-public-commitment-db-2026-09-27
-    unresolved_live_source:
-      - add_booking_request_selection_capture_v1
-      - add_booking_agreement_commitment_gate_v1
-      - create_foundry_store_v0_1
-      - booking_payment_schedule_and_confirmation_gate_v1
-      - govern_private_venue_payment_rule_v1
-      - venue_payment_rule_calculator_v1
-      - restrict_direct_booking_payment_schedule_writes_v1
-      - validate_commitment_booking_policy_config_v1
-      - public_commitment_membrane_schema_v1
-      - public_commitment_membrane_identity_surface_v1
-      - public_commitment_booking_selection_v1
-      - elm_public_venue_commitment_surface_v1
-      - public_commitment_booking_materialization_v1
-      - atlas_public_commitment_gateway_service_role_execute_v1
-    note: the preserved consolidated public-commitment migration is not provenance for all fourteen live migrations; Foundry and early booking-commitment source remain unresolved.
+    source_restored_pr: 1387
+    source_restored_merge_sha: ed1ce127413707514b15e4a12570e20e453edb07
+    custody_ci_run_id: 37136634784
+    recovery_registry: custody/post-fence-migration-recoveries-v47.json
+    note: >-
+      All fourteen original live migration bodies were recovered byte-for-byte from
+      supabase_migrations.schema_migrations.statements and independently verified by their
+      production-derived Git blob SHA-1 identities. The later consolidated public-commitment
+      migration remains historical evidence but is not used as a substitute for original provenance.
   delegated_agent_kernel:
     migration_count: 20
     first_version: "20260928002435"
@@ -259,9 +263,11 @@ custody_lines:
       - architecture/atlas-implementation-reality-organization-unit-command-v1-current
       - architecture/reality-sentence-governed-history-v1
   foundry_workbench:
-    state: unresolved_never_delete
+    state: production_live_source_restored_main
     live_version: "20260927213513"
-    note: production contains Foundry store state but complete migration-to-source provenance remains unresolved.
+    source_restored_pr: 1387
+    source_restored_merge_sha: ed1ce127413707514b15e4a12570e20e453edb07
+    note: the original Foundry store migration body is now present on canonical main with exact live-byte provenance.
   transcript_core:
     state: cross_repository_source_custody_required
     note: live Noel migrations plus standalone transcript-core and Newsroom source must be reconciled.
