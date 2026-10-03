@@ -1,0 +1,36 @@
+{
+  "contractVersion": 46,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v45.json",
+  "rule": "These already-live rows reached noel-core during the Actions outage while source custody remained on the cumulative spatial/reality-ledger trunk. Preserve the exact recovered Git blob identities as historical evidence. This recovery supplies live-custody matching evidence only; it does not replay SQL, authorize the historical release path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260925221900",
+      "name": "elm_venue_legacy_space_resource_cutover_v1",
+      "filename": "20260925221900_elm_venue_legacy_space_resource_cutover_v1.sql",
+      "gitBlobSha1": "ffdc9e78daf967badc4845bde4bc72b453e93050",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925222335",
+      "name": "elm_venue_resource_hierarchy_reconciliation_v2",
+      "filename": "20260925222335_elm_venue_resource_hierarchy_reconciliation_v2.sql",
+      "gitBlobSha1": "9c9ea4e877678b54681a8afa3e939fdbf6002138",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925222903",
+      "name": "elm_venue_coffee_bar_resource_simplification_v3",
+      "filename": "20260925222903_elm_venue_coffee_bar_resource_simplification_v3.sql",
+      "gitBlobSha1": "25ec0e29d2ba45cf1d70caf3c99fb8ed18531d6f",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
