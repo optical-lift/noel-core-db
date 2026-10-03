@@ -1,0 +1,56 @@
+version: 1
+snapshot_date: "2026-10-03"
+classification: branch_only_terminal_tip_adjudication
+subject: institutional_email
+production_mutation: none
+
+live_authority:
+  migration:
+    version: "20260911043745"
+    name: atlas_communication_inbound_relay_v1
+    filename: 20260911043745_atlas_communication_inbound_relay_v1.sql
+    production_git_blob_sha1: 92607a306f496f90ef7e6dda949ebf0bebf3dd40
+    canonical_main_git_blob_sha1: 92607a306f496f90ef7e6dda949ebf0bebf3dd40
+    state: exact_live_bytes_already_present_on_main
+    note: >-
+      Current Noel main already contains the exact production migration body. No source-restoration
+      merge is required for this live migration.
+
+preserved_branches:
+  relay_side_tip:
+    branch: work/institutional-email-relay-v1
+    tip_sha: 2f96253e53d3bc802a0e2acc310e61186735b294
+    branch_migration_blob_sha1: 815272ff2c6544b303199d7d59c6818fe51a0a51
+    live_migration_blob_sha1: 92607a306f496f90ef7e6dda949ebf0bebf3dd40
+    state: preserved_historical_branch_with_drifted_migration_copy
+    disposition: do_not_merge_branch_migration_over_canonical_live_source
+  outbound_worker_side_tip:
+    branch: work/institutional-email-outbound-v1
+    tip_sha: 2064c2b30d1ef3cdaeccc7b508035754a17cf365
+    unique_file: tools/communications/atlas-outbound-worker.py
+    state: preserved_branch_only_runtime_candidate
+    disposition: fresh_reaudit_required_before_any_future_admission
+  runtime_recovery_tip:
+    branch: recovery/institutional-email-runtime-v1
+    tip_sha: 6dbbcbcc66c4fac56d3f15bb6a094a5212e0b616
+    state: preserved_branch_only_runtime_and_validation_candidate
+    production_status: candidate_migrations_confirmed_absent_from_live_migration_ledger
+    candidate_migrations:
+      - 20260912114723_atlas_communication_outbound_transport_finalize_v1.sql
+      - 20260912153000_atlas_institutional_email_inbound_transport_v1.sql
+      - 20260912175214_atlas_generic_email_credential_browser_membrane_v1.sql
+      - 20260912233500_atlas_generic_email_transport_verification_activation_split_v1.sql
+    disposition: do_not_wholesale_merge; rebuild_or_reaudit_from_current_main_if_capability_is_promoted
+
+adjudication:
+  live_source_custody_state: resolved
+  unresolved_live_migrations: 0
+  branch_only_side_tips_preserved: true
+  wholesale_terminal_branch_merge: false
+  side_tip_absence_from_production_treated_as_rejection: false
+  next_action: >-
+    Treat the relay migration on current main as authoritative production source custody. Preserve
+    all three historical branches. If institutional-email runtime, outbound transport, credential
+    browser membrane, or activation-split capabilities are wanted later, re-audit and rebuild them
+    from current canonical main through the governed validation and release seam rather than merging
+    these stale branches wholesale.
