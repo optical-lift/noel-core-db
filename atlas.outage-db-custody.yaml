@@ -1,4 +1,4 @@
-version: 5
+version: 6
 snapshot_date: "2026-10-03"
 status: current_recovery_spine
 
@@ -23,16 +23,17 @@ repository_main_at_recovery_start:
   note: Implementation Reality command source custody is present; production-live outage families remain unreconciled into main source history.
 
 latest_recovery_main:
-  sha: ed1ce127413707514b15e4a12570e20e453edb07
-  completed_live_source_migration_count: 122
-  remaining_live_source_migration_count: 40
+  sha: 8639864acd088298f818ffd836a1ffc8621ea683
+  completed_live_source_migration_count: 142
+  remaining_live_source_migration_count: 20
   production_mutation: none
   note: >-
     Canonical Noel main now contains exact source custody for Smart Contacts, the cumulative
     Reality Ledger / booking / spatial trunk, Household Rhythm / governed realization-provider,
-    and Booking Commitment / Foundry / Public Gateway. The Sep. 27 family was reconstructed
-    byte-for-byte from the authoritative live migration ledger rather than approximated from its
-    later consolidated source. Remaining families retain explicit unresolved or semantic-reconciliation state.
+    Booking Commitment / Foundry / Public Gateway, and the full Delegated Agent kernel.
+    Both Sep. 27 and Sep. 28 families were reconstructed byte-for-byte from the authoritative
+    live migration ledger rather than approximated from later consolidated source. Remaining
+    live families are Transcript / Speech / Performance and Newsroom Transcript Reporting.
 
 source_recovery_receipts:
   shared_intelligence_smart_contacts:
@@ -72,6 +73,15 @@ source_recovery_receipts:
     production_mutation: none
     recovery_registry: custody/post-fence-migration-recoveries-v47.json
     recovery_method: authoritative_production_migration_statement_bytes_with_independent_git_blob_sha1_verification
+  delegated_agent_kernel:
+    migration_count: 20
+    pr: 1388
+    merge_sha: 8639864acd088298f818ffd836a1ffc8621ea683
+    custody_ci_run_id: 37140152150
+    state: merged_exact_live_ledger_source_custody_only
+    production_mutation: none
+    recovery_method: authoritative_production_migration_statement_bytes_with_independent_git_blob_sha1_verification
+    note: all original filenames already carried the canonical atlas owner prefix, so no retrospective recovery registry exception was required.
 
 live_project:
   project_id: zirqkouammpwxlqfbsvf
@@ -143,11 +153,18 @@ production_families:
     migration_count: 20
     first_version: "20260928002435"
     last_version: "20260928004006"
-    state: production_live_consolidated_source_needs_semantic_equivalence_receipt
+    state: production_live_source_restored_main_exact_from_live_migration_ledger
     branch: feat/atlas-delegated-agent-command-gateway-v1
     terminal_sha: 09889fefc5a2f7cc76ae0046ee6c9245f2a509b1
     checkpoint_branch: checkpoint/outage-delegated-agent-db-2026-09-28
-    note: Git source consolidates the live multi-step sequence into larger gateway/refinement/decision-control migrations; semantic equivalence must be proven before custody is marked restored.
+    source_restored_pr: 1388
+    source_restored_merge_sha: 8639864acd088298f818ffd836a1ffc8621ea683
+    custody_ci_run_id: 37140152150
+    note: >-
+      All twenty original live migration bodies were recovered byte-for-byte from
+      supabase_migrations.schema_migrations.statements and independently verified by their
+      production-derived Git blob SHA-1 identities. The preserved consolidated Delegated Agent
+      branch remains historical evidence but is not used as a substitute for original provenance.
   transcript_speech_performance:
     migration_count: 9
     first_version: "20260928200320"
@@ -300,7 +317,7 @@ recovery_order:
   - spatial_and_reality_ledger_cumulative_trunk
   - household_and_realization_provider
   - booking_commitment_foundry_public_gateway_provenance
-  - delegated_agent_semantic_equivalence
+  - delegated_agent_exact_source_custody
   - transcript_speech_performance_cross_repository
   - newsroom_transcript_reporting_cross_repository
   - branch_only_terminal_tip_adjudication
