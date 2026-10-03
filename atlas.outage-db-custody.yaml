@@ -1,1 +1,254 @@
-placeholder
+version: 3
+snapshot_date: "2026-10-02"
+status: current_recovery_spine
+
+ledger_admission:
+  admitted_to_main: true
+  admitted_on: "2026-10-03"
+  source_audit_branch: recovery/actions-outage-custody-audit-2026-10-02
+  source_audit_terminal_sha: e7c99df9122a23c9227ee8dc02ea66c3bee83052
+  canonical_code_baseline_sha: 2d07ce69c01031361de7d62767387cb323cd0919
+  production_mutation: none
+  purpose: >-
+    Preserve the complete post-Actions-outage database custody accounting on canonical
+    Noel main before reconciling production-live source families and branch-only work.
+
+repository_main_at_audit:
+  sha: d3b528b56d7630abf9d6fc67ee92c4475b8fa4ab
+  committed_at_utc: "2026-09-24T01:00:57Z"
+
+repository_main_at_recovery_start:
+  sha: 2d07ce69c01031361de7d62767387cb323cd0919
+  committed_at_utc: "2026-10-03T01:36:02Z"
+  note: Implementation Reality command source custody is present; production-live outage families remain unreconciled into main source history.
+
+live_project:
+  project_id: zirqkouammpwxlqfbsvf
+  migrations_observed_through: "2026-10-02"
+  conservative_date_window_denominator: 170
+  true_post_freeze_migration_count: 162
+  canonical_contained_from_conservative_window: 8
+  note: 170 production migration records fall in the conservative Sep-24-through-Oct-2 window; exact frozen-main reconciliation shows 162 are truly post-freeze and 8 are already represented by the final Sep-24 main checkpoint.
+
+branch_census_snapshot:
+  complete: true
+  surviving_branches: 805
+  snapshot_date: "2026-10-02"
+
+rules:
+  delete_post_main_branches: false
+  treat_main_as_production_reconstructable: false
+  rerun_migrations_to_force_alignment: false
+  wholesale_terminal_branch_merge: false
+  missing_from_production_implies_rejected: false
+  source_filename_mismatch_implies_source_loss: false
+  production_release_during_source_recovery: false
+
+production_families:
+  shared_intelligence_smart_contacts:
+    migration_count: 19
+    first_version: "20260924230219"
+    last_version: "20260925005250"
+    state: production_live_source_located_separate_fork
+    branch: architecture/atlas-smart-contacts-v1
+    terminal_sha: 9cee0d821772b30e836fbb1e78d7ca946b70d2c5
+    checkpoint_branch: checkpoint/outage-smart-contacts-db-2026-09-25
+  reality_ledger_correspondence_company_work:
+    migration_count: 20
+    first_version: "20260925014915"
+    last_version: "20260925195307"
+    state: production_live_source_located_cumulative_trunk
+    source_trunk: architecture/spatial-intake-v1
+  booking_temporal:
+    migration_count: 24
+    first_version: "20260925215931"
+    last_version: "20260926182344"
+    state: production_live_source_located_cumulative_trunk
+    source_trunk: architecture/spatial-intake-v1
+  booking_commitment_foundry_public_gateway:
+    migration_count: 14
+    first_version: "20260927212442"
+    last_version: "20260927231727"
+    state: production_live_partial_source_custody_unresolved
+    preserved_public_commitment_branch: feat/atlas-public-commitment-membrane-v1
+    preserved_public_commitment_sha: c98ea7e4a40adab7ca1f5bb269b31ba48aeb2acb
+    checkpoint_branch: checkpoint/outage-public-commitment-db-2026-09-27
+    unresolved_live_source:
+      - add_booking_request_selection_capture_v1
+      - add_booking_agreement_commitment_gate_v1
+      - create_foundry_store_v0_1
+      - booking_payment_schedule_and_confirmation_gate_v1
+      - govern_private_venue_payment_rule_v1
+      - venue_payment_rule_calculator_v1
+      - restrict_direct_booking_payment_schedule_writes_v1
+      - validate_commitment_booking_policy_config_v1
+      - public_commitment_membrane_schema_v1
+      - public_commitment_membrane_identity_surface_v1
+      - public_commitment_booking_selection_v1
+      - elm_public_venue_commitment_surface_v1
+      - public_commitment_booking_materialization_v1
+      - atlas_public_commitment_gateway_service_role_execute_v1
+    note: the preserved consolidated public-commitment migration is not provenance for all fourteen live migrations; Foundry and early booking-commitment source remain unresolved.
+  delegated_agent_kernel:
+    migration_count: 20
+    first_version: "20260928002435"
+    last_version: "20260928004006"
+    state: production_live_consolidated_source_needs_semantic_equivalence_receipt
+    branch: feat/atlas-delegated-agent-command-gateway-v1
+    terminal_sha: 09889fefc5a2f7cc76ae0046ee6c9245f2a509b1
+    checkpoint_branch: checkpoint/outage-delegated-agent-db-2026-09-28
+    note: Git source consolidates the live multi-step sequence into larger gateway/refinement/decision-control migrations; semantic equivalence must be proven before custody is marked restored.
+  transcript_speech_performance:
+    migration_count: 9
+    first_version: "20260928200320"
+    last_version: "20260928224413"
+    state: cross_repository_source_reconciliation_required
+    note: no Noel branch matching the live speech/performance sequence was found; reconcile live Noel migrations with transcript-core and Atlas transcript source.
+  target_relationship_topology_geography_spatial:
+    migration_count: 39
+    first_version: "20260930180434"
+    last_version: "20261001001646"
+    state: production_live_source_located_cumulative_trunk
+    source_trunk: architecture/spatial-intake-v1
+    terminal_sha: 0bc768cac28f902f2a2d5794507d6c4ea2c5c212
+    checkpoint_branch: checkpoint/outage-spatial-intake-2026-10-01
+  household_rhythm_shadow:
+    migration_count: 2
+    first_version: "20261001172830"
+    last_version: "20261001183521"
+    state: production_live_source_located_separate_fork
+    source_trunk: architecture/institutional-communication-realization-provider-v1
+  newsroom_transcript_reporting:
+    migration_count: 11
+    first_version: "20261001210053"
+    last_version: "20261002161934"
+    state: cross_repository_semantic_reconciliation_required
+    note: reconcile live Noel migrations with optical-lift/newsroom current main and build/transcripts-current-newsroom.
+  governed_consequence_realization_provider:
+    migration_count: 4
+    first_version: "20261002181837"
+    last_version: "20261002195337"
+    state: production_live_source_located_separate_fork
+    source_trunk: architecture/institutional-communication-realization-provider-v1
+    terminal_sha: 8dc3637d60550f1330327bc3227d6ef79aa741a9
+    checkpoint_branch: checkpoint/outage-realization-provider-2026-10-02
+
+custody_lines:
+  scheduling_geography_spatial:
+    state: production_live_source_not_main
+    terminal_branch: architecture/spatial-intake-v1
+    terminal_sha: 0bc768cac28f902f2a2d5794507d6c4ea2c5c212
+    checkpoint_branch: checkpoint/outage-spatial-intake-2026-10-01
+    note: separate from Smart Contacts, Public Commitment, Delegated Agent, and Household/Realization forks.
+  household_consequence_realization:
+    state: production_live_source_not_main
+    terminal_branch: architecture/institutional-communication-realization-provider-v1
+    terminal_sha: 8dc3637d60550f1330327bc3227d6ef79aa741a9
+    checkpoint_branch: checkpoint/outage-realization-provider-2026-10-02
+  financial_obligation_evidence:
+    state: branch_only_preserve
+    terminal_branch: work/atlas-financial-obligation-settlement-v1
+    terminal_sha: 20257b660543649fb97a6f8ed7fb87f93fddcbf2
+    checkpoint_branch: checkpoint/outage-finance-evidence-2026-09-27
+    production_status: confirmed_absent_from_live_migration_ledger
+  reality_first_work_derivation:
+    state: branch_only_preserve
+    branch: architecture/reality-first-work-derivation-v1
+    production_status: source_only_architecture_checkpoint
+  production_bed_preparation_actual:
+    state: branch_only_preserve
+    branch: architecture/production-bed-preparation-source-actual-v1
+    migrations:
+      - 20260929153000_atlas_production_bed_preparation_source_actual_v1.sql
+      - 20260929153100_atlas_production_bed_preparation_evidence_guard_v1.sql
+    production_status: confirmed_absent_from_live_migration_ledger
+  governed_subject_observation_applicability:
+    state: branch_only_preserve
+    branch: governed-subject-observation-applicability-v1
+    migrations:
+      - 20260928201500_governed_subject_observation_applicability_v1.sql
+      - 20260928202000_tighten_governed_subject_membrane_privileges_v1.sql
+    production_status: confirmed_absent_from_live_migration_ledger
+  reality_sentence_governed_history:
+    state: branch_only_preserve
+    branch: architecture/reality-sentence-governed-history-v1
+    migration: 20260929190000_atlas_reality_sentence_governed_history_v1.sql
+    production_status: confirmed_absent_from_live_migration_ledger
+  institutional_email:
+    state: semantic_reconciliation_required
+    branches:
+      - recovery/institutional-email-runtime-v1
+      - work/institutional-email-relay-v1
+      - work/institutional-email-outbound-v1
+    recovery_tip_sha: 6dbbcbcc66c4fac56d3f15bb6a094a5212e0b616
+    note: relay and outbound each retain unique history relative to recovery branch.
+  implementation_reality:
+    state: mixed_live_and_branch_only_current_contract_reconciliation
+    current_contract_freeze_repo: optical-lift/atlas
+    current_contract_freeze_branch: architecture/implementation-reality-current-contract-replay-v2
+    noel_main_source_custody_sha: 2d07ce69c01031361de7d62767387cb323cd0919
+    current_generated_pair:
+      identity_resolution_v2:
+        pr: 1379
+        migration: 20261003013634_atlas_implementation_reality_identity_resolution_v2
+        head_sha: b1d20881a92c79f843e5fe24e17211cf34a267ec
+        state: generated_clone_validated_ordered_pair_unreleased
+      position_responsibility_definition_v1:
+        pr: 1380
+        migration: 20261003013635_atlas_implementation_reality_position_responsibility_definition_v1
+        head_sha: 7851dc1dd170cb54f11c164dacb9401dd6676205
+        state: generated_clone_validated_ordered_pair_unreleased
+    ordered_pair_validation_run_id: 37088542806
+    preserve_examples:
+      - architecture/atlas-implementation-reality-organization-unit-command-v1-current
+      - architecture/reality-sentence-governed-history-v1
+  foundry_workbench:
+    state: unresolved_never_delete
+    live_version: "20260927213513"
+    note: production contains Foundry store state but complete migration-to-source provenance remains unresolved.
+  transcript_core:
+    state: cross_repository_source_custody_required
+    note: live Noel migrations plus standalone transcript-core and Newsroom source must be reconciled.
+
+open_unreleased_carriers_requiring_adjudication:
+  - pr: 940
+    capability: atlas_production_bed_assignment_destination_claim_v1
+    state: stale_open_generated_carrier_reaudit_before_merge
+  - pr: 995
+    capability: relationship_delivery_kernel_v1
+    state: stale_open_generated_carrier_reaudit_before_merge
+  - pr: 1073
+    capability: reality_identity_resolution_person_credential_fixture
+    state: stale_open_fixture_repair_reaudit_before_merge
+  - pr: 1231
+    capability: atlas_service_acquisition_compatibility_adapter_v1
+    state: stale_open_generated_carrier_reaudit_before_merge
+  - pr: 1247
+    capability: atlas_person_position_self_projection_v1
+    state: stale_open_generated_carrier_reaudit_before_merge
+  - pr: 1270
+    capability: atlas_notebook_exposure_admission_v1
+    state: stale_open_generated_carrier_reaudit_before_merge
+  - pr: 1280
+    capability: atlas_domain_exposure_participating_domains_v2
+    state: stale_open_generated_carrier_reaudit_before_merge
+
+recovery_order:
+  - shared_intelligence_smart_contacts
+  - spatial_and_reality_ledger_cumulative_trunk
+  - household_and_realization_provider
+  - booking_commitment_foundry_public_gateway_provenance
+  - delegated_agent_semantic_equivalence
+  - transcript_speech_performance_cross_repository
+  - newsroom_transcript_reporting_cross_repository
+  - branch_only_terminal_tip_adjudication
+
+completion_requires:
+  - all_162_true_post_freeze_live_migrations_accounted_for_by_source_or_explicit_unresolved_state
+  - all_consolidated_source_lines_receive_semantic_equivalence_receipts
+  - every_branch_only_terminal_tip_classified
+  - divergent_side_tips_preserved
+  - foundry_workbench_mapping_resolved
+  - transcript_core_cross_repository_custody_resolved
+  - newsroom_cross_repository_custody_resolved
+  - implementation_reality_current_contract_reconciliation_complete
