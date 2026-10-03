@@ -1,0 +1,80 @@
+version: 1
+snapshot_date: "2026-10-03"
+classification: open_unreleased_carrier_adjudication
+production_mutation: none
+
+production_ledger_check:
+  project_id: zirqkouammpwxlqfbsvf
+  checked_versions:
+    - "20260920201455"
+    - "20260921154500"
+    - "20260922210205"
+    - "20260923013957"
+    - "20260923151254"
+    - "20260923161932"
+  matching_live_rows: 0
+  conclusion: all_six_migration_bearing_open_carriers_are_unreleased
+
+carriers:
+  - pr: 940
+    capability: atlas_production_bed_assignment_destination_claim_v1
+    head_branch: generated/atlas-20260920201455-atlas_production_bed_assignment_destination_claim_v1
+    head_sha: 4f3cea9aec6084f5341d269e2dacf5265e3c4d7d
+    migration: 20260920201455_atlas_production_bed_assignment_destination_claim_v1.sql
+    production_status: absent_from_live_migration_ledger
+    disposition: preserve_branch_close_stale_pr_rebuild_from_current_main_if_wanted
+  - pr: 995
+    capability: relationship_delivery_kernel_v1
+    head_branch: generated/atlas-20260921154500-relationship-delivery-kernel-v1
+    head_sha: b608f4ab3cf1d6162a4943b113514c70596daacf
+    migration: 20260921154500_atlas_relationship_delivery_kernel_v1.sql
+    production_status: absent_from_live_migration_ledger
+    disposition: preserve_branch_close_stale_pr_rebuild_from_current_main_if_wanted
+  - pr: 1073
+    capability: reality_identity_resolution_person_credential_fixture
+    head_branch: fix/reality-identity-resolution-person-credential-fixture
+    head_sha: 8edceed289101926ba0d69cffb921884faa4720d
+    artifact: candidates/atlas_implementation_reality_identity_resolution_v1_fixture.sql
+    production_status: fixture_only_no_live_migration_identity
+    disposition: preserve_branch_close_stale_pr_reaudit_against_current_identity_resolution_contract_if_needed
+  - pr: 1231
+    capability: atlas_service_acquisition_compatibility_adapter_v1
+    head_branch: generated/atlas-20260922210205-atlas_service_acquisition_compatibility_adapter_v1
+    head_sha: 8cab80174e94afd60c95e683193888d13be63436
+    migration: 20260922210205_atlas_service_acquisition_compatibility_adapter_v1.sql
+    production_status: absent_from_live_migration_ledger
+    disposition: preserve_branch_close_stale_pr_rebuild_from_current_main_if_wanted
+  - pr: 1247
+    capability: atlas_person_position_self_projection_v1
+    head_branch: generated/atlas-20260923013957-atlas_person_position_self_projection_v1
+    head_sha: 3b49bd59d74390802a8d5f1dca026179f70f3f6f
+    migration: 20260923013957_atlas_person_position_self_projection_v1.sql
+    production_status: absent_from_live_migration_ledger
+    disposition: preserve_branch_close_stale_pr_rebuild_from_current_main_if_wanted
+  - pr: 1270
+    capability: atlas_notebook_exposure_admission_v1
+    head_branch: generated/atlas-20260923151254-atlas_notebook_exposure_admission_v1
+    head_sha: 7f37e2767f4560ab327b0c8caa67189d35d44f28
+    migration: 20260923151254_atlas_notebook_exposure_admission_v1.sql
+    production_status: absent_from_live_migration_ledger
+    disposition: preserve_branch_close_stale_pr_rebuild_from_current_main_if_wanted
+  - pr: 1280
+    capability: atlas_domain_exposure_participating_domains_v2
+    head_branch: generated/atlas-20260923161932-atlas_domain_exposure_participating_domains_v2
+    head_sha: 2303dfdac6e20bc63aea4f5b691b021cb12a5bc1
+    migration: 20260923161932_atlas_domain_exposure_participating_domains_v2.sql
+    production_status: absent_from_live_migration_ledger
+    disposition: preserve_branch_close_stale_pr_rebuild_from_current_main_if_wanted
+
+adjudication:
+  stale_open_pr_count: 7
+  live_migration_count: 0
+  branches_deleted: false
+  ideas_rejected_by_absence_from_production: false
+  wholesale_merge_allowed: false
+  close_stale_pr_carriers: true
+  future_rule: >-
+    Closing these pull requests retires stale merge carriers only. It does not reject the underlying
+    capability. Any capability still wanted must be regenerated or rebuilt from current canonical
+    main, then receive current clone validation, custody CI, and governed release review before any
+    production promotion.
