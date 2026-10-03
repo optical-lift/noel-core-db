@@ -29,52 +29,62 @@ import sys
 from pathlib import Path
 
 packet = json.loads(Path(sys.argv[1]).read_text())
+receipt = json.loads(Path('custody/executed-statement-body-reconciliations-v1.json').read_text())
+reconciliations = {
+    row['filename']: (row['canonicalSourceGitBlobSha1'], row['executedBodyGitBlobSha1'])
+    for row in receipt.get('rows') or []
+}
 rows = packet.get('postFence') or []
 counts = collections.Counter()
 by_day = collections.defaultdict(collections.Counter)
 missing = []
-mismatch = []
+unreconciled = []
 
 for row in rows:
     version = str(row.get('version') or '')
     name = str(row.get('name') or '')
-    production_blob = str(row.get('gitBlobSha1') or '')
+    executed_blob = str(row.get('gitBlobSha1') or '')
     day = version[:8] if len(version) >= 8 else 'unknown'
-    path = Path('supabase/migrations') / f'{version}_{name}.sql'
+    filename = f'{version}_{name}.sql'
+    path = Path('supabase/migrations') / filename
     if not path.is_file():
         status = 'missing'
         missing.append(f'{version}_{name}')
     else:
         repo_blob = subprocess.check_output(['git', 'hash-object', str(path)], text=True).strip()
-        if repo_blob == production_blob:
+        if repo_blob == executed_blob:
             status = 'exact'
+        elif reconciliations.get(filename) == (repo_blob, executed_blob):
+            status = 'reconciled'
         else:
-            status = 'mismatch'
-            mismatch.append({
+            status = 'unreconciled'
+            unreconciled.append({
                 'migration': f'{version}_{name}',
-                'repository': repo_blob,
-                'production': production_blob,
+                'canonicalSource': repo_blob,
+                'executedBody': executed_blob,
             })
     counts[status] += 1
     by_day[day][status] += 1
 
 summary = {
-    'contractVersion': 1,
+    'contractVersion': 2,
     'postFenceCount': len(rows),
     'exactCount': counts['exact'],
+    'reconciledCount': counts['reconciled'],
     'missingCount': counts['missing'],
-    'mismatchCount': counts['mismatch'],
+    'unreconciledCount': counts['unreconciled'],
     'byDay': {
         day: {
             'exact': c['exact'],
+            'reconciled': c['reconciled'],
             'missing': c['missing'],
-            'mismatch': c['mismatch'],
+            'unreconciled': c['unreconciled'],
             'total': sum(c.values()),
         }
         for day, c in sorted(by_day.items())
     },
     'firstMissing': missing[:20],
-    'firstMismatches': mismatch[:20],
+    'firstUnreconciled': unreconciled[:20],
 }
 print('LIVE_CUSTODY_DRIFT_SUMMARY=' + json.dumps(summary, sort_keys=True, separators=(',', ':')))
 PY
