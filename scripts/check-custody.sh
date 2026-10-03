@@ -109,9 +109,10 @@ declare -A sealed_registry_sha=(
   ["custody/post-fence-migration-recoveries-v47.json"]="2132f09077b9315e099464a5a92a04c235b0538c"
   ["custody/post-fence-migration-recoveries-v48.json"]="d5166f8d0bcb6a1cff81d8c597e32ad81770b766"
   ["custody/post-fence-migration-recoveries-v49.json"]="41e3ea507c5ace62fcdbce14934c36218f121f26"
+  ["custody/post-fence-migration-recoveries-v50.json"]="593d7f7d3189302351caaff63d79fd693d261ab9"
 )
 
-for version in $(seq 4 49); do
+for version in $(seq 4 50); do
   registry="custody/post-fence-migration-recoveries-v${version}.json"
   if [ ! -f "$registry" ]; then
     echo "Missing $registry"
@@ -137,7 +138,7 @@ import json, re
 from pathlib import Path
 
 specs = []
-for version in range(4, 50):
+for version in range(4, 51):
     path = Path(f'custody/post-fence-migration-recoveries-v{version}.json')
     inherits = None if version == 4 else f'post-fence-migration-recoveries-v{version - 1}.json'
     specs.append((path, version, inherits))
@@ -176,7 +177,7 @@ for path, contract_version, inherits in specs:
         sha = row['gitBlobSha1']
         owner = row['logicalOwner']
         assert re.fullmatch(r'[0-9a-f]{40}', sha)
-        assert owner in ('core', 'atlas', 'transcript_core', 'newsroom')
+        assert owner in ('core', 'atlas', 'transcript_core', 'newsroom', 'titus')
         assert filename == f"{row['version']}_{row['name']}.sql"
         if filename in seen:
             expected = corrections.get(filename)
@@ -186,7 +187,7 @@ for path, contract_version, inherits in specs:
             )
         seen[filename] = sha
 
-assert len(seen) == 301
+assert len(seen) == 312
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
@@ -232,4 +233,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 301 sealed retrospective recovery identities preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 312 sealed retrospective recovery identities preserve exact live bytes."
