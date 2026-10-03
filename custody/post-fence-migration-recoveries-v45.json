@@ -1,0 +1,171 @@
+{
+  "contractVersion": 45,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v44.json",
+  "rule": "These already-live rows reached noel-core without exact canonical noel-core-db source custody. Preserve only the exact production Git blob identities reported by the protected release gate as historical evidence. This recovery supplies live-custody matching evidence only; it does not authorize the historical release path, reconstruct or replay the SQL, bless the out-of-band write path, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260924230219",
+      "name": "shared_intelligence_outreach_custody_foundation_v1",
+      "filename": "20260924230219_shared_intelligence_outreach_custody_foundation_v1.sql",
+      "gitBlobSha1": "33360e63676aab56ab9ded4a0114255e6e87a1a1",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260924230252",
+      "name": "shared_intelligence_outreach_universal_routing_v1",
+      "filename": "20260924230252_shared_intelligence_outreach_universal_routing_v1.sql",
+      "gitBlobSha1": "a6515f7ecac075f9932948897cd92acdcb4b4f53",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260924230335",
+      "name": "shared_intelligence_outreach_organization_routing_v1",
+      "filename": "20260924230335_shared_intelligence_outreach_organization_routing_v1.sql",
+      "gitBlobSha1": "ac96fa3fc97e0457e9d4bf4d1f327eb99e32f6a8",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260924230413",
+      "name": "shared_intelligence_question_semantics_neutralization_v1",
+      "filename": "20260924230413_shared_intelligence_question_semantics_neutralization_v1.sql",
+      "gitBlobSha1": "4a4d8bb53648d9816668204d8dbb39cadd799300",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260924230427",
+      "name": "shared_intelligence_outreach_live_carrier_retirement_v1",
+      "filename": "20260924230427_shared_intelligence_outreach_live_carrier_retirement_v1.sql",
+      "gitBlobSha1": "cb56f68c9c72b42622d6b465e0651623e1b2a2ec",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260924231227",
+      "name": "shared_intelligence_outreach_custody_advisor_hardening_v1",
+      "filename": "20260924231227_shared_intelligence_outreach_custody_advisor_hardening_v1.sql",
+      "gitBlobSha1": "a568081daecace0b3257b6a6ee1b3db42ac75ced",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925000557",
+      "name": "smart_contacts_person_candidate_promotion_v1",
+      "filename": "20260925000557_smart_contacts_person_candidate_promotion_v1.sql",
+      "gitBlobSha1": "27c84a7abdd8696f5cbad47d05de2e97be623760",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925000644",
+      "name": "smart_contacts_person_candidate_source_threshold_hardening_v1",
+      "filename": "20260925000644_smart_contacts_person_candidate_source_threshold_hardening_v1.sql",
+      "gitBlobSha1": "eaf1bf327e75910a57dc9e1d760eb10ab5ea9905",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925001856",
+      "name": "smart_contacts_selection_packet_v1",
+      "filename": "20260925001856_smart_contacts_selection_packet_v1.sql",
+      "gitBlobSha1": "561150fbf2620d846c7555fad250a6cc55df471f",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925002003",
+      "name": "smart_contacts_selection_packet_access_and_freeze_v1",
+      "filename": "20260925002003_smart_contacts_selection_packet_access_and_freeze_v1.sql",
+      "gitBlobSha1": "4d93aadea667036cdadadf07c39a713faf526bf3",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925002059",
+      "name": "smart_contacts_selection_packet_selected_count_fix_v1",
+      "filename": "20260925002059_smart_contacts_selection_packet_selected_count_fix_v1.sql",
+      "gitBlobSha1": "7f1a111ff22935be12b433121e5b65e5305d3111",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925002203",
+      "name": "smart_contacts_selection_packet_index_hardening_v1",
+      "filename": "20260925002203_smart_contacts_selection_packet_index_hardening_v1.sql",
+      "gitBlobSha1": "b3f82b6c0b7fd5c9afbffc17eedf66dd3271e23a",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925003921",
+      "name": "smart_contacts_saved_search_dynamic_audience_v1",
+      "filename": "20260925003921_smart_contacts_saved_search_dynamic_audience_v1.sql",
+      "gitBlobSha1": "ba02177fc8c6331de5a9b485f8cc42bfa998ab59",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925004030",
+      "name": "smart_contacts_saved_search_packet_watch_v1",
+      "filename": "20260925004030_smart_contacts_saved_search_packet_watch_v1.sql",
+      "gitBlobSha1": "aa8b23a1ddbad89310387ba5c4713121d22aba30",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925004534",
+      "name": "smart_contacts_saved_search_watch_clock_v1",
+      "filename": "20260925004534_smart_contacts_saved_search_watch_clock_v1.sql",
+      "gitBlobSha1": "2d54ec84e1f918e8d96a672150fb7470041ac3ff",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925004921",
+      "name": "smart_contacts_watch_weekly_v1",
+      "filename": "20260925004921_smart_contacts_watch_weekly_v1.sql",
+      "gitBlobSha1": "52e01a305cf2f5f738e2cd03f264afe058091c04",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925005231",
+      "name": "smart_contacts_saved_search_cascade_delete_guard_fix_v1",
+      "filename": "20260925005231_smart_contacts_saved_search_cascade_delete_guard_fix_v1.sql",
+      "gitBlobSha1": "3ffb7c22dfe2e39421e0bf2fad569efe1b29c14f",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260925005250",
+      "name": "remove_feast_guild_smart_contact_saved_searches_v1",
+      "filename": "20260925005250_remove_feast_guild_smart_contact_saved_searches_v1.sql",
+      "gitBlobSha1": "4b2c4571c8fe617a50c9d06856255ff98e93b773",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
