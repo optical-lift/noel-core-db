@@ -1,0 +1,32 @@
+revoke all on function public.transcript_core_path_workspace(text) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_is_workspace_member(uuid) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_can_workspace_edit(uuid) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_create_workspace(text) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_processing_queue_name(text) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_enqueue_processing_job(uuid) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_register_source_ingest(uuid,uuid,text,text,text,text,text,text,bigint) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_claim_processing_job(uuid) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_heartbeat_processing_job(uuid) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_fail_processing_job(uuid,boolean,text,text) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_load_job_with_asset(uuid) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_read_queue(text,integer) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_delete_queue_message(text,bigint) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_complete_transcription_job(uuid,text,text,jsonb) from anon, authenticated, service_role;
+revoke all on function public.transcript_core_complete_performance_parse_job(uuid,text,text,jsonb,jsonb,jsonb) from anon, authenticated, service_role;
+
+grant execute on function public.transcript_core_path_workspace(text) to authenticated, service_role;
+grant execute on function public.transcript_core_is_workspace_member(uuid) to authenticated, service_role;
+grant execute on function public.transcript_core_can_workspace_edit(uuid) to authenticated, service_role;
+grant execute on function public.transcript_core_create_workspace(text) to authenticated;
+grant execute on function public.transcript_core_register_source_ingest(uuid,uuid,text,text,text,text,text,text,bigint) to authenticated, service_role;
+
+grant execute on function public.transcript_core_processing_queue_name(text) to service_role;
+grant execute on function public.transcript_core_enqueue_processing_job(uuid) to service_role;
+grant execute on function public.transcript_core_claim_processing_job(uuid) to service_role;
+grant execute on function public.transcript_core_heartbeat_processing_job(uuid) to service_role;
+grant execute on function public.transcript_core_fail_processing_job(uuid,boolean,text,text) to service_role;
+grant execute on function public.transcript_core_load_job_with_asset(uuid) to service_role;
+grant execute on function public.transcript_core_read_queue(text,integer) to service_role;
+grant execute on function public.transcript_core_delete_queue_message(text,bigint) to service_role;
+grant execute on function public.transcript_core_complete_transcription_job(uuid,text,text,jsonb) to service_role;
+grant execute on function public.transcript_core_complete_performance_parse_job(uuid,text,text,jsonb,jsonb,jsonb) to service_role;

@@ -1,0 +1,189 @@
+{
+  "contractVersion": 48,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v47.json",
+  "rule": "These already-live Transcript Core and Newsroom rows reached noel-core during the Actions outage while their original source files were not retained on canonical Noel main. Reconstruct each exact migration body from the authoritative production migration ledger, cross-check surviving cross-repository source where available, and preserve the independently verified Git blob identity as historical evidence. This recovery supplies live-custody matching evidence only; it does not replay SQL, authorize the historical release path, add a future migration owner prefix, or authorize any future production mutation.",
+  "recoveries": [
+    {
+      "version": "20260928200320",
+      "name": "transcript_core_isolated_base",
+      "filename": "20260928200320_transcript_core_isolated_base.sql",
+      "gitBlobSha1": "acbade23338281c479a403c217f89620fa7f5e42",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260928200427",
+      "name": "transcript_core_isolated_api",
+      "filename": "20260928200427_transcript_core_isolated_api.sql",
+      "gitBlobSha1": "b0dc7ea721c58d2fba98c2e99edaac109df94cd4",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260928200516",
+      "name": "transcript_core_function_grants_hardening",
+      "filename": "20260928200516_transcript_core_function_grants_hardening.sql",
+      "gitBlobSha1": "a8f4a4fb9b90a1c9328acf8d78fbc541d2a0be3c",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260928204835",
+      "name": "transcript_core_queue_read_type_fix",
+      "filename": "20260928204835_transcript_core_queue_read_type_fix.sql",
+      "gitBlobSha1": "23aa6a5fe000f34f4f468a2158e29daf2a41dd14",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260928213241",
+      "name": "speech_workbench_persistence",
+      "filename": "20260928213241_speech_workbench_persistence.sql",
+      "gitBlobSha1": "a301e63ce7ae460b2431105a613239b8de1287e2",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260928213828",
+      "name": "speech_workbench_entrypoints",
+      "filename": "20260928213828_speech_workbench_entrypoints.sql",
+      "gitBlobSha1": "e238f72ff40487498ff565ec38d066b824d2822e",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260928222608",
+      "name": "scripted_audio_production_layer",
+      "filename": "20260928222608_scripted_audio_production_layer.sql",
+      "gitBlobSha1": "157b0b787ebbdb58b2757c2f9a4efbaff97939ce",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260928223735",
+      "name": "scripted_audio_application_membrane",
+      "filename": "20260928223735_scripted_audio_application_membrane.sql",
+      "gitBlobSha1": "6683b9a3fc2a6470552a3f347fa18c3bf9c2d2a5",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20260928224413",
+      "name": "performance_recording_intake",
+      "filename": "20260928224413_performance_recording_intake.sql",
+      "gitBlobSha1": "703980a2ebec9b345c8281f7f4035cf5e02dabee",
+      "logicalOwner": "transcript_core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261001210053",
+      "name": "newsroom_transcript_live_api_v1",
+      "filename": "20261001210053_newsroom_transcript_live_api_v1.sql",
+      "gitBlobSha1": "2e6ac8a86bb26bf9d5d95be5f925a982da6dd55d",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261001210145",
+      "name": "newsroom_transcript_long_recordings_v1",
+      "filename": "20261001210145_newsroom_transcript_long_recordings_v1.sql",
+      "gitBlobSha1": "59034a39015878057a1427faa21bfeb10954e82b",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261001220337",
+      "name": "newsroom_markets_copy_with_changes_v1",
+      "filename": "20261001220337_newsroom_markets_copy_with_changes_v1.sql",
+      "gitBlobSha1": "56bf37155e45c6b2e68bbd4325f4a33851826545",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261001222723",
+      "name": "newsroom_legal_notices_pilot_v1",
+      "filename": "20261001222723_newsroom_legal_notices_pilot_v1.sql",
+      "gitBlobSha1": "7358b739fca7df3498f59e47c2b80df34169cc84",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261001234732",
+      "name": "newsroom_transcript_editor_state_v1",
+      "filename": "20261001234732_newsroom_transcript_editor_state_v1.sql",
+      "gitBlobSha1": "805df17d38799cf5df4c88e65aa67eac502ee7c7",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261002001316",
+      "name": "newsroom_transcript_evidence_spine_v2",
+      "filename": "20261002001316_newsroom_transcript_evidence_spine_v2.sql",
+      "gitBlobSha1": "ab1912b3c4baac286e2aa08d8993b2a069bf6422",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261002002057",
+      "name": "newsroom_transcript_usage_receipt_dedupe_v1",
+      "filename": "20261002002057_newsroom_transcript_usage_receipt_dedupe_v1.sql",
+      "gitBlobSha1": "88ee36ab8a1560bff063b74d0a06c88f1413959c",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261002021143",
+      "name": "newsroom_transcript_library_collections_v1",
+      "filename": "20261002021143_newsroom_transcript_library_collections_v1.sql",
+      "gitBlobSha1": "27a63ae3d13181178fb6c3de0ceca1abe9daf64d",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261002144027",
+      "name": "newsroom_institutional_root_v1",
+      "filename": "20261002144027_newsroom_institutional_root_v1.sql",
+      "gitBlobSha1": "fef66be0da6679758f01ce4ff984e0c654ace495",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261002161718",
+      "name": "newsroom_transcript_reporting_convergence_v1",
+      "filename": "20261002161718_newsroom_transcript_reporting_convergence_v1.sql",
+      "gitBlobSha1": "1cf36fd6f92f5657bb0d617798f393d744308851",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261002161934",
+      "name": "newsroom_transcript_reporting_convergence_v1",
+      "filename": "20261002161934_newsroom_transcript_reporting_convergence_v1.sql",
+      "gitBlobSha1": "5216a0f796c1b8fa949a08c7dce53986eedee36f",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
