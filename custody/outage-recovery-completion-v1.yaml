@@ -1,0 +1,99 @@
+version: 1
+snapshot_date: "2026-10-03"
+classification: outage_recovery_completion
+status: recovery_complete_release_gates_remain
+production_mutation: none
+migration_replay: none
+
+live_source_custody:
+  true_post_freeze_migrations: 162
+  exact_source_custody: 162
+  unresolved_live_source_migrations: 0
+  complete: true
+  final_source_recovery_pr: 1389
+  final_source_recovery_merge_sha: 2e27c21fbd6f56fa60cb939a0b4180df5e846695
+  final_source_recovery_ci_run_id: 37142078501
+
+branch_adjudication:
+  institutional_email:
+    state: resolved
+    receipt: custody/institutional-email-adjudication-v1.yaml
+    pr: 1390
+    merge_sha: 55033880f2652c35fdc33f1d3b23dd2c7687aec9
+    rule: preserve_side_tips_do_not_wholesale_merge
+  stale_open_generated_carriers:
+    state: resolved
+    receipt: custody/stale-open-generated-carriers-adjudication-v1.yaml
+    pr: 1391
+    merge_sha: a5e61dd8d5c9cf3f33e6e2cf7c001df9a85dffff
+    adjudicated_prs:
+      - 940
+      - 995
+      - 1073
+      - 1231
+      - 1247
+      - 1270
+      - 1280
+    carrier_state: closed
+    branches_preserved: true
+    capability_absence_from_production_treated_as_rejection: false
+
+implementation_reality:
+  recovery_reconciliation_state: resolved
+  receipt: custody/implementation-reality-current-contract-reconciliation-v1.yaml
+  pr: 1392
+  merge_sha: b0a8eedb189bb433a2d980fe080a5a8e8dac1e53
+  atlas:
+    repository: optical-lift/atlas
+    pr: 173
+    exact_candidate_sha: 5659d64517b54c0d54beb733f53cfe140e9ecad0
+    state: open_draft_exact_head_verifier_pending
+    exact_head_workflow_runs_observed: 0
+    merge_authorized: false
+    deployment_authorized: false
+  noel_dependencies:
+    identity_resolution_v2:
+      pr: 1379
+      head_sha: b1d20881a92c79f843e5fe24e17211cf34a267ec
+      migration_version: "20261003013634"
+      state: generated_clone_validated_ordered_pair_unreleased
+      production_ledger_status: absent
+    position_responsibility_definition_v1:
+      pr: 1380
+      head_sha: 7851dc1dd170cb54f11c164dacb9401dd6676205
+      migration_version: "20261003013635"
+      state: generated_clone_validated_ordered_pair_unreleased
+      production_ledger_status: absent
+    ordered_pair_validation_run_id: 37088542806
+    release_authorized_by_recovery: false
+
+supersedes_stale_recovery_spine_states:
+  file: atlas.outage-db-custody.yaml
+  current_version_at_completion: 7
+  overrides:
+    custody_lines.institutional_email: resolved_by_pr_1390
+    open_unreleased_carriers_requiring_adjudication: adjudicated_and_closed_by_pr_1391
+    custody_lines.implementation_reality: current_contract_reconciliation_resolved_by_pr_1392
+  note: >-
+    The version-7 recovery spine remains the detailed chronological audit. This completion receipt
+    is authoritative for the three tail states above so they are not mistaken for unresolved work.
+
+recovery_completion:
+  production_live_source_recovery: complete
+  cross_repository_source_reconciliation: complete
+  branch_only_terminal_tip_adjudication: complete
+  implementation_reality_current_contract_reconciliation: complete
+  outage_recovery_complete: true
+
+remaining_non_recovery_gates:
+  - run_atlas_recovery_verifier_on_exact_sha_5659d64517b54c0d54beb733f53cfe140e9ecad0
+  - governed_release_review_for_noel_pr_1379_before_merge_or_database_release
+  - governed_release_review_for_noel_pr_1380_before_merge_or_database_release
+  - live_authenticated_atlas_postgrest_noel_proof_after_required_database_release
+  - explicit_atlas_production_deployment_authorization
+
+next_phase: >-
+  Stop treating these items as outage recovery. Continue through ordinary governed validation,
+  release review, product architecture, and deployment lanes. Validated does not mean released;
+  neither Noel dependency is live, and Atlas PR #173 is not green until its exact frozen SHA is
+  verified by the existing Atlas recovery workflow.
