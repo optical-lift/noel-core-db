@@ -31,9 +31,6 @@ begin
      or position('accountable' in v_preview_source)=0 then
     raise exception 'Operation semantics must explicitly establish accountable Position responsibility.';
   end if;
-  if position('position.organization_id' in replace(v_preview_source,'v_',''))>0 then
-    null;
-  end if;
   if position('v_position.organization_id<>v_organization_id' in v_preview_source)=0
      or position('v_responsibility.organization_id<>v_organization_id' in v_preview_source)=0 then
     raise exception 'Preview must require Position, Responsibility, and context Organization to share scope.';
