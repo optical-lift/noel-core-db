@@ -1,4 +1,4 @@
-version: 6
+version: 7
 snapshot_date: "2026-10-03"
 status: current_recovery_spine
 
@@ -23,17 +23,17 @@ repository_main_at_recovery_start:
   note: Implementation Reality command source custody is present; production-live outage families remain unreconciled into main source history.
 
 latest_recovery_main:
-  sha: 8639864acd088298f818ffd836a1ffc8621ea683
-  completed_live_source_migration_count: 142
-  remaining_live_source_migration_count: 20
+  sha: 2e27c21fbd6f56fa60cb939a0b4180df5e846695
+  completed_live_source_migration_count: 162
+  remaining_live_source_migration_count: 0
+  live_source_recovery_complete: true
   production_mutation: none
   note: >-
-    Canonical Noel main now contains exact source custody for Smart Contacts, the cumulative
-    Reality Ledger / booking / spatial trunk, Household Rhythm / governed realization-provider,
-    Booking Commitment / Foundry / Public Gateway, and the full Delegated Agent kernel.
-    Both Sep. 27 and Sep. 28 families were reconstructed byte-for-byte from the authoritative
-    live migration ledger rather than approximated from later consolidated source. Remaining
-    live families are Transcript / Speech / Performance and Newsroom Transcript Reporting.
+    Canonical Noel main now contains exact source custody for all 162 true post-freeze
+    production migrations. The final Transcript/Speech/Performance and Newsroom Transcript
+    Reporting families were reconstructed byte-for-byte from the authoritative live migration
+    ledger, with surviving transcript-core/newsroom Git source used as independent cross-repository
+    evidence where available. No production SQL was replayed and no production state was mutated.
 
 source_recovery_receipts:
   shared_intelligence_smart_contacts:
@@ -82,6 +82,25 @@ source_recovery_receipts:
     production_mutation: none
     recovery_method: authoritative_production_migration_statement_bytes_with_independent_git_blob_sha1_verification
     note: all original filenames already carried the canonical atlas owner prefix, so no retrospective recovery registry exception was required.
+  transcript_speech_performance:
+    migration_count: 9
+    pr: 1389
+    merge_sha: 2e27c21fbd6f56fa60cb939a0b4180df5e846695
+    custody_ci_run_id: 37142078501
+    state: merged_exact_live_ledger_source_custody_only
+    production_mutation: none
+    recovery_registry: custody/post-fence-migration-recoveries-v48.json
+    recovery_method: authoritative_production_migration_statement_bytes_with_independent_git_blob_sha1_verification_and_cross_repository_source_crosscheck
+  newsroom_transcript_reporting:
+    migration_count: 11
+    pr: 1389
+    merge_sha: 2e27c21fbd6f56fa60cb939a0b4180df5e846695
+    custody_ci_run_id: 37142078501
+    state: merged_exact_live_ledger_source_custody_only
+    production_mutation: none
+    recovery_registry: custody/post-fence-migration-recoveries-v48.json
+    recovery_method: authoritative_production_migration_statement_bytes_with_independent_git_blob_sha1_verification_and_cross_repository_source_crosscheck
+    note: several surviving Newsroom source files were proven to differ from live bytes only by a terminal newline; divergent live bodies were recovered directly from the production ledger.
 
 live_project:
   project_id: zirqkouammpwxlqfbsvf
@@ -89,6 +108,8 @@ live_project:
   conservative_date_window_denominator: 170
   true_post_freeze_migration_count: 162
   canonical_contained_from_conservative_window: 8
+  exact_source_custody_count: 162
+  unresolved_live_source_count: 0
   note: 170 production migration records fall in the conservative Sep-24-through-Oct-2 window; exact frozen-main reconciliation shows 162 are truly post-freeze and 8 are already represented by the final Sep-24 main checkpoint.
 
 branch_census_snapshot:
@@ -169,8 +190,15 @@ production_families:
     migration_count: 9
     first_version: "20260928200320"
     last_version: "20260928224413"
-    state: cross_repository_source_reconciliation_required
-    note: no Noel branch matching the live speech/performance sequence was found; reconcile live Noel migrations with transcript-core and Atlas transcript source.
+    state: production_live_source_restored_main_exact_from_live_migration_ledger
+    source_restored_pr: 1389
+    source_restored_merge_sha: 2e27c21fbd6f56fa60cb939a0b4180df5e846695
+    custody_ci_run_id: 37142078501
+    recovery_registry: custody/post-fence-migration-recoveries-v48.json
+    cross_repository_evidence:
+      repository: optical-lift/transcript-core
+      preserved_branch: build/speaker-confirmation-workbench-v1
+      note: the exact 30090-byte speech_workbench_persistence production blob survives in the Transcript Core outage-era object history; other surviving source was cross-checked where available.
   target_relationship_topology_geography_spatial:
     migration_count: 39
     first_version: "20260930180434"
@@ -193,8 +221,15 @@ production_families:
     migration_count: 11
     first_version: "20261001210053"
     last_version: "20261002161934"
-    state: cross_repository_semantic_reconciliation_required
-    note: reconcile live Noel migrations with optical-lift/newsroom current main and build/transcripts-current-newsroom.
+    state: production_live_source_restored_main_exact_from_live_migration_ledger
+    source_restored_pr: 1389
+    source_restored_merge_sha: 2e27c21fbd6f56fa60cb939a0b4180df5e846695
+    custody_ci_run_id: 37142078501
+    recovery_registry: custody/post-fence-migration-recoveries-v48.json
+    cross_repository_evidence:
+      repository: optical-lift/newsroom
+      preserved_branch: build/transcripts-current-newsroom
+      note: multiple surviving source files were proven to match production after removal of only their terminal newline; Legal Notices, Transcript Library Collections, Institutional Root, and the earlier convergence cut were recovered directly from the live ledger.
   governed_consequence_realization_provider:
     migration_count: 4
     first_version: "20261002181837"
@@ -286,8 +321,11 @@ custody_lines:
     source_restored_merge_sha: ed1ce127413707514b15e4a12570e20e453edb07
     note: the original Foundry store migration body is now present on canonical main with exact live-byte provenance.
   transcript_core:
-    state: cross_repository_source_custody_required
-    note: live Noel migrations plus standalone transcript-core and Newsroom source must be reconciled.
+    state: production_live_source_restored_main_exact
+    source_restored_pr: 1389
+    source_restored_merge_sha: 2e27c21fbd6f56fa60cb939a0b4180df5e846695
+    recovery_registry: custody/post-fence-migration-recoveries-v48.json
+    note: all live Transcript Core / speech / scripted-audio / performance migrations are now present on canonical Noel main with exact live-byte provenance; standalone Transcript Core history remains preserved as independent evidence, not as a substitute for live provenance.
 
 open_unreleased_carriers_requiring_adjudication:
   - pr: 940
@@ -318,8 +356,8 @@ recovery_order:
   - household_and_realization_provider
   - booking_commitment_foundry_public_gateway_provenance
   - delegated_agent_exact_source_custody
-  - transcript_speech_performance_cross_repository
-  - newsroom_transcript_reporting_cross_repository
+  - transcript_speech_performance_exact_source_custody
+  - newsroom_transcript_reporting_exact_source_custody
   - branch_only_terminal_tip_adjudication
 
 completion_requires:
