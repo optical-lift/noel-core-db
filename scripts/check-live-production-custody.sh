@@ -10,24 +10,31 @@ if [ -z "$api_url" ] || [ -z "$publishable_key" ]; then
   exit 2
 fi
 
-packet="$({
-  curl --fail --silent --show-error \
-    --request POST \
-    --header "apikey: $publishable_key" \
-    --header "Authorization: Bearer $publishable_key" \
-    --header "Content-Type: application/json" \
-    --data '{}' \
-    "$api_url/rest/v1/rpc/shared_db_custody_release_packet_v1"
-} | tr -d '\r')"
+packet_file="$(mktemp)"
+trap 'rm -f "$packet_file"' EXIT
 
-PACKET_JSON="$packet" python3 - <<'PY'
+curl --fail --silent --show-error \
+  --request POST \
+  --header "apikey: $publishable_key" \
+  --header "Authorization: Bearer $publishable_key" \
+  --header "Content-Type: application/json" \
+  --data '{}' \
+  "$api_url/rest/v1/rpc/shared_db_custody_release_packet_v1" \
+  | tr -d '\r' > "$packet_file"
+
+python3 - "$packet_file" <<'PY'
 import json
-import os
 import subprocess
+import sys
 from pathlib import Path
 
+packet_path = Path(sys.argv[1])
 baseline = json.loads(Path('custody/production-baseline-v1.json').read_text())
-packet = json.loads(os.environ['PACKET_JSON'])
+try:
+    packet = json.loads(packet_path.read_text())
+except Exception as exc:
+    print(f'Live production migration custody FAILED: invalid custody packet: {exc}')
+    raise SystemExit(1)
 
 expected = baseline['inheritedHistory']
 fence = packet.get('fence') or {}
