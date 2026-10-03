@@ -1,5 +1,5 @@
-version: 3
-snapshot_date: "2026-10-02"
+version: 4
+snapshot_date: "2026-10-03"
 status: current_recovery_spine
 
 ledger_admission:
@@ -21,6 +21,46 @@ repository_main_at_recovery_start:
   sha: 2d07ce69c01031361de7d62767387cb323cd0919
   committed_at_utc: "2026-10-03T01:36:02Z"
   note: Implementation Reality command source custody is present; production-live outage families remain unreconciled into main source history.
+
+latest_recovery_main:
+  sha: 5c58902c4432b5216686bfb4b4567af24dcd0ecb
+  completed_live_source_migration_count: 108
+  remaining_live_source_migration_count: 54
+  production_mutation: none
+  note: >-
+    Canonical Noel main now contains exact source custody for Smart Contacts, the cumulative
+    Reality Ledger / booking / spatial trunk, and Household Rhythm / governed realization-provider
+    migrations. Remaining families retain their explicit unresolved or semantic-reconciliation state.
+
+source_recovery_receipts:
+  shared_intelligence_smart_contacts:
+    migration_count: 19
+    pr: 1384
+    merge_sha: 19ed92de1be800307bb5f6a151c0d745ca645e98
+    custody_ci_run_id: 37127081792
+    state: merged_source_custody_only
+    production_mutation: none
+  spatial_and_reality_ledger_cumulative_trunk:
+    migration_count: 83
+    pr: 1385
+    merge_sha: 7fd244f6071c7e1eccbea72389cdd94816cd00be
+    custody_ci_run_id: 37127749412
+    state: merged_source_custody_only
+    production_mutation: none
+    includes:
+      reality_ledger_correspondence_company_work: 20
+      booking_temporal: 24
+      target_relationship_topology_geography_spatial: 39
+  household_and_realization_provider:
+    migration_count: 6
+    pr: 1386
+    merge_sha: 5c58902c4432b5216686bfb4b4567af24dcd0ecb
+    custody_ci_run_id: 37128054937
+    state: merged_source_custody_only
+    production_mutation: none
+    includes:
+      household_rhythm_shadow: 2
+      governed_consequence_realization_provider: 4
 
 live_project:
   project_id: zirqkouammpwxlqfbsvf
@@ -49,22 +89,28 @@ production_families:
     migration_count: 19
     first_version: "20260924230219"
     last_version: "20260925005250"
-    state: production_live_source_located_separate_fork
+    state: production_live_source_restored_main
     branch: architecture/atlas-smart-contacts-v1
     terminal_sha: 9cee0d821772b30e836fbb1e78d7ca946b70d2c5
     checkpoint_branch: checkpoint/outage-smart-contacts-db-2026-09-25
+    source_restored_pr: 1384
+    source_restored_merge_sha: 19ed92de1be800307bb5f6a151c0d745ca645e98
   reality_ledger_correspondence_company_work:
     migration_count: 20
     first_version: "20260925014915"
     last_version: "20260925195307"
-    state: production_live_source_located_cumulative_trunk
+    state: production_live_source_restored_main
     source_trunk: architecture/spatial-intake-v1
+    source_restored_pr: 1385
+    source_restored_merge_sha: 7fd244f6071c7e1eccbea72389cdd94816cd00be
   booking_temporal:
     migration_count: 24
     first_version: "20260925215931"
     last_version: "20260926182344"
-    state: production_live_source_located_cumulative_trunk
+    state: production_live_source_restored_main
     source_trunk: architecture/spatial-intake-v1
+    source_restored_pr: 1385
+    source_restored_merge_sha: 7fd244f6071c7e1eccbea72389cdd94816cd00be
   booking_commitment_foundry_public_gateway:
     migration_count: 14
     first_version: "20260927212442"
@@ -108,16 +154,20 @@ production_families:
     migration_count: 39
     first_version: "20260930180434"
     last_version: "20261001001646"
-    state: production_live_source_located_cumulative_trunk
+    state: production_live_source_restored_main
     source_trunk: architecture/spatial-intake-v1
     terminal_sha: 0bc768cac28f902f2a2d5794507d6c4ea2c5c212
     checkpoint_branch: checkpoint/outage-spatial-intake-2026-10-01
+    source_restored_pr: 1385
+    source_restored_merge_sha: 7fd244f6071c7e1eccbea72389cdd94816cd00be
   household_rhythm_shadow:
     migration_count: 2
     first_version: "20261001172830"
     last_version: "20261001183521"
-    state: production_live_source_located_separate_fork
+    state: production_live_source_restored_main
     source_trunk: architecture/institutional-communication-realization-provider-v1
+    source_restored_pr: 1386
+    source_restored_merge_sha: 5c58902c4432b5216686bfb4b4567af24dcd0ecb
   newsroom_transcript_reporting:
     migration_count: 11
     first_version: "20261001210053"
@@ -128,23 +178,29 @@ production_families:
     migration_count: 4
     first_version: "20261002181837"
     last_version: "20261002195337"
-    state: production_live_source_located_separate_fork
+    state: production_live_source_restored_main
     source_trunk: architecture/institutional-communication-realization-provider-v1
     terminal_sha: 8dc3637d60550f1330327bc3227d6ef79aa741a9
     checkpoint_branch: checkpoint/outage-realization-provider-2026-10-02
+    source_restored_pr: 1386
+    source_restored_merge_sha: 5c58902c4432b5216686bfb4b4567af24dcd0ecb
 
 custody_lines:
   scheduling_geography_spatial:
-    state: production_live_source_not_main
+    state: production_live_source_restored_main
     terminal_branch: architecture/spatial-intake-v1
     terminal_sha: 0bc768cac28f902f2a2d5794507d6c4ea2c5c212
     checkpoint_branch: checkpoint/outage-spatial-intake-2026-10-01
-    note: separate from Smart Contacts, Public Commitment, Delegated Agent, and Household/Realization forks.
+    source_restored_pr: 1385
+    source_restored_merge_sha: 7fd244f6071c7e1eccbea72389cdd94816cd00be
+    note: restored to canonical main independently from Smart Contacts, Public Commitment, Delegated Agent, and Household/Realization forks.
   household_consequence_realization:
-    state: production_live_source_not_main
+    state: production_live_source_restored_main
     terminal_branch: architecture/institutional-communication-realization-provider-v1
     terminal_sha: 8dc3637d60550f1330327bc3227d6ef79aa741a9
     checkpoint_branch: checkpoint/outage-realization-provider-2026-10-02
+    source_restored_pr: 1386
+    source_restored_merge_sha: 5c58902c4432b5216686bfb4b4567af24dcd0ecb
   financial_obligation_evidence:
     state: branch_only_preserve
     terminal_branch: work/atlas-financial-obligation-settlement-v1
