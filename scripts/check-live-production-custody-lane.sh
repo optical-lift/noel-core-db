@@ -16,27 +16,32 @@ if [ -z "$api_url" ] || [ -z "$publishable_key" ]; then
   exit 2
 fi
 
-packet="$({
-  curl --fail --silent --show-error \
-    --request POST \
-    --header "apikey: $publishable_key" \
-    --header "Authorization: Bearer $publishable_key" \
-    --header "Content-Type: application/json" \
-    --data '{}' \
-    "$api_url/rest/v1/rpc/shared_db_custody_release_packet_v1"
-} | tr -d '\r')"
+packet_file="$(mktemp)"
+trap 'rm -f "$packet_file"' EXIT
 
-PACKET_JSON="$packet" python3 - "$lane" "$baseline" "$manifest" <<'PY'
+curl --fail --silent --show-error \
+  --request POST \
+  --header "apikey: $publishable_key" \
+  --header "Authorization: Bearer $publishable_key" \
+  --header "Content-Type: application/json" \
+  --data '{}' \
+  "$api_url/rest/v1/rpc/shared_db_custody_release_packet_v1" \
+  | tr -d '\r' > "$packet_file"
+
+python3 - "$lane" "$baseline" "$manifest" "$packet_file" <<'PY'
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
 
-lane, baseline_path, manifest_path = sys.argv[1:]
+lane, baseline_path, manifest_path, packet_path = sys.argv[1:]
 baseline = json.loads(Path(baseline_path).read_text())
 manifest = json.loads(Path(manifest_path).read_text())
-packet = json.loads(os.environ['PACKET_JSON'])
+try:
+    packet = json.loads(Path(packet_path).read_text())
+except Exception as exc:
+    print(f'Live production {lane} release-lane custody FAILED: invalid custody packet: {exc}')
+    raise SystemExit(1)
 
 expected = baseline['inheritedHistory']
 fence = packet.get('fence') or {}
