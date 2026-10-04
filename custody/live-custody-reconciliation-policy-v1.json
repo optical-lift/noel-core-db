@@ -20,6 +20,12 @@
         "sealedGitBlobSha1": "9d0e36c7450030af3855da2d507a8ef17435db50",
         "expectedRowCount": 2,
         "scope": "titus_formation_stabilization_2026_10_04"
+      },
+      {
+        "path": "custody/executed-statement-body-reconciliations-atlas-class-b-recovery-v1.json",
+        "sealedGitBlobSha1": "0cd1315ff6e3a2b7d779a073f4d2570ef2ae4c11",
+        "expectedRowCount": 7,
+        "scope": "atlas_live_custody_class_b_recovery_2026_10_04"
       }
     ]
   },

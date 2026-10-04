@@ -1,0 +1,72 @@
+{
+  "contractVersion": 1,
+  "sealed": true,
+  "classification": "supabase_executed_statement_body_reconciliation",
+  "scope": "atlas_live_custody_class_b_recovery_2026_10_04",
+  "sourceSemantics": "Git preserves the authored canonical migration source. supabase_migrations.schema_migrations.statements preserves parsed/executed statement history and may differ in comments, formatting, or the timestamped filename under which the same authored body was executed.",
+  "rule": "These rows bridge only the seven Atlas migrations named here. Acceptance requires the canonical migration file to exist under the live production filename at the recorded canonicalSourceGitBlobSha1 and the live executed body to equal executedBodyGitBlobSha1. This receipt authorizes no production mutation, rerun, rewrite, or replacement of historical execution history.",
+  "sourceLines": [
+    {
+      "branch": "architecture/reality-ledger-booking-request-approval-v1",
+      "tipCommit": "c9f152b7ebe438e170ad757e708b6916065b0fe8",
+      "covers": [
+        "20260926151330_atlas_booking_request_approval_services_v1.sql",
+        "20260926152034_atlas_booking_request_approval_fk_index_v1.sql"
+      ]
+    },
+    {
+      "branch": "architecture/reality-ledger-booking-offering-requirements-routing-v1",
+      "tipCommit": "0f827f6570539c258cdf80d02001c84e687badbc",
+      "covers": [
+        "20260926153910_atlas_booking_offering_requirements_routing_core_v1.sql",
+        "20260926154047_atlas_booking_offering_requirements_routing_services_v1.sql",
+        "20260926154304_atlas_booking_offering_requirements_routing_hardening_v1.sql",
+        "20260926155136_atlas_booking_offering_fk_indexes_v1.sql"
+      ]
+    },
+    {
+      "branch": "architecture/atlas-ledger-target-intelligence-v1",
+      "tipCommit": "d583488486886bb4666eb42620c2f365fa91ca9b",
+      "covers": [
+        "20260930180434_atlas_ledger_target_intelligence_v1.sql"
+      ]
+    }
+  ],
+  "rows": [
+    {
+      "filename": "20260926151330_atlas_booking_request_approval_services_v1.sql",
+      "canonicalSourceGitBlobSha1": "f3def9874b4df1773beafee9af027aea4b809e5a",
+      "executedBodyGitBlobSha1": "9dfca16e5a1132d273ee8061cde9b38245caa3f1"
+    },
+    {
+      "filename": "20260926152034_atlas_booking_request_approval_fk_index_v1.sql",
+      "canonicalSourceGitBlobSha1": "db5dac04cd23045d3e5579629656ec1f3a2a5f46",
+      "executedBodyGitBlobSha1": "01107ac0e5e0f5020a07be3eed45176593753ce2"
+    },
+    {
+      "filename": "20260926153910_atlas_booking_offering_requirements_routing_core_v1.sql",
+      "canonicalSourceGitBlobSha1": "b2d54283972e01e1caa46ad63f5fe2c9a78d4254",
+      "executedBodyGitBlobSha1": "ea3647fa3ffb475c6cb9872b4f383fbd2adf4309"
+    },
+    {
+      "filename": "20260926154047_atlas_booking_offering_requirements_routing_services_v1.sql",
+      "canonicalSourceGitBlobSha1": "4839858ea10bb681a5450f27148a276ebecb403b",
+      "executedBodyGitBlobSha1": "3b83b281904cb473b252bfc689940a23f0347a8f"
+    },
+    {
+      "filename": "20260926154304_atlas_booking_offering_requirements_routing_hardening_v1.sql",
+      "canonicalSourceGitBlobSha1": "64acb9bf1e999bd263421975166bce63c9d5ab7c",
+      "executedBodyGitBlobSha1": "8019224ed003fa55c9eda91c3a8b3b155ce5859c"
+    },
+    {
+      "filename": "20260926155136_atlas_booking_offering_fk_indexes_v1.sql",
+      "canonicalSourceGitBlobSha1": "ad48e5a79ecce84358493e9e0b4ef116510e957f",
+      "executedBodyGitBlobSha1": "863785f84b6e92efff226c8ecca19a07d85967b7"
+    },
+    {
+      "filename": "20260930180434_atlas_ledger_target_intelligence_v1.sql",
+      "canonicalSourceGitBlobSha1": "2a87e63cff8b9fc1a05653e2b7df0052af3b09f1",
+      "executedBodyGitBlobSha1": "63acc4f82f018d649f17f7a69c55feacbd84fbc0"
+    }
+  ]
+}
