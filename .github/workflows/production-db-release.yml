@@ -10,6 +10,7 @@ on:
         options:
           - atlas
           - wnph
+          - titus
           - shared
       migration_version:
         description: "Exact 14-digit migration version already merged to main"
@@ -51,8 +52,8 @@ jobs:
             echo "::error::migration_version must be exactly 14 digits."
             exit 1
           fi
-          if [[ "${{ inputs.release_lane }}" != "atlas" && "${{ inputs.release_lane }}" != "wnph" && "${{ inputs.release_lane }}" != "shared" ]]; then
-            echo "::error::release_lane must be atlas, wnph, or shared."
+          if [[ "${{ inputs.release_lane }}" != "atlas" && "${{ inputs.release_lane }}" != "wnph" && "${{ inputs.release_lane }}" != "titus" && "${{ inputs.release_lane }}" != "shared" ]]; then
+            echo "::error::release_lane must be atlas, wnph, titus, or shared."
             exit 1
           fi
           if [[ -z "${NOEL_CORE_DATABASE_URL:-}" ]]; then
@@ -77,7 +78,12 @@ jobs:
         run: bash scripts/check-production-release-contract.sh
 
       - name: Verify target live release lane before release
+        if: inputs.release_lane != 'titus'
         run: bash scripts/check-live-production-custody-lane.sh "${{ inputs.release_lane }}"
+
+      - name: Verify Titus Formation live custody before release
+        if: inputs.release_lane == 'titus'
+        run: bash scripts/check-titus-formation-custody.sh
 
       - name: Audit global live custody before release
         continue-on-error: true
@@ -89,7 +95,12 @@ jobs:
         run: bash scripts/release-production-migration.sh "${{ inputs.migration_version }}"
 
       - name: Verify target live release lane after release
+        if: inputs.release_lane != 'titus'
         run: bash scripts/check-live-production-custody-lane.sh "${{ inputs.release_lane }}"
+
+      - name: Verify Titus Formation live custody after release
+        if: inputs.release_lane == 'titus'
+        run: bash scripts/check-titus-formation-custody.sh
 
       - name: Audit global live custody after release
         continue-on-error: true

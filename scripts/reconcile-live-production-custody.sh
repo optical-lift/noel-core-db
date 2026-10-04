@@ -33,4 +33,4 @@ if [[ "$mode" == "--enforce" ]]; then
   args+=(--enforce)
 fi
 
-python3 scripts/reconcile-live-production-custody.py "${args[@]}"
+python3 scripts/reconcile-live-production-custody-with-supplements.py "${args[@]}"

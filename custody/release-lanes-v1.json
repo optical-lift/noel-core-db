@@ -6,14 +6,20 @@
     "atlas": {
       "migrationPrefix": "atlas_",
       "ownedSchema": "atlas",
-      "foreignLanePrefixes": ["wnph_"],
-      "forbiddenSqlFragments": ["wnph.", "public.wnph_", "public.v_wnph_"]
+      "foreignLanePrefixes": ["wnph_", "titus_"],
+      "forbiddenSqlFragments": ["wnph.", "public.wnph_", "public.v_wnph_", "titus."]
     },
     "wnph": {
       "migrationPrefix": "wnph_",
       "ownedSchema": "wnph",
-      "foreignLanePrefixes": ["atlas_"],
-      "forbiddenSqlFragments": ["atlas.", "public.atlas_", "public.v_atlas_"]
+      "foreignLanePrefixes": ["atlas_", "titus_"],
+      "forbiddenSqlFragments": ["atlas.", "public.atlas_", "public.v_atlas_", "titus."]
+    },
+    "titus": {
+      "migrationPrefix": "titus_",
+      "ownedSchema": "titus",
+      "foreignLanePrefixes": ["atlas_", "wnph_"],
+      "forbiddenSqlFragments": ["atlas.", "public.atlas_", "public.v_atlas_", "wnph.", "public.wnph_", "public.v_wnph_"]
     },
     "shared": {
       "migrationPrefix": "shared_",

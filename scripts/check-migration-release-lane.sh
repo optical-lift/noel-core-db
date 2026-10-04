@@ -7,11 +7,11 @@ migration_override="${3:-}"
 manifest="custody/release-lanes-v1.json"
 
 if [[ ! "$version" =~ ^[0-9]{14}$ ]]; then
-  echo "Usage: $0 <14-digit-migration-version> <atlas|wnph|shared>" >&2
+  echo "Usage: $0 <14-digit-migration-version> <atlas|wnph|titus|shared>" >&2
   exit 2
 fi
-if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "shared" ]]; then
-  echo "Release lane must be atlas, wnph, or shared." >&2
+if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "titus" && "$lane" != "shared" ]]; then
+  echo "Release lane must be atlas, wnph, titus, or shared." >&2
   exit 2
 fi
 if [ ! -f "$manifest" ]; then
@@ -71,7 +71,7 @@ if violations:
     raise SystemExit(
         f'Migration {name} crosses the {lane} release membrane through forbidden reference(s): '
         + ', '.join(violations)
-        + '. Move cross-product work to an explicit shared_ migration instead.'
+        + '. Move cross-product work to an explicit shared_ migration or a governed reference contract.'
     )
 
 print(f'Release lane check passed: {name} belongs to {lane} and does not directly cross its product membrane.')

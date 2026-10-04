@@ -13,7 +13,15 @@
   "executedStatementReconciliation": {
     "path": "custody/executed-statement-body-reconciliations-v1.json",
     "sealedGitBlobSha1": "12962a43cd510f7015ff46c7f3364192229dba2c",
-    "expectedRowCount": 58
+    "expectedRowCount": 58,
+    "supplements": [
+      {
+        "path": "custody/executed-statement-body-reconciliations-titus-formation-v1.json",
+        "sealedGitBlobSha1": "9d0e36c7450030af3855da2d507a8ef17435db50",
+        "expectedRowCount": 2,
+        "scope": "titus_formation_stabilization_2026_10_04"
+      }
+    ]
   },
   "stableRecoveryCutThroughVersion": "20261003182354",
   "states": {
@@ -32,7 +40,7 @@
     ]
   },
   "materializationRule": "Only registered_recovery_missing_file may be materialized automatically, and only when filename plus live executed-statement hash exactly equals the latest valid sealed recovery receipt. Materialization must verify the resulting Git blob identity against that receipt before it is counted as canonical source.",
-  "sourceIdentityRule": "Git owns canonical source identity. Supabase migration statements own execution history. A sealed executed-statement reconciliation receipt is the only accepted bridge when the two byte representations differ.",
+  "sourceIdentityRule": "Git owns canonical source identity. Supabase migration statements own execution history. A sealed base or supplemental executed-statement reconciliation receipt is the only accepted bridge when the two byte representations differ.",
   "activeTailRule": "A missing live migration newer than stableRecoveryCutThroughVersion is post_cut_active_tail unless an existing sealed recovery receipt already accounts for it. Active-tail rows are not absorbed into outage recovery automatically.",
   "productionMutationAuthorized": false
 }
