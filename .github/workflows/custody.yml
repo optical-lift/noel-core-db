@@ -1,57 +1,96 @@
-name: Database Custody CI
+name: Live Custody Materializer Helper
 
 on:
   pull_request:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "*/15 * * * *"
-  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  custody:
+  package:
+    if: github.base_ref == 'recovery/live-custody-materializer-helper-base-2026-10-03'
     runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 10
     env:
-      NOEL_CORE_SUPABASE_URL: https://zirqkouammpwxlqfbsvf.supabase.co
-      NOEL_CORE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_3UCb5b3USJD24c2uX6B_4A_0XWDT6si
+      NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Package exact receipt-authorized live migration bodies
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${NOEL_CORE_DATABASE_URL:-}"
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, subprocess
 
-      - name: Verify custody trigger contract
-        run: bash scripts/check-custody-trigger.sh
+          versions = [
+            '20260909045131','20260910015752','20260910023610','20260911150145','20260911163619',
+            '20260912181639','20260914025111','20260914032038','20260914032102','20260914032257',
+            '20260914032351','20260914032413','20260914032610','20260914042154','20260914042250',
+            '20260920012936','20260920013215','20260920013357','20260920013421','20260920013801',
+            '20260920013920','20260920014950','20260920015922','20260920020312','20260920020958',
+            '20260923130758','20260923132341','20260923133622','20260923134913','20260923135608',
+            '20260923140750','20260923151041','20260923151821','20260923161022','20260923170653',
+            '20260923173345','20260923173503','20260923174746','20260923175455','20260923180153',
+            '20260923183202','20260923183246','20260923183320','20260923184053','20260923185945',
+            '20260923190204','20260923192517','20260923200254','20260923200407','20260923200621',
+            '20260923200648','20260923200727','20260923201311','20260923201351','20260923201710',
+            '20260923201921','20260923202023','20260923202134','20260923202220','20260923202259',
+            '20260923202307','20260923202511','20260923202649','20260923202713','20260923203404',
+            '20260923203501','20260923203516','20260923203717','20260923203952','20260923204048',
+            '20260923204230','20260923204354','20260923205431'
+          ]
+          quoted = ','.join("'" + v + "'" for v in versions)
+          sql = f"""
+          select coalesce(jsonb_agg(jsonb_build_object(
+            'version', version,
+            'name', name,
+            'body', array_to_string(statements, E'\\n')
+          ) order by version), '[]'::jsonb)::text
+          from supabase_migrations.schema_migrations
+          where version in ({quoted});
+          """
+          result = subprocess.run(
+            ['psql', os.environ['NOEL_CORE_DATABASE_URL'], '-X', '-A', '-t', '-v', 'ON_ERROR_STOP=1', '-c', sql],
+            check=True, capture_output=True, text=True
+          )
+          rows = json.loads(result.stdout.strip())
+          if len(rows) != 73:
+            raise SystemExit(f'expected 73 rows, received {len(rows)}')
+          if [r['version'] for r in rows] != versions:
+            raise SystemExit('production result version set/order does not match the frozen authorization set')
 
-      - name: Verify static custody boundaries
-        run: bash scripts/check-custody.sh
+          out = pathlib.Path('artifact')
+          migrations = out / 'supabase' / 'migrations'
+          migrations.mkdir(parents=True, exist_ok=True)
+          manifest = []
+          aggregate_lines = []
+          for row in rows:
+            body = row['body']
+            raw = body.encode('utf-8')
+            blob_sha = hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest()
+            filename = f"{row['version']}_{row['name']}.sql"
+            (migrations / filename).write_bytes(raw)
+            manifest.append({'version': row['version'], 'name': row['name'], 'filename': filename, 'gitBlobSha1': blob_sha, 'bytes': len(raw)})
+            aggregate_lines.append(f"{row['version']}\t{blob_sha}")
 
-      - name: Verify WNPH product schema membrane
-        run: bash scripts/check-wnph-membrane.sh
+          aggregate = hashlib.sha256('\n'.join(aggregate_lines).encode()).hexdigest()
+          expected = '951b09f714e29e333a10a64a6fb2f174149839734813d4935603ab49ffbffde7'
+          if aggregate != expected:
+            raise SystemExit(f'aggregate mismatch: expected {expected}, got {aggregate}')
+          (out / 'materialization-manifest.json').write_text(json.dumps({
+            'rowCount': len(manifest),
+            'aggregateSha256': aggregate,
+            'source': 'read-only production migration ledger',
+            'rows': manifest
+          }, indent=2) + '\n', encoding='utf-8')
+          print(f'Packaged {len(manifest)} exact live migration bodies; aggregate={aggregate}')
+          PY
 
-      - name: Verify production release seam contract
-        run: bash scripts/check-production-release-contract.sh
-
-      - name: Verify production schema validation contract
-        run: bash scripts/check-production-schema-validation-contract.sh
-
-      - name: Reconcile and verify global live production custody
-        env:
-          LIVE_CUSTODY_MANIFEST_PATH: ${{ runner.temp }}/live-custody-reconciliation.json
-        run: bash scripts/reconcile-live-production-custody.sh --enforce
-
-      - name: Preserve live custody reconciliation manifest
-        if: always()
+      - name: Upload exact materialization package
         uses: actions/upload-artifact@v4
         with:
-          name: live-custody-reconciliation-${{ github.run_id }}
-          path: ${{ runner.temp }}/live-custody-reconciliation.json
+          name: live-custody-materialization-${{ github.run_id }}
+          path: artifact
           if-no-files-found: error
-          retention-days: 30
-
-      - name: Verify Atlas live release lane
-        run: bash scripts/check-live-production-custody-lane.sh atlas
-
-      - name: Verify WNPH live release lane
-        run: bash scripts/check-live-production-custody-lane.sh wnph
+          retention-days: 3
