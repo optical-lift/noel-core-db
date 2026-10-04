@@ -1,0 +1,52 @@
+{
+  "contractVersion": 1,
+  "classification": "canonical_live_custody_reconciliation_policy",
+  "sealed": true,
+  "fenceVersion": "20260825203448",
+  "recoveryRegistry": {
+    "directory": "custody",
+    "filenamePrefix": "post-fence-migration-recoveries-v",
+    "firstContractVersion": 4,
+    "lastContractVersion": 50,
+    "laterDifferentHashRequiresSupersedesLanguage": true
+  },
+  "executedStatementReconciliation": {
+    "path": "custody/executed-statement-body-reconciliations-v1.json",
+    "sealedGitBlobSha1": "12962a43cd510f7015ff46c7f3364192229dba2c",
+    "expectedRowCount": 58,
+    "supplements": [
+      {
+        "path": "custody/executed-statement-body-reconciliations-titus-formation-v1.json",
+        "sealedGitBlobSha1": "9d0e36c7450030af3855da2d507a8ef17435db50",
+        "expectedRowCount": 2,
+        "scope": "titus_formation_stabilization_2026_10_04"
+      },
+      {
+        "path": "custody/executed-statement-body-reconciliations-atlas-class-b-recovery-v1.json",
+        "sealedGitBlobSha1": "0cd1315ff6e3a2b7d779a073f4d2570ef2ae4c11",
+        "expectedRowCount": 7,
+        "scope": "atlas_live_custody_class_b_recovery_2026_10_04"
+      }
+    ]
+  },
+  "stableRecoveryCutThroughVersion": "20261003182354",
+  "states": {
+    "nonBlocking": [
+      "canonical_exact",
+      "canonical_reconciled"
+    ],
+    "materializableOnlyByExistingReceipt": [
+      "registered_recovery_missing_file"
+    ],
+    "blocking": [
+      "registered_recovery_missing_file",
+      "unregistered_live_source_gap",
+      "registry_conflict",
+      "post_cut_active_tail"
+    ]
+  },
+  "materializationRule": "Only registered_recovery_missing_file may be materialized automatically, and only when filename plus live executed-statement hash exactly equals the latest valid sealed recovery receipt. Materialization must verify the resulting Git blob identity against that receipt before it is counted as canonical source.",
+  "sourceIdentityRule": "Git owns canonical source identity. Supabase migration statements own execution history. A sealed base or supplemental executed-statement reconciliation receipt is the only accepted bridge when the two byte representations differ.",
+  "activeTailRule": "A missing live migration newer than stableRecoveryCutThroughVersion is post_cut_active_tail unless an existing sealed recovery receipt already accounts for it. Active-tail rows are not absorbed into outage recovery automatically.",
+  "productionMutationAuthorized": false
+}

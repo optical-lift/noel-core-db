@@ -16,27 +16,33 @@ if [ -z "$api_url" ] || [ -z "$publishable_key" ]; then
   exit 2
 fi
 
-packet="$({
-  curl --fail --silent --show-error \
-    --request POST \
-    --header "apikey: $publishable_key" \
-    --header "Authorization: Bearer $publishable_key" \
-    --header "Content-Type: application/json" \
-    --data '{}' \
-    "$api_url/rest/v1/rpc/shared_db_custody_release_packet_v1"
-} | tr -d '\r')"
+packet_file="$(mktemp)"
+trap 'rm -f "$packet_file"' EXIT
 
-PACKET_JSON="$packet" python3 - "$lane" "$baseline" "$manifest" <<'PY'
+curl --fail --silent --show-error \
+  --request POST \
+  --header "apikey: $publishable_key" \
+  --header "Authorization: Bearer $publishable_key" \
+  --header "Content-Type: application/json" \
+  --data '{}' \
+  "$api_url/rest/v1/rpc/shared_db_custody_release_packet_v1" \
+  | tr -d '\r' > "$packet_file"
+
+python3 - "$lane" "$baseline" "$manifest" "$packet_file" <<'PY'
 import json
-import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
-lane, baseline_path, manifest_path = sys.argv[1:]
+lane, baseline_path, manifest_path, packet_path = sys.argv[1:]
 baseline = json.loads(Path(baseline_path).read_text())
 manifest = json.loads(Path(manifest_path).read_text())
-packet = json.loads(os.environ['PACKET_JSON'])
+try:
+    packet = json.loads(Path(packet_path).read_text())
+except Exception as exc:
+    print(f'Live production {lane} release-lane custody FAILED: invalid custody packet: {exc}')
+    raise SystemExit(1)
 
 expected = baseline['inheritedHistory']
 fence = packet.get('fence') or {}
@@ -45,6 +51,12 @@ post_fence = packet.get('postFence') or []
 lanes = manifest['lanes']
 errors = []
 ignored = []
+sha1_re = re.compile(r'^[0-9a-f]{40}$')
+
+
+def git_blob(path: Path) -> str:
+    return subprocess.check_output(['git', 'hash-object', str(path)], text=True).strip()
+
 
 # Historical post-fence migrations may have been recovered after they reached production.
 # A sealed recovery registry is evidence of the exact live Git blob identity. It does not
@@ -69,6 +81,75 @@ for recovery_path in sorted(Path('custody').glob('post-fence-migration-recoverie
             errors.append(f"Malformed custody recovery entry in {recovery_path}: {entry!r}")
             continue
         recovered.add((version, name, blob))
+
+# Canonical source and live execution history are allowed to differ only through the same
+# sealed two-hash receipts used by the authoritative global live-custody reconciler.
+statement_pairs = {}
+policy_path = Path('custody/live-custody-reconciliation-policy-v1.json')
+try:
+    policy = json.loads(policy_path.read_text())
+except Exception as exc:
+    errors.append(f"Invalid live custody reconciliation policy {policy_path}: {exc}")
+    policy = {}
+
+if policy and (policy.get('contractVersion') != 1 or policy.get('sealed') is not True):
+    errors.append(f"Unexpected live custody reconciliation policy contract: {policy_path}")
+
+statement_cfg = policy.get('executedStatementReconciliation') or {}
+receipt_specs = []
+if statement_cfg:
+    receipt_specs.append((
+        Path(str(statement_cfg.get('path') or '')),
+        str(statement_cfg.get('sealedGitBlobSha1') or ''),
+        int(statement_cfg.get('expectedRowCount') or 0),
+    ))
+    for supplement in statement_cfg.get('supplements') or []:
+        receipt_specs.append((
+            Path(str(supplement.get('path') or '')),
+            str(supplement.get('sealedGitBlobSha1') or ''),
+            int(supplement.get('expectedRowCount') or 0),
+        ))
+
+for receipt_path, expected_receipt_sha, expected_count in receipt_specs:
+    if not str(receipt_path) or not receipt_path.is_file():
+        errors.append(f"Missing executed-statement reconciliation receipt: {receipt_path}")
+        continue
+    if not sha1_re.fullmatch(expected_receipt_sha):
+        errors.append(f"Invalid sealed receipt SHA in live custody policy for {receipt_path}: {expected_receipt_sha!r}")
+        continue
+    actual_receipt_sha = git_blob(receipt_path)
+    if actual_receipt_sha != expected_receipt_sha:
+        errors.append(
+            f"Executed-statement reconciliation receipt changed: {receipt_path}; "
+            f"expected={expected_receipt_sha} actual={actual_receipt_sha}"
+        )
+        continue
+    try:
+        receipt = json.loads(receipt_path.read_text())
+    except Exception as exc:
+        errors.append(f"Invalid executed-statement reconciliation receipt {receipt_path}: {exc}")
+        continue
+    if receipt.get('sealed') is not True or receipt.get('classification') != 'supabase_executed_statement_body_reconciliation':
+        errors.append(f"Unexpected executed-statement reconciliation contract: {receipt_path}")
+        continue
+    rows = receipt.get('rows') or []
+    if len(rows) != expected_count:
+        errors.append(
+            f"Executed-statement reconciliation row count changed: {receipt_path}; "
+            f"expected={expected_count} actual={len(rows)}"
+        )
+        continue
+    for entry in rows:
+        filename = str(entry.get('filename') or '')
+        source_blob = str(entry.get('canonicalSourceGitBlobSha1') or '')
+        executed_blob = str(entry.get('executedBodyGitBlobSha1') or '')
+        if not filename.endswith('.sql') or not sha1_re.fullmatch(source_blob) or not sha1_re.fullmatch(executed_blob):
+            errors.append(f"Malformed executed-statement reconciliation entry in {receipt_path}: {entry!r}")
+            continue
+        if filename in statement_pairs:
+            errors.append(f"Duplicate executed-statement reconciliation entry for {filename}")
+            continue
+        statement_pairs[filename] = (source_blob, executed_blob)
 
 if manifest.get('contractVersion') != 1:
     errors.append(f"Unexpected release-lane contract version: {manifest.get('contractVersion')!r}")
@@ -101,14 +182,19 @@ for row in post_fence:
     versions.append(version)
     owner_lane = classify(name)
 
-    path = Path('supabase/migrations') / f'{version}_{name}.sql'
+    filename = f'{version}_{name}.sql'
+    path = Path('supabase/migrations') / filename
     repository_blob = None
     if path.is_file():
-        repository_blob = subprocess.check_output(['git', 'hash-object', str(path)], text=True).strip()
+        repository_blob = git_blob(path)
 
     exact_repository = path.is_file() and repository_blob == production_blob
     exact_recovery = (version, name, production_blob) in recovered
-    if exact_repository or exact_recovery:
+    exact_statement_reconciliation = (
+        path.is_file()
+        and statement_pairs.get(filename) == (repository_blob, production_blob)
+    )
+    if exact_repository or exact_recovery or exact_statement_reconciliation:
         continue
 
     foreign = owner_lane not in (lane, 'unclassified', 'shared')
@@ -119,12 +205,14 @@ for row in post_fence:
     if not path.is_file():
         errors.append(
             f"{lane} release lane blocked by uncustodied {owner_lane} live migration: "
-            f"{version}_{name}; production={production_blob}; expected {path} or a sealed exact-live-byte recovery"
+            f"{version}_{name}; production={production_blob}; expected {path}, a sealed exact-live-byte recovery, "
+            "or a sealed canonical-source/executed-body reconciliation"
         )
     else:
         errors.append(
             f"{lane} release lane blocked by byte drift in {owner_lane} live migration: {path}; "
-            f"repository={repository_blob} production={production_blob}; no sealed matching recovery"
+            f"repository={repository_blob} production={production_blob}; "
+            "no sealed matching recovery or statement-body reconciliation"
         )
 
 if versions != sorted(versions) or len(versions) != len(set(versions)):

@@ -1,0 +1,104 @@
+version: 1
+kind: outage_recovery_completion_receipt
+completion_date: 2026-10-04
+status: complete_for_defined_recovery_scope
+repository: optical-lift/noel-core-db
+pull_request: 1394
+original_recovery_head: 636f3bce0bd23f3a7fce8c680b8186fd2d027ea9
+validated_candidate_head: 82062b42e5f3f4304860b5853b4066022d946ec0
+canonical_main_sha_at_validation: 525690dfba18b84b360926a83ce41b5f72d1a2d9
+
+live_custody_validation:
+  workflow_run_id: 37226638784
+  workflow_name: Database Custody CI
+  result: success
+  global_reconciliation:
+    post_fence_row_count: 998
+    canonical_exact: 931
+    canonical_reconciled: 67
+    blocking_count: 0
+    global_error_count: 0
+    materializable_by_existing_receipt_count: 0
+  atlas_release_lane: passed
+  wnph_release_lane: passed
+  static_custody_boundaries: passed
+  production_release_contract: passed
+  production_schema_validation_contract: passed
+  titus_formation_custody: passed
+  durable_manifest_artifact_id: 11311784050
+  durable_manifest_artifact_name: live-custody-reconciliation-37226638784
+
+custody_recovery_completed:
+  exact_source_restorations_from_surviving_git_blobs: 16
+  class_b_source_execution_reconciliations: 7
+  class_b_reconciliation_receipt: custody/executed-statement-body-reconciliations-atlas-class-b-recovery-v1.json
+  class_b_receipt_git_blob_sha1: 0cd1315ff6e3a2b7d779a073f4d2570ef2ae4c11
+  policy_git_blob_sha1: e45f91861a5dbaf1303a266d8fc4ef5d3197021e
+  result: all_live_post_fence_migrations_canonically_source_custodied
+
+verifier_repairs_completed:
+  release_packet_rpc_signature_parser:
+    state: repaired_in_source
+    migration: 20261004190000_atlas_authenticated_rpc_registry_signature_parser_repair_v1.sql
+    note: >-
+      Replaces invalid to_regprocedure handling of named identity arguments with normalized
+      OID matching that handles timestamp with time zone/timestamptz aliases, comma spacing,
+      and PostgreSQL identifier truncation while preserving genuine registry drift.
+  release_lane_statement_reconciliation:
+    state: repaired
+    script: scripts/check-live-production-custody-lane.sh
+    note: >-
+      Product release-lane custody now recognizes only sealed canonical-source/executed-body
+      reconciliation receipts that match both repository source blob identity and production
+      executed-body blob identity, aligning it with the authoritative global reconciler.
+
+semantic_branch_disposition:
+  receipt: custody/branch-dispositions-2026-10-04.yaml
+  receipt_git_blob_sha1: 769e5c46e2fac7dc2abf0f7538bb8fb53712b0b3
+  current_branch_api_census_count: 842
+  prior_frozen_mechanical_census_count: 805
+  recovery_critical_scope_complete: true
+  exhaustive_repository_semantic_review_claimed: false
+  unreviewed_branches_preserved: true
+  direct_merge_of_historical_branches_authorized: false
+  deletion_or_abandonment_of_unreviewed_branches_authorized: false
+
+current_governed_release_candidates_preserved_separately:
+  - pr: 1379
+    capability: atlas_implementation_reality_identity_resolution_v2
+    head_sha: b1d20881a92c79f843e5fe24e17211cf34a267ec
+    state: open_draft
+    release_authorized_by_recovery: false
+  - pr: 1380
+    capability: atlas_implementation_reality_position_responsibility_definition_v1
+    head_sha: 7851dc1dd170cb54f11c164dacb9401dd6676205
+    state: open_draft
+    release_authorized_by_recovery: false
+
+production_safety:
+  production_mutation_performed_by_recovery: false
+  production_history_rewritten: false
+  production_migration_rerun_performed: false
+  production_release_authorized_by_this_receipt: false
+  note: >-
+    This receipt closes source custody and defined outage-recovery adjudication only. Normal
+    governed merge and production release controls remain in force and must run separately.
+
+closure_assertions:
+  - all_998_current_post_fence_live_rows_are_exact_or_sealed_reconciled
+  - missing_canonical_file_count_is_zero_for_live_post_fence_rows
+  - unresolved_live_source_gap_count_is_zero
+  - global_live_custody_verifier_passes
+  - atlas_and_wnph_release_lane_custody_checks_pass
+  - recovery_critical_semantic_branch_scope_is_explicit_and_machine_readable
+  - unreviewed_branch_tips_remain_preserved_and_non_disposable
+  - implementation_reality_generated_release_candidates_remain_governed_separately
+  - production_was_not_mutated_to_achieve_recovery_closure
+
+next_governed_sequence:
+  - merge_pr_1394_only_after_final_exact_head_checks_pass
+  - regenerate_or_rebase_pr_1379_and_pr_1380_against_post_1394_main
+  - run_exact_sha_production_schema_validation_for_each_generated_candidate
+  - release_database_candidates_through_normal_main_only_release_authority
+  - verify_private_atlas_application_candidate_externally_at_exact_sha
+  - merge_and_deploy_application_only_after_database_dependencies_are_live

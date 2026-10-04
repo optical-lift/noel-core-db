@@ -1,0 +1,1 @@
+drop function if exists public.v46_fetch_cipher_token_20260908(text);

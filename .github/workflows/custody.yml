@@ -36,14 +36,22 @@ jobs:
       - name: Verify production schema validation contract
         run: bash scripts/check-production-schema-validation-contract.sh
 
-      - name: Audit global live production custody
-        continue-on-error: true
-        run: bash scripts/check-live-production-custody.sh
+      - name: Reconcile and verify global live production custody
+        env:
+          LIVE_CUSTODY_MANIFEST_PATH: ${{ runner.temp }}/live-custody-reconciliation.json
+        run: bash scripts/reconcile-live-production-custody.sh --enforce
 
-      - name: Audit Atlas live release lane
-        continue-on-error: true
+      - name: Preserve live custody reconciliation manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-custody-reconciliation-${{ github.run_id }}
+          path: ${{ runner.temp }}/live-custody-reconciliation.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Verify Atlas live release lane
         run: bash scripts/check-live-production-custody-lane.sh atlas
 
-      - name: Audit WNPH live release lane
-        continue-on-error: true
+      - name: Verify WNPH live release lane
         run: bash scripts/check-live-production-custody-lane.sh wnph

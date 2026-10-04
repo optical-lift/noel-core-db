@@ -1,0 +1,27 @@
+{
+  "contractVersion": 49,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v48.json",
+  "rule": "These two already-live Newsroom rows appeared after the frozen outage-recovery census and were absent from canonical Noel main. Their exact migration bodies were reconstructed from the authoritative production migration ledger and verified against the live Git blob identities. This recovery supplies historical live-custody matching evidence only; it does not replay SQL, authorize the historical release path, add a future migration owner prefix, or authorize any future production mutation. Titus rows observed later on 2026-10-03 are deliberately excluded until their exact source is placed under canonical custody.",
+  "recoveries": [
+    {
+      "version": "20261002232904",
+      "name": "newsroom_transcript_resume_v1",
+      "filename": "20261002232904_newsroom_transcript_resume_v1.sql",
+      "gitBlobSha1": "4152ebcad47751b5392e0e115afc5b0653edbe4b",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261002234428",
+      "name": "newsroom_transcript_reporting_sync_lock_v1",
+      "filename": "20261002234428_newsroom_transcript_reporting_sync_lock_v1.sql",
+      "gitBlobSha1": "5ec1e91de7d4cb8627c1a55c7d5f11a9a123b2ad",
+      "logicalOwner": "newsroom",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_or_drifted_from_source_custody"
+    }
+  ]
+}

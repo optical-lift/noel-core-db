@@ -1,0 +1,24 @@
+{
+  "contractVersion": 1,
+  "sealed": true,
+  "classification": "supabase_executed_statement_body_reconciliation",
+  "scope": "titus_formation_stabilization_2026_10_04",
+  "sourceSemantics": "Git preserves the authored canonical migration source. supabase_migrations.schema_migrations.statements preserves parsed/executed statement history and may differ in comments or formatting.",
+  "rule": "These rows bridge only the two Titus Formation migrations named here. Acceptance requires the canonical migration file to exist at the recorded canonicalSourceGitBlobSha1 and the live executed body to equal executedBodyGitBlobSha1. This receipt authorizes no production mutation, rerun, rename, or replacement of historical source.",
+  "sourceLine": {
+    "preservationBranch": "preservation/titus-formation-foundation-2026-10-04-v1",
+    "sourceCommit": "a69cfbca3f43bdc825db5d0c5956d5144ab5631c"
+  },
+  "rows": [
+    {
+      "filename": "20261003211522_titus_formation_kernel_v1.sql",
+      "canonicalSourceGitBlobSha1": "b710263a0cb124037441a9655a2f31455c3cb9d9",
+      "executedBodyGitBlobSha1": "a8ca9752d6350324ffb21a09caf8b664b04515ec"
+    },
+    {
+      "filename": "20261003212733_titus_formation_access_membrane_v1.sql",
+      "canonicalSourceGitBlobSha1": "affc850e1a7d8d2c2750df151ae5845aea798dfd",
+      "executedBodyGitBlobSha1": "5fda1a5f39a33c4cfbbb6d3f9c75405db2b7ea72"
+    }
+  ]
+}

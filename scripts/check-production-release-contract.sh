@@ -5,9 +5,10 @@ workflow=".github/workflows/production-db-release.yml"
 releaser="scripts/release-production-migration.sh"
 lane_checker="scripts/check-migration-release-lane.sh"
 live_lane_checker="scripts/check-live-production-custody-lane.sh"
+titus_checker="scripts/check-titus-formation-custody.sh"
 manifest="custody/release-lanes-v1.json"
 
-for required in "$workflow" "$releaser" "$lane_checker" "$live_lane_checker" "$manifest"; do
+for required in "$workflow" "$releaser" "$lane_checker" "$live_lane_checker" "$titus_checker" "$manifest"; do
   if [ ! -f "$required" ]; then
     echo "Missing $required"
     exit 1
@@ -37,10 +38,12 @@ required_workflow_fragments = [
     'type: choice',
     '- atlas',
     '- wnph',
+    '- titus',
     '- shared',
     'bash scripts/check-custody.sh',
     'bash scripts/check-migration-release-lane.sh',
     'bash scripts/check-live-production-custody-lane.sh',
+    'bash scripts/check-titus-formation-custody.sh',
     'bash scripts/release-production-migration.sh',
     'continue-on-error: true',
     'bash scripts/check-live-production-custody.sh',
@@ -50,7 +53,11 @@ for fragment in required_workflow_fragments:
         errors.append(f'Missing governed workflow requirement: {fragment}')
 
 if "if: inputs.release_lane == 'wnph' || inputs.release_lane == 'shared'" not in workflow:
-    errors.append('WNPH membrane must block WNPH/shared releases without blocking Atlas releases.')
+    errors.append('WNPH membrane must block WNPH/shared releases without blocking Atlas/Titus releases.')
+if "if: inputs.release_lane == 'titus'" not in workflow:
+    errors.append('Titus releases must run the Titus Formation live-custody check.')
+if "if: inputs.release_lane != 'titus'" not in workflow:
+    errors.append('Non-Titus releases must continue using the generic live release-lane checker.')
 
 required_releaser_fragments = [
     'git hash-object',
@@ -77,5 +84,5 @@ if errors:
         print(f'- {error}')
     raise SystemExit(1)
 
-print('Production database release contract passed: manual main-only release, protected DB secret, canonical-byte receipt, target-lane custody enforcement, and nonblocking global health audit are all required.')
+print('Production database release contract passed: manual main-only release, protected DB secret, exact migration source, Titus-specific live custody, target-lane enforcement, and nonblocking global health audit are all required.')
 PY
