@@ -1,0 +1,242 @@
+version: 2
+kind: branch_semantic_disposition_receipt
+snapshot_date: 2026-10-04
+status: recovery_scope_complete_global_repository_semantic_review_not_claimed
+repository: optical-lift/noel-core-db
+base_main_sha: 525690dfba18b84b360926a83ce41b5f72d1a2d9
+inherits: custody/branch-dispositions-2026-10-03.yaml
+inherited_receipt_git_blob_sha1: b8bba95840ebb9c492b1afb67225b305d49622cb
+
+scope:
+  current_branch_api_census_count: 842
+  prior_frozen_mechanical_census_count: 805
+  current_census_pagination_verified_through: 842
+  exhaustive_semantic_review_of_all_current_branches: false
+  recovery_semantic_scope_complete: true
+  semantic_scope:
+    - priority_branch_only_lines_in_inherited_receipt
+    - stale_generated_carriers_named_in_inherited_receipt
+    - outage_checkpoint_branches
+    - implementation_reality_source_checkpoints
+    - current_generated_implementation_reality_release_carriers
+  outside_scope_rule: >-
+    Every repository branch not explicitly adjudicated by this receipt or its inherited
+    receipt remains preserved and receives no merge, release, deletion, or abandonment
+    authority from outage recovery. Absence from the semantic scope means unadjudicated,
+    not rejected or disposable.
+
+rules:
+  direct_merge_old_branch: false
+  preserve_before_replay: true
+  production_absence_means_rejected: false
+  unreviewed_branch_may_be_deleted: false
+  unreviewed_branch_may_be_abandoned: false
+  branch_name_or_age_is_not_semantic_authority: true
+  future_replay_requires_current_contract_validation: true
+
+stale_generated_carriers_reaudit:
+  - pr: 940
+    branch: generated/atlas-20260920201455-atlas_production_bed_assignment_destination_claim_v1
+    state: closed_unmerged
+    capability: atlas_production_bed_assignment_destination_claim_v1
+    current_main_compare:
+      ahead_by: 1
+      behind_by: 390
+    live_status: capability_function_absent
+    disposition: preserve_replay_candidate
+    direct_merge: false
+    reason: >-
+      The projection remains genuinely unreleased. Preserve its migration, fixture, and
+      postconditions as a coherent replay candidate, but validate against the current
+      Production and Reality contracts before any new generated package.
+
+  - pr: 995
+    branch: generated/atlas-20260921154500-relationship-delivery-kernel-v1
+    state: closed_unmerged
+    capability: relationship_delivery_kernel_v1
+    current_main_compare:
+      ahead_by: 4
+      behind_by: 334
+    live_status: relationship_delivery_session_context_service_absent
+    disposition: preserve_historical_design_quarry_for_current_reality_rebuild
+    direct_merge: false
+    reason: >-
+      The no-login relationship-delivery kernel never became live. Its identity model was
+      authored before the current Reality/Ledger root and Sealed Reality work, so the branch
+      remains valuable source/design quarry but is not a direct replay candidate.
+
+  - pr: 1073
+    branch: fix/reality-identity-resolution-person-credential-fixture
+    state: closed_unmerged
+    capability: reality_identity_resolution_person_credential_fixture
+    current_main_compare:
+      ahead_by: 1
+      behind_by: 276
+    current_main_fixture_git_blob_sha1: d238097fc10a1d0f90e32d3f3eab09ae9dc82f7f
+    old_carrier_fixture_git_blob_sha1: 3d9f8c0f8bdf42ce2c895e70918c5f874d19485f
+    disposition: superseded_absorbed_by_current_main_fixture
+    direct_merge: false
+    reason: >-
+      Current main contains the required auth-user to Person credential bridges plus later
+      fixture expansion. The one-file repair is no longer an independent replay need.
+
+  - pr: 1231
+    branch: generated/atlas-20260922210205-atlas_service_acquisition_compatibility_adapter_v1
+    state: closed_unmerged
+    capability: atlas_service_acquisition_compatibility_adapter_v1
+    current_main_compare:
+      ahead_by: 1
+      behind_by: 210
+    live_status: compatibility_table_and_reconciliation_functions_absent
+    disposition: preserve_replay_candidate_revalidate_current_commercial_contract
+    direct_merge: false
+    reason: >-
+      The compatibility adapter never became live. Preserve the exact package as a future
+      replay source, but revalidate Personal Atlas, Implementation purchase, Commercial
+      Composition, pricing, and settlement contracts before regeneration.
+
+  - pr: 1247
+    branch: generated/atlas-20260923013957-atlas_person_position_self_projection_v1
+    state: closed_unmerged
+    capability: atlas_person_position_self_projection_v1
+    old_migration_git_blob_sha1: f300a577a86aa543e52a1b1f3601eae68168a7ff
+    canonical_main_filename: 20260923021153_atlas_person_position_self_projection_v1.sql
+    canonical_main_git_blob_sha1: f300a577a86aa543e52a1b1f3601eae68168a7ff
+    live_status: released_under_later_migration_identity
+    disposition: superseded_exact_body_absorbed
+    direct_merge: false
+    reason: exact authored SQL body is already canonical and live under the later release identity
+
+  - pr: 1270
+    branch: generated/atlas-20260923151254-atlas_notebook_exposure_admission_v1
+    state: closed_unmerged
+    capability: atlas_notebook_exposure_admission_v1
+    old_migration_git_blob_sha1: c132875740efefdcfbbc37559f202d2a195acf43
+    canonical_main_filename: 20260923155358_atlas_notebook_exposure_admission_v1.sql
+    canonical_main_git_blob_sha1: c132875740efefdcfbbc37559f202d2a195acf43
+    live_status: released_under_later_migration_identity
+    disposition: superseded_exact_body_absorbed
+    direct_merge: false
+    reason: exact authored SQL body is already canonical and live under the later release identity
+
+  - pr: 1280
+    branch: generated/atlas-20260923161932-atlas_domain_exposure_participating_domains_v2
+    state: closed_unmerged
+    capability: atlas_domain_exposure_participating_domains_v2
+    current_main_compare:
+      ahead_by: 1
+      behind_by: 178
+    live_status: >-
+      Domain Exposure v1 and Notebook admission are live, but the v2 Household, Flower,
+      Correspondence, and composed v2 evaluator functions are absent.
+    disposition: preserve_historical_quarry_for_domain_exposure_v2_rebuild
+    direct_merge: false
+    reason: >-
+      Preserve the participating-domain design and SQL as quarry. Rebuild against current
+      Reality, Position, Household, Flower, Correspondence, and Notebook contracts rather
+      than replaying the old generated package wholesale.
+
+outage_checkpoint_dispositions:
+  delegated_agent:
+    branch: checkpoint/outage-delegated-agent-db-2026-09-28
+    current_main_compare: {ahead_by: 4, behind_by: 23}
+    live_status: >-
+      Delegated-agent command, authority, credential, allowlist, target, decision-queue,
+      and permission capabilities are already live under granular canonical migration identities.
+    disposition: historical_source_bundle_for_live_capability
+    direct_merge: false
+
+  finance_evidence:
+    branch: checkpoint/outage-finance-evidence-2026-09-27
+    current_main_compare: {ahead_by: 13, behind_by: 23}
+    live_status: unreleased_program
+    disposition: preserve_replay_later_as_dedicated_finance_program
+    direct_merge: false
+    inherited_program_branch: work/atlas-financial-obligation-settlement-v1
+    reason: >-
+      This checkpoint is the broad financial/accounting program already identified by the
+      inherited receipt. Keep it intact for a dedicated current-contract finance replay.
+
+  public_commitment:
+    branch: checkpoint/outage-public-commitment-db-2026-09-27
+    current_main_compare: {ahead_by: 1, behind_by: 23}
+    live_status: >-
+      Public commitment surfaces, sessions, identity resolution, and public surface API are
+      already live under the actual granular production migration identities.
+    disposition: historical_reconstruction_bundle_for_live_capability
+    direct_merge: false
+
+  smart_contacts:
+    branch: checkpoint/outage-smart-contacts-db-2026-09-25
+    current_main_compare: {ahead_by: 2, behind_by: 23}
+    evidence_sample:
+      filename: 20260924230219_shared_intelligence_outreach_custody_foundation_v1.sql
+      checkpoint_git_blob_sha1: 33360e63676aab56ab9ded4a0114255e6e87a1a1
+      main_git_blob_sha1: 33360e63676aab56ab9ded4a0114255e6e87a1a1
+    disposition: historical_checkpoint_absorbed_into_canonical_source_and_live_state
+    direct_merge: false
+
+  spatial_intake:
+    branch: checkpoint/outage-spatial-intake-2026-10-01
+    current_main_compare: {ahead_by: 75, behind_by: 23}
+    disposition: preserve_historical_mixed_checkpoint_no_wholesale_replay
+    direct_merge: false
+    reason: >-
+      The checkpoint spans many later-live Reality/Ledger, geography, scheduling, target,
+      and spatial migrations plus architecture/candidate material. Canonical live source is
+      now separately custodied. Preserve this checkpoint as provenance/quarry only; future
+      unreleased candidate semantics must be promoted deliberately from current contracts.
+
+  realization_provider:
+    branch: checkpoint/outage-realization-provider-2026-10-02
+    current_main_compare: {ahead_by: 6, behind_by: 23}
+    evidence_sample:
+      filename: 20261002194236_atlas_institutional_communication_realization_provider_read_v1.sql
+      checkpoint_git_blob_sha1: d4b13c043f88fcb9d205dd3a22ee7a3be3c37102
+      main_git_blob_sha1: d4b13c043f88fcb9d205dd3a22ee7a3be3c37102
+    disposition: historical_checkpoint_absorbed_into_canonical_source_and_live_state
+    direct_merge: false
+
+implementation_reality_current_release_line:
+  identity_resolution_source:
+    branch: checkpoint/implementation-reality-organization-unit-resolver-v2-source
+    current_main_compare: {ahead_by: 4, behind_by: 23}
+    disposition: preserve_current_release_source_lineage
+    generated_carrier_pr: 1379
+    generated_head_sha: b1d20881a92c79f843e5fe24e17211cf34a267ec
+    merge_or_release_authorized_by_recovery: false
+
+  position_responsibility_source:
+    branch: checkpoint/implementation-reality-position-responsibility-definition-v1-source
+    current_main_compare: {ahead_by: 3, behind_by: 23}
+    disposition: superseded_as_preferred_source_by_final_checkpoint
+    direct_merge: false
+
+  position_responsibility_final_source:
+    branch: checkpoint/implementation-reality-position-responsibility-definition-v1-source-final
+    current_main_compare: {ahead_by: 4, behind_by: 23}
+    disposition: preserve_current_release_source_lineage
+    generated_carrier_pr: 1380
+    generated_head_sha: 7851dc1dd170cb54f11c164dacb9401dd6676205
+    merge_or_release_authorized_by_recovery: false
+
+current_release_carriers:
+  - pr: 1379
+    state: open_draft
+    capability: atlas_implementation_reality_identity_resolution_v2
+    head_sha: b1d20881a92c79f843e5fe24e17211cf34a267ec
+    disposition: preserve_exact_head_separate_governed_release
+  - pr: 1380
+    state: open_draft
+    capability: atlas_implementation_reality_position_responsibility_definition_v1
+    head_sha: 7851dc1dd170cb54f11c164dacb9401dd6676205
+    disposition: preserve_exact_head_separate_governed_release
+
+recovery_closure_semantics:
+  lost_work_deleted_by_this_recovery: false
+  wholesale_terminal_branch_merge_authorized: false
+  exhaustive_repository_semantic_review_claimed: false
+  recovery_critical_semantic_scope_explicit: true
+  recovery_critical_semantic_scope_complete: true
+  unreviewed_repository_branches_remain_preserved: true
+  future_branch_cleanup_requires_new_evidence_and_explicit_disposition: true
