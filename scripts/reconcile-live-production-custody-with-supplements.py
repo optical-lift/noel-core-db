@@ -12,10 +12,11 @@ if spec is None or spec.loader is None:
     raise SystemExit(f"Unable to load {BASE_RECONCILER}")
 base = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(base)
+base_loader = base.load_statement_reconciliations
 
 
 def load_statement_reconciliations(policy: dict):
-    rows, conflicts = base.load_statement_reconciliations(policy)
+    rows, conflicts = base_loader(policy)
     cfg = policy["executedStatementReconciliation"]
 
     for supplement_cfg in cfg.get("supplements") or []:
