@@ -58,7 +58,7 @@ fence_version="${baseline_values[0]}"
 # The baseline list records owners known at cutover. These namespaces were
 # established post-cutover inside the same shared database authority. Extend
 # current ownership without rewriting the frozen production baseline.
-owner_prefixes="${baseline_values[1]}|reporting|local|canon|worker|composition"
+owner_prefixes="${baseline_values[1]}|reporting|local|canon|worker|composition|titus"
 
 # Recovery registries are sealed historical exceptions. Pin every governed
 # registry blob so changing any historical evidence requires a new version.
