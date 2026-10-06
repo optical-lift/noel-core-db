@@ -1,3 +1,9 @@
+delete from atlas.reality_discovery_edges
+where question_key='family.children_stage';
+
+delete from atlas.reality_discovery_questions
+where question_key='family.children_stage';
+
 insert into atlas.reality_discovery_questions(
   question_key,section_key,prompt,help_text,answer_kind,options,
   base_score,friction,consequence_value,information_gain,resolved_signal_key,
@@ -9,25 +15,7 @@ insert into atlas.reality_discovery_questions(
   'A parent relationship persists across the child life course; child age stage is distinct from current household topology.',
   true,
   '{"encounterCluster":"family","orientationScaleKeys":["children","household"],"encounterClusterLabel":"FAMILY","orientationWorldDomains":["family"],"orientationPositionPairs":["family:parent"]}'::jsonb
-)
-on conflict(question_key) do update set
-  section_key=excluded.section_key,
-  prompt=excluded.prompt,
-  help_text=excluded.help_text,
-  answer_kind=excluded.answer_kind,
-  options=excluded.options,
-  base_score=excluded.base_score,
-  friction=excluded.friction,
-  consequence_value=excluded.consequence_value,
-  information_gain=excluded.information_gain,
-  resolved_signal_key=excluded.resolved_signal_key,
-  reason_text=excluded.reason_text,
-  active=excluded.active,
-  metadata=excluded.metadata,
-  updated_at=now();
-
-delete from atlas.reality_discovery_edges
-where question_key='family.children_stage';
+);
 
 insert into atlas.reality_discovery_edges(
   question_key,signal_key,operator,compare_value,effect_kind,weight,reason_text
