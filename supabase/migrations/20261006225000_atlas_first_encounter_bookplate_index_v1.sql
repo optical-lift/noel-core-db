@@ -969,6 +969,91 @@ $function$;
 revoke all on function public.atlas_notebook_index_self_api_v1() from public,anon;
 grant execute on function public.atlas_notebook_index_self_api_v1() to authenticated,service_role;
 
+create or replace function atlas.personal_atlas_section_root_self_api_v1(p_category text)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=pg_catalog,atlas,auth
+as $function$
+declare
+  v_user_id uuid;
+  v_principal_id uuid;
+  v_category text;
+  v_selection jsonb;
+  v_selected boolean:=false;
+  v_facts jsonb:='[]'::jsonb;
+begin
+  v_user_id:=auth.uid();
+  if v_user_id is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+
+  select id into v_principal_id
+  from atlas.principals
+  where user_id=v_user_id and status='active'
+  limit 1;
+  if v_principal_id is null then raise exception 'Active Principal required.' using errcode='42501'; end if;
+
+  v_category:=nullif(lower(trim(p_category)),'');
+  if v_category not in ('home','family','job','business','property','money','school','projects','community','hobbies') then
+    raise exception 'Unsupported Personal Atlas section.' using errcode='22023';
+  end if;
+
+  v_selection:=atlas.personal_atlas_index_selection_self_api_v1();
+  v_selected:=coalesce(v_selection->'selectedCategories','[]'::jsonb) ? v_category;
+
+  with latest as (
+    select distinct on(e.question_key)
+      e.question_key,e.answer_value,e.occurred_at
+    from atlas.reality_discovery_answer_events e
+    where e.principal_id=v_principal_id
+      and e.owner_user_id=v_user_id
+    order by e.question_key,e.occurred_at desc,e.id desc
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'questionKey',l.question_key,
+    'label',coalesce(nullif(q.metadata->>'notebookLabel',''),q.prompt),
+    'answer',l.answer_value,
+    'options',q.options,
+    'occurredAt',l.occurred_at
+  ) order by l.occurred_at,l.question_key),'[]'::jsonb)
+  into v_facts
+  from latest l
+  join atlas.reality_discovery_questions q on q.question_key=l.question_key
+  where jsonb_typeof(q.metadata->'orientationWorldDomains')='array'
+    and q.metadata->'orientationWorldDomains' ? v_category;
+
+  return jsonb_build_object(
+    'ok',true,
+    'contractVersion','personal_atlas_section_root_self_api_v1',
+    'category',v_category,
+    'selected',v_selected,
+    'facts',v_facts,
+    'truthBoundary',jsonb_build_object(
+      'sectionIsNotebookProjection',true,
+      'factsComeFromEstablishedHumanDiscoveryEvidence',true,
+      'sectionSelectionDoesNotCreateFacts',true,
+      'projectionDoesNotGrantAccessOrEstablishNewTruth',true
+    )
+  );
+end;
+$function$;
+
+revoke all on function atlas.personal_atlas_section_root_self_api_v1(text) from public,anon,authenticated;
+grant execute on function atlas.personal_atlas_section_root_self_api_v1(text) to service_role;
+
+create or replace function public.personal_atlas_section_root_self_api_v1(p_category text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path=pg_catalog
+as $function$
+  select atlas.personal_atlas_section_root_self_api_v1(p_category);
+$function$;
+
+revoke all on function public.personal_atlas_section_root_self_api_v1(text) from public,anon;
+grant execute on function public.personal_atlas_section_root_self_api_v1(text) to authenticated,service_role;
+
 insert into atlas.authenticated_rpc_registry(
   signature,classification,confidence,review_status,
   authenticated_execute_expected,security_definer_expected,service_execute_expected,anonymous_execute_expected,
@@ -1004,6 +1089,14 @@ insert into atlas.authenticated_rpc_registry(
   jsonb_build_object(
     'purpose','Append the human-selected Personal Atlas Index categories.',
     'truthBoundary','Selection may constrain Discovery but never answers role, scale, ownership, or topology questions.'
+  ),now()
+),
+(
+  'atlas.personal_atlas_section_root_self_api_v1(p_category text)',
+  'app_endpoint','verified','active',true,true,true,false,2,0,
+  jsonb_build_object(
+    'purpose','Project established discovery facts onto one intentionally selected Personal Atlas section root.',
+    'truthBoundary','Section projection reads established evidence and never creates facts or access.'
   ),now()
 ),
 (
