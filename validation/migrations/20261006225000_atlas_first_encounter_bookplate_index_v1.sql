@@ -130,6 +130,16 @@ begin
     raise exception 'Section-root projection is not grounded in established discovery evidence.';
   end if;
 
+  select pg_get_functiondef('atlas.reality_discovery_first_day_status_self_api_v1()'::regprocedure)
+  into v_def;
+  if position('personal_atlas_bookplate_self_api_v1' in v_def)=0
+     or position('personal_atlas_index_selection_self_api_v1' in v_def)=0
+     or position('missingBookplateOrIndexKeepsEntranceOpen' in v_def)=0
+     or position('priorSessionDoesNotBypassMissingNotebookEntrance' in v_def)=0
+     or position('not v_bookplate_captured or not v_index_captured or v_session.id is null' in v_def)=0 then
+    raise exception 'First-day status may let an older discovery session bypass unfinished Bookplate / Index entrance work.';
+  end if;
+
   select pg_get_functiondef('atlas.atlas_notebook_index_self_api_v1()'::regprocedure)
   into v_def;
   if position('''addressKind'',''bookplate''' in v_def)=0
