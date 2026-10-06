@@ -948,10 +948,6 @@ insert into atlas.reality_discovery_edges(
 (
   'family.children_stage','identity.age_band','in','["midlife","older_adult"]'::jsonb,'boost',35,
   'Later chronology raises the information value of distinguishing grown children from children at home.'
-),
-(
-  'life.weekday_anchor','identity.age_band','eq','"young_adult"'::jsonb,'boost',18,
-  'For a young adult, ordinary weekday structure is especially informative after orientation.'
 )
 on conflict do nothing;
 
