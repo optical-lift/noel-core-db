@@ -91,10 +91,13 @@ begin
 
   if not exists(
     select 1
-    from atlas.reality_discovery_questions
-    where question_key='family.children_stage'
-      and active
-      and options @> '[{"key":"none"},{"key":"minor"},{"key":"adult"},{"key":"both"}]'::jsonb
+    from atlas.reality_discovery_questions q
+    where q.question_key='family.children_stage'
+      and q.active
+      and exists(select 1 from jsonb_array_elements(q.options) o where o->>'key'='none')
+      and exists(select 1 from jsonb_array_elements(q.options) o where o->>'key'='minor')
+      and exists(select 1 from jsonb_array_elements(q.options) o where o->>'key'='adult')
+      and exists(select 1 from jsonb_array_elements(q.options) o where o->>'key'='both')
   ) then
     raise exception 'Family child-stage question does not permit NONE / minor / adult / both.';
   end if;
