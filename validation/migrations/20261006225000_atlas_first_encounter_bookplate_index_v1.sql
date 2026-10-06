@@ -11,21 +11,24 @@ begin
   if to_regprocedure('public.personal_atlas_bookplate_self_api_v1()') is null
      or to_regprocedure('public.set_personal_atlas_bookplate_self_api_v1(jsonb)') is null
      or to_regprocedure('public.personal_atlas_index_selection_self_api_v1()') is null
-     or to_regprocedure('public.set_personal_atlas_index_selection_self_api_v1(jsonb)') is null then
+     or to_regprocedure('public.set_personal_atlas_index_selection_self_api_v1(jsonb)') is null
+     or to_regprocedure('public.personal_atlas_section_root_self_api_v1(text)') is null then
     raise exception 'Bookplate / Index public RPC surface is incomplete.';
   end if;
 
   if has_function_privilege('anon','public.personal_atlas_bookplate_self_api_v1()','EXECUTE')
      or has_function_privilege('anon','public.set_personal_atlas_bookplate_self_api_v1(jsonb)','EXECUTE')
      or has_function_privilege('anon','public.personal_atlas_index_selection_self_api_v1()','EXECUTE')
-     or has_function_privilege('anon','public.set_personal_atlas_index_selection_self_api_v1(jsonb)','EXECUTE') then
+     or has_function_privilege('anon','public.set_personal_atlas_index_selection_self_api_v1(jsonb)','EXECUTE')
+     or has_function_privilege('anon','public.personal_atlas_section_root_self_api_v1(text)','EXECUTE') then
     raise exception 'Anonymous role must not execute Bookplate / Index RPCs.';
   end if;
 
   if not has_function_privilege('authenticated','public.personal_atlas_bookplate_self_api_v1()','EXECUTE')
      or not has_function_privilege('authenticated','public.set_personal_atlas_bookplate_self_api_v1(jsonb)','EXECUTE')
      or not has_function_privilege('authenticated','public.personal_atlas_index_selection_self_api_v1()','EXECUTE')
-     or not has_function_privilege('authenticated','public.set_personal_atlas_index_selection_self_api_v1(jsonb)','EXECUTE') then
+     or not has_function_privilege('authenticated','public.set_personal_atlas_index_selection_self_api_v1(jsonb)','EXECUTE')
+     or not has_function_privilege('authenticated','public.personal_atlas_section_root_self_api_v1(text)','EXECUTE') then
     raise exception 'Authenticated role must execute Bookplate / Index RPCs.';
   end if;
 
@@ -115,6 +118,15 @@ begin
     raise exception 'First-day Discovery is not constrained/routed by the real Index.';
   end if;
 
+  select pg_get_functiondef('atlas.personal_atlas_section_root_self_api_v1(text)'::regprocedure)
+  into v_def;
+  if position('reality_discovery_answer_events' in v_def)=0
+     or position('orientationWorldDomains' in v_def)=0
+     or position('factsComeFromEstablishedHumanDiscoveryEvidence' in v_def)=0
+     or position('sectionSelectionDoesNotCreateFacts' in v_def)=0 then
+    raise exception 'Section-root projection is not grounded in established discovery evidence.';
+  end if;
+
   select pg_get_functiondef('atlas.atlas_notebook_index_self_api_v1()'::regprocedure)
   into v_def;
   if position('''addressKind'',''bookplate''' in v_def)=0
@@ -153,6 +165,14 @@ begin
     select 1
     from atlas.authenticated_rpc_registry
     where signature='atlas.set_personal_atlas_index_selection_self_api_v1(p_input jsonb)'
+      and review_status='active'
+      and authenticated_execute_expected
+      and not anonymous_execute_expected
+  )
+  or not exists(
+    select 1
+    from atlas.authenticated_rpc_registry
+    where signature='atlas.personal_atlas_section_root_self_api_v1(p_category text)'
       and review_status='active'
       and authenticated_execute_expected
       and not anonymous_execute_expected
