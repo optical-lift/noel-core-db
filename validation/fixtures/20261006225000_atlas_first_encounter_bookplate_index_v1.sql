@@ -12,7 +12,7 @@ insert into atlas.reality_discovery_questions(
   'family.children_stage','people','Children?',null,'single_choice',
   '[{"key":"minor","label":"minor"},{"key":"adult","label":"adult"},{"key":"both","label":"both"}]'::jsonb,
   88,1,78,98,'family.children_stage',
-  'A parent relationship persists across the child life course; child age stage is distinct from current household topology.',
+  'A parent relationship persists across the child life course, while child age stage is distinct from current household topology.',
   true,
   '{"encounterCluster":"family","orientationScaleKeys":["children","household"],"encounterClusterLabel":"FAMILY","orientationWorldDomains":["family"],"orientationPositionPairs":["family:parent"]}'::jsonb
 );
