@@ -825,6 +825,83 @@ begin
 end;
 $function$;
 
+create or replace function atlas.reality_discovery_first_day_status_self_api_v1()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=pg_catalog,atlas,auth
+as $function$
+declare
+  v_user_id uuid;
+  v_principal_id uuid;
+  v_session atlas.reality_discovery_sessions%rowtype;
+  v_answer_count integer:=0;
+  v_bookplate jsonb;
+  v_index jsonb;
+  v_bookplate_captured boolean:=false;
+  v_index_captured boolean:=false;
+begin
+  v_user_id:=auth.uid();
+  if v_user_id is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+
+  select id into v_principal_id
+  from atlas.principals
+  where user_id=v_user_id and status='active'
+  limit 1;
+  if v_principal_id is null then raise exception 'Active Principal required.' using errcode='42501'; end if;
+
+  select * into v_session
+  from atlas.reality_discovery_sessions
+  where principal_id=v_principal_id and session_kind='first_day';
+
+  select count(*)::integer into v_answer_count
+  from atlas.reality_discovery_answer_events
+  where principal_id=v_principal_id;
+
+  v_bookplate:=atlas.personal_atlas_bookplate_self_api_v1();
+  v_index:=atlas.personal_atlas_index_selection_self_api_v1();
+  v_bookplate_captured:=coalesce((v_bookplate->>'captured')::boolean,false);
+  v_index_captured:=coalesce((v_index->>'captured')::boolean,false);
+
+  return jsonb_build_object(
+    'ok',true,
+    'contractVersion','reality_discovery_first_day_status_self_api_v2',
+    'hasStarted',v_session.id is not null,
+    'session',case when v_session.id is null then null else jsonb_build_object(
+      'id',v_session.id,'state',v_session.state,'startedAt',v_session.started_at,
+      'lastOpenedAt',v_session.last_opened_at,'pausedAt',v_session.paused_at,
+      'quietAt',v_session.quiet_at,'closedAt',v_session.closed_at
+    ) end,
+    'answerCount',v_answer_count,
+    'bookplateCaptured',v_bookplate_captured,
+    'indexCaptured',v_index_captured,
+    'entranceCaptured',v_bookplate_captured and v_index_captured,
+    'shouldAutoOpen',not v_bookplate_captured or not v_index_captured or v_session.id is null,
+    'truthBoundary',jsonb_build_object(
+      'shouldAutoOpenIsEncounterRouting',true,
+      'missingBookplateOrIndexKeepsEntranceOpen',true,
+      'priorSessionDoesNotBypassMissingNotebookEntrance',true,
+      'pausedIsNotComplete',true,
+      'answerCountIsNotCompletionScore',true
+    )
+  );
+end;
+$function$;
+
+create or replace function public.reality_discovery_first_day_status_self_api_v1()
+returns jsonb
+language sql
+stable
+security definer
+set search_path=pg_catalog
+as $function$
+  select atlas.reality_discovery_first_day_status_self_api_v1();
+$function$;
+
+revoke all on function public.reality_discovery_first_day_status_self_api_v1() from public,anon;
+grant execute on function public.reality_discovery_first_day_status_self_api_v1() to authenticated,service_role;
+
 -- The real Index contains the inside Bookplate plus intentional section roots.
 -- Section-root existence is notebook organization only; it does not create source truth.
 create or replace function atlas.atlas_notebook_index_self_api_v1()
