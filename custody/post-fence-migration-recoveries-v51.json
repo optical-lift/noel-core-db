@@ -1,0 +1,18 @@
+{
+  "contractVersion": 51,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v50.json",
+  "rule": "This one already-live private Us job-application profile row appeared after the stable recovery cut without canonical noel-core source custody. Its exact executed body was reconstructed from the authoritative production migration ledger and independently verified to the live Git blob identity de532c131179cd3149e748f7fcb3d1adaa1222c9. This is retrospective custody only: it does not replay SQL, authorize the historical release path, add us or create as a future executable migration-owner prefix, or authorize future production mutation.",
+  "recoveries": [
+    {
+      "version": "20261005171330",
+      "name": "create_us_job_application_profile",
+      "filename": "20261005171330_create_us_job_application_profile.sql",
+      "gitBlobSha1": "de532c131179cd3149e748f7fcb3d1adaa1222c9",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
