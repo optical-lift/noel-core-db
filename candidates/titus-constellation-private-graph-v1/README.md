@@ -9,3 +9,5 @@ The read is a SECURITY INVOKER SQL function in the PostgREST-accessible public s
 Use exact documented noel-core-db workflow: staged candidate -> merge source -> governed Shared migration source generator -> disposable production-shaped schema clone test -> merge migration -> protected manual production release -> live readback. No direct apply_migration. The validation tests **schema and access contract without synthetic data**. After release, run a separate read-only live data check to confirm Grain→Bread→Restoration, Eat, Bless, isolated nodes, real pattern links, and source-token provenance.
 
 No publication of protected Noel research, no Titus deployment, no change to founder definitions, no identity handoff release.
+
+The October 10 historical H1847 custody proof is audit evidence only; it does not authorize storing private research SQL in Git or expanding any Titus access. Re-evaluate this candidate against current canonical `main` and its strict source-custody rules before generating a Shared migration.
