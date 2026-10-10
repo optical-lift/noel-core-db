@@ -1,0 +1,45 @@
+{
+  "contractVersion": 52,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v51.json",
+  "rule": "These four Noel lexical/Reality Pool migrations were applied directly to the already-live shared production database on 2026-10-10, after the completed 2026-10-04 outage recovery and outside the canonical noel-core-db release path. They are a NEW separately bounded custody exception, not unfinished Atlas recovery. Each SQL source file exactly equals its production migration ledger statements[1] bytes, independently cross-checked by Git blob SHA-1. This receipt solely restores source identity; it does not replay SQL, retroactively authorize the manner of application, permit any future direct release, or authorize production mutation. The original 198 founder definitions, owner-ratified Eat/Bless definitions, and raw-token evidence remain governed by their existing records.",
+  "recoveries": [
+    {
+      "version": "20261010193216",
+      "name": "noel_founder_governed_reality_pool_graph_v1",
+      "filename": "20261010193216_noel_founder_governed_reality_pool_graph_v1.sql",
+      "gitBlobSha1": "79d056a95aabbd3fd751669baeaff6e7b8972f0a",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010193806",
+      "name": "noel_reality_pool_token_preflight_v1",
+      "filename": "20261010193806_noel_reality_pool_token_preflight_v1.sql",
+      "gitBlobSha1": "6831b9501dde2f789c46e4e1bafc40d5d5044a89",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010193910",
+      "name": "noel_reality_english_term_lookup_v1",
+      "filename": "20261010193910_noel_reality_english_term_lookup_v1.sql",
+      "gitBlobSha1": "b700627f8649a9f612ac578a571486864948f154",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010193943",
+      "name": "noel_reality_steward_ratification_v1",
+      "filename": "20261010193943_noel_reality_steward_ratification_v1.sql",
+      "gitBlobSha1": "bf7015f3b211182bf1f1a55f99c30d62790a1744",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
