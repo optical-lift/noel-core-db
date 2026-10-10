@@ -36,7 +36,17 @@ jobs:
       - name: Verify production schema validation contract
         run: bash scripts/check-production-schema-validation-contract.sh
 
+      # The global health report is always produced. A pull request is a proposed
+      # source change, not the shared production state; only main/schedule/manual
+      # enforce every foreign-domain tail as a global incident.
+      - name: Report global live custody on pull requests
+        if: github.event_name == 'pull_request'
+        env:
+          LIVE_CUSTODY_MANIFEST_PATH: ${{ runner.temp }}/live-custody-reconciliation.json
+        run: bash scripts/reconcile-live-production-custody.sh --report-only
+
       - name: Reconcile and verify global live production custody
+        if: github.event_name != 'pull_request'
         env:
           LIVE_CUSTODY_MANIFEST_PATH: ${{ runner.temp }}/live-custody-reconciliation.json
         run: bash scripts/reconcile-live-production-custody.sh --enforce
@@ -49,6 +59,9 @@ jobs:
           path: ${{ runner.temp }}/live-custody-reconciliation.json
           if-no-files-found: error
           retention-days: 30
+
+      - name: Validate domain isolation regression assertions
+        run: python3 validation/test-domain-isolation-policy.py
 
       - name: Verify Atlas live release lane
         run: bash scripts/check-live-production-custody-lane.sh atlas
