@@ -28,6 +28,14 @@ This repository owns the executable migration history for the physical Supabase 
 
 `reporting` was established post-cutover as a private newsroom schema. The frozen cutover baseline is not rewritten to pretend Reporting existed then; current custody explicitly recognizes the `reporting` migration-owner prefix. `public`, `anon`, and `authenticated` receive no Reporting schema access in v1, and unpublished interviews, transcripts, notes or other reporter-private source material must never be committed to this public repository.
 
+## Research-data and structural-release separation (2026-10-10)
+
+Noel Reality Pools data already lives in private `draft.noel_reality_*` tables. A word definition, source token, proposed evidence edge, verse composition, or appended research decision is **a data transaction**, not a new `supabase_migrations` record. Private founder definitions and source interpretation never travel inside public migration SQL or tests. See `docs/NOEL_RESEARCH_OPERATIONS.md`.
+
+Reviewed Noel machinery changes (tables, functions, indexes, permissions) use `noel_` through the dedicated release lane; Atlas uses `atlas_`, Titus `titus_`, WNPH `wnph_`, and cross-domain contracts `shared_`. These are ownership prefixes and release scopes; they do not silently reassign inherited physical schemas. An unclassified migration remains blocking and cannot acquire a product identity from a filename alone. A real shared dependency or security issue always overrides nominal lane independence.
+
+Global live custody is monitored and enforced on canonical main/schedule/manual runs. Pull requests retain the global report without making an unrelated legacy Noel source problem a veto over Atlas/Titus application changes. Before an actual release, the target's live custody and local production-shaped schema-clone tests still apply. Private source custody requirements remain open under #1435; scoping is not an exemption. See `docs/DOMAIN_WORK_ISOLATION_V1.md` and `docs/PRIVATE_RESEARCH_SOURCE_CUSTODY.md`.
+
 ## Inherited namespaces
 
 The production database also contains older specialized schemas such as `backup`, `draft`, `fundraising`, `instrument`, `intelligence`, `lab`, `practice`, `reader`, `registry`, `snail`, `snail_read`, and `staging`. They are inherited database history at the fence; this document does not silently reassign their semantics to a new product. Reuse, retirement, or cross-product dependency requires explicit adjudication in a post-fence migration.
