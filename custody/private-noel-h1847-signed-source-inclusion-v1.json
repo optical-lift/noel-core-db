@@ -1,0 +1,169 @@
+{
+  "contractVersion": 1,
+  "classification": "private_git_signed_source_inclusion_evidence",
+  "publicTarget": "optical-lift/noel-core-db",
+  "privateSourceRepository": "optical-lift/song-ontology",
+  "privateSourceCommitSha1": "6a5aa00cbf96895170c1c369372fc21a6a4f97fa",
+  "privateSourceVisibility": "private_at_capture",
+  "custodyPurpose": "historical_private_noel_h1847_sql_source_only_no_replay_or_semantic_promotion",
+  "githubSigningKeyUrl": "https://github.com/web-flow.gpg",
+  "signedCommit": {
+    "payload": "tree 6f5dc505bb0bbb2561be9ca78e0304e373c739d6\nparent a4b3b4d0aa7faad2bd34077ee921bf940e53675e\nauthor optical-lift <gleamingbrook@gmail.com> 1791674644 -0400\ncommitter GitHub <noreply@github.com> 1791674644 -0400\n\nPreserve exact private Noel H1847 executed-source history separately from Song authority\n\n* Preserve Noel H1847 original live source as private provenance escrow, no execution\n\n* Preserve Noel H1847 original live source as private provenance escrow, no execution\n\n* Document separate source escrow for exact H1847 historical SQL, not ontology promotion",
+    "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsFcBAABCAAQBQJqyskUCRC1aQ7uu5UhlAAA76wQABbFwsPdvCdWQNOq3tMOtzmK\nmMFglwJogNhsz9SQZuYUOjUGvjfujdBgpjR27974d6+r35lzQrz89srCDDYniFoC\nVVT8lVjXkP2sNxVw0oMp/JKY2I4e17v+UZSCBUc4i8/ww6pTlerl0JOEkM0zvqYL\nWXuu3mdZRv6c/zJ4pW6z8TQ+VmJQ6zC/KXyXVP2HTgkD5Exl+zczMJEAUvnvRKXQ\nzqHLdblsGhQcMKTZpE0S/2wh6kiwjKz+tzT5iSi4KBb3gR9t0RDwsv41KP1RGh4T\n3JJfukRLgQPSz3ThHFT7A2cLkoBrF6faTP6NViUyC0ZVN2u/Gqm6j5q6FfQrnqQE\nD+NemE8x/+HlvK5xrswXrLKiOuphYrRBkXaEJKalrmmmO92XUvltVDphocPdXUTY\nVf0/V7cjpXKQuPUN4W/TqhPo7DLROLvv8p7EUrpoxyxblxE9QYvmWUy6wrMEOR4d\nK2h46upsxS0E01gsmGjwZQTpLxo1DzZIBjsAukQRdJAW7GkgJnnff7pdQj04GI2o\ni2NJXsYFSUADQvndq0aZsYpIQoKvsqAGlRi1nLX/Ea08T2dOcQ7QZAZ35jroVCg7\nQammgeCnwPULBARgHvA+po9ttG4vElnuZoamK+4NaBRAaK5SKeVIIsvsicS+tlx6\nAebaWSGwF/ASQ22/XOLh\n=+R89\n-----END PGP SIGNATURE-----\n",
+    "treeSha1": "6f5dc505bb0bbb2561be9ca78e0304e373c739d6"
+  },
+  "gitTrees": [
+    {
+      "directory": "",
+      "sha": "6f5dc505bb0bbb2561be9ca78e0304e373c739d6",
+      "entries": [
+        {
+          "name": ".github",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "5c99b6a870d07d1bd070289dc1fdd362722a8b9f"
+        },
+        {
+          "name": "GOVERNANCE.md",
+          "mode": "100644",
+          "type": "blob",
+          "sha": "3319d43fc7014530bcbd27040af6a8fc6629a08d"
+        },
+        {
+          "name": "PILOT_ADJUDICATION_REPORT_V0.1.md",
+          "mode": "100644",
+          "type": "blob",
+          "sha": "9b38d5c24c2ff2519b46c73bb2b0e983f69e9c05"
+        },
+        {
+          "name": "README.md",
+          "mode": "100644",
+          "type": "blob",
+          "sha": "4f68ec084077ed55d6970668ca0a02de95638a1c"
+        },
+        {
+          "name": "RESEARCH_COMPUTE_GOVERNANCE.md",
+          "mode": "100644",
+          "type": "blob",
+          "sha": "a72346423385c19798f3d2dd5e29245f0b804b73"
+        },
+        {
+          "name": "changes",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "6f937bd1ee5e58573109a21741e5678683d3298b"
+        },
+        {
+          "name": "compiler",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "3c4163950470ed84b11598c0f23b82d1c538347d"
+        },
+        {
+          "name": "evaluations",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "44e353048acd38e5a89944593a7dd63b037d8996"
+        },
+        {
+          "name": "experiments",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "d7e864f3e96fc3e5a284d1d063aee55869812aba"
+        },
+        {
+          "name": "ontology",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "145bd4e95f84e6371077707d6be3a8eb6193593a"
+        },
+        {
+          "name": "provenance",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "3e0e2cb81b955babd17da31c79c7244ebc44066d"
+        },
+        {
+          "name": "reports",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "714238e1af8124334d793fa16fa418f11cadd90c"
+        },
+        {
+          "name": "working-models",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "beb12ac2c77bd7725081e69bf46e5a6cf20c8f1c"
+        }
+      ]
+    },
+    {
+      "directory": "provenance",
+      "sha": "3e0e2cb81b955babd17da31c79c7244ebc44066d",
+      "entries": [
+        {
+          "name": "SOURCE_REGISTER.md",
+          "mode": "100644",
+          "type": "blob",
+          "sha": "ccc20acffd54d591d6d751b6bdf8be9470e14a30"
+        },
+        {
+          "name": "noel-private-migration-custody",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "288449db37791c825e58e1060f63c78e78abed01"
+        }
+      ]
+    },
+    {
+      "directory": "provenance/noel-private-migration-custody",
+      "sha": "288449db37791c825e58e1060f63c78e78abed01",
+      "entries": [
+        {
+          "name": "2026-10-10",
+          "mode": "040000",
+          "type": "tree",
+          "sha": "dcbfb5f13e9c178e05ccda49089e7a864cd0c68b"
+        }
+      ]
+    },
+    {
+      "directory": "provenance/noel-private-migration-custody/2026-10-10",
+      "sha": "dcbfb5f13e9c178e05ccda49089e7a864cd0c68b",
+      "entries": [
+        {
+          "name": "20261010214537_noel_reality_h1847_knowledge_source_anchors_v1.sql",
+          "mode": "100644",
+          "type": "blob",
+          "sha": "b94131f94526032acdfbdf0b81718c7fc7964afd"
+        },
+        {
+          "name": "20261010214627_noel_reality_h1847_evidence_scoped_edges_v1.sql",
+          "mode": "100644",
+          "type": "blob",
+          "sha": "c632c6464203485a1c85db3277554c0efc616506"
+        },
+        {
+          "name": "README.md",
+          "mode": "100644",
+          "type": "blob",
+          "sha": "b7a99deb4c891da5f264164d70ebff9005a02303"
+        }
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "version": "20261010214537",
+      "filename": "20261010214537_noel_reality_h1847_knowledge_source_anchors_v1.sql",
+      "liveGitBlobSha1": "b94131f94526032acdfbdf0b81718c7fc7964afd",
+      "privatePath": "provenance/noel-private-migration-custody/2026-10-10/20261010214537_noel_reality_h1847_knowledge_source_anchors_v1.sql"
+    },
+    {
+      "version": "20261010214627",
+      "filename": "20261010214627_noel_reality_h1847_evidence_scoped_edges_v1.sql",
+      "liveGitBlobSha1": "c632c6464203485a1c85db3277554c0efc616506",
+      "privatePath": "provenance/noel-private-migration-custody/2026-10-10/20261010214627_noel_reality_h1847_evidence_scoped_edges_v1.sql"
+    }
+  ]
+}
