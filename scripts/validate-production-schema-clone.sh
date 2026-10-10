@@ -5,7 +5,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: scripts/validate-production-schema-clone.sh \
   --migration-version <14 digits> \
-  --release-lane <atlas|wnph|shared> \
+  --release-lane <atlas|wnph|noel|shared> \
   --candidate-migration <path> \
   [--candidate-fixture <path>] \
   [--candidate-validation <path>] \
@@ -46,7 +46,7 @@ done
 if [[ ! "$version" =~ ^[0-9]{14}$ ]]; then
   usage
 fi
-if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "shared" ]]; then
+if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "noel" && "$lane" != "shared" ]]; then
   usage
 fi
 for required_path in "$candidate_migration" "$roles_dump" "$schema_dump"; do
@@ -226,13 +226,19 @@ run_lint() {
   lint_name="$1"
   lint_output="$artifacts_dir/schema-lint-${lint_name}.raw.log"
   set +e
-  supabase db lint --local --schema atlas --level error --fail-on error >"$lint_output" 2>&1
+  if [[ "$lane" == "noel" ]]; then
+    # Noel owns draft Reality Pools and core/intelligence evidence infrastructure.
+    # Compare *changes* to the inherited lint baseline, not existing lint debt.
+    supabase db lint --local --schema draft,core,intelligence --level error --fail-on error >"$lint_output" 2>&1
+  else
+    supabase db lint --local --schema atlas --level error --fail-on error >"$lint_output" 2>&1
+  fi
   lint_status=$?
   set -e
   printf '%s\n' "$lint_status" > "$artifacts_dir/schema-lint-${lint_name}.exit-code.txt"
 }
 
-phase="baseline Atlas schema lint"
+phase="baseline domain schema lint"
 run_lint baseline
 
 if [ -n "$candidate_fixture" ]; then
@@ -256,7 +262,7 @@ else
     >"$artifacts_dir/postconditions.log"
 fi
 
-phase="candidate Atlas schema lint"
+phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
 

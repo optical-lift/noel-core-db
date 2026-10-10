@@ -11,6 +11,7 @@ on:
           - atlas
           - wnph
           - titus
+          - noel
           - shared
       migration_version:
         description: "Exact 14-digit migration version already merged to main"
@@ -52,8 +53,8 @@ jobs:
             echo "::error::migration_version must be exactly 14 digits."
             exit 1
           fi
-          if [[ "${{ inputs.release_lane }}" != "atlas" && "${{ inputs.release_lane }}" != "wnph" && "${{ inputs.release_lane }}" != "titus" && "${{ inputs.release_lane }}" != "shared" ]]; then
-            echo "::error::release_lane must be atlas, wnph, titus, or shared."
+          if [[ "${{ inputs.release_lane }}" != "atlas" && "${{ inputs.release_lane }}" != "wnph" && "${{ inputs.release_lane }}" != "titus" && "${{ inputs.release_lane }}" != "noel" && "${{ inputs.release_lane }}" != "shared" ]]; then
+            echo "::error::release_lane must be atlas, wnph, titus, noel, or shared."
             exit 1
           fi
           if [[ -z "${NOEL_CORE_DATABASE_URL:-}" ]]; then

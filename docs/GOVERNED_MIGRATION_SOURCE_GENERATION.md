@@ -9,14 +9,14 @@ The generator is `.github/workflows/migration-source-generation.yml` on canonica
 It runs only when the repository OWNER opens an issue with the exact title:
 
 ```
-Migration generation request: <Atlas|WNPH|Shared> <migration_name>
+Migration generation request: <Atlas|WNPH|Noel|Shared> <migration_name>
 ```
 
 The body must contain one token per field:
 
 ```
-release_lane: atlas
-migration_name: atlas_example_v1
+release_lane: noel
+migration_name: noel_research_function_example_v1
 candidate_sha: <40-character commit on main>
 candidate_path: candidates/example/candidate.sql
 fixture_path: candidates/example/fixture.sql
@@ -53,3 +53,7 @@ The generator:
 - cannot create or merge its own pull request.
 
 Generation, validation, source merge, and production release remain separate authority events.
+
+## Routine Noel research is not a migration
+
+Use the private, audited row-writing workflow in `docs/NOEL_RESEARCH_OPERATIONS.md` for dictionary definitions, source token anchors, proposed edges and verse compositions. This source generator is only for reviewed DDL, RPC/view/function definitions, triggers, access policies and other machinery changes. Noel-origin migrations must be `noel_` and must never contain founder research rows. Do not put unpublished lexical conclusions or Bible dictionary content inside migration fixtures.

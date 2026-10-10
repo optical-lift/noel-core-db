@@ -39,6 +39,23 @@ grep -Fq 'run: bash scripts/reconcile-live-production-custody.sh --enforce' "$wo
   exit 1
 }
 
+grep -Fq "if: github.event_name != 'pull_request'" "$workflow" || {
+  echo "Global custody enforcement must remain mandatory for main, scheduled, and manual runs."
+  exit 1
+}
+grep -Fq "if: github.event_name == 'pull_request'" "$workflow" || {
+  echo "Pull requests must generate the global custody report without inheriting unrelated live-domain failures."
+  exit 1
+}
+grep -Fq 'run: bash scripts/reconcile-live-production-custody.sh --report-only' "$workflow" || {
+  echo "Pull requests must keep the actual global custody reconciliation report."
+  exit 1
+}
+grep -Fq 'run: python3 validation/test-domain-isolation-policy.py' "$workflow" || {
+  echo "The domain isolation regression test is required for every custody CI run."
+  exit 1
+}
+
 grep -Fq 'actions/upload-artifact@v4' "$workflow" || {
   echo "Custody workflow must preserve the machine-readable live reconciliation manifest."
   exit 1
@@ -74,4 +91,4 @@ grep -Fq 'run: bash scripts/check-live-production-custody-lane.sh wnph' "$workfl
   exit 1
 }
 
-echo "Custody trigger contract passed: Git events, 15-minute production watch, manual verification, one blocking global reconciliation authority, durable reconciliation evidence, and product release-lane verification are enabled."
+echo "Custody trigger contract passed: Git events, 15-minute production watch, manual verification, strict global reconciliation on main/schedule, visible pull-request global reports, domain-isolation assertions, durable reconciliation evidence, and product release-lane verification are enabled."

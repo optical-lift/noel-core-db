@@ -57,14 +57,14 @@ jobs:
 
           if not re.fullmatch(r'\d{14}', version):
               raise SystemExit('migration_version must be exactly 14 digits')
-          if lane not in {'atlas', 'wnph', 'shared'}:
-              raise SystemExit('release_lane must be atlas, wnph, or shared')
+          if lane not in {'atlas', 'wnph', 'noel', 'shared'}:
+              raise SystemExit('release_lane must be atlas, wnph, noel, or shared')
           if target != 'zirqkouammpwxlqfbsvf':
               raise SystemExit('production_target does not match noel-core production')
           if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha):
               raise SystemExit('candidate_sha must be an immutable 40-character commit SHA')
 
-          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'shared': 'Shared'}[lane]
+          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'noel': 'Noel', 'shared': 'Shared'}[lane]
           expected_title = f'Production schema validation request: {title_lane} {version}'
           if title != expected_title:
               raise SystemExit(f'issue title must be exactly: {expected_title}')

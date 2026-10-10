@@ -36,3 +36,9 @@ The scheduled custody workflow then independently verifies the same live/source 
 Configure `NOEL_CORE_DATABASE_URL` only in the protected `production` GitHub environment. Do not commit the database password or connection string to the repository.
 
 Supabase recommends using a database connection string for CLI/Postgres operations; the session pooler connection string is the preferred default when direct IPv6 connectivity is unavailable.
+
+## Independent domain structural release decisions
+
+The protected release selector accepts `noel`, `atlas`, `titus`, `wnph`, and `shared`. Noel-specific algorithm or table changes use `noel_`; ordinary dictionary research is not a release at all. The target lane must have exact live/source custody for its own changes plus shared and unclassified changes. Named unrelated domain source debt is still visible in the separately enforced global monitor but cannot alone veto a non-shared target release. Any actual interface/permission/identity contract touching more than one domain belongs in `shared_` and must meet global custody.
+
+Global custody CI continues to **block main/scheduled/manual checks**, while pull requests run the same reconciler in report-only mode to avoid making existing unrelated legacy drift a blanket PR veto. This does **not** allow a developer to merge source-only data, replay historical SQL, publish founder research or skip the protected production release. See `docs/DOMAIN_WORK_ISOLATION_V1.md`.
