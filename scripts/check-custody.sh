@@ -236,4 +236,4 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
-echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; 313 sealed retrospective recovery identities preserve exact live bytes."
+echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; ${#recovered_sha[@]} sealed retrospective recovery identities preserve exact live bytes."
