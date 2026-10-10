@@ -1,17 +1,29 @@
-# Noel governed research entry — isolated integration candidate
+# Noel governed research preflight — canonical integration source
 
-Purpose: make the existing live lexical/reality pools **the first read** of a Noel research transaction, before the older ranked research-object search. One SQL entry point returns the complete inherited pool contexts, typed links, owner-ratified meanings, witness-specific raw-token samples, and supplemental legacy discovery.
+This package stages the first-entry **read** for research questions. It resolves exact natural-word routes / Strong IDs, loads steward-ratified lexical definitions, typed component relations, active Reality Categories, and witness-specific raw token examples, then returns the older ranked Noel research discovery as supplemental evidence.
 
-**Boundary:** no Atlas UI or chat route is present on Atlas main for Noel research. This candidate creates a private Noel database entry contract; it does not pretend existing users of \`search_noel_research_objects_v4\` are automatically switched over. Callers must migrate explicitly and existing search must not be disabled without a dependency census.
+## Authority
 
-**Canonical authority:** \`optical-lift/noel-core-db\`. The candidate source must be merged to main, then promoted through the repository's governed migration source generation and production clone validation. There is NO production release in this candidate.
+- **Truth owner:** the live Noel Reality Pools graph, established founder definitions, and existing Song research records in the shared Supabase project.
+- **Read seam:** candidate `intelligence.begin_noel_research_v1(question)`, using the already-live private `draft.get_noel_reality_preflight_v1` and existing `intelligence.search_noel_research_objects_v4`.
+- **No application caller cutover claimed:** the current Atlas app main branch has no dedicated Noel research chat route. Existing search call sites require explicit integration; do not silently redefine old functions.
+- **Not owned:** Atlas application runtime, authentication, Vercel deployment, source-language token truth, or founder ratification writes.
+- **Governed premises:** ratified definitions carry authority separately from coverage; material and spiritual categories are not presumed disjoint; graph traversal loads needed reality contexts without treating linked lexical identities as synonyms.
 
-**Existing live custody discrepancy:** Four Noel reality-pool migrations (20261010193216, 20261010193806, 20261010193910, 20261010193943) were directly applied to the physical Supabase project outside this repository's canonical release workflow. Exact \`supabase_migrations.schema_migrations.statements[1]\` bodies are preserved under \`live-receipts/\` in this candidate folder; they are NOT equivalent to an authorized source release. Reconcile the live/source receipt mismatch without replay, forging prior approval, or altering the ledger before releasing another migration. Owner-authored pool data is stored live and is NOT exported here as a public repository dump.
+## Source custody completed
 
-**Principal's semantic rule:** steward-ratified lexical definitions and relations govern later research; coverage status must not demote them. Real conflicts are escalated for explicit revision. Category membership and graph edges are directed and typed, so grain -> bread -> restoration is mandatory context, not synonymy.
+The separate **exact-source repair PR #1429 merged** on 2026-10-10. It restored the four already-live Reality Pools migration bodies plus the separately owned Us job-opportunities DDL as exact canonical source, with v52/v53 sealed retrospective custody. The global custody CI passed with 945 exact + 67 reconciled live post-fence migration rows and zero blockers.
 
-**Validation:** \`postconditions.sql\` checks grain/bread, Eat/Bless, and exact Strong ID resolution. Review on the production-shaped clone; no synthetic live claims.
+These already-live SQL bodies **must never be replayed**. They are not included again here. This candidate only adds the new read contract; it has not yet been generated, validated as a migration, or released.
 
-**Non-scope:** Atlas deployment and PR #1394 migration recovery branch, research content export, other schema mutation, replacement of legacy search, app UI.
+## Validation
 
-Onboarding consumers: call \`intelligence.begin_noel_research_v1(question)\` before canonical interpretation. Treat \`governing_pool_contexts\` as required, and \`legacy_discovery_*\` as supplemental discovery results only.
+`postconditions.sql` checks grain/bread category inheritance, distinct Eat/Bless ratified definitions, and exact Strong's ID routing. A **read-only execution** of the candidate query body against live Noel returned respectively 3, 2, and 1 governed pool contexts for the three seeded test prompts. This is useful proof, **not** a substitute for the production-shaped clone validation gate.
+
+## Governed next sequence
+
+1. Merge this candidate source to `noel-core-db/main` only after full static and global custody checks pass.
+2. Use the existing **Shared** candidate-source generator on `main` to create a uniquely versioned `shared_...` canonical migration and postconditions.
+3. Run protected schema-only production-clone validation at the exact SHA, then merge canonical migration source.
+4. Release one migration using the repository's **manual production release** workflow. Never use a direct SQL/apply_migration workaround.
+5. Verify live RPC and wire the actual Noel caller; do not claim automatic entry integration earlier.
