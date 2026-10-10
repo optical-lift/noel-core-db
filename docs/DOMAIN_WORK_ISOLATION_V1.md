@@ -1,5 +1,5 @@
 # Domain Work Isolation — Noel, Atlas, Titus, Shared
-Status: proposed implementation in this branch; effective only after review and merge.
+Status: source implementation validated in PR #1437; effective from its merge to canonical main. No production DDL or data migration is part of this change.
 Owner: noel-core-db; project: zirqkouammpwxlqfbsvf.
 
 ## Operating decision
