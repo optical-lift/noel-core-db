@@ -1,0 +1,44 @@
+name: Titus Atlas Handoff SQL Proof
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261010024000_titus_atlas_formation_identity_bridge_v1.sql'
+      - 'validation/identity-handoff/**'
+      - '.github/workflows/titus-atlas-identity-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable_test_only
+          POSTGRES_DB: titus_bridge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d titus_bridge_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: disposable_test_only
+      PGDATABASE: titus_bridge_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare disposable auth and reality fixture
+        run: psql -X -v ON_ERROR_STOP=1 -f validation/identity-handoff/bootstrap.sql
+      - name: Apply candidate Titus migration to disposable database only
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261010024000_titus_atlas_formation_identity_bridge_v1.sql
+      - name: Verify one-time, identity, teacher, review and revocation controls
+        run: psql -X -v ON_ERROR_STOP=1 -f validation/identity-handoff/exercise.sql
