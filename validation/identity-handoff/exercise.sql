@@ -108,6 +108,37 @@ begin
     v_expired_code,repeat('c',64),v_verifier);
   if v_wrong->>'state'<>'invalid_grant' then raise exception 'Expired handoff redeemed'; end if;
 
+  -- Different authenticated Person with an active different Teacher profile
+  -- MUST NOT inherit Marlene's teacher entitlement or first Formation Unit.
+  insert into auth.users(id) values('00000000-0000-4000-8000-000000000021');
+  insert into auth.sessions(id,user_id) values
+    ('00000000-0000-4000-8000-000000000022','00000000-0000-4000-8000-000000000021');
+  insert into reality.entities(id,entity_kind,identity_state) values
+    ('00000000-0000-4000-8000-000000000023','person','canonical');
+  insert into reality.auth_person_bindings(auth_user_id,person_entity_id,binding_state)
+  values('00000000-0000-4000-8000-000000000021',
+         '00000000-0000-4000-8000-000000000023','active');
+  insert into titus.teachers(teacher_id,teacher_key,status)
+  values('00000000-0000-4000-8000-000000000024','different_teacher','active');
+  insert into titus.teacher_person_bindings(teacher_id,person_entity_id,binding_state)
+  values('00000000-0000-4000-8000-000000000024',
+         '00000000-0000-4000-8000-000000000023','active');
+  perform set_config('request.jwt.claim.role','authenticated',true);
+  perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000021',true);
+  perform set_config('request.jwt.claims',
+    '{"session_id":"00000000-0000-4000-8000-000000000022"}',true);
+  v_issued:=public.titus_issue_atlas_handoff_self_api_v1(repeat('d',64),v_challenge);
+  if v_issued->>'state'<>'issued' then raise exception 'Second Person could not issue a general Atlas handoff'; end if;
+  perform set_config('request.jwt.claim.role','service_role',true);
+  v_other:=public.titus_redeem_atlas_handoff_service_api_v1(
+    v_issued->>'code',repeat('d',64),v_verifier);
+  if v_other->>'state'<>'established' then raise exception 'Second Person redemption unexpectedly failed'; end if;
+  v_access:=public.titus_atlas_session_access_service_api_v1(
+    v_other->>'sessionToken',v_unit);
+  if v_access->>'state'<>'teacher_binding_required' then
+    raise exception 'Cross-Person teacher entitlement leaked: %',v_access;
+  end if;
+
   -- Titus signout revokes even a valid session.
   v_other:=public.titus_revoke_atlas_browser_session_service_api_v1(v_token);
   if v_other->>'state'<>'revoked' then raise exception 'Session revoke failed'; end if;
