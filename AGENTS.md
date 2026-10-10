@@ -13,4 +13,4 @@ Start here for any task touching this shared Supabase project (`zirqkouammpwxlqf
 9. When scope crosses domains or calls for changing private research permissions, stop and state the concrete unmet approval instead of guessing or weakening guards.
 10. Finish with links to reviewed source, CI verification, and explicit outstanding gates. Do not claim a branch or draft PR is merged/deployed until it is.
 
-Important boundaries: issue #1435 (private H1847 source custody), draft PR #1436 (eight already-live public-safe SQL recoveries), draft PR #1434 (Titus Constellation read candidate); none is automatically released by this domain-isolation change.
+Current state (2026-10-10): eight public-safe already-live Noel function SQL bodies were restored byte-exact via merged PR #1438 and sealed v54. Global main audit: 954 exact, 67 reconciled, **two private H1847 source-custody blockers**, zero global contract errors. PR #1436 is closed/superseded, not pending. Issue #1435 remains OPEN until protected source storage and independent verification are finished. Draft PR #1434 (Titus Constellation read candidate) is separate and not automatically released by domain isolation.
