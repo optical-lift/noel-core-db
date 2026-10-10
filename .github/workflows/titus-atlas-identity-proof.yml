@@ -3,7 +3,7 @@ name: Titus Atlas Handoff SQL Proof
 on:
   pull_request:
     paths:
-      - 'supabase/migrations/20261010024000_titus_atlas_formation_identity_bridge_v1.sql'
+      - 'supabase/migrations/20261010044500_titus_atlas_formation_identity_bridge_v1.sql'
       - 'validation/identity-handoff/**'
       - '.github/workflows/titus-atlas-identity-proof.yml'
   workflow_dispatch:
@@ -39,8 +39,8 @@ jobs:
       - name: Prepare disposable auth and reality fixture
         run: psql -X -v ON_ERROR_STOP=1 -f validation/identity-handoff/bootstrap.sql
       - name: Apply candidate Titus migration to disposable database only
-        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261010024000_titus_atlas_formation_identity_bridge_v1.sql
+        run: psql -X -v ON_ERROR_STOP=1 -f supabase/migrations/20261010044500_titus_atlas_formation_identity_bridge_v1.sql
       - name: Verify database grants, RLS and security-definer contract
-        run: psql -X -v ON_ERROR_STOP=1 -f validation/migrations/20261010024000_titus_atlas_formation_identity_bridge_v1.sql
+        run: psql -X -v ON_ERROR_STOP=1 -f validation/migrations/20261010044500_titus_atlas_formation_identity_bridge_v1.sql
       - name: Verify one-time, identity, teacher, review and revocation controls
         run: psql -X -v ON_ERROR_STOP=1 -f validation/identity-handoff/exercise.sql
