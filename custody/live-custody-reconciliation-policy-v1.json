@@ -7,7 +7,7 @@
     "directory": "custody",
     "filenamePrefix": "post-fence-migration-recoveries-v",
     "firstContractVersion": 4,
-    "lastContractVersion": 51,
+    "lastContractVersion": 53,
     "laterDifferentHashRequiresSupersedesLanguage": true
   },
   "executedStatementReconciliation": {
