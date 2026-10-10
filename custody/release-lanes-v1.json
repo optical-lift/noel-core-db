@@ -1,25 +1,51 @@
 {
   "contractVersion": 1,
-  "purpose": "Allow independently governed product releases inside the shared physical database without weakening global custody auditing.",
+  "purpose": "Keep structural-migration release decisions independently scoped to their owning domain, while global source-custody audit remains fully enforced on canonical main/scheduled monitoring. Routine private research/operational rows are not migrations.",
   "unclassifiedLiveMigrationPolicy": "blocking_for_every_release_lane",
   "lanes": {
     "atlas": {
       "migrationPrefix": "atlas_",
       "ownedSchema": "atlas",
-      "foreignLanePrefixes": ["wnph_", "titus_"],
-      "forbiddenSqlFragments": ["wnph.", "public.wnph_", "public.v_wnph_", "titus."]
+      "foreignLanePrefixes": [
+        "wnph_",
+        "titus_"
+      ],
+      "forbiddenSqlFragments": [
+        "wnph.",
+        "public.wnph_",
+        "public.v_wnph_",
+        "titus."
+      ]
     },
     "wnph": {
       "migrationPrefix": "wnph_",
       "ownedSchema": "wnph",
-      "foreignLanePrefixes": ["atlas_", "titus_"],
-      "forbiddenSqlFragments": ["atlas.", "public.atlas_", "public.v_atlas_", "titus."]
+      "foreignLanePrefixes": [
+        "atlas_",
+        "titus_"
+      ],
+      "forbiddenSqlFragments": [
+        "atlas.",
+        "public.atlas_",
+        "public.v_atlas_",
+        "titus."
+      ]
     },
     "titus": {
       "migrationPrefix": "titus_",
       "ownedSchema": "titus",
-      "foreignLanePrefixes": ["atlas_", "wnph_"],
-      "forbiddenSqlFragments": ["atlas.", "public.atlas_", "public.v_atlas_", "wnph.", "public.wnph_", "public.v_wnph_"]
+      "foreignLanePrefixes": [
+        "atlas_",
+        "wnph_"
+      ],
+      "forbiddenSqlFragments": [
+        "atlas.",
+        "public.atlas_",
+        "public.v_atlas_",
+        "wnph.",
+        "public.wnph_",
+        "public.v_wnph_"
+      ]
     },
     "shared": {
       "migrationPrefix": "shared_",
@@ -27,6 +53,26 @@
       "foreignLanePrefixes": [],
       "forbiddenSqlFragments": [],
       "requiresGlobalCustody": true
+    },
+    "noel": {
+      "migrationPrefix": "noel_",
+      "ownedSchema": "draft (Noel Reality Pools); core and intelligence evidence services",
+      "foreignLanePrefixes": [
+        "atlas_",
+        "titus_",
+        "wnph_"
+      ],
+      "forbiddenSqlFragments": [
+        "atlas.",
+        "public.atlas_",
+        "public.v_atlas_",
+        "titus.",
+        "public.titus_",
+        "wnph.",
+        "public.wnph_",
+        "local_intel.",
+        "reality.auth_person_bindings"
+      ]
     }
   }
 }
