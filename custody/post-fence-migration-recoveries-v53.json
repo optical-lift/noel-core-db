@@ -1,0 +1,18 @@
+{
+  "contractVersion": 53,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v52.json",
+  "rule": "This one already-live private Us job-opportunities schema migration was applied on 2026-10-10 outside the canonical noel-core-db release path. Its exact SQL contains only table DDL, no personal row data or credentials. The Git source body was independently matched to the production migration ledger Git blob SHA-1. Its sole disposition is retrospective source custody: it does not replay SQL, authorize the original bypass, grant new database permission, publish private application records, or authorize a future Us migration prefix/release lane. The four Noel Reality Pool migration receipts are independently adjudicated in v52 and remain separate from Us product ownership.",
+  "recoveries": [
+    {
+      "version": "20261010025836",
+      "name": "us_private_job_opportunities_pipeline",
+      "filename": "20261010025836_us_private_job_opportunities_pipeline.sql",
+      "gitBlobSha1": "29d1fd50e6e63aaa6da532a82449ef82da8b9940",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}

@@ -112,9 +112,10 @@ declare -A sealed_registry_sha=(
   ["custody/post-fence-migration-recoveries-v50.json"]="593d7f7d3189302351caaff63d79fd693d261ab9"
   ["custody/post-fence-migration-recoveries-v51.json"]="db29a2fad156f520f3526438ac1f8029e82791a3"
   ["custody/post-fence-migration-recoveries-v52.json"]="87be10c765328eca389adb9c269f6a6947fe1939"
+  ["custody/post-fence-migration-recoveries-v53.json"]="fbc48d033615d738cb8c79c76c2ea7fbafcb4c34"
 )
 
-for version in $(seq 4 52); do
+for version in $(seq 4 53); do
   registry="custody/post-fence-migration-recoveries-v${version}.json"
   if [ ! -f "$registry" ]; then
     echo "Missing $registry"
@@ -140,7 +141,7 @@ import json, re
 from pathlib import Path
 
 specs = []
-for version in range(4, 53):
+for version in range(4, 54):
     path = Path(f'custody/post-fence-migration-recoveries-v{version}.json')
     inherits = None if version == 4 else f'post-fence-migration-recoveries-v{version - 1}.json'
     specs.append((path, version, inherits))
@@ -189,7 +190,7 @@ for path, contract_version, inherits in specs:
             )
         seen[filename] = sha
 
-assert len(seen) == 317
+assert len(seen) == 318
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
