@@ -37,7 +37,7 @@ def require(condition: bool, message: str) -> None:
 
 
 def git_object_sha(kind: str, body: bytes) -> str:
-    return hashlib.sha1(kind.encode("ascii") + b" " + str(len(body)).encode("ascii") + b"\\x00" + body).hexdigest()
+    return hashlib.sha1(kind.encode("ascii") + b" " + str(len(body)).encode("ascii") + b"\x00" + body).hexdigest()
 
 
 def tree_hash(entries: list[dict]) -> str:
@@ -48,14 +48,14 @@ def tree_hash(entries: list[dict]) -> str:
         mode = entry["mode"]
         typ = entry["type"]
         oid = entry["sha"]
-        require(isinstance(name, str) and name and "/" not in name and "\\x00" not in name and name not in (".", ".."), "unsafe Git tree name")
+        require(isinstance(name, str) and name and "/" not in name and "\x00" not in name and name not in (".", ".."), "unsafe Git tree name")
         require(name not in seen, "duplicate Git tree name")
         seen.add(name)
         require(typ in ("tree", "blob"), "unsupported tree entry type")
         require((typ == "tree" and mode == "040000") or (typ == "blob" and mode in ("100644", "100755")), "untrusted Git mode/type")
         require(isinstance(oid, str) and bool(SHA.fullmatch(oid)), "invalid SHA-1 object name")
         normalized_mode = mode.lstrip("0").encode("ascii")
-        objects.append((name.encode("utf-8") + (b"/" if typ == "tree" else b""), normalized_mode + b" " + name.encode("utf-8") + b"\\x00" + bytes.fromhex(oid)))
+        objects.append((name.encode("utf-8") + (b"/" if typ == "tree" else b""), normalized_mode + b" " + name.encode("utf-8") + b"\x00" + bytes.fromhex(oid)))
     body = b"".join(raw for _, raw in sorted(objects, key=lambda item: item[0]))
     return git_object_sha("tree", body)
 
@@ -69,9 +69,9 @@ def verify_inclusion(proof: dict) -> dict:
     require(proof.get("privateSourceVisibility") == "private_at_capture", "source private visibility not established")
     signed = proof["signedCommit"]
     payload = signed["payload"]
-    require(payload.startswith("tree " + signed["treeSha1"] + "\\n"), "commit payload tree mismatch")
-    require("\\nauthor optical-lift <" in "\\n" + payload, "unexpected signed author")
-    require("\\ncommitter GitHub <noreply@github.com> " in payload, "unexpected signed committer")
+    require(payload.startswith("tree " + signed["treeSha1"] + "\n"), "commit payload tree mismatch")
+    require("\nauthor optical-lift <" in "\n" + payload, "unexpected signed author")
+    require("\ncommitter GitHub <noreply@github.com> " in payload, "unexpected signed committer")
     require(isinstance(signed["signature"], str) and "BEGIN PGP SIGNATURE" in signed["signature"], "missing signed commit")
     require(SHA.fullmatch(proof["privateSourceCommitSha1"]) is not None, "invalid Git commit identity")
     trees = proof["gitTrees"]
