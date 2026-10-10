@@ -1,0 +1,81 @@
+{
+  "contractVersion": 54,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v53.json",
+  "rule": "Eight already-live Noel Reality Pool read-only discovery and preflight function migrations from 2026-10-10 were directly executed outside the canonical release lane. This public repository privacy review finds these eight sources contain reusable SQL logic and no embedded founder-authored research row bodies. Source files were independently proven exact byte-for-byte Git blob equals Supabase executed-statement history. These are historical custody receipts only, not production replay, ratification, authorization of direct release, or permission to publish private research. The two H1847 Knowledge evidence migrations dated 20261010214537 and 20261010214627 contain founder-authored research statements and are explicitly excluded pending approved protected-source custody. See issue #1435.",
+  "recoveries": [
+    {
+      "version": "20261010212557",
+      "name": "noel_reality_ecosystem_attentional_discovery_v1",
+      "filename": "20261010212557_noel_reality_ecosystem_attentional_discovery_v1.sql",
+      "gitBlobSha1": "9810fd33b8cc32d620121ae7299436cdd39c6c53",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010212827",
+      "name": "noel_reality_preflight_reports_ecosystem_attention_v1",
+      "filename": "20261010212827_noel_reality_preflight_reports_ecosystem_attention_v1.sql",
+      "gitBlobSha1": "54343be622889b4b6715d7cf23f0df46633bb3d3",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010212932",
+      "name": "noel_reality_ecosystem_multipool_bridges_v1",
+      "filename": "20261010212932_noel_reality_ecosystem_multipool_bridges_v1.sql",
+      "gitBlobSha1": "031a76c45fec9aae21c356c3c9b7cfa00190b8ff",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010213051",
+      "name": "noel_reality_ecosystem_bridge_specificity_priority_v1",
+      "filename": "20261010213051_noel_reality_ecosystem_bridge_specificity_priority_v1.sql",
+      "gitBlobSha1": "3a97c4232126982c8e602f13c3fbde47cec5b423",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010213216",
+      "name": "noel_reality_bridge_founder_definitional_overlap_ranking_v1",
+      "filename": "20261010213216_noel_reality_bridge_founder_definitional_overlap_ranking_v1.sql",
+      "gitBlobSha1": "4f2a8d34494429d5abe09a6c6bb77a9daa440bb5",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010213300",
+      "name": "noel_reality_preflight_includes_convergence_bridges_v1",
+      "filename": "20261010213300_noel_reality_preflight_includes_convergence_bridges_v1.sql",
+      "gitBlobSha1": "c2d1af6bff93a171b42156a1a38f0b6aa36f0fc6",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010213445",
+      "name": "noel_reality_existing_composition_lexical_gaps_v1",
+      "filename": "20261010213445_noel_reality_existing_composition_lexical_gaps_v1.sql",
+      "gitBlobSha1": "8fe1c9391d7e238b3cfeb33668788ef0cb622ab9",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261010213514",
+      "name": "noel_reality_preflight_prioritizes_composition_gaps_v1",
+      "filename": "20261010213514_noel_reality_preflight_prioritizes_composition_gaps_v1.sql",
+      "gitBlobSha1": "eec2a8e5dd7350f721cd021cfb4932495ace93d4",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
