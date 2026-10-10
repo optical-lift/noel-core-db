@@ -7,8 +7,8 @@ manifest="custody/release-lanes-v1.json"
 api_url="${NOEL_CORE_SUPABASE_URL:-}"
 publishable_key="${NOEL_CORE_SUPABASE_PUBLISHABLE_KEY:-}"
 
-if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "shared" ]]; then
-  echo "Usage: $0 <atlas|wnph|shared>" >&2
+if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "noel" && "$lane" != "shared" ]]; then
+  echo "Usage: $0 <atlas|wnph|noel|shared>" >&2
   exit 2
 fi
 if [ -z "$api_url" ] || [ -z "$publishable_key" ]; then
