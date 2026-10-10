@@ -7,11 +7,11 @@ migration_override="${3:-}"
 manifest="custody/release-lanes-v1.json"
 
 if [[ ! "$version" =~ ^[0-9]{14}$ ]]; then
-  echo "Usage: $0 <14-digit-migration-version> <atlas|wnph|titus|shared>" >&2
+  echo "Usage: $0 <14-digit-migration-version> <atlas|wnph|titus|noel|shared>" >&2
   exit 2
 fi
-if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "titus" && "$lane" != "shared" ]]; then
-  echo "Release lane must be atlas, wnph, titus, or shared." >&2
+if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "titus" && "$lane" != "noel" && "$lane" != "shared" ]]; then
+  echo "Release lane must be atlas, wnph, titus, noel, or shared." >&2
   exit 2
 fi
 if [ ! -f "$manifest" ]; then
