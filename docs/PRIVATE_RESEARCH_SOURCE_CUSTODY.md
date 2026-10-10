@@ -14,8 +14,13 @@ The public `optical-lift/noel-core-db` repository is suitable for reviewed execu
 
 ## Pending legacy exception
 - The source-protected H1847 token-anchor and evidence-edge bodies in #1435 are still awaiting an approved protected storage and verifier.
-- Safe DDL-style recoveries are in draft #1436 and remain separate from the H1847 privacy decision.
+- The eight public-safe source-function recoveries were merged through PR #1438 (v54, all eight exact original live Git blob identities). Obsolete draft PR #1436 was closed as superseded. **Only the two H1847 research-bearing SQL bodies are still uncustodied.**
+- Live executed-source Git blob SHA-1 identifiers (public hashes only): `20261010214537_noel_reality_h1847_knowledge_source_anchors_v1.sql` = `b94131f94526032acdfbdf0b81718c7fc7964afd`; `20261010214627_noel_reality_h1847_evidence_scoped_edges_v1.sql` = `c632c6464203485a1c85db3277554c0efc616506`. These hashes are verification targets, NOT a substitute for source storage.
 - Global production audit must continue reporting uncustodied history. Per-lane release filters are **not** proof of privacy custody or a reason to close the issue.
+
+## Confirmed current baseline
+
+Main audit run 38094506142: 954 canonical exact, 67 canonical reconciled, 2 post-cut active-tail H1847 sources, 0 global errors. Only private-source custody, not source recovery of eight public-safe files, is pending. Do not mark issue #1435 completed or suppress the remaining audit failures.
 
 ## Next implementation tranche
 Choose and approve protected source storage, establish IAM/access revocation and immutability, create a verifier with a signed attestation contract, build negative tests (missing body / wrong hash / wrong actor / revoked approval / cross-project mismatch), and extend global reconciler only after independent review. Never call this complete before a real verifier has passed against the exact private SQL source.
