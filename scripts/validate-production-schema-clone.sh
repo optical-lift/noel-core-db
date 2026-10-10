@@ -5,7 +5,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: scripts/validate-production-schema-clone.sh \
   --migration-version <14 digits> \
-  --release-lane <atlas|wnph|shared> \
+  --release-lane <atlas|wnph|noel|shared> \
   --candidate-migration <path> \
   [--candidate-fixture <path>] \
   [--candidate-validation <path>] \
