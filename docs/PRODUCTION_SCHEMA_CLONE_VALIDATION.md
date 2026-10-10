@@ -8,7 +8,7 @@ The validator is `.github/workflows/production-schema-clone-validation.yml` on c
 
 It may be triggered only by an open GitHub issue authored by the repository owner with the exact title:
 
-`Production schema validation request: <Atlas|WNPH|Shared> <14-digit-version>`
+`Production schema validation request: <Atlas|WNPH|Noel|Shared> <14-digit-version>`
 
 The issue body must contain exactly resolved single-token fields for:
 
@@ -64,3 +64,7 @@ Passing schema-clone validation does not release anything.
 Production release remains owned exclusively by `.github/workflows/production-db-release.yml`, is main-only, and releases one exact canonical migration version through the existing protected release contract.
 
 The schema-clone validator is therefore a pre-merge/pre-release proof lane, not a second release lane.
+
+## Noel lane
+
+The owner-requested `Noel` lane validates `noel_` structural changes against a disposable complete production schema/role clone. It is **not** the path for adding word definitions, verse annotations or Reality Pool source anchors. Those are private records entered through the research workflow (`docs/NOEL_RESEARCH_OPERATIONS.md`), never a source migration or fixture. The validator must not dump production rows or disclose founder notes.
