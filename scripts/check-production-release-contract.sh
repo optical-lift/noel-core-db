@@ -39,6 +39,7 @@ required_workflow_fragments = [
     '- atlas',
     '- wnph',
     '- titus',
+    '- noel',
     '- shared',
     'bash scripts/check-custody.sh',
     'bash scripts/check-migration-release-lane.sh',
@@ -84,5 +85,5 @@ if errors:
         print(f'- {error}')
     raise SystemExit(1)
 
-print('Production database release contract passed: manual main-only release, protected DB secret, exact migration source, Titus-specific live custody, target-lane enforcement, and nonblocking global health audit are all required.')
+print('Production database release contract passed: main-only protected manual release; Atlas, Titus, Noel, WNPH, and shared lanes; target-lane checks and independent global audit.')
 PY
