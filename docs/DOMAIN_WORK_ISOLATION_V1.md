@@ -42,4 +42,4 @@ Titus may develop its UI and local previews independently of Noel research recov
 ## Persistent decision points
 - Source: `schemas/OWNERSHIP.md`, `custody/release-lanes-v1.json`, `docs/GOVERNED_MIGRATION_SOURCE_GENERATION.md`, `docs/PRODUCTION_DATABASE_RELEASE.md`.
 - Operating instructions: root `AGENTS.md` and `docs/NOEL_RESEARCH_OPERATIONS.md`.
-- Historical source: merged PR #1438 sealed eight public-safe live Noel migrations; draft PR #1436 was closed as superseded. Only two private H1847 source bodies remain open in issue #1435. Do **not** close that issue or weaken the global gate until independently verifiable private custody exists.
+- Historical source: merged PR #1438 sealed eight public-safe live Noel migrations, and private-source PR #1440 supplies a GitHub-signed private Git tree inclusion proof for the remaining two H1847 source bodies. The private originals are stored separately in private Song provenance as **source escrow only**, not semantic/experimental authority. After #1440 main CI verifies zero blockers, issue #1435 may close. Global enforcement is retained; no new migration or research publication is authorized.

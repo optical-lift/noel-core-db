@@ -237,4 +237,14 @@ if [ "$bad" -ne 0 ]; then
   exit 1
 fi
 
+# The private-source proof contains no SQL bodies and is independently pinned.
+# Always test the negative inclusion cases; the global live reconciler separately
+# validates GitHub's real signed commit and the production executed-body hashes.
+private_proof="custody/private-noel-h1847-signed-source-inclusion-v1.json"
+if [[ ! -f "$private_proof" ]] || [[ "$(git hash-object "$private_proof")" != "1ffffb93841a8690f4d131fbd61e4138cc9486e5" ]]; then
+  echo "Sealed private Noel source inclusion proof missing or modified"
+  exit 1
+fi
+python3 validation/test-private-source-custody.py
+
 echo "Database custody checks passed: inherited history fenced through $fence_version; new migrations belong to noel-core-db; ${#recovered_sha[@]} sealed retrospective recovery identities preserve exact live bytes."
