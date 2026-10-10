@@ -64,12 +64,14 @@ jobs:
           fixture_path = fields['fixture_path']
           validation_path = fields['validation_path']
 
-          if lane not in {'atlas', 'wnph', 'shared'}:
-              raise SystemExit('release_lane must be atlas, wnph, or shared')
+          if lane not in {'atlas', 'wnph', 'noel', 'shared'}:
+              raise SystemExit('release_lane must be atlas, wnph, noel, or shared')
           if not re.fullmatch(r'[a-z0-9][a-z0-9_]{2,79}', name):
               raise SystemExit('migration_name must be lowercase snake_case, 3-80 characters')
           if lane == 'atlas' and not name.startswith('atlas_'):
               raise SystemExit('Atlas migration_name must start with atlas_')
+          if lane == 'noel' and not name.startswith('noel_'):
+              raise SystemExit('Noel migration_name must start with noel_')
           if lane == 'wnph' and not name.startswith('wnph_'):
               raise SystemExit('WNPH migration_name must start with wnph_')
           if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha):
@@ -87,7 +89,7 @@ jobs:
           validate_candidate_path(fixture_path, 'fixture_path', allow_none=True)
           validate_candidate_path(validation_path, 'validation_path', allow_none=True)
 
-          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'shared': 'Shared'}[lane]
+          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'noel': 'Noel', 'shared': 'Shared'}[lane]
           expected_title = f'Migration generation request: {title_lane} {name}'
           if title != expected_title:
               raise SystemExit(f'issue title must be exactly: {expected_title}')
