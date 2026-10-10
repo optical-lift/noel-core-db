@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import subprocess
@@ -144,9 +145,39 @@ def load_statement_reconciliations(policy: dict):
     return rows, conflicts
 
 
+def load_private_source_attestations(policy: dict) -> dict[str, str]:
+    cfg = policy.get("privateSourceAttestations")
+    if not cfg:
+        return {}
+    if cfg.get("contractVersion") != 1 or cfg.get("classification") != "signed_private_git_tree_inclusion":
+        fail("unrecognized private source-attestation contract")
+    path = ROOT / str(cfg.get("path") or "")
+    if not path.is_file():
+        fail("private source-attestation proof missing")
+    expected = str(cfg.get("sealedGitBlobSha1") or "")
+    actual = git_blob(path)
+    if actual != expected:
+        fail(f"private source-attestation proof hash drift: expected {expected}, actual {actual}")
+    mod_path = ROOT / str(cfg.get("verifier") or "")
+    if not mod_path.is_file() or mod_path != ROOT / "scripts/verify-private-source-custody.py":
+        fail("invalid protected source verifier location")
+    spec = importlib.util.spec_from_file_location("noel_private_source_attestation", mod_path)
+    if spec is None or spec.loader is None:
+        fail("private source verifier module missing")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    try:
+        evidence = module.verify_proof(load_json(path))
+    except Exception as exc:
+        fail(f"private source signature or Git inclusion proof invalid: {type(exc).__name__}: {exc}")
+    if len(evidence) != int(cfg.get("expectedSourceCount") or 0) or cfg.get("protectedSourceOwner") != "optical-lift/song-ontology":
+        fail("private source proof scope or approved custodian changed")
+    return evidence
+
 def classify(packet: dict, policy: dict, baseline: dict):
     recovery_latest, recovery_histories, registry_conflicts, registry_versions = load_recovery_registry(policy)
     statement_pairs, statement_conflicts = load_statement_reconciliations(policy)
+    private_sources = load_private_source_attestations(policy)
 
     global_errors = []
     if packet.get("contractVersion") != 1:
@@ -212,6 +243,13 @@ def classify(packet: dict, policy: dict, baseline: dict):
         elif exists and statement_pair == (source, executed):
             state = "canonical_reconciled"
             reason = "canonical source/live executed-body difference is sealed by the two-hash reconciliation receipt"
+        elif not exists and filename in private_sources and private_sources[filename] == executed:
+            state = "canonical_private_attested"
+            reason = "a sealed GitHub-signed private Git tree proves exact independent source blob inclusion, and its SHA-1 equals the live executed SQL; private SQL remains unpublished"
+            evidence.append("signed_independent_private_source_inclusion_verified")
+        elif not exists and filename in private_sources:
+            state = "registry_conflict"
+            reason = "signed independent private source hash does not match the live executed migration"
         elif not exists and recovery and recovery.get("gitBlobSha1") == executed:
             state = "registered_recovery_missing_file"
             reason = "sealed recovery receipt already adjudicates the exact live body, but the canonical SQL file is absent"
@@ -271,6 +309,11 @@ def classify(packet: dict, policy: dict, baseline: dict):
             "versionsLoaded": registry_versions,
             "latestReceiptCount": len(recovery_latest),
             "conflictingFilenameCount": len(registry_conflicts),
+        },
+        "privateSourceAttestation": {
+            "rowCount": len(private_sources),
+            "authority": "verified_github_signed_private_git_source_inclusion",
+            "noProtectedSourceText": True,
         },
         "executedStatementReconciliation": {
             "rowCount": len(statement_pairs),
