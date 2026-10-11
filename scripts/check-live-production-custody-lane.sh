@@ -29,6 +29,7 @@ curl --fail --silent --show-error \
   | tr -d '\r' > "$packet_file"
 
 python3 - "$lane" "$baseline" "$manifest" "$packet_file" <<'PY'
+import importlib.util
 import json
 import re
 import subprocess
@@ -94,6 +95,26 @@ except Exception as exc:
 
 if policy and (policy.get('contractVersion') != 1 or policy.get('sealed') is not True):
     errors.append(f"Unexpected live custody reconciliation policy contract: {policy_path}")
+
+# The global live-custody reconciler already verifies the two exact private H1847
+# source blobs using the sealed policy hash, signed GitHub Git-tree inclusion,
+# independent signer verification, and an exact expected filename/hash census.
+# Reuse that verifier rather than demanding the intentionally withdrawn private
+# SQL files in public Git or inventing a weaker release-lane exception.
+private_sources = {}
+# Foreign product lanes remain independent; only Noel and Shared must adjudicate
+# a Noel-owned historical receipt in this release preflight.
+if policy and lane in ('noel', 'shared'):
+    try:
+        reconciler_path = Path('scripts/reconcile-live-production-custody.py').resolve()
+        spec = importlib.util.spec_from_file_location('noel_global_live_custody_reconciler', reconciler_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError('Global private source-custody verifier cannot be loaded')
+        reconciler = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(reconciler)
+        private_sources = reconciler.load_private_source_attestations(policy)
+    except Exception as exc:
+        errors.append(f"Private signed source verification failed: {type(exc).__name__}: {exc}")
 
 statement_cfg = policy.get('executedStatementReconciliation') or {}
 receipt_specs = []
@@ -194,7 +215,19 @@ for row in post_fence:
         path.is_file()
         and statement_pairs.get(filename) == (repository_blob, production_blob)
     )
-    if exact_repository or exact_recovery or exact_statement_reconciliation:
+    exact_private_source = (
+        not path.is_file()
+        and filename in private_sources
+        and private_sources[filename] == production_blob
+    )
+    if filename in private_sources and not exact_private_source:
+        errors.append(
+            f"{lane} release lane blocked by private source-custody mismatch: "
+            f"{filename}; a protected SQL file must remain absent from public Git "
+            "and its signed private Git blob must exactly match the live executed body"
+        )
+        continue
+    if exact_repository or exact_recovery or exact_statement_reconciliation or exact_private_source:
         continue
 
     foreign = owner_lane not in (lane, 'unclassified', 'shared')
