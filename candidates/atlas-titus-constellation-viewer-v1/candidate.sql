@@ -25,14 +25,14 @@ ALTER TABLE atlas.titus_constellation_viewer_grants ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON atlas.titus_constellation_viewer_grants FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON atlas.titus_constellation_viewer_grants TO service_role;
 
--- A service-only fresh authorization decision, bound to a real, non-expired,
+-- Only a service-role callable Boolean. SECURITY DEFINER is required because\n-- service_role has NO SELECT on auth.sessions/auth.oauth_clients. The function\n-- owner reads Auth tables; it does not expose rows or grant global Auth access.\n-- A fresh authorization decision, bound to a real, non-expired,
 -- OAuth-client-scoped Supabase Auth session and a non-retired Atlas Person.
 -- This does NOT mint identities, sessions, permissions, or tokens.
 CREATE OR REPLACE FUNCTION public.titus_constellation_viewer_allowed_v1(
   p_auth_user_id uuid,
   p_session_id uuid,
   p_oauth_client_id uuid
-) RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path = ''
+) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
 AS $body$
 SELECT COALESCE(EXISTS (
  SELECT 1
@@ -71,7 +71,7 @@ GRANT EXECUTE ON FUNCTION public.titus_constellation_viewer_allowed_v1(uuid,uuid
 CREATE OR REPLACE FUNCTION public.titus_constellation_atlas_native_allowed_v1(
   p_auth_user_id uuid,
   p_session_id uuid
-) RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path = ''
+) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
 AS $atlas$
 SELECT COALESCE(EXISTS (
  SELECT 1
