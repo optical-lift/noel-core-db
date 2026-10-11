@@ -19,3 +19,8 @@ This candidate now has **two access-status read functions over the same single P
 Atlas native client branch: `optical-lift/atlas` PR #232. Atlas backend verifies the bearer with Supabase Auth before consulting the native service-only RPC. No browser can execute the RPC. The Atlas notebook Index is not a grant. The native Atlas host currently does not fetch private graph or Hebrew witnesses because the shared Titus-owned full-sky presenter is not yet integrated.
 
 **Gate:** Both functions must be proven with positive/negative session fixtures including wrong Auth user, mismatched session, expired session, revoked or expired grant, active alternate user, unrelated OAuth client, inactive Person, and a dormant/empty grant store before migration generation/release. Production remains unchanged.
+
+
+## Source custody vs release authorization
+
+The candidate SQL and synthetic fixtures may be merged into canonical source **solely to make their immutable commit eligible for the existing governed migration generator**. This source-only merge must not generate an executable migration in `supabase/migrations`, alter Supabase, create a grant, enable an environment flag or authorize a release. Protected validation then applies the generated migration against a disposable production-schema clone with synthetic signed-in users, distinct native/OAuth sessions, two canonical Persons, two OAuth client IDs, an Atlas reviewer, and a sample research grant. Positive and negative checks verify cross-user/client denial, mismatched and expired sessions, absent/revoked/expired grants, disputed Person and retired binding. Only after clone proof, custody/SQL review, and approved principal authorization may the generated migration PR and protected release proceed.
