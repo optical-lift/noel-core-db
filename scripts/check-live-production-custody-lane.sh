@@ -102,7 +102,9 @@ if policy and (policy.get('contractVersion') != 1 or policy.get('sealed') is not
 # Reuse that verifier rather than demanding the intentionally withdrawn private
 # SQL files in public Git or inventing a weaker release-lane exception.
 private_sources = {}
-if policy:
+# Foreign product lanes remain independent; only Noel and Shared must adjudicate
+# a Noel-owned historical receipt in this release preflight.
+if policy and lane in ('noel', 'shared'):
     try:
         reconciler_path = Path('scripts/reconcile-live-production-custody.py').resolve()
         spec = importlib.util.spec_from_file_location('noel_global_live_custody_reconciler', reconciler_path)
