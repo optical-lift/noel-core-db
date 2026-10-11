@@ -9,7 +9,7 @@ CREATE TABLE atlas.titus_constellation_viewer_grants (
   grant_state text NOT NULL CHECK (grant_state IN ('active','revoked')),
   valid_from timestamptz NOT NULL,
   valid_until timestamptz,
-  reviewed_by_principal_id uuid NOT NULL,
+  reviewed_by_principal_id uuid NOT NULL REFERENCES atlas.principals(id),
   authority_basis text NOT NULL CHECK (length(btrim(authority_basis)) >= 12),
   established_at timestamptz NOT NULL DEFAULT now(),
   revoked_at timestamptz,
