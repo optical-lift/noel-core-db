@@ -24,3 +24,10 @@ Atlas native client branch: `optical-lift/atlas` PR #232. Atlas backend verifies
 ## Source custody vs release authorization
 
 The candidate SQL and synthetic fixtures may be merged into canonical source **solely to make their immutable commit eligible for the existing governed migration generator**. This source-only merge must not generate an executable migration in `supabase/migrations`, alter Supabase, create a grant, enable an environment flag or authorize a release. Protected validation then applies the generated migration against a disposable production-schema clone with synthetic signed-in users, distinct native/OAuth sessions, two canonical Persons, two OAuth client IDs, an Atlas reviewer, and a sample research grant. Positive and negative checks verify cross-user/client denial, mismatched and expired sessions, absent/revoked/expired grants, disputed Person and retired binding. Only after clone proof, custody/SQL review, and approved principal authorization may the generated migration PR and protected release proceed.
+
+
+## Critical runtime privilege correction
+
+Do not release the first generated version `20261011172245` (PR #1454). Read-only live inspection proved that the `service_role` cannot SELECT `auth.sessions` or `auth.oauth_clients`. The original `SECURITY INVOKER` predicates would always fail at runtime. The correction uses **SECURITY DEFINER with search_path=''**, fully qualified table references, no dynamic SQL, Boolean-only return values and service-role-only EXECUTE. Auth table SELECT is **not granted** to service_role, anon or authenticated.
+
+The disposable clone postconditions now actually `SET ROLE service_role` and assert both positive native/OAuth permissions, negative cross-session paths and absence of raw Auth table SELECT. Validation must succeed as the true runtime role; a passing owner-context fixture alone cannot authorize a release. Regenerate a new migration from the corrected immutable candidate SHA, then validate and review separately.
