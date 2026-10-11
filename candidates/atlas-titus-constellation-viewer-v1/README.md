@@ -1,0 +1,9 @@
+# Atlas-owned authorization gate — Titus private Constellation
+
+**Source-only candidate, not deployed.** No private user IDs, founder definitions, or research data enter this repository. It creates a read-only research capability grant keyed by the already-established `reality.entities` canonical Person and a backend-only Boolean authorization decision over a real, non-expired Supabase OAuth session, its exact client ID, the existing active `reality.auth_person_bindings`, and an independently recorded, active, reviewer-backed grant. **Zero grants are inserted.** Atlas account creation or OAuth consent does not imply research access. Revocation and expiry take effect on the next authenticated page request.
+
+**Transport:** Atlas's existing Supabase Auth tenant serves as standard OAuth 2.1 / PKCE identity provider. The private Titus callback will verify the signed access token, request live authorization, and only then ask the two service-role-only Noel Scripture read RPCs. No browser/anonymous credentials can execute the private RPCs.
+
+**Guardrails:** SQL is for governed migration generation/clone only. `auth.sessions` membership, `oauth_client_id` and expiry are checked fresh. A Titus preview OAuth client must be separately registered and configured; no client currently exists in the live project. Do not grant the user or Marshall access by guessing identities or by inserting temporary grants; human authorizing principal and evidence are required. The existing Session 11-specific handoff SQL remains on HOLD pending independent reconciliation. No Atlas/Titus main branch or production site is changed by this candidate.
+
+**Negative test:** no permissions for anon/authenticated, no default grants, missing/foreign/null session denied, and schema under Atlas authority. Positive, revoked, expired, mismatched-client, and wrong-Person cases must be tested in isolated disposable fixtures before release.
