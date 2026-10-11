@@ -20,4 +20,12 @@ BEGIN
  THEN RAISE EXCEPTION 'Foreign unrelated identity/session gained research access'; END IF;
  IF public.titus_constellation_viewer_allowed_v1(NULL,NULL,NULL)
  THEN RAISE EXCEPTION 'Null identity/session gained research access'; END IF;
+
+ IF has_function_privilege('anon','public.titus_constellation_atlas_native_allowed_v1(uuid,uuid)','EXECUTE')
+   OR has_function_privilege('authenticated','public.titus_constellation_atlas_native_allowed_v1(uuid,uuid)','EXECUTE')
+   OR NOT has_function_privilege('service_role','public.titus_constellation_atlas_native_allowed_v1(uuid,uuid)','EXECUTE')
+ THEN RAISE EXCEPTION 'Atlas native research authorization must remain service-only'; END IF;
+ IF public.titus_constellation_atlas_native_allowed_v1(gen_random_uuid(),gen_random_uuid())
+   OR public.titus_constellation_atlas_native_allowed_v1(NULL,NULL)
+ THEN RAISE EXCEPTION 'Atlas native research access granted without real session and Person'; END IF;
 END $proof$;
