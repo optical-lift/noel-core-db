@@ -113,3 +113,32 @@ BEGIN
  THEN RAISE EXCEPTION 'Grant not restored after isolated fixture reversals'; END IF;
  RAISE NOTICE 'Titus private authorization fixture PASS: native and OAuth positive plus denial/revocation/expiry/identity cases';
 END $authorization_fixture$;
+
+
+-- Runtime-role proof. The actual Atlas backend calls this with service_role,
+-- which intentionally cannot SELECT Supabase Auth tables. The definer functions
+-- may return only booleans, and must not leak Auth rows or their privileges.
+SET ROLE service_role;
+DO $service_role_proof$
+DECLARE
+  identity_id uuid:='10000000-0000-4000-8000-000000000001';
+  active_native uuid:='10000000-0000-4000-8000-000000000201';
+  active_oauth uuid:='10000000-0000-4000-8000-000000000202';
+  oauth_client uuid:='10000000-0000-4000-8000-000000000101';
+BEGIN
+ IF has_table_privilege('service_role','auth.sessions','SELECT')
+ OR has_table_privilege('service_role','auth.oauth_clients','SELECT')
+ THEN RAISE EXCEPTION 'Service role unexpectedly received broad Auth table permissions'; END IF;
+
+ IF NOT public.titus_constellation_atlas_native_allowed_v1(identity_id,active_native)
+ OR NOT public.titus_constellation_viewer_allowed_v1(identity_id,active_oauth,oauth_client)
+ THEN RAISE EXCEPTION 'Backend service_role cannot verify authorized Person without Auth table SELECT'; END IF;
+
+ IF public.titus_constellation_atlas_native_allowed_v1(identity_id,active_oauth)
+ OR public.titus_constellation_viewer_allowed_v1(identity_id,active_native,oauth_client)
+ OR public.titus_constellation_atlas_native_allowed_v1(
+    '10000000-0000-4000-8000-000000000002',active_native)
+ THEN RAISE EXCEPTION 'Service-role Boolean read incorrectly authorized a foreign caller'; END IF;
+ RAISE NOTICE 'Service-only definer RPC positive/negative, no raw Auth SELECT: PASS';
+END $service_role_proof$;
+RESET ROLE;
