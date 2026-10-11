@@ -64,4 +64,41 @@ REVOKE ALL ON FUNCTION public.titus_constellation_viewer_allowed_v1(uuid,uuid,uu
 GRANT EXECUTE ON FUNCTION public.titus_constellation_viewer_allowed_v1(uuid,uuid,uuid)
  TO service_role;
 
+
+-- Atlas-native access uses the same Person and grant, but an ordinary Atlas
+-- login session is NOT an OAuth-client session. Do not misuse the standalone
+-- Titus OAuth function or invent a second account/grant.
+CREATE OR REPLACE FUNCTION public.titus_constellation_atlas_native_allowed_v1(
+  p_auth_user_id uuid,
+  p_session_id uuid
+) RETURNS boolean LANGUAGE sql STABLE SECURITY INVOKER SET search_path = ''
+AS $atlas$
+SELECT COALESCE(EXISTS (
+ SELECT 1
+ FROM auth.sessions sess
+ JOIN reality.auth_person_bindings binding
+   ON binding.auth_user_id=sess.user_id
+  AND binding.binding_state='active'
+  AND binding.retired_at IS NULL
+ JOIN reality.entities person
+   ON person.id=binding.person_entity_id
+  AND person.entity_kind='person'
+  AND person.identity_state='canonical'
+ JOIN atlas.titus_constellation_viewer_grants grant_record
+   ON grant_record.person_entity_id=person.id
+  AND grant_record.access_level='read_only'
+  AND grant_record.grant_state='active'
+  AND grant_record.valid_from<=now()
+  AND (grant_record.valid_until IS NULL OR grant_record.valid_until>now())
+  AND grant_record.revoked_at IS NULL
+ WHERE sess.id=p_session_id AND sess.user_id=p_auth_user_id
+   AND sess.oauth_client_id IS NULL
+   AND (sess.not_after IS NULL OR sess.not_after>now())
+),false);
+$atlas$;
+REVOKE ALL ON FUNCTION public.titus_constellation_atlas_native_allowed_v1(uuid,uuid)
+ FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.titus_constellation_atlas_native_allowed_v1(uuid,uuid)
+ TO service_role;
+
 COMMIT;
