@@ -101,5 +101,45 @@ BEGIN
  v_due:=atlas.claim_due_personal_first_invoices_service_v1(25);
  IF coalesce(jsonb_array_length(v_due->'items'),0)<>0
  THEN RAISE EXCEPTION 'Paid invoice was incorrectly claimed for collection'; END IF;
+  IF to_regprocedure('public.record_verified_personal_card_setup_service_v1(text,text,text,text,text,jsonb)') IS NULL
+ OR has_function_privilege('anon','public.record_verified_personal_card_setup_service_v1(text,text,text,text,text,jsonb)','EXECUTE')
+ OR has_function_privilege('authenticated','public.record_verified_personal_card_setup_service_v1(text,text,text,text,text,jsonb)','EXECUTE')
+ OR NOT has_function_privilege('service_role','public.record_verified_personal_card_setup_service_v1(text,text,text,text,text,jsonb)','EXECUTE')
+ THEN RAISE EXCEPTION 'Billing public gateway ACL absent or exposed: record_verified_personal_card_setup_service_v1'; END IF;
+  IF to_regprocedure('public.record_personal_first_invoice_service_v1(text,text,text,text,text,timestamptz,timestamptz,timestamptz,jsonb)') IS NULL
+ OR has_function_privilege('anon','public.record_personal_first_invoice_service_v1(text,text,text,text,text,timestamptz,timestamptz,timestamptz,jsonb)','EXECUTE')
+ OR has_function_privilege('authenticated','public.record_personal_first_invoice_service_v1(text,text,text,text,text,timestamptz,timestamptz,timestamptz,jsonb)','EXECUTE')
+ OR NOT has_function_privilege('service_role','public.record_personal_first_invoice_service_v1(text,text,text,text,text,timestamptz,timestamptz,timestamptz,jsonb)','EXECUTE')
+ THEN RAISE EXCEPTION 'Billing public gateway ACL absent or exposed: record_personal_first_invoice_service_v1'; END IF;
+  IF to_regprocedure('public.read_personal_first_invoice_service_v1(text)') IS NULL
+ OR has_function_privilege('anon','public.read_personal_first_invoice_service_v1(text)','EXECUTE')
+ OR has_function_privilege('authenticated','public.read_personal_first_invoice_service_v1(text)','EXECUTE')
+ OR NOT has_function_privilege('service_role','public.read_personal_first_invoice_service_v1(text)','EXECUTE')
+ THEN RAISE EXCEPTION 'Billing public gateway ACL absent or exposed: read_personal_first_invoice_service_v1'; END IF;
+  IF to_regprocedure('public.claim_due_personal_first_invoices_service_v1(integer)') IS NULL
+ OR has_function_privilege('anon','public.claim_due_personal_first_invoices_service_v1(integer)','EXECUTE')
+ OR has_function_privilege('authenticated','public.claim_due_personal_first_invoices_service_v1(integer)','EXECUTE')
+ OR NOT has_function_privilege('service_role','public.claim_due_personal_first_invoices_service_v1(integer)','EXECUTE')
+ THEN RAISE EXCEPTION 'Billing public gateway ACL absent or exposed: claim_due_personal_first_invoices_service_v1'; END IF;
+  IF to_regprocedure('public.record_personal_first_invoice_result_service_v1(text,text,text,timestamptz)') IS NULL
+ OR has_function_privilege('anon','public.record_personal_first_invoice_result_service_v1(text,text,text,timestamptz)','EXECUTE')
+ OR has_function_privilege('authenticated','public.record_personal_first_invoice_result_service_v1(text,text,text,timestamptz)','EXECUTE')
+ OR NOT has_function_privilege('service_role','public.record_personal_first_invoice_result_service_v1(text,text,text,timestamptz)','EXECUTE')
+ THEN RAISE EXCEPTION 'Billing public gateway ACL absent or exposed: record_personal_first_invoice_result_service_v1'; END IF;
+  IF to_regprocedure('public.reconcile_personal_first_invoice_access_service_v1(text,text)') IS NULL
+ OR has_function_privilege('anon','public.reconcile_personal_first_invoice_access_service_v1(text,text)','EXECUTE')
+ OR has_function_privilege('authenticated','public.reconcile_personal_first_invoice_access_service_v1(text,text)','EXECUTE')
+ OR NOT has_function_privilege('service_role','public.reconcile_personal_first_invoice_access_service_v1(text,text)','EXECUTE')
+ THEN RAISE EXCEPTION 'Billing public gateway ACL absent or exposed: reconcile_personal_first_invoice_access_service_v1'; END IF;
+  IF to_regprocedure('public.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb)') IS NULL
+ OR has_function_privilege('anon','public.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb)','EXECUTE')
+ OR has_function_privilege('authenticated','public.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb)','EXECUTE')
+ OR NOT has_function_privilege('service_role','public.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb)','EXECUTE')
+ THEN RAISE EXCEPTION 'Billing public gateway ACL absent or exposed: record_stripe_personal_atlas_purchase_v2'; END IF;
+  IF to_regprocedure('public.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text)') IS NULL
+ OR has_function_privilege('anon','public.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text)','EXECUTE')
+ OR has_function_privilege('authenticated','public.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text)','EXECUTE')
+ OR NOT has_function_privilege('service_role','public.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text)','EXECUTE')
+ THEN RAISE EXCEPTION 'Billing public gateway ACL absent or exposed: record_stripe_personal_atlas_subscription_state_v2'; END IF;
 END $validation$;
 ROLLBACK;

@@ -216,4 +216,62 @@ GRANT EXECUTE ON FUNCTION atlas.read_personal_first_invoice_service_v1(text) TO 
 GRANT EXECUTE ON FUNCTION atlas.record_personal_first_invoice_service_v1(text,text,text,text,text,timestamptz,timestamptz,timestamptz,jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION atlas.claim_due_personal_first_invoices_service_v1(integer) TO service_role;
 GRANT EXECUTE ON FUNCTION atlas.record_personal_first_invoice_result_service_v1(text,text,text,timestamptz) TO service_role;
+-- Required PostgREST public gateways for trusted server-only Stripe billing RPCs.
+-- service_role alone may call them; public/anon/authenticated may not.
+CREATE OR REPLACE FUNCTION public.record_verified_personal_card_setup_service_v1(p_checkout_session_id text, p_customer_id text, p_setup_intent_id text, p_payment_method_id text, p_email text, p_metadata jsonb)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.record_verified_personal_card_setup_service_v1($1,$2,$3,$4,$5,$6); $$;
+REVOKE ALL ON FUNCTION public.record_verified_personal_card_setup_service_v1(text,text,text,text,text,jsonb) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.record_verified_personal_card_setup_service_v1(text,text,text,text,text,jsonb) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.record_personal_first_invoice_service_v1(p_checkout_session_id text, p_customer_id text, p_subscription_id text, p_invoice_id text, p_email text, p_service_started_at timestamptz, p_first_period_ends_at timestamptz, p_due_at timestamptz, p_metadata jsonb)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.record_personal_first_invoice_service_v1($1,$2,$3,$4,$5,$6,$7,$8,$9); $$;
+REVOKE ALL ON FUNCTION public.record_personal_first_invoice_service_v1(text,text,text,text,text,timestamptz,timestamptz,timestamptz,jsonb) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.record_personal_first_invoice_service_v1(text,text,text,text,text,timestamptz,timestamptz,timestamptz,jsonb) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.read_personal_first_invoice_service_v1(p_checkout_session_id text)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.read_personal_first_invoice_service_v1($1); $$;
+REVOKE ALL ON FUNCTION public.read_personal_first_invoice_service_v1(text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.read_personal_first_invoice_service_v1(text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.claim_due_personal_first_invoices_service_v1(p_limit integer)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.claim_due_personal_first_invoices_service_v1($1); $$;
+REVOKE ALL ON FUNCTION public.claim_due_personal_first_invoices_service_v1(integer) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_due_personal_first_invoices_service_v1(integer) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.record_personal_first_invoice_result_service_v1(p_invoice_id text, p_status text, p_stripe_event_id text, p_observed_at timestamptz)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.record_personal_first_invoice_result_service_v1($1,$2,$3,$4); $$;
+REVOKE ALL ON FUNCTION public.record_personal_first_invoice_result_service_v1(text,text,text,timestamptz) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.record_personal_first_invoice_result_service_v1(text,text,text,timestamptz) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.reconcile_personal_first_invoice_access_service_v1(p_subscription_id text, p_current_stripe_status text)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.reconcile_personal_first_invoice_access_service_v1($1,$2); $$;
+REVOKE ALL ON FUNCTION public.reconcile_personal_first_invoice_access_service_v1(text,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.reconcile_personal_first_invoice_access_service_v1(text,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.record_stripe_personal_atlas_purchase_v2(p_checkout_session_id text, p_subscription_id text, p_purchaser_email text, p_purchased_at timestamptz, p_current_stripe_status text, p_metadata jsonb)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.record_stripe_personal_atlas_purchase_v2($1,$2,$3,$4,$5,$6); $$;
+REVOKE ALL ON FUNCTION public.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.record_stripe_personal_atlas_purchase_v2(text,text,text,timestamptz,text,jsonb) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.record_stripe_personal_atlas_subscription_state_v2(p_subscription_id text, p_event_type text, p_event_status text, p_event_id text, p_event_created_at timestamptz, p_current_stripe_status text)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.record_stripe_personal_atlas_subscription_state_v2($1,$2,$3,$4,$5,$6); $$;
+REVOKE ALL ON FUNCTION public.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.record_stripe_personal_atlas_subscription_state_v2(text,text,text,text,timestamptz,text) TO service_role;
+
 COMMIT;
