@@ -9,3 +9,7 @@ Source-first release required in noel-core-db; reviewed clone test and governed 
 ### Required public Auth gateway (Oct 12 review)
 
 Found a source-level incompatibility: browser Supabase JS `.rpc()` calls resolve the `public` API wrapper, not the internal `atlas.*` routines. The initial candidate only granted authenticated access to internal v2 functions, unlike the existing v1 pattern. The candidate now installs `public.personal_atlas_bookplate_self_api_v2` and `public.set_personal_atlas_bookplate_self_api_v2` as restricted `SECURITY DEFINER` pass-throughs, revokes direct authenticated internal invocation, keeps auth.uid and canonical v1 writer checks, and adds v2 entries in the authenticated RPC registry. Clone-only validation asserts the gateway ACL and registry; further user-scoped fixture tests are still required.
+
+### Production-schema clone feedback
+
+The first generated Bookplate migration 20261012204319 (PR #1471) **failed** at PL/pgSQL writer parse during candidate application: `syntax error at end of input` adjacent to a nested `CASE WHEN contactAddress ... END` inside a compound IF. A simplified direct JSON comparison under an existing not-null guard removes that expression; explicit terminators are retained. Regenerate a fresh migration version from corrected candidate bytes. Never release the old failed PR.
