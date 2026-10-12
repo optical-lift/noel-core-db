@@ -14,7 +14,6 @@ ALTER TABLE atlas.personal_atlas_bookplate_events
    AND jsonb_typeof(contact_phones)='array' AND jsonb_array_length(contact_phones)<=8
    AND jsonb_typeof(contact_addresses)='array' AND jsonb_array_length(contact_addresses)<=8
    AND (sex IS NULL OR sex IN ('female','male','intersex','prefer_not_to_say'))
-   AND (date_of_birth IS NULL OR date_of_birth <= CURRENT_DATE)
  );
 
 CREATE OR REPLACE FUNCTION atlas.personal_atlas_bookplate_self_api_v2()
@@ -92,7 +91,7 @@ BEGIN
   END LOOP;
   FOR v_item IN SELECT value FROM jsonb_array_elements(v_address_arr) LOOP
     IF jsonb_typeof(v_item)<>'object' OR length(coalesce(v_item->>'label','')) NOT BETWEEN 1 AND 50
-       OR jsonb_typeof(v_item->'value')<>'object' OR length(v_item::text)>2000
+       OR coalesce(jsonb_typeof(v_item->'value'),'null')<>'object' OR length(v_item::text)>2000
     THEN RAISE EXCEPTION 'Invalid labeled address' USING ERRCODE='22023'; END IF;
   END LOOP;
   IF jsonb_array_length(v_email_arr)>0 AND lower(trim(v_email_arr->0->>'value')) IS DISTINCT FROM v_email
