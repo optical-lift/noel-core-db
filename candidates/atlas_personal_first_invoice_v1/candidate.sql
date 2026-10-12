@@ -168,6 +168,44 @@ BEGIN
     WHERE id=v.id;
   RETURN jsonb_build_object('ok',true,'state',p_status,'custodyId',v.id);
 END $$;
+
+-- Reconcile provider subscription status AND the independently owed first invoice.
+-- Later subscription webhooks cannot accidentally reactivate a failed first-month invoice.
+CREATE OR REPLACE FUNCTION atlas.reconcile_personal_first_invoice_access_service_v1(
+  p_subscription_id text,p_current_stripe_status text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path='pg_catalog','atlas'
+AS $
+DECLARE v atlas.personal_first_invoice_custody%ROWTYPE;
+        v_subscription_state text;
+        v_state text;
+        v_rows integer;
+BEGIN
+ IF p_subscription_id NOT LIKE 'sub_%' OR nullif(trim(p_current_stripe_status),'') IS NULL
+ THEN RAISE EXCEPTION 'Verified subscription status required' USING ERRCODE='22023'; END IF;
+ SELECT * INTO v FROM atlas.personal_first_invoice_custody
+ WHERE stripe_subscription_id=p_subscription_id FOR UPDATE;
+ IF v.id IS NULL THEN RETURN jsonb_build_object('ok',true,'matched',false); END IF;
+ v_subscription_state:=atlas.personal_atlas_purchase_state_from_stripe_status_internal_v1(p_current_stripe_status);
+ v_state:=CASE
+  WHEN v.collection_state='failed' THEN 'past_due'
+  WHEN v.collection_state='cancelled' THEN 'cancelled'
+  ELSE v_subscription_state END;
+ UPDATE atlas.personal_atlas_purchases p SET
+   purchase_state=v_state,
+   metadata=p.metadata||jsonb_build_object('firstMonthInvoiceState',v.collection_state,
+      'latestCurrentStripeSubscriptionStatus',p_current_stripe_status),
+   updated_at=now()
+ WHERE p.provider='stripe' AND p.provider_checkout_session_id=v.checkout_session_id
+   AND p.provider_subscription_id=p_subscription_id
+   AND p.metadata->>'firstMonthInvoiceId'=v.stripe_invoice_id;
+ GET DIAGNOSTICS v_rows=ROW_COUNT;
+ RETURN jsonb_build_object('ok',true,'matched',v_rows>0,'state',v_state,
+   'firstMonthInvoiceState',v.collection_state);
+END $;
+
+REVOKE ALL ON FUNCTION atlas.reconcile_personal_first_invoice_access_service_v1(text,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION atlas.reconcile_personal_first_invoice_access_service_v1(text,text) TO service_role;
 REVOKE ALL ON FUNCTION atlas.record_verified_personal_card_setup_service_v1(text,text,text,text,text,jsonb) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION atlas.read_personal_first_invoice_service_v1(text) FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION atlas.record_personal_first_invoice_service_v1(text,text,text,text,text,timestamptz,timestamptz,timestamptz,jsonb) FROM PUBLIC,anon,authenticated;
