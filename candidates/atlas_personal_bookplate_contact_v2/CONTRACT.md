@@ -13,3 +13,5 @@ Found a source-level incompatibility: browser Supabase JS `.rpc()` calls resolve
 ### Production-schema clone feedback
 
 The first generated Bookplate migration 20261012204319 (PR #1471) **failed** at PL/pgSQL writer parse during candidate application: `syntax error at end of input` adjacent to a nested `CASE WHEN contactAddress ... END` inside a compound IF. A simplified direct JSON comparison under an existing not-null guard removes that expression; explicit terminators are retained. Regenerate a fresh migration version from corrected candidate bytes. Never release the old failed PR.
+
+**Second protected clone diagnostic:** generated PR #1482 failed because source had `END; $;` rather than the exact `END; $$;` PL/pgSQL dollar-quote terminator. JavaScript string-replacement syntax had collapsed `$$` to `$`. Fixed by literal split/join and asserted two complete exact terminators before committing. The failed second generated package is superseded. No live SQL applied.

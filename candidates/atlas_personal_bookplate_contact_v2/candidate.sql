@@ -50,7 +50,7 @@ BEGIN
    'sex',v_event.sex,
    'contactTruthBoundary',jsonb_build_object('additionalEmailDoesNotAuthenticate',true,'listedMailboxIsNotConnected',true,'addressIsNotResidence',true,'birthAndSexAreOptionalHumanSuppliedEvidence',true)
   );
-END; $;
+END; $$;
 
 CREATE OR REPLACE FUNCTION atlas.set_personal_atlas_bookplate_self_api_v2(p_input jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
@@ -127,7 +127,7 @@ BEGIN
     'contractVersion','set_personal_atlas_bookplate_self_api_v2',
     'bookplate',atlas.personal_atlas_bookplate_self_api_v2()
   );
-END; $;
+END; $$;
 
 -- Mirror existing governed public RPC gateway; atlas internals are not Data API grants.
 -- The Auth JWT flows through the public wrapper; atlas internal functions retain uid checks.
