@@ -94,9 +94,10 @@ BEGIN
        OR coalesce(jsonb_typeof(v_item->'value'),'null')<>'object' OR length(v_item::text)>2000
     THEN RAISE EXCEPTION 'Invalid labeled address' USING ERRCODE='22023'; END IF;
   END LOOP;
-  IF jsonb_array_length(v_email_arr)>0 AND lower(trim(v_email_arr->0->>'value')) IS DISTINCT FROM v_email
-   OR jsonb_array_length(v_phone_arr)>0 AND trim(v_phone_arr->0->>'value') IS DISTINCT FROM v_phone
-   OR jsonb_array_length(v_address_arr)>0 AND (v_address_arr->0->'value') IS DISTINCT FROM
+  IF v_email IS NOT NULL AND jsonb_array_length(v_email_arr)>0 AND lower(trim(v_email_arr->0->>'value')) IS DISTINCT FROM v_email
+   OR v_phone IS NOT NULL AND jsonb_array_length(v_phone_arr)>0 AND trim(v_phone_arr->0->>'value') IS DISTINCT FROM v_phone
+   OR p_input->'contactAddress' IS NOT NULL AND p_input->'contactAddress'<>'null'::jsonb
+      AND jsonb_array_length(v_address_arr)>0 AND (v_address_arr->0->'value') IS DISTINCT FROM
       CASE WHEN p_input->'contactAddress'='null'::jsonb THEN NULL ELSE p_input->'contactAddress' END
   THEN RAISE EXCEPTION 'Primary contact and first labeled contact differ' USING ERRCODE='22023'; END IF;
   IF nullif(trim(p_input->>'dateOfBirth'),'') IS NOT NULL THEN
