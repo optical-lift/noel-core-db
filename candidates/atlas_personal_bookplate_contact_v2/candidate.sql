@@ -129,8 +129,35 @@ BEGIN
   );
 END $$;
 
-REVOKE ALL ON FUNCTION atlas.personal_atlas_bookplate_self_api_v2() FROM PUBLIC,anon;
-REVOKE ALL ON FUNCTION atlas.set_personal_atlas_bookplate_self_api_v2(jsonb) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION atlas.personal_atlas_bookplate_self_api_v2() TO authenticated;
-GRANT EXECUTE ON FUNCTION atlas.set_personal_atlas_bookplate_self_api_v2(jsonb) TO authenticated;
+-- Mirror existing governed public RPC gateway; atlas internals are not Data API grants.
+-- The Auth JWT flows through the public wrapper; atlas internal functions retain uid checks.
+CREATE OR REPLACE FUNCTION public.personal_atlas_bookplate_self_api_v2()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.personal_atlas_bookplate_self_api_v2(); $$;
+CREATE OR REPLACE FUNCTION public.set_personal_atlas_bookplate_self_api_v2(p_input jsonb)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER
+SET search_path='pg_catalog'
+AS $$ SELECT atlas.set_personal_atlas_bookplate_self_api_v2(p_input); $$;
+
+REVOKE ALL ON FUNCTION atlas.personal_atlas_bookplate_self_api_v2() FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.set_personal_atlas_bookplate_self_api_v2(jsonb) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.personal_atlas_bookplate_self_api_v2() FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.set_personal_atlas_bookplate_self_api_v2(jsonb) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.personal_atlas_bookplate_self_api_v2() TO authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.set_personal_atlas_bookplate_self_api_v2(jsonb) TO authenticated,service_role;
+
+INSERT INTO atlas.authenticated_rpc_registry(
+ signature,classification,confidence,review_status,
+ authenticated_execute_expected,security_definer_expected,service_execute_expected,
+ caller_count,policy_reference_count,evidence,anonymous_execute_expected
+) VALUES
+ ('atlas.personal_atlas_bookplate_self_api_v2()','app_endpoint','verified','active',
+  true,true,true,1,0,
+  '{"purpose":"Read one canonical Bookplate and repeat labeled contacts, birth and sex as human-owned evidence","truthBoundary":"No newly listed email becomes Auth identity or mailbox access; billing address is not residence."}'::jsonb,false),
+ ('atlas.set_personal_atlas_bookplate_self_api_v2(p_input jsonb)','app_endpoint','verified','active',
+  true,true,true,1,0,
+  '{"purpose":"Persist Bookplate corrections and optional repeated contacts after validating ownership","truthBoundary":"Delegates Person/Principal/Home establishment to v1; no Auth, payment or residence rewrite."}'::jsonb,false)
+ON CONFLICT(signature) DO NOTHING;
+
 COMMIT;
