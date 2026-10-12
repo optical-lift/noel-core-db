@@ -7,3 +7,5 @@ The existing ranked question-selector formerly filters first-day questions only 
 **Boundary:** A selected Field determines scope and question eligibility; it does not assert facts about relationships not yet established. The notebook can later maintain an Index from discovered facts or human choices. No auto-synthesized Index-v4 event is created as an onboarding shortcut.
 
 Unexecuted, source-first SQL candidate. Requires protected production-schema clone tests with realistic orientation-v3, old Index-v4, and absent Index scenarios, and full first-user acceptance before any migration release. Do not apply against live production through direct SQL.
+
+**Review correction:** A prior v4 Index selection may exist even after newer v3 Field orientation. The first-day question filter must use v4 only when v4 is *also* the latest human orientation. If newer v3 is active, route from v3 worldDomains, not old v4 categories. The contract validator now rejects stale-Index precedence.

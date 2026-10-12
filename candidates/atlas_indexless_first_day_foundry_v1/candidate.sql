@@ -172,7 +172,7 @@ begin
   v_orientation:=atlas.reality_discovery_orientation_profile_self_api_v1();
   -- A real field selected by the human is enough to scope the first encounter.
   -- An explicitly selected Index remains independently preserved when one exists.
-  if v_index_captured then
+  if v_index_captured and coalesce(v_orientation->>'model','')='index_categories' then
     v_selected_categories:=coalesce(v_selection->'selectedCategories','[]'::jsonb);
     v_domain_filter_source:='intentional_index';
   else
