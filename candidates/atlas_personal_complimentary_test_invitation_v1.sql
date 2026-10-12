@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Atlas Personal complimentary testing invitation source candidate v1.
 -- No Stripe customer, SetupIntent, subscription, purchase, or invoice is created.
 -- The signed-in human owns only their verified-email invitation claim.
@@ -353,3 +355,5 @@ $function$
 revoke all on function atlas.begin_personal_atlas_self_api_v1(text,text) from public,anon;
 revoke all on function atlas.personal_atlas_access_status_self_api_v1() from public,anon;
 -- No extra public bootstrap or access-status function is introduced.
+
+COMMIT;
