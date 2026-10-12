@@ -42,7 +42,7 @@ CREATE OR REPLACE FUNCTION atlas.record_verified_personal_card_setup_service_v1(
  p_checkout_session_id text,p_customer_id text,p_setup_intent_id text,p_payment_method_id text,
  p_email text,p_metadata jsonb DEFAULT '{}'::jsonb
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='pg_catalog','atlas'
-AS $
+AS $$
 DECLARE v atlas.personal_first_invoice_custody%ROWTYPE;
         v_now timestamptz := clock_timestamp();
 BEGIN
@@ -65,7 +65,7 @@ BEGIN
    'serviceStartedAt',v.service_started_at,'firstPeriodEndsAt',v.first_period_ends_at,
    'firstCollectionDueAt',v.first_collection_due_at,'subscriptionId',v.stripe_subscription_id,
    'invoiceId',v.stripe_invoice_id);
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION atlas.record_personal_first_invoice_service_v1(
   p_checkout_session_id text,p_customer_id text,p_subscription_id text,p_invoice_id text,
@@ -106,7 +106,7 @@ END $$;
 
 CREATE OR REPLACE FUNCTION atlas.read_personal_first_invoice_service_v1(p_checkout_session_id text)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='pg_catalog','atlas'
-AS $
+AS $$
 DECLARE v atlas.personal_first_invoice_custody%ROWTYPE;
 BEGIN
  IF p_checkout_session_id NOT LIKE 'cs_%' THEN RAISE EXCEPTION 'Session required' USING ERRCODE='22023'; END IF;
@@ -117,7 +117,7 @@ BEGIN
   'serviceStartedAt',v.service_started_at,'firstPeriodEndsAt',v.first_period_ends_at,
   'firstCollectionDueAt',v.first_collection_due_at,
   'purchaserEmail',v.purchaser_email,'paymentMethodId',v.stripe_payment_method_id);
-END $;
+END $$;
 
 CREATE OR REPLACE FUNCTION atlas.claim_due_personal_first_invoices_service_v1(p_limit integer DEFAULT 25)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
@@ -175,7 +175,7 @@ CREATE OR REPLACE FUNCTION atlas.reconcile_personal_first_invoice_access_service
   p_subscription_id text,p_current_stripe_status text
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path='pg_catalog','atlas'
-AS $
+AS $$
 DECLARE v atlas.personal_first_invoice_custody%ROWTYPE;
         v_subscription_state text;
         v_state text;
@@ -202,7 +202,7 @@ BEGIN
  GET DIAGNOSTICS v_rows=ROW_COUNT;
  RETURN jsonb_build_object('ok',true,'matched',v_rows>0,'state',v_state,
    'firstMonthInvoiceState',v.collection_state);
-END $;
+END $$;
 
 REVOKE ALL ON FUNCTION atlas.reconcile_personal_first_invoice_access_service_v1(text,text) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION atlas.reconcile_personal_first_invoice_access_service_v1(text,text) TO service_role;
