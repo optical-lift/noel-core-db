@@ -15,3 +15,6 @@ This candidate table carries session/customer/subscription/invoice identifiers, 
 - No production DDL, Stripe charges, or existing billing changes made.
 
 This candidate is an enabling schema only. Program invitations and 15K drafts remain independent and parked until specific program facts exist.
+## Immutable first-verified-setup stage
+
+The candidate now starts with a service-only, verified-SetupIntent registration before it ever creates an invoice. The first write freezes the DB service-start timestamp and fixed due time (6 days and 23 hours, leaving time for an hourly collector to satisfy the seven-day outer bound). Retried webhook/browser confirmations reuse those exact timestamps. A second writer only moves `preparing` to `draft` after it independently verifies the Stripe subscription, draft invoice and first $7 invoice item. This avoids an early server error minting a second subscription or first invoice during a retry. The production migration, Stripe orchestration and collection job remain not released.
