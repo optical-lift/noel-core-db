@@ -50,7 +50,7 @@ BEGIN
    'sex',v_event.sex,
    'contactTruthBoundary',jsonb_build_object('additionalEmailDoesNotAuthenticate',true,'listedMailboxIsNotConnected',true,'addressIsNotResidence',true,'birthAndSexAreOptionalHumanSuppliedEvidence',true)
   );
-END $$;
+END; $;
 
 CREATE OR REPLACE FUNCTION atlas.set_personal_atlas_bookplate_self_api_v2(p_input jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
@@ -98,7 +98,7 @@ BEGIN
    OR v_phone IS NOT NULL AND jsonb_array_length(v_phone_arr)>0 AND trim(v_phone_arr->0->>'value') IS DISTINCT FROM v_phone
    OR p_input->'contactAddress' IS NOT NULL AND p_input->'contactAddress'<>'null'::jsonb
       AND jsonb_array_length(v_address_arr)>0 AND (v_address_arr->0->'value') IS DISTINCT FROM
-      CASE WHEN p_input->'contactAddress'='null'::jsonb THEN NULL ELSE p_input->'contactAddress' END
+      p_input->'contactAddress'
   THEN RAISE EXCEPTION 'Primary contact and first labeled contact differ' USING ERRCODE='22023'; END IF;
   IF nullif(trim(p_input->>'dateOfBirth'),'') IS NOT NULL THEN
     v_birth := (p_input->>'dateOfBirth')::date;
@@ -127,7 +127,7 @@ BEGIN
     'contractVersion','set_personal_atlas_bookplate_self_api_v2',
     'bookplate',atlas.personal_atlas_bookplate_self_api_v2()
   );
-END $$;
+END; $;
 
 -- Mirror existing governed public RPC gateway; atlas internals are not Data API grants.
 -- The Auth JWT flows through the public wrapper; atlas internal functions retain uid checks.
