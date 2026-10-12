@@ -54,7 +54,7 @@ BEGIN
   (checkout_session_id,stripe_customer_id,stripe_setup_intent_id,stripe_payment_method_id,
    purchaser_email,service_started_at,first_period_ends_at,first_collection_due_at,metadata)
  VALUES(p_checkout_session_id,p_customer_id,p_setup_intent_id,p_payment_method_id,
-   lower(trim(p_email)),v_now,v_now+interval '1 month',v_now+interval '6 days 23 hours',p_metadata)
+   lower(trim(p_email)),v_now,v_now+interval '1 month',v_now+interval '6 days',p_metadata)
  ON CONFLICT(checkout_session_id) DO NOTHING;
  SELECT * INTO v FROM atlas.personal_first_invoice_custody WHERE checkout_session_id=p_checkout_session_id;
  IF v.id IS NULL OR v.stripe_customer_id<>p_customer_id OR v.stripe_setup_intent_id<>p_setup_intent_id
