@@ -66,8 +66,79 @@ $function$;
 revoke all on function atlas.register_principal_connected_source_self_api_v1(text,text,text,text,text[],jsonb,jsonb) from public,anon;
 grant execute on function atlas.register_principal_connected_source_self_api_v1(text,text,text,text,text[],jsonb,jsonb) to authenticated;
 
+-- This canonical migration has not been released to production. A structurally
+-- identical Conversation membership table was established independently and
+-- contains real records. Before reusing it, prove its physical contract rather
+-- than silently accepting a name collision or deleting/recreating user data.
+do $atlas_conversation_table_adoption_guard$
+declare
+  v_columns jsonb;
+  v_constraints jsonb;
+  v_index text;
+  v_trigger text;
+begin
+  if to_regclass('atlas.communication_conversation_events') is null then
+    return;
+  end if;
+
+  select jsonb_object_agg(a.attname, jsonb_build_array(
+    format_type(a.atttypid,a.atttypmod),a.attnotnull,
+    coalesce(pg_get_expr(d.adbin,d.adrelid),'')
+  )) into v_columns
+  from pg_attribute a
+  left join pg_attrdef d on d.adrelid=a.attrelid and d.adnum=a.attnum
+  where a.attrelid='atlas.communication_conversation_events'::regclass
+    and a.attnum>0 and not a.attisdropped;
+
+  if v_columns is distinct from $atlas_columns${
+    "id":["uuid",true,"gen_random_uuid()"],
+    "communication_conversation_id":["uuid",true,""],
+    "communication_event_id":["uuid",true,""],
+    "communication_endpoint_id":["uuid",false,""],
+    "continuity_basis":["text",true,""],
+    "occurred_at":["timestamp with time zone",false,""],
+    "metadata":["jsonb",true,"'{}'::jsonb"],
+    "created_at":["timestamp with time zone",true,"now()"]
+  }$atlas_columns$::jsonb then
+    raise exception 'Existing Atlas Conversation event columns differ from unreleased source migration.' using errcode='23514';
+  end if;
+
+  select jsonb_agg(pg_get_constraintdef(c.oid) order by pg_get_constraintdef(c.oid))
+    into v_constraints
+  from pg_constraint c
+  where c.conrelid='atlas.communication_conversation_events'::regclass;
+  if v_constraints is distinct from $atlas_constraints$[
+    "CHECK ((btrim(continuity_basis) <> ''::text))",
+    "CHECK ((jsonb_typeof(metadata) = 'object'::text))",
+    "FOREIGN KEY (communication_conversation_id) REFERENCES atlas.communication_conversations(id) ON DELETE CASCADE",
+    "FOREIGN KEY (communication_endpoint_id) REFERENCES atlas.communication_endpoints(id) ON DELETE RESTRICT",
+    "FOREIGN KEY (communication_event_id) REFERENCES atlas.communication_events(id) ON DELETE RESTRICT",
+    "PRIMARY KEY (id)",
+    "UNIQUE (communication_event_id)"
+  ]$atlas_constraints$::jsonb then
+    raise exception 'Existing Atlas Conversation event constraints differ from unreleased source migration.' using errcode='23514';
+  end if;
+
+  select indexdef into v_index from pg_indexes
+    where schemaname='atlas' and tablename='communication_conversation_events'
+      and indexname='communication_conversation_events_conversation_idx';
+  if v_index is not null and v_index is distinct from
+    'CREATE INDEX communication_conversation_events_conversation_idx ON atlas.communication_conversation_events USING btree (communication_conversation_id, occurred_at, id)' then
+    raise exception 'Existing Atlas Conversation event ordering index is incompatible.' using errcode='23514';
+  end if;
+
+  select pg_get_triggerdef(t.oid) into v_trigger
+  from pg_trigger t where t.tgrelid='atlas.communication_conversation_events'::regclass
+    and t.tgname='communication_conversation_event_guard_v1' and not t.tgisinternal;
+  if v_trigger is not null and v_trigger is distinct from
+    'CREATE TRIGGER communication_conversation_event_guard_v1 BEFORE INSERT OR UPDATE ON atlas.communication_conversation_events FOR EACH ROW EXECUTE FUNCTION atlas.guard_communication_conversation_event_v1()' then
+    raise exception 'Existing Atlas Conversation event custody trigger is incompatible.' using errcode='23514';
+  end if;
+end;
+$atlas_conversation_table_adoption_guard$;
+
 -- Provider-independent event membership in a durable conversation.
-create table atlas.communication_conversation_events (
+create table if not exists atlas.communication_conversation_events (
   id uuid primary key default gen_random_uuid(),
   communication_conversation_id uuid not null references atlas.communication_conversations(id) on delete cascade,
   communication_event_id uuid not null unique references atlas.communication_events(id) on delete restrict,
@@ -77,7 +148,7 @@ create table atlas.communication_conversation_events (
   metadata jsonb not null default '{}'::jsonb check (jsonb_typeof(metadata)='object'),
   created_at timestamptz not null default now()
 );
-create index communication_conversation_events_conversation_idx
+create index if not exists communication_conversation_events_conversation_idx
   on atlas.communication_conversation_events(communication_conversation_id,occurred_at,id);
 comment on table atlas.communication_conversation_events is
 'Provider-independent event membership for a durable Atlas Communication Conversation. Source-local thread identity remains separate evidence.';
@@ -102,7 +173,19 @@ begin
   end if;
   return new;
 end;$function$;
-create trigger communication_conversation_event_guard_v1 before insert or update on atlas.communication_conversation_events for each row execute function atlas.guard_communication_conversation_event_v1();
+do $atlas_conversation_trigger_adoption_guard$
+begin
+  if not exists (
+    select 1 from pg_trigger
+    where tgrelid='atlas.communication_conversation_events'::regclass
+      and tgname='communication_conversation_event_guard_v1' and not tgisinternal
+  ) then
+    create trigger communication_conversation_event_guard_v1
+      before insert or update on atlas.communication_conversation_events
+      for each row execute function atlas.guard_communication_conversation_event_v1();
+  end if;
+end;
+$atlas_conversation_trigger_adoption_guard$;
 
 -- Admit a Principal-owned event into one durable conversation without treating
 -- provider thread IDs as the durable conversation itself.
