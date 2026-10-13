@@ -26,7 +26,14 @@ with principal as (
  'observedDate',to_char(o.observed_at at time zone 'UTC','YYYY-MM-DD'),
  'authorizedAtCapture',true,
  'coverage','partial'),
- 'notice',o.observed_event->'billNotice') item
+ 'notice',jsonb_build_object(
+ 'kind',o.observed_event#>>'{billNotice,kind}',
+ 'billerName',o.observed_event#>'{billNotice,billerName}',
+ 'statementPeriodStart',o.observed_event#>'{billNotice,statementPeriodStart}',
+ 'accountReference',o.observed_event#>'{billNotice,accountReference}',
+ 'statedDueDate',o.observed_event#>'{billNotice,statedDueDate}',
+ 'statedAmountDue',o.observed_event#>'{billNotice,statedAmountDue}'
+ )) item
  from atlas.communication_event_source_observations o
  join atlas.communication_events e on e.id=o.event_id
  join permitted s on s.id=o.connected_source_id
