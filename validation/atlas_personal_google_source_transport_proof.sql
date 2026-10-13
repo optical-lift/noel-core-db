@@ -21,6 +21,11 @@ begin
     if not has_function_privilege('service_role',v_sig,'execute') then
       raise exception 'Service transport cannot execute: %', v_text;
     end if;
+    if exists (
+      select 1 from pg_proc where oid=v_sig::oid and prosecdef
+    ) then
+      raise exception 'A forwarding transport may not escalate to SECURITY DEFINER: %', v_text;
+    end if;
   end loop;
 end;
 $check$;
