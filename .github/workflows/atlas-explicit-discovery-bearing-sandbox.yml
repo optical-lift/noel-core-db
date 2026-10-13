@@ -1,0 +1,40 @@
+name: Atlas explicit bearing isolated PostgreSQL (no production writes)
+on:
+  push:
+    branches:
+      - work/atlas-explicit-discovery-bearing-20261013
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: atlas_fixture
+          POSTGRES_PASSWORD: fixture_only_secret
+          POSTGRES_DB: atlas_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atlas_fixture"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: atlas_fixture
+      PGPASSWORD: fixture_only_secret
+      PGDATABASE: atlas_fixture
+      PGOPTIONS: "-c check_function_bodies=off"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - name: Create two synthetic Principals and stub context on isolated server
+        run: psql -v ON_ERROR_STOP=1 -f validation/atlas_explicit_discovery_bearing_fixture.sql
+      - name: Compile candidate functions and grants atomically
+        run: psql -v ON_ERROR_STOP=1 -f candidates/atlas_discovery_explicit_bearing_v1.sql
+      - name: Exercise focused-question admission, skip, reset, replay, and cross-owner denial
+        run: psql -v ON_ERROR_STOP=1 -f validation/atlas_explicit_discovery_bearing_proof.sql
