@@ -64,3 +64,93 @@ $fn$;
 -- Explicitly close PostgreSQL's default PUBLIC execution grant.
 revoke all on function atlas.personal_bill_notice_source_observations_self_api_v1(integer) from public,anon;
 grant execute on function atlas.personal_bill_notice_source_observations_self_api_v1(integer) to authenticated;
+
+-- The owner grants/revokes *Atlas interpretation consent*, not the provider's
+-- OAuth/API read scope and not a financial obligation.
+create or replace function atlas.set_personal_bill_recognition_consent_self_api_v1(
+  p_connected_source_id uuid,
+  p_enabled boolean,
+  p_source_action_id text
+) returns jsonb language plpgsql security definer
+set search_path to 'pg_catalog','atlas','auth'
+as $fn$
+declare
+  v_uid uuid:=auth.uid();
+  v_source atlas.connected_sources%rowtype;
+  v_action text:=nullif(trim(p_source_action_id),'');
+  v_meta jsonb;
+  v_history jsonb;
+  v_prior jsonb;
+begin
+  if v_uid is null then
+    raise exception 'Authentication required.' using errcode='42501';
+  end if;
+  if p_connected_source_id is null or p_enabled is null or v_action is null
+    or length(v_action)>160 then
+    raise exception 'Valid source, decision and source action required.' using errcode='22023';
+  end if;
+  if not exists(select 1 from atlas.principals
+    where user_id=v_uid and status='active') then
+    raise exception 'Active Principal required.' using errcode='42501';
+  end if;
+  select * into v_source from atlas.connected_sources
+    where id=p_connected_source_id and custodian_user_id=v_uid
+      and custodian_organization_id is null
+      and custodian_organization_unit_id is null
+    for update;
+  if v_source.id is null then
+    raise exception 'An owned personal email source is required.' using errcode='42501';
+  end if;
+  if v_source.provider_key not in ('email','imap_smtp_email','gmail','microsoft_graph_email') then
+    raise exception 'Only an email source supports this consent.' using errcode='22023';
+  end if;
+  v_meta:=coalesce(v_source.metadata,'{}'::jsonb);
+  v_history:=coalesce(v_meta->'billRecognitionConsentHistory','[]'::jsonb);
+  if jsonb_typeof(v_history)<>'array' then v_history:='[]'::jsonb; end if;
+  select value into v_prior from jsonb_array_elements(v_history)
+    where value->>'actionId'=v_action limit 1;
+  if v_prior is not null then
+    if v_prior->>'enabled' is distinct from p_enabled::text then
+      raise exception 'This source action belongs to a different decision.' using errcode='23505';
+    end if;
+    return jsonb_build_object('ok',true,'idempotentReplay',true,
+      'consentEnabled',v_meta->'personalBillRecognitionConsent'->'enabled');
+  end if;
+  if p_enabled and (
+    v_source.authorization_state<>'connected'
+    or v_source.revoked_at is not null
+    or not (v_source.capabilities @> '{"communicationCapture":true,"personalBillRecognition":true}'::jsonb)
+    or not ('communication.capture'=any(v_source.granted_scopes)
+     or 'mail.read'=any(v_source.granted_scopes)
+     or 'https://www.googleapis.com/auth/gmail.readonly'=any(v_source.granted_scopes))
+  ) then
+    raise exception 'An active verified email-read source is required.' using errcode='42501';
+  end if;
+  v_history:=v_history||jsonb_build_array(jsonb_build_object(
+    'actionId',v_action,'actorUserId',v_uid,'enabled',p_enabled,'recordedAt',now()));
+  if jsonb_array_length(v_history)>32 then
+    select coalesce(jsonb_agg(value order by ordinality),'[]'::jsonb)
+    into v_history from jsonb_array_elements(v_history)
+    with ordinality item(value,ordinality)
+    where ordinality>jsonb_array_length(v_history)-32;
+  end if;
+  v_meta:=v_meta||jsonb_build_object(
+    'personalBillRecognitionConsent',jsonb_build_object(
+      'enabled',p_enabled,
+      'actorUserId',v_uid,
+      'sourceActionId',v_action,
+      'capturedAt',now()
+    ),
+    'billRecognitionConsentHistory',v_history
+  );
+  update atlas.connected_sources set metadata=v_meta,updated_at=now()
+    where id=v_source.id;
+  return jsonb_build_object('ok',true,'idempotentReplay',false,
+    'consentEnabled',p_enabled,
+    'providerGrantChanged',false,
+    'moneyOrClockEstablished',false);
+end
+$fn$;
+
+revoke all on function atlas.set_personal_bill_recognition_consent_self_api_v1(uuid,boolean,text) from public,anon;
+grant execute on function atlas.set_personal_bill_recognition_consent_self_api_v1(uuid,boolean,text) to authenticated;
