@@ -15,7 +15,7 @@ create or replace function public.complete_provider_connection_identity_service_
   p_capabilities jsonb default '{}'::jsonb,
   p_metadata jsonb default '{}'::jsonb
 ) returns jsonb
-language sql security definer
+language sql security invoker
 set search_path=pg_catalog,atlas
 as $fn$
   select atlas.complete_provider_connection_identity_service_v1(
@@ -35,7 +35,7 @@ create or replace function public.activate_provider_connection_service_v1(
   p_required_credential_kind text,
   p_metadata jsonb default '{}'::jsonb
 ) returns jsonb
-language sql security definer
+language sql security invoker
 set search_path=pg_catalog,atlas
 as $fn$
   select atlas.activate_provider_connection_service_v1(
