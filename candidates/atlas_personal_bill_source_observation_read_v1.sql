@@ -57,6 +57,29 @@ select jsonb_build_object(
  'identityRoot','authorized_personal_source_observation',
  'personalBillRecognitionReady',exists(select 1 from permitted),
  'coverageClaim','per_observation_only',
+ 'connectionChoices',coalesce((
+   select jsonb_agg(jsonb_build_object(
+     'sourceId',s.id,
+     'displayLabel',left(coalesce(s.display_label,s.provider_key),120),
+     'transportReady',(
+       s.authorization_state='connected' and s.revoked_at is null
+       and s.capabilities @> '{"communicationCapture":true,"personalBillRecognition":true}'::jsonb
+       and ('communication.capture'=any(s.granted_scopes)
+         or 'mail.read'=any(s.granted_scopes)
+         or 'https://www.googleapis.com/auth/gmail.readonly'=any(s.granted_scopes))
+     ),
+     'consentEnabled',(
+       s.metadata->'personalBillRecognitionConsent' @> '{"enabled":true}'::jsonb
+       and s.metadata#>>'{personalBillRecognitionConsent,actorUserId}'=auth.uid()::text
+     )
+   ) order by s.id)
+   from atlas.connected_sources s
+   where s.custodian_user_id=auth.uid()
+     and s.custodian_organization_id is null
+     and s.custodian_organization_unit_id is null
+     and s.provider_key in ('email','imap_smtp_email','gmail','microsoft_graph_email')
+     and exists(select 1 from principal)
+ ),'[]'::jsonb),
  'items',coalesce((select jsonb_agg(item) from observations),'[]'::jsonb),
  'domainTruthEstablished',false,'clockAuthority',false)
 $fn$;
