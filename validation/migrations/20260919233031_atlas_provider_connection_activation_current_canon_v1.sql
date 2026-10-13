@@ -4,6 +4,9 @@ declare
   v_owner_user uuid:=gen_random_uuid();
   v_member_user uuid:=gen_random_uuid();
   v_consultant_user uuid:=gen_random_uuid();
+  v_owner_person uuid:=gen_random_uuid();
+  v_member_person uuid:=gen_random_uuid();
+  v_consultant_person uuid:=gen_random_uuid();
   v_setup_user uuid:=gen_random_uuid();
   v_org uuid:=gen_random_uuid();
 
@@ -138,11 +141,26 @@ begin
   insert into atlas.organizations(id,stable_key,name)
   values(v_org,'provider-proof-org-'||substr(v_org::text,1,8),'Provider Proof Organization');
 
-  insert into atlas.organization_memberships(organization_id,user_id,role,active)
+  -- Current owner authority resolves through an independently bound,
+  -- canonical Person and the effective membership's person_id. A bare
+  -- legacy user_id membership does not establish Organization ownership.
+  insert into reality.entities(id,stable_key,entity_kind,display_name,identity_state)
   values
-    (v_org,v_owner_user,'owner',true),
-    (v_org,v_member_user,'member',true),
-    (v_org,v_consultant_user,'consultant',true);
+    (v_owner_person,'provider-proof-owner-person-'||v_owner_person::text,'person','Provider Proof Owner','canonical'),
+    (v_member_person,'provider-proof-member-person-'||v_member_person::text,'person','Provider Proof Member','canonical'),
+    (v_consultant_person,'provider-proof-consultant-person-'||v_consultant_person::text,'person','Provider Proof Consultant','canonical');
+
+  insert into reality.auth_person_bindings(auth_user_id,person_entity_id,binding_basis)
+  values
+    (v_owner_user,v_owner_person,'{"purpose":"provider_connection_owner_test"}'::jsonb),
+    (v_member_user,v_member_person,'{"purpose":"provider_connection_member_test"}'::jsonb),
+    (v_consultant_user,v_consultant_person,'{"purpose":"provider_connection_consultant_test"}'::jsonb);
+
+  insert into atlas.organization_memberships(organization_id,user_id,role,active,person_id)
+  values
+    (v_org,v_owner_user,'owner',true,v_owner_person),
+    (v_org,v_member_user,'member',true,v_member_person),
+    (v_org,v_consultant_user,'consultant',true,v_consultant_person);
 
   insert into atlas.organization_onboarding_actors(
     organization_id,human_user_id,actor_kind,active
@@ -205,6 +223,24 @@ begin
   exception when sqlstate '22023' then
     null;
   end;
+
+  -- Prove each actor is really bound to the canonical identity it claims
+  -- before exercising positive/negative provider access cases.
+  perform set_config('request.jwt.claim.sub',v_owner_user::text,true);
+  if atlas.current_person_id_v1() is distinct from v_owner_person
+     or not atlas.is_organization_owner(v_org) then
+    raise exception 'Owner fixture lacks current Person-bound Organization authority.';
+  end if;
+  perform set_config('request.jwt.claim.sub',v_member_user::text,true);
+  if atlas.current_person_id_v1() is distinct from v_member_person
+     or atlas.is_organization_owner(v_org) then
+    raise exception 'Member fixture incorrectly owns Organization.';
+  end if;
+  perform set_config('request.jwt.claim.sub',v_consultant_user::text,true);
+  if atlas.current_person_id_v1() is distinct from v_consultant_person
+     or atlas.is_organization_owner(v_org) then
+    raise exception 'Consultant fixture incorrectly owns Organization.';
+  end if;
 
   -- Ordinary member and consultant cannot administer Organization provider custody.
   perform set_config('request.jwt.claim.sub',v_member_user::text,true);
