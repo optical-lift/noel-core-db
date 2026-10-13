@@ -5,7 +5,7 @@
 -- intentionally exposed public profile. No new Connected Source writer.
 --
 -- Service-only is deliberate: ordinary authenticated/anon roles may not
--- complete identity, activate provider scope or store reusable secrets.
+-- complete identity or activate provider scope.
 create or replace function public.complete_provider_connection_identity_service_v1(
   p_session_id uuid,
   p_provider_account_key text,
@@ -49,22 +49,7 @@ grant execute on function public.activate_provider_connection_service_v1(
   uuid,text,jsonb
 ) to service_role;
 
-create or replace function public.store_connected_source_secret_service_v1(
-  p_connected_source_id uuid,
-  p_credential_kind text,
-  p_secret text,
-  p_description text default null
-) returns jsonb
-language sql security definer
-set search_path=pg_catalog,atlas
-as $fn$
-  select atlas.store_connected_source_secret_service_v1(
-    p_connected_source_id,p_credential_kind,p_secret,p_description
-  )
-$fn$;
-revoke all on function public.store_connected_source_secret_service_v1(
-  uuid,text,text,text
-) from public,anon,authenticated;
-grant execute on function public.store_connected_source_secret_service_v1(
-  uuid,text,text,text
-) to service_role;
+
+-- Vault secret store/read and Principal Communication ingestion already
+-- have public service-role-only wrappers in 20260911174700.
+-- Reusing them avoids duplicate authority and migration drift.
