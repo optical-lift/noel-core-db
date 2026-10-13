@@ -84,7 +84,7 @@ do $proof$
 begin
  if (select metadata->'bearingHistory' from atlas.reality_discovery_sessions
    where id='20000000-0000-4000-8000-000000000002') is not null then
-  raise exception 'Other user's bearing was affected';
+  raise exception 'Other user''s bearing was affected';
  end if;
 end $proof$;
 select 'PASS: session bearer isolation, original orientation, explicit focused admission, answered routing, question fit feedback, idempotence and rejection' as result;
