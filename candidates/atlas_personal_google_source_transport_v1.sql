@@ -1,3 +1,5 @@
+begin;
+
 -- Source candidate only. DO NOT APPLY TO PRODUCTION DIRECTLY.
 -- First release requires the current-canon provider session migration
 -- 20260919233031 to exist. These narrow service-role-only wrappers let the
@@ -53,3 +55,5 @@ grant execute on function public.activate_provider_connection_service_v1(
 -- Vault secret store/read and Principal Communication ingestion already
 -- have public service-role-only wrappers in 20260911174700.
 -- Reusing them avoids duplicate authority and migration drift.
+
+commit;
