@@ -29,7 +29,7 @@ with principal as (
  'contentSha256',o.source_content_hash,
  'providerOccurredDate',to_char(e.occurred_at at time zone 'UTC','YYYY-MM-DD'),
  'observedDate',to_char(o.observed_at at time zone 'UTC','YYYY-MM-DD'),
- 'authorizedAtCapture',true,
+ 'authorizedForRecognitionAtRead',true,
  'coverage','partial'),
  'notice',jsonb_build_object(
  'kind',o.observed_event#>>'{billNotice,kind}',
