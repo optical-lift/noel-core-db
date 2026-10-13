@@ -24,12 +24,30 @@ begin
 
   -- The most recent human orientation (v3 Field/Position/Scale or historical
   -- v4 Index categories) is a retrieval hint, not a separate onboarding gate.
-  select coalesce(e.world_domains,'[]'::jsonb) into v_categories
-  from atlas.reality_discovery_orientation_events e
-  where e.principal_id=v_principal_id and e.owner_user_id=v_user_id
-    and e.orientation_version in (3,4)
-  order by e.occurred_at desc,e.id desc limit 1;
-  v_categories:=coalesce(v_categories,'[]'::jsonb);
+  -- The latest human-selected FIELD remains an intentional notebook section.
+  -- Real answers may establish further domains; there is no extra Index form.
+  with latest_orientation as (
+    select coalesce(e.world_domains,'[]'::jsonb) as domains
+    from atlas.reality_discovery_orientation_events e
+    where e.principal_id=v_principal_id and e.owner_user_id=v_user_id
+      and e.orientation_version in (3,4)
+    order by e.occurred_at desc,e.id desc limit 1
+  ),
+  domain_evidence as (
+    select jsonb_array_elements_text(domains) as domain
+    from latest_orientation
+    union
+    select jsonb_array_elements_text(
+      case when jsonb_typeof(q.metadata->'orientationWorldDomains')='array'
+        then q.metadata->'orientationWorldDomains' else '[]'::jsonb end)
+    from atlas.reality_discovery_answer_events a
+    join atlas.reality_discovery_questions q on q.question_key=a.question_key
+    where a.principal_id=v_principal_id and a.owner_user_id=v_user_id
+  )
+  select coalesce(jsonb_agg(to_jsonb(domain) order by domain),'[]'::jsonb)
+    into v_categories
+  from (select distinct domain from domain_evidence where domain in
+      ('home','family','job','business','property','money','school','projects','community','hobbies')) d;
 
   with descriptors as (
     select -10 as section_order,0 as item_order,
@@ -185,6 +203,7 @@ begin
   join atlas.reality_discovery_questions q on q.question_key=l.question_key
   where jsonb_typeof(q.metadata->'orientationWorldDomains')='array'
     and q.metadata->'orientationWorldDomains' ? v_category;
+  v_selected:=v_selected or jsonb_array_length(v_facts)>0;
 
   return jsonb_build_object(
     'ok',true,
