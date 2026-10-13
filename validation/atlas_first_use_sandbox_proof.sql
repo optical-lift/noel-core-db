@@ -51,7 +51,7 @@ begin
   if public.atlas_task_day_self_api_v1('2026-11-01')#>>'{items,0,status}' <> 'open' then
     raise exception 'completion undo not persisted';
   end if;
-end $;
+end $$;
 reset role;
 
 -- Populate a synthetic guessed/leaked ID in this *test session* as admin.
