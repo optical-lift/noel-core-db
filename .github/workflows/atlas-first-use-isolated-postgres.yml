@@ -1,0 +1,46 @@
+name: Atlas first-use isolated PostgreSQL proof
+on:
+  push:
+    branches:
+      - work/atlas-dated-task-core-20261013
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: fixture_only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: fixture_only
+      PGDATABASE: postgres
+    steps:
+      - name: Checkout reviewed candidate branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Bootstrap synthetic principals and minimal dependent tables
+        run: psql -v ON_ERROR_STOP=1 -f validation/atlas_first_use_sandbox_fixture.sql
+      - name: Compile and install ordinary tasks in disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f candidates/atlas_dated_task_entries_v1.sql
+      - name: Compile Index/Discovery replacements without touching production
+        run: PGOPTIONS='-c check_function_bodies=off' psql -v ON_ERROR_STOP=1 -f candidates/atlas_foundry_notebook_index_v1.sql
+      - name: Prove exact-date task and Foundry Index semantics and cross-user authorization
+        run: psql -v ON_ERROR_STOP=1 -f validation/atlas_first_use_sandbox_proof.sql
