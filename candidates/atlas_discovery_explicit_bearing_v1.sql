@@ -269,7 +269,7 @@ begin
     )
   );
 end;
-$function$
+$function$;
 
 create or replace function atlas.set_reality_discovery_bearing_self_api_v1(
   p_session_id uuid,
