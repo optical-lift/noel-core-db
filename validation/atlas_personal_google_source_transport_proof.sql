@@ -5,8 +5,7 @@ declare
   v_sig regprocedure;
   v_specs text[] := array[
     'public.complete_provider_connection_identity_service_v1(uuid,text,text,text,text[],jsonb,jsonb)',
-    'public.activate_provider_connection_service_v1(uuid,text,jsonb)',
-    'public.store_connected_source_secret_service_v1(uuid,text,text,text)'
+    'public.activate_provider_connection_service_v1(uuid,text,jsonb)'
   ];
   v_text text;
 begin
