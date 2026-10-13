@@ -233,7 +233,7 @@ begin
     'accessBasis',v_access_source
   ));
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.personal_atlas_access_status_self_api_v1()
@@ -348,7 +348,7 @@ begin
     'grantKind',v_grant.grant_kind
   );
 end;
-$function$
+$function$;
 
 
 -- Reassert original routine grants: replacement must not enlarge caller authority.
