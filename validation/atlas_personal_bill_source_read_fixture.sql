@@ -52,7 +52,8 @@ select gen_random_uuid(),e.principal_id,e.connected_source_id,e.id,e.organizatio
      'kind','statement_notice',
      'billerName',jsonb_build_object('value','Example Electric','sourceFieldRef','document:issuer'),
      'statementPeriodStart',jsonb_build_object('value','2026-01-01','sourceFieldRef','document:period'),
-     'accountReference',jsonb_build_object('value','opaque:sampleaccount42','sourceFieldRef','document:account')
+     'accountReference',jsonb_build_object('value','opaque:sampleaccount42','sourceFieldRef','document:account'),
+     'rawBody','This private raw email body must never leave the database read'
    ),
    'body','This private raw email body must never leave the database read'),
  now()
