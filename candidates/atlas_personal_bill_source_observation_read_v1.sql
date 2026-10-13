@@ -13,7 +13,7 @@ with principal as (
  and custodian_organization_unit_id is null
  and provider_key in ('email','imap_smtp_email','gmail','microsoft_graph_email')
  and authorization_state='connected' and revoked_at is null
- and capabilities->>'personalBillRecognition'='true'
+ and capabilities @> '{"personalBillRecognition":true}'::jsonb
  and 'personal.bill_notice.read'=any(granted_scopes)
 ), observations as (
  select jsonb_build_object(
