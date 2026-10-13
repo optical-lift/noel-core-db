@@ -90,7 +90,7 @@ begin
   where a.attrelid='atlas.communication_conversation_events'::regclass
     and a.attnum>0 and not a.attisdropped;
 
-  if v_columns is distinct from '{
+  if v_columns is distinct from $atlas_columns${
     "id":["uuid",true,"gen_random_uuid()"],
     "communication_conversation_id":["uuid",true,""],
     "communication_event_id":["uuid",true,""],
@@ -107,9 +107,9 @@ begin
     into v_constraints
   from pg_constraint c
   where c.conrelid='atlas.communication_conversation_events'::regclass;
-  if v_constraints is distinct from '[
-    "CHECK ((btrim(continuity_basis) <> ''''::text))",
-    "CHECK ((jsonb_typeof(metadata) = ''object''::text))",
+  if v_constraints is distinct from $atlas_constraints$[
+    "CHECK ((btrim(continuity_basis) <> ''::text))",
+    "CHECK ((jsonb_typeof(metadata) = 'object'::text))",
     "FOREIGN KEY (communication_conversation_id) REFERENCES atlas.communication_conversations(id) ON DELETE CASCADE",
     "FOREIGN KEY (communication_endpoint_id) REFERENCES atlas.communication_endpoints(id) ON DELETE RESTRICT",
     "FOREIGN KEY (communication_event_id) REFERENCES atlas.communication_events(id) ON DELETE RESTRICT",
