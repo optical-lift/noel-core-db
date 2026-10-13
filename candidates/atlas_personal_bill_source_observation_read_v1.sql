@@ -13,8 +13,13 @@ with principal as (
  and custodian_organization_unit_id is null
  and provider_key in ('email','imap_smtp_email','gmail','microsoft_graph_email')
  and authorization_state='connected' and revoked_at is null
- and capabilities @> '{"personalBillRecognition":true}'::jsonb
- and 'personal.bill_notice.read'=any(granted_scopes)
+ and capabilities @> '{"communicationCapture":true,"personalBillRecognition":true}'::jsonb
+ and ( 'communication.capture'=any(granted_scopes)
+       or 'mail.read'=any(granted_scopes)
+       or 'https://www.googleapis.com/auth/gmail.readonly'=any(granted_scopes) )
+ and metadata->'personalBillRecognitionConsent' @> '{"enabled":true}'::jsonb
+ and metadata#>>'{personalBillRecognitionConsent,actorUserId}'=auth.uid()::text
+ and nullif(metadata#>>'{personalBillRecognitionConsent,sourceActionId}','') is not null
 ), observations as (
  select jsonb_build_object(
  'scope',jsonb_build_object('kind','principal','id',p.id),
