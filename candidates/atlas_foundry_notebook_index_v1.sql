@@ -149,7 +149,7 @@ begin
     )
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.personal_atlas_section_root_self_api_v1(p_category text)
@@ -219,7 +219,7 @@ begin
     )
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.reality_discovery_first_day_status_self_api_v1()
@@ -288,7 +288,7 @@ begin
     )
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.reality_discovery_question_set_for_encounter_self_api_v1(p_session_kind text, p_limit integer DEFAULT 4)
@@ -502,4 +502,4 @@ begin
     )
   );
 end;
-$function$
+$function$;
