@@ -99,7 +99,7 @@ begin
     "occurred_at":["timestamp with time zone",false,""],
     "metadata":["jsonb",true,"'{}'::jsonb"],
     "created_at":["timestamp with time zone",true,"now()"]
-  }'::jsonb then
+  }$atlas_columns$::jsonb then
     raise exception 'Existing Atlas Conversation event columns differ from unreleased source migration.' using errcode='23514';
   end if;
 
@@ -115,7 +115,7 @@ begin
     "FOREIGN KEY (communication_event_id) REFERENCES atlas.communication_events(id) ON DELETE RESTRICT",
     "PRIMARY KEY (id)",
     "UNIQUE (communication_event_id)"
-  ]'::jsonb then
+  ]$atlas_constraints$::jsonb then
     raise exception 'Existing Atlas Conversation event constraints differ from unreleased source migration.' using errcode='23514';
   end if;
 
