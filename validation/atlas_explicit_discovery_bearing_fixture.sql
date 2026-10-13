@@ -66,7 +66,7 @@ create function atlas.reality_discovery_question_set_self_api_v1(p_limit integer
    where owner_user_id=auth.uid() and state='active' order by last_opened_at desc limit 1),
    'first_day'),p_limit)
 $fn$;
-grant usage on schema atlas to authenticated;
+grant usage on schema atlas,auth to authenticated;
 grant select on atlas.principals,atlas.reality_discovery_sessions,atlas.reality_discovery_questions,
  atlas.reality_discovery_encounter_admission,atlas.reality_discovery_answer_events to authenticated;
 grant execute on function auth.uid() to authenticated;
