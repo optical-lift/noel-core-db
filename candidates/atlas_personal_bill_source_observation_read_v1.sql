@@ -48,3 +48,7 @@ select jsonb_build_object(
  'items',coalesce((select jsonb_agg(item) from observations),'[]'::jsonb),
  'domainTruthEstablished',false,'clockAuthority',false)
 $fn$;
+
+-- Explicitly close PostgreSQL's default PUBLIC execution grant.
+revoke all on function atlas.personal_bill_notice_source_observations_self_api_v1(integer) from public,anon;
+grant execute on function atlas.personal_bill_notice_source_observations_self_api_v1(integer) to authenticated;
