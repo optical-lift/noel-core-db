@@ -12,7 +12,7 @@ grant execute on function auth.uid() to authenticated,anon;
 create table atlas.principals(id uuid primary key,user_id uuid,status text);
 create table atlas.connected_sources(
  id uuid primary key,custodian_user_id uuid,custodian_organization_id uuid,
- custodian_organization_unit_id uuid,provider_key text,authorization_state text,
+ custodian_organization_unit_id uuid,provider_key text,display_label text,account_hint text,authorization_state text,
  revoked_at timestamptz,capabilities jsonb,granted_scopes text[],
  metadata jsonb default '{}'::jsonb,updated_at timestamptz default now()
 );
