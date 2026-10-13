@@ -4,9 +4,9 @@ declare
   v_owner_user uuid:=gen_random_uuid();
   v_member_user uuid:=gen_random_uuid();
   v_consultant_user uuid:=gen_random_uuid();
-  v_owner_person uuid:=gen_random_uuid();
-  v_member_person uuid:=gen_random_uuid();
-  v_consultant_person uuid:=gen_random_uuid();
+  v_owner_person uuid;
+  v_member_person uuid;
+  v_consultant_person uuid;
   v_setup_user uuid:=gen_random_uuid();
   v_org uuid:=gen_random_uuid();
 
@@ -141,9 +141,22 @@ begin
   insert into atlas.organizations(id,stable_key,name)
   values(v_org,'provider-proof-org-'||substr(v_org::text,1,8),'Provider Proof Organization');
 
-  -- Current owner authority resolves through an independently bound,
-  -- canonical Person and the effective membership's person_id. A bare
-  -- legacy user_id membership does not establish Organization ownership.
+  -- Use the same Person identity on BOTH canonical Reality auth bindings
+  -- and Atlas membership compatibility. The membership trigger enforces
+  -- atlas.ensure_person_for_auth_user_v1(user_id) == membership.person_id.
+  -- Independent random Person ids would fail that true custody check.
+  v_owner_person:=atlas.ensure_person_for_auth_user_v1(v_owner_user,'Provider Proof Owner');
+  v_member_person:=atlas.ensure_person_for_auth_user_v1(v_member_user,'Provider Proof Member');
+  v_consultant_person:=atlas.ensure_person_for_auth_user_v1(v_consultant_user,'Provider Proof Consultant');
+  if v_owner_person is null or v_member_person is null or v_consultant_person is null
+    or v_owner_person=v_member_person or v_owner_person=v_consultant_person
+    or v_member_person=v_consultant_person then
+    raise exception 'Synthetic actor Person identities could not be established uniquely.';
+  end if;
+
+  -- Attach Reality canonical Person references to those SAME established
+  -- Atlas Person ids. This verifies the existing two-layer Person bridge
+  -- instead of inventing an unrelated Reality identity.
   insert into reality.entities(id,stable_key,entity_kind,display_name,identity_state)
   values
     (v_owner_person,'provider-proof-owner-person-'||v_owner_person::text,'person','Provider Proof Owner','canonical'),
