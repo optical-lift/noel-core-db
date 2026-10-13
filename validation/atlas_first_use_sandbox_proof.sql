@@ -53,35 +53,21 @@ begin
   end if;
 end $$;
 
--- Synthetic user B cannot read or complete user A's dated task.
+-- Populate a synthetic guessed/leaked ID in this *test session* as admin.
+select set_config('atlas.fixture.task_a_id',
+  (select id::text from atlas.task_entries limit 1),false);
+-- Identity B cannot read or complete that specific A-owned task.
+set role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000000002',false);
 do $$
-declare v uuid := '00000000-0000-0000-0000-000000000000';
+declare v uuid := current_setting('atlas.fixture.task_a_id')::uuid;
 begin
   if jsonb_array_length(public.atlas_task_day_self_api_v1('2026-11-01')->'items')<>0 then
     raise exception 'cross-user task was visible';
   end if;
   begin
-    -- Determine synthetic task ID from a known fixture, without giving user B
-    -- table access. This is equivalent to guessing/leaking another user's UUID.
-    v := (select id from atlas.task_entries limit 1);
-  exception when insufficient_privilege then
-    null;
-  end;
-end $$;
-reset role;
--- Test cross-user mutation via a hardcoded task ID retrieved as fixture owner.
-select id as fixture_task_id from atlas.task_entries limit 1;
--- Identity B cannot mutate a guessed ID (plpgsql wrapper rejects by ownership).
-set role authenticated;
-do $$
-declare v uuid;
-begin
-  -- The table isn't queryable by the current role. Use the known first fixture's
-  -- resulting ID passed through a one-off parameter in the workflow's SQL client.
-  begin
-    perform public.set_atlas_task_done_self_api_v1('ffffffff-ffff-4fff-8fff-ffffffffffff',true);
-    raise exception 'unauthorized task mutation accepted';
+    perform public.set_atlas_task_done_self_api_v1(v,true);
+    raise exception 'cross-user completion was accepted';
   exception when sqlstate '42501' then null;
   end;
 end $$;
