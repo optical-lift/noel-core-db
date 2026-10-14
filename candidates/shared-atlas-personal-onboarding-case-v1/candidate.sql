@@ -80,13 +80,18 @@ BEGIN
     (v_binding.person_entity_id<>v_p.person_id OR v_binding.id<>v_c.id) THEN
    RAISE EXCEPTION 'Conflicting canonical Auth Person binding' USING errcode='23514';
  END IF;
- SELECT * INTO v_entity FROM reality.entities
- WHERE id=v_p.person_id OR stable_key='legacy-atlas-person:'||v_p.person_id::text
- LIMIT 1;
+ -- A legitimately admitted existing Person may have a different canonical
+ -- stable-key scheme. Exact UUID + kind/state, not one historical key prefix,
+ -- governs identity; an actual collision on the prospective key remains fatal.
+ IF EXISTS (SELECT 1 FROM reality.entities e
+            WHERE e.stable_key='legacy-atlas-person:'||v_p.person_id::text
+              AND e.id<>v_p.person_id) THEN
+   RAISE EXCEPTION 'Canonical Person stable key collision' USING errcode='23514';
+ END IF;
+ SELECT * INTO v_entity FROM reality.entities WHERE id=v_p.person_id;
  IF v_entity.id IS NOT NULL AND
-    (v_entity.id<>v_p.person_id OR v_entity.stable_key<>'legacy-atlas-person:'||v_p.person_id::text
-       OR v_entity.entity_kind<>'person' OR v_entity.identity_state<>'canonical') THEN
-   RAISE EXCEPTION 'Canonical Person ID or stable key collision' USING errcode='23514';
+    (v_entity.entity_kind<>'person' OR v_entity.identity_state<>'canonical') THEN
+   RAISE EXCEPTION 'Existing Person UUID is not a canonical Person' USING errcode='23514';
  END IF;
  IF EXISTS(SELECT 1 FROM reality.auth_person_bindings b
            WHERE b.id=v_c.id AND b.auth_user_id<>v_uid) THEN
@@ -154,6 +159,11 @@ DECLARE
 BEGIN
  IF v_uid IS NULL THEN
    RAISE EXCEPTION 'Authenticated Atlas human required' USING errcode='42501';
+ END IF;
+ IF NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id=v_uid
+                AND u.email_confirmed_at IS NOT NULL AND u.deleted_at IS NULL
+                AND (u.banned_until IS NULL OR u.banned_until<=now())) THEN
+   RAISE EXCEPTION 'Verified active Atlas credential required' USING errcode='42501';
  END IF;
  v_person_id:=atlas.current_person_id_v1();
  v_principal_id:=atlas.current_principal_id_v1();
@@ -403,8 +413,9 @@ AS $workbench$
     LEFT JOIN atlas.implementation_purchases p ON p.id=c.implementation_purchase_id
     LEFT JOIN reality.entities e ON e.id=c.personal_subject_person_entity_id
       AND e.entity_kind='person' AND e.identity_state='canonical'
-    WHERE c.state NOT IN ('cancelled') AND
-      (c.case_origin='personal_atlas' OR p.purchase_state='active')
+    WHERE (c.case_origin='personal_atlas' AND c.state<>'cancelled')
+       OR (c.case_origin='paid_institutional'
+           AND c.state NOT IN ('closed','cancelled') AND p.purchase_state='active')
   )
   SELECT CASE WHEN NOT (SELECT ok FROM allowed)
     THEN jsonb_build_object('ok',false,'code','practitioner_authority_required','items','[]'::jsonb)
