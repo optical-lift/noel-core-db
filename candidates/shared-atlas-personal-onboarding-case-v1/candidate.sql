@@ -160,6 +160,11 @@ BEGIN
  IF v_uid IS NULL THEN
    RAISE EXCEPTION 'Authenticated Atlas human required' USING errcode='42501';
  END IF;
+ IF NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id=v_uid
+                AND u.email_confirmed_at IS NOT NULL AND u.deleted_at IS NULL
+                AND (u.banned_until IS NULL OR u.banned_until<=now())) THEN
+   RAISE EXCEPTION 'Verified active Atlas credential required' USING errcode='42501';
+ END IF;
  v_person_id:=atlas.current_person_id_v1();
  v_principal_id:=atlas.current_principal_id_v1();
  IF v_person_id IS NULL OR v_principal_id IS NULL OR NOT EXISTS(
