@@ -80,13 +80,18 @@ BEGIN
     (v_binding.person_entity_id<>v_p.person_id OR v_binding.id<>v_c.id) THEN
    RAISE EXCEPTION 'Conflicting canonical Auth Person binding' USING errcode='23514';
  END IF;
- SELECT * INTO v_entity FROM reality.entities
- WHERE id=v_p.person_id OR stable_key='legacy-atlas-person:'||v_p.person_id::text
- LIMIT 1;
+ -- A legitimately admitted existing Person may have a different canonical
+ -- stable-key scheme. Exact UUID + kind/state, not one historical key prefix,
+ -- governs identity; an actual collision on the prospective key remains fatal.
+ IF EXISTS (SELECT 1 FROM reality.entities e
+            WHERE e.stable_key='legacy-atlas-person:'||v_p.person_id::text
+              AND e.id<>v_p.person_id) THEN
+   RAISE EXCEPTION 'Canonical Person stable key collision' USING errcode='23514';
+ END IF;
+ SELECT * INTO v_entity FROM reality.entities WHERE id=v_p.person_id;
  IF v_entity.id IS NOT NULL AND
-    (v_entity.id<>v_p.person_id OR v_entity.stable_key<>'legacy-atlas-person:'||v_p.person_id::text
-       OR v_entity.entity_kind<>'person' OR v_entity.identity_state<>'canonical') THEN
-   RAISE EXCEPTION 'Canonical Person ID or stable key collision' USING errcode='23514';
+    (v_entity.entity_kind<>'person' OR v_entity.identity_state<>'canonical') THEN
+   RAISE EXCEPTION 'Existing Person UUID is not a canonical Person' USING errcode='23514';
  END IF;
  IF EXISTS(SELECT 1 FROM reality.auth_person_bindings b
            WHERE b.id=v_c.id AND b.auth_user_id<>v_uid) THEN
