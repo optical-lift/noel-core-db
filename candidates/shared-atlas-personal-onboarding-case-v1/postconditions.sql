@@ -63,6 +63,20 @@ BEGIN
     NOT LIKE '%Valid Stripe Checkout Session id required%' THEN
   RAISE EXCEPTION 'Paid provider writer no longer enforces receipt identity';
  END IF;
+ -- Existing canonical Person UUIDs are authoritative even where a previously
+ -- governed stable-key family differs from the old legacy Atlas namespace.
+ IF pg_get_functiondef('atlas.admit_existing_person_identity_self_v1()'::regprocedure)
+    LIKE '%v_entity.stable_key<>%' THEN
+   RAISE EXCEPTION 'Existing canonical Person incorrectly tied to legacy stable-key prefix';
+ END IF;
+ IF pg_get_functiondef('atlas.ensure_personal_implementation_case_self_v1()'::regprocedure)
+    NOT LIKE '%Verified active Atlas credential required%' THEN
+   RAISE EXCEPTION 'Case self-writer does not recheck verified active Auth state';
+ END IF;
+ IF pg_get_functiondef('atlas.implementation_workbench_self_api_v2()'::regprocedure)
+    NOT LIKE '%c.state NOT IN (''closed'',''cancelled'')%' THEN
+   RAISE EXCEPTION 'Paid closed cases lost current active queue boundary';
+ END IF;
  IF pg_get_functiondef('atlas.begin_personal_atlas_self_api_v1(text,text)'::regprocedure)
     NOT LIKE '%ensure_personal_implementation_case_self_v1%' OR
     pg_get_functiondef('atlas.begin_personal_atlas_self_api_v1(text,text)'::regprocedure)
