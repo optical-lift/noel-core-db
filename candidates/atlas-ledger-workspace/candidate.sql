@@ -35,15 +35,17 @@ BEGIN
     RAISE EXCEPTION 'No current authorized Ledger seat' USING ERRCODE='42501';
   END IF;
 
-  SELECT l.*, e.display_name INTO v_ledger, v_subject_name
+  SELECT l.* INTO v_ledger
   FROM ledger.ledgers l
   JOIN reality.entities e ON e.id=l.subject_entity_id AND e.identity_state='canonical'
   WHERE l.id=p_ledger_id AND l.ledger_state='active' AND l.retired_at IS NULL;
+  SELECT e.display_name INTO v_subject_name FROM reality.entities e
+  WHERE e.id=v_ledger.subject_entity_id AND e.identity_state='canonical';
   IF v_ledger.id IS NULL THEN
     RAISE EXCEPTION 'Ledger is unavailable' USING ERRCODE='42501';
   END IF;
 
-  SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY a.occurred_at DESC,a.id DESC),'[]'::jsonb)
+  SELECT COALESCE(jsonb_agg(to_jsonb(a) ORDER BY a."occurredAt" DESC,a.id DESC),'[]'::jsonb)
   INTO v_actions
   FROM (
     SELECT x.id, x.action_kind AS "kind", x.occurred_at AS "occurredAt",
