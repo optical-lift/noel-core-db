@@ -53,7 +53,7 @@ BEGIN
   JOIN atlas.households h ON h.id=m.household_id AND h.status='active'
   JOIN atlas.principals p ON p.id=h.principal_id AND p.status='active' AND p.user_id=auth.uid()
   WHERE m.id=p_member_id AND m.active=true
-    AND m.user_id IS NULL AND (m.household_role IS DISTINCT FROM 'principal')
+    AND m.user_id IS NULL AND m.person_id IS NULL AND (m.household_role IS DISTINCT FROM 'principal')
   ;
   IF v_hid IS NULL THEN RAISE EXCEPTION 'No authorized unlinked household member' USING errcode='42501'; END IF;
   RETURN v_hid;
@@ -158,7 +158,7 @@ BEGIN
   SELECT * INTO v_p FROM atlas.principals WHERE user_id=auth.uid() AND status='active';
   IF v_p.id IS NULL OR v_p.person_id IS NULL
       OR NOT EXISTS(SELECT 1 FROM atlas.people a WHERE a.id=v_p.person_id AND a.status='active')
-      OR NOT EXISTS(SELECT 1 FROM auth.users a WHERE a.id=auth.uid() AND a.email_confirmed_at IS NOT NULL AND a.deleted_at IS NULL)
+      OR NOT EXISTS(SELECT 1 FROM auth.users a WHERE a.id=auth.uid() AND a.email_confirmed_at IS NOT NULL AND a.deleted_at IS NULL AND (a.banned_until IS NULL OR a.banned_until<=now()))
       OR NOT EXISTS(SELECT 1 FROM atlas.person_auth_credentials c WHERE c.auth_user_id=auth.uid() AND c.person_id=v_p.person_id AND c.status='active' AND c.retired_at IS NULL)
       OR NOT EXISTS(SELECT 1 FROM reality.auth_person_bindings b WHERE b.auth_user_id=auth.uid() AND b.person_entity_id=v_p.person_id AND b.binding_state='active' AND b.retired_at IS NULL)
       OR NOT EXISTS(SELECT 1 FROM personal.atlases a WHERE a.person_entity_id=v_p.person_id AND a.native AND a.atlas_state='active')
@@ -169,7 +169,7 @@ BEGIN
      WHERE id=v_inv.household_member_id AND household_id=v_inv.household_id FOR UPDATE;
   SELECT * INTO v_h FROM atlas.households
      WHERE id=v_inv.household_id AND status='active';
-  IF v_member.id IS NULL OR NOT v_member.active OR v_member.user_id IS NOT NULL
+  IF v_member.id IS NULL OR NOT v_member.active OR v_member.user_id IS NOT NULL OR v_member.person_id IS NOT NULL
       OR v_member.household_role='principal' OR v_h.id IS NULL
       OR NOT EXISTS(SELECT 1 FROM atlas.principals p WHERE p.id=v_h.principal_id AND p.user_id=v_inv.invited_by_user_id AND p.status='active') THEN
     RETURN jsonb_build_object('ok',false,'code','invitation_no_longer_valid');
