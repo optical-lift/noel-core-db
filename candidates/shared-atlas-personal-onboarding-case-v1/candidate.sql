@@ -408,8 +408,9 @@ AS $workbench$
     LEFT JOIN atlas.implementation_purchases p ON p.id=c.implementation_purchase_id
     LEFT JOIN reality.entities e ON e.id=c.personal_subject_person_entity_id
       AND e.entity_kind='person' AND e.identity_state='canonical'
-    WHERE c.state NOT IN ('cancelled') AND
-      (c.case_origin='personal_atlas' OR p.purchase_state='active')
+    WHERE (c.case_origin='personal_atlas' AND c.state<>'cancelled')
+       OR (c.case_origin='paid_institutional'
+           AND c.state NOT IN ('closed','cancelled') AND p.purchase_state='active')
   )
   SELECT CASE WHEN NOT (SELECT ok FROM allowed)
     THEN jsonb_build_object('ok',false,'code','practitioner_authority_required','items','[]'::jsonb)
