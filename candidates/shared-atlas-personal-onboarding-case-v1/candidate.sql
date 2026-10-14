@@ -443,4 +443,72 @@ REVOKE ALL ON FUNCTION atlas.implementation_workbench_self_api_v2() FROM PUBLIC,
 REVOKE ALL ON FUNCTION public.implementation_workbench_self_api_v2() FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.implementation_workbench_self_api_v2() TO authenticated;
 
+
+CREATE OR REPLACE FUNCTION atlas.implementation_case_self_api_v2(p_implementation_case_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare v_result jsonb;
+begin
+  if not atlas.implementation_practitioner_authorized_self_v1() then
+    return jsonb_build_object('ok',false,'code','practitioner_authority_required');
+  end if;
+
+  select jsonb_build_object(
+    'ok',true,
+    'contractVersion','implementation_case_self_api_v1',
+    'case',jsonb_build_object(
+      'id',c.id,'state',c.state,'openedAt',c.opened_at,
+      'caseOrigin',c.case_origin,
+      'startingLabel',CASE WHEN c.case_origin='personal_atlas' THEN coalesce(e.display_name,'Personal Atlas') ELSE p.starting_label END,
+      'personalCase',c.case_origin='personal_atlas',
+      'purchase',case when c.case_origin='paid_institutional' then jsonb_build_object(
+        'id',p.id,'startingLabel',p.starting_label,'paymentOption',p.payment_option,
+        'setupContractAmountCents',p.setup_contract_amount_cents,
+        'monthlyLedgerUnitPriceCents',p.monthly_ledger_unit_price_cents,
+        'purchasedAt',p.purchased_at,'purchaseState',p.purchase_state
+      ) else null end,
+      'participants',coalesce((select jsonb_agg(jsonb_build_object(
+        'id',cp.id,'relationshipKind',cp.relationship_kind,'active',cp.active,
+        'verifiedAt',cp.verified_at,'startedAt',cp.started_at,
+        'isMe',cp.human_user_id=auth.uid()
+      ) order by cp.started_at,cp.id) from atlas.implementation_case_participants cp where cp.implementation_case_id=c.id),'[]'::jsonb),
+      'ledgerEntitlements',coalesce((select jsonb_agg(jsonb_build_object(
+        'id',le.id,'number',le.entitlement_number,'state',le.state,
+        'priceClass',le.price_class,'setupPriceCents',le.setup_price_cents,
+        'monthlyPriceCents',le.monthly_price_cents,'recurringStartsAt',le.recurring_starts_at,
+        'binding',(
+          select jsonb_build_object(
+            'id',b.id,'state',b.state,'organizationId',b.organization_id,
+            'organizationName',o.name,
+            'organizationUnitId',b.organization_unit_id,'organizationUnitName',ou.name,
+            'boundAt',b.bound_at,'activatedAt',b.activated_at
+          )
+          from atlas.ledger_entitlement_bindings b
+          join atlas.organizations o on o.id=b.organization_id
+          left join atlas.organization_units ou on ou.id=b.organization_unit_id and ou.organization_id=b.organization_id
+          where b.ledger_entitlement_id=le.id and b.ended_at is null limit 1
+        )
+      ) order by le.entitlement_number) from atlas.ledger_entitlements le where le.implementation_case_id=c.id),'[]'::jsonb)
+    )
+  ) into v_result
+  from atlas.implementation_cases c
+  LEFT JOIN atlas.implementation_purchases p ON p.id=c.implementation_purchase_id
+  LEFT JOIN reality.entities e ON e.id=c.personal_subject_person_entity_id
+    AND e.entity_kind='person' AND e.identity_state='canonical'
+  where c.id=p_implementation_case_id;
+
+  return coalesce(v_result,jsonb_build_object('ok',false,'code','case_not_found'));
+end;
+$function$
+
+CREATE OR REPLACE FUNCTION public.implementation_case_self_api_v2(p_implementation_case_id uuid)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO 'pg_catalog'
+AS $rpc$ SELECT atlas.implementation_case_self_api_v2(p_implementation_case_id); $rpc$;
+REVOKE ALL ON FUNCTION atlas.implementation_case_self_api_v2(uuid) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.implementation_case_self_api_v2(uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.implementation_case_self_api_v2(uuid) TO authenticated;
+
 COMMIT;
