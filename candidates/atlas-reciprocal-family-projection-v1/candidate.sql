@@ -22,7 +22,7 @@ AS $function$
   JOIN atlas.households h ON h.id=l.household_id
   JOIN atlas.principals p ON p.id=h.principal_id
   WHERE l.target_auth_user_id=auth.uid() AND l.link_state='active';
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.atlas_notebook_index_self_api_v1()
@@ -178,7 +178,7 @@ begin
     )
   );
 end;
-$function$
+$function$;
 
 
 COMMIT;
