@@ -368,7 +368,7 @@ begin
     'accessBasis',v_access_source
   ));
 end;
-$function$
+$function$;
 
 
 -- Paid purchases are deliberately untouched. Versioned Workbench projection
@@ -502,7 +502,7 @@ begin
 
   return coalesce(v_result,jsonb_build_object('ok',false,'code','case_not_found'));
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.implementation_case_self_api_v2(p_implementation_case_id uuid)
 RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO 'pg_catalog'
