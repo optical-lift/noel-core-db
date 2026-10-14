@@ -54,7 +54,7 @@ BEGIN
   JOIN atlas.principals p ON p.id=h.principal_id AND p.status='active' AND p.user_id=auth.uid()
   WHERE m.id=p_member_id AND m.active=true
     AND m.user_id IS NULL AND (m.household_role IS DISTINCT FROM 'principal')
-  FOR SHARE OF m;
+  ;
   IF v_hid IS NULL THEN RAISE EXCEPTION 'No authorized unlinked household member' USING errcode='42501'; END IF;
   RETURN v_hid;
 END;
