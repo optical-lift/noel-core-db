@@ -10,6 +10,8 @@ This candidate makes the existing `atlas.implementation_cases` represent **a ver
 
 **Boundaries:** This candidate does NOT automatically close cases after one task/answer, declare a household fully implemented, create institutional authority, bypass the separately signed-in Workbench, fabricate a purchased entitlement, or charge Stripe. No real-user backfill occurs in the schema migration: that is a separate authorized and audited Atlas data transaction.
 
+**Synthetic enrollment integration fixture (v3):** `fixture.sql` sets up three clone-only verified Auth credentials: a fresh user with a claimed complimentary invitation, an already-established legacy Principal with a valid grant, and an unentitled user. `postconditions.sql` runs both real `begin_personal_atlas_self_api_v1` paths, retries them, checks exact Person/credential preservation and unique personal cases, verifies no fake purchases/Ledger entitlements, and denies normal-user practitioner visibility and unentitled onboarding. The data and actions execute **only** inside the disposable local production-schema clone.
+
 ## Review and release sequence
 
 1. Exact source review for current identity/case contracts and `shared_` migration lane.
