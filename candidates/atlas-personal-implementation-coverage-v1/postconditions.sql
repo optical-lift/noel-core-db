@@ -18,7 +18,6 @@ BEGIN
     RAISE EXCEPTION 'coverage must be STABLE and SECURITY DEFINER';
   END IF;
   IF has_function_privilege('anon',v_wrapper,'EXECUTE')
-     OR has_function_privilege('PUBLIC',v_wrapper,'EXECUTE')
      OR NOT has_function_privilege('authenticated',v_wrapper,'EXECUTE') THEN
     RAISE EXCEPTION 'coverage API execute grants not bounded';
   END IF;
