@@ -23,7 +23,7 @@ BEGIN
  WHERE n.nspname='draft'
   AND p.proname IN ('get_noel_mark_occurrence_context_v1','get_noel_mark_collision_review_queue_v1')
   AND (p.prosecdef OR p.provolatile='v'
-    OR NOT ('search_path='=ANY(coalesce(p.proconfig,ARRAY[]::text[]))));
+    OR NOT ('search_path=""'=ANY(coalesce(p.proconfig,ARRAY[]::text[]))));
  IF v_wrong_auth<>0 THEN RAISE EXCEPTION 'Reader privileges/volatility/search path contract failed'; END IF;
  SELECT count(*) INTO v_exposed FROM pg_proc p
  JOIN pg_namespace n ON n.oid=p.pronamespace
