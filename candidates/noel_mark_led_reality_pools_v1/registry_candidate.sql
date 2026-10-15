@@ -66,7 +66,7 @@ FOR EACH ROW EXECUTE FUNCTION draft.noel_mark_reject_form_mutation_v1();
 -- A source occurrence remains a different identity from a written form.
 -- Source bytes are held as a snapshot; source tokens and historical labels are unmodified.
 CREATE TABLE draft.noel_mark_occurrence_bindings (
-    witness_key text NOT NULL,
+    witness_key text NOT NULL CHECK (witness_key = 'mt_noel_current'),
     source_token_id text NOT NULL,
     representation_rank text NOT NULL DEFAULT 'R2'
       CHECK (representation_rank = 'R2'),
@@ -241,9 +241,28 @@ RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER AS $function$
 DECLARE v_kind text;
 BEGIN
   SELECT node_kind INTO v_kind
-    FROM draft.noel_reality_nodes WHERE node_id=NEW.node_id;
+    FROM draft.noel_reality_nodes WHERE node_id = NEW.node_id;
   IF v_kind IS DISTINCT FROM 'lexical_pool' THEN
-    RAISE EXCEPTION 'Noel primary mark identity requires an existing lexical_pool';
+    RAISE EXCEPTION 'Noel mark-pool identity links require an existing lexical_pool';
+  END IF;
+  -- An arbitrary existing decision_id is NOT authorization for this mark.
+  -- Ratification must be an independently appended, correctly scoped node decision
+  -- whose evidence metadata explicitly names THIS identity and operation.
+  IF NEW.link_role = 'primary_lexical_pool' AND NOT EXISTS (
+    SELECT 1
+    FROM draft.noel_reality_decisions d
+    WHERE d.decision_id = NEW.decision_id
+      AND d.subject_kind = 'node'
+      AND d.subject_id = NEW.node_id
+      AND d.resulting_state = 'steward_governed'
+      AND d.actor_label = 'project_steward'
+      AND d.extra @> jsonb_build_object(
+        'mark_identity_id', NEW.identity_id,
+        'operation', 'ratify_primary_lexical_pool'
+      )
+  ) THEN
+    RAISE EXCEPTION
+      'NMI primary lexical pool requires a steward-governed, mark-scoped decision for this node';
   END IF;
   RETURN NEW;
 END;
@@ -346,5 +365,12 @@ REVOKE ALL ON FUNCTION draft.noel_mark_form_id_v1(text,text,text,text),
   draft.noel_mark_identity_id_v1(text,text,text,text),
   draft.noel_mark_require_lexical_pool_v1()
   FROM PUBLIC,anon,authenticated;
+-- Candidate admission limits: the only R2 source-witness key admitted in v1 is
+-- mt_noel_current. Other Hebrew witnesses require independent reviewed profiles.
+-- Steward decisions for primary pool establishment must carry:
+-- subject_kind='node', subject_id=<existing pool node_id>,
+-- resulting_state='steward_governed', actor_label='project_steward',
+-- extra={"mark_identity_id":<NMI>,"operation":"ratify_primary_lexical_pool"}.
+-- The proposal deliberately does not manufacture or auto-ratify these decisions.
 -- No backfill, inherited alias rewrites, definition mutation, or reader cutover in DDL.
 COMMIT;
