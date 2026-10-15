@@ -119,6 +119,49 @@ CREATE INDEX noel_mark_constraint_witnesses_by_constraint_v1
 CREATE INDEX noel_mark_constraint_witnesses_by_source_v1
  ON draft.noel_mark_translation_constraint_witnesses_v1(source_token_id);
 
+-- An exclusion is only a steward-reviewed statement about an interpretation,
+-- not an automatic deletion of either the Greek or the Hebrew evidence.
+-- Insert a proposed test, attach canonical counterexample witnesses, record a
+-- specifically scoped decision, THEN change status to canon_excluded.
+CREATE FUNCTION draft.noel_mark_translation_permission_guard_v1()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path TO ''
+AS $guard$
+BEGIN
+ IF NEW.assessment_state='song_preferred' AND NOT EXISTS (
+  SELECT 1 FROM draft.noel_mark_song_anchor_choices_v1 a
+  JOIN draft.noel_mark_lxx_choice_occurrences_v1 e ON e.choice_id=a.choice_id
+  WHERE a.identity_id=NEW.identity_id
+   AND e.greek_lexeme_key=NEW.candidate_greek_lexeme_key
+   AND a.song_anchor_state<>'retracted_alignment'
+ ) THEN
+   RAISE EXCEPTION 'A Song-preferred Greek lexeme must have an attested Song source-token anchor';
+ END IF;
+ IF NEW.assessment_state='canon_excluded' THEN
+  IF NOT EXISTS (
+   SELECT 1 FROM draft.noel_reality_decisions d
+   WHERE d.decision_id=NEW.stewardship_decision_id
+     AND d.subject_kind='edge'
+     AND d.subject_id='noel_mark_translation_constraint:'||NEW.constraint_id::text
+     AND d.action='ratify_canon_exclusion'
+  ) THEN
+   RAISE EXCEPTION 'A canon-excluded interpretation requires an exactly scoped ratified stewardship decision';
+  END IF;
+  IF NOT EXISTS (
+   SELECT 1 FROM draft.noel_mark_translation_constraint_witnesses_v1 w
+   WHERE w.constraint_id=NEW.constraint_id
+     AND w.witness_role='canon_counterexample'
+  ) THEN
+   RAISE EXCEPTION 'A canon-excluded interpretation requires a recorded canonical counterexample occurrence';
+  END IF;
+ END IF;
+ RETURN NEW;
+END;
+$guard$;
+CREATE TRIGGER noel_mark_translation_permission_guard_v1
+BEFORE INSERT OR UPDATE ON draft.noel_mark_translation_constraints_v1
+FOR EACH ROW EXECUTE FUNCTION draft.noel_mark_translation_permission_guard_v1();
+
 -- Private lookup augments the existing private source-token reader; it does not
 -- edit source records, lexical Reality Pools or historical Strong's labels.
 CREATE FUNCTION draft.get_noel_mark_translation_reality_v1(
