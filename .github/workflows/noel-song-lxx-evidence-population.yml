@@ -30,14 +30,15 @@ jobs:
       NOEL_CORE_SUPABASE_URL: https://zirqkouammpwxlqfbsvf.supabase.co
       NOEL_CORE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_3UCb5b3USJD24c2uX6B_4A_0XWDT6si
       CONFIRM_NOEL_PROJECT_REF: ${{ inputs.confirm_project_ref }}
+      CONFIRM_NOEL_MIGRATION: ${{ inputs.confirm_migration }}
     steps:
       - uses: actions/checkout@v4
       - name: Confirm Noel-only target
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ inputs.confirm_project_ref }}" = 'zirqkouammpwxlqfbsvf'
-          test "${{ inputs.confirm_migration }}" = '20261015230001'
+          test "$CONFIRM_NOEL_PROJECT_REF" = 'zirqkouammpwxlqfbsvf'
+          test "$CONFIRM_NOEL_MIGRATION" = '20261015230001'
           test -n "$NOEL_CORE_DATABASE_URL"
           command -v psql
       - name: Verify immutable repository custody
