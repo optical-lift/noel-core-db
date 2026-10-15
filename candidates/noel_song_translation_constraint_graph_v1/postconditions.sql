@@ -18,6 +18,13 @@ BEGIN
   'noel_mark_lxx_choice_occurrences_v1','noel_mark_song_anchor_choices_v1',
   'noel_mark_translation_constraints_v1','noel_mark_translation_constraint_witnesses_v1');
  IF n_rls<>4 THEN RAISE EXCEPTION 'Expected RLS on all 4 tables, found %',n_rls; END IF;
+ IF NOT EXISTS(
+  SELECT 1 FROM pg_trigger t
+  JOIN pg_class c ON c.oid=t.tgrelid
+  JOIN pg_namespace n ON n.oid=c.relnamespace
+  WHERE n.nspname='draft' AND c.relname='noel_mark_translation_constraints_v1'
+  AND t.tgname='noel_mark_translation_permission_guard_v1' AND NOT t.tgisinternal
+ ) THEN RAISE EXCEPTION 'Missing anti-invention Song priority/canon exclusion trigger'; END IF;
 
  SELECT count(*) INTO n_functions FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
  WHERE n.nspname='draft'
