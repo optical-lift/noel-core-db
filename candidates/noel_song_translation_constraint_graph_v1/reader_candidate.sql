@@ -26,6 +26,12 @@ CREATE TABLE draft.noel_mark_lxx_choice_occurrences_v1 (
  target_segment_count integer NOT NULL DEFAULT 1 CHECK (target_segment_count>0),
  mapping_scope text NOT NULL DEFAULT 'direct_token'
   CHECK(mapping_scope IN ('direct_token','one_to_many','many_to_one','many_to_many')),
+ CHECK (
+ (mapping_scope='direct_token' AND source_segment_count=1 AND target_segment_count=1)
+ OR (mapping_scope='one_to_many' AND source_segment_count=1 AND target_segment_count>1)
+ OR (mapping_scope='many_to_one' AND source_segment_count>1 AND target_segment_count=1)
+ OR (mapping_scope='many_to_many' AND source_segment_count>1 AND target_segment_count>1)
+ ),
  greek_member_function text NOT NULL DEFAULT 'unassessed'
   CHECK(greek_member_function IN ('unassessed','content_candidate',
    'connector_candidate','content_reviewed','connector_reviewed')),
@@ -331,6 +337,24 @@ SELECT coalesce((
      LIMIT 100
     ) x
   ),
+  'this_occurrence_lxx_members',(
+    SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'alignment_segment_id',x.alignment_segment_id,
+      'greek_token_id',x.greek_token_id,'greek_surface',x.greek_surface,
+      'greek_lexeme',x.greek_lexeme_key,
+      'source_order',x.source_member_order,'target_order',x.target_member_order,
+      'source_role',x.source_member_role,'target_role',x.target_member_role,
+      'source_token_count',x.source_segment_count,'target_token_count',x.target_segment_count,
+      'mapping_scope',x.mapping_scope,'evidence_quality',x.evidence_quality,
+      'member_function',x.greek_member_function)
+      ORDER BY x.alignment_segment_id,x.target_member_order,x.greek_token_id),'[]'::jsonb)
+    FROM (
+      SELECT e.* FROM draft.noel_mark_lxx_choice_occurrences_v1 e
+      WHERE e.source_token_id=o.source_token_id AND e.identity_id=o.identity_id
+      ORDER BY e.alignment_segment_id,e.target_member_order,e.greek_token_id
+      LIMIT least(greatest(coalesce(p_limit,50),1),100)
+    ) x
+  ),
   'other_attested_lxx_choices',(
     SELECT coalesce(jsonb_agg(jsonb_build_object(
       'greek_lexeme',x.greek_lexeme_key,
@@ -394,11 +418,14 @@ SELECT jsonb_build_object(
  'hebrew_marks',coalesce((
  SELECT jsonb_agg(jsonb_build_object(
    'identity_id',x.identity_id,'hebrew_consonants',x.projected_surface,
-   'source_occurrences',x.n,'sample_source_token_id',x.example)
+   'source_occurrences',x.n,'sample_source_token_id',x.example,
+   'direct_token_attestations',x.direct_n,'phrase_memberships',x.phrase_n)
    ORDER BY x.n DESC,x.identity_id)
  FROM (
    SELECT e.identity_id,i.projected_surface,
      count(DISTINCT e.source_token_id) n,
+     count(DISTINCT e.source_token_id) FILTER (WHERE e.mapping_scope='direct_token') direct_n,
+     count(DISTINCT e.source_token_id) FILTER (WHERE e.mapping_scope<>'direct_token') phrase_n,
      min(e.source_token_id) example
    FROM draft.noel_mark_lxx_choice_occurrences_v1 e
    JOIN draft.noel_mark_identities i ON i.identity_id=e.identity_id
