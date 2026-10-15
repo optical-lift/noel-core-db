@@ -1,0 +1,53 @@
+name: Noel Song LXX Evidence Population
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_project_ref:
+        description: "Type Noel's exact Supabase production project ref"
+        required: true
+        type: string
+      confirm_migration:
+        description: "Type 20261015230001 to confirm the released Noel migration"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noel-core-production-database-release
+  cancel-in-progress: false
+
+jobs:
+  populate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: production
+    env:
+      NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+      CONFIRM_NOEL_PROJECT_REF: ${{ inputs.confirm_project_ref }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm Noel-only target
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirm_project_ref }}" = 'zirqkouammpwxlqfbsvf'
+          test "${{ inputs.confirm_migration }}" = '20261015230001'
+          test -n "$NOEL_CORE_DATABASE_URL"
+          command -v psql
+      - name: Verify immutable repository custody
+        run: |
+          bash scripts/check-custody-trigger.sh
+          bash scripts/check-custody.sh
+          bash scripts/check-migration-release-lane.sh 20261015230001 noel
+          bash scripts/check-production-release-contract.sh
+      - name: Verify live Noel release lane
+        run: bash scripts/check-live-production-custody-lane.sh noel
+      - name: Populate evidence with 32 idempotent hash buckets
+        shell: bash
+        run: bash scripts/noel-backfill-song-lxx-evidence-v1.sh
+      - name: Verify live Noel release lane after population
+        run: bash scripts/check-live-production-custody-lane.sh noel
