@@ -178,6 +178,53 @@ phase="disposable database startup"
 mkdir -p "$project_dir"
 cd "$project_dir"
 supabase init --force
+
+# Choose an isolated local database port and project identity. This matters
+# on persistent/self-hosted runners where another Supabase project may already
+# own the CLI default port 54322. No production URL is used beyond the prior
+# schema-only snapshot step.
+local_database_port="$(python3 - <<'PY'
+import socket
+for port in range(55322, 55922):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        if sock.connect_ex(("127.0.0.1", port)) != 0:
+            print(port)
+            break
+else:
+    raise SystemExit("No available local database validation port")
+PY
+)"
+python3 - "$project_dir/supabase/config.toml" "$local_database_port" "$version" <<'PY'
+from pathlib import Path
+import re
+import sys
+import uuid
+
+config_path = Path(sys.argv[1])
+port = int(sys.argv[2])
+version = sys.argv[3]
+text = config_path.read_text(encoding="utf-8")
+section = ""
+found_port = False
+found_identity = False
+out = []
+for line in text.splitlines(keepends=True):
+    stripped = line.strip()
+    if stripped.startswith("[") and stripped.endswith("]"):
+        section = stripped
+    if section == "" and re.match(r'^project_id\s*=', stripped):
+        line = f'project_id = "validation_{version}_{uuid.uuid4().hex[:8]}"\n'
+        found_identity = True
+    elif section == "[db]" and re.match(r'^port\s*=', stripped):
+        line = f'port = {port}\n'
+        found_port = True
+    out.append(line)
+if not found_port or not found_identity:
+    raise SystemExit("Could not establish isolated local project ID and database port")
+config_path.write_text("".join(out), encoding="utf-8")
+print(f"Disposable local validation DB port: {port}")
+PY
+database_url="postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres"
 local_started=true
 startup_attempt=1
 startup_max_attempts=4
@@ -199,6 +246,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   fi
 
   cat "$startup_log" >&2
+  # An occupied local port is not a registry rate limit. Isolated port
+  # selection above avoids that failure rather than blindly retrying it.
   if ! grep -Eiq '(toomanyrequests|too many requests|rate[ -]?limit|rate exceeded|429)' "$startup_log"; then
     echo "Disposable database startup failed for a non-registry-throttling reason on attempt ${startup_attempt}." >&2
     exit "$startup_status"
