@@ -176,6 +176,7 @@ declare
   v_anchor_date date;
   v_anchor_title text;
   v_week_start date;
+  v_today date;
   v_duration integer;
   v_kernel_title text;
   v_days_known integer;
@@ -191,6 +192,7 @@ begin
   v_context:=atlas.personal_week_planning_context_self_api_v1(p_week_of);
   v_household:=(v_context->>'householdId')::uuid;
   v_week_start:=(v_context->>'weekStart')::date;
+  v_today:=(statement_timestamp() at time zone (v_context->>'timezone'))::date;
   v_days:=v_context->'days';
   select d.title into v_kernel_title from atlas.world_kernel_definitions d
   where d.kernel_key=p_kernel_key and d.active
@@ -238,6 +240,7 @@ begin
            and coalesce((x.value#>>'{capacity,discretionaryCapacityMinutes}')::integer,0)>=v_duration
            -- Date-level fit must not pretend to know a free hour inside a fixed event.
            and jsonb_array_length(coalesce(x.value->'fixedHouseholdEvents','[]'::jsonb))=0
+           and (x.value->>'localDate')::date>=v_today
            and (v_anchor_date is null or (x.value->>'localDate')::date<v_anchor_date))
   into v_days_known,v_eligible
   from jsonb_array_elements(v_days) x;
@@ -262,6 +265,7 @@ begin
        (free_minutes-v_duration) as remaining_minutes
     from compared
     where capacity_known and free_minutes>=v_duration
+      and local_day>=v_today
       and fixed_count=0
       and (v_anchor_date is null or local_day<v_anchor_date)
   ), ordered as (
@@ -303,6 +307,7 @@ begin
     'truthBoundary',jsonb_build_object(
       'readOnly',true,'noPlacementEstablished',true,
       'allSevenCapacityDaysRequired',true,
+      'noPastDateRecommendations',true,
       'provisionalFitOnly',true,
       'incompleteExternalSourceCoverage',true,
       'noCrossKernelDependencyInferred',true,
