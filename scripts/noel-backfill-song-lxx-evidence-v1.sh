@@ -47,6 +47,8 @@ if [[ "$baseline" != '287|196|306785|110a9c696db65826bc3cf3b280d31f53' ]]; then
  exit 1
 fi
 
+action="${NOEL_EVIDENCE_ACTION:-verify_only}"
+if [[ "$action" == populate_and_verify ]]; then
 tmp=$(mktemp)
 trap 'rm -f "$tmp"' EXIT
 for bucket in $(seq 0 31); do
@@ -62,11 +64,22 @@ for bucket in $(seq 0 31); do
   echo "Verified cumulative rows in this bucket: $n"
 done
 
+elif [[ "$action" == verify_only ]]; then
+  echo 'Noel evidence: verification-only mode; no backfill SQL will execute.'
+else
+  echo "Invalid Noel evidence action: $action" >&2
+  exit 2
+fi
+
 if [[ "$(read_sql "$baseline_sql")" != "$baseline" ]]; then
   echo 'Noel founder or Hebrew source baseline changed; investigate.' >&2
   exit 1
 fi
-invalid=$(read_sql "SELECT count(*) FROM draft.noel_mark_lxx_choice_occurrences_v1 e WHERE NOT EXISTS (
+invalid=0
+for bucket in $(seq 0 31); do
+  invalid_bucket=$(read_sql "SELECT count(*) FROM draft.noel_mark_lxx_choice_occurrences_v1 e
+   WHERE mod(abs(hashtext(e.identity_id)::bigint),32)=$bucket
+   AND NOT EXISTS (
  SELECT 1 FROM draft.noel_mark_occurrence_bindings b
  JOIN draft.noel_mark_identity_forms f ON f.form_id=b.form_id
  JOIN core.alignment_segment_members sm
@@ -84,6 +97,12 @@ invalid=$(read_sql "SELECT count(*) FROM draft.noel_mark_lxx_choice_occurrences_
  AND a.target_token_count=e.target_segment_count
  AND g.greek_lex=e.greek_lexeme_key
 );")
+  if [[ "$invalid_bucket" != 0 ]]; then
+    echo "Integrity test failed in hash bucket $bucket: $invalid_bucket invalid records" >&2
+    exit 1
+  fi
+  echo "Verified source↔Greek membership bucket $bucket / 31"
+done
 if [[ "$invalid" != 0 ]]; then
   echo "Invalid Greek↔Hebrew evidence membership links: $invalid" >&2
   exit 1
@@ -114,14 +133,15 @@ totals=$(read_sql "SELECT (SELECT count(*) FROM draft.noel_mark_lxx_choice_occur
  (SELECT count(DISTINCT identity_id) FROM draft.noel_mark_song_anchor_choices_v1),
  (SELECT count(*) FROM draft.noel_mark_translation_constraints_v1
  WHERE assessment_state='canon_excluded');")
-echo "Completed Noel evidence: choices|Song anchors|Song mark identities|exclusions=$totals"
+echo "Noel evidence $action passed: choices|Song anchors|Song mark identities|exclusions=$totals"
 echo "Unchanged founder baseline=$baseline"
 if [[ -n "$GITHUB_STEP_SUMMARY" ]]; then
   {
-    echo '### Noel evidence population complete'
+    echo '### Noel Song–LXX evidence verified'
     echo "Version $version; sealed production migration receipt matched."
     echo "Choices | Song anchors | Song mark identities | exclusions: $totals"
     echo "Founder and source baseline unchanged: $baseline"
+    echo "Verification mode: $action; 32 source-integrity checks completed."
     echo 'Song 4:8 and Jeremiah 2:32 phrase tests passed; no Atlas schema or application changes.'
   } >> "$GITHUB_STEP_SUMMARY"
 fi
