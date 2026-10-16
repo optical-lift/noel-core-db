@@ -233,6 +233,8 @@ begin
   select count(*) filter(where coalesce((x.value#>>'{capacity,capacityKnown}')::boolean,false)),
          count(*) filter(where coalesce((x.value#>>'{capacity,capacityKnown}')::boolean,false)
            and coalesce((x.value#>>'{capacity,discretionaryCapacityMinutes}')::integer,0)>=v_duration
+           -- Date-level fit must not pretend to know a free hour inside a fixed event.
+           and jsonb_array_length(coalesce(x.value->'fixedHouseholdEvents','[]'::jsonb))=0
            and (v_anchor_date is null or (x.value->>'localDate')::date<v_anchor_date))
   into v_days_known,v_eligible
   from jsonb_array_elements(v_days) x;
@@ -257,6 +259,7 @@ begin
        (free_minutes-v_duration) as remaining_minutes
     from compared
     where capacity_known and free_minutes>=v_duration
+      and fixed_count=0
       and (v_anchor_date is null or local_day<v_anchor_date)
   ), ordered as (
     select row_number() over(order by fixed_count,obligation_count,rhythm_count,
