@@ -90,7 +90,7 @@ begin
     principal_id,title,block_kind,starts_at,ends_at,blocks_capacity,
     floor_class,protection_level,reason_for_floor
   ) values (
-    v_principal,'Synthetic personal time block','protected_time',
+    v_principal,'Synthetic personal time block','human_fixed',
     (v_today+time '11:00') at time zone 'America/Chicago',
     (v_today+time '12:00') at time zone 'America/Chicago',
     true,3,'protected','Synthetic real one-hour unavailable time'
