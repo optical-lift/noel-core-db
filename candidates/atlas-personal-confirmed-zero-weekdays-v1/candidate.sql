@@ -406,7 +406,8 @@ begin
       'truthBoundary',jsonb_build_object(
         'ownerConfirmedNoAvailability',true,
         'noFabricatedTimeInterval',true,
-        'zeroAvailabilityLivesInCapacityBlocks',true,
+        'confirmedZeroCapacityLivesInPolicy',true,
+        'noCapacityBlockWasSynthesized',true,
         'partialAvailabilityLivesInCapacityAdjustments',true,
         'adjustmentsDoNotCreateClockCandidates',true
       )
