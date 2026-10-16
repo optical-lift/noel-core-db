@@ -3,7 +3,7 @@
 -- No recurrence authority, schedule write, task, Clock replacement or inferred calendar facts.
 
 create or replace function atlas.personal_week_planning_context_self_api_v1(
-  p_week_of date default current_date
+  p_week_of date default null
 )
 returns jsonb
 language plpgsql
@@ -151,7 +151,7 @@ $function$;
 revoke all on function atlas.personal_week_planning_context_self_api_v1(date)
   from public,anon,authenticated;
 create or replace function public.personal_week_planning_context_self_api_v1(
-  p_week_of date default current_date
+  p_week_of date default null
 ) returns jsonb
 language sql stable security definer set search_path to ''
 as $function$
@@ -162,7 +162,7 @@ grant execute on function public.personal_week_planning_context_self_api_v1(date
 
 create or replace function atlas.personal_week_work_fit_preview_self_api_v1(
   p_kernel_key text,
-  p_week_of date default current_date,
+  p_week_of date default null,
   p_before_household_event_id uuid default null,
   p_estimated_minutes integer default null
 ) returns jsonb
@@ -312,7 +312,7 @@ revoke all on function atlas.personal_week_work_fit_preview_self_api_v1(text,dat
   from public,anon,authenticated;
 create or replace function public.personal_week_work_fit_preview_self_api_v1(
   p_kernel_key text,
-  p_week_of date default current_date,
+  p_week_of date default null,
   p_before_household_event_id uuid default null,
   p_estimated_minutes integer default null
 ) returns jsonb
