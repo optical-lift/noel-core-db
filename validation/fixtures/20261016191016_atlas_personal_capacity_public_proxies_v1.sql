@@ -47,3 +47,15 @@ where p.user_id in (
  '62000000-0000-4000-8000-000000000001',
  '62000000-0000-4000-8000-000000000002'
 );
+
+-- Existing synthetic Principals need an active Personal access grant so the
+-- real already-established enrollment path can canonically admit their Person.
+-- This is disposable-clone DML, not a production entitlement.
+insert into atlas.personal_atlas_access_grants(principal_id,grant_kind,state,basis)
+select p.id,'complimentary_testing','active',
+       '{"origin":"isolated_clone_fixture"}'::jsonb
+from atlas.principals p
+where p.user_id in (
+ '62000000-0000-4000-8000-000000000001',
+ '62000000-0000-4000-8000-000000000002'
+);
