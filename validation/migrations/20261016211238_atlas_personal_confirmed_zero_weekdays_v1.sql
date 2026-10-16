@@ -17,12 +17,13 @@ declare
  v_fit jsonb;
  v_other jsonb;
  v_denied boolean;
+ v_grant_anon boolean;
+ v_grant_auth boolean;
 begin
  v_monday:=v_today-(extract(isodow from v_today)::integer-1)+7;
- if has_function_privilege('anon','public.personal_set_capacity_policy_self_api_v1(jsonb)','EXECUTE')
-   or not has_function_privilege('authenticated','public.personal_set_capacity_policy_self_api_v1(jsonb)','EXECUTE') then
-    raise exception 'Self-owned capacity source API privilege regression';
- end if;
+ v_grant_anon:=has_function_privilege('anon','public.personal_set_capacity_policy_self_api_v1(jsonb)','EXECUTE');
+ v_grant_auth:=has_function_privilege('authenticated','public.personal_set_capacity_policy_self_api_v1(jsonb)','EXECUTE');
+ raise notice 'Clone restored Personal capacity public proxy grants: anon=%, authenticated=%',v_grant_anon,v_grant_auth;
 
  perform set_config('request.jwt.claim.sub',u_a::text,true);
  perform set_config('request.jwt.claim.role','authenticated',true);
@@ -149,5 +150,8 @@ begin
  perform set_config('request.jwt.claim.sub','',true);
  perform set_config('request.jwt.claims','{}',true);
  raise notice 'Owner capacity known-zero vs unknown, no fake window, existing positive, retry, mixed week fit, conflicting source and other-Person isolation proved.';
+ if v_grant_anon is distinct from false or v_grant_auth is distinct from true then
+   raise exception 'Clone public proxy privilege state differs from expected: anon=%, authenticated=%',v_grant_anon,v_grant_auth;
+ end if;
 end
 $zero$;
