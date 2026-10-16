@@ -87,7 +87,24 @@ begin
    or v_state->>'availableKnownCapacityDays'<>'7'
    or v_state#>>'{recommendation,epistemicState}'<>'provisional_candidate_not_approved'
    or v_state#>>'{recommendation,localDate}'<>v_week::text then
-   raise exception 'Known source capacity did not produce provisional earliest fit: %',v_state->>'state';
+   raise exception 'Known source capacity did not produce provisional earliest fit: state=%, days=%, eligibility=%',
+    v_state->>'state',
+    (select jsonb_agg(jsonb_build_object(
+      'day',d.value->>'localDate',
+      'capacityKnown',d.value#>>'{capacity,capacityKnown}',
+      'capacityState',d.value#>>'{capacity,state}',
+      'discretionaryMinutes',d.value#>>'{capacity,discretionaryCapacityMinutes}',
+      'availableElapsedMinutes',d.value#>>'{capacity,availableElapsedMinutes}',
+      'policyId',d.value#>>'{capacity,policyId}',
+      'fixedHouseholdEvents',jsonb_array_length(coalesce(d.value->'fixedHouseholdEvents','[]'::jsonb)),
+      'existingRhythms',jsonb_array_length(coalesce(d.value->'currentRhythmWindows','[]'::jsonb))
+    ) order by d.ordinality)
+     from jsonb_array_elements(v_state#>'{context,days}') with ordinality d(value,ordinality)),
+    jsonb_build_object(
+      'knownDays',v_state->'availableKnownCapacityDays',
+      'estimatedMinutes',v_state->'estimatedMinutes',
+      'recommendation',v_state->'recommendation'
+    );
  end if;
 
  insert into atlas.household_events(
