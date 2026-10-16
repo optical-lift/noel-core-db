@@ -169,6 +169,22 @@ begin
     (v_member_user,v_member_person,'{"purpose":"provider_connection_member_test"}'::jsonb),
     (v_consultant_user,v_consultant_person,'{"purpose":"provider_connection_consultant_test"}'::jsonb);
 
+  -- The Atlas Person shell and Reality canonical Person must bear the SAME
+  -- identity UUID; the membership compatibility trigger requires this,
+  -- and observed live cross-bindings preserve that identity.
+  insert into atlas.people(id,display_name,status,metadata)
+  values
+    (v_owner_person,'Provider Proof Owner','active','{"purpose":"provider_connection_clone_proof"}'::jsonb),
+    (v_member_person,'Provider Proof Member','active','{"purpose":"provider_connection_clone_proof"}'::jsonb),
+    (v_consultant_person,'Provider Proof Consultant','active','{"purpose":"provider_connection_clone_proof"}'::jsonb);
+
+  insert into atlas.person_auth_credentials(
+    person_id,credential_kind,auth_user_id,status,provenance
+  ) values
+    (v_owner_person,'supabase_auth_user',v_owner_user,'active','{"basis":"provider_connection_clone_proof"}'::jsonb),
+    (v_member_person,'supabase_auth_user',v_member_user,'active','{"basis":"provider_connection_clone_proof"}'::jsonb),
+    (v_consultant_person,'supabase_auth_user',v_consultant_user,'active','{"basis":"provider_connection_clone_proof"}'::jsonb);
+
   insert into atlas.organization_memberships(organization_id,user_id,role,active,person_id)
   values
     (v_org,v_owner_user,'owner',true,v_owner_person),
