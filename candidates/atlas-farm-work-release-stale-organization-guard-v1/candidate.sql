@@ -305,6 +305,6 @@ begin
     'activeTopLevel',v_active_top,'safetyLimit',v_settings.maximum_active_safety_tasks
   );
 end;
-$function$
+$function$;
 
 commit;
