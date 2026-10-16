@@ -75,7 +75,6 @@ if [[ "$(read_sql "$baseline_sql")" != "$baseline" ]]; then
   echo 'Noel founder or Hebrew source baseline changed; investigate.' >&2
   exit 1
 fi
-invalid=0
 for bucket in $(seq 0 31); do
   invalid_bucket=$(read_sql "SELECT count(*) FROM draft.noel_mark_lxx_choice_occurrences_v1 e
    WHERE mod(abs(hashtext(e.identity_id)::bigint),32)=$bucket
@@ -103,10 +102,6 @@ for bucket in $(seq 0 31); do
   fi
   echo "Verified source↔Greek membership bucket $bucket / 31"
 done
-if [[ "$invalid" != 0 ]]; then
-  echo "Invalid Greek↔Hebrew evidence membership links: $invalid" >&2
-  exit 1
-fi
 invalid_song=$(read_sql "SELECT count(*) FROM draft.noel_mark_song_anchor_choices_v1 x
  JOIN draft.noel_mark_lxx_choice_occurrences_v1 e ON e.choice_id=x.choice_id
  LEFT JOIN intelligence.v_canon_source_text_spine s
