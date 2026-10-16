@@ -117,7 +117,7 @@ begin
   into v_days
   from (
     select (v_monday+offset.day_number)::date as day
-    from generate_series(0,6) offset(day_number)
+    from generate_series(0,6) g(day_number)
   ) d;
 
   return jsonb_build_object(
@@ -332,9 +332,9 @@ insert into atlas.authenticated_rpc_registry(
   caller_count,policy_reference_count,evidence,anonymous_execute_expected
 )
 values
-('public.personal_week_planning_context_self_api_v1(date)','personal_read','high','reviewed',true,true,false,0,0,
+('public.personal_week_planning_context_self_api_v1(date)','app_endpoint','provisional','active',true,true,false,0,0,
   '{"source":"atlas_personal_week_fit_readonly_v1","sourceOwned":true,"readOnly":true}'::jsonb,false),
-('public.personal_week_work_fit_preview_self_api_v1(text,date,uuid,integer)','personal_read','high','reviewed',true,true,false,0,0,
+('public.personal_week_work_fit_preview_self_api_v1(text,date,uuid,integer)','app_endpoint','provisional','active',true,true,false,0,0,
   '{"source":"atlas_personal_week_fit_readonly_v1","sourceOwned":true,"readOnly":true}'::jsonb,false)
 on conflict(signature) do update set
   classification=excluded.classification,confidence=excluded.confidence,
