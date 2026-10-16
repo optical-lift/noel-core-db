@@ -188,6 +188,113 @@ revoke all on function public.record_personal_cleaning_object_actual_self_api_v1
 grant execute on function public.record_personal_cleaning_object_actual_self_api_v1(jsonb)
   to authenticated,service_role;
 
+
+-- A narrow re-read for exactly one owner-scoped physical actual. Do not expose
+-- the entire Household Claim/Evidence ledger just to verify a single action.
+create or replace function atlas.personal_cleaning_object_actual_self_api_v1(p_claim_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=pg_catalog,atlas,auth
+as $function$
+declare
+  v_household_id uuid;
+  v_claim atlas.claim_records%rowtype;
+  v_evidence atlas.evidence_records%rowtype;
+  v_requirement_id uuid;
+  v_transition text;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode='42501';
+  end if;
+  v_household_id:=atlas.principal_current_household_id_v1();
+  if v_household_id is null or p_claim_id is null then
+    raise exception 'Current Household and exact actual Claim required.' using errcode='42501';
+  end if;
+  select c.* into v_claim
+    from atlas.claim_records c
+    join atlas.household_care_objects o
+      on o.id::text=c.subject_id
+     and o.household_id=c.scope_id
+    where c.id=p_claim_id
+      and c.scope_kind='household'
+      and c.scope_id=v_household_id
+      and c.subject_domain='household.cleaning'
+      and c.subject_kind='care_object'
+      and c.claim_type='care_actual'
+      and c.lifecycle_state='observed'
+      and c.source_kind='household_principal_capture'
+      and o.household_id=v_household_id;
+  if v_claim.id is null then
+    raise exception 'A current-household Cleaning object actual was not found.' using errcode='P0002';
+  end if;
+  select e.* into v_evidence
+    from atlas.evidence_records e
+    where e.id=v_claim.primary_evidence_id
+      and e.scope_kind='household'
+      and e.scope_id=v_household_id
+      and e.subject_domain=v_claim.subject_domain
+      and e.subject_kind=v_claim.subject_kind
+      and e.subject_id=v_claim.subject_id
+      and e.source_kind=v_claim.source_kind
+      and e.source_key=v_claim.source_key
+      and e.evidence_kind='first_party_physical_care_actual'
+      and e.actor_user_id=auth.uid();
+  if v_evidence.id is null
+     or v_evidence.value is distinct from v_claim.value
+     or v_evidence.observed_at is distinct from v_claim.valid_from then
+    raise exception 'Physical actual Claim/Evidence identity mismatch.' using errcode='55000';
+  end if;
+  v_requirement_id:=nullif(v_claim.value->>'requirementId','')::uuid;
+  v_transition:=v_claim.value->>'transition';
+  if v_requirement_id is null
+    or v_transition not in ('care_performed','care_partially_performed','care_blocked')
+    or not exists(
+      select 1 from atlas.household_object_care_requirements r
+      where r.id=v_requirement_id
+        and r.object_id::text=v_claim.subject_id
+        and r.household_id=v_household_id
+        and r.care_kind='cleaning'
+    ) then
+    raise exception 'Physical actual requirement/transition cannot be verified.' using errcode='55000';
+  end if;
+  return jsonb_build_object(
+    'ok',true,
+    'contractVersion','household_object_care_actual_read_v1',
+    'householdId',v_household_id,
+    'objectId',v_claim.subject_id,
+    'requirementId',v_requirement_id,
+    'claimId',v_claim.id,
+    'evidenceId',v_evidence.id,
+    'transition',v_transition,
+    'occurredAt',v_evidence.observed_at,
+    'actorUserId',v_evidence.actor_user_id,
+    'truthBoundary',jsonb_build_object(
+      'ownerScopedVerifiedPhysicalReport',true,
+      'fullRoomConditionNotEstablished',true,
+      'requirementOccurrenceNotResolved',true,
+      'noClockPlacement',true
+    )
+  );
+end;
+$function$;
+
+revoke all on function atlas.personal_cleaning_object_actual_self_api_v1(uuid) from public,anon;
+grant execute on function atlas.personal_cleaning_object_actual_self_api_v1(uuid)
+  to authenticated,service_role;
+
+create or replace function public.personal_cleaning_object_actual_self_api_v1(p_claim_id uuid)
+returns jsonb
+language sql stable security definer set search_path=pg_catalog
+as $function$
+  select atlas.personal_cleaning_object_actual_self_api_v1(p_claim_id);
+$function$;
+
+revoke all on function public.personal_cleaning_object_actual_self_api_v1(uuid) from public,anon;
+grant execute on function public.personal_cleaning_object_actual_self_api_v1(uuid)
+  to authenticated,service_role;
+
 insert into atlas.authenticated_rpc_registry(
   signature,classification,confidence,review_status,
   authenticated_execute_expected,security_definer_expected,
@@ -201,6 +308,14 @@ values (
   jsonb_build_object(
     'purpose','Record an explicitly reported object-level physical Cleaning action through the current Household Claim/Evidence membrane.',
     'boundary','No implicit room condition, task completion, future recurrence, or Clock placement; scope and exact object/requirement derived or checked on the server.'
+  ),now()
+),(
+  'atlas.personal_cleaning_object_actual_self_api_v1(uuid)',
+  'app_endpoint','verified','active',
+  true,true,true,false,0,0,
+  jsonb_build_object(
+    'purpose','Narrow owner-scoped read-back of one object Cleaning physical actual with Claim/Evidence identity and requirement proof.',
+    'boundary','Only one current-Household exact Claim; verifies primary Evidence, actor, requirement identity and supported physical transition.'
   ),now()
 )
 on conflict(signature) do update set
