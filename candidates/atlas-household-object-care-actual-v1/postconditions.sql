@@ -46,13 +46,4 @@ begin
      and not r.anonymous_execute_expected)<>2 then
    raise exception 'Both object care RPC custody entries are required.';
  end if;
- if not exists(
-   select 1 from atlas.authenticated_rpc_registry r
-   where r.signature in ('atlas.record_personal_cleaning_object_actual_self_api_v1(jsonb)', 'atlas.personal_cleaning_object_actual_self_api_v1(uuid)')
-     and r.review_status='active' and r.authenticated_execute_expected
-     and r.security_definer_expected and r.service_execute_expected
-     and not r.anonymous_execute_expected
- ) then
-   raise exception 'Object care writer RPC custody registration absent.';
- end if;
 end $$;
