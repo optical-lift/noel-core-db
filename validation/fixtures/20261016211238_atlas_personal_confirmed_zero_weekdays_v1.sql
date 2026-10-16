@@ -68,3 +68,16 @@ insert into atlas.world_kernel_models(
   kernel_key,kernel_version,audience_key,model_key,title,summary,configuration,position,active
 ) values ('household.cleaning',1,'general','clone-cleaning-estimate','Weekly home care',
  'Synthetic known estimate','{"expectedMinutes":30,"usualPattern":"weekly"}'::jsonb,1,true);
+
+-- Schema-only Supabase clone restoration does not carry the live public RPC
+-- ACLs. Reconstruct the independently inspected PRODUCTION proxy permissions
+-- (authenticated execute, anon denied) before testing authorization. This
+-- fixture runs only inside the disposable clone; never in production.
+revoke all on function public.personal_capacity_policies_self_api_v1()
+  from public,anon,authenticated;
+grant execute on function public.personal_capacity_policies_self_api_v1()
+  to authenticated;
+revoke all on function public.personal_set_capacity_policy_self_api_v1(jsonb)
+  from public,anon,authenticated;
+grant execute on function public.personal_set_capacity_policy_self_api_v1(jsonb)
+  to authenticated;
