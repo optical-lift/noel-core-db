@@ -11,6 +11,14 @@ on:
         description: "Type 20261015230001 to confirm the released Noel migration"
         required: true
         type: string
+      operation:
+        description: "Verify existing evidence or populate missing evidence then verify"
+        required: true
+        default: verify_only
+        type: choice
+        options:
+          - verify_only
+          - populate_and_verify
 
 permissions:
   contents: read
@@ -31,6 +39,7 @@ jobs:
       NOEL_CORE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_3UCb5b3USJD24c2uX6B_4A_0XWDT6si
       CONFIRM_NOEL_PROJECT_REF: ${{ inputs.confirm_project_ref }}
       CONFIRM_NOEL_MIGRATION: ${{ inputs.confirm_migration }}
+      NOEL_EVIDENCE_ACTION: ${{ inputs.operation }}
     steps:
       - uses: actions/checkout@v4
       - name: Confirm Noel-only target
@@ -39,6 +48,7 @@ jobs:
           set -euo pipefail
           test "$CONFIRM_NOEL_PROJECT_REF" = 'zirqkouammpwxlqfbsvf'
           test "$CONFIRM_NOEL_MIGRATION" = '20261015230001'
+          test "$NOEL_EVIDENCE_ACTION" = 'verify_only' || test "$NOEL_EVIDENCE_ACTION" = 'populate_and_verify'
           test -n "$NOEL_CORE_DATABASE_URL"
           command -v psql
       - name: Verify immutable repository custody
@@ -49,7 +59,7 @@ jobs:
           bash scripts/check-production-release-contract.sh
       - name: Verify live Noel release lane
         run: bash scripts/check-live-production-custody-lane.sh noel
-      - name: Populate evidence with 32 idempotent hash buckets
+      - name: Populate if requested, then verify evidence in 32 bounded checks
         shell: bash
         run: bash scripts/noel-backfill-song-lxx-evidence-v1.sh
       - name: Verify live Noel release lane after population
