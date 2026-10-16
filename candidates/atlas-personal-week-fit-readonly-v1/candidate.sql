@@ -116,7 +116,7 @@ begin
     ) order by d.day),'[]'::jsonb)
   into v_days
   from (
-    select (v_monday+offset.day_number)::date as day
+    select (v_monday+g.day_number)::date as day
     from generate_series(0,6) g(day_number)
   ) d;
 
