@@ -40,6 +40,9 @@ begin
  perform set_config('request.jwt.claims',
   jsonb_build_object('sub',u_a::text,'role','authenticated')::text,true);
 
+ -- Only the actual canonical already-established enrollment contract can
+ -- admit this synthetic legacy Principal into a native Personal Atlas.
+ perform atlas.begin_personal_atlas_self_api_v1('Synthetic Capacity Principal A','America/Chicago');
  -- Native Person + native Personal Atlas must exist: the internal writer
  -- fails closed when these identity prerequisites are absent.
  if atlas.current_person_id_v1() is null then
@@ -95,6 +98,7 @@ begin
  perform set_config('request.jwt.claim.sub',u_b::text,true);
  perform set_config('request.jwt.claims',
   jsonb_build_object('sub',u_b::text,'role','authenticated')::text,true);
+ perform atlas.begin_personal_atlas_self_api_v1('Synthetic Capacity Principal B','America/Chicago');
  v_b_read:=public.personal_capacity_policies_self_api_v1();
  if v_b_read#>>'{personEntityId}'=v_a_read#>>'{personEntityId}'
     or jsonb_array_length(v_b_read->'policies')<>0 then
