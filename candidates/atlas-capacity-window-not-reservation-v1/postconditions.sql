@@ -72,8 +72,8 @@ begin
     floor_class,interruptibility,principal_required,source
   ) values (
     v_household,'ci-real-one-hour-event','Synthetic actual fixed commitment','family_commitment',
-    (v_today::timestamp+time '09:00') at time zone 'America/Chicago',
-    (v_today::timestamp+time '10:00') at time zone 'America/Chicago',
+    (v_today+time '09:00') at time zone 'America/Chicago',
+    (v_today+time '10:00') at time zone 'America/Chicago',
     true,true,60,'protected',3,'interruptible',true,'isolated_clone_fixture'
   ) returning id into v_event;
   v_after_event:=atlas.principal_capacity_day_state_v1(v_principal,v_today);
@@ -91,8 +91,8 @@ begin
     floor_class,protection_level,reason_for_floor
   ) values (
     v_principal,'Synthetic personal time block','protected_time',
-    (v_today::timestamp+time '11:00') at time zone 'America/Chicago',
-    (v_today::timestamp+time '12:00') at time zone 'America/Chicago',
+    (v_today+time '11:00') at time zone 'America/Chicago',
+    (v_today+time '12:00') at time zone 'America/Chicago',
     true,3,'protected','Synthetic real one-hour unavailable time'
   ) returning id into v_block;
   v_after_block:=atlas.principal_capacity_day_state_v1(v_principal,v_today);
