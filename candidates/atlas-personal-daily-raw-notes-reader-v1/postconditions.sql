@@ -51,7 +51,7 @@ begin
   perform atlas.begin_personal_atlas_self_api_v1('Synthetic Daily Log B','America/Chicago');
   page_b:=public.personal_daily_raw_notes_self_api_v1(d);
   if page_b->>'total'<>'0' or jsonb_array_length(page_b->'items')<>0 then
-    raise exception 'Other Person received first owner's observation'; end if;
+    raise exception 'Other Person received first owner''s observation'; end if;
   perform set_config('request.jwt.claim.sub','',true);
   perform set_config('request.jwt.claims','{}',true);
   raise notice 'Personal day capture and owner-only source readback proved, no task inferred';
