@@ -33,6 +33,8 @@ The owning writer verifies the signed-in Principal's current Household; active c
 
 It writes **one scoped first-party physical-actual Evidence plus observed Claim** on the exact object, preserving the requirement ID and time.
 
+The paired `personal_cleaning_object_actual_self_api_v1(p_claim_id)` read surface verifies **only the exact result**, against the authenticated actor's current Household, the object's requirement, primary Evidence ID, claimed transition, and occurrence time. The Atlas Workbench may not display an established physical result until that persisted read-back matches the writer receipt. A broad Household Claim/Evidence read is not required.
+
 ## What it does NOT establish
 
 An explicit report that a toilet was scrubbed does **not** prove:
