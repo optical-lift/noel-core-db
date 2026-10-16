@@ -89,8 +89,8 @@ begin
   or v_zero_day->>'discretionaryCapacityMinutes'<>'0'
   or v_zero_day->>'maximumPlannedMinutes'<>'0'
   or v_zero_day#>>'{truthBoundary,noFabricatedTimeInterval}'<>'true'
-  or v_zero_day->>'startsAt'<>'null'
-  or v_zero_day->>'endsAt'<>'null' then
+  or jsonb_typeof(v_zero_day->'startsAt')<>'null'
+  or jsonb_typeof(v_zero_day->'endsAt')<>'null' then
   raise exception 'Known-zero Saturday not faithfully projected: %',v_zero_day;
  end if;
  if v_pos_day->>'capacityKnown'<>'true'
