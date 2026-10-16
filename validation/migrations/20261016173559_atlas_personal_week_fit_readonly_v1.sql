@@ -96,8 +96,8 @@ begin
    interruptibility,principal_required,source
  ) values (
    hh_a,'clone-friday-guests','Synthetic Friday guests','family_commitment',
-   (v_week+4)::timestamp + time '10:00' at time zone 'America/Chicago',
-   (v_week+4)::timestamp + time '12:00' at time zone 'America/Chicago',
+   ((v_week+4) + time '10:00') at time zone 'America/Chicago',
+   ((v_week+4) + time '12:00') at time zone 'America/Chicago',
    true,true,120,'protected',3,'interruptible',true,'isolated_clone_fixture'
  ) returning id into v_anchor;
 
@@ -130,8 +130,8 @@ begin
    interruptibility,principal_required,source
  ) values (
    hh_b,'clone-foreign-guests','Synthetic foreign guests','family_commitment',
-   (v_week+4)::timestamp + time '10:00' at time zone 'America/Chicago',
-   (v_week+4)::timestamp + time '11:00' at time zone 'America/Chicago',
+   ((v_week+4) + time '10:00') at time zone 'America/Chicago',
+   ((v_week+4) + time '11:00') at time zone 'America/Chicago',
    true,true,60,'protected',3,'interruptible',true,'isolated_clone_fixture'
  ) returning id into v_foreign;
 
