@@ -543,6 +543,72 @@ BEGIN
 END
 $owner_current_plan_proof$;
 
+-- Correct worker identity and plan never license reporting Work from a
+-- different Organization operating unit. The actual write was already
+-- restricted; the read must advertise the same deny state.
+RESET ROLE;
+DO $cross_unit_setup$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_unit uuid:=gen_random_uuid();
+BEGIN
+ INSERT INTO atlas.organization_units(id,organization_id,stable_key,name)
+ VALUES(v_unit,(f->>'org')::uuid,
+  'synthetic-other-unit-'||v_unit::text,'Synthetic unrelated operating unit');
+ UPDATE atlas.work_items SET organization_unit_id=v_unit
+ WHERE id=(f->>'work')::uuid;
+ RAISE NOTICE 'PASS: isolated fixture moved selected Work to a different operating unit without transferring the worker position';
+END
+$cross_unit_setup$;
+SET LOCAL ROLE service_role;
+DO $cross_unit_worker_read$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_feed jsonb;v_state text;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ v_feed:=atlas.company_work_worker_day_self_api_v1((f->>'today')::date,1);
+ SELECT item#>>'{resultReporting,state}' INTO v_state
+ FROM jsonb_array_elements(v_feed->'items') item
+ WHERE item->>'projectionId'=f->>'todayProjection';
+ IF v_state<>'worker_position_unit_mismatch' THEN
+   RAISE EXCEPTION 'FAIL: cross-unit Worker Day was mislabeled reportable: %',v_state;
+ END IF;
+ RAISE NOTICE 'PASS: cross-unit employee self-read is not reportable';
+END
+$cross_unit_worker_read$;
+SET LOCAL ROLE authenticated;
+DO $cross_unit_worker_write_denial$
+DECLARE f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+  'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ BEGIN
+   PERFORM atlas.worker_report_company_work_projection_self_api_v1(
+     (f->>'todayProjection')::uuid,'completed',
+     'synthetic-cross-unit-'||gen_random_uuid()::text,'{}'::jsonb);
+   RAISE EXCEPTION 'FAIL: cross-unit employee completion was accepted';
+ EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+ RAISE NOTICE 'PASS: authenticated worker completion denied on unrelated operating unit';
+END
+$cross_unit_worker_write_denial$;
+RESET ROLE;
+DO $cross_unit_restore$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_unit uuid;
+BEGIN
+ SELECT organization_unit_id INTO v_unit
+ FROM atlas.farms WHERE id=(f->>'farm')::uuid;
+ UPDATE atlas.work_items SET organization_unit_id=v_unit
+ WHERE id=(f->>'work')::uuid;
+ RAISE NOTICE 'PASS: synthetic Work restored to original worker position unit';
+END
+$cross_unit_restore$;
+
 -- A current plan and work-item relation alone cannot authenticate an
 -- older projection. Exercise BOTH the read-only affordance and denied write.
 SET LOCAL ROLE service_role;
