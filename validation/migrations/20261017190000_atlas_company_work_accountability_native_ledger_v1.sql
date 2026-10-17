@@ -887,4 +887,86 @@ END
 $source_bridge_worker_report$;
 
 RESET ROLE;
+DO $source_bridge_replan$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ b jsonb:=current_setting('atlas.test_reconciled_worker_case')::jsonb;
+ v_update jsonb;v_projection atlas.worker_week_projection%rowtype;
+ v_plan_events integer;v_work_count integer;
+BEGIN
+ v_update:=atlas.set_company_work_execution_plan_internal_v1(
+   (b->>'work')::uuid,(f->>'today')::date+1,null,
+   'Synthetic later service date after blocked result',
+   '{"source":"synthetic_governed_reschedule_validation"}'::jsonb
+ );
+ IF v_update->>'state'<>'planned'
+    OR v_update->>'workItemId'<>b->>'work'
+    OR v_update->>'planId'<>b->>'plan'
+    OR (v_update->>'exposureServiceDate')::date<>(f->>'today')::date+1 THEN
+   RAISE EXCEPTION 'FAIL: blocked Company Work did not preserve its plan/Work identity when rescheduled: %',v_update;
+ END IF;
+ SELECT count(*)::integer INTO v_plan_events
+ FROM atlas.work_execution_plan_events
+ WHERE plan_id=(b->>'plan')::uuid;
+ IF v_plan_events<2 THEN RAISE EXCEPTION 'FAIL: original and rescheduled plan history not preserved';END IF;
+ PERFORM set_config('atlas.test_replanned_worker_case',v_update::text,true);
+ RAISE NOTICE 'PASS: blocked Work remains open and its original plan reuses same Work identity with preserved scheduling events';
+END
+$source_bridge_replan$;
+
+SET LOCAL ROLE service_role;
+DO $source_bridge_future_refresh$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ b jsonb:=current_setting('atlas.test_reconciled_worker_case')::jsonb;
+ v_refresh jsonb;v_future jsonb;v_today jsonb;
+ v_projection atlas.worker_week_projection%rowtype;
+ v_count integer;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ v_refresh:=atlas.company_work_worker_day_refresh_self_api_v1((f->>'today')::date+1,1);
+ SELECT * INTO v_projection FROM atlas.worker_week_projection
+ WHERE id=(b->>'projection')::uuid;
+ IF v_projection.id IS NULL OR v_projection.planned_date<>(f->>'today')::date+1
+   OR v_projection.delivery_payload->>'managerPlanId'<>b->>'plan' THEN
+   RAISE EXCEPTION 'FAIL: moving one blocked Work to a later Worker Day created a stale or different projection';
+ END IF;
+ SELECT count(*)::integer INTO v_count
+ FROM atlas.worker_week_projection
+ WHERE source_kind='work_item' AND source_id=(b->>'work')::uuid
+   AND organization_id=(f->>'org')::uuid;
+ IF v_count<>1 THEN RAISE EXCEPTION 'FAIL: rescheduling duplicated a worker projection identity';END IF;
+ v_future:=atlas.company_work_worker_day_self_api_v1((f->>'today')::date+1,1);
+ SELECT item INTO v_today
+ FROM jsonb_array_elements(v_future->'items') item
+ WHERE item->>'projectionId'=b->>'projection';
+ IF v_today IS NULL OR v_today#>>'{resultReporting,state}'<>'not_current_service_day' THEN
+   RAISE EXCEPTION 'FAIL: future rescheduled Worker Day treated as a current completion opportunity';
+ END IF;
+ RAISE NOTICE 'PASS: same Work and projection moved to future day; worker may view it but not report against it today';
+END
+$source_bridge_future_refresh$;
+
+SET LOCAL ROLE authenticated;
+DO $source_bridge_stale_reporting_denial$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ b jsonb:=current_setting('atlas.test_reconciled_worker_case')::jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ BEGIN
+   PERFORM atlas.worker_report_company_work_projection_self_api_v1(
+     (b->>'projection')::uuid,'completed',
+     'synthetic-stale-after-move-'||gen_random_uuid()::text,'{}'::jsonb);
+   RAISE EXCEPTION 'FAIL: rescheduled future Work was completed from stale current-day context';
+ EXCEPTION WHEN sqlstate '23514' THEN NULL; END;
+ RAISE NOTICE 'PASS: authenticated employee result command refuses stale/future rescheduled projection';
+END
+$source_bridge_stale_reporting_denial$;
+
+RESET ROLE;
 ROLLBACK;
