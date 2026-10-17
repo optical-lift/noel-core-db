@@ -67,6 +67,15 @@ Checks require zero initial link rows; direct table SELECT/INSERT/UPDATE denied;
 
 **Still required before a migration is promoted:** identity-bound *positive and negative* authenticated fixture tests (authorized Elm owner; wrong Org, seat-only, lost session, false source ID, dual-Ledger same work, both evidence kinds, stale source proof, withdrawal immutability); schema clone lint; security review of `SECURITY DEFINER` RPC grants; source FK semantics review; canonical timestamped migration generation and protected DB release. Run through existing `docs/PRODUCTION_SCHEMA_CLONE_VALIDATION.md` workflow only after correct migration/lane preparation and explicit release steps. No source merge or CI status is a production deployment.
 
+## Validation receipts (October 17, 2026)
+
+- **Staged package:** `20261017170000_atlas_company_work_native_ledger_relevance_v1`, release lane `atlas_`, not applied to production.
+- **Immutable tested source:** `9248b79dda30d6a95b899d6615dbd198f742291c` on draft PR [#1675](https://github.com/optical-lift/noel-core-db/pull/1675). The committed canonical migration and candidate SQL have identical executable bodies; both validation files are byte-for-byte identical.
+- **[Production-schema clone run #39045688337](https://github.com/optical-lift/noel-core-db/actions/runs/39045688337): SUCCESS.** Production roles/schema were copied read-only, candidate applied to disposable local DB, postconditions ran and transaction-only synthetic fixtures exercised source FK proof, attested Flower+Venue dual purposes, distinct evidence classes, wrong native Ledger rejection, wrong Organization rejection, proof immutability and reasoned withdrawal.
+- **No candidate-introduced Atlas lint errors:** production-clone baseline 14, post-candidate 14, unchanged pre-existing findings 14, new/worsened findings zero. Repo Database Custody CI also passed.
+- **[Diagnostics artifact](https://github.com/optical-lift/noel-core-db/actions/runs/39045688337/artifacts/12105334663)** includes raw local execution and postcondition logs.
+- **Remaining gate:** real identity-bound authenticated positive/negative calls with current session/seat/root grants, plus protected release approval. Synthetic tests do *not* prove the complete authorization path. Draft is not to merge/release until that gate is addressed or separately adjudicated.
+
 ## 6. Conversation 2 handoff (conditional)
 
 Only after tested DB release: use `work_item_id` as the one Company Work identity; `organization_id` and `organization_unit_id` as institution/locus; native `ledger_id` as authorized Ledger relevance; `evidence_kind` and `currentSourceProof` as independent source statuses; `has_current_scope=false` as unresolved relevance. Do not derive a human/role/employment from this relation. Anna/People/Worker Day are later steps. **No historic work, institution, worker, assignment or result changed in this candidate PR.**
