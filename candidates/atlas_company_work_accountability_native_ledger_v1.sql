@@ -264,4 +264,323 @@ COMMENT ON FUNCTION atlas.company_work_accountability_native_ledger_self_api_v1(
   uuid,uuid,text,integer,uuid)
 IS 'Build 3 read-only: exact native Ledger or explicitly labeled Organization Work accountability; authenticated root owner only. Current allocation, institutional plan, actual canonical projection evidence, worker report and source result acceptance remain distinct.';
 
+-- Narrow worker-self date alignment repair. Original source definitions from the
+-- live schema; no manager impersonation, no relaxed RLS and no new writer.
+CREATE OR REPLACE FUNCTION atlas.company_work_projection_result_reporting_self_v1(p_projection_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare
+  v_uid uuid:=auth.uid();
+  v_projection atlas.worker_week_projection%rowtype;
+  v_farm_id uuid;
+  v_context jsonb;
+  v_work_ids uuid[];
+  v_work atlas.work_items%rowtype;
+  v_policy atlas.work_result_contract_policies%rowtype;
+  v_allocation atlas.work_allocations%rowtype;
+  v_plan atlas.work_execution_plans%rowtype;
+begin
+  if v_uid is null then raise exception 'Authenticated employee required.' using errcode='42501'; end if;
+  if p_projection_id is null then raise exception 'Worker Day projection required.' using errcode='22023'; end if;
+
+  select * into v_projection from atlas.worker_week_projection p where p.id=p_projection_id;
+  if v_projection.id is null then raise exception 'Worker Day projection was not found.' using errcode='P0002'; end if;
+
+  select fm.farm_id into v_farm_id
+  from atlas.farm_memberships fm
+  where fm.id=v_projection.membership_id
+    and fm.user_id=v_uid
+    and fm.active;
+  if v_farm_id is null then raise exception 'Worker Day projection is not available to the signed-in employee.' using errcode='42501'; end if;
+
+  v_context:=atlas.organization_employee_worker_context_self_v1(v_farm_id,v_projection.membership_id);
+  if not coalesce((v_context->>'ok')::boolean,false)
+     or v_projection.organization_id is distinct from (v_context->>'organizationId')::uuid
+     or v_projection.organization_membership_id is distinct from (v_context->>'organizationMembershipId')::uuid then
+    raise exception 'Employee Worker Day authority required.' using errcode='42501';
+  end if;
+
+  -- A future or historic work line may be viewed in Worker Day, but is not
+  -- an executable/current-service-day result reporting warrant.
+  if v_projection.planned_date is distinct from (v_context->>'serviceDate')::date then
+    return jsonb_build_object(
+      'reportable',false,'state','not_current_service_day',
+      'plannedDate',v_projection.planned_date,
+      'currentServiceDate',(v_context->>'serviceDate')::date
+    );
+  end if;
+
+  select array_agg(s.work_item_id order by s.work_item_id) into v_work_ids
+  from atlas.worker_week_projection_sources s
+  where s.projection_id=v_projection.id and s.source_role='required';
+
+  if coalesce(array_length(v_work_ids,1),0)=0 then
+    return jsonb_build_object('reportable',false,'state','no_required_company_work');
+  end if;
+  if array_length(v_work_ids,1)<>1 then
+    return jsonb_build_object('reportable',false,'state','multiple_required_company_work','workItemIds',to_jsonb(v_work_ids));
+  end if;
+
+  select * into v_work
+  from atlas.work_items w
+  where w.id=v_work_ids[1]
+    and w.organization_id=(v_context->>'organizationId')::uuid;
+  if v_work.id is null or v_work.work_state<>'open' then
+    return jsonb_build_object('reportable',false,'state','company_work_not_open','workItemId',v_work_ids[1]);
+  end if;
+
+  select * into v_policy
+  from atlas.work_result_contract_policies p
+  where p.contract_key=v_work.result_contract_key and p.active;
+  if v_policy.contract_key is null then
+    return jsonb_build_object('reportable',false,'state','ungoverned_result_contract','workItemId',v_work.id);
+  end if;
+  if v_policy.acceptance_mode not in ('worker_attestation','manager_acceptance') then
+    return jsonb_build_object(
+      'reportable',false,'state','different_result_contract','workItemId',v_work.id,
+      'resultContractKey',v_policy.contract_key,'acceptanceMode',v_policy.acceptance_mode
+    );
+  end if;
+
+  select * into v_allocation
+  from atlas.work_allocations a
+  where a.organization_id=v_work.organization_id
+    and a.work_item_id=v_work.id
+    and a.allocation_role='responsible'
+    and a.state='active'
+    and a.assignee_membership_id=(v_context->>'organizationMembershipId')::uuid
+  limit 1;
+  if v_allocation.id is null then
+    return jsonb_build_object('reportable',false,'state','responsibility_mismatch','workItemId',v_work.id);
+  end if;
+
+  select * into v_plan
+  from atlas.work_execution_plans p
+  where p.organization_id=v_work.organization_id
+    and p.work_item_id=v_work.id
+    and p.responsible_allocation_id=v_allocation.id
+    and p.assignee_membership_id=(v_context->>'organizationMembershipId')::uuid
+    and p.plan_state='active'
+    and p.exposure_service_date=v_projection.planned_date
+  limit 1;
+  if v_plan.id is null then
+    return jsonb_build_object(
+      'reportable',false,'state','not_on_governed_plan','workItemId',v_work.id,
+      'resultContractKey',v_policy.contract_key,'acceptanceMode',v_policy.acceptance_mode
+    );
+  end if;
+
+  return jsonb_build_object(
+    'reportable',true,
+    'state','reportable',
+    'workItemId',v_work.id,
+    'resultContractKey',v_policy.contract_key,
+    'acceptanceMode',v_policy.acceptance_mode,
+    'supportedResultKinds',jsonb_build_array('completed','blocked','partial','unable')
+  );
+end;
+$function$
+
+
+CREATE OR REPLACE FUNCTION atlas.worker_report_company_work_projection_self_api_v1(p_projection_id uuid, p_result_kind text, p_idempotency_key text, p_payload jsonb DEFAULT '{}'::jsonb)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare
+  v_uid uuid:=auth.uid();
+  v_projection atlas.worker_week_projection%rowtype;
+  v_farm_id uuid;
+  v_context jsonb;
+  v_work_ids uuid[];
+  v_work atlas.work_items%rowtype;
+  v_policy atlas.work_result_contract_policies%rowtype;
+  v_allocation atlas.work_allocations%rowtype;
+  v_plan atlas.work_execution_plans%rowtype;
+  v_existing atlas.work_execution_results%rowtype;
+  v_existing_acceptance atlas.work_result_acceptances%rowtype;
+  v_result atlas.work_execution_results%rowtype;
+  v_acceptance atlas.work_result_acceptances%rowtype;
+  v_kind text:=lower(btrim(coalesce(p_result_kind,'')));
+  v_key text:=nullif(btrim(coalesce(p_idempotency_key,'')),'');
+  v_service_date date;
+begin
+  if v_uid is null then raise exception 'Authenticated employee required.' using errcode='42501'; end if;
+  if p_projection_id is null then raise exception 'Worker Day projection required.' using errcode='22023'; end if;
+  if v_kind not in ('completed','partial','blocked','unable') then raise exception 'Unsupported Company Work result kind.' using errcode='22023'; end if;
+  if v_key is null or length(v_key)>160 then raise exception 'A valid result idempotency key is required.' using errcode='22023'; end if;
+  if p_payload is null or jsonb_typeof(p_payload)<>'object' then raise exception 'Company Work result payload must be an object.' using errcode='22023'; end if;
+
+  select * into v_projection from atlas.worker_week_projection p where p.id=p_projection_id;
+  if v_projection.id is null then raise exception 'Worker Day projection was not found.' using errcode='P0002'; end if;
+
+  select fm.farm_id into v_farm_id from atlas.farm_memberships fm where fm.id=v_projection.membership_id;
+  if v_farm_id is null then raise exception 'Worker delivery membership was not found.' using errcode='P0002'; end if;
+
+  v_context:=atlas.organization_employee_worker_context_self_v1(v_farm_id,v_projection.membership_id);
+  if not coalesce((v_context->>'ok')::boolean,false) then
+    raise exception 'Employee Worker Day authority required: %',coalesce(v_context->>'reason','unknown') using errcode='42501';
+  end if;
+
+  if v_projection.organization_id is distinct from (v_context->>'organizationId')::uuid
+     or v_projection.organization_membership_id is distinct from (v_context->>'organizationMembershipId')::uuid then
+    raise exception 'Worker Day projection does not belong to the current employee relationship.' using errcode='42501';
+  end if;
+
+  -- The current plan alone must not make an arbitrary future/historic
+  -- projection reportable. The selected physical delivery identity must
+  -- itself be due on the worker's present governed service day.
+  v_service_date:=(v_context->>'serviceDate')::date;
+  if v_projection.planned_date is distinct from v_service_date then
+    raise exception 'Worker Day result requires a projection for the employee current service day.'
+      using errcode='23514';
+  end if;
+
+  select array_agg(s.work_item_id order by s.work_item_id) into v_work_ids
+  from atlas.worker_week_projection_sources s
+  where s.projection_id=v_projection.id and s.source_role='required';
+
+  if coalesce(array_length(v_work_ids,1),0)=0 then
+    return jsonb_build_object('state','no_required_company_work','projectionId',v_projection.id);
+  end if;
+  if array_length(v_work_ids,1)<>1 then
+    return jsonb_build_object('state','multiple_required_company_work','projectionId',v_projection.id,'workItemIds',to_jsonb(v_work_ids));
+  end if;
+
+  select * into v_work
+  from atlas.work_items w
+  where w.id=v_work_ids[1]
+    and w.organization_id=(v_context->>'organizationId')::uuid;
+  if v_work.id is null then raise exception 'Required Company Work was not found in the employee organization.' using errcode='P0002'; end if;
+  if v_work.work_state<>'open' then
+    return jsonb_build_object('state','company_work_not_open','projectionId',v_projection.id,'workItemId',v_work.id,'workState',v_work.work_state);
+  end if;
+  if v_work.organization_unit_id is distinct from (v_context->>'organizationUnitId')::uuid then
+    raise exception 'Company Work is outside the employee position unit.' using errcode='42501';
+  end if;
+
+  select * into v_policy
+  from atlas.work_result_contract_policies p
+  where p.contract_key=v_work.result_contract_key and p.active;
+  if v_policy.contract_key is null then
+    return jsonb_build_object('state','ungoverned_result_contract','projectionId',v_projection.id,'workItemId',v_work.id);
+  end if;
+  if v_policy.acceptance_mode not in ('worker_attestation','manager_acceptance') then
+    return jsonb_build_object('state','different_result_contract','projectionId',v_projection.id,'workItemId',v_work.id,'acceptanceMode',v_policy.acceptance_mode);
+  end if;
+
+  select * into v_allocation
+  from atlas.work_allocations a
+  where a.organization_id=v_work.organization_id
+    and a.work_item_id=v_work.id
+    and a.allocation_role='responsible'
+    and a.state='active'
+    and a.assignee_membership_id=(v_context->>'organizationMembershipId')::uuid
+  limit 1;
+  if v_allocation.id is null then
+    raise exception 'Company Work result requires current delegated Responsibility for this employee.' using errcode='23514';
+  end if;
+
+  v_service_date:=(v_context->>'serviceDate')::date;
+  select * into v_plan
+  from atlas.work_execution_plans p
+  where p.organization_id=v_work.organization_id
+    and p.work_item_id=v_work.id
+    and p.responsible_allocation_id=v_allocation.id
+    and p.assignee_membership_id=(v_context->>'organizationMembershipId')::uuid
+    and p.plan_state='active'
+    and p.exposure_service_date=v_service_date
+  limit 1;
+  if v_plan.id is null then
+    raise exception 'Company Work result may only come from the employee current governed Worker Day plan.' using errcode='23514';
+  end if;
+
+  select * into v_existing
+  from atlas.work_execution_results r
+  where r.organization_id=v_work.organization_id and r.idempotency_key=v_key;
+  if v_existing.id is not null then
+    if v_existing.work_item_id<>v_work.id
+       or v_existing.result_kind<>v_kind
+       or coalesce(v_existing.metadata->>'projectionId','')<>v_projection.id::text then
+      raise exception 'Company Work result idempotency key collision.' using errcode='23505';
+    end if;
+    select * into v_existing_acceptance
+    from atlas.work_result_acceptances a
+    where a.execution_result_id=v_existing.id;
+    select * into v_work from atlas.work_items w where w.id=v_work.id;
+    return jsonb_build_object(
+      'state','deduplicated','projectionId',v_projection.id,'workItemId',v_work.id,
+      'resultId',v_existing.id,'resultKind',v_existing.result_kind,
+      'acceptanceDecision',v_existing_acceptance.decision,'companyWorkState',v_work.work_state
+    );
+  end if;
+
+  insert into atlas.work_execution_results(
+    organization_id,work_item_id,responsible_allocation_id,task_id,
+    reported_by_user_id,reported_by_farm_membership_id,reported_by_organization_membership_id,
+    result_kind,result_contract_key,idempotency_key,payload,metadata
+  ) values(
+    v_work.organization_id,v_work.id,v_allocation.id,null,
+    v_uid,v_projection.membership_id,(v_context->>'organizationMembershipId')::uuid,
+    v_kind,v_policy.contract_key,v_key,p_payload,
+    jsonb_build_object(
+      'source','worker_report_company_work_projection_self_api_v1',
+      'projectionId',v_projection.id,
+      'managerPlanId',v_plan.id,
+      'employeeSeatId',v_context->>'employeeSeatId',
+      'delegatedResponsibility',true,
+      'acceptanceMode',v_policy.acceptance_mode
+    )
+  ) returning * into v_result;
+
+  if v_kind='completed' and v_policy.acceptance_mode='worker_attestation' then
+    insert into atlas.work_result_acceptances(
+      organization_id,work_item_id,execution_result_id,decision,acceptance_kind,
+      accepted_by_domain,evidence,metadata
+    ) values(
+      v_work.organization_id,v_work.id,v_result.id,'accepted','delegated_worker_attestation',
+      'organization',
+      jsonb_strip_nulls(jsonb_build_object(
+        'resultContractKey',v_policy.contract_key,
+        'responsibleAllocationId',v_allocation.id,
+        'reportedByOrganizationMembershipId',v_result.reported_by_organization_membership_id,
+        'employeeSeatId',v_context->>'employeeSeatId',
+        'positionId',v_context->>'positionId',
+        'positionKey',v_context->>'positionKey'
+      )),
+      jsonb_build_object(
+        'source','worker_report_company_work_projection_self_api_v1',
+        'institutionalRule','delegated_responsibility_accepts_worker_attestation'
+      )
+    ) returning * into v_acceptance;
+
+    update atlas.work_items
+    set work_state='completed',completed_at=coalesce(completed_at,now()),updated_at=now()
+    where id=v_work.id and work_state='open';
+
+    update atlas.work_allocations
+    set state='completed',completed_at=coalesce(completed_at,now()),updated_at=now()
+    where id=v_allocation.id and state='active';
+  end if;
+
+  select * into v_work from atlas.work_items w where w.id=v_work.id;
+
+  return jsonb_build_object(
+    'state',case when v_acceptance.id is not null then 'reported_and_accepted' else 'reported' end,
+    'projectionId',v_projection.id,'workItemId',v_work.id,
+    'resultId',v_result.id,'resultKind',v_result.result_kind,
+    'resultContractKey',v_result.result_contract_key,
+    'acceptanceMode',v_policy.acceptance_mode,
+    'acceptanceDecision',v_acceptance.decision,
+    'acceptanceKind',v_acceptance.acceptance_kind,
+    'companyWorkState',v_work.work_state
+  );
+end;
+$function$
+
+
 COMMIT;
