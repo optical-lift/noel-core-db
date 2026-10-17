@@ -24,6 +24,37 @@ Returned dimensions: canonical Work identity, institutional custody, current exa
 
 The role boundary is intentionally narrow. Root owner can inspect these institution-owned facts. Native seat alone, other Organization, invalid session, and unknown Ledger are denied. No manager/delegate or agency-client visibility is inferred here; Optical Lift internal Work must remain separate from published client commitments.
 
+## Truth/state matrix for Build 4 callers
+
+| Independent dimension | Canonical source | Safe present-tense interpretation | Must not imply |
+| --- | --- | --- | --- |
+| Institution custody | `atlas.work_items.organization_id` | Source Work belongs to exact institution | Native Ledger purpose |
+| Native Ledger relevance | Active `atlas.company_work_native_ledger_relevance` with attestation/current source verification | Exact selected native Ledger association is established | Other Ledgers are excluded, or multiple task identities exist |
+| Worker identity | Active `work_allocations` and explicit Person/IPR references through the exact membership | Actual same human carries this precise Work allocation | Person holds every Organization/Ledger hat or has a login |
+| Offered transfer | `company_work_responsibility_transfer_offers` | Pending proposed handoff only | Responsibility accepted by target |
+| Plan | `work_execution_plans` and `work_execution_plan_events` | Manager-selected planned service date, exposure date and rollover/history | Current Work is visible to worker |
+| Delivery carrier | Matching `worker_week_projection` / `worker_week_projection_sources`, tied to Work, member, plan and date | A canonical planned projection is observed, or older unverified related carrier is observed | Worker opened/viewed it or has a current warrant |
+| Viewing acknowledgement | No corresponding released view-receipt source proved | Explicit **not proven** | Receipt inferred from projection or past plan |
+| Execution authority | Separate `execution_leases` and lease events, requiring live source contract and recipient/date proof | The owner projection intentionally does not assert an execution warrant merely from worker projection | Planning equals warrant |
+| Worker report | Latest `work_execution_results` | Worker/source reported `blocked`, `unable`, `partial`, `completed`, etc. | Report accepted |
+| Institutional acceptance | Exact `work_result_acceptances` for the reported result, plus Work lifecycle | A permitted policy/decision accepted/rejected the exact report | A manager performed worker-only reporting |
+| Timeliness | `work_time_contracts` and `work_planning_conflicts` | Date bounds and unresolved planning conflicts are sourced | Universal invented urgency/importance score |
+| Priority | No universal canonical Company Work priority across domains | `sortPriorityNotInvented=true`; clients can sort established dates and source attributes | Guess a numerical score from title/worker |
+
+### Access and action matrix
+
+The new accountability RPC is **read-only root-owner scope**, with exact Organization + native Ledger + Principal + seat + session proof. The existing `organization_management_company_work_planning_queue_api_v1` and `organization_management_plan_company_work_week_api_v1` have narrower, independently governed management authority. Their access is **not** implied by the new owner read; missing manager-wide rights stay pending.
+
+The existing `organization_owner_set_company_work_responsibility_api_v1` is not an unrestricted assignment shortcut: its deeper responsibility kernel rejects imposing exact responsibility without a lawful receiver-side establishment basis. Existing transfer offers, responses and revocations are independent, and no transfer becomes active until uptake. Existing plan/clear and institutional decision commands retain their own validation. `worker_report_company_work_projection_self_api_v1` remains **employee self only**, not callable on behalf of a worker by a manager. The Build 3 guard additionally requires **selected projection date equals the employee's current governed service date**; viewing future work remains permitted but future completion from that projection is denied.
+
+### Filtering and ordering
+
+Every row has exact selected Ledger and Organization scope, Work identity, title, operation class, state, allocated member/person, manager planned/exposure dates, time-contract bounds, planning conflicts, latest result and separate acceptance. These are safe client filtering keys. The API currently pages in deterministic Work UUID order and **does not yet provide a source-side sorted query by date, urgency or Person**. Build 4 must not describe the keyset page as a fully server-sorted management backlog; scalable multi-filter sorting remains a named source enhancement if required before the notebook ships. No source priority is invented.
+
+### Precise remaining proof boundary
+
+The synthetic worker test uses fully formed source-identical identity, appointment, seat, credential, responsibility and plan fixtures inside a rollback-only production-schema clone, then calls the **actual authenticated worker self-read and report RPCs**. It proves the read/report/acceptance contract without logging in as a real user. The Worker Day projection rows are synthetic fixtures; an entirely source-generated manager plan → worker refresh → delivery projection path, view receipt, current Execution Lease and real Anna sign-in remain separate acceptance gates. Do not describe a synthetic carrier fixture as real worker receipt or full product acceptance.
+
 ## Operations this tranche does **not** add
 
 No allocations, new Work rows, native Ledger attributions, people, login identities, week plans, Worker Day refresh or delivery writes, completion submissions, result decisions, owner escalation, Personal Clock/capacity fields, or cross-organization publication. Existing source writers retain their current governed jurisdiction. Owner Work queue and native Ledger Work view must remain visibly different in Build 4.
