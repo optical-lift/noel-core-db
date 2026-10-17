@@ -475,6 +475,21 @@ begin
     );
   end if;
 
+  -- Do not promote any arbitrary old Worker Day carrier into executable
+  -- Company Work just because the employee now has an active manager plan.
+  IF v_projection.source_kind IS DISTINCT FROM 'work_item'
+    OR v_projection.source_id IS DISTINCT FROM v_work.id
+    OR v_projection.delivery_payload->>'projectionAuthority' IS DISTINCT FROM 'work_execution_plans'
+    OR v_projection.delivery_payload->>'managerPlanId' IS DISTINCT FROM v_plan.id::text
+    OR v_projection.delivery_payload->>'canonicalCompanyWorkProjection' IS DISTINCT FROM 'true'
+    OR v_projection.delivery_payload->>'source' IS DISTINCT FROM 'company_work_employee_plan_projection_v1' THEN
+    RETURN jsonb_build_object(
+       'reportable',false,'state','unverified_governed_plan_projection',
+       'workItemId',v_work.id,'resultContractKey',v_policy.contract_key,
+       'acceptanceMode',v_policy.acceptance_mode
+    );
+  END IF;
+
   return jsonb_build_object(
     'reportable',true,
     'state','reportable',
@@ -600,6 +615,19 @@ begin
   if v_plan.id is null then
     raise exception 'Company Work result may only come from the employee current governed Worker Day plan.' using errcode='23514';
   end if;
+
+  -- A current plan is necessary, but it cannot license a stale/foreign
+  -- projection identity. The selected projection must be the exact carrier
+  -- produced by the canonical plan bridge for this plan, worker and date.
+  IF v_projection.source_kind IS DISTINCT FROM 'work_item'
+    OR v_projection.source_id IS DISTINCT FROM v_work.id
+    OR v_projection.delivery_payload->>'projectionAuthority' IS DISTINCT FROM 'work_execution_plans'
+    OR v_projection.delivery_payload->>'managerPlanId' IS DISTINCT FROM v_plan.id::text
+    OR v_projection.delivery_payload->>'canonicalCompanyWorkProjection' IS DISTINCT FROM 'true'
+    OR v_projection.delivery_payload->>'source' IS DISTINCT FROM 'company_work_employee_plan_projection_v1' THEN
+    raise exception 'Company Work result requires the exact canonical plan-sourced Worker Day projection.'
+      using errcode='23514';
+  END IF;
 
   select * into v_existing
   from atlas.work_execution_results r
