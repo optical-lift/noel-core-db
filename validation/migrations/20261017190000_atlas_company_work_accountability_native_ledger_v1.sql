@@ -403,13 +403,16 @@ BEGIN
  VALUES(v_policy,'synthetic_institutional_work','worker_attestation');
  UPDATE atlas.work_items SET organization_unit_id=v_unit,result_contract_key=v_policy
  WHERE id=v_work AND organization_id=v_org;
- INSERT INTO atlas.work_allocations(
-    organization_id,work_item_id,assignee_membership_id,
-    assignee_institutional_person_record_id,allocation_role,state,
-    establishment_basis_kind,establishment_basis,metadata)
- VALUES(v_org,v_work,v_org_membership,v_ipr,'responsible','active','self_claim',
-   '{"synthetic":true,"receiverApprovedInRollbackFixture":true}'::jsonb,
-   '{"validationOnly":true}'::jsonb);
+ -- Establish test responsibility through the EXISTING governed internal
+ -- receiver-uptake basis constructor, not by forging an ad-hoc allocation row.
+ -- This fixture never commits and is not an employee delegation.
+ PERFORM atlas.set_company_work_responsibility_with_basis_internal_v2(
+   v_work,v_org_membership,v_org_membership,'self_adoption',
+   jsonb_build_object('sourceKind','synthetic_rollback_only_validation',
+                      'sourceId',v_work::text),
+   'Synthetic source responsibility acceptance test',
+   '{"source":"rollback_only_source_validation","synthetic":true}'::jsonb
+ );
  INSERT INTO atlas.worker_week_projection(
     organization_id,organization_membership_id,farm_id,membership_id,
     planned_date,source_kind,source_id,title,plan_state,locked,delivery_payload)
