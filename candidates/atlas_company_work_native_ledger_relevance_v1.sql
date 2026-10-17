@@ -255,6 +255,7 @@ returns jsonb language plpgsql security definer
 set search_path to '' as $verify$
 declare
   v_org uuid;v_person uuid;v_source record;v_id uuid;v_existing boolean:=false;
+  v_existing_record atlas.company_work_native_ledger_relevance%rowtype;
 begin
   select w.organization_id into v_org
   from atlas.work_items w where w.id=p_work_item_id;
@@ -276,9 +277,18 @@ begin
   do nothing returning id into v_id;
   if v_id is null then
     v_existing:=true;
-    select id into v_id from atlas.company_work_native_ledger_relevance
+    select * into v_existing_record
+    from atlas.company_work_native_ledger_relevance
     where work_item_id=p_work_item_id and ledger_id=p_ledger_id
       and evidence_kind='source_verified' and attribution_state='active';
+    if v_existing_record.id is null
+       or (v_existing_record.source_schema,v_existing_record.source_table,
+           v_existing_record.source_id) is distinct from
+          (v_source.source_schema,v_source.source_table,v_source.source_id) then
+      raise exception 'Existing verified source differs: withdraw and reverify with preserved history.'
+        using errcode='23514';
+    end if;
+    v_id:=v_existing_record.id;
   end if;
   return jsonb_build_object('workItemId',p_work_item_id,'ledgerId',p_ledger_id,
     'attributionId',v_id,'alreadyEstablished',v_existing,
