@@ -504,6 +504,33 @@ END
 $plan_fixture$;
 
 SET LOCAL ROLE authenticated;
+DO $owner_current_plan_proof$
+DECLARE
+ f jsonb:=current_setting('atlas.test_native_work_scope')::jsonb;
+ w jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_row jsonb;v_result jsonb;v_person uuid;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'owner','role','authenticated','session_id',f->>'ownerSession'
+ )::text,true);
+ SELECT b.person_entity_id INTO v_person
+ FROM reality.auth_person_bindings b WHERE b.auth_user_id=(w->>'worker')::uuid;
+ v_result:=atlas.company_work_accountability_native_ledger_self_api_v1(
+   (w->>'org')::uuid,(f->>'flower')::uuid,'native_ledger',50,null);
+ v_row:=v_result#>'{items,0}';
+ IF v_row#>>'{responsibility,assigneePersonId}' IS DISTINCT FROM v_person::text
+   OR v_row#>>'{responsibility,personProvenance}'<>'active_allocation_to_membership_institutional_person'
+   OR v_row#>>'{planning,planState}'<>'active'
+   OR v_row#>>'{workerProjection,state}'<>'governed_plan_projection_observed'
+   OR (v_row#>>'{workerProjection,canonicalProjectionCount}')::int<>1
+   OR v_row#>>'{workerProjection,workerViewedReceipt}'<>'not_proven'
+   OR v_row#>>'{workerProjection,currentExecutionWarrant}'<>'not_proven_by_projection' THEN
+   RAISE EXCEPTION 'FAIL: owner plan, sourced Person and projection non-collapse were not proven: %',v_row;
+ END IF;
+ RAISE NOTICE 'PASS: owner exact Person resolution and scheduled/projection states agree without claiming viewed receipt or lease';
+END
+$owner_current_plan_proof$;
+
 DO $worker_current_proof$
 DECLARE
  f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
