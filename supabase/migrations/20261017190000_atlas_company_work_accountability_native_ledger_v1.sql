@@ -35,7 +35,7 @@ BEGIN
   END IF;
 
   SELECT COALESCE(jsonb_agg(x.item ORDER BY x.work_item_id),'[]'::jsonb),
-         max(x.work_item_id)
+         max(x.work_item_id::text)::uuid
     INTO v_items,v_last_id
   FROM (
     SELECT w.id AS work_item_id,
