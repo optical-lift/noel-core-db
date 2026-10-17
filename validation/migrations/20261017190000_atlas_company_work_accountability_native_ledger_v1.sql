@@ -533,8 +533,8 @@ BEGIN
  IF v_row#>>'{responsibility,assigneePersonId}' IS DISTINCT FROM v_person::text
    OR v_row#>>'{responsibility,personProvenance}'<>'active_allocation_to_membership_institutional_person'
    OR v_row#>>'{planning,planState}'<>'active'
-   OR v_row#>>'{workerProjection,state}'<>'governed_plan_projection_observed'
-   OR (v_row#>>'{workerProjection,canonicalProjectionCount}')::int<>1
+   OR v_row#>>'{workerProjection,state}'<>'legacy_or_unverified_projection_observed'
+   OR (v_row#>>'{workerProjection,canonicalProjectionCount}')::int<>0
    OR v_row#>>'{workerProjection,workerViewedReceipt}'<>'not_proven'
    OR v_row#>>'{workerProjection,currentExecutionWarrant}'<>'not_proven_by_projection' THEN
    RAISE EXCEPTION 'FAIL: owner plan, sourced Person and projection non-collapse were not proven: %',v_row;
@@ -716,6 +716,33 @@ BEGIN
  RAISE NOTICE 'PASS: governed source writer planned Work, reconciler promoted exact existing projection and retained Work and worker identities';
 END
 $source_bridge_setup$;
+
+SET LOCAL ROLE authenticated;
+DO $source_bridge_manager_proof$
+DECLARE
+ f jsonb:=current_setting('atlas.test_native_work_scope')::jsonb;
+ b jsonb:=current_setting('atlas.test_reconciled_worker_case')::jsonb;
+ w jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_read jsonb;v_row jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'owner','role','authenticated','session_id',f->>'ownerSession'
+ )::text,true);
+ v_read:=atlas.company_work_accountability_native_ledger_self_api_v1(
+   (w->>'org')::uuid,(f->>'flower')::uuid,'organization',50,null);
+ SELECT item INTO v_row FROM jsonb_array_elements(v_read->'items') item
+ WHERE item->>'workItemId'=b->>'work';
+ IF v_row IS NULL
+    OR v_row#>>'{workerProjection,state}'<>'governed_plan_projection_observed'
+    OR (v_row#>>'{workerProjection,canonicalProjectionCount}')::int<>1
+    OR (v_row#>>'{workerProjection,otherRelatedProjectionCount}')::int<>0
+    OR v_row#>>'{workerProjection,workerViewedReceipt}'<>'not_proven'
+    OR v_row#>>'{nativeLedgerRelevance}'<>'not_established_for_selected_ledger' THEN
+   RAISE EXCEPTION 'FAIL: generated current-day projection not exactly sourced, or unrelated Work was silently attributed to selected native Ledger: %',v_row;
+ END IF;
+ RAISE NOTICE 'PASS: canonical manager read requires reconciler source and exact manager plan ID, without inventing native Ledger attribution or viewing receipt';
+END
+$source_bridge_manager_proof$;
 
 SET LOCAL ROLE service_role;
 DO $source_bridge_worker_feed$
