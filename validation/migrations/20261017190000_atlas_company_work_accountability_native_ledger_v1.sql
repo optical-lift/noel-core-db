@@ -543,6 +543,54 @@ BEGIN
 END
 $owner_current_plan_proof$;
 
+-- A current plan and work-item relation alone cannot authenticate an
+-- older projection. Exercise BOTH the read-only affordance and denied write.
+SET LOCAL ROLE service_role;
+DO $worker_unverified_projection_read$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_feed jsonb;v_state text;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ v_feed:=atlas.company_work_worker_day_self_api_v1((f->>'today')::date,1);
+ SELECT item#>>'{resultReporting,state}' INTO v_state
+ FROM jsonb_array_elements(v_feed->'items') item
+ WHERE item->>'projectionId'=f->>'todayProjection';
+ IF v_state<>'unverified_governed_plan_projection' THEN
+   RAISE EXCEPTION 'FAIL: a legacy projection was erroneously reported executable with an active plan: %',v_state;
+ END IF;
+ RAISE NOTICE 'PASS: worker self-read displays legacy projection but forbids reporting against unverified plan source';
+END
+$worker_unverified_projection_read$;
+SET LOCAL ROLE authenticated;
+DO $worker_unverified_projection_write_denial$
+DECLARE f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ BEGIN
+   PERFORM atlas.worker_report_company_work_projection_self_api_v1(
+     (f->>'todayProjection')::uuid,'completed',
+     'synthetic-unverified-'||gen_random_uuid()::text,'{}'::jsonb);
+   RAISE EXCEPTION 'FAIL: a merely plan-marked legacy projection was submitted';
+ EXCEPTION WHEN sqlstate '23514' THEN NULL; END;
+ RAISE NOTICE 'PASS: authenticated worker result command rejects unverified projection';
+END
+$worker_unverified_projection_write_denial$;
+
+RESET ROLE;
+-- This first fixture is intentionally a manually shaped *synthetic* carrier;
+-- genuine bridge generation is separately proven below. No production source
+-- should ever insert such a payload through an ungoverned writer.
+UPDATE atlas.worker_week_projection
+SET delivery_payload=delivery_payload||jsonb_build_object(
+ 'source','company_work_employee_plan_projection_v1',
+ 'canonicalCompanyWorkProjection',true)
+WHERE id=(current_setting('atlas.test_worker_case')::jsonb->>'todayProjection')::uuid;
+
 SET LOCAL ROLE service_role;
 DO $worker_current_feed$
 DECLARE
