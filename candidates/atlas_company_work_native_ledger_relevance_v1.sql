@@ -2,6 +2,8 @@
 -- Structural change only. No historic Work attribution, backfill or deployment.
 -- Evidence classes are independent: owner_attested != source_verified.
 
+BEGIN;
+
 create table atlas.company_work_native_ledger_relevance (
   id uuid primary key default pg_catalog.gen_random_uuid(),
   organization_id uuid not null references atlas.organizations(id) on delete restrict,
@@ -424,3 +426,5 @@ grant execute on function atlas.withdraw_company_work_native_ledger_relevance_se
   to authenticated;
 grant execute on function atlas.company_work_native_ledger_scope_self_api_v1(uuid,uuid,integer,uuid)
   to authenticated;
+
+COMMIT;
