@@ -13,7 +13,7 @@ create table if not exists atlas.company_work_native_ledger_relevance (
     check (relation_kind = 'serves_purpose'),
   evidence_basis jsonb not null
     check (jsonb_typeof(evidence_basis) = 'object'
-      and evidence_basis->>'evidenceClass' in ('owner_attestation','source_binding')
+      and evidence_basis->>'evidenceClass' = 'owner_attestation'
       and nullif(btrim(evidence_basis->>'sourceRef'),'') is not null),
   attribution_state text not null default 'active'
     check (attribution_state in ('active','withdrawn')),
@@ -154,7 +154,7 @@ begin
   end if;
   v_person:=atlas.company_work_native_ledger_owner_self_v1(v_org,p_ledger_id);
   if jsonb_typeof(p_evidence_basis) is distinct from 'object'
-     or p_evidence_basis->>'evidenceClass' not in ('source_binding','owner_attestation')
+     or p_evidence_basis->>'evidenceClass' is distinct from 'owner_attestation'
      or nullif(btrim(p_evidence_basis->>'sourceRef'),'') is null then
     raise exception 'Explicit evidence class and source reference required.' using errcode='22023';
   end if;
