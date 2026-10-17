@@ -101,3 +101,99 @@ $no_source$;
 -- 7. Owner withdrawal preserves source and evidence, no work completion or deletion.
 -- 8. Historic Elm+Waiting Room Work remains unknown; no source from labels/units.
 -- 9. Optical Lift work never appears in Elm scope or via cross-company adjacency.
+
+
+-- Source and relationship acceptance on synthetic data, disposable clone only.
+BEGIN;
+DO $fixture$
+DECLARE
+  org uuid:=gen_random_uuid(); other_org uuid:=gen_random_uuid();
+  subj uuid:=gen_random_uuid(); actor uuid:=gen_random_uuid();
+  flower uuid:=gen_random_uuid(); venue uuid:=gen_random_uuid();
+  case_a uuid:=gen_random_uuid(); case_b uuid:=gen_random_uuid();
+  task uuid:=gen_random_uuid(); offering uuid:=gen_random_uuid();
+  verified_id uuid;
+BEGIN
+  INSERT INTO atlas.organizations(id,stable_key,name)
+  VALUES(org,'clone-org-'||org::text,'Clone Institution'),
+        (other_org,'clone-other-'||other_org::text,'Clone Other Institution');
+  INSERT INTO reality.entities(id,stable_key,entity_kind,display_name,identity_state)
+  VALUES(subj,'clone-subject-'||subj::text,'organization','Clone Institution','canonical'),
+        (actor,'clone-actor-'||actor::text,'person','Clone Actor','canonical');
+  INSERT INTO ledger.onboarding_cases
+    (id,subject_entity_id,desired_ledger_name,onboarding_state,onboarding_basis,case_kind)
+  VALUES(case_a,subj,'Clone Flower','ready_to_activate',
+         jsonb_build_object('legacyLedgerId',flower::text,'migrationAdjudicated',true),
+         'legacy_adjudicated_migration'),
+        (case_b,subj,'Clone Venue','ready_to_activate',
+         jsonb_build_object('legacyLedgerId',venue::text,'migrationAdjudicated',true),
+         'legacy_adjudicated_migration');
+  INSERT INTO ledger.ledgers
+    (id,subject_entity_id,onboarding_case_id,stable_key,name,ledger_state)
+  VALUES(flower,subj,case_a,'clone-flower-'||flower::text,'Clone Flower','active'),
+        (venue,subj,case_b,'clone-venue-'||venue::text,'Clone Venue','active');
+  INSERT INTO atlas.ledgers(id,stable_key,organization_id,ledger_kind,status,name)
+  VALUES(flower,'clone-legacy-flower-'||flower::text,org,'governed_reality','active','Clone Flower'),
+        (venue,'clone-legacy-venue-'||venue::text,org,'governed_reality','active','Clone Venue');
+  INSERT INTO atlas.ledger_organization_participations
+    (ledger_id,organization_id,participation_kind,is_compatibility_primary)
+  VALUES(flower,org,'governing',true),(venue,org,'operating',false);
+  INSERT INTO ledger.booking_offerings
+    (id,ledger_id,stable_key,name,booking_kind,occurrence_type,default_duration_minutes)
+  VALUES(offering,flower,'clone-offering-'||offering::text,'Clone Event','event','session',60);
+  INSERT INTO atlas.work_items
+    (id,organization_id,title,work_state,source_object_type,source_object_id)
+  VALUES(task,org,'Clone Work','open','ledger_booking_offering',offering);
+  IF (SELECT count(*) FROM atlas.company_work_native_ledger_exact_source_v1(task,flower))<>1
+      OR EXISTS(SELECT 1 FROM atlas.company_work_native_ledger_exact_source_v1(task,venue)) THEN
+    RAISE EXCEPTION 'FAIL: source evidence was not Ledger-exact';
+  END IF;
+  INSERT INTO atlas.company_work_native_ledger_relevance
+    (organization_id,work_item_id,ledger_id,evidence_kind,attestation_source_ref,
+     attestation_reason,established_by_person_id)
+  VALUES(org,task,flower,'owner_attested','synthetic','owner relevance',actor),
+        (org,task,venue,'owner_attested','synthetic','second purpose',actor);
+  INSERT INTO atlas.company_work_native_ledger_relevance
+    (organization_id,work_item_id,ledger_id,evidence_kind,
+     source_schema,source_table,source_id,verified_at,established_by_person_id)
+  VALUES(org,task,flower,'source_verified','ledger','booking_offerings',
+         offering,now(),actor) RETURNING id INTO verified_id;
+  IF (SELECT count(*) FROM atlas.company_work_native_ledger_relevance
+      WHERE work_item_id=task AND attribution_state='active')<>3 THEN
+    RAISE EXCEPTION 'FAIL: independent class and cross-Ledger relevance';
+  END IF;
+  BEGIN
+    INSERT INTO atlas.company_work_native_ledger_relevance
+      (organization_id,work_item_id,ledger_id,evidence_kind,
+       source_schema,source_table,source_id,verified_at,established_by_person_id)
+    VALUES(org,task,venue,'source_verified','ledger','booking_offerings',
+           offering,now(),actor);
+    RAISE EXCEPTION 'FAIL: wrong native Ledger source was accepted';
+  EXCEPTION WHEN sqlstate '23514' THEN NULL; END;
+  BEGIN
+    INSERT INTO atlas.company_work_native_ledger_relevance
+      (organization_id,work_item_id,ledger_id,evidence_kind,attestation_source_ref,
+       attestation_reason,established_by_person_id)
+    VALUES(other_org,task,flower,'owner_attested','synthetic','wrong owner',actor);
+    RAISE EXCEPTION 'FAIL: source Organization contradicted';
+  EXCEPTION WHEN sqlstate '23514' THEN NULL; END;
+  BEGIN
+    UPDATE atlas.company_work_native_ledger_relevance
+    SET evidence_kind='owner_attested',source_schema=null,source_table=null,
+        source_id=null,verified_at=null,attestation_source_ref='changed',
+        attestation_reason='forged' WHERE id=verified_id;
+    RAISE EXCEPTION 'FAIL: original evidence was mutable';
+  EXCEPTION WHEN sqlstate '42501' THEN NULL; END;
+  UPDATE atlas.company_work_native_ledger_relevance
+  SET attribution_state='withdrawn',withdrawn_at=now(),
+      withdrawn_by_person_id=actor,withdrawal_reason='synthetic correction'
+  WHERE id=verified_id;
+  IF NOT EXISTS(SELECT 1 FROM atlas.company_work_native_ledger_relevance
+    WHERE id=verified_id AND attribution_state='withdrawn'
+      AND evidence_kind='source_verified' AND source_id=offering) THEN
+    RAISE EXCEPTION 'FAIL: correction lost source history';
+  END IF;
+  RAISE NOTICE 'PASS: synthetic evidence separation, two Ledger purposes, exact source, isolation and correction';
+END
+$fixture$;
+ROLLBACK;
