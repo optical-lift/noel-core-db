@@ -197,6 +197,9 @@ BEGIN
             AND p.source_id=w.id
             AND p.planned_date=ep.exposure_service_date
             AND p.delivery_payload->>'projectionAuthority'='work_execution_plans'
+            AND p.delivery_payload->>'managerPlanId'=ep.id::text
+            AND p.delivery_payload->>'source'='company_work_employee_plan_projection_v1'
+            AND p.delivery_payload->>'canonicalCompanyWorkProjection'='true'
         )::integer AS canonical_count
       FROM atlas.worker_week_projection_sources s
       JOIN atlas.worker_week_projection p ON p.id=s.projection_id
