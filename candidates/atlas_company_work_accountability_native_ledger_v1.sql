@@ -382,7 +382,7 @@ begin
     'supportedResultKinds',jsonb_build_array('completed','blocked','partial','unable')
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.worker_report_company_work_projection_self_api_v1(p_projection_id uuid, p_result_kind text, p_idempotency_key text, p_payload jsonb DEFAULT '{}'::jsonb)
@@ -580,7 +580,7 @@ begin
     'companyWorkState',v_work.work_state
   );
 end;
-$function$
+$function$;
 
 
 COMMIT;
