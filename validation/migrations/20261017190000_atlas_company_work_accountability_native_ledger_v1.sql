@@ -119,7 +119,7 @@ BEGIN
   PERFORM set_config('atlas.test_native_work_scope',jsonb_build_object(
     'org',v_org,'other',v_other,'flower',v_flower,'venue',v_venue,
     'work',v_work,'offering',v_offering,
-    'owner',v_owner,'seatOnly',v_member,'outsider',v_outsider,
+    'owner',v_owner,'seatOnly',v_member,'memberPerson',v_member_person,'outsider',v_outsider,
     'ownerSession',v_owner_session,'seatOnlySession',v_member_session,
     'outsiderSession',v_outsider_session)::text,true);
   RAISE NOTICE 'PASS: synthetic authenticatable owner, seat-only and outsider person/principal/session data created';
@@ -443,7 +443,7 @@ BEGIN
 END
 $worker_setup$;
 
-SET LOCAL ROLE authenticated;
+SET LOCAL ROLE service_role;
 DO $worker_negative_before_plan$
 DECLARE
  f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
@@ -467,15 +467,28 @@ BEGIN
     OR (v_result->>'reportable')::boolean IS DISTINCT FROM false THEN
     RAISE EXCEPTION 'FAIL: future projection mislabeled currently reportable: %',v_result;
  END IF;
+ RAISE NOTICE 'PASS: service-authorized Worker Day read preserved employee identity, two dates and denied future reporting';
+END
+$worker_negative_before_plan$;
+
+SET LOCAL ROLE authenticated;
+DO $worker_preplan_denial$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
  BEGIN
    PERFORM atlas.worker_report_company_work_projection_self_api_v1(
      (f->>'todayProjection')::uuid,'completed',
      'synthetic-unplanned-'||gen_random_uuid()::text,'{}'::jsonb);
    RAISE EXCEPTION 'FAIL: unplanned worker completion succeeded';
  EXCEPTION WHEN sqlstate '23514' THEN NULL; END;
- RAISE NOTICE 'PASS: employee self feed contains both dates; future not reportable; unplanned work cannot be completed';
+
+ RAISE NOTICE 'PASS: authenticated employee cannot report from an unplanned projection';
 END
-$worker_negative_before_plan$;
+$worker_preplan_denial$;
 
 RESET ROLE;
 DO $plan_fixture$
@@ -513,8 +526,7 @@ BEGIN
  PERFORM set_config('request.jwt.claims',jsonb_build_object(
    'sub',f->>'owner','role','authenticated','session_id',f->>'ownerSession'
  )::text,true);
- SELECT b.person_entity_id INTO v_person
- FROM reality.auth_person_bindings b WHERE b.auth_user_id=(w->>'worker')::uuid;
+ v_person:=(f->>'memberPerson')::uuid;
  v_result:=atlas.company_work_accountability_native_ledger_self_api_v1(
    (w->>'org')::uuid,(f->>'flower')::uuid,'native_ledger',50,null);
  v_row:=v_result#>'{items,0}';
@@ -531,11 +543,11 @@ BEGIN
 END
 $owner_current_plan_proof$;
 
-DO $worker_current_proof$
+SET LOCAL ROLE service_role;
+DO $worker_current_feed$
 DECLARE
  f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
- v_feed jsonb;v_reporting jsonb;v_result jsonb;v_blocked_id uuid;
- v_completed_id uuid;
+ v_feed jsonb;v_reporting jsonb;
 BEGIN
  PERFORM set_config('request.jwt.claims',jsonb_build_object(
    'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
@@ -555,6 +567,19 @@ BEGIN
  IF v_reporting->>'state'<>'not_current_service_day' THEN
    RAISE EXCEPTION 'FAIL: future line became currently reportable from a current plan';
  END IF;
+ RAISE NOTICE 'PASS: server-authorized worker read: today reportable and future projection not_current_service_day';
+END
+$worker_current_feed$;
+
+SET LOCAL ROLE authenticated;
+DO $worker_current_proof$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_result jsonb;v_blocked_id uuid;v_completed_id uuid;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
  BEGIN
    PERFORM atlas.worker_report_company_work_projection_self_api_v1(
      (f->>'futureProjection')::uuid,'completed',
