@@ -74,6 +74,31 @@ BEGIN
            END,
            'offeredResponsibilityCount',offers.offered_count
         ),
+        'lastResponsibleAllocation',CASE WHEN wa_hist.id IS NULL THEN NULL ELSE
+          jsonb_build_object(
+            'allocationId',wa_hist.id,
+            'allocationState',wa_hist.state,
+            'establishmentBasisKind',wa_hist.establishment_basis_kind,
+            'assigneeMembershipId',wa_hist.assignee_membership_id,
+            'assigneeInstitutionalPersonRecordId',
+               coalesce(wa_hist.assignee_institutional_person_record_id,
+                        om_hist.institutional_person_record_id),
+            'assigneePersonId',coalesce(ipr_hist.person_id,om_hist.person_id),
+            'allocatedAt',wa_hist.allocated_at,
+            'completedAt',wa_hist.completed_at,
+            'releasedAt',wa_hist.released_at,
+            'historicalNotCurrent',true
+          ) END,
+        'lastExecutionPlan',CASE WHEN ep_hist.id IS NULL THEN NULL ELSE
+          jsonb_build_object(
+            'planId',ep_hist.id,
+            'planState',ep_hist.plan_state,
+            'firstPlannedServiceDate',ep_hist.first_planned_service_date,
+            'plannedServiceDate',ep_hist.planned_service_date,
+            'exposureServiceDate',ep_hist.exposure_service_date,
+            'rolloverCount',ep_hist.rollover_count,
+            'historicalNotCurrent',true
+          ) END,
         'planning',jsonb_build_object(
            'planId',ep.id,
            'planState',coalesce(ep.plan_state,'no_current_plan'),
@@ -163,6 +188,25 @@ BEGIN
       ON ipr.id=coalesce(wa.assignee_institutional_person_record_id,
                          om_assignee.institutional_person_record_id)
      AND ipr.organization_id=w.organization_id
+    -- Preserve the latest non-active responsible allocation as provenance:
+    -- never advertise completed or released responsibility as current.
+    LEFT JOIN LATERAL (
+      SELECT a.id,a.state,a.establishment_basis_kind,a.assignee_membership_id,
+             a.assignee_institutional_person_record_id,
+             a.allocated_at,a.completed_at,a.released_at
+      FROM atlas.work_allocations a
+      WHERE a.organization_id=w.organization_id
+        AND a.work_item_id=w.id
+        AND a.allocation_role='responsible' AND a.state IN ('completed','released')
+      ORDER BY a.allocated_at DESC,a.id DESC LIMIT 1
+    ) wa_hist ON true
+    LEFT JOIN atlas.organization_memberships om_hist
+      ON om_hist.id=wa_hist.assignee_membership_id
+     AND om_hist.organization_id=w.organization_id
+    LEFT JOIN atlas.institutional_person_records ipr_hist
+      ON ipr_hist.id=coalesce(wa_hist.assignee_institutional_person_record_id,
+                            om_hist.institutional_person_record_id)
+     AND ipr_hist.organization_id=w.organization_id
     LEFT JOIN LATERAL (
       SELECT count(*)::integer AS offered_count
       FROM atlas.company_work_responsibility_transfer_offers o
@@ -178,6 +222,14 @@ BEGIN
         AND p.work_item_id=w.id AND p.plan_state IN ('active','needs_replan')
       ORDER BY p.updated_at DESC,p.id DESC LIMIT 1
     ) ep ON true
+    LEFT JOIN LATERAL (
+      SELECT p.id,p.plan_state,p.planned_service_date,
+             p.first_planned_service_date,p.exposure_service_date,p.rollover_count
+      FROM atlas.work_execution_plans p
+      WHERE p.organization_id=w.organization_id AND p.work_item_id=w.id
+        AND p.plan_state IN ('completed','withdrawn')
+      ORDER BY p.updated_at DESC,p.id DESC LIMIT 1
+    ) ep_hist ON true
     LEFT JOIN LATERAL (
       SELECT t.earliest_lawful_at,t.hard_finish_at,t.latest_lawful_at
       FROM atlas.work_time_contracts t
