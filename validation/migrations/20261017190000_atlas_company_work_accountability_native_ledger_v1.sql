@@ -691,13 +691,27 @@ BEGIN
   OR (v_accountability#>>'{facts,managerDoesNotImpersonateWorker}')::boolean IS DISTINCT FROM true THEN
    RAISE EXCEPTION 'FAIL: manager view lost accepted consequence or invented chronological report order: %',v_row;
  END IF;
- IF (SELECT count(*) FROM atlas.work_execution_results x
-     WHERE x.work_item_id=(w->>'work')::uuid)<>2 THEN
-   RAISE EXCEPTION 'FAIL: failed future or pre-plan attempts secretly wrote results';
- END IF;
+ -- Raw execution rows are intentionally unavailable to the authenticated
+ -- owner role; count them in the separately privileged rollback-only fixture.
  RAISE NOTICE 'PASS: manager sees exact institution-owned work, worker source report and separate accepted completion; unauthorized attempts wrote nothing';
 END
 $owner_after_worker$;
+
+RESET ROLE;
+DO $raw_result_count_postcondition$
+DECLARE
+ w jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_count integer;
+BEGIN
+ SELECT count(*)::integer INTO v_count
+ FROM atlas.work_execution_results x
+ WHERE x.work_item_id=(w->>'work')::uuid;
+ IF v_count<>2 THEN
+   RAISE EXCEPTION 'FAIL: denied future or pre-plan attempts wrote results: %',v_count;
+ END IF;
+ RAISE NOTICE 'PASS: privileged rollback-only row count confirms denied worker attempts did not create results';
+END
+$raw_result_count_postcondition$;
 
 RESET ROLE;
 
