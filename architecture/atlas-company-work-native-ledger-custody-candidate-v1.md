@@ -16,7 +16,7 @@
 
 Company Work has one institution and one stable `work_item_id` regardless of assignment, Worker Day or result. A positive, source-attested association says that work serves a specified native Ledger purpose; one Work ID may serve two Ledgers without duplicate work, allocation or completion. No association means **unknown**, not 'does not belong'. One established Ledger link does not automatically exclude other Ledgers.
 
-Positive evidence is a signed-in root Principal's deliberate attestation (`owner_attestation`) or verified source-object binding (`source_binding`), both retaining `sourceRef`. Names, titles, NLP guesses, legacy work type, operating-unit label or general Organization participation are never adequate proof.
+Candidate v1 accepts only a signed-in root Principal's explicit designation (`owner_attestation`) with a retained `sourceRef`. A verified source-object binding (`source_binding`) is **not** admitted until an actual source-owned foreign-key resolver and its tests exist; a text reference alone is not verified source evidence. Names, titles, NLP guesses, legacy work type, operating-unit label or general Organization participation are never adequate proof.
 
 The candidate permits associations only when a native Ledger is active, is matched by the legacy Ledger ID, and has current **governing/operating** participation in the owning Work Organization. It does not infer a relationship from that eligibility.
 
@@ -35,7 +35,7 @@ The initial guarded command requires a valid Atlas session, canonical Person/Pri
 
 | Evidence | Result |
 |---|---|
-| Exact native-Ledger FK on the source obligation and authorized establishment | Explicit `source_binding` (after checking Organization/authority) |
+| Exact native-Ledger FK on the source obligation and authorized establishment | NOT YET IMPLEMENTED — a source-specific resolver must validate the actual FK before admitting `source_binding` |
 | Owner explicitly judges one existing Elm work obligation relevant to Flowers | Attested relevance link to Flowers; no change in task owner |
 | One Elm obligation really serves Flowers and Venue | Two relevance links, **one** original work ID |
 | Generic Elm unit, old task, marketing/flowers/venue words in title | `unknown`; review candidate only |
@@ -46,7 +46,7 @@ All 154 existing Work rows remain pending exact Ledger attribution; no destructi
 
 ## Source → approval → release
 
-1. Review the two authority decisions: whether **root owner + selected native seat + institution's governing root** is the initial allowed attribution writer, and whether `owner_attestation` is an admissible explicit source of Ledger-purpose truth distinct from `source_binding`.
+1. Review the two authority decisions: whether **root owner + selected native seat + institution's governing root** is the initial allowed attribution writer, and whether a human's explicit, recorded `owner_attestation` is sufficient to designate work relevance while actual source FK verification remains blocked.
 2. In `noel-core-db`, inspect current main and domain-custody rules; promote only approved candidate SQL to a fresh `atlas_` canonical timestamped migration using the repo's governed release workflow.
 3. Validate in disposable schema clone, including authenticated positive and negative fixtures. `candidates/atlas_company_work_native_ledger_relevance_v1_validation.sql` checks minimal structural invariants; it does **not** replace identity/privacy acceptance. Run security advisors, migration reconciliation and `atlas_` lane CI.
 4. Release through protected manual DB process; record migration version, hashes and live RPC signatures. No Atlas Preview/Production deployment is implied or permitted by a source merge.
