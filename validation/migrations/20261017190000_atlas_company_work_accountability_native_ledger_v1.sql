@@ -749,6 +749,41 @@ END
 $source_bridge_manager_proof$;
 
 SET LOCAL ROLE service_role;
+DO $source_bridge_worker_refresh$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ b jsonb:=current_setting('atlas.test_reconciled_worker_case')::jsonb;
+ v_refresh jsonb;v_projection atlas.worker_week_projection%rowtype;
+ v_count integer;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ -- Exercise the published server-worker refresh wrapper, not merely the
+ -- underlying reconciler previously called in the setup fixture.
+ v_refresh:=atlas.company_work_worker_day_refresh_self_api_v1((f->>'today')::date,1);
+ IF (v_refresh->>'ok')::boolean IS DISTINCT FROM true
+   OR (v_refresh->>'eligibleDeliveryContexts')::integer<>1
+   OR (v_refresh->>'reconciledProjectionCount')::integer<1
+   OR (v_refresh->>'legacyCapacityRefreshInvoked')::boolean IS DISTINCT FROM false THEN
+   RAISE EXCEPTION 'FAIL: employee self worker-day refresh did not reuse lawful worker context: %',v_refresh;
+ END IF;
+ SELECT count(*)::integer INTO v_count FROM atlas.worker_week_projection p
+ WHERE p.organization_id=(f->>'org')::uuid
+   AND p.organization_membership_id=(f->>'orgMembership')::uuid
+   AND p.source_kind='work_item' AND p.source_id=(b->>'work')::uuid;
+ SELECT * INTO v_projection FROM atlas.worker_week_projection p
+ WHERE p.id=(b->>'projection')::uuid;
+ IF v_count<>1 OR v_projection.id IS NULL
+   OR v_projection.delivery_payload->>'managerPlanId'<>b->>'plan'
+   OR v_projection.delivery_payload->>'source'<>'company_work_employee_plan_projection_v1' THEN
+   RAISE EXCEPTION 'FAIL: worker self-refresh cloned or changed the canonical Company Work projection';
+ END IF;
+ RAISE NOTICE 'PASS: published Worker Day refresh preserved one exact source-generated work/projection/plan identity';
+END
+$source_bridge_worker_refresh$;
+
+SET LOCAL ROLE service_role;
 DO $source_bridge_worker_feed$
 DECLARE
  f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
