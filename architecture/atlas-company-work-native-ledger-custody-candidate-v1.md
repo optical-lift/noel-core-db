@@ -1,56 +1,74 @@
-# Atlas Company Work → Native Ledger custody — candidate v1
+# Atlas Build 1/5 — Company Work / native Ledger custody (candidate v1)
 
-**Source status:** review-only proposal in `candidates/`. NOT a canonical timestamped migration, NOT a released RPC, NOT deployed to Supabase. Owner authority decisions and clone acceptance are gates. App notebook, People and scheduling are out of scope.
+**Stage:** draft source contract only, NOT a deployed migration or RPC.  
+**Authority decision:** owner approved separate `owner_attested` relevance and `source_verified` attribution, without converting either into the other or backfilling historical Work (October 17, 2026).  
+**Source owner:** `optical-lift/noel-core-db` candidate, eventual `atlas_` migration lane. Atlas app and People UX are NOT part of this tranche.
 
-## Verified October 17, 2026
+## 1. Observed source truth
 
-- `atlas.work_items` owns one Company Work identity with `organization_id` and `organization_unit_id`; it has no native Ledger FK.
-- `ledger.ledgers` owns native notebook Ledgers. `atlas.ledgers` is the older institutional compatibility graph. The matching native/legacy Ledger UUIDs for the current three examples are **not** proof of work membership.
-- `atlas.ledger_organization_participations` verifies institutional Ledger participation. Elm Flower and Elm Venue participate in Elm Farm, Optical Lift's agency Ledger in a separate Organization. Participation does **not** attach any particular Work item.
-- `atlas.work_item_context_links` only permits identity and spatial context; current row count zero. `atlas.ledger_correlations` row count zero.
-- Live `atlas.work_items`: 154 rows, all under Elm Farm Organization. Elm operating unit: 151 (77 open, 55 completed, 19 cancelled). Waiting Room operating unit: 3 (1 open, 2 completed). Neither operating-unit key establishes native Ledger membership. No current evidence-backed Work→native-Ledger relation was found.
+- Company Work identity: `atlas.work_items.id`; owning institution: `work_items.organization_id`; optional operating-unit locus: `organization_unit_id`. Assignment/schedule/result are distinct domains.
+- `ledger.ledgers` is the native notebook Ledger. `atlas.ledgers` is the older institutional graph; matching UUIDs are compatibility routing only. `atlas.ledger_organization_participations` proves active Organization/Ledger participation, **not** Work attribution.
+- `atlas.work_item_context_links` currently permits spatial/identity links only; it cannot be repurposed silently as Ledger attribution.
+- Live scan: 154 Company Work rows in Elm Farm Organization (151 Elm unit: 77 open, 55 completed, 19 cancelled; 3 Waiting Room unit: 1 open, 2 completed). No proven Work→native Ledger relation.
+- Native `ledger.booking_requests.ledger_id` and `ledger.booking_offerings.ledger_id` are real source-owned FKs. They support an exact verification route when the Work item explicitly names that native source object by type + UUID. Current Work contains **zero** such source types, so none can be silently source-verified.
+- Native keys in current live sample: `elm-farm:flower` and `elm-farm:venue` participate in Elm Farm; `optical-lift:agency` participates in Optical Lift. A Ledger seat is participation, not owner authority.
 
-## Legal custody
+## 2. One obligation; two independent evidence tracks
 
-**Owning Organization ≠ Operating Unit ≠ Native Ledger ≠ Ledger relevance.**
+`atlas.company_work_native_ledger_relevance` is a **relationship record**, not a new task, assignment, or human identity. Composite active uniqueness: `(work_item_id,ledger_id,evidence_kind)`.
 
-Company Work has one institution and one stable `work_item_id` regardless of assignment, Worker Day or result. A positive, source-attested association says that work serves a specified native Ledger purpose; one Work ID may serve two Ledgers without duplicate work, allocation or completion. No association means **unknown**, not 'does not belong'. One established Ledger link does not automatically exclude other Ledgers.
+**`owner_attested` (owner-established relevance)** means: the signed-in authorized institutional owner affirms that this Work serves the selected Ledger purpose. The command requires a `sourceRef` and `reason`. These are preserved as an attestation; they are not converted into an FK, independently verified by AI, or presented as source fact. The asserted relevance may be corrected through a reasoned withdrawal.
 
-Candidate v1 accepts only a signed-in root Principal's explicit designation (`owner_attestation`) with a retained `sourceRef`. A verified source-object binding (`source_binding`) is **not** admitted until an actual source-owned foreign-key resolver and its tests exist; a text reference alone is not verified source evidence. Names, titles, NLP guesses, legacy work type, operating-unit label or general Organization participation are never adequate proof.
+**`source_verified` (exact database attribution)** means: the database found an actual allowlisted native source row whose `ledger_id` equals the selected native Ledger and whose `id` equals the Company Work row's canonical typed `source_object_id`. Only the server constructs `source_schema`, `source_table`, `source_id`, and `verified_at`. No client-supplied proof JSON, label, Organization membership, Work title, legacy farm task, or owner attestation is enough. The initial allowlist is:
+- `work_items.source_object_type='ledger_booking_request'` → `ledger.booking_requests.id` and `ledger.booking_requests.ledger_id`
+- `work_items.source_object_type='ledger_booking_offering'` → `ledger.booking_offerings.id` and `ledger.booking_offerings.ledger_id`
 
-The candidate permits associations only when a native Ledger is active, is matched by the legacy Ledger ID, and has current **governing/operating** participation in the owning Work Organization. It does not infer a relationship from that eligibility.
+A Work/Ledger pair may have one active attestation **and** one active source verification simultaneously. Establishing either leaves the other evidence unchanged. The RPC never upgrades one row's evidence kind. Both share the one original Work ID. They are two different reasons for relevance, not two tasks.
 
-The initial guarded command requires a valid Atlas session, canonical Person/Principal, current native seat, root authority over the selected native Ledger, and root authority over the Organization's unique primary governing Ledger. It is deliberately **owner-only**; expansion to other managers, workers and delegates awaits the People authority stage. A seat is not ownership. Direct table access is denied. Withdrawal preserves the original evidence and actor.
+Lifecycle is separate from epistemic evidence: `attribution_state=active|withdrawn`. Withdrawal preserves immutable source/evidence/actor and history. A source-verified row is historical evidence of verification at `verified_at`; the read recomputes `currentSourceProof` from the exact source rows. If source proof disappears or changes, the record is still visible but `currentSourceProof=false` and it **must not establish current effective scope** without a separate active owner attestation. Lack of a link is unknown, not proven exclusion. Association with Flower does not rule out Venue.
 
-## Proposed source contract
+## 3. Source rules, unknowns and external service
 
-- `atlas.company_work_native_ledger_relevance`: explicit native Ledger relevance with immutable original evidence, active/withdrawn lifecycle and per-pair active uniqueness.
-- `atlas.guard_company_work_native_ledger_relevance_v1()`: validates source Organization and native Ledger eligibility, guards identity/history.
-- `atlas.company_work_native_ledger_owner_self_v1(organization_id,ledger_id)`: private authority check.
-- `atlas.establish_company_work_native_ledger_relevance_self_api_v1(work_item_id,ledger_id,evidence_basis)`: only explicit owner-attested/source-attested positive links; idempotent for existing active pair.
-- `atlas.withdraw_company_work_native_ledger_relevance_self_api_v1(attribution_id,reason)`: reasoned withdrawal, no task deletion.
-- `atlas.company_work_native_ledger_scope_self_api_v1(organization_id,ledger_id,limit,after_work_item_id)`: owner-scoped direct matches, source evidence and Organization-wide unattributed count; no other Organization data.
-
-## Source mapping
-
-| Evidence | Result |
+| Input reality | Candidate result |
 |---|---|
-| Exact native-Ledger FK on the source obligation and authorized establishment | NOT YET IMPLEMENTED — a source-specific resolver must validate the actual FK before admitting `source_binding` |
-| Owner explicitly judges one existing Elm work obligation relevant to Flowers | Attested relevance link to Flowers; no change in task owner |
-| One Elm obligation really serves Flowers and Venue | Two relevance links, **one** original work ID |
-| Generic Elm unit, old task, marketing/flowers/venue words in title | `unknown`; review candidate only |
-| Previous attribution wrong | Withdraw link with reason; work and history stay unchanged |
-| Agency employee's task in Optical Lift serving Elm | Optical Lift owns its internal work. Elm requires a separate, authorized external service commitment/result publication seam; never gets the agency's internal work merely by adding a second Ledger link |
+| Owner explicitly affirms Elm work serves Flower | one `owner_attested` Flower link |
+| Same work also serves Venue | second `owner_attested` Venue link, **same work_id** |
+| Exact native booking request/offering is its typed Work source | one `source_verified` link after FK check |
+| Later source deletion/change | stale historical verification; no current source proof |
+| Both proof types exist | two active evidence records, one Work row in Ledger read |
+| Generic Elm/Waiting Room unit or work title implies flower/venue | **unknown**, no automatic designation |
+| Optical Lift has an internal task implementing Elm client promise | Optical Lift still owns that task; Elm requires separately established consented service commitment/result publication, not cross-company task exposure |
+| Wrong attestation | withdraw with reason, preserving Work and evidence |
 
-All 154 existing Work rows remain pending exact Ledger attribution; no destructive or speculative backfill is permitted. In particular, three Waiting Room records under the Elm Farm Organization must not be silently included in either native Elm Ledger.
+No institutional permissions are inferred from a shared Organization or matching native/legacy Ledger UUID. The candidate allows only current governing/operating Ledger participation for the Work Organization. It does not cover intercompany shared work. Future service agreements need an independent authority membrane.
 
-## Source → approval → release
+## 4. Guarded candidate API
 
-1. Review the two authority decisions: whether **root owner + selected native seat + institution's governing root** is the initial allowed attribution writer, and whether a human's explicit, recorded `owner_attestation` is sufficient to designate work relevance while actual source FK verification remains blocked.
-2. In `noel-core-db`, inspect current main and domain-custody rules; promote only approved candidate SQL to a fresh `atlas_` canonical timestamped migration using the repo's governed release workflow.
-3. Validate in disposable schema clone, including authenticated positive and negative fixtures. `candidates/atlas_company_work_native_ledger_relevance_v1_validation.sql` checks minimal structural invariants; it does **not** replace identity/privacy acceptance. Run security advisors, migration reconciliation and `atlas_` lane CI.
-4. Release through protected manual DB process; record migration version, hashes and live RPC signatures. No Atlas Preview/Production deployment is implied or permitted by a source merge.
+| Candidate object | Authority/meaning |
+|---|---|
+| `atlas.company_work_native_ledger_relevance` | work ID + native Ledger relevance evidence/history |
+| `atlas.company_work_native_ledger_exact_source_v1(uuid,uuid)` | private exact native FK source proof; no text lookup |
+| `atlas.guard_company_work_native_ledger_relevance_v1()` | preserve parent Organization, participation, immutable evidence |
+| `atlas.company_work_native_ledger_owner_self_v1(uuid,uuid)` | current session + canonical Person + Principal + native seat + both governing roots |
+| `atlas.establish_company_work_native_ledger_relevance_self_api_v1(uuid,uuid,jsonb)` | owner attestation only; cannot supply source-verified evidence |
+| `atlas.verify_company_work_native_ledger_source_self_api_v1(uuid,uuid)` | verifies allowlisted native FK and records independent `source_verified` evidence |
+| `atlas.withdraw_company_work_native_ledger_relevance_self_api_v1(uuid,text)` | reasoned withdrawal, no task reassignment |
+| `atlas.company_work_native_ledger_scope_self_api_v1(uuid,uuid,integer,uuid)` | one row per Work ID, nested evidence records, `has_current_scope` and Organization unknown count |
 
-## Conversation 2 handoff — CONDITIONAL
+V1 browser calls require the caller's current authenticated Atlas session; `atlas.current_person_id_v1` / `current_principal_id_v1`; an active native Ledger seat; root authority over that Ledger **and** over the Work Organization's unique primary governing Ledger. Initial writer/read audience is conservative root owner only. The candidate adds **no** manager/worker access by title/seat alone. Direct reads/writes to new table and private helpers are revoked; authenticated access is through narrowly gated RPCs. The two positive writers are both independently privileged and proof-class specific.
 
-Only once v1 is *released* may People use `organization_id`, `organization_unit_id`, `work_item_id`, native `ledger_id`, evidence class and the governed role-scoped read. The stage does not create People records, agency employment, cross-company exposure, Worker Day projection, scheduling or UI. On the audit date, unknown Work=154 (Elm unit 151; Waiting Room unit 3). Root-only command is not a manager/delegate policy. No assignment, source obligation, result, notebook or production data was changed by source-candidate work.
+## 5. Validation and release gates
+
+Candidate SQL: `candidates/atlas_company_work_native_ledger_relevance_v1.sql`.  
+Clone checks: `candidates/atlas_company_work_native_ledger_relevance_v1_validation.sql`.  
+**Not** a `supabase/migrations/<timestamp>_atlas_*.sql` release file.
+
+Checks require zero initial link rows; direct table SELECT/INSERT/UPDATE denied; RLS; anonymous RPC denial; helper RPC denial; separately granted gated commands; source resolver failure on missing source; distinct pair+evidence uniqueness. This validation must run against a **disposable clone**, never production. A successful PR custody CI does not execute migration SQL and is **not** proof of PostgreSQL execution.
+
+**Still required before a migration is promoted:** identity-bound *positive and negative* authenticated fixture tests (authorized Elm owner; wrong Org, seat-only, lost session, false source ID, dual-Ledger same work, both evidence kinds, stale source proof, withdrawal immutability); schema clone lint; security review of `SECURITY DEFINER` RPC grants; source FK semantics review; canonical timestamped migration generation and protected DB release. Run through existing `docs/PRODUCTION_SCHEMA_CLONE_VALIDATION.md` workflow only after correct migration/lane preparation and explicit release steps. No source merge or CI status is a production deployment.
+
+## 6. Conversation 2 handoff (conditional)
+
+Only after tested DB release: use `work_item_id` as the one Company Work identity; `organization_id` and `organization_unit_id` as institution/locus; native `ledger_id` as authorized Ledger relevance; `evidence_kind` and `currentSourceProof` as independent source statuses; `has_current_scope=false` as unresolved relevance. Do not derive a human/role/employment from this relation. Anna/People/Worker Day are later steps. **No historic work, institution, worker, assignment or result changed in this candidate PR.**
+
+At the audit: 154 existing work items remain without established native Ledger scope; three of them have Waiting Room unit locus and must be reviewed separately. Optical Lift employee work remains private to Optical Lift; a contract to publish Elm-facing obligations is unresolved. Confirm actual data again before Conversation 2.
