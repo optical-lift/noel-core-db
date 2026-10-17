@@ -59,8 +59,19 @@ BEGIN
                         ELSE 'active_responsible_allocation_observed' END,
            'establishmentBasisKind',wa.establishment_basis_kind,
            'assigneeMembershipId',wa.assignee_membership_id,
-           'assigneeInstitutionalPersonRecordId',wa.assignee_institutional_person_record_id,
-           'assigneePersonId',ipr.person_id,
+           'assigneeInstitutionalPersonRecordId',
+              coalesce(wa.assignee_institutional_person_record_id,
+                       om_assignee.institutional_person_record_id),
+           'assigneePersonId',coalesce(ipr.person_id,om_assignee.person_id),
+           'personProvenance',CASE
+             WHEN wa.assignee_institutional_person_record_id IS NOT NULL
+               THEN 'exact_allocation_institutional_person'
+             WHEN om_assignee.institutional_person_record_id IS NOT NULL
+               THEN 'active_allocation_to_membership_institutional_person'
+             WHEN om_assignee.person_id IS NOT NULL
+               THEN 'active_allocation_to_membership_person'
+             ELSE 'no_source_person_resolution'
+           END,
            'offeredResponsibilityCount',offers.offered_count
         ),
         'planning',jsonb_build_object(
@@ -135,8 +146,12 @@ BEGIN
         AND a.allocation_role='responsible' AND a.state='active'
       ORDER BY a.allocated_at DESC,a.id DESC LIMIT 1
     ) wa ON true
+    LEFT JOIN atlas.organization_memberships om_assignee
+      ON om_assignee.id=wa.assignee_membership_id
+     AND om_assignee.organization_id=w.organization_id
     LEFT JOIN atlas.institutional_person_records ipr
-      ON ipr.id=wa.assignee_institutional_person_record_id
+      ON ipr.id=coalesce(wa.assignee_institutional_person_record_id,
+                         om_assignee.institutional_person_record_id)
      AND ipr.organization_id=w.organization_id
     LEFT JOIN LATERAL (
       SELECT count(*)::integer AS offered_count
