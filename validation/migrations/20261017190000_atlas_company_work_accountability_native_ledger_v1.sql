@@ -631,6 +631,12 @@ BEGIN
   OR v_row#>>'{latestAcceptedResult,resultId}'<>r->>'completedResult'
   OR v_row#>>'{latestAcceptedResult,decision}'<>'accepted'
   OR v_row#>>'{latestAcceptedResult,resultKind}'<>'completed'
+  OR v_row#>>'{responsibility,state}'<>'no_active_responsible_allocation'
+  OR v_row#>>'{lastResponsibleAllocation,allocationState}'<>'completed'
+  OR v_row#>>'{lastResponsibleAllocation,assigneePersonId}'<>f->>'memberPerson'
+  OR (v_row#>>'{lastResponsibleAllocation,historicalNotCurrent}')::boolean IS DISTINCT FROM true
+  OR v_row#>>'{planning,planState}'<>'no_current_plan'
+  OR (v_row#>>'{lastExecutionPlan,historicalNotCurrent}')::boolean IS DISTINCT FROM true
   OR (v_row->>'reportedResultCount')::integer<>2
   OR (v_row#>>'{latestWorkerReport,reportsSharingLatestTimestamp}')::integer<>2
   OR (v_row#>>'{latestWorkerReport,exactOrderWithinTimestampProven}')::boolean IS DISTINCT FROM false
