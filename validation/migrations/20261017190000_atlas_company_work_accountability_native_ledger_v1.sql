@@ -628,10 +628,14 @@ BEGIN
  END IF;
  v_row:=v_accountability#>'{items,0}';
  IF v_row->>'workState'<>'completed'
-  OR v_row#>>'{latestWorkerReport,resultId}'<>r->>'completedResult'
-  OR v_row#>>'{latestWorkerReport,decision}'<>'accepted'
+  OR v_row#>>'{latestAcceptedResult,resultId}'<>r->>'completedResult'
+  OR v_row#>>'{latestAcceptedResult,decision}'<>'accepted'
+  OR v_row#>>'{latestAcceptedResult,resultKind}'<>'completed'
+  OR (v_row->>'reportedResultCount')::integer<>2
+  OR (v_row#>>'{latestWorkerReport,reportsSharingLatestTimestamp}')::integer<>2
+  OR (v_row#>>'{latestWorkerReport,exactOrderWithinTimestampProven}')::boolean IS DISTINCT FROM false
   OR (v_accountability#>>'{facts,managerDoesNotImpersonateWorker}')::boolean IS DISTINCT FROM true THEN
-   RAISE EXCEPTION 'FAIL: manager view did not independently show worker report and accepted consequence: %',v_row;
+   RAISE EXCEPTION 'FAIL: manager view lost accepted consequence or invented chronological report order: %',v_row;
  END IF;
  IF (SELECT count(*) FROM atlas.work_execution_results x
      WHERE x.work_item_id=(w->>'work')::uuid)<>2 THEN
