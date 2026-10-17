@@ -107,8 +107,18 @@ BEGIN
             'reportedAt',lr.reported_at,
             'reportedByInstitutionalPersonRecordId',lr.reported_by_institutional_person_record_id,
             'decision',coalesce(ra.decision,'no_acceptance_for_this_result'),
-            'decisionAt',ra.accepted_at
+            'decisionAt',ra.accepted_at,
+            'reportsSharingLatestTimestamp',lr.timestamp_tie_count,
+            'exactOrderWithinTimestampProven',lr.timestamp_tie_count=1
           ) END,
+        'latestAcceptedResult',CASE WHEN ar.id IS NULL THEN NULL ELSE
+          jsonb_build_object(
+            'resultId',ar.id,'resultKind',ar.result_kind,
+            'reportedAt',ar.reported_at,
+            'decision',ar.decision,'acceptedAt',ar.accepted_at,
+            'acceptanceKind',ar.acceptance_kind
+          ) END,
+        'reportedResultCount',reports.total_count,
         'acceptedResultIsDistinctFromReport',true
       ) AS item
     FROM (
@@ -210,15 +220,37 @@ BEGIN
     ) wp ON true
     LEFT JOIN LATERAL (
       SELECT r.id,r.result_kind,r.reported_at,
-             r.reported_by_institutional_person_record_id
+             r.reported_by_institutional_person_record_id,
+             (SELECT count(*)::integer FROM atlas.work_execution_results tied
+              WHERE tied.organization_id=r.organization_id
+                AND tied.work_item_id=r.work_item_id
+                AND tied.reported_at=r.reported_at) AS timestamp_tie_count
       FROM atlas.work_execution_results r
       WHERE r.organization_id=w.organization_id AND r.work_item_id=w.id
+      -- A transaction timestamp may tie across multiple worker reports;
+      -- UUID sorting is deterministic, never proof of report chronology.
       ORDER BY r.reported_at DESC,r.id DESC LIMIT 1
     ) lr ON true
     LEFT JOIN atlas.work_result_acceptances ra
       ON ra.execution_result_id=lr.id
      AND ra.organization_id=w.organization_id
      AND ra.work_item_id=w.id
+    LEFT JOIN LATERAL (
+      SELECT count(*)::integer AS total_count
+      FROM atlas.work_execution_results r
+      WHERE r.organization_id=w.organization_id AND r.work_item_id=w.id
+    ) reports ON true
+    LEFT JOIN LATERAL (
+      SELECT r.id,r.result_kind,r.reported_at,a.decision,
+             a.accepted_at,a.acceptance_kind
+      FROM atlas.work_result_acceptances a
+      JOIN atlas.work_execution_results r ON r.id=a.execution_result_id
+       AND r.organization_id=a.organization_id
+       AND r.work_item_id=a.work_item_id
+      WHERE a.organization_id=w.organization_id
+        AND a.work_item_id=w.id AND a.decision='accepted'
+      ORDER BY a.accepted_at DESC,a.id DESC LIMIT 1
+    ) ar ON true
     WHERE p_scope='organization' OR w.has_exact_ledger_evidence
     ORDER BY w.id
     LIMIT p_limit
