@@ -23,7 +23,7 @@
 - `work_items.source_object_type='ledger_booking_request'` → `ledger.booking_requests.id` and `ledger.booking_requests.ledger_id`
 - `work_items.source_object_type='ledger_booking_offering'` → `ledger.booking_offerings.id` and `ledger.booking_offerings.ledger_id`
 
-A Work/Ledger pair may have one active attestation **and** one active source verification simultaneously. Establishing either leaves the other evidence unchanged. The RPC never upgrades one row's evidence kind. Both share the one original Work ID. They are two different reasons for relevance, not two tasks.
+A Work/Ledger pair may have one active attestation **and** one active source verification simultaneously. Establishing either leaves the other evidence unchanged. The RPC never upgrades one row's evidence kind. Repeating verification is idempotent only when the existing evidence identifies the same source schema/table/UUID; a different current source fails closed and requires reasoned withdrawal of the historic assertion before a new verification can be recorded. Both share the one original Work ID. They are two different reasons for relevance, not two tasks.
 
 Lifecycle is separate from epistemic evidence: `attribution_state=active|withdrawn`. Withdrawal preserves immutable source/evidence/actor and history. A source-verified row is historical evidence of verification at `verified_at`; the read recomputes `currentSourceProof` from the exact source rows. If source proof disappears or changes, the record is still visible but `currentSourceProof=false` and it **must not establish current effective scope** without a separate active owner attestation. Lack of a link is unknown, not proven exclusion. Association with Flower does not rule out Venue.
 
@@ -61,7 +61,7 @@ V1 browser calls require the caller's current authenticated Atlas session; `atla
 
 Candidate SQL: `candidates/atlas_company_work_native_ledger_relevance_v1.sql`.  
 Clone checks: `candidates/atlas_company_work_native_ledger_relevance_v1_validation.sql`.  
-**Not** a `supabase/migrations/<timestamp>_atlas_*.sql` release file.
+**Staged (not released):** `supabase/migrations/20261017170000_atlas_company_work_native_ledger_relevance_v1.sql` and `validation/migrations/20261017170000_atlas_company_work_native_ledger_relevance_v1.sql` on draft PR #1675. The canonical migration is only source staged; a released migration is one that has passed clone gates and the protected production release process. No live migration receipt currently exists.
 
 Checks require zero initial link rows; direct table SELECT/INSERT/UPDATE denied; RLS; anonymous RPC denial; helper RPC denial; separately granted gated commands; source resolver failure on missing source; distinct pair+evidence uniqueness. This validation must run against a **disposable clone**, never production. A successful PR custody CI does not execute migration SQL and is **not** proof of PostgreSQL execution.
 
