@@ -45,3 +45,6 @@ An Owner who wishes to appoint a Person, delegate a responsibility, grant execut
 ## Conversation 3 handoff (conditional — only after release)
 
 Use Person key `atlas.people.id` and IPR key `atlas.institutional_person_records.id`; Owner People read is source-scoped. Responsibility, custody, work assignment, work execution and worker-day projection remain independent. The next build must not translate a People row, role, native seat, or employee credential into a work allocation; it must follow exact Company Work source identity and authorized assignment/projection.
+## Acceptance receipt — 2026-10-17
+
+Protected schema-clone run [39053748142](https://github.com/optical-lift/noel-core-db/actions/runs/39053748142) PASSED at source SHA `188512262a40ceed4396d75c5996ebc9ac80a236`. Role-bound synthetic SQL tested root owner across two native Ledgers, stable Person identity, non-account institutional human, appointment-versus-native-seat separation, and seat-only/outsider/invalid-session denial. PostgreSQL postconditions ended in ROLLBACK. Baseline Atlas lint errors: 14; candidate: 14; delta: 0. No real account or private Personal Atlas read. Source is a candidate, not yet merged or released.
