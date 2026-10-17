@@ -219,6 +219,7 @@ DECLARE
   v_person uuid;
   v_owner_person uuid; v_member_person uuid; v_outsider_person uuid;
   v_owner_principal uuid;v_member_principal uuid;v_outsider_principal uuid;
+  v_temp_principal uuid;
 BEGIN
   INSERT INTO atlas.organizations(id,stable_key,name)
   VALUES(v_org,'auth-elm-'||v_org::text,'Synthetic Elm Organization'),
@@ -266,7 +267,7 @@ BEGIN
     INSERT INTO atlas.principals(user_id,organization_id,stable_key,name)
     VALUES(v_actor.user_id,v_actor.org,
       'synthetic-auth-'||v_actor.user_id::text,'Synthetic '||v_actor.label)
-    RETURNING id,person_id INTO v_owner_principal,v_person;
+    RETURNING id,person_id INTO v_temp_principal,v_person;
     INSERT INTO reality.entities(id,stable_key,entity_kind,display_name)
     VALUES(v_person,'synthetic-person-'||v_person::text,'person',
       'Synthetic '||v_actor.label);
