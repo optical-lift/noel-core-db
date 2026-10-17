@@ -434,6 +434,16 @@ begin
     return jsonb_build_object('reportable',false,'state','company_work_not_open','workItemId',v_work_ids[1]);
   end if;
 
+  -- The source result writer already denies cross-unit employee reporting.
+  -- The self-read affordance must tell the same truth rather than advertise
+  -- an item as reportable and reject it only after the employee acts.
+  IF v_work.organization_unit_id IS DISTINCT FROM (v_context->>'organizationUnitId')::uuid THEN
+    RETURN jsonb_build_object(
+      'reportable',false,'state','worker_position_unit_mismatch',
+      'workItemId',v_work.id
+    );
+  END IF;
+
   select * into v_policy
   from atlas.work_result_contract_policies p
   where p.contract_key=v_work.result_contract_key and p.active;
