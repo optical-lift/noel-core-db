@@ -346,5 +346,245 @@ BEGIN
   RAISE NOTICE 'PASS: seat-only, other Organization, and invalid sessions denied';
 END
 $accept$;
+-- SECOND ACCEPTANCE: genuinely different identities for authenticated institution
+-- owner and worker, two Worker Day dates, and report/acceptance distinctions.
+-- All rows below are SYNTHETIC in the disposable clone transaction; never
+-- source for production backfill, employee schedules, or real user state.
+RESET ROLE;
+DO $worker_setup$
+DECLARE
+ f jsonb:=current_setting('atlas.test_native_work_scope')::jsonb;
+ v_org uuid:=(f->>'org')::uuid;
+ v_work uuid:=(f->>'work')::uuid;
+ v_worker uuid:=(f->>'seatOnly')::uuid;
+ v_subject uuid;v_org_membership uuid;v_ipr uuid;v_farm uuid;v_farm_membership uuid;
+ v_unit uuid;v_seat uuid;v_plan uuid;v_today_projection uuid;
+ v_future_projection uuid;v_today date:=(now() AT TIME ZONE 'America/Chicago')::date;
+ v_policy text:='synthetic-company-work-attested-'||substr(gen_random_uuid()::text,1,8);
+BEGIN
+ SELECT ou.id INTO v_unit FROM atlas.organization_units ou
+ WHERE ou.organization_id=v_org AND ou.name='Synthetic Team' LIMIT 1;
+ SELECT ipr.id INTO v_ipr
+ FROM atlas.institutional_person_records ipr
+ JOIN reality.auth_person_bindings b ON b.person_entity_id=ipr.person_id
+ WHERE b.auth_user_id=v_worker AND ipr.organization_id=v_org;
+ IF v_unit IS NULL OR v_ipr IS NULL THEN
+   RAISE EXCEPTION 'FAIL: synthetic worker unit or institutional Person missing';
+ END IF;
+ INSERT INTO atlas.identity_subjects(organization_id,creation_basis)
+ VALUES(v_org,'{"synthetic":"Build3 rollback-only worker delivery validation"}'::jsonb)
+ RETURNING id INTO v_subject;
+ INSERT INTO atlas.organization_memberships(
+   organization_id,user_id,role,identity_subject_id,institutional_person_record_id)
+ VALUES(v_org,v_worker,'member',v_subject,v_ipr)
+ RETURNING id INTO v_org_membership;
+ INSERT INTO atlas.farms(
+   organization_id,organization_unit_id,stable_key,name,metadata)
+ VALUES(v_org,v_unit,'synthetic-work-farm-'||gen_random_uuid()::text,
+   'Synthetic work delivery farm','{"timezone":"America/Chicago"}'::jsonb)
+ RETURNING id INTO v_farm;
+ INSERT INTO atlas.farm_memberships(farm_id,user_id,role,identity_subject_id)
+ VALUES(v_farm,v_worker,'farm_hand',v_subject)
+ RETURNING id INTO v_farm_membership;
+ UPDATE atlas.organization_position_appointments
+ SET organization_membership_id=v_org_membership,identity_subject_id=v_subject
+ WHERE organization_id=v_org AND institutional_person_record_id=v_ipr;
+ IF NOT FOUND THEN RAISE EXCEPTION 'FAIL: synthetic worker appointment missing';END IF;
+ INSERT INTO atlas.organization_employee_seats(
+   organization_id,organization_membership_id,identity_subject_id,
+   institutional_person_record_id,seat_class,status,billing_state)
+ VALUES(v_org,v_org_membership,v_subject,v_ipr,'employee','active','waived')
+ RETURNING id INTO v_seat;
+ INSERT INTO atlas.organization_member_credentials(
+   organization_id,organization_membership_id,employee_seat_id,
+   identity_subject_id,credential_kind,auth_user_id,issued_by_organization_id)
+ VALUES(v_org,v_org_membership,v_seat,v_subject,'auth_user',v_worker,v_org);
+ INSERT INTO atlas.work_result_contract_policies(contract_key,source_domain,acceptance_mode)
+ VALUES(v_policy,'synthetic_institutional_work','worker_attestation');
+ UPDATE atlas.work_items SET organization_unit_id=v_unit,result_contract_key=v_policy
+ WHERE id=v_work AND organization_id=v_org;
+ INSERT INTO atlas.work_allocations(
+    organization_id,work_item_id,assignee_membership_id,
+    assignee_institutional_person_record_id,allocation_role,state,
+    establishment_basis_kind,establishment_basis,metadata)
+ VALUES(v_org,v_work,v_org_membership,v_ipr,'responsible','active','self_claim',
+   '{"synthetic":true,"receiverApprovedInRollbackFixture":true}'::jsonb,
+   '{"validationOnly":true}'::jsonb);
+ INSERT INTO atlas.worker_week_projection(
+    organization_id,organization_membership_id,farm_id,membership_id,
+    planned_date,source_kind,source_id,title,plan_state,locked,delivery_payload)
+ VALUES(v_org,v_org_membership,v_farm,v_farm_membership,v_today,
+   'work_item',v_work,'Synthetic work today','planned',true,
+   '{"projectionAuthority":"work_execution_plans","synthetic":true}'::jsonb)
+ RETURNING id INTO v_today_projection;
+ INSERT INTO atlas.worker_week_projection_sources(
+   projection_id,work_item_id,source_role)
+ VALUES(v_today_projection,v_work,'required');
+ INSERT INTO atlas.worker_week_projection(
+    organization_id,organization_membership_id,farm_id,membership_id,
+    planned_date,source_kind,source_id,title,plan_state,locked,delivery_payload)
+ VALUES(v_org,v_org_membership,v_farm,v_farm_membership,v_today+1,
+   'work_item',v_work,'Synthetic work tomorrow','planned',true,
+   '{"projectionAuthority":"work_execution_plans","synthetic":true}'::jsonb)
+ RETURNING id INTO v_future_projection;
+ INSERT INTO atlas.worker_week_projection_sources(projection_id,work_item_id,source_role)
+ VALUES(v_future_projection,v_work,'required');
+ PERFORM set_config('atlas.test_worker_case',jsonb_build_object(
+   'org',v_org,'work',v_work,'worker',v_worker,
+   'workerSession',f->>'seatOnlySession','orgMembership',v_org_membership,
+   'farm',v_farm,'farmMembership',v_farm_membership,
+   'today',v_today,'todayProjection',v_today_projection,
+   'futureProjection',v_future_projection,'policy',v_policy
+ )::text,true);
+ RAISE NOTICE 'PASS: source-distinct synthetic institutional worker, appointment, active seat, current and future projections, no plan yet';
+END
+$worker_setup$;
+
+SET LOCAL ROLE authenticated;
+DO $worker_negative_before_plan$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_context jsonb;v_feed jsonb;v_result jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ v_context:=atlas.organization_employee_worker_context_self_v1(
+   (f->>'farm')::uuid,(f->>'farmMembership')::uuid);
+ IF (v_context->>'ok')::boolean IS DISTINCT FROM true THEN
+   RAISE EXCEPTION 'FAIL: real employee context not established by synthetic identity/seat/appointment/credential: %',v_context;
+ END IF;
+ v_feed:=atlas.company_work_worker_day_self_api_v1((f->>'today')::date,2);
+ IF jsonb_array_length(v_feed->'items')<>2 THEN
+   RAISE EXCEPTION 'FAIL: current and future worker projections not visible in bounded employee self read';
+ END IF;
+ SELECT item->'resultReporting' INTO v_result FROM jsonb_array_elements(v_feed->'items') item
+ WHERE (item->>'projectionId')::uuid=(f->>'futureProjection')::uuid;
+ IF v_result->>'state'<>'not_current_service_day'
+    OR (v_result->>'reportable')::boolean IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'FAIL: future projection mislabeled currently reportable: %',v_result;
+ END IF;
+ BEGIN
+   PERFORM atlas.worker_report_company_work_projection_self_api_v1(
+     (f->>'todayProjection')::uuid,'completed',
+     'synthetic-unplanned-'||gen_random_uuid()::text,'{}'::jsonb);
+   RAISE EXCEPTION 'FAIL: unplanned worker completion succeeded';
+ EXCEPTION WHEN sqlstate '23514' THEN NULL; END;
+ RAISE NOTICE 'PASS: employee self feed contains both dates; future not reportable; unplanned work cannot be completed';
+END
+$worker_negative_before_plan$;
+
+RESET ROLE;
+DO $plan_fixture$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_allocation uuid;v_plan uuid;
+BEGIN
+ SELECT a.id INTO v_allocation FROM atlas.work_allocations a
+ WHERE a.work_item_id=(f->>'work')::uuid AND a.state='active'
+ AND a.assignee_membership_id=(f->>'orgMembership')::uuid;
+ INSERT INTO atlas.work_execution_plans(
+    organization_id,work_item_id,responsible_allocation_id,
+    assignee_membership_id,plan_state,first_planned_service_date,
+    planned_service_date,exposure_service_date,metadata)
+ VALUES((f->>'org')::uuid,(f->>'work')::uuid,v_allocation,
+   (f->>'orgMembership')::uuid,'active',
+   (f->>'today')::date,(f->>'today')::date,(f->>'today')::date,
+   '{"synthetic":true,"validationOnly":true}'::jsonb)
+ RETURNING id INTO v_plan;
+ UPDATE atlas.worker_week_projection
+ SET delivery_payload=delivery_payload||jsonb_build_object('managerPlanId',v_plan)
+ WHERE id=(f->>'todayProjection')::uuid;
+ PERFORM set_config('atlas.test_worker_plan',v_plan::text,true);
+ RAISE NOTICE 'PASS: separate active management plan established in rollback fixture';
+END
+$plan_fixture$;
+
+SET LOCAL ROLE authenticated;
+DO $worker_current_proof$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_feed jsonb;v_reporting jsonb;v_result jsonb;v_blocked_id uuid;
+ v_completed_id uuid;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ v_feed:=atlas.company_work_worker_day_self_api_v1((f->>'today')::date,2);
+ SELECT item->'resultReporting' INTO v_reporting
+ FROM jsonb_array_elements(v_feed->'items') item
+ WHERE (item->>'projectionId')::uuid=(f->>'todayProjection')::uuid;
+ IF v_reporting->>'state'<>'reportable'
+   OR (v_reporting->>'reportable')::boolean IS DISTINCT FROM true
+   OR v_reporting->>'workItemId'<>f->>'work' THEN
+   RAISE EXCEPTION 'FAIL: governed current plan not reportable in true worker self context: %',v_reporting;
+ END IF;
+ SELECT item->'resultReporting' INTO v_reporting
+ FROM jsonb_array_elements(v_feed->'items') item
+ WHERE (item->>'projectionId')::uuid=(f->>'futureProjection')::uuid;
+ IF v_reporting->>'state'<>'not_current_service_day' THEN
+   RAISE EXCEPTION 'FAIL: future line became currently reportable from a current plan';
+ END IF;
+ BEGIN
+   PERFORM atlas.worker_report_company_work_projection_self_api_v1(
+     (f->>'futureProjection')::uuid,'completed',
+     'synthetic-future-'||gen_random_uuid()::text,'{}'::jsonb);
+   RAISE EXCEPTION 'FAIL: future-dated projection used as todays completion';
+ EXCEPTION WHEN sqlstate '23514' THEN NULL; END;
+ v_result:=atlas.worker_report_company_work_projection_self_api_v1(
+    (f->>'todayProjection')::uuid,'blocked',
+    'synthetic-blocked-'||gen_random_uuid()::text,
+    '{"sourceObservation":"synthetic prerequisite unavailable"}'::jsonb);
+ IF v_result->>'state'<>'reported' OR v_result->>'resultKind'<>'blocked'
+ OR NULLIF(v_result->>'acceptanceDecision','') IS NOT NULL THEN
+   RAISE EXCEPTION 'FAIL: blocked worker report was promoted to accepted completion: %',v_result;
+ END IF;
+ v_blocked_id:=(v_result->>'resultId')::uuid;
+ v_result:=atlas.worker_report_company_work_projection_self_api_v1(
+    (f->>'todayProjection')::uuid,'completed',
+    'synthetic-completed-'||gen_random_uuid()::text,'{}'::jsonb);
+ IF v_result->>'state'<>'reported_and_accepted'
+    OR v_result->>'companyWorkState'<>'completed'
+    OR v_result->>'acceptanceDecision'<>'accepted' THEN
+   RAISE EXCEPTION 'FAIL: worker attestation report did not separately establish accepted completion: %',v_result;
+ END IF;
+ v_completed_id:=(v_result->>'resultId')::uuid;
+ PERFORM set_config('atlas.test_worker_results',jsonb_build_object(
+   'blockedResult',v_blocked_id,'completedResult',v_completed_id
+ )::text,true);
+ RAISE NOTICE 'PASS: future-report denied, worker blocked report preserved unaccepted, current report accepted per explicit result policy';
+END
+$worker_current_proof$;
+
+DO $owner_after_worker$
+DECLARE
+ f jsonb:=current_setting('atlas.test_native_work_scope')::jsonb;
+ w jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ r jsonb:=current_setting('atlas.test_worker_results')::jsonb;
+ v_accountability jsonb;v_row jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+   'sub',f->>'owner','role','authenticated','session_id',f->>'ownerSession'
+ )::text,true);
+ v_accountability:=atlas.company_work_accountability_native_ledger_self_api_v1(
+ (w->>'org')::uuid,(f->>'flower')::uuid,'native_ledger',50,null);
+ IF jsonb_array_length(v_accountability->'items')<>1 THEN
+   RAISE EXCEPTION 'FAIL: owner lost the source Work identity following worker result';
+ END IF;
+ v_row:=v_accountability#>'{items,0}';
+ IF v_row->>'workState'<>'completed'
+  OR v_row#>>'{latestWorkerReport,resultId}'<>r->>'completedResult'
+  OR v_row#>>'{latestWorkerReport,decision}'<>'accepted'
+  OR (v_accountability#>>'{facts,managerDoesNotImpersonateWorker}')::boolean IS DISTINCT FROM true THEN
+   RAISE EXCEPTION 'FAIL: manager view did not independently show worker report and accepted consequence: %',v_row;
+ END IF;
+ IF (SELECT count(*) FROM atlas.work_execution_results x
+     WHERE x.work_item_id=(w->>'work')::uuid)<>2 THEN
+   RAISE EXCEPTION 'FAIL: failed future or pre-plan attempts secretly wrote results';
+ END IF;
+ RAISE NOTICE 'PASS: manager sees exact institution-owned work, worker source report and separate accepted completion; unauthorized attempts wrote nothing';
+END
+$owner_after_worker$;
+
 RESET ROLE;
 ROLLBACK;
