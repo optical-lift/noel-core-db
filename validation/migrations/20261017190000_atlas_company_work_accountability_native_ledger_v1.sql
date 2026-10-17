@@ -642,4 +642,129 @@ END
 $owner_after_worker$;
 
 RESET ROLE;
+
+-- SOURCE-GENERATED POSITIVE: a distinct synthetic Work ID follows the
+-- EXISTING governed responsibility constructor, manager planning constructor,
+-- and worker-projection reconciler. This prevents mistaking hand-authored
+-- delivery_payload markers for the real generation path. ROLLBACK only.
+RESET ROLE;
+DO $source_bridge_setup$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ v_org uuid:=(f->>'org')::uuid;
+ v_member uuid:=(f->>'orgMembership')::uuid;
+ v_today date:=(f->>'today')::date;
+ v_work2 uuid:=gen_random_uuid();
+ v_projection2 uuid;v_plan_result jsonb;v_bridge_count integer;
+ v_projection atlas.worker_week_projection%rowtype;
+ v_unit uuid;
+BEGIN
+ SELECT organization_unit_id INTO v_unit
+ FROM atlas.farms WHERE id=(f->>'farm')::uuid;
+ INSERT INTO atlas.work_items(id,organization_id,organization_unit_id,
+   title,work_state,result_contract_key,metadata)
+ VALUES(v_work2,v_org,v_unit,'Synthetic reconciler-sourced Company Work','open',
+   f->>'policy',
+   '{"source":"rollback_only_validation","managerSchedulingAuthority":"work_execution_plans"}'::jsonb);
+ PERFORM atlas.set_company_work_responsibility_with_basis_internal_v2(
+   v_work2,v_member,v_member,'self_adoption',
+   jsonb_build_object('sourceKind','synthetic_rollback_only_validation',
+                      'sourceId',v_work2::text),
+   'Synthetic established responsibility for bridge acceptance',
+   '{"source":"rollback_only_source_validation"}'::jsonb
+ );
+ -- Legacy/unverified EXISTING worker carrier is independently identifiable;
+ -- the reconciler must promote rather than clone Company Work.
+ INSERT INTO atlas.worker_week_projection(
+   organization_id,organization_membership_id,farm_id,membership_id,
+   planned_date,source_kind,source_id,title,plan_state,locked,delivery_payload)
+ VALUES(v_org,v_member,(f->>'farm')::uuid,(f->>'farmMembership')::uuid,
+   v_today,'work_item',v_work2,'Unverified legacy carrier','planned',false,
+   '{"source":"synthetic_unverified_legacy_carrier"}'::jsonb)
+ RETURNING id INTO v_projection2;
+ INSERT INTO atlas.worker_week_projection_sources(projection_id,work_item_id,source_role)
+ VALUES(v_projection2,v_work2,'required');
+ v_plan_result:=atlas.set_company_work_execution_plan_internal_v1(
+   v_work2,v_today,null,'Synthetic lawfully planned worker day',
+   '{"source":"rollback_only_source_generated_bridge_validation"}'::jsonb
+ );
+ IF v_plan_result->>'state'<>'planned'
+    OR v_plan_result->>'workItemId'<>v_work2::text THEN
+   RAISE EXCEPTION 'FAIL: source manager-plan command did not establish the Work plan: %',v_plan_result;
+ END IF;
+ v_bridge_count:=atlas.reconcile_company_work_worker_day_projections_v1(
+   (f->>'farm')::uuid,(f->>'farmMembership')::uuid,
+   v_org,v_member,v_today,1
+ );
+ IF v_bridge_count<>1 THEN
+   RAISE EXCEPTION 'FAIL: source plan worker projection reconciler expected one canonical line, got %',v_bridge_count;
+ END IF;
+ SELECT * INTO v_projection FROM atlas.worker_week_projection
+ WHERE id=v_projection2;
+ IF v_projection.id IS NULL
+   OR v_projection.source_id<>v_work2
+   OR v_projection.planned_date<>v_today
+   OR v_projection.delivery_payload->>'projectionAuthority'<>'work_execution_plans'
+   OR v_projection.delivery_payload->>'source'<>'company_work_employee_plan_projection_v1'
+   OR (v_projection.delivery_payload->>'canonicalCompanyWorkProjection')::boolean IS DISTINCT FROM true
+   OR v_projection.delivery_payload->>'managerPlanId' IS DISTINCT FROM (v_plan_result->>'planId') THEN
+   RAISE EXCEPTION 'FAIL: canonical reconciler failed to prove source promotion of same projection identity';
+ END IF;
+ PERFORM set_config('atlas.test_reconciled_worker_case',jsonb_build_object(
+   'work',v_work2,'projection',v_projection2,'plan',v_plan_result->>'planId'
+ )::text,true);
+ RAISE NOTICE 'PASS: governed source writer planned Work, reconciler promoted exact existing projection and retained Work and worker identities';
+END
+$source_bridge_setup$;
+
+SET LOCAL ROLE service_role;
+DO $source_bridge_worker_feed$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ b jsonb:=current_setting('atlas.test_reconciled_worker_case')::jsonb;
+ v_feed jsonb;v_row jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+  'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ v_feed:=atlas.company_work_worker_day_self_api_v1((f->>'today')::date,1);
+ SELECT item INTO v_row
+ FROM jsonb_array_elements(v_feed->'items') item
+ WHERE item->>'projectionId'=b->>'projection';
+ IF v_row IS NULL OR v_row#>>'{resultReporting,state}'<>'reportable'
+   OR v_row#>>'{deliveryPayload,managerPlanId}'<>b->>'plan'
+   OR v_row#>>'{resultReporting,workItemId}'<>b->>'work' THEN
+   RAISE EXCEPTION 'FAIL: worker self read did not contain source-reconciled current-day line: %',v_row;
+ END IF;
+ RAISE NOTICE 'PASS: authorized server-backed Worker Day self projection returns source-reconciled plan and reportable current work';
+END
+$source_bridge_worker_feed$;
+
+SET LOCAL ROLE authenticated;
+DO $source_bridge_worker_report$
+DECLARE
+ f jsonb:=current_setting('atlas.test_worker_case')::jsonb;
+ b jsonb:=current_setting('atlas.test_reconciled_worker_case')::jsonb;
+ v_result jsonb;
+BEGIN
+ PERFORM set_config('request.jwt.claims',jsonb_build_object(
+  'sub',f->>'worker','role','authenticated','session_id',f->>'workerSession'
+ )::text,true);
+ v_result:=atlas.worker_report_company_work_projection_self_api_v1(
+   (b->>'projection')::uuid,'blocked',
+   'synthetic-reconciled-block-'||gen_random_uuid()::text,
+   '{"workerObservation":"synthetic lawful current-day prerequisite is blocked"}'::jsonb
+ );
+ IF v_result->>'state'<>'reported'
+   OR v_result->>'workItemId'<>b->>'work'
+   OR v_result->>'resultKind'<>'blocked'
+   OR v_result->>'companyWorkState'<>'open'
+   OR NULLIF(v_result->>'acceptanceDecision','') IS NOT NULL THEN
+   RAISE EXCEPTION 'FAIL: reconciled source projection worker blocked report was promoted or lost: %',v_result;
+ END IF;
+ RAISE NOTICE 'PASS: authenticated worker reported from real reconciler output; report did not become institutional acceptance';
+END
+$source_bridge_worker_report$;
+
+RESET ROLE;
 ROLLBACK;
