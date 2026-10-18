@@ -178,6 +178,15 @@ BEGIN
   IF p_task_id IS NULL OR p_done IS NULL THEN
     RAISE EXCEPTION 'Task and completion state required.' USING ERRCODE='22023';
   END IF;
+  -- Serialize with the institutional promotion's SELECT FOR UPDATE:
+  -- neither request can inspect a stale source state while the other acts.
+  SELECT * INTO v_task FROM atlas.task_entries t
+  WHERE t.id=p_task_id AND t.owner_user_id=auth.uid()
+    AND t.principal_id=v_principal FOR UPDATE;
+  IF v_task.id IS NULL THEN
+    RAISE EXCEPTION 'Task not found.' USING ERRCODE='42501';
+  END IF;
+
   -- Do not permit independent success/failure state on original Person
   -- evidence once Company Work has accepted custody of execution.
   IF EXISTS (
