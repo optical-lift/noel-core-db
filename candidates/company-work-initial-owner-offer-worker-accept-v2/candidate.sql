@@ -16,6 +16,7 @@ CREATE TABLE atlas.company_work_initial_responsibility_offers (
   accepted_allocation_id uuid REFERENCES atlas.work_allocations(id) ON DELETE RESTRICT,
   offered_at timestamptz NOT NULL DEFAULT now(),
   resolved_at timestamptz,
+  resolution_reason text,
   CHECK (offered_by_person_id<>target_person_id),
   CHECK ((offer_state='offered' AND resolved_at IS NULL AND accepted_allocation_id IS NULL)
      OR (offer_state='accepted' AND resolved_at IS NOT NULL AND accepted_allocation_id IS NOT NULL)
@@ -168,7 +169,8 @@ BEGIN
  END IF;
  IF v_decision='declined' THEN
    UPDATE atlas.company_work_initial_responsibility_offers
-      SET offer_state='declined',resolved_at=now() WHERE id=v_offer.id;
+      SET offer_state='declined',resolved_at=now(),resolution_reason='recipient_declined'
+       WHERE id=v_offer.id;
    RETURN jsonb_build_object('ok',true,'contractVersion','company_work_initial_response_v1',
      'state','declined','offerId',v_offer.id,'workItemId',v_offer.work_item_id,
      'responsibilityChanged',false);
@@ -192,7 +194,8 @@ BEGIN
  INTO v_ready;
  IF NOT coalesce(v_ready,false) THEN
    UPDATE atlas.company_work_initial_responsibility_offers
-     SET offer_state='stale',resolved_at=now() WHERE id=v_offer.id;
+     SET offer_state='stale',resolved_at=now(),resolution_reason='eligibility_or_work_changed_before_uptake'
+       WHERE id=v_offer.id;
    RETURN jsonb_build_object('ok',true,'contractVersion','company_work_initial_response_v1',
       'state','stale','offerId',v_offer.id,'workItemId',v_offer.work_item_id,
       'responsibilityChanged',false);
@@ -214,7 +217,8 @@ BEGIN
  END IF;
  v_alloc:=(v_receipt->>'allocationId')::uuid;
  UPDATE atlas.company_work_initial_responsibility_offers
-   SET offer_state='accepted',resolved_at=now(),accepted_allocation_id=v_alloc
+   SET offer_state='accepted',resolved_at=now(),accepted_allocation_id=v_alloc,
+       resolution_reason='receiver_accepted'
  WHERE id=v_offer.id;
  RETURN jsonb_build_object('ok',true,'contractVersion','company_work_initial_response_v1',
    'state','accepted','offerId',v_offer.id,'workItemId',v_offer.work_item_id,
@@ -304,7 +308,7 @@ BEGIN
    RAISE EXCEPTION 'Resolved Work offer cannot be withdrawn' USING ERRCODE='23514';
  END IF;
  UPDATE atlas.company_work_initial_responsibility_offers
-   SET offer_state='withdrawn',resolved_at=now() WHERE id=v_offer.id;
+   SET offer_state='withdrawn',resolved_at=now(),resolution_reason=v_reason WHERE id=v_offer.id;
  RETURN jsonb_build_object('ok',true,'contractVersion','company_work_initial_withdraw_v1',
     'state','withdrawn','alreadyWithdrawn',false,'offerId',v_offer.id,
     'workItemId',v_offer.work_item_id,'responsibilityChanged',false);
