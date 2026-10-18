@@ -36,7 +36,7 @@ BEGIN
   IF position('company_work_native_ledger_owner_self_v1' IN v_def)=0
     OR position('current_effective_organization_membership_v1' IN v_def)=0
     OR position('member.role=''owner''' IN v_def)=0
-    OR position('v_work.source_object_type<>''legacy_task_slice''' IN v_def)=0
+    OR position('v_work.source_object_type IS DISTINCT FROM ''legacy_task_slice''' IN v_def)=0
     OR position('src.id=v_work.source_object_id' IN v_def)=0
     OR position('src.organization_id=p_organization_id' IN v_def)=0
     OR position('sliceOfLegacyTask' IN v_def)=0
