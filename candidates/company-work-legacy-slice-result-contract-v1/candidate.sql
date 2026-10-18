@@ -62,7 +62,7 @@ BEGIN
     RAISE EXCEPTION 'Exactly one open Company Work slice required'
       USING ERRCODE='23514';
   END IF;
-  IF v_work.source_object_type<>'legacy_task_slice'
+  IF v_work.source_object_type IS DISTINCT FROM 'legacy_task_slice'
     OR v_work.source_object_id IS NULL
     OR nullif(btrim(coalesce(v_work.stable_key,'')),'') IS NULL
     OR length(btrim(v_work.stable_key))>256
