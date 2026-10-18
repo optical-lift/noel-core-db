@@ -661,4 +661,79 @@ end;
 $function$
 ;
 
+-- Only an authenticated Person may enter the six Work RPCs through public.
+-- These are minimal invoker transports; no account type is introduced and
+-- no worker receipt or Work state is fabricated here.
+-- propose_company_work_standing_scope_self_api_v1: public transport executes as caller; atlas policy remains authoritative.
+REVOKE ALL ON FUNCTION atlas.propose_company_work_standing_scope_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION atlas.propose_company_work_standing_scope_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.propose_company_work_standing_scope_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_worker_membership_id uuid, p_position_id uuid, p_terms text, p_valid_until timestamptz DEFAULT NULL)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO ''
+AS $api$
+  SELECT atlas.propose_company_work_standing_scope_self_api_v1(p_organization_id, p_ledger_id, p_worker_membership_id, p_position_id, p_terms, p_valid_until);
+$api$;
+REVOKE ALL ON FUNCTION public.propose_company_work_standing_scope_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.propose_company_work_standing_scope_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz) TO authenticated;
+
+-- respond_company_work_standing_scope_self_api_v1: public transport executes as caller; atlas policy remains authoritative.
+REVOKE ALL ON FUNCTION atlas.respond_company_work_standing_scope_self_api_v1(uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION atlas.respond_company_work_standing_scope_self_api_v1(uuid,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.respond_company_work_standing_scope_self_api_v1(p_scope_id uuid, p_decision text)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO ''
+AS $api$
+  SELECT atlas.respond_company_work_standing_scope_self_api_v1(p_scope_id, p_decision);
+$api$;
+REVOKE ALL ON FUNCTION public.respond_company_work_standing_scope_self_api_v1(uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.respond_company_work_standing_scope_self_api_v1(uuid,text) TO authenticated;
+
+-- company_work_standing_scopes_self_api_v1: public transport executes as caller; atlas policy remains authoritative.
+REVOKE ALL ON FUNCTION atlas.company_work_standing_scopes_self_api_v1() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION atlas.company_work_standing_scopes_self_api_v1() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.company_work_standing_scopes_self_api_v1()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY INVOKER SET search_path TO ''
+AS $api$
+  SELECT atlas.company_work_standing_scopes_self_api_v1();
+$api$;
+REVOKE ALL ON FUNCTION public.company_work_standing_scopes_self_api_v1() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.company_work_standing_scopes_self_api_v1() TO authenticated;
+
+-- offer_unallocated_company_work_self_api_v1: public transport executes as caller; atlas policy remains authoritative.
+REVOKE ALL ON FUNCTION atlas.offer_unallocated_company_work_self_api_v1(uuid,uuid,uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION atlas.offer_unallocated_company_work_self_api_v1(uuid,uuid,uuid,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.offer_unallocated_company_work_self_api_v1(p_work_item_id uuid, p_ledger_id uuid, p_target_person_id uuid, p_reason text)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO ''
+AS $api$
+  SELECT atlas.offer_unallocated_company_work_self_api_v1(p_work_item_id, p_ledger_id, p_target_person_id, p_reason);
+$api$;
+REVOKE ALL ON FUNCTION public.offer_unallocated_company_work_self_api_v1(uuid,uuid,uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.offer_unallocated_company_work_self_api_v1(uuid,uuid,uuid,text) TO authenticated;
+
+-- respond_unallocated_company_work_self_api_v1: public transport executes as caller; atlas policy remains authoritative.
+REVOKE ALL ON FUNCTION atlas.respond_unallocated_company_work_self_api_v1(uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION atlas.respond_unallocated_company_work_self_api_v1(uuid,text) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.respond_unallocated_company_work_self_api_v1(p_offer_id uuid, p_decision text)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO ''
+AS $api$
+  SELECT atlas.respond_unallocated_company_work_self_api_v1(p_offer_id, p_decision);
+$api$;
+REVOKE ALL ON FUNCTION public.respond_unallocated_company_work_self_api_v1(uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.respond_unallocated_company_work_self_api_v1(uuid,text) TO authenticated;
+
+-- company_work_initial_offers_self_api_v1: public transport executes as caller; atlas policy remains authoritative.
+REVOKE ALL ON FUNCTION atlas.company_work_initial_offers_self_api_v1() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION atlas.company_work_initial_offers_self_api_v1() TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.company_work_initial_offers_self_api_v1()
+RETURNS jsonb LANGUAGE sql STABLE SECURITY INVOKER SET search_path TO ''
+AS $api$
+  SELECT atlas.company_work_initial_offers_self_api_v1();
+$api$;
+REVOKE ALL ON FUNCTION public.company_work_initial_offers_self_api_v1() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.company_work_initial_offers_self_api_v1() TO authenticated;
+
 COMMIT;
