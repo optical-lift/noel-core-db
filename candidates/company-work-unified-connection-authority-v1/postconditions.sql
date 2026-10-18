@@ -15,18 +15,24 @@ BEGIN
    RAISE EXCEPTION 'Connection agreement history must remain RPC-only';
  END IF;
  FOREACH v_name IN ARRAY ARRAY[
-   'propose_company_work_standing_scope_self_api_v1',
-   'respond_company_work_standing_scope_self_api_v1',
-   'company_work_standing_scopes_self_api_v1',
-   'offer_unallocated_company_work_self_api_v1',
-   'respond_unallocated_company_work_self_api_v1',
-   'company_work_initial_offers_self_api_v1'
+   'propose_company_work_standing_scope_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)',
+   'respond_company_work_standing_scope_self_api_v1(uuid,text)',
+   'company_work_standing_scopes_self_api_v1()',
+   'offer_unallocated_company_work_self_api_v1(uuid,uuid,uuid,text)',
+   'respond_unallocated_company_work_self_api_v1(uuid,text)',
+   'company_work_initial_offers_self_api_v1()'
  ] LOOP
-   IF NOT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-     WHERE n.nspname='public' AND p.proname=v_name AND NOT p.prosecdef
+   IF NOT EXISTS(SELECT 1 FROM pg_proc p
+     WHERE p.oid=to_regprocedure('public.'||v_name) AND NOT p.prosecdef
        AND has_function_privilege('authenticated',p.oid,'EXECUTE')
        AND NOT has_function_privilege('anon',p.oid,'EXECUTE')) THEN
-      RAISE EXCEPTION 'Authenticated invoker transport missing for %',v_name;
+      RAISE EXCEPTION 'Exact authenticated invoker transport missing for %',v_name;
+   END IF;
+   IF NOT EXISTS(SELECT 1 FROM pg_proc p
+     WHERE p.oid=to_regprocedure('atlas.'||v_name) AND p.prosecdef
+       AND has_function_privilege('authenticated',p.oid,'EXECUTE')
+       AND NOT has_function_privilege('anon',p.oid,'EXECUTE')) THEN
+      RAISE EXCEPTION 'Authenticated-only guarded implementation missing for %',v_name;
    END IF;
  END LOOP;
  IF position('organization_employee_seats' IN
