@@ -5,6 +5,8 @@ declare
   v_safe text;
   v_old text;
   v_entity_safe text;
+  v_temporal_safe text;
+  v_temporal_old text;
 begin
   if to_regprocedure('atlas.ledger_workspace_self_api_v1(uuid)') is null
     or to_regprocedure('atlas.ledger_workspace_unfiltered_internal_v1(uuid)') is null
@@ -14,6 +16,10 @@ begin
   if to_regprocedure('atlas.ledger_entity_contexts_self_api_v1(uuid,text)') is null
     or to_regprocedure('atlas.ledger_entity_contexts_unfiltered_internal_v1(uuid,text)') is null then
     raise exception 'Safe Ledger entity-context chain incomplete';
+  end if;
+  if to_regprocedure('atlas.ledger_temporal_composer_self_api_v1(uuid,date,date,text,integer)') is null
+    or to_regprocedure('atlas.ledger_temporal_composer_unfiltered_internal_v1(uuid,date,date,text,integer)') is null then
+    raise exception 'Safe Ledger temporal-composer chain incomplete';
   end if;
   if has_function_privilege('anon',
       'atlas.ledger_workspace_unfiltered_internal_v1(uuid)','EXECUTE')
@@ -27,6 +33,14 @@ begin
       'atlas.ledger_entity_contexts_unfiltered_internal_v1(uuid,text)','EXECUTE')
     or has_function_privilege('anon',
       'atlas.ledger_entity_contexts_unfiltered_internal_v1(uuid,text)','EXECUTE')
+    or has_function_privilege('authenticated',
+      'atlas.ledger_temporal_composer_unfiltered_internal_v1(uuid,date,date,text,integer)','EXECUTE')
+    or has_function_privilege('anon',
+      'atlas.ledger_temporal_composer_unfiltered_internal_v1(uuid,date,date,text,integer)','EXECUTE')
+    or has_function_privilege('service_role',
+      'atlas.ledger_temporal_composer_unfiltered_internal_v1(uuid,date,date,text,integer)','EXECUTE')
+    or not has_function_privilege('authenticated',
+      'atlas.ledger_temporal_composer_self_api_v1(uuid,date,date,text,integer)','EXECUTE')
     or not has_function_privilege('authenticated',
       'public.ledger_workspace_self_api_v1(uuid)','EXECUTE') then
     raise exception 'Internal full Ledger reader exposes unsafe EXECUTE grants';
@@ -39,6 +53,10 @@ begin
     into v_old;
   select pg_get_functiondef('atlas.ledger_entity_contexts_self_api_v1(uuid,text)'::regprocedure)
     into v_entity_safe;
+  select pg_get_functiondef('atlas.ledger_temporal_composer_self_api_v1(uuid,date,date,text,integer)'::regprocedure)
+    into v_temporal_safe;
+  select pg_get_functiondef('atlas.ledger_temporal_composer_unfiltered_internal_v1(uuid,date,date,text,integer)'::regprocedure)
+    into v_temporal_old;
   if (select p.prosecdef from pg_proc p
       where p.oid='public.ledger_workspace_self_api_v1(uuid)'::regprocedure)
     or position('capability_root_authority_context_self_v1' in v_safe)=0
@@ -55,6 +73,11 @@ begin
   if position('capability_root_authority_context_self_v1' in v_entity_safe)=0
     or position('ledger_entity_contexts_unfiltered_internal_v1' in v_entity_safe)=0 then
     raise exception 'Entity-context API still trusts seat without root authority';
+  end if;
+  if position('capability_root_authority_context_self_v1' in v_temporal_safe)=0
+    or position('ledger_temporal_composer_unfiltered_internal_v1' in v_temporal_safe)=0
+    or position('current_active_ledger_seat_v1' in v_temporal_old)=0 then
+    raise exception 'Temporal composer still trusts seat without root authority';
   end if;
 end
 $post$;
