@@ -23,3 +23,31 @@ The existing organization recurrence rule can be linked as definition provenance
 Do not automatically seed the illustrative chicken, bedding, flower-bed or U-Pick requirements. Elm's existing rules, countdowns, legacy task identity and U-Pick retirement reconciliation must be reviewed with the owner first.
 
 Use the repository's governed migration-source-generation and protected schema-clone-validation flow after review; never apply candidate SQL to the production database directly.
+
+## Disposable owner / seat / outsider proof (source amendment)
+
+The C1 candidate now has a **clone-only** `fixture.sql` and appended
+`postconditions.sql` checks. The fixture contains exclusively invented IDs,
+names and local sessions; it is DML-only and cannot create a real Atlas user,
+email invitation, paid seat, or production business record.
+
+The matrix uses Postgres `authenticated`/`anon` execution roles with synthetic
+session claims to test current-root owner, seat-only actor with forged
+`user_metadata`, other-Ledger seat, signed-in Person without a seat, invalid
+session, ended root authority, ended native seat, and anonymous denial.
+An admitted owner must be able to establish and revise exactly one canonical
+requirement, with append-only revisions and zero Work items, allocations, day
+placements, or executed recurrence instances. Stale revisions must fail; a
+paused operating policy must not cancel the underlying need. These tests run
+only in disposable clone transactions and roll back all test Work and
+revocations.
+
+This is **database authorization simulation**, not a genuine signed HTTP/JWT
+API test. It does not authorize an Anna or Cherith invitation, billing, an
+auth user or native seat in live Atlas, or a production migration release.
+
+The previously generated immutable PR #1753 remains unchanged. After this
+source amendment is reviewed and merged, use the existing governed generation
+workflow with `fixture_path=candidates/atlas-company-work-operating-register-v1/fixture.sql`,
+and validate the new immutable package in the protected production-schema
+clone. Supersede the earlier generated PR rather than editing its bytes.
