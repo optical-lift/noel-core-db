@@ -4,7 +4,7 @@ Source-only Atlas migration candidate. No native Ledger seat or other production
 
 ## The specific defect
 
-The previously released ledger_workspace_self_api_v1 checked only for an active native Ledger seat and then returned up to 100 otherwise-unfiltered ledger.actions, independently of root/worker access. The existing ledger_entity_contexts_self_api_v1 independently trusts the seat to return Ledger-private entity contexts, contact routes, and the latest action payload. For Elm Flowers, future seat participation by Anna would expose these sensitive facts through direct authenticated RPCs regardless of notebook UI.
+The previously released ledger_workspace_self_api_v1 checked only for an active native Ledger seat and then returned up to 100 otherwise-unfiltered ledger.actions, independently of root/worker access. The existing ledger_entity_contexts_self_api_v1 independently trusts the seat to return Ledger-private entity contexts, contact routes, and the latest action payload. A third authenticated entrypoint, ledger_temporal_composer_self_api_v1, admits an active seat and assembles the entire Ledger's occurrence/calendar contributions, booking metadata and resource claims. For Elm Flowers, future seat participation by Anna could expose these sensitive facts through direct authenticated RPCs regardless of notebook UI.
 
 ## Remediation
 
@@ -13,11 +13,12 @@ The previously released ledger_workspace_self_api_v1 checked only for an active 
 - A seat holder **without** current root authority gets only the same Ledger identity and empty source/action/finance/customer arrays. The full historical reader is not even executed in that path.
 - Replace the public wrapper with SECURITY INVOKER, and explicitly constrain all grants.
 - Move the original entity-context reader to a similarly private internal function and make its public Atlas entrypoint require current exact root authority before invoking it. There is no generic safe worker projection of unrelated entity contacts or action payloads.
+- Move the unrestricted Ledger temporal composer to a private internal function and require current exact root authority at its authenticated Atlas entrypoint, in addition to the original seat requirement. Delegated schedulers currently using this broad read may lose access until a narrower source-authorized calendar projection is built; that compatibility cost requires review, not a seat-based fallback.
 
 This breaks the incorrect implication that a Ledger seat grants every Ledger record. It does not yet establish legitimate worker-level Work visibility or legal read/record/manage/approve permissions; these require separately scoped projections over canonical Work and its verified institutional agreements.
 
 ## Mandatory acceptance before ANY worker seat
 
-Direct-API authenticated tests must prove: current root sees permitted owner history and entity contexts; non-root seat sees Ledger identity but zero history, sales or customer detail, and cannot invoke the entity-context reader; unauthorized/non-seat Person is denied; revoked seat is denied; one Ledger seat does not open another Ledger; spoofed JWT user metadata has no authority effect. Also inventory other exposed Ledger RPCs and legacy farm data readers for independent leaks.
+Direct-API authenticated tests must prove: current root sees permitted owner history, entity contexts and calendar; non-root seat sees Ledger identity but zero history, sales or customer detail, and cannot invoke either the entity-context reader or broad temporal composer; unauthorized/non-seat Person is denied; revoked seat is denied; one Ledger seat does not open another Ledger; spoofed JWT user metadata has no authority effect. Also inventory other exposed Ledger RPCs and legacy farm data readers for independent leaks.
 
 Postconditions test name/grant/source boundaries but **cannot prove** this entire runtime matrix. Until it passes on a disposable production-schema clone and an authorized worker test account, do not grant Anna the native seat or claim the Build 5 security slice complete.
