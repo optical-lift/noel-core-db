@@ -92,6 +92,14 @@ schema_clone="$runtime_dir/production-user-schema.sql"
 database_url='postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 phase="preflight"
 local_started=false
+signed_http_probe=false
+if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_http_probe=true
+fi
 
 finish() {
   result=$?
@@ -236,7 +244,12 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   fi
 
   set +e
-  supabase db start >"$startup_log" 2>&1
+  if [ "$signed_http_probe" = true ]; then
+    # Full LOCAL Auth + REST + Postgres, scoped to disposable C1 only.
+    supabase start >"$startup_log" 2>&1
+  else
+    supabase db start >"$startup_log" 2>&1
+  fi
   startup_status=$?
   set -e
 
@@ -311,6 +324,14 @@ else
     >"$artifacts_dir/postconditions.log"
 fi
 
+if [ "$signed_http_probe" = true ]; then
+  phase="signed local HTTP API authorization matrix"
+  python3 "$repo_root/scripts/validate-atlas-c1-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-http-summary.txt" \
+    >"$artifacts_dir/signed-http.log" 2>&1
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -333,3 +354,7 @@ fi
 phase="complete"
 printf '\nMigration postconditions and local database advisors also completed successfully.\n' \
   >> "$artifacts_dir/summary.md"
+if [ "$signed_http_probe" = true ]; then
+  printf '\nDisposable signed GoTrue + PostgREST HTTP authorization matrix also passed.\n' \
+    >> "$artifacts_dir/summary.md"
+fi
