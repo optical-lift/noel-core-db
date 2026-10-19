@@ -42,6 +42,19 @@ $post$;
 -- establish one institutional requirement when the exact native Ledger's
 -- governing participation is active but its legacy organization_id is NULL.
 -- The entire test transaction is rolled back in the disposable clone.
+-- The fixture is verified as privileged test setup, never as a worker read.
+do $native_ledger_fixture_preflight$
+begin
+  if not exists(
+    select 1 from atlas.ledgers
+    where id='e5200000-0000-4000-8000-000000000401'
+      and organization_id is null
+  ) then
+    raise exception 'Clone fixture did not reproduce NULL legacy organization_id';
+  end if;
+end
+$native_ledger_fixture_preflight$;
+
 begin;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','e5200000-0000-4000-8000-000000000001',true);
@@ -57,12 +70,6 @@ declare
   v_receipt jsonb;
   v_readback jsonb;
 begin
-  if (select organization_id is not null
-      from atlas.ledgers
-      where id='e5200000-0000-4000-8000-000000000401') then
-    raise exception 'Clone fixture did not reproduce NULL legacy organization_id';
-  end if;
-
   v_receipt:=public.establish_operating_requirement_owner_self_api_v1(
     'e5200000-0000-4000-8000-000000000801',
     'e5200000-0000-4000-8000-000000000401',
