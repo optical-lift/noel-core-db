@@ -25,12 +25,6 @@ insert into reality.auth_person_bindings(auth_user_id,person_entity_id,binding_s
 ('e5100000-0000-4000-8000-000000000003','e5100000-0000-4000-8000-000000000103','active','{"cloneFixture":true}'),
 ('e5100000-0000-4000-8000-000000000004','e5100000-0000-4000-8000-000000000104','active','{"cloneFixture":true}');
 
-insert into personal.atlases(person_entity_id,atlas_state,native) values
-('e5100000-0000-4000-8000-000000000101','active',true),
-('e5100000-0000-4000-8000-000000000102','active',true),
-('e5100000-0000-4000-8000-000000000103','active',true),
-('e5100000-0000-4000-8000-000000000104','active',true);
-
 insert into atlas.people(id,display_name,status) values
 ('e5100000-0000-4000-8000-000000000101','Validation Owner','active'),
 ('e5100000-0000-4000-8000-000000000102','Validation Worker','active'),
