@@ -31,6 +31,20 @@ insert into atlas.people(id,display_name,status) values
 ('e5100000-0000-4000-8000-000000000103','Validation Other-Ledger Member','active'),
 ('e5100000-0000-4000-8000-000000000104','Validation No-Seat Person','active');
 
+-- Align the legacy Atlas credential link with each synthetic reality binding.
+-- Without it the principal compatibility trigger creates a second Person.
+insert into atlas.person_auth_credentials(
+  person_id,credential_kind,auth_user_id,status,provenance
+) values
+('e5100000-0000-4000-8000-000000000101','supabase_auth_user',
+ 'e5100000-0000-4000-8000-000000000001','active','{"cloneFixture":true}'),
+('e5100000-0000-4000-8000-000000000102','supabase_auth_user',
+ 'e5100000-0000-4000-8000-000000000002','active','{"cloneFixture":true}'),
+('e5100000-0000-4000-8000-000000000103','supabase_auth_user',
+ 'e5100000-0000-4000-8000-000000000003','active','{"cloneFixture":true}'),
+('e5100000-0000-4000-8000-000000000104','supabase_auth_user',
+ 'e5100000-0000-4000-8000-000000000004','active','{"cloneFixture":true}');
+
 insert into atlas.principals(id,user_id,person_id,stable_key,name,status) values
 ('e5100000-0000-4000-8000-000000000111','e5100000-0000-4000-8000-000000000001',
  'e5100000-0000-4000-8000-000000000101','d0-validation-owner-principal','Validation Owner','active');
