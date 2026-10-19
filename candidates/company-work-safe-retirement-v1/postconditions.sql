@@ -93,6 +93,12 @@ BEGIN
    OR position('UPDATE atlas.tasks' IN v_retire_def)>0
    OR position('DELETE FROM atlas.work_items' IN v_retire_def)>0
  THEN RAISE EXCEPTION 'Retirement cannot fabricate worker results, change shared Task or delete Work'; END IF;
+ -- Retirement must observe its own requirement/time-contract mutations before
+ -- the guard runs; STABLE would reuse the command's original snapshot.
+ IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE
+   p.oid='atlas.company_work_retirement_dependency_snapshot_v1(uuid)'::regprocedure
+     AND p.provolatile='v')
+ THEN RAISE EXCEPTION 'Dependency snapshot must see intra-command reconciliation'; END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE
    p.oid='atlas.company_work_retirement_preflight_self_api_v1(uuid)'::regprocedure
      AND p.provolatile='s')
