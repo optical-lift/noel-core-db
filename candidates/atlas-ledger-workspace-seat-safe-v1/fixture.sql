@@ -3,33 +3,39 @@
 insert into auth.users(id,aud,role,created_at,updated_at) values
 ('e5100000-0000-4000-8000-000000000001','authenticated','authenticated',now(),now()),
 ('e5100000-0000-4000-8000-000000000002','authenticated','authenticated',now(),now()),
-('e5100000-0000-4000-8000-000000000003','authenticated','authenticated',now(),now());
+('e5100000-0000-4000-8000-000000000003','authenticated','authenticated',now(),now()),
+('e5100000-0000-4000-8000-000000000004','authenticated','authenticated',now(),now());
 
 insert into auth.sessions(id,user_id,created_at,updated_at,not_after) values
 ('e5100000-0000-4000-8000-000000000011','e5100000-0000-4000-8000-000000000001',now(),now(),now()+interval '1 day'),
 ('e5100000-0000-4000-8000-000000000012','e5100000-0000-4000-8000-000000000002',now(),now(),now()+interval '1 day'),
-('e5100000-0000-4000-8000-000000000013','e5100000-0000-4000-8000-000000000003',now(),now(),now()+interval '1 day');
+('e5100000-0000-4000-8000-000000000013','e5100000-0000-4000-8000-000000000003',now(),now(),now()+interval '1 day'),
+('e5100000-0000-4000-8000-000000000014','e5100000-0000-4000-8000-000000000004',now(),now(),now()+interval '1 day');
 
 insert into reality.entities(id,stable_key,entity_kind,display_name,identity_state) values
 ('e5100000-0000-4000-8000-000000000101','d0-validation-owner','person','Validation Owner','canonical'),
 ('e5100000-0000-4000-8000-000000000102','d0-validation-worker','person','Validation Worker','canonical'),
 ('e5100000-0000-4000-8000-000000000103','d0-validation-outsider','person','Validation Other-Ledger Member','canonical'),
+('e5100000-0000-4000-8000-000000000104','d0-validation-no-seat','person','Validation No-Seat Person','canonical'),
 ('e5100000-0000-4000-8000-000000000201','d0-validation-business','business','Validation Business','canonical');
 
 insert into reality.auth_person_bindings(auth_user_id,person_entity_id,binding_state,binding_basis) values
 ('e5100000-0000-4000-8000-000000000001','e5100000-0000-4000-8000-000000000101','active','{"cloneFixture":true}'),
 ('e5100000-0000-4000-8000-000000000002','e5100000-0000-4000-8000-000000000102','active','{"cloneFixture":true}'),
-('e5100000-0000-4000-8000-000000000003','e5100000-0000-4000-8000-000000000103','active','{"cloneFixture":true}');
+('e5100000-0000-4000-8000-000000000003','e5100000-0000-4000-8000-000000000103','active','{"cloneFixture":true}'),
+('e5100000-0000-4000-8000-000000000004','e5100000-0000-4000-8000-000000000104','active','{"cloneFixture":true}');
 
 insert into personal.atlases(person_entity_id,atlas_state,native) values
 ('e5100000-0000-4000-8000-000000000101','active',true),
 ('e5100000-0000-4000-8000-000000000102','active',true),
-('e5100000-0000-4000-8000-000000000103','active',true);
+('e5100000-0000-4000-8000-000000000103','active',true),
+('e5100000-0000-4000-8000-000000000104','active',true);
 
 insert into atlas.people(id,display_name,status) values
 ('e5100000-0000-4000-8000-000000000101','Validation Owner','active'),
 ('e5100000-0000-4000-8000-000000000102','Validation Worker','active'),
-('e5100000-0000-4000-8000-000000000103','Validation Other-Ledger Member','active');
+('e5100000-0000-4000-8000-000000000103','Validation Other-Ledger Member','active'),
+('e5100000-0000-4000-8000-000000000104','Validation No-Seat Person','active');
 
 insert into atlas.principals(id,user_id,person_id,stable_key,name,status) values
 ('e5100000-0000-4000-8000-000000000111','e5100000-0000-4000-8000-000000000001',
