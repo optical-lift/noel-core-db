@@ -165,6 +165,20 @@ begin
 end
 $cross$;
 
+-- A real signed-in Person with no native Ledger seat is denied outright.
+select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000004',true);
+select set_config('request.jwt.claims',
+ '{"sub":"e5100000-0000-4000-8000-000000000004","role":"authenticated","session_id":"e5100000-0000-4000-8000-000000000014"}',true);
+do $no_seat$
+begin
+  begin
+    perform public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000401');
+    raise exception 'Valid signed-in Person without a seat opened Ledger';
+  exception when insufficient_privilege then null;
+  end;
+end
+$no_seat$;
+
 -- An invalid session cannot be promoted by an otherwise real Person/seat.
 select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000002',true);
 select set_config('request.jwt.claims',
