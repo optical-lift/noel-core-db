@@ -81,3 +81,156 @@ begin
   end if;
 end
 $post$;
+
+-- Authenticated clone matrix: fixture identities are never production users.
+-- The authenticated database role plus session claims models the direct RPC
+-- boundary; production JWT signature verification remains an API-layer proof.
+begin;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims',
+ '{"sub":"e5100000-0000-4000-8000-000000000001","role":"authenticated","session_id":"e5100000-0000-4000-8000-000000000011"}',true);
+do $owner$
+declare v jsonb;
+begin
+  v:=public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000401');
+  if v->>'operationalScope' is distinct from 'native'
+    or jsonb_array_length(v->'actions')<>1
+    or v->'actions'->0->>'title' is distinct from 'Owner-only validation movement'
+    or v->'truthBoundary'->>'nativeFullHistoryRequiresExactRootAuthority' is distinct from 'true' then
+    raise exception 'Current root lost legitimate native action history';
+  end if;
+  perform atlas.ledger_entity_contexts_self_api_v1('e5100000-0000-4000-8000-000000000401',null);
+  perform atlas.ledger_temporal_composer_self_api_v1(
+    'e5100000-0000-4000-8000-000000000401',current_date,current_date,'UTC',50);
+end
+$owner$;
+
+select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',
+ '{"sub":"e5100000-0000-4000-8000-000000000002","role":"authenticated","session_id":"e5100000-0000-4000-8000-000000000012","user_metadata":{"is_owner":true,"role":"root_governing"}}',true);
+do $seat$
+declare v jsonb;
+begin
+  v:=public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000401');
+  if v->>'operationalScope' is distinct from 'seat_only'
+    or v->'ledger'->>'id' is distinct from 'e5100000-0000-4000-8000-000000000401'
+    or v->'farm' is distinct from 'null'::jsonb
+    or jsonb_array_length(v->'actions')<>0
+    or jsonb_array_length(v->'tasks')<>0
+    or jsonb_array_length(v->'sales')<>0
+    or jsonb_array_length(v->'demand')<>0
+    or jsonb_array_length(v->'events')<>0
+    or jsonb_array_length(v->'registrations')<>0
+    or position('Owner-only validation movement' in v::text)>0 then
+    raise exception 'Seat-only actor received owner native details';
+  end if;
+  begin
+    perform atlas.ledger_entity_contexts_self_api_v1(
+      'e5100000-0000-4000-8000-000000000401',null);
+    raise exception 'Nonroot entity-context read was accepted';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform atlas.ledger_temporal_composer_self_api_v1(
+      'e5100000-0000-4000-8000-000000000401',current_date,current_date,'UTC',50);
+    raise exception 'Nonroot temporal read was accepted';
+  exception when insufficient_privilege then null;
+  end;
+  begin
+    perform atlas.ledger_workspace_unfiltered_internal_v1(
+      'e5100000-0000-4000-8000-000000000401');
+    raise exception 'Authenticated actor invoked private workspace';
+  exception when insufficient_privilege then null;
+  end;
+end
+$seat$;
+
+select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000003',true);
+select set_config('request.jwt.claims',
+ '{"sub":"e5100000-0000-4000-8000-000000000003","role":"authenticated","session_id":"e5100000-0000-4000-8000-000000000013"}',true);
+do $cross$
+declare v jsonb;
+begin
+  begin
+    perform public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000401');
+    raise exception 'Other-Ledger seat opened protected Ledger';
+  exception when insufficient_privilege then null;
+  end;
+  v:=public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000402');
+  if v->>'operationalScope' is distinct from 'seat_only'
+    or v->'ledger'->>'id' is distinct from 'e5100000-0000-4000-8000-000000000402' then
+    raise exception 'Other-Ledger identity was not narrowly admitted';
+  end if;
+end
+$cross$;
+
+-- A real signed-in Person with no native Ledger seat is denied outright.
+select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000004',true);
+select set_config('request.jwt.claims',
+ '{"sub":"e5100000-0000-4000-8000-000000000004","role":"authenticated","session_id":"e5100000-0000-4000-8000-000000000014"}',true);
+do $no_seat$
+begin
+  begin
+    perform public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000401');
+    raise exception 'Valid signed-in Person without a seat opened Ledger';
+  exception when insufficient_privilege then null;
+  end;
+end
+$no_seat$;
+
+-- An invalid session cannot be promoted by an otherwise real Person/seat.
+select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',
+ '{"sub":"e5100000-0000-4000-8000-000000000002","role":"authenticated","session_id":"e5100000-0000-4000-8000-000000000099"}',true);
+do $session$
+begin
+  begin
+    perform public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000401');
+    raise exception 'Invalid auth session opened Ledger';
+  exception when insufficient_privilege then null;
+  end;
+end
+$session$;
+rollback;
+
+-- Revocation is tested in a rolled-back clone transaction, never against live
+-- seats or authorities.
+begin;
+update atlas.principal_ledger_authorities
+set status='ended',ended_at=now()
+where id='e5100000-0000-4000-8000-000000000601';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000001',true);
+select set_config('request.jwt.claims',
+ '{"sub":"e5100000-0000-4000-8000-000000000001","role":"authenticated","session_id":"e5100000-0000-4000-8000-000000000011"}',true);
+do $revoked_root$
+declare v jsonb;
+begin
+  v:=public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000401');
+  if v->>'operationalScope' is distinct from 'seat_only'
+    or jsonb_array_length(v->'actions')<>0 then
+    raise exception 'Ended root authority still released history';
+  end if;
+end
+$revoked_root$;
+rollback;
+
+begin;
+update ledger.seats
+set seat_state='ended',ended_at=now()
+where id='e5100000-0000-4000-8000-000000000502';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','e5100000-0000-4000-8000-000000000002',true);
+select set_config('request.jwt.claims',
+ '{"sub":"e5100000-0000-4000-8000-000000000002","role":"authenticated","session_id":"e5100000-0000-4000-8000-000000000012"}',true);
+do $revoked_seat$
+begin
+  begin
+    perform public.ledger_workspace_self_api_v1('e5100000-0000-4000-8000-000000000401');
+    raise exception 'Ended seat still opened Ledger';
+  exception when insufficient_privilege then null;
+  end;
+end
+$revoked_seat$;
+rollback;
