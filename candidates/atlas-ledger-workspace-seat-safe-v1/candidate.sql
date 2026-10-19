@@ -135,4 +135,37 @@ revoke all on function atlas.ledger_entity_contexts_self_api_v1(uuid,text)
 grant execute on function atlas.ledger_entity_contexts_self_api_v1(uuid,text)
   to authenticated;
 
+-- The temporal composer independently accepted a seat as authority for the
+-- *entire* Ledger scheduling calendar, occurrence details, linked bookings,
+-- prices and resource-claim snapshots. A worker's own assigned Work/Clock
+-- projection must never borrow this unrestricted aggregate.
+alter function atlas.ledger_temporal_composer_self_api_v1(uuid,date,date,text,integer)
+  rename to ledger_temporal_composer_unfiltered_internal_v1;
+revoke all on function atlas.ledger_temporal_composer_unfiltered_internal_v1(
+  uuid,date,date,text,integer)
+  from public,anon,authenticated,service_role;
+
+create function atlas.ledger_temporal_composer_self_api_v1(
+  p_ledger_id uuid,p_start_date date,p_end_date date,
+  p_timezone_name text,p_limit integer default 5000)
+returns jsonb language plpgsql stable security definer set search_path to ''
+as $fn$
+begin
+  if auth.uid() is null or p_ledger_id is null then
+    raise exception 'Signed-in exact Ledger required' using errcode='42501';
+  end if;
+  -- Root proof first: do not execute the broad temporal reader for a seat.
+  -- The private original still requires an active native Ledger seat.
+  perform 1 from atlas.capability_root_authority_context_self_v1(p_ledger_id);
+  return atlas.ledger_temporal_composer_unfiltered_internal_v1(
+    p_ledger_id,p_start_date,p_end_date,p_timezone_name,p_limit);
+end
+$fn$;
+revoke all on function atlas.ledger_temporal_composer_self_api_v1(
+  uuid,date,date,text,integer)
+  from public,anon,authenticated,service_role;
+grant execute on function atlas.ledger_temporal_composer_self_api_v1(
+  uuid,date,date,text,integer)
+  to authenticated;
+
 commit;
