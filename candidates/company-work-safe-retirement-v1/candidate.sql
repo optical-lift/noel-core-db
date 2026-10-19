@@ -40,11 +40,13 @@ GRANT SELECT ON TABLE atlas.company_work_retirement_time_contract_cancellations_
   TO service_role;
 
 -- Privileged implementation helper: callers must pass the owner-only self API.
--- Everything in the returned snapshot is stable until the source Work row is
--- locked for retirement; there are no guessed Ledger assignments or dates.
+-- VOLATILE is required for snapshot visibility: the owner retirement command
+-- reconciles linked rows and then re-reads them in the same SQL statement.
+-- A STABLE helper would see the pre-reconciliation snapshot and reject valid
+-- retirement (also in the BEFORE UPDATE cancellation guard).
 CREATE FUNCTION atlas.company_work_retirement_dependency_snapshot_v1(
  p_work_item_id uuid
-) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+) RETURNS jsonb LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path TO ''
 AS $fn$
  SELECT jsonb_build_object(
   'workItemId',w.id,
