@@ -148,10 +148,40 @@ def main():
                 email='atlas-c1-{name}@example.invalid',
                 encrypted_password=extensions.crypt('{PASSWORD}',extensions.gen_salt('bf')),
                 email_confirmed_at=now(),
+                -- GoTrue scans token fields into strings; NULL raises HTTP 500.
+                -- These values are confined to the four disposable fixture users.
+                confirmation_token='',
+                recovery_token='',
+                email_change='',
+                email_change_token_new='',
+                email_change_token_current='',
+                phone_change='',
+                phone_change_token='',
+                reauthentication_token='',
                 raw_app_meta_data='{{"provider":"email","providers":["email"]}}'::jsonb,
                 raw_user_meta_data='{metadata}'::jsonb
             where id='{person}'::uuid
         """)
+        sql(args.db_url, f"""
+            insert into auth.identities
+                (id,provider_id,user_id,identity_data,provider,created_at,updated_at)
+            values (
+                gen_random_uuid(),
+                'atlas-c1-{name}@example.invalid',
+                '{person}'::uuid,
+                jsonb_build_object('sub','{person}',
+                                   'email','atlas-c1-{name}@example.invalid'),
+                'email',now(),now()
+            )
+        """)
+        check(sql(args.db_url, f"""
+            select count(*) from auth.users
+            where id='{person}'::uuid
+              and (confirmation_token is null or recovery_token is null
+                or email_change is null or email_change_token_new is null
+                or email_change_token_current is null or phone_change is null
+                or phone_change_token is null or reauthentication_token is null)
+        """) == "0", f"Incomplete local GoTrue token fields for {name}")
     # Ensure PostgREST sees the newly applied public RPCs.
     sql(args.db_url, "notify pgrst, 'reload schema'")
     identities = {name: sign_in(api, key, name)
