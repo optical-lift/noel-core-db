@@ -106,4 +106,33 @@ grant execute on function public.ledger_workspace_self_api_v1(uuid)
 comment on function public.ledger_workspace_self_api_v1(uuid) is
   'An active native seat grants Ledger identity only. Full native action history and sensitive source facts require current root governing authority. Nonroot seat returns only safe Ledger identity, no financial/customer/owner history. Not a worker-Work permission grant.';
 
+-- The entity-context API has the same seat-only flaw: it returns the
+-- contact routes, context metadata, and last ledger.actions payload for
+-- every entity. Unlike the safe Ledger shell above, these records have no
+-- useful generic worker-safe projection. Deny them to nonroot callers.
+alter function atlas.ledger_entity_contexts_self_api_v1(uuid,text)
+  rename to ledger_entity_contexts_unfiltered_internal_v1;
+revoke all on function atlas.ledger_entity_contexts_unfiltered_internal_v1(uuid,text)
+  from public,anon,authenticated,service_role;
+
+create function atlas.ledger_entity_contexts_self_api_v1(
+  p_ledger_id uuid,p_context_kind text default null)
+returns jsonb language plpgsql stable security definer set search_path to ''
+as $fn$
+begin
+  if auth.uid() is null or p_ledger_id is null then
+    raise exception 'Canonical signed-in Ledger required' using errcode='42501';
+  end if;
+  -- Full entity/contact/action-payload scope requires current root authority.
+  -- The original internal reader independently checks the native seat.
+  perform 1 from atlas.capability_root_authority_context_self_v1(p_ledger_id);
+  return atlas.ledger_entity_contexts_unfiltered_internal_v1(
+    p_ledger_id,p_context_kind);
+end
+$fn$;
+revoke all on function atlas.ledger_entity_contexts_self_api_v1(uuid,text)
+  from public,anon,authenticated,service_role;
+grant execute on function atlas.ledger_entity_contexts_self_api_v1(uuid,text)
+  to authenticated;
+
 commit;
