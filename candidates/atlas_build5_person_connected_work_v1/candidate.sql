@@ -11,10 +11,15 @@ create or replace function atlas.person_has_native_ledger_connection_v1(
 returns boolean language sql stable security definer set search_path to ''
 as $fn$
   select exists(
-    select 1 from atlas.ledgers l
+    select 1 from atlas.ledger_organization_participations lop
+    join atlas.ledgers l on l.id=lop.ledger_id and l.status='active'
+    join ledger.ledgers nl on nl.id=l.id
+      and nl.ledger_state='active' and nl.retired_at is null
     join ledger.seats s on s.ledger_id=l.id
     join reality.entities e on e.id=s.person_entity_id
-    where l.id=p_ledger_id and l.organization_id=p_organization_id
+    where lop.ledger_id=p_ledger_id and lop.organization_id=p_organization_id
+      and lop.status='active' and lop.ended_at is null
+      and lop.participation_kind in ('governing','operating')
       and s.person_entity_id=p_canonical_person_id
       and e.entity_kind='person' and e.identity_state='canonical'
       and s.seat_state='active' and s.ended_at is null
@@ -1792,6 +1797,54 @@ BEGIN
       'sortPriorityNotInvented',true
     )
   );
+END
+$fn$;
+
+CREATE OR REPLACE FUNCTION atlas.company_work_initial_offers_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $fn$
+DECLARE
+ v_person uuid:=atlas.current_person_id_v1();
+ v_incoming jsonb;
+ v_outgoing jsonb;
+BEGIN
+ IF auth.uid() IS NULL THEN
+   RAISE EXCEPTION 'Sign in required' USING ERRCODE='42501';
+ END IF;
+ IF v_person IS NULL THEN
+   RETURN jsonb_build_object('ok',true,'contractVersion','company_work_initial_offers_self_v1',
+      'state','person_binding_required','incoming','[]'::jsonb,'outgoing','[]'::jsonb);
+ END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+   'offerId',o.id,'workItemId',o.work_item_id,'workTitle',w.title,
+   'organizationId',o.organization_id,'ledgerId',o.ledger_id,
+   'offeredByPersonId',o.offered_by_person_id,'offeredAt',o.offered_at,'reason',o.reason
+ ) ORDER BY o.offered_at,o.id),'[]'::jsonb) INTO v_incoming
+ FROM atlas.company_work_initial_responsibility_offers o
+ JOIN atlas.work_items w ON w.id=o.work_item_id
+ WHERE o.target_person_id=v_person AND o.offer_state='offered'
+  AND EXISTS(SELECT 1 FROM atlas.organization_memberships m
+    WHERE m.id=o.target_membership_id AND m.person_id=v_person
+      AND atlas.organization_membership_present_effective_at_v1(m.id,m.organization_id,now()))
+;
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+   'offerId',o.id,'workItemId',o.work_item_id,'workTitle',w.title,
+   'organizationId',o.organization_id,'ledgerId',o.ledger_id,
+   'targetPersonId',o.target_person_id,
+   'offerKind',case when o.target_membership_id is null then 'person_connection' else 'membership_connection' end,
+   'offeredAt',o.offered_at,'reason',o.reason
+ ) ORDER BY o.offered_at,o.id),'[]'::jsonb) INTO v_outgoing
+ FROM atlas.company_work_initial_responsibility_offers o
+ JOIN atlas.work_items w ON w.id=o.work_item_id
+ WHERE o.offered_by_person_id=v_person AND o.offer_state='offered'
+   AND atlas.is_organization_owner(o.organization_id);
+ RETURN jsonb_build_object('ok',true,
+   'contractVersion','company_work_initial_offers_self_v1',
+   'state','ready','incoming',v_incoming,'outgoing',v_outgoing,
+   'offerIsNotAssignment',true,'workerViewedOrDeliveredNotProven',true);
 END
 $fn$;
 
