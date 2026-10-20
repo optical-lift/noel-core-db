@@ -57,6 +57,11 @@ begin
         and a.assignee_canonical_person_id is null)>0 then
     raise exception 'An active allocation has neither Person nor membership';
   end if;
+  if has_function_privilege('authenticated',
+      'atlas.person_has_native_ledger_connection_v1(uuid,uuid,uuid)',
+      'EXECUTE') then
+    raise exception 'Cross-Ledger connection predicate must remain private';
+  end if;
   if has_function_privilege('anon',
       'public.company_work_connected_person_choices_owner_self_api_v1(uuid,uuid,integer,uuid)',
       'EXECUTE') then
