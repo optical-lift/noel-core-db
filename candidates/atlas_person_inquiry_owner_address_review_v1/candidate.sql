@@ -77,10 +77,10 @@ begin
      ('owner_source_reviewed','owner_withdrew_inquiry')
      or length(v_note) not between 20 and 1200
      or (p_decision='owner_source_reviewed'
-       and v_basis is distinct from all(array[
+       and coalesce(v_basis,'') not in (
         'provided_by_subject','prior_direct_correspondence',
         'ledger_source_record','publicly_published_by_subject',
-        'other_explained']))
+        'other_explained'))
      or (p_decision='owner_withdrew_inquiry' and v_basis is not null) then
     raise exception 'Exact owner address review decision and supporting note required'
       using errcode='22023';
