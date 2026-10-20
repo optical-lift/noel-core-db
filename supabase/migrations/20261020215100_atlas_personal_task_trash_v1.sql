@@ -21,6 +21,27 @@ REVOKE ALL ON TABLE atlas.personal_task_trash_decisions_v1
   FROM PUBLIC,anon,authenticated;
 GRANT SELECT ON TABLE atlas.personal_task_trash_decisions_v1 TO service_role;
 
+-- A removed personal source cannot later be promoted into new Company Work.
+CREATE OR REPLACE FUNCTION atlas.guard_deleted_personal_task_promotion_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $fn$
+BEGIN
+  IF new.source_object_type='personal_dated_task'
+     AND new.source_object_id IS NOT NULL AND EXISTS(
+       SELECT 1 FROM atlas.task_entries t
+       WHERE t.id=new.source_object_id AND t.deleted_at IS NOT NULL
+     ) THEN
+    RAISE EXCEPTION 'Deleted personal task cannot be promoted into Company Work'
+      USING ERRCODE='23514';
+  END IF;
+  RETURN new;
+END;
+$fn$;
+CREATE TRIGGER guard_deleted_personal_task_promotion_v1
+  BEFORE INSERT OR UPDATE OF source_object_type,source_object_id
+  ON atlas.work_items FOR EACH ROW
+  EXECUTE FUNCTION atlas.guard_deleted_personal_task_promotion_v1();
+
 CREATE OR REPLACE FUNCTION atlas.delete_atlas_task_self_api_v1(
   p_task_id uuid
 ) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
