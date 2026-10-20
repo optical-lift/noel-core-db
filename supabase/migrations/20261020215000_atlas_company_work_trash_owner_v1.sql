@@ -31,11 +31,13 @@ CREATE OR REPLACE FUNCTION atlas.guard_trashed_company_work_reappearance_v1()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
 AS $fn$
 BEGIN
-  IF TG_OP='UPDATE' AND old.work_state='cancelled'
-     AND old.metadata->>'deletedFromActiveViews'='true'
-     AND new.work_state<>'cancelled' THEN
-    RAISE EXCEPTION 'Deleted Work cannot silently return to active work'
-      USING ERRCODE='23514';
+  IF TG_OP='UPDATE' THEN
+    IF old.work_state='cancelled'
+       AND old.metadata->>'deletedFromActiveViews'='true'
+       AND new.work_state<>'cancelled' THEN
+      RAISE EXCEPTION 'Deleted Work cannot silently return to active work'
+        USING ERRCODE='23514';
+    END IF;
   END IF;
   IF new.source_object_type IS NOT NULL AND new.source_object_id IS NOT NULL
      AND EXISTS (
