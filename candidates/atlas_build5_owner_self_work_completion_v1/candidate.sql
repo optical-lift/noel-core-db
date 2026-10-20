@@ -238,7 +238,9 @@ begin
     where r.organization_id=v_work.organization_id and r.idempotency_key=v_key;
   if v_existing.id is not null then
     if v_existing.work_item_id<>v_work.id or v_existing.result_kind<>v_kind
-      or v_existing.responsible_allocation_id<>v_allocation.id then
+      or v_existing.responsible_allocation_id<>v_allocation.id
+      or v_existing.reported_by_user_id is distinct from v_uid
+      or v_existing.payload is distinct from p_payload then
       raise exception 'Result idempotency key collides' using errcode='23505';
     end if;
     return jsonb_build_object('ok',true,'idempotent',true,'workItemId',v_work.id,
