@@ -232,7 +232,7 @@ BEGIN
      NOT atlas.is_effective_organization_owner_v1(p_organization_id) THEN
     RAISE EXCEPTION 'Organization owner authority required' USING ERRCODE='42501';
   END IF;
-  IF p_limit<1 OR p_limit>100 THEN
+  IF p_limit IS NULL OR p_limit<1 OR p_limit>100 THEN
     RAISE EXCEPTION 'Trash page limit must be between 1 and 100' USING ERRCODE='22023';
   END IF;
   RETURN jsonb_build_object(
