@@ -60,8 +60,7 @@ as $fn$
 $fn$;
 revoke all on function atlas.organization_person_canonical_reality_v1(uuid,uuid)
   from public,anon,authenticated,service_role;
-grant execute on function atlas.organization_person_canonical_reality_v1(uuid,uuid)
-  to authenticated;
+-- Private resolver: never grant arbitrary canonical identity lookups to API roles.
 
 create or replace function atlas.attest_person_reality_connection_owner_self_api_v1(
   p_organization_id uuid,p_ledger_id uuid,p_atlas_person_id uuid,
