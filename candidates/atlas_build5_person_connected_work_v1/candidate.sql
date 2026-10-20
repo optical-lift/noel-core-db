@@ -27,8 +27,9 @@ as $fn$
 $fn$;
 revoke all on function atlas.person_has_native_ledger_connection_v1(uuid,uuid,uuid)
   from public,anon,authenticated,service_role;
-grant execute on function atlas.person_has_native_ledger_connection_v1(uuid,uuid,uuid)
-  to authenticated;
+-- Internal predicate only: an arbitrary account must not test another Ledger's
+-- private Person connections. Authenticated commands call it through owner- and
+-- receiver-gated SECURITY DEFINER routines.
 
 -- Preserve the historical membership column as-is; Person-native allocation
 -- uses a canonical Reality Person on the exact same allocation row.
@@ -1326,7 +1327,14 @@ begin
   if v_existing.id is not null then
     if v_existing.work_item_id<>v_work.id or v_existing.result_kind<>v_kind
       or v_existing.responsible_allocation_id<>v_allocation.id
-      or v_existing.metadata->>'reportMode'<>v_mode then
+      or v_existing.metadata->>'reportMode' is distinct from v_mode
+      or v_existing.metadata->>'authenticatedReporterPersonId'
+           is distinct from v_actor::text
+      or (v_mode='owner_witness' and
+          v_existing.payload->>'ownerWitnessEvidence' is distinct from v_evidence)
+      or (v_mode='own_work' and
+          (v_existing.payload-'claimedPerformerPersonId'-'ownerWitnessEvidence')
+            is distinct from p_payload) then
       raise exception 'Result idempotency collision' using errcode='23505';
     end if;
     return jsonb_build_object('ok',true,'idempotent',true,
