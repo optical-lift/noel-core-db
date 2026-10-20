@@ -25,6 +25,37 @@ REVOKE ALL ON TABLE atlas.company_work_trash_decisions_v1
   FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON TABLE atlas.company_work_trash_decisions_v1 TO service_role;
 
+-- A deleted source cannot silently generate a replacement canonical Work.
+-- It remains possible to address a genuinely new source or a distinct task.
+CREATE OR REPLACE FUNCTION atlas.guard_trashed_company_work_reappearance_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $fn$
+BEGIN
+  IF TG_OP='UPDATE' AND old.work_state='cancelled'
+     AND old.metadata->>'deletedFromActiveViews'='true'
+     AND new.work_state<>'cancelled' THEN
+    RAISE EXCEPTION 'Deleted Work cannot silently return to active work'
+      USING ERRCODE='23514';
+  END IF;
+  IF new.source_object_type IS NOT NULL AND new.source_object_id IS NOT NULL
+     AND EXISTS (
+       SELECT 1 FROM atlas.company_work_trash_decisions_v1 d
+       JOIN atlas.work_items w ON w.id=d.work_item_id
+       WHERE w.id<>new.id
+         AND w.source_object_type=new.source_object_type
+         AND w.source_object_id=new.source_object_id
+     ) THEN
+    RAISE EXCEPTION 'Source already belongs to deleted canonical Work; no replacement may be created'
+      USING ERRCODE='23514';
+  END IF;
+  RETURN new;
+END;
+$fn$;
+CREATE TRIGGER guard_trashed_company_work_reappearance_v1
+  BEFORE INSERT OR UPDATE OF source_object_type,source_object_id,work_state
+  ON atlas.work_items FOR EACH ROW
+  EXECUTE FUNCTION atlas.guard_trashed_company_work_reappearance_v1();
+
 CREATE OR REPLACE FUNCTION atlas.delete_company_work_owner_self_api_v1(
   p_work_item_id uuid
 ) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
