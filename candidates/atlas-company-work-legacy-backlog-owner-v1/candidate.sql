@@ -1,3 +1,5 @@
+BEGIN;
+
 -- Atlas Build 5: owner-reviewed legacy Company Work recovery, first surfaced by source zone.
 -- Source Task remains unchanged; archived means no recorded completion, not proof the work is still needed.
 -- Authority: native Ledger + Organization governing roots, never a legacy employee/worker-day seat.
@@ -279,3 +281,5 @@ REVOKE ALL ON FUNCTION atlas.decide_company_work_legacy_backlog_owner_self_api_v
   uuid,uuid,uuid,text,text,text,text,text,uuid,boolean) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION atlas.decide_company_work_legacy_backlog_owner_self_api_v1(
   uuid,uuid,uuid,text,text,text,text,text,uuid,boolean) TO authenticated;
+
+COMMIT;
