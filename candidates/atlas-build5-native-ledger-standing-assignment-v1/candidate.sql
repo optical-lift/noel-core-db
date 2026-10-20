@@ -10,20 +10,29 @@ BEGIN;
 ALTER TABLE atlas.company_work_standing_assignment_scopes
   ALTER COLUMN worker_membership_id DROP NOT NULL,
   ALTER COLUMN position_id DROP NOT NULL,
-  ALTER COLUMN position_appointment_id DROP NOT NULL;
+  ALTER COLUMN position_appointment_id DROP NOT NULL,
+  ALTER COLUMN organization_unit_id DROP NOT NULL;
 ALTER TABLE atlas.company_work_standing_assignment_scopes
-  ADD COLUMN covered_operation_class text;
+  ADD COLUMN covered_operation_class text,
+  ADD COLUMN coverage_mode text;
 ALTER TABLE atlas.company_work_standing_assignment_scopes
   ADD CONSTRAINT company_work_native_scope_operation_class_required_v1 CHECK (
     worker_membership_id IS NOT NULL OR
-    (covered_operation_class IS NOT NULL AND length(btrim(covered_operation_class)) BETWEEN 2 AND 120)
+    (coverage_mode='ledger_all_work' AND organization_unit_id IS NULL AND covered_operation_class IS NULL) OR
+    (coverage_mode='operation_class' AND organization_unit_id IS NOT NULL AND
+      covered_operation_class IS NOT NULL AND length(btrim(covered_operation_class)) BETWEEN 2 AND 120)
   );
 
 -- Prevent simultaneous proposals from creating parallel apparent authority.
 CREATE UNIQUE INDEX IF NOT EXISTS company_work_native_person_scope_open_uq_v1
  ON atlas.company_work_standing_assignment_scopes(
    organization_id,ledger_id,worker_person_id,organization_unit_id,covered_operation_class)
- WHERE worker_membership_id IS NULL AND scope_state IN ('proposed','active');
+ WHERE worker_membership_id IS NULL AND coverage_mode='operation_class'
+  AND scope_state IN ('proposed','active');
+CREATE UNIQUE INDEX IF NOT EXISTS company_work_native_person_ledger_scope_open_uq_v1
+ ON atlas.company_work_standing_assignment_scopes(organization_id,ledger_id,worker_person_id)
+ WHERE worker_membership_id IS NULL AND coverage_mode='ledger_all_work'
+  AND scope_state IN ('proposed','active');
 
 ALTER TABLE atlas.work_allocations
   DROP CONSTRAINT work_allocations_exact_assignee_carrier_v1;
@@ -40,7 +49,7 @@ ALTER TABLE atlas.work_allocations
 CREATE OR REPLACE FUNCTION atlas.propose_native_ledger_standing_scope_owner_self_api_v1(
   p_organization_id uuid, p_ledger_id uuid,
   p_worker_person_id uuid, p_organization_unit_id uuid,
-  p_operation_class text,p_terms text, p_valid_until timestamptz DEFAULT NULL
+  p_coverage_mode text,p_operation_class text,p_terms text, p_valid_until timestamptz DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
 AS $body$
 DECLARE
@@ -49,10 +58,14 @@ DECLARE
  v_scope atlas.company_work_standing_assignment_scopes%ROWTYPE;
  v_terms text:=nullif(btrim(coalesce(p_terms,'')),'');
  v_class text:=nullif(btrim(coalesce(p_operation_class,'')),'');
+ v_mode text:=lower(btrim(coalesce(p_coverage_mode,'')));
 BEGIN
  IF auth.uid() IS NULL OR p_worker_person_id IS NULL OR
-    p_organization_unit_id IS NULL OR v_class IS NULL OR
-    length(v_class) NOT BETWEEN 2 AND 120 OR v_terms IS NULL OR
+    v_mode NOT IN ('operation_class','ledger_all_work') OR
+    (v_mode='operation_class' AND (p_organization_unit_id IS NULL OR
+       v_class IS NULL OR length(v_class) NOT BETWEEN 2 AND 120)) OR
+    (v_mode='ledger_all_work' AND (p_organization_unit_id IS NOT NULL OR v_class IS NOT NULL)) OR
+    v_terms IS NULL OR
     length(v_terms) NOT BETWEEN 30 AND 3000 OR
     (p_valid_until IS NOT NULL AND p_valid_until<=now()) THEN
    RAISE EXCEPTION 'A canonical Person, operating unit, bounded terms and valid expiry are required'
@@ -72,13 +85,13 @@ BEGIN
      p_organization_id,p_ledger_id,p_worker_person_id) THEN
    RAISE EXCEPTION 'Active exact native Ledger Person connection required' USING ERRCODE='23514';
  END IF;
- IF NOT EXISTS(SELECT 1 FROM atlas.organization_units u
+ IF v_mode='operation_class' AND NOT EXISTS(SELECT 1 FROM atlas.organization_units u
      WHERE u.id=p_organization_unit_id AND u.organization_id=p_organization_id
        AND u.status='active') THEN
    RAISE EXCEPTION 'Active exact organization unit required' USING ERRCODE='23514';
  END IF;
  -- One recorded operation class, not unrelated Work in the same unit.
- IF NOT EXISTS(SELECT 1 FROM atlas.work_items work
+ IF v_mode='operation_class' AND NOT EXISTS(SELECT 1 FROM atlas.work_items work
    WHERE work.organization_id=p_organization_id
      AND work.organization_unit_id=p_organization_unit_id
      AND work.operation_class=v_class) THEN
@@ -88,8 +101,9 @@ BEGIN
  IF EXISTS(SELECT 1 FROM atlas.company_work_standing_assignment_scopes s
      WHERE s.organization_id=p_organization_id AND s.ledger_id=p_ledger_id
        AND s.worker_person_id=p_worker_person_id
-       AND s.organization_unit_id=p_organization_unit_id
-       AND s.covered_operation_class=v_class
+       AND s.organization_unit_id IS NOT DISTINCT FROM p_organization_unit_id
+       AND s.covered_operation_class IS NOT DISTINCT FROM v_class
+       AND s.coverage_mode=v_mode
        AND s.scope_state IN ('proposed','active')
        AND (s.valid_until IS NULL OR s.valid_until>now())) THEN
    RAISE EXCEPTION 'A standing scope already exists for this exact Person and unit'
@@ -98,17 +112,18 @@ BEGIN
  INSERT INTO atlas.company_work_standing_assignment_scopes(
    organization_id,ledger_id,worker_membership_id,worker_person_id,
    employee_seat_id,position_id,position_appointment_id,organization_unit_id,
-   covered_operation_class,proposed_by_person_id,proposed_by_membership_id,proposal_terms,valid_until
+   covered_operation_class,coverage_mode,proposed_by_person_id,proposed_by_membership_id,proposal_terms,valid_until
  ) VALUES (
    p_organization_id,p_ledger_id,NULL,p_worker_person_id,
    NULL,NULL,NULL,p_organization_unit_id,
-   v_class,v_owner,v_owner_membership,v_terms,p_valid_until
+   v_class,v_mode,v_owner,v_owner_membership,v_terms,p_valid_until
  ) RETURNING * INTO v_scope;
  RETURN jsonb_build_object(
    'ok',true,'contractVersion','native_ledger_standing_scope_v1',
    'scopeId',v_scope.id,'state','proposed','organizationId',p_organization_id,
    'ledgerId',p_ledger_id,'workerPersonId',p_worker_person_id,
    'organizationUnitId',p_organization_unit_id,'operationClass',v_class,
+   'coverageMode',v_mode,
    'workerConsentRecorded',false,'workAssigned',false,'employeeSeatRequired',false);
 END
 $body$;
@@ -168,7 +183,8 @@ BEGIN
  SELECT coalesce(jsonb_agg(jsonb_build_object(
    'scopeId',s.id,'organizationId',s.organization_id,
    'ledgerId',s.ledger_id,'workerPersonId',s.worker_person_id,
-   'organizationUnitId',s.organization_unit_id,'operationClass',s.covered_operation_class,'proposalTerms',s.proposal_terms,
+   'organizationUnitId',s.organization_unit_id,'operationClass',s.covered_operation_class,'coverageMode',s.coverage_mode,
+   'proposalTerms',s.proposal_terms,
    'state',s.scope_state,'acceptedAt',s.accepted_at,'validUntil',s.valid_until)
    ORDER BY s.proposed_at,s.id),'[]'::jsonb) INTO v_incoming
  FROM atlas.company_work_standing_assignment_scopes s
@@ -179,7 +195,8 @@ BEGIN
  SELECT coalesce(jsonb_agg(jsonb_build_object(
    'scopeId',s.id,'organizationId',s.organization_id,
    'ledgerId',s.ledger_id,'workerPersonId',s.worker_person_id,
-   'organizationUnitId',s.organization_unit_id,'operationClass',s.covered_operation_class,'proposalTerms',s.proposal_terms,
+   'organizationUnitId',s.organization_unit_id,'operationClass',s.covered_operation_class,'coverageMode',s.coverage_mode,
+   'proposalTerms',s.proposal_terms,
    'state',s.scope_state,'acceptedAt',s.accepted_at,'validUntil',s.valid_until)
    ORDER BY s.proposed_at,s.id),'[]'::jsonb) INTO v_outgoing
  FROM atlas.company_work_standing_assignment_scopes s
@@ -220,8 +237,10 @@ BEGIN
    v_scope.worker_membership_id IS NOT NULL OR
    (v_scope.valid_until IS NOT NULL AND v_scope.valid_until<=now()) OR
    v_work.organization_id<>v_scope.organization_id OR
-   v_work.organization_unit_id IS DISTINCT FROM v_scope.organization_unit_id OR
-   v_work.operation_class IS DISTINCT FROM v_scope.covered_operation_class THEN
+   (v_scope.coverage_mode='operation_class' AND
+      (v_work.organization_unit_id IS DISTINCT FROM v_scope.organization_unit_id OR
+       v_work.operation_class IS DISTINCT FROM v_scope.covered_operation_class)) OR
+   v_scope.coverage_mode NOT IN ('operation_class','ledger_all_work') THEN
    RAISE EXCEPTION 'Open Work and currently accepted Person/Ledger standing scope required'
      USING ERRCODE='23514';
  END IF;
@@ -311,6 +330,7 @@ BEGIN
    'state','assigned','workItemId',v_work.id,'allocationId',v_new.id,
    'ledgerId',v_scope.ledger_id,'scopeId',v_scope.id,
    'operationClass',v_scope.covered_operation_class,
+   'coverageMode',v_scope.coverage_mode,
    'responsiblePersonId',v_scope.worker_person_id,
    'workerAcceptancePerTaskRequired',false,'workerDayPlacementProven',false,
    'workerReadProven',false,'newWorkCreated',false);
@@ -515,8 +535,10 @@ begin
         and s.scope_state='active' and s.accepted_at is not null
         and s.accepted_by_person_id=new.assignee_canonical_person_id
         and (s.valid_until is null or s.valid_until>now())
-        and work.organization_unit_id=s.organization_unit_id
-        and work.operation_class=s.covered_operation_class
+        and (s.coverage_mode='ledger_all_work' OR
+          (s.coverage_mode='operation_class' AND
+           work.organization_unit_id=s.organization_unit_id AND
+           work.operation_class=s.covered_operation_class))
         and work.work_state='open'
         and relevance.attribution_state='active'
         and (relevance.evidence_kind='owner_attested' or
@@ -1330,11 +1352,11 @@ $body$;
 REVOKE ALL ON FUNCTION atlas.native_ledger_company_units_owner_self_api_v1(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION atlas.native_ledger_company_units_owner_self_api_v1(uuid,uuid) TO authenticated;
 
-REVOKE ALL ON FUNCTION atlas.propose_native_ledger_standing_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,text,timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION atlas.propose_native_ledger_standing_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,text,text,timestamptz) FROM PUBLIC;
 REVOKE ALL ON FUNCTION atlas.respond_native_ledger_standing_scope_self_api_v1(uuid,text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION atlas.native_ledger_standing_scopes_self_api_v1() FROM PUBLIC;
 REVOKE ALL ON FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION atlas.propose_native_ledger_standing_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,text,timestamptz) TO authenticated;
+GRANT EXECUTE ON FUNCTION atlas.propose_native_ledger_standing_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,text,text,timestamptz) TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas.respond_native_ledger_standing_scope_self_api_v1(uuid,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas.native_ledger_standing_scopes_self_api_v1() TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text) TO authenticated;
