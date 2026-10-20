@@ -808,6 +808,81 @@ end;
 $fn$;
 
 
+
+-- The Work recipient picker is sourced from canonical active native Ledger
+-- seats, not institutional People records. A Ledger-only connection is valid.
+create or replace function atlas.company_work_connected_person_choices_owner_self_api_v1(
+  p_organization_id uuid,p_ledger_id uuid,p_limit integer default 100,
+  p_after_person_id uuid default null)
+returns jsonb language plpgsql stable security definer set search_path to ''
+as $fn$
+declare
+  v_owner uuid;
+  v_items jsonb:='[]'::jsonb;
+  v_next uuid;
+  v_has_more boolean:=false;
+begin
+  v_owner:=atlas.company_work_native_ledger_owner_self_v1(
+    p_organization_id,p_ledger_id);
+  if p_limit is null or p_limit not between 1 and 100 then
+    raise exception 'Connection page size must be between 1 and 100'
+      using errcode='22023';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'canonicalRealityPersonId',page.id,
+    'displayName',page.display_name,
+    'nativeLedgerSeatState','active_participation_only'
+  ) order by page.id),'[]'::jsonb) into v_items
+  from (
+    select distinct e.id,e.display_name
+    from ledger.seats seat
+    join reality.entities e on e.id=seat.person_entity_id
+    where seat.ledger_id=p_ledger_id
+      and seat.seat_state='active' and seat.ended_at is null
+      and e.entity_kind='person' and e.identity_state='canonical'
+      and (p_after_person_id is null or e.id>p_after_person_id)
+    order by e.id
+    limit p_limit
+  ) page;
+  if jsonb_array_length(v_items)>0 then
+    v_next:=(v_items->(jsonb_array_length(v_items)-1)
+      ->>'canonicalRealityPersonId')::uuid;
+    select exists(
+      select 1 from ledger.seats seat
+      join reality.entities e on e.id=seat.person_entity_id
+      where seat.ledger_id=p_ledger_id
+        and seat.seat_state='active' and seat.ended_at is null
+        and e.entity_kind='person' and e.identity_state='canonical'
+        and e.id>v_next
+    ) into v_has_more;
+  end if;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','company_work_connected_person_choices_v1',
+    'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+    'viewerPersonId',v_owner,'items',v_items,
+    'hasMore',v_has_more,
+    'nextPersonId',case when v_has_more then v_next else null end,
+    'seatIsNotEmployeeOrFinanceAuthority',true);
+end
+$fn$;
+revoke all on function atlas.company_work_connected_person_choices_owner_self_api_v1(
+  uuid,uuid,integer,uuid) from public,anon,authenticated,service_role;
+grant execute on function atlas.company_work_connected_person_choices_owner_self_api_v1(
+  uuid,uuid,integer,uuid) to authenticated;
+
+create or replace function public.company_work_connected_person_choices_owner_self_api_v1(
+  p_organization_id uuid,p_ledger_id uuid,p_limit integer default 100,
+  p_after_person_id uuid default null)
+returns jsonb language sql stable security invoker set search_path to ''
+as $fn$
+  select atlas.company_work_connected_person_choices_owner_self_api_v1(
+    p_organization_id,p_ledger_id,p_limit,p_after_person_id)
+$fn$;
+revoke all on function public.company_work_connected_person_choices_owner_self_api_v1(
+  uuid,uuid,integer,uuid) from public,anon,authenticated,service_role;
+grant execute on function public.company_work_connected_person_choices_owner_self_api_v1(
+  uuid,uuid,integer,uuid) to authenticated;
+
 -- People may be invited because they have an exact native Ledger seat, without
 -- inventing an employee, credential, or duplicate Work object.
 create or replace function atlas.offer_connected_person_company_work_owner_self_api_v1(
@@ -903,6 +978,7 @@ as $fn$
 declare
   v_offer atlas.company_work_initial_responsibility_offers%rowtype;
   v_work atlas.work_items%rowtype;
+  v_work_id uuid;
   v_new atlas.work_allocations%rowtype;
   v_owner_id uuid;
   v_contract text:='ordinary_company_work_worker_attestation_v1';
@@ -916,18 +992,27 @@ begin
         or p_witness_person_id is null)) then
     raise exception 'Exact receiver uptake and external evidence required' using errcode='22023';
   end if;
-  select * into v_offer from atlas.company_work_initial_responsibility_offers
-    where id=p_offer_id for update;
-  if v_offer.id is null or v_offer.offer_state<>'offered'
-    or v_offer.target_membership_id is not null then
+  -- Follow the same order as offer/withdraw/self-adopt: exact Work advisory
+  -- lock, Work row, then offer row. No offer row lock is taken first.
+  select work_item_id into v_work_id
+    from atlas.company_work_initial_responsibility_offers
+    where id=p_offer_id;
+  if v_work_id is null then
     raise exception 'Pending Person-native offer required' using errcode='23514';
   end if;
   perform pg_advisory_xact_lock(hashtextextended(
-    'atlas.company_work.responsibility:'||v_offer.work_item_id,0));
+    'atlas.company_work.responsibility:'||v_work_id,0));
   select * into v_work from atlas.work_items
-    where id=v_offer.work_item_id and organization_id=v_offer.organization_id
-    for update;
-  if v_work.id is null or v_work.work_state<>'open'
+    where id=v_work_id for update;
+  select * into v_offer from atlas.company_work_initial_responsibility_offers
+    where id=p_offer_id for update;
+  if v_offer.id is null or v_offer.offer_state<>'offered'
+    or v_offer.work_item_id<>v_work_id
+    or v_offer.target_membership_id is not null then
+    raise exception 'Pending Person-native offer required' using errcode='23514';
+  end if;
+  if v_work.id is null or v_work.organization_id<>v_offer.organization_id
+    or v_work.work_state<>'open'
     or not atlas.person_has_native_ledger_connection_v1(
       v_offer.organization_id,v_offer.ledger_id,v_offer.target_person_id) then
     raise exception 'Work or exact Ledger connection changed before uptake' using errcode='23514';
@@ -1026,7 +1111,7 @@ begin
     raise exception 'Accept or decline exact offered Work' using errcode='22023';
   end if;
   select * into v_offer from atlas.company_work_initial_responsibility_offers
-    where id=p_offer_id for update;
+    where id=p_offer_id;
   if v_offer.id is null or v_offer.target_person_id<>v_self
     or v_offer.target_membership_id is not null then
     raise exception 'Offer is not for current canonical Person' using errcode='42501';
@@ -1043,7 +1128,10 @@ begin
     update atlas.company_work_initial_responsibility_offers
       set offer_state='declined',resolved_at=now(),
         resolution_reason='person_connection_receiver_declined'
-      where id=v_offer.id;
+      where id=v_offer.id and offer_state='offered';
+    if not found then
+      raise exception 'Offer changed during decline' using errcode='23514';
+    end if;
     return jsonb_build_object('ok',true,'state','declined','offerId',v_offer.id,
       'responsibilityChanged',false);
   end if;
@@ -1071,7 +1159,7 @@ begin
   v_owner:=atlas.company_work_native_ledger_owner_self_v1(
     p_organization_id,p_ledger_id);
   select * into v_offer from atlas.company_work_initial_responsibility_offers
-    where id=p_offer_id for update;
+    where id=p_offer_id;
   if v_offer.id is null or v_offer.organization_id<>p_organization_id
      or v_offer.ledger_id<>p_ledger_id
      or v_offer.target_person_id=v_owner then
