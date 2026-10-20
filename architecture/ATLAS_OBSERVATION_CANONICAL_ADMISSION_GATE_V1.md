@@ -149,3 +149,9 @@ resolution chooses the referent
 admission chooses whether source testimony becomes canonical evidence
 new identity creation requires explicit human approval
 ```
+
+## Source-person recognition and two-stage relationship inquiry (selected 2026-10-20)
+
+When a source includes a Person-like name, email, `worker_key`, job title or institution relationship allegation, preserve it as source observation and classify its referent before any canonical Person or relationship promotion. A name, address, role, or private resolver match alone is never Person truth. Existing-canonical reuse, ambiguous review, and separately authorized genuinely-new admission remain this gate's only lawful transitions.
+
+The owner selected **Option C** for recipient confirmation: **Stage 1 establishes who is claiming to answer, using lawful bounded contact evidence and the separate claimant verification threshold for any durable canonical Person binding; Stage 2 asks the recipient to describe their actual relationship; only after both stages may authorized adjudication consider establishing a relationship.** A relationship claim is not a credential, employee seat, assignment, or Ledger permission. Pre-relationship communication must not fabricate an existing Relationship Delivery Grant. See `architecture/ATLAS_SOURCE_PERSON_RECOGNITION_TWO_STAGE_RELATIONSHIP_INQUIRY_V1.md`.
