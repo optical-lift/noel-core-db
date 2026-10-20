@@ -43,6 +43,12 @@ Preserve the affected test Person's current credential row, auth-user binding, p
 
 Reuse existing `ledger.seat_responsibilities` and `reality.responsibility_relations` where their released contracts fit. Inspect their full DDL and authorization/uptake rules before deciding whether to extend `atlas.company_work_standing_assignment_scopes` or replace its membership and Position-appointment dependency. Canonical Person, exact Ledger, bounded duty/scope, issuer, acceptance evidence, effective interval and revocation must be verifiable.
 
+Native standing agreements support two explicit responsibility boundaries:
+- `operation_class`: one recorded operation class in one operating unit. Assignments outside both must fail.
+- `ledger_all_work`: ongoing operational responsibility for every exact-source Work item relevant to that Ledger, including older recovered Work with no class or unit. The receiver must expressly accept the breadth of this single agreement. It is **not** a grant to see finances, administer access, or act as owner; only already-authorized Work assignment is possible.
+
+A production read-only audit found that most recovered Work in one existing Venue Ledger currently has null operation-class and unit fields. Do not fabricate those classifications merely to permit assignment; use an openly described Ledger-wide agreement when genuinely authorized, or leave the Work unassigned.
+
 An existing relationship is not proof of consent to new duties. Where one-time acceptance is required, the actual Person must accept the scope. No implicit acceptances or acceptance attributed to the owner. Existing standing-scope table is empty, so there is no standing-scope row history to rewrite.
 
 ### 3. Canonical direct assignment and the recipient notebook
