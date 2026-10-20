@@ -4,6 +4,8 @@ do $test$
 declare
   v_names text[]:=array[
     'atlas.person_has_native_ledger_connection_v1(uuid,uuid,uuid)',
+    'atlas.company_work_connected_person_choices_owner_self_api_v1(uuid,uuid,integer,uuid)',
+    'public.company_work_connected_person_choices_owner_self_api_v1(uuid,uuid,integer,uuid)',
     'atlas.offer_connected_person_company_work_owner_self_api_v1(uuid,uuid,uuid,uuid,text)',
     'atlas.establish_connected_person_company_work_from_offer_v1(uuid,text,text,uuid)',
     'atlas.respond_connected_person_company_work_self_api_v1(uuid,text)',
@@ -54,6 +56,15 @@ begin
         and a.assignee_membership_id is null
         and a.assignee_canonical_person_id is null)>0 then
     raise exception 'An active allocation has neither Person nor membership';
+  end if;
+  if has_function_privilege('anon',
+      'public.company_work_connected_person_choices_owner_self_api_v1(uuid,uuid,integer,uuid)',
+      'EXECUTE') then
+    raise exception 'Anonymous Ledger connection roster exposed';
+  end if;
+  if position('ledger.seats' in pg_get_functiondef(
+      'atlas.company_work_connected_person_choices_owner_self_api_v1(uuid,uuid,integer,uuid)'::regprocedure))=0 then
+    raise exception 'Work recipient chooser is not Ledger-seat sourced';
   end if;
   if exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname='public'
