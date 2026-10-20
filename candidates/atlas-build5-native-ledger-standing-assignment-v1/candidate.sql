@@ -61,7 +61,7 @@ DECLARE
  v_mode text:=lower(btrim(coalesce(p_coverage_mode,'')));
 BEGIN
  IF auth.uid() IS NULL OR p_worker_person_id IS NULL OR
-    v_mode NOT IN ('operation_class','ledger_all_work') OR
+    (v_mode IS NULL OR v_mode NOT IN ('operation_class','ledger_all_work')) OR
     (v_mode='operation_class' AND (p_organization_unit_id IS NULL OR
        v_class IS NULL OR length(v_class) NOT BETWEEN 2 AND 120)) OR
     (v_mode='ledger_all_work' AND (p_organization_unit_id IS NOT NULL OR v_class IS NOT NULL)) OR
