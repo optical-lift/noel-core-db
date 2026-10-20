@@ -1,0 +1,36 @@
+{
+  "contractVersion": 55,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v54.json",
+  "rule": "These three already-live 2026-10-20 Noel Medical Lab structural statements were executed without canonical migration custody and have nonstandard historical names. An independent Supabase migration-ledger read established each exact executed-statement SHA-1; each matching SQL byte sequence was recovered to its original-version canonical Git source path, independently verified as an identical Git blob. They contain structural read-only function/routine-only patch logic referring to private research stores at runtime but no embedded founder research row contents or personal case evidence. This sealed receipt restores only their original execution-body/source custody; it does not replay SQL, authorize further medical_lab_ prefixed migrations or exempt unknown/changed future migration bodies from global or lane-specific controls.",
+  "recoveries": [
+    {
+      "version": "20261020151656",
+      "name": "medical_lab_knowledge_continuity_read_only_context_v1",
+      "filename": "20261020151656_medical_lab_knowledge_continuity_read_only_context_v1.sql",
+      "gitBlobSha1": "d2f0e655b0759aabc69f60842afb2fb114777477",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261020151918",
+      "name": "medical_lab_context_required_premise_anchors_v1",
+      "filename": "20261020151918_medical_lab_context_required_premise_anchors_v1.sql",
+      "gitBlobSha1": "e4ea4101b79b9eebedf3357fde07d10afb65a4fc",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261020152205",
+      "name": "medical_lab_context_overview_topic_alias_v1",
+      "filename": "20261020152205_medical_lab_context_overview_topic_alias_v1.sql",
+      "gitBlobSha1": "7ac6e8be6ca8e9f5009064bbc95b2807e01fc291",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
