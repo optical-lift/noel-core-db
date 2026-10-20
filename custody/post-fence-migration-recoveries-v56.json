@@ -1,0 +1,18 @@
+{
+  "contractVersion": 56,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v55.json",
+  "rule": "One additional read-only Noel Medical Lab context-function structural patch reached the shared production migration ledger after v55 had already restored three exact historical sources. This receipt is a distinct retrospective exact executed-body to Git-source proof, verified independently from live migration statement storage and Git blob equality. It contains no founder research row bodies or patient data, authorizes no replay and no new medical_lab_ owner prefix, and preserves the global unknown-source gate for any future direct migrations.",
+  "recoveries": [
+    {
+      "version": "20261020155628",
+      "name": "medical_lab_original_study_components_context_v1",
+      "filename": "20261020155628_medical_lab_original_study_components_context_v1.sql",
+      "gitBlobSha1": "25b4ca88999161f551d2158e80c37e73c1701d3d",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
