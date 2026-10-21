@@ -21,5 +21,15 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Protected connected-person read contract missing';
   END IF;
+  -- Completion triggers move the canonical Work execution plan to
+  -- 'completed'. A reader restricted to 'active' drops the finished item.
+  -- This explicitly guards the work-state and plan-state join.
+  IF position('p.plan_state=''completed''' IN
+      pg_get_functiondef('atlas.connected_person_company_work_day_self_api_v1(date)'::regprocedure))=0
+     OR position('w.work_state=''completed''' IN
+      pg_get_functiondef('atlas.connected_person_company_work_day_self_api_v1(date)'::regprocedure))=0
+  THEN
+    RAISE EXCEPTION 'Completed dated Work must remain in its original day history';
+  END IF;
 END
 $verify$;
