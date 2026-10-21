@@ -16,7 +16,7 @@ for name in select unnest(array['connected_ledger_inbox_self_api_v1','connected_
    raise exception 'Browser public RPC bridge missing: %(%)',name,arguments;end if;
  if not has_function_privilege('authenticated',public_oid,'EXECUTE')
     or has_function_privilege('anon',public_oid,'EXECUTE')
-    or has_function_privilege('public',public_oid,'EXECUTE') then
+ then
    raise exception 'Browser RPC bridge grants unsafe: %',name;end if;
  if not has_function_privilege('authenticated',inner_oid,'EXECUTE')
     or has_function_privilege('anon',inner_oid,'EXECUTE') then
