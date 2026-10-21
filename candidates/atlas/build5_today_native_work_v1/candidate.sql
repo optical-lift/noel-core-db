@@ -41,6 +41,18 @@ begin
       using errcode='23514';
   end if;
   if new.plan_state='active' then
+    -- The date-only deadline is independent of this service date, but a
+    -- later plan cannot silently ignore the established deadline.
+    if exists (
+      select 1 from atlas.work_time_contracts t
+      where t.work_item_id=new.work_item_id and t.contract_state='active'
+        and t.due_on_date is not null
+        and (new.planned_service_date>t.due_on_date
+          or new.exposure_service_date>t.due_on_date)
+    ) then
+      raise exception 'Plan is beyond the governing date-only deadline.'
+        using errcode='23514';
+    end if;
     if v_work.work_state<>'open' or v_allocation.state<>'active' then
       raise exception 'Active plan requires open Work and active responsibility.'
         using errcode='23514';
@@ -317,6 +329,52 @@ begin
     'oneCanonicalWorkIdentity',true,'deliveryReadProven',false);
 end
 $function$;
+
+-- Permanently remove a mistaken *personal-only* dated task after confirming
+-- no institutional Work references it. No protected Company Work, accepted
+-- worker results, or source-linked history is erased by this narrow command.
+create or replace function atlas.delete_unlinked_personal_task_self_api_v1(
+  p_task_id uuid)
+returns jsonb language plpgsql security definer set search_path=''
+as $function$
+declare
+  v_task atlas.task_entries%rowtype;
+  v_principal uuid:=atlas.require_active_task_principal_v1();
+begin
+  if auth.uid() is null or p_task_id is null then
+    raise exception 'Signed-in Person and exact original task required.'
+      using errcode='42501';
+  end if;
+  select * into v_task from atlas.task_entries
+    where id=p_task_id and owner_user_id=auth.uid()
+      and principal_id=v_principal for update;
+  if v_task.id is null then
+    raise exception 'Personal task was not found in your authenticated source.'
+      using errcode='42501';
+  end if;
+  if exists (
+    select 1 from atlas.work_items w
+    where w.source_object_type='personal_dated_task'
+      and w.source_object_id=v_task.id
+  ) then
+    raise exception 'Institutional Work has this source; use governed Work retirement.'
+      using errcode='23514';
+  end if;
+  delete from atlas.task_entries
+    where id=v_task.id and owner_user_id=auth.uid() and principal_id=v_principal;
+  if not found then raise exception 'Original task deletion could not be confirmed.'
+    using errcode='40001'; end if;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','personal_task_permanent_delete_v1',
+    'deletedTaskId',v_task.id,'previousDate',v_task.due_date,
+    'noInstitutionalWorkDeleted',true,'permanentlyDeleted',true);
+end
+$function$;
+
+revoke all on function atlas.delete_unlinked_personal_task_self_api_v1(uuid)
+  from public,anon;
+grant execute on function atlas.delete_unlinked_personal_task_self_api_v1(uuid)
+  to authenticated;
 
 revoke all on function atlas.owner_create_native_ledger_today_work_self_api_v1(
   uuid,uuid,uuid,text,date,date,text,boolean) from public,anon;
