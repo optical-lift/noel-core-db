@@ -136,4 +136,55 @@ begin
   'items',v_items,'total',v_total,'truncated',v_total>p_limit,'rootAuthorityRequired',false);
 end$fn$;
 
+
+-- Existing receipt tables used by receiver-accepted Person-native allocations.
+-- A Ledger connection cannot manufacture a legacy Organization membership.
+alter table atlas.company_work_initial_responsibility_offers
+  alter column offered_by_membership_id drop not null;
+alter table atlas.company_work_result_contract_bindings_v1
+  alter column actor_membership_id drop not null;
+
+-- Separate participant-authored evidence from owner attestation. Neither is
+-- source-verified by an external booking provider.
+alter table atlas.company_work_native_ledger_relevance
+ drop constraint company_work_native_ledger_relevance_evidence_kind_check;
+alter table atlas.company_work_native_ledger_relevance
+ add constraint company_work_native_ledger_relevance_evidence_kind_check
+ check (evidence_kind in ('owner_attested','participant_attested','source_verified'));
+alter table atlas.company_work_native_ledger_relevance
+ drop constraint company_work_relevance_evidence_separation_v1;
+alter table atlas.company_work_native_ledger_relevance
+ add constraint company_work_relevance_evidence_separation_v1 check(
+ (evidence_kind in ('owner_attested','participant_attested')
+   and nullif(btrim(attestation_source_ref),'') is not null
+   and nullif(btrim(attestation_reason),'') is not null
+   and source_schema is null and source_table is null and source_id is null and verified_at is null)
+ or
+ (evidence_kind='source_verified'
+   and attestation_source_ref is null and attestation_reason is null
+   and source_schema='ledger' and source_table in ('booking_requests','booking_offerings')
+   and source_id is not null and verified_at is not null)
+ );
+
+-- Guarded exact-text updates of only the two existing Person-native acceptance
+-- clauses. Refuse a source mismatch rather than reintroducing an owner credential.
+do $patch$
+declare v_source text;v_old text;v_new text;
+begin
+ v_source:=pg_get_functiondef('atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure);
+ v_old:='o.offered_by_membership_id=new.assigned_by_membership_id';
+ v_new:='o.offered_by_membership_id is not distinct from new.assigned_by_membership_id';
+ if length(v_source)-length(replace(v_source,v_old,''))<>length(v_old) then
+  raise exception 'Exact Person-native offer guard source changed; review required';
+ end if;
+ execute replace(v_source,v_old,v_new);
+ v_source:=pg_get_functiondef('atlas.establish_connected_person_company_work_from_offer_v1(uuid,text,text,uuid)'::regprocedure);
+ v_old:='rel.evidence_kind=''owner_attested'' or';
+ v_new:='rel.evidence_kind in (''owner_attested'',''participant_attested'') or';
+ if length(v_source)-length(replace(v_source,v_old,''))<>length(v_old) then
+  raise exception 'Exact Person-native offer establishment source changed; review required';
+ end if;
+ execute replace(v_source,v_old,v_new);
+end$patch$;
+
 commit;
