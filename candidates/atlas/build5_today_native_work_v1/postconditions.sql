@@ -36,6 +36,14 @@ begin
     or has_function_privilege('anon','atlas.personal_archived_tasks_day_self_api_v1(date)','EXECUTE') then
    raise exception 'Anonymous personal archive access is exposed';
  end if;
+ if to_regprocedure('atlas.native_today_work_void_preflight_self_api_v1(uuid,uuid)') is null
+   or to_regprocedure('atlas.owner_void_native_today_work_self_api_v1(uuid,uuid,text)') is null then
+   raise exception 'Governed institutional Today Work void authority is missing';
+ end if;
+ if has_function_privilege('anon','atlas.native_today_work_void_preflight_self_api_v1(uuid,uuid)','EXECUTE')
+   or has_function_privilege('anon','atlas.owner_void_native_today_work_self_api_v1(uuid,uuid,text)','EXECUTE') then
+   raise exception 'Anonymous access to institutional void is exposed';
+ end if;
  if to_regprocedure('atlas.delete_unlinked_personal_task_self_api_v1(uuid)') is null then
    raise exception 'Safe permanent personal task deletion command is missing';
  end if;
