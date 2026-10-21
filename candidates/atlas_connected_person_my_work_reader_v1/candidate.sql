@@ -56,6 +56,18 @@ BEGIN
         WHERE x.work_item_id=w.id AND x.organization_id=w.organization_id
           AND x.ledger_id=(a.establishment_basis->>'nativeLedgerId')::uuid
           AND x.attribution_state='active'
+          AND (
+            x.evidence_kind IN ('owner_attested','participant_attested')
+            OR (x.evidence_kind='source_verified' AND EXISTS (
+              SELECT 1
+              FROM atlas.company_work_native_ledger_exact_source_v1(
+                x.work_item_id,x.ledger_id
+              ) verified
+              WHERE verified.source_schema=x.source_schema
+                AND verified.source_table=x.source_table
+                AND verified.source_id=x.source_id
+            ))
+          )
       ) has_relevance
     ) relevance ON true
     WHERE a.allocation_role='responsible' AND a.state='active'
