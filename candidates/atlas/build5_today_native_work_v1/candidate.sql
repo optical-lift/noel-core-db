@@ -1,0 +1,330 @@
+-- Atlas Build 5: candidate ONLY. No production execution.
+-- Canonical work is institutional, accepted Person scope authorizes responsibility,
+-- execution is a separate Person/Day plan on the existing work_execution_plans table.
+begin;
+
+-- An all-day deadline is not a midnight timestamp; do not invent a timezone.
+alter table atlas.work_time_contracts
+  add column if not exists due_on_date date;
+comment on column atlas.work_time_contracts.due_on_date is
+  'Canonical date-only Work deadline; distinct from a planned execution day and from timestamp time windows.';
+
+-- Preserve the existing membership-based Worker Day validator unchanged in its
+-- membership branch. Only exact accepted Person-native responsibility may use
+-- the nullable carrier; this does not give nonmembers employee execution rights.
+alter table atlas.work_execution_plans
+  alter column assignee_membership_id drop not null;
+
+create or replace function atlas.validate_work_execution_plan_v1()
+returns trigger language plpgsql security definer
+set search_path='pg_catalog','atlas'
+as $function$
+declare
+  v_work atlas.work_items%rowtype;
+  v_allocation atlas.work_allocations%rowtype;
+  v_delivery jsonb;
+  v_ledger_id uuid;
+begin
+  select * into v_work from atlas.work_items where id=new.work_item_id;
+  if v_work.id is null or v_work.organization_id<>new.organization_id then
+    raise exception 'Execution plan must belong to its Company Work organization.'
+      using errcode='23514';
+  end if;
+  select * into v_allocation from atlas.work_allocations
+    where id=new.responsible_allocation_id;
+  if v_allocation.id is null
+    or v_allocation.organization_id<>new.organization_id
+    or v_allocation.work_item_id<>new.work_item_id
+    or v_allocation.assignee_membership_id is distinct from new.assignee_membership_id
+    or v_allocation.allocation_role<>'responsible' then
+    raise exception 'Execution plan must point to the exact responsible allocation.'
+      using errcode='23514';
+  end if;
+  if new.plan_state='active' then
+    if v_work.work_state<>'open' or v_allocation.state<>'active' then
+      raise exception 'Active plan requires open Work and active responsibility.'
+        using errcode='23514';
+    end if;
+    if new.assignee_membership_id is not null then
+      v_delivery:=atlas.company_work_execution_membership_check_v1(
+        new.work_item_id,new.assignee_membership_id,new.planned_service_date);
+      if not coalesce((v_delivery->>'allowed')::boolean,false) then
+        raise exception 'Responsible membership is not eligible on planned day (%).',
+          v_delivery->>'state' using errcode='23514';
+      end if;
+      v_delivery:=atlas.company_work_execution_membership_check_v1(
+        new.work_item_id,new.assignee_membership_id,new.exposure_service_date);
+      if not coalesce((v_delivery->>'allowed')::boolean,false) then
+        raise exception 'Responsible membership is not eligible on exposure day (%).',
+          v_delivery->>'state' using errcode='23514';
+      end if;
+    else
+      -- A Person plan never creates a farm/employee execution credential.
+      if v_allocation.assignee_canonical_person_id is null
+        or v_allocation.establishment_basis_kind not in (
+          'delegated_under_standing_scope','person_connection_receiver_uptake')
+        or coalesce(v_allocation.establishment_basis->>'nativeLedgerId','')
+             !~ '^[0-9a-fA-F-]{36}$' then
+        raise exception 'Person plan requires accepted canonical Person responsibility.'
+          using errcode='23514';
+      end if;
+      v_ledger_id:=(v_allocation.establishment_basis->>'nativeLedgerId')::uuid;
+      if not atlas.person_has_native_ledger_connection_v1(
+          v_work.organization_id,v_ledger_id,v_allocation.assignee_canonical_person_id)
+        or not exists (
+          select 1 from atlas.company_work_native_ledger_relevance rel
+          where rel.organization_id=v_work.organization_id and rel.work_item_id=v_work.id
+            and rel.ledger_id=v_ledger_id and rel.attribution_state='active'
+        ) then
+        raise exception 'Person plan requires currently valid exact Ledger connection.'
+          using errcode='23514';
+      end if;
+    end if;
+  end if;
+  new.updated_at:=now();
+  return new;
+end
+$function$;
+
+-- One source-owned command creates exactly one institutional Work identity,
+-- establishes its Ledger relevance and its already-accepted responsibility,
+-- records the date-only deadline separately, then places that Person's day.
+-- Failure anywhere rolls back the whole write.
+create or replace function atlas.owner_create_native_ledger_today_work_self_api_v1(
+  p_organization_id uuid,p_ledger_id uuid,p_scope_id uuid,
+  p_sentence text,p_execution_date date,p_due_date date,
+  p_source_action_id text,p_atlas_verification boolean default false)
+returns jsonb language plpgsql security definer set search_path=''
+as $function$
+declare
+  v_owner uuid;
+  v_owner_membership uuid;
+  v_scope atlas.company_work_standing_assignment_scopes%rowtype;
+  v_work atlas.work_items%rowtype;
+  v_plan atlas.work_execution_plans%rowtype;
+  v_allocation jsonb;
+  v_key text;
+  v_title text:=nullif(btrim(coalesce(p_sentence,'')),'');
+  v_action text:=nullif(btrim(coalesce(p_source_action_id,'')),'');
+  v_class text:=case when p_atlas_verification then 'atlas_verification'
+                     else 'ordinary' end;
+  v_new boolean:=false;
+begin
+  if auth.uid() is null or p_organization_id is null or p_ledger_id is null
+    or p_scope_id is null or v_title is null or length(v_title)>500
+    or p_execution_date is null or v_action is null
+    or length(v_action)>128 or p_atlas_verification is null
+    or (p_due_date is not null and p_execution_date>p_due_date) then
+    raise exception 'Exact task sentence, Ledger, accepted recipient scope and valid dates required.'
+      using errcode='22023';
+  end if;
+  v_owner:=atlas.company_work_native_ledger_owner_self_v1(
+    p_organization_id,p_ledger_id);
+  v_owner_membership:=atlas.current_effective_organization_membership_v1(
+    p_organization_id);
+  if not exists (
+    select 1 from atlas.organization_memberships m
+    where m.id=v_owner_membership and m.organization_id=p_organization_id
+      and m.person_id=v_owner and m.role='owner' and m.active
+  ) then
+    raise exception 'Current authenticated owner authority required.' using errcode='42501';
+  end if;
+  select * into v_scope from atlas.company_work_standing_assignment_scopes
+    where id=p_scope_id for share;
+  if v_scope.id is null or v_scope.organization_id<>p_organization_id
+    or v_scope.ledger_id<>p_ledger_id
+    or v_scope.proposed_by_person_id is distinct from v_owner
+    or v_scope.worker_membership_id is not null
+    or v_scope.scope_state<>'active' or v_scope.accepted_at is null
+    or v_scope.accepted_by_person_id is distinct from v_scope.worker_person_id
+    or (v_scope.valid_until is not null and v_scope.valid_until<=now())
+    or v_scope.coverage_mode not in ('ledger_all_work','operation_class')
+    or not atlas.person_has_native_ledger_connection_v1(
+      p_organization_id,p_ledger_id,v_scope.worker_person_id) then
+    raise exception 'Existing accepted exact Person/Ledger standing responsibility required.'
+      using errcode='23514';
+  end if;
+  if not exists (
+    select 1 from atlas.work_result_contract_policies policy
+      where policy.contract_key='ordinary_company_work_worker_attestation_v1'
+        and policy.active and policy.source_domain='organization'
+        and policy.acceptance_mode='worker_attestation'
+  ) then
+    raise exception 'Ordinary Person result contract unavailable.' using errcode='23514';
+  end if;
+  v_key:='today-person-work:'||auth.uid()::text||':'||md5(v_action);
+  perform pg_advisory_xact_lock(hashtextextended(
+      'atlas.today.person.work:'||p_organization_id::text||':'||v_key,0));
+  select * into v_work from atlas.work_items
+    where organization_id=p_organization_id and stable_key=v_key for update;
+  if v_work.id is not null then
+    if v_work.title is distinct from v_title
+      or v_work.work_state<>'open'
+      or v_work.metadata->>'sourceActionId' is distinct from v_action
+      or v_work.metadata->>'sourceScopeId' is distinct from p_scope_id::text
+      or v_work.metadata->>'taskClassification' is distinct from v_class
+      or not exists (
+        select 1 from atlas.work_execution_plans p
+          where p.work_item_id=v_work.id and p.plan_state='active'
+          and p.planned_service_date=p_execution_date)
+      or coalesce((select t.due_on_date from atlas.work_time_contracts t
+          where t.work_item_id=v_work.id and t.contract_state='active'
+          order by t.created_at desc limit 1),'0001-01-01'::date)
+          is distinct from coalesce(p_due_date,'0001-01-01'::date) then
+      raise exception 'Source action already belongs to a different Work request.'
+        using errcode='23505';
+    end if;
+  else
+    insert into atlas.work_items(
+      organization_id,organization_unit_id,operation_class,
+      title,work_state,source_object_type,source_object_id,
+      created_by_user_id,stable_key,metadata)
+    values (
+      p_organization_id,
+      case when v_scope.coverage_mode='operation_class'
+        then v_scope.organization_unit_id else null end,
+      case when v_scope.coverage_mode='operation_class'
+        then v_scope.covered_operation_class else null end,
+      v_title,'open',null,null,auth.uid(),v_key,
+      jsonb_build_object(
+        'sourceContract','today_native_ledger_work_v1',
+        'sourceSurface','personal_notebook_daily_log',
+        'sourceActionId',v_action,
+        'sourceScopeId',p_scope_id,'taskClassification',v_class,
+        'createdByPersonId',v_owner,'custody','institutional'))
+    returning * into v_work;
+    v_new:=true;
+
+    insert into atlas.company_work_native_ledger_relevance(
+      organization_id,work_item_id,ledger_id,evidence_kind,
+      attestation_source_ref,attestation_reason,established_by_person_id)
+    values (p_organization_id,v_work.id,p_ledger_id,'owner_attested',
+      'atlas.work_items:'||v_work.id::text,
+      'Owner-authored task on Today in the specified native Ledger.',v_owner);
+
+    insert into atlas.company_work_result_contract_bindings_v1(
+      organization_id,ledger_id,work_item_id,actor_person_id,
+      actor_membership_id,contract_key,reason)
+    values (p_organization_id,p_ledger_id,v_work.id,v_owner,v_owner_membership,
+      'ordinary_company_work_worker_attestation_v1',
+      'Owner issued ordinary notebook Work under an accepted Person responsibility.');
+    update atlas.work_items set
+      result_contract_key='ordinary_company_work_worker_attestation_v1'
+    where id=v_work.id;
+
+    v_allocation:=atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(
+      v_work.id,p_scope_id,
+      'Owner gave exact Ledger Work through Today under a previously accepted standing responsibility.');
+    if v_allocation->>'state'<>'assigned'
+      or v_allocation->>'workItemId' is distinct from v_work.id::text then
+      raise exception 'Canonical direct assignment was not confirmed.' using errcode='23514';
+    end if;
+
+    if p_due_date is not null then
+      insert into atlas.work_time_contracts(
+        organization_id,work_item_id,due_on_date,source_kind,metadata)
+      values (p_organization_id,v_work.id,p_due_date,
+        'owner_authored_date_only_deadline',
+        jsonb_build_object('source','today_native_ledger_work_v1',
+          'separateFromExecutionDate',true));
+    end if;
+
+    insert into atlas.work_execution_plans(
+      organization_id,work_item_id,responsible_allocation_id,
+      assignee_membership_id,planned_by_membership_id,
+      plan_state,first_planned_service_date,planned_service_date,
+      exposure_service_date,plan_reason,metadata)
+    values (p_organization_id,v_work.id,
+      (v_allocation->>'allocationId')::uuid,
+      null,v_owner_membership,
+      'active',p_execution_date,p_execution_date,p_execution_date,
+      'Owner explicitly placed assigned connected Person Work on this date.',
+      jsonb_build_object('source','today_native_ledger_work_v1',
+        'personDayNotEmployeeWorkerDay',true))
+    returning * into v_plan;
+    insert into atlas.work_execution_plan_events(
+      organization_id,work_item_id,plan_id,event_kind,
+      to_planned_service_date,to_exposure_service_date,
+      actor_membership_id,reason,metadata)
+    values (p_organization_id,v_work.id,v_plan.id,'planned',
+      p_execution_date,p_execution_date,v_owner_membership,
+      'Explicit Person Day placement from Today.',
+      jsonb_build_object('source','today_native_ledger_work_v1'));
+  end if;
+  if v_plan.id is null then
+    select * into v_plan from atlas.work_execution_plans
+      where work_item_id=v_work.id and plan_state='active';
+  end if;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','today_native_ledger_work_v1',
+    'workItemId',v_work.id,'ledgerId',p_ledger_id,
+    'organizationId',p_organization_id,'responsiblePersonId',v_scope.worker_person_id,
+    'scopeId',p_scope_id,'planId',v_plan.id,
+    'executionDate',v_plan.planned_service_date,'dueDate',p_due_date,
+    'taskClassification',v_class,'createdNow',v_new,
+    'individualAcceptanceRequired',false,
+    'personDayPlacementEstablished',true,'employeeWorkerDayCredentialCreated',false,
+    'workerReadProven',false,'completionProven',false);
+end
+$function$;
+
+-- A Person can read only their own *actually placed* Work for the requested day.
+-- Undated responsibility remains a separate read; it is not falsely due today.
+create or replace function atlas.connected_person_company_work_day_self_api_v1(
+  p_date date)
+returns jsonb language plpgsql stable security definer set search_path=''
+as $function$
+declare
+  v_self uuid:=atlas.current_person_id_v1();
+  v_items jsonb;
+begin
+  if auth.uid() is null or v_self is null or p_date is null then
+    raise exception 'Signed-in canonical Person and exact day required.' using errcode='42501';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'workItemId',w.id,'allocationId',a.id,'planId',p.id,
+    'organizationId',w.organization_id,
+    'ledgerId',(a.establishment_basis->>'nativeLedgerId')::uuid,
+    'title',w.title,'instructions',w.instructions,
+    'executionDate',p.planned_service_date,'exposureDate',p.exposure_service_date,
+    'dueDate',t.due_on_date,'taskClassification',
+      coalesce(w.metadata->>'taskClassification','ordinary'),
+    'canReportOrdinaryCompletion',
+      w.result_contract_key='ordinary_company_work_worker_attestation_v1')
+    order by p.created_at,w.id),'[]'::jsonb) into v_items
+  from atlas.work_allocations a
+  join atlas.work_items w on w.id=a.work_item_id and w.organization_id=a.organization_id
+  join atlas.work_execution_plans p on p.work_item_id=w.id
+    and p.organization_id=w.organization_id
+    and p.responsible_allocation_id=a.id
+    and p.plan_state='active' and p.exposure_service_date=p_date
+    and p.assignee_membership_id is null
+  left join lateral (
+    select due_on_date from atlas.work_time_contracts t
+      where t.work_item_id=w.id and t.contract_state='active'
+      order by t.created_at desc limit 1) t on true
+  where a.assignee_canonical_person_id=v_self
+    and a.assignee_membership_id is null
+    and a.allocation_role='responsible' and a.state='active'
+    and a.establishment_basis_kind in (
+      'person_connection_receiver_uptake','delegated_under_standing_scope')
+    and w.work_state='open'
+    and atlas.person_has_native_ledger_connection_v1(
+      w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,v_self);
+  return jsonb_build_object(
+    'ok',true,'contractVersion','connected_person_company_work_day_v1',
+    'date',p_date,'personId',v_self,'items',v_items,
+    'oneCanonicalWorkIdentity',true,'deliveryReadProven',false);
+end
+$function$;
+
+revoke all on function atlas.owner_create_native_ledger_today_work_self_api_v1(
+  uuid,uuid,uuid,text,date,date,text,boolean) from public,anon;
+grant execute on function atlas.owner_create_native_ledger_today_work_self_api_v1(
+  uuid,uuid,uuid,text,date,date,text,boolean) to authenticated;
+revoke all on function atlas.connected_person_company_work_day_self_api_v1(date)
+  from public,anon;
+grant execute on function atlas.connected_person_company_work_day_self_api_v1(date)
+  to authenticated;
+
+commit;
