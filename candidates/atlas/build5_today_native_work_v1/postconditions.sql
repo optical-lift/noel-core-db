@@ -23,6 +23,12 @@ begin
  if to_regprocedure('atlas.connected_person_company_work_day_self_api_v1(date)') is null then
    raise exception 'Person Day projection missing';
  end if;
+ if to_regprocedure('atlas.delete_unlinked_personal_task_self_api_v1(uuid)') is null then
+   raise exception 'Safe permanent personal task deletion command is missing';
+ end if;
+ if has_function_privilege('anon','atlas.delete_unlinked_personal_task_self_api_v1(uuid)','EXECUTE') then
+   raise exception 'Anonymous personal task deletion is exposed';
+ end if;
  if has_function_privilege('anon','atlas.owner_create_native_ledger_today_work_self_api_v1(uuid,uuid,uuid,text,date,date,text,boolean)','EXECUTE') then
    raise exception 'Anonymous owner Work creation is exposed';
  end if;
