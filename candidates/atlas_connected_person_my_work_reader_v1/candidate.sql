@@ -91,6 +91,7 @@ BEGIN
         'canPlace',r.has_relevance AND r.current_plan_count<=1,
         'scheduleState',CASE
           WHEN r.current_plan_count>1 THEN 'conflict'
+          WHEN r.plan_id IS NULL AND r.current_plan_count>0 THEN 'unverified_plan'
           WHEN r.plan_id IS NULL THEN 'unscheduled'
           WHEN r.plan_state='needs_replan' THEN 'needs_replan'
           WHEN r.plan_state='active' AND
@@ -101,7 +102,7 @@ BEGIN
       ) ORDER BY r.allocation_id
     ) FILTER(WHERE r.rn<=p_limit),'[]'::jsonb),
     count(*)>p_limit,
-    max(r.allocation_id) FILTER (WHERE r.rn=p_limit)
+    (array_agg(r.allocation_id ORDER BY r.rn) FILTER (WHERE r.rn=p_limit))[1]
   INTO v_items,v_more,v_next
   FROM numbered r;
 
