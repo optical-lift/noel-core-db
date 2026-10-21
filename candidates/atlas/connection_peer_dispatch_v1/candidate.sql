@@ -79,7 +79,7 @@ begin
  or v_action is null or length(v_action)>128 then
   raise exception 'Exact Ledger, distinct Person, sentence and source action required' using errcode='22023';end if;
  perform atlas.current_active_ledger_seat_v1(p_ledger_id);
- select count(*),min(lop.organization_id) into v_count,v_org
+ select count(*),(array_agg(lop.organization_id))[1] into v_count,v_org
  from atlas.ledger_organization_participations lop
  join atlas.ledgers l on l.id=lop.ledger_id and l.status='active'
  join ledger.ledgers nl on nl.id=lop.ledger_id and nl.ledger_state='active' and nl.retired_at is null
