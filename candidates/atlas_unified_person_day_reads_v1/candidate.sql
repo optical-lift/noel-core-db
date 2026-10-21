@@ -61,7 +61,7 @@ REVOKE ALL ON FUNCTION public.personal_daily_raw_notes_self_api_v1(date) FROM PU
 GRANT EXECUTE ON FUNCTION public.personal_daily_raw_notes_self_api_v1(date) TO authenticated;
 
 -- Preserve the existing public RPC signature and all existing item fields.
--- A completed work/allocation pair remains on its original active day plan.
+-- A completed work/allocation pair remains on its original dated plan,\n-- whose state changes from active to completed via the released completion trigger.
 CREATE OR REPLACE FUNCTION atlas.connected_person_company_work_day_self_api_v1(p_date date)
 RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path TO ''
@@ -94,7 +94,12 @@ BEGIN
   JOIN atlas.work_execution_plans p ON p.work_item_id=w.id
     AND p.organization_id=w.organization_id
     AND p.responsible_allocation_id=a.id
-    AND p.plan_state='active' AND p.exposure_service_date=p_date
+    AND (
+      (p.plan_state='active' AND w.work_state='open' AND a.state='active')
+      OR
+      (p.plan_state='completed' AND w.work_state='completed' AND a.state='completed')
+    )
+    AND p.exposure_service_date=p_date
     AND p.assignee_membership_id IS NULL
   LEFT JOIN LATERAL (
     SELECT due_on_date FROM atlas.work_time_contracts t
