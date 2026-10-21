@@ -11,15 +11,17 @@ create table atlas.ledger_person_dispatches (
  dispatch_kind text not null check (dispatch_kind in ('notice','work_request')),
  body text not null check (length(btrim(body)) between 1 and 500),
  dispatch_state text not null default 'pending'
-   check (dispatch_state in ('pending','acknowledged','declined')),
+   check (dispatch_state in ('pending','acknowledged','declined','accepted')),
  created_at timestamptz not null default now(),
  responded_at timestamptz,
+ linked_work_item_id uuid references atlas.work_items(id),
  check (sender_person_id <> recipient_person_id),
  check (length(btrim(source_action_id)) between 1 and 128),
  check (
-   (dispatch_state='pending' and responded_at is null)
-   or (dispatch_state='acknowledged' and dispatch_kind='notice' and responded_at is not null)
-   or (dispatch_state='declined' and dispatch_kind='work_request' and responded_at is not null)
+   (dispatch_state='pending' and responded_at is null and linked_work_item_id is null)
+   or (dispatch_state='acknowledged' and dispatch_kind='notice' and responded_at is not null and linked_work_item_id is null)
+   or (dispatch_state='declined' and dispatch_kind='work_request' and responded_at is not null and linked_work_item_id is null)
+   or (dispatch_state='accepted' and dispatch_kind='work_request' and responded_at is not null and linked_work_item_id is not null)
  ),
  unique(sender_person_id,source_action_id)
 );
@@ -59,6 +61,79 @@ begin
  'ledgerId',p_ledger_id,'items',v_items,'hasMore',v_more,
  'nextPersonId',case when v_more then v_next else null end,
  'rootAuthorityNotRequired',true);
+end$fn$;
+
+
+create or replace function atlas.connected_ledger_send_self_api_v1(
+ p_ledger_id uuid,p_recipient_person_id uuid,p_body text,p_kind text,p_source_action_id text)
+returns jsonb language plpgsql security definer set search_path='' as $fn$
+declare v_self uuid;v_org uuid;v_count integer;v_row atlas.ledger_person_dispatches%rowtype;
+v_body text:=nullif(btrim(coalesce(p_body,'')),'');
+v_action text:=nullif(btrim(coalesce(p_source_action_id,'')),'');
+begin
+ if auth.uid() is null or (atlas.reality_access_self_api_v1()->>'state') is distinct from 'ready'
+ then raise exception 'Signed-in Person Atlas required' using errcode='42501';end if;
+ v_self:=atlas.current_person_id_v1();
+ if p_ledger_id is null or p_recipient_person_id is null or v_self=p_recipient_person_id
+ or p_kind not in ('notice','work_request') or v_body is null or length(v_body)>500
+ or v_action is null or length(v_action)>128 then
+  raise exception 'Exact Ledger, distinct Person, sentence and source action required' using errcode='22023';end if;
+ perform atlas.current_active_ledger_seat_v1(p_ledger_id);
+ select count(*),min(lop.organization_id) into v_count,v_org
+ from atlas.ledger_organization_participations lop
+ join atlas.ledgers l on l.id=lop.ledger_id and l.status='active'
+ join ledger.ledgers nl on nl.id=lop.ledger_id and nl.ledger_state='active' and nl.retired_at is null
+ where lop.ledger_id=p_ledger_id and lop.status='active' and lop.ended_at is null
+ and lop.participation_kind in ('governing','operating');
+ if v_count<>1 or not atlas.person_has_native_ledger_connection_v1(v_org,p_ledger_id,p_recipient_person_id)
+ then raise exception 'Both Persons must be connected to the same active Ledger' using errcode='42501';end if;
+ perform pg_advisory_xact_lock(hashtextextended('atlas.ledger.peer:'||v_self::text||':'||v_action,0));
+ select * into v_row from atlas.ledger_person_dispatches
+ where sender_person_id=v_self and source_action_id=v_action for update;
+ if v_row.id is not null then
+  if v_row.ledger_id is distinct from p_ledger_id
+   or v_row.organization_id is distinct from v_org
+   or v_row.recipient_person_id is distinct from p_recipient_person_id
+   or v_row.dispatch_kind is distinct from p_kind or v_row.body is distinct from v_body then
+   raise exception 'This source action belongs to a different Ledger message' using errcode='23505';end if;
+ else
+  insert into atlas.ledger_person_dispatches(
+   organization_id,ledger_id,sender_person_id,recipient_person_id,source_action_id,dispatch_kind,body)
+  values(v_org,p_ledger_id,v_self,p_recipient_person_id,v_action,p_kind,v_body)
+  returning * into v_row;
+ end if;
+ return jsonb_build_object('ok',true,'contractVersion','connected_ledger_dispatch_v1',
+  'dispatchId',v_row.id,'ledgerId',v_row.ledger_id,'recipientPersonId',v_row.recipient_person_id,
+  'kind',v_row.dispatch_kind,'state',v_row.dispatch_state,
+  'workItemId',v_row.linked_work_item_id,
+  'recipientViewed',false,'notificationDelivered',false,'rootAuthorityRequired',false);
+end$fn$;
+
+create or replace function atlas.connected_ledger_inbox_self_api_v1(p_limit integer default 100)
+returns jsonb language plpgsql stable security definer set search_path='' as $fn$
+declare v_self uuid;v_items jsonb;v_total integer;
+begin
+ if auth.uid() is null or (atlas.reality_access_self_api_v1()->>'state') is distinct from 'ready'
+ then raise exception 'Signed-in Person Atlas required' using errcode='42501';end if;
+ v_self:=atlas.current_person_id_v1();
+ if p_limit not between 1 and 100 then raise exception 'Page size out of range' using errcode='22023';end if;
+ select count(*) into v_total from atlas.ledger_person_dispatches d
+ where d.recipient_person_id=v_self and d.dispatch_state='pending'
+ and atlas.person_has_native_ledger_connection_v1(d.organization_id,d.ledger_id,v_self);
+ select coalesce(jsonb_agg(jsonb_build_object(
+  'dispatchId',x.id,'ledgerId',x.ledger_id,'ledgerName',x.ledger_name,
+  'senderPersonId',x.sender_person_id,'senderName',x.sender_name,
+  'kind',x.dispatch_kind,'body',x.body,'createdAt',x.created_at,'state',x.dispatch_state)
+  order by x.created_at desc,x.id desc),'[]'::jsonb) into v_items
+ from (select d.*,l.name ledger_name,e.display_name sender_name
+  from atlas.ledger_person_dispatches d
+  join atlas.ledgers l on l.id=d.ledger_id
+  join reality.entities e on e.id=d.sender_person_id
+  where d.recipient_person_id=v_self and d.dispatch_state='pending'
+  and atlas.person_has_native_ledger_connection_v1(d.organization_id,d.ledger_id,v_self)
+  order by d.created_at desc,d.id desc limit p_limit) x;
+ return jsonb_build_object('ok',true,'contractVersion','connected_ledger_inbox_v1',
+  'items',v_items,'total',v_total,'truncated',v_total>p_limit,'rootAuthorityRequired',false);
 end$fn$;
 
 commit;
