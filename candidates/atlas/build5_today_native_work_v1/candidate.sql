@@ -766,7 +766,7 @@ begin
     and not exists (
       select 1 from atlas.work_time_contracts t
       where t.work_item_id=v_work.id and t.contract_state='active'
-        and t.source_kind<>'owner_authored_date_only_deadline'
+        and t.source_kind is distinct from 'owner_authored_date_only_deadline'
     )
     and v_allocation.id is not null
     and v_allocation.assignee_membership_id is null
