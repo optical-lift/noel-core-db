@@ -23,6 +23,19 @@ begin
  if to_regprocedure('atlas.connected_person_company_work_day_self_api_v1(date)') is null then
    raise exception 'Person Day projection missing';
  end if;
+ if to_regprocedure('atlas.set_personal_task_archive_self_api_v1(uuid,boolean)') is null
+    or to_regprocedure('atlas.personal_archived_tasks_day_self_api_v1(date)') is null then
+   raise exception 'Owner archive custody or retrieval command missing';
+ end if;
+ if not exists(
+   select 1 from information_schema.columns
+   where table_schema='atlas' and table_name='task_entries'
+     and column_name='archived_at' and data_type='timestamp with time zone'
+ ) then raise exception 'Personal archive state is not durable'; end if;
+ if has_function_privilege('anon','atlas.set_personal_task_archive_self_api_v1(uuid,boolean)','EXECUTE')
+    or has_function_privilege('anon','atlas.personal_archived_tasks_day_self_api_v1(date)','EXECUTE') then
+   raise exception 'Anonymous personal archive access is exposed';
+ end if;
  if to_regprocedure('atlas.delete_unlinked_personal_task_self_api_v1(uuid)') is null then
    raise exception 'Safe permanent personal task deletion command is missing';
  end if;
