@@ -187,4 +187,115 @@ begin
  execute replace(v_source,v_old,v_new);
 end$patch$;
 
+
+create or replace function atlas.connected_ledger_respond_self_api_v1(
+ p_dispatch_id uuid,p_decision text)
+returns jsonb language plpgsql security definer set search_path='' as $fn$
+declare
+ v_self uuid;v_d atlas.ledger_person_dispatches%rowtype;
+ v_work atlas.work_items%rowtype;v_offer atlas.company_work_initial_responsibility_offers%rowtype;
+ v_allocation jsonb;v_decision text:=lower(btrim(coalesce(p_decision,'')));
+begin
+ if auth.uid() is null or (atlas.reality_access_self_api_v1()->>'state') is distinct from 'ready'
+ then raise exception 'Signed-in Person Atlas required' using errcode='42501';end if;
+ v_self:=atlas.current_person_id_v1();
+ select * into v_d from atlas.ledger_person_dispatches where id=p_dispatch_id for update;
+ if v_d.id is null or v_d.recipient_person_id<>v_self
+ then raise exception 'Only the exact recipient can respond' using errcode='42501';end if;
+ if not atlas.person_has_native_ledger_connection_v1(v_d.organization_id,v_d.ledger_id,v_self)
+ then raise exception 'Recipient no longer connected to this Ledger' using errcode='42501';end if;
+ if (v_d.dispatch_kind='notice' and v_decision<>'acknowledge')
+ or (v_d.dispatch_kind='work_request' and v_decision not in ('accept','decline'))
+ then raise exception 'Invalid decision for exact message kind' using errcode='22023';end if;
+ if v_d.dispatch_state<>'pending' then
+   if (v_d.dispatch_state='acknowledged' and v_decision='acknowledge')
+   or (v_d.dispatch_state='accepted' and v_decision='accept')
+   or (v_d.dispatch_state='declined' and v_decision='decline')
+   then return jsonb_build_object('ok',true,'contractVersion','connected_ledger_response_v1',
+     'dispatchId',v_d.id,'state',v_d.dispatch_state,
+     'workItemId',v_d.linked_work_item_id,'idempotent',true);end if;
+   raise exception 'Message already resolved in another way' using errcode='23514';
+ end if;
+ if v_decision in ('acknowledge','decline') then
+   update atlas.ledger_person_dispatches
+   set dispatch_state=case when v_decision='acknowledge' then 'acknowledged' else 'declined' end,
+       responded_at=now() where id=v_d.id;
+   return jsonb_build_object('ok',true,'contractVersion','connected_ledger_response_v1',
+     'dispatchId',v_d.id,'state',
+     case when v_decision='acknowledge' then 'acknowledged' else 'declined' end,
+     'workCreated',false,'idempotent',false);
+ end if;
+ if not atlas.person_has_native_ledger_connection_v1(
+   v_d.organization_id,v_d.ledger_id,v_d.sender_person_id)
+ then raise exception 'Original sender is no longer connected; cannot establish new Work'
+ using errcode='23514';end if;
+ if not exists(select 1 from atlas.work_result_contract_policies policy
+  where policy.contract_key='ordinary_company_work_worker_attestation_v1'
+  and policy.active and policy.source_domain='organization'
+  and policy.acceptance_mode='worker_attestation')
+ then raise exception 'Ordinary Company Work result policy unavailable' using errcode='23514';end if;
+ -- Materialize exactly one Work only after the recipient chooses acceptance.
+ -- The authenticated recipient did not author the source request.
+ insert into atlas.work_items(
+   organization_id,title,work_state,source_object_type,source_object_id,
+   result_contract_key,stable_key,metadata)
+ values(v_d.organization_id,v_d.body,'open','ledger_person_dispatch',v_d.id,
+  'ordinary_company_work_worker_attestation_v1',
+  'peer-dispatch:'||v_d.id::text,
+  jsonb_build_object('sourceContract','connected_ledger_dispatch_v1',
+   'sourceSurface','connected_ledger_inbox','sourceDispatchId',v_d.id,
+   'sentByPersonId',v_d.sender_person_id,'acceptedByPersonId',v_self,
+   'custody','institutional','notAnExecutionDate',true))
+ returning * into v_work;
+ insert into atlas.company_work_native_ledger_relevance(
+  organization_id,work_item_id,ledger_id,evidence_kind,attestation_source_ref,
+  attestation_reason,established_by_person_id)
+ values(v_d.organization_id,v_work.id,v_d.ledger_id,'participant_attested',
+  'atlas.ledger_person_dispatches:'||v_d.id::text,
+  'Exact sender Ledger connection and the recipient acceptance of requested Work.',
+  v_d.sender_person_id);
+ insert into atlas.company_work_result_contract_bindings_v1(
+  organization_id,ledger_id,work_item_id,actor_person_id,actor_membership_id,
+  contract_key,reason)
+ values(v_d.organization_id,v_d.ledger_id,v_work.id,v_d.sender_person_id,null,
+  'ordinary_company_work_worker_attestation_v1',
+  'An authentic connected Person requested ordinary Work and the recipient accepted it.');
+ insert into atlas.company_work_initial_responsibility_offers(
+  organization_id,work_item_id,ledger_id,offered_by_person_id,
+  offered_by_membership_id,target_person_id,target_membership_id,reason)
+ values(v_d.organization_id,v_work.id,v_d.ledger_id,v_d.sender_person_id,
+  null,v_self,null,'The original connected Person request was accepted by the recipient.')
+ returning * into v_offer;
+ v_allocation:=atlas.establish_connected_person_company_work_from_offer_v1(
+   v_offer.id,'recipient_self_accepted',null,null);
+ if v_allocation->>'state'<>'accepted'
+ or v_allocation->>'workItemId' is distinct from v_work.id::text then
+  raise exception 'Accepted canonical responsibility could not be verified' using errcode='23514';
+ end if;
+ update atlas.ledger_person_dispatches
+ set dispatch_state='accepted',responded_at=now(),linked_work_item_id=v_work.id
+ where id=v_d.id;
+ return jsonb_build_object('ok',true,'contractVersion','connected_ledger_response_v1',
+  'dispatchId',v_d.id,'state','accepted','workItemId',v_work.id,
+  'allocationId',v_allocation->>'allocationId','workCreated',true,
+  'executionDateEstablished',false,'idempotent',false);
+end$fn$;
+
+revoke all on function atlas.connected_ledger_person_choices_self_api_v1(uuid,integer,uuid)
+ from public,anon;
+revoke all on function atlas.connected_ledger_send_self_api_v1(uuid,uuid,text,text,text)
+ from public,anon;
+revoke all on function atlas.connected_ledger_inbox_self_api_v1(integer)
+ from public,anon;
+revoke all on function atlas.connected_ledger_respond_self_api_v1(uuid,text)
+ from public,anon;
+grant execute on function atlas.connected_ledger_person_choices_self_api_v1(uuid,integer,uuid)
+ to authenticated;
+grant execute on function atlas.connected_ledger_send_self_api_v1(uuid,uuid,text,text,text)
+ to authenticated;
+grant execute on function atlas.connected_ledger_inbox_self_api_v1(integer)
+ to authenticated;
+grant execute on function atlas.connected_ledger_respond_self_api_v1(uuid,text)
+ to authenticated;
+
 commit;
