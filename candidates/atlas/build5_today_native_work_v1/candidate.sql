@@ -330,6 +330,111 @@ begin
 end
 $function$;
 
+-- Archived personal sources are retained, but no longer occupy Today's
+-- live responsibility space or resurface in ordinary dated-task projections.
+alter table atlas.task_entries add column if not exists archived_at timestamptz;
+comment on column atlas.task_entries.archived_at is
+  'Owner-directed removal from active personal notebook views; original source remains recoverable.';
+
+create or replace function atlas.atlas_task_day_self_api_v1(p_date date)
+returns jsonb language plpgsql stable security definer
+set search_path to 'pg_catalog','atlas','auth'
+as $function$
+declare
+  v_principal uuid:=atlas.require_active_task_principal_v1();
+  v_rows jsonb;
+begin
+  if p_date is null then
+    raise exception 'Date required.' using errcode='22023';
+  end if;
+  select coalesce(jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
+    'id',t.id,'sentence',t.sentence,'dueDate',t.due_date,'status',t.status,
+    'institutionalWorkItemId',wi.id,
+    'institutionalWorkState',wi.work_state,
+    'institutionalTransfer',wi.id is not null
+  )) order by case when t.status='open' then 0 else 1 end,
+    t.created_at,t.id),'[]'::jsonb)
+  into v_rows
+  from atlas.task_entries t
+  left join lateral (
+    select w.id,w.work_state from atlas.work_items w
+    where w.source_object_type='personal_dated_task' and w.source_object_id=t.id
+    order by w.created_at,w.id limit 1
+  ) wi on true
+  where t.owner_user_id=auth.uid()
+    and t.principal_id=v_principal and t.due_date=p_date
+    and t.archived_at is null;
+  return jsonb_build_object('ok',true,'date',p_date,'items',v_rows);
+end
+$function$;
+
+create or replace function atlas.set_personal_task_archive_self_api_v1(
+  p_task_id uuid,p_archived boolean)
+returns jsonb language plpgsql security definer set search_path=''
+as $function$
+declare
+  v_task atlas.task_entries%rowtype;
+  v_principal uuid:=atlas.require_active_task_principal_v1();
+begin
+  if auth.uid() is null or p_task_id is null or p_archived is null then
+    raise exception 'Signed-in owner, original task and archive choice required.'
+      using errcode='42501';
+  end if;
+  select * into v_task from atlas.task_entries
+    where id=p_task_id and owner_user_id=auth.uid()
+      and principal_id=v_principal for update;
+  if v_task.id is null then
+    raise exception 'Your original task is unavailable.' using errcode='42501';
+  end if;
+  update atlas.task_entries set
+    archived_at=case when p_archived then coalesce(archived_at,now()) else null end
+    where id=v_task.id;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','personal_task_archive_v1',
+    'taskId',v_task.id,'date',v_task.due_date,
+    'archived',p_archived,'sourcePreserved',true);
+end
+$function$;
+
+create or replace function atlas.personal_archived_tasks_day_self_api_v1(
+  p_date date)
+returns jsonb language plpgsql stable security definer set search_path=''
+as $function$
+declare
+  v_principal uuid:=atlas.require_active_task_principal_v1();
+  v_items jsonb;
+begin
+  if auth.uid() is null or p_date is null then
+    raise exception 'Signed-in original owner and date required.' using errcode='42501';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id',t.id,'sentence',t.sentence,'dueDate',t.due_date,'status',t.status,
+    'archivedAt',t.archived_at,'institutionalWorkItemId',w.id)
+    order by t.archived_at desc,t.id),'[]'::jsonb) into v_items
+  from atlas.task_entries t
+  left join lateral (
+    select id from atlas.work_items w
+    where w.source_object_type='personal_dated_task'
+      and w.source_object_id=t.id
+    order by w.created_at,w.id limit 1
+  ) w on true
+  where t.owner_user_id=auth.uid() and t.principal_id=v_principal
+    and t.due_date=p_date and t.archived_at is not null;
+  return jsonb_build_object('ok',true,
+    'contractVersion','personal_task_archive_day_v1',
+    'date',p_date,'items',v_items);
+end
+$function$;
+
+revoke all on function atlas.set_personal_task_archive_self_api_v1(uuid,boolean)
+  from public,anon;
+revoke all on function atlas.personal_archived_tasks_day_self_api_v1(date)
+  from public,anon;
+grant execute on function atlas.set_personal_task_archive_self_api_v1(uuid,boolean)
+  to authenticated;
+grant execute on function atlas.personal_archived_tasks_day_self_api_v1(date)
+  to authenticated;
+
 -- Permanently remove a mistaken *personal-only* dated task after confirming
 -- no institutional Work references it. No protected Company Work, accepted
 -- worker results, or source-linked history is erased by this narrow command.
