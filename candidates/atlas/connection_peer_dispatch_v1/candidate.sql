@@ -79,7 +79,7 @@ begin
  or v_action is null or length(v_action)>128 then
   raise exception 'Exact Ledger, distinct Person, sentence and source action required' using errcode='22023';end if;
  perform atlas.current_active_ledger_seat_v1(p_ledger_id);
- select count(*),min(lop.organization_id) into v_count,v_org
+ select count(*),(array_agg(lop.organization_id))[1] into v_count,v_org
  from atlas.ledger_organization_participations lop
  join atlas.ledgers l on l.id=lop.ledger_id and l.status='active'
  join ledger.ledgers nl on nl.id=lop.ledger_id and nl.ledger_state='active' and nl.retired_at is null
@@ -183,6 +183,12 @@ begin
  v_new:='rel.evidence_kind in (''owner_attested'',''participant_attested'') or';
  if length(v_source)-length(replace(v_source,v_old,''))<>length(v_old) then
   raise exception 'Exact Person-native offer establishment source changed; review required';
+ end if;
+ v_source:=replace(v_source,v_old,v_new);
+ v_old:='''evidenceTrust'',''owner_attested_not_independently_verified''';
+ v_new:='''evidenceTrust'',case when v_offer.offered_by_membership_id is null then ''participant_authored_receiver_accepted'' else ''owner_attested_not_independently_verified'' end';
+ if length(v_source)-length(replace(v_source,v_old,''))<>length(v_old) then
+   raise exception 'Person-native acceptance evidence trust source changed; review required';
  end if;
  execute replace(v_source,v_old,v_new);
 end$patch$;
@@ -297,5 +303,31 @@ grant execute on function atlas.connected_ledger_inbox_self_api_v1(integer)
  to authenticated;
 grant execute on function atlas.connected_ledger_respond_self_api_v1(uuid,text)
  to authenticated;
+
+
+-- The Work origin is participant-attested, not owner-attested. Show the same
+-- authentic Person-native Work on Ledger accountability and planning reads;
+-- preserve all original ROOT gates on owner-only management operations.
+do $projections$
+declare v_source text;v_old text:='evidence_kind=''owner_attested''';
+v_new text:='evidence_kind in (''owner_attested'',''participant_attested'')';
+v_expected integer;v_signature text;
+begin
+ for v_signature,v_expected in
+  select signature,num from (values
+   ('atlas.company_work_accountability_native_ledger_self_api_v1(uuid,uuid,text,integer,uuid)',2),
+   ('atlas.company_work_native_ledger_scope_self_api_v1(uuid,uuid,integer,uuid)',2),
+   ('atlas.owner_set_connected_person_work_day_self_api_v1(uuid,uuid,date,text)',1),
+   ('atlas.owner_native_ledger_blocker_detail_self_api_v1(uuid,uuid)',1)
+  ) x(signature,num)
+ loop
+  v_source:=pg_get_functiondef(to_regprocedure(v_signature));
+  if v_source is null or
+    (length(v_source)-length(replace(v_source,v_old,'')))
+      <>length(v_old)*v_expected
+  then raise exception 'Ledger evidence reader changed: %',v_signature;end if;
+  execute replace(v_source,v_old,v_new);
+ end loop;
+end$projections$;
 
 commit;
