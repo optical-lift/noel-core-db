@@ -36,6 +36,14 @@ begin
     or has_function_privilege('anon','atlas.personal_archived_tasks_day_self_api_v1(date)','EXECUTE') then
    raise exception 'Anonymous personal archive access is exposed';
  end if;
+ if to_regprocedure('atlas.owner_set_connected_person_work_day_self_api_v1(uuid,uuid,date,text)') is null
+   or to_regprocedure('atlas.owner_native_ledger_blocker_detail_self_api_v1(uuid,uuid)') is null then
+   raise exception 'Connected Person scheduling or owner blocker inspection is unavailable';
+ end if;
+ if has_function_privilege('anon','atlas.owner_set_connected_person_work_day_self_api_v1(uuid,uuid,date,text)','EXECUTE')
+   or has_function_privilege('anon','atlas.owner_native_ledger_blocker_detail_self_api_v1(uuid,uuid)','EXECUTE') then
+   raise exception 'Anonymous scheduling or blocker inspection is exposed';
+ end if;
  if to_regprocedure('atlas.native_today_work_void_preflight_self_api_v1(uuid,uuid)') is null
    or to_regprocedure('atlas.owner_void_native_today_work_self_api_v1(uuid,uuid,text)') is null then
    raise exception 'Governed institutional Today Work void authority is missing';
