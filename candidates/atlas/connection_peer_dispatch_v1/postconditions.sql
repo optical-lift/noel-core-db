@@ -48,4 +48,7 @@ begin
    or position('participant_attested' in pg_get_functiondef(
    'atlas.owner_native_ledger_blocker_detail_self_api_v1(uuid,uuid)'::regprocedure))=0
  then raise exception 'Accepted peer Work must appear in exact native Ledger projections';end if;
+ if position('participant_authored_receiver_accepted' in pg_get_functiondef(
+  'atlas.establish_connected_person_company_work_from_offer_v1(uuid,text,text,uuid)'::regprocedure))=0
+ then raise exception 'Peer consent evidence must not be mislabeled owner attestation';end if;
 end$check$;
