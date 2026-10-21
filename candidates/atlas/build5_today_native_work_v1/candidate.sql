@@ -476,6 +476,78 @@ begin
 end
 $function$;
 
+-- Owner-side blocker inspection is an explicit authenticated read,
+-- NOT a notification claim or a new Principal escalation. It makes the
+-- unresolved reason visible in the same Ledger Work identity.
+create or replace function atlas.owner_native_ledger_blocker_detail_self_api_v1(
+  p_work_item_id uuid,p_ledger_id uuid)
+returns jsonb language plpgsql stable security definer set search_path=''
+as $function$
+declare
+  v_work atlas.work_items%rowtype;
+  v_owner uuid;
+  v_latest atlas.work_execution_results%rowtype;
+  v_person uuid;
+begin
+  if auth.uid() is null or p_work_item_id is null or p_ledger_id is null then
+    raise exception 'Exact authenticated owner, Work and Ledger required.'
+      using errcode='42501';
+  end if;
+  select * into v_work from atlas.work_items
+    where id=p_work_item_id;
+  if v_work.id is null then raise exception 'Original Work unavailable.'
+    using errcode='P0002'; end if;
+  v_owner:=atlas.company_work_native_ledger_owner_self_v1(
+    v_work.organization_id,p_ledger_id);
+  if not exists (
+    select 1 from atlas.company_work_native_ledger_relevance rel
+    where rel.work_item_id=v_work.id and rel.organization_id=v_work.organization_id
+      and rel.ledger_id=p_ledger_id and rel.attribution_state='active'
+      and (rel.evidence_kind='owner_attested' or
+        (rel.evidence_kind='source_verified' and exists (
+          select 1 from atlas.company_work_native_ledger_exact_source_v1(
+            v_work.id,p_ledger_id) proof
+          where proof.source_schema=rel.source_schema
+            and proof.source_table=rel.source_table
+            and proof.source_id=rel.source_id
+        )))
+  ) then
+    raise exception 'Current exact Ledger custody not proven.'
+      using errcode='42501';
+  end if;
+  select * into v_latest from atlas.work_execution_results r
+    where r.work_item_id=v_work.id and r.organization_id=v_work.organization_id
+    order by r.reported_at desc,r.id desc limit 1;
+  if v_latest.id is not null then
+    select a.assignee_canonical_person_id into v_person
+    from atlas.work_allocations a
+    where a.id=v_latest.responsible_allocation_id
+      and a.work_item_id=v_work.id;
+  end if;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','native_ledger_blocker_owner_inspection_v1',
+    'workItemId',v_work.id,'ledgerId',p_ledger_id,
+    'latestResultKind',v_latest.result_kind,
+    'latestResultId',v_latest.id,
+    'latestResultAt',v_latest.reported_at,
+    'responsiblePersonId',v_person,
+    'routingState',case
+      when v_work.work_state='open' and v_latest.result_kind='blocked'
+        then 'unresolved_owner_review' else 'no_current_blocker' end,
+    'blockerReason',case
+      when v_work.work_state='open' and v_latest.result_kind='blocked'
+        then nullif(btrim(v_latest.payload->>'blockerReason'),'') else null end,
+    'notificationSentProven',false,
+    'ownerReadReceiptProven',false,
+    'independentHandoffCreated',false);
+end
+$function$;
+
+revoke all on function atlas.owner_native_ledger_blocker_detail_self_api_v1(uuid,uuid)
+  from public,anon;
+grant execute on function atlas.owner_native_ledger_blocker_detail_self_api_v1(uuid,uuid)
+  to authenticated;
+
 -- Native institutional Work with a real accepted assignment is not silently
 -- erased. A safe owner void removes it from active work while preserving its
 -- source, accepted responsibility and dated-plan historical evidence.
