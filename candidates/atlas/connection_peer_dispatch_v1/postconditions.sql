@@ -38,4 +38,14 @@ begin
     and conname='company_work_native_ledger_relevance_evidence_kind_check'
     and pg_get_constraintdef(oid) like '%participant_attested%')
   then raise exception 'Connected Person source evidence must remain distinct from owner attestation';end if;
+
+ if position('participant_attested' in pg_get_functiondef(
+   'atlas.company_work_accountability_native_ledger_self_api_v1(uuid,uuid,text,integer,uuid)'::regprocedure))=0
+   or position('participant_attested' in pg_get_functiondef(
+   'atlas.company_work_native_ledger_scope_self_api_v1(uuid,uuid,integer,uuid)'::regprocedure))=0
+   or position('participant_attested' in pg_get_functiondef(
+   'atlas.owner_set_connected_person_work_day_self_api_v1(uuid,uuid,date,text)'::regprocedure))=0
+   or position('participant_attested' in pg_get_functiondef(
+   'atlas.owner_native_ledger_blocker_detail_self_api_v1(uuid,uuid)'::regprocedure))=0
+ then raise exception 'Accepted peer Work must appear in exact native Ledger projections';end if;
 end$check$;
