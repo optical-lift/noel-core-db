@@ -476,6 +476,180 @@ begin
 end
 $function$;
 
+-- Native institutional Work with a real accepted assignment is not silently
+-- erased. A safe owner void removes it from active work while preserving its
+-- source, accepted responsibility and dated-plan historical evidence.
+create or replace function atlas.native_today_work_void_preflight_self_api_v1(
+  p_work_item_id uuid,p_ledger_id uuid)
+returns jsonb language plpgsql stable security definer set search_path=''
+as $function$
+declare
+  v_work atlas.work_items%rowtype;
+  v_owner uuid;
+  v_impact jsonb;
+  v_allocation atlas.work_allocations%rowtype;
+  v_plan atlas.work_execution_plans%rowtype;
+  v_applicable boolean:=false;
+  v_safe boolean:=false;
+begin
+  if auth.uid() is null or p_work_item_id is null or p_ledger_id is null then
+    raise exception 'Signed-in owner, Work and exact Ledger required.'
+      using errcode='42501';
+  end if;
+  select * into v_work from atlas.work_items where id=p_work_item_id;
+  if v_work.id is null then raise exception 'Original Work missing.'
+    using errcode='P0002'; end if;
+  v_owner:=atlas.company_work_native_ledger_owner_self_v1(
+    v_work.organization_id,p_ledger_id);
+  if not exists (
+    select 1 from atlas.company_work_native_ledger_relevance rel
+    where rel.organization_id=v_work.organization_id
+      and rel.work_item_id=v_work.id
+      and rel.ledger_id=p_ledger_id and rel.attribution_state='active'
+      and rel.evidence_kind='owner_attested'
+  ) then raise exception 'Work is not source-proven for the exact native Ledger.'
+    using errcode='42501'; end if;
+
+  v_applicable:=v_work.metadata->>'sourceContract'='today_native_ledger_work_v1'
+    and v_work.created_by_user_id=auth.uid();
+  if not v_applicable then
+    return jsonb_build_object('ok',true,
+      'contractVersion','native_today_work_void_preflight_v1',
+      'workItemId',v_work.id,'applies',false,'eligible',false);
+  end if;
+  v_impact:=atlas.company_work_retirement_dependency_snapshot_v1(v_work.id);
+  select * into v_allocation from atlas.work_allocations a
+    where a.work_item_id=v_work.id and a.allocation_role='responsible'
+      and a.state='active' limit 1;
+  select * into v_plan from atlas.work_execution_plans p
+    where p.work_item_id=v_work.id and p.plan_state='active' limit 1;
+
+  v_safe:=v_work.work_state='open'
+    and coalesce(jsonb_array_length(v_impact->'requirements'),1)=0
+    and coalesce(jsonb_array_length(v_impact->'relations'),1)=0
+    and coalesce(jsonb_array_length(v_impact->'pendingOfferIds'),1)=0
+    and coalesce(jsonb_array_length(v_impact->'projectionIds'),1)=0
+    and coalesce(jsonb_array_length(v_impact->'executionResultIds'),1)=0
+    and not exists (
+      select 1 from atlas.work_time_contracts t
+      where t.work_item_id=v_work.id and t.contract_state='active'
+        and t.source_kind<>'owner_authored_date_only_deadline'
+    )
+    and v_allocation.id is not null
+    and v_allocation.assignee_membership_id is null
+    and v_allocation.establishment_basis_kind='delegated_under_standing_scope'
+    and v_allocation.establishment_basis->>'nativeLedgerId'=p_ledger_id::text
+    and v_plan.id is not null and v_plan.assignee_membership_id is null
+    and v_plan.responsible_allocation_id=v_allocation.id
+    and v_plan.metadata->>'source'='today_native_ledger_work_v1';
+  return jsonb_build_object('ok',true,
+    'contractVersion','native_today_work_void_preflight_v1',
+    'workItemId',v_work.id,'ledgerId',p_ledger_id,
+    'applies',true,'eligible',v_safe,
+    'state',case when v_safe then 'eligible_for_governed_void'
+      else 'protected_history_or_other_dependency_requires_review' end,
+    'permanentErasureAllowed',false,
+    'reversibleFromHistory',false,'workerReadProven',false);
+end
+$function$;
+
+create or replace function atlas.owner_void_native_today_work_self_api_v1(
+  p_work_item_id uuid,p_ledger_id uuid,p_reason text)
+returns jsonb language plpgsql security definer set search_path=''
+as $function$
+declare
+  v_work atlas.work_items%rowtype;
+  v_preflight jsonb;
+  v_plan atlas.work_execution_plans%rowtype;
+  v_reason text:=nullif(btrim(coalesce(p_reason,'')),'');
+  v_void_plan uuid;
+  v_cancelled_contract_count integer:=0;
+begin
+  if auth.uid() is null or p_work_item_id is null or p_ledger_id is null
+    or v_reason is null or length(v_reason) not between 12 and 1200 then
+    raise exception 'Owner must provide exact Work, Ledger and substantive void reason.'
+      using errcode='22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(
+    'atlas.company_work.responsibility:'||p_work_item_id::text,0));
+  perform pg_advisory_xact_lock(hashtextextended(
+    'atlas.company_work.plan:'||p_work_item_id::text,0));
+  select * into v_work from atlas.work_items where id=p_work_item_id for update;
+  if v_work.id is null then raise exception 'Original Work missing.'
+    using errcode='P0002'; end if;
+  v_preflight:=atlas.native_today_work_void_preflight_self_api_v1(
+    p_work_item_id,p_ledger_id);
+  if v_preflight->>'applies'<>'true' or v_preflight->>'eligible'<>'true' then
+    raise exception 'Protected or unrelated Work cannot be erased or voided here.'
+      using errcode='23514';
+  end if;
+  select * into v_plan from atlas.work_execution_plans
+    where work_item_id=v_work.id and plan_state='active' for update;
+  if v_plan.id is null then
+    raise exception 'Exact Person Day plan changed; refresh.' using errcode='40001';
+  end if;
+
+  update atlas.work_time_contracts
+    set contract_state='cancelled',superseded_at=now(),updated_at=now(),
+        metadata=metadata||jsonb_build_object(
+          'ownerVoidReason',v_reason,'ownerVoidedAt',now())
+    where work_item_id=v_work.id and contract_state='active'
+      and source_kind='owner_authored_date_only_deadline';
+  get diagnostics v_cancelled_contract_count=row_count;
+
+  update atlas.work_execution_plans
+    set plan_state='withdrawn',plan_reason=v_reason,
+        metadata=metadata||jsonb_build_object(
+          'ownerVoidedAt',now(),'ownerVoidReason',v_reason)
+    where id=v_plan.id and plan_state='active';
+  if not found then raise exception 'Work day plan changed during void.'
+    using errcode='40001'; end if;
+  v_void_plan:=v_plan.id;
+  insert into atlas.work_execution_plan_events(
+    organization_id,work_item_id,plan_id,event_kind,
+    from_planned_service_date,from_exposure_service_date,
+    actor_membership_id,reason,metadata)
+  values (v_work.organization_id,v_work.id,v_plan.id,'withdrawn',
+    v_plan.planned_service_date,v_plan.exposure_service_date,
+    atlas.current_effective_organization_membership_v1(v_work.organization_id),
+    v_reason,jsonb_build_object('source','owner_void_native_today_work_v1',
+      'ownerId',auth.uid(),'noCompletionFabricated',true));
+
+  update atlas.work_allocations
+    set state='released',released_at=now(),release_reason=v_reason,
+        updated_at=now()
+    where id=v_plan.responsible_allocation_id and state='active'
+      and work_item_id=v_work.id;
+  if not found then raise exception 'Responsibility changed during void.'
+    using errcode='40001'; end if;
+  update atlas.work_items
+    set work_state='cancelled',cancelled_at=now(),
+      updated_at=now(),
+      metadata=metadata||jsonb_build_object(
+        'voidContract','owner_void_native_today_work_v1',
+        'ownerVoidReason',v_reason,'ownerVoidedAt',now(),
+        'preserveAssignedPersonAndPlanHistory',true)
+    where id=v_work.id and work_state='open';
+  if not found then raise exception 'Work state changed during void.'
+    using errcode='40001'; end if;
+  return jsonb_build_object('ok',true,
+    'contractVersion','native_today_work_owner_void_v1',
+    'workItemId',v_work.id,'ledgerId',p_ledger_id,'workState','cancelled',
+    'planId',v_void_plan,'cancelledTimeContracts',v_cancelled_contract_count,
+    'permanentlyDeleted',false,'historyPreserved',true,
+    'workerCompletionRecorded',false,'activeWorkRemoved',true);
+end
+$function$;
+
+revoke all on function atlas.native_today_work_void_preflight_self_api_v1(uuid,uuid)
+  from public,anon;
+revoke all on function atlas.owner_void_native_today_work_self_api_v1(uuid,uuid,text)
+  from public,anon;
+grant execute on function atlas.native_today_work_void_preflight_self_api_v1(uuid,uuid)
+  to authenticated;
+grant execute on function atlas.owner_void_native_today_work_self_api_v1(uuid,uuid,text)
+  to authenticated;
+
 revoke all on function atlas.delete_unlinked_personal_task_self_api_v1(uuid)
   from public,anon;
 grant execute on function atlas.delete_unlinked_personal_task_self_api_v1(uuid)
