@@ -80,6 +80,19 @@ VALUES
   '2030-10-30','11:00','12:00','America/Chicago','planned',
   'f5210000-0000-4000-8000-000000000203');
 
+-- Same canonical Occurrence, but this extra Organization assertion is owner-only.
+-- An authenticated ordinary Ledger seat must not see its title or its existence.
+INSERT INTO atlas.community_events(
+ id,farm_id,program_id,stable_key,title,event_kind,event_date,
+ start_local_time,end_local_time,timezone_name,status,visibility_scope,occurrence_binding_id)
+VALUES (
+ 'f5210000-0000-4000-8000-000000000304',
+ 'f5210000-0000-4000-8000-000000000011',
+ 'f5210000-0000-4000-8000-000000000012',
+ 'atlas-date-proof-restricted-a-f521','Synthetic Restricted Owner Planning',
+ 'community_event','2030-10-30','14:00','15:00','America/Chicago','planned','owner',
+ 'f5210000-0000-4000-8000-000000000201');
+
 INSERT INTO auth.users(id,instance_id,aud,role,email,created_at,updated_at)
 VALUES
  ('f5210000-0000-4000-8000-000000000401','00000000-0000-0000-0000-000000000000',
