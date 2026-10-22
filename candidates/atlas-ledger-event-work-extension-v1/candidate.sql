@@ -363,10 +363,12 @@ BEGIN
  SELECT coalesce(jsonb_agg(jsonb_build_object(
   'ledgerId',z.ledger_id,'occurrenceId',z.occurrence_id,
   'workItemId',z.work_item_id,'title',z.title,'workState',z.work_state,
-  'eventTitle',z.event_title,'startsAt',z.start_at)
+  'eventState',z.event_state,'eventTitle',z.event_title,'startsAt',z.start_at)
   ORDER BY z.start_at,z.title,z.work_item_id),'[]'::jsonb) INTO v_rows
  FROM (
   SELECT a.ledger_id,a.occurrence_id,a.work_item_id,w.title,w.work_state,
+    CASE WHEN last_action.action_kind='blocked' THEN 'blocked'
+      ELSE w.work_state END AS event_state,
     o.title event_title,o.start_at
   FROM atlas.ledger_occurrence_work_attention_v1 a
   JOIN atlas.work_items w ON w.id=a.work_item_id AND w.organization_id=a.organization_id
@@ -374,6 +376,13 @@ BEGIN
   JOIN ledger.occurrence_calendar_bindings cb
    ON cb.ledger_id=a.ledger_id AND cb.occurrence_id=a.occurrence_id
       AND cb.binding_state='active'
+  LEFT JOIN LATERAL (
+    SELECT e.action_kind FROM atlas.ledger_occurrence_work_actions_v1 e
+    WHERE e.ledger_id=a.ledger_id AND e.occurrence_id=a.occurrence_id
+      AND e.work_item_id=a.work_item_id
+      AND e.action_kind IN ('blocked','reopened','removed')
+    ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1
+  ) last_action ON true
   WHERE a.person_entity_id=v_person AND a.attention_state='active'
     AND w.work_state='open'
     AND EXISTS (SELECT 1 FROM atlas.ledger_organization_participations lop
