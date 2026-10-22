@@ -41,6 +41,18 @@ $proof$;
 -- It is never applied to production and always rolls back its test data.
 BEGIN;
 
+-- The protected clone is intentionally SCHEMA ONLY: production policy rows
+-- are never copied. Seed only the prerequisite base Work policy as synthetic
+-- acceptance data inside this rollback-only transaction. This does not
+-- create, alter, or backfill any production policy.
+INSERT INTO atlas.work_result_contract_policies(
+  contract_key,source_domain,acceptance_mode,active,description,metadata
+) VALUES (
+  'ledger_occurrence_shared_confirmation_v1','organization','domain_adapter',true,
+  'Disposable test prerequisite for ordinary Ledger Event shared confirmation.',
+  '{"source":"ledger_occurrence_shared_work_v1","workerDayRequired":false,"responsibleAllocationRequired":false,"physicalPerformerAsserted":false}'::jsonb
+) ON CONFLICT (contract_key) DO NOTHING;
+
 INSERT INTO reality.entities(id,stable_key,entity_kind,display_name)
 VALUES
  ('f5200000-0000-4000-8000-000000000102','atlas-event-proof-subject-f520','organization','Disposable Event Institution'),
