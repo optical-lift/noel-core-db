@@ -89,12 +89,12 @@ revoke all on atlas.work_item_prerequisite_events_v1 from public,anon,authentica
 -- as well as direct browser writes already denied by RLS and privileges.
 create or replace function atlas.guard_work_item_prerequisite_event_immutable_v1()
 returns trigger language plpgsql set search_path=''
-as $
+as $$
 begin
   raise exception 'Original prerequisite action history cannot be updated or deleted.'
     using errcode='23514';
 end;
-$;
+$$;
 revoke all on function atlas.guard_work_item_prerequisite_event_immutable_v1()
   from public,anon,authenticated;
 drop trigger if exists guard_work_item_prerequisite_event_immutable_v1
@@ -350,7 +350,7 @@ $$;
 create or replace function atlas.work_prerequisite_event_owner_self_api_v1(
   p_organization_id uuid,p_ledger_id uuid,p_recorded_event_id uuid)
 returns jsonb language plpgsql stable security definer set search_path=''
-as $
+as $$
 declare
   v_actor uuid;
   v_event atlas.work_item_prerequisite_events_v1%rowtype;
@@ -387,7 +387,7 @@ begin
     'preservedOriginalReason',v_event.reason
   );
 end;
-$;
+$$;
 revoke all on function atlas.work_prerequisite_event_owner_self_api_v1(uuid,uuid,uuid)
   from public,anon,authenticated;
 
@@ -414,8 +414,8 @@ as $$ select atlas.work_prerequisites_owner_self_api_v1(
 create or replace function public.atlas_work_prerequisite_event_self_api_v1(
   p_organization_id uuid,p_ledger_id uuid,p_recorded_event_id uuid)
 returns jsonb language sql stable security definer set search_path=''
-as $ select atlas.work_prerequisite_event_owner_self_api_v1(
-  p_organization_id,p_ledger_id,p_recorded_event_id); $;
+as $$ select atlas.work_prerequisite_event_owner_self_api_v1(
+  p_organization_id,p_ledger_id,p_recorded_event_id); $$;
 create or replace function public.atlas_set_work_prerequisite_self_api_v1(
   p_organization_id uuid,p_ledger_id uuid,
   p_downstream_work_item_id uuid,p_prerequisite_work_item_id uuid,
