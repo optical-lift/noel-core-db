@@ -289,7 +289,7 @@ BEGIN
   p_organization_id,p_ledger_id,p_occurrence_id);
  v_work:=atlas.assert_ledger_occurrence_work_link_v1(
   p_organization_id,p_ledger_id,p_occurrence_id,p_work_item_id);
- IF v_work.work_state NOT IN ('open','completed') OR NOT EXISTS (
+ IF v_work.work_state<>'open' OR NOT EXISTS (
   SELECT 1 FROM ledger.seats s JOIN reality.entities e ON e.id=s.person_entity_id
   WHERE s.ledger_id=p_ledger_id AND s.person_entity_id=p_person_entity_id
     AND s.seat_state='active' AND s.ended_at IS NULL AND e.entity_kind='person'
@@ -447,12 +447,16 @@ BEGIN
  SELECT coalesce(jsonb_agg(jsonb_build_object(
   'workItemId',z.id,'title',z.title,'state',z.display_state,
   'workState',z.work_state,'canMarkDone',z.can_mark_done,
-  'directedTo',z.directed_to,'sourceOwned',true)
+  'directedTo',z.directed_to,'sourceOwned',true,
+  'createdInsideEvent',z.created_inside_event)
   ORDER BY z.created_at,z.id),'[]'::jsonb) INTO v_items
  FROM (
   SELECT w.id,w.title,w.work_state,w.created_at,
    CASE WHEN w.work_state='open' AND action.action_kind='blocked'
      THEN 'blocked' ELSE w.work_state END display_state,
+   (w.source_object_type='ledger_occurrence_shared_work'
+      AND w.source_object_id=p_occurrence_id
+      AND w.metadata->>'ledgerId'=p_ledger_id::text) created_inside_event,
    (w.work_state='open' AND coalesce(action.action_kind,'')<>'blocked'
      AND w.source_object_type='ledger_occurrence_shared_work'
      AND w.source_object_id=p_occurrence_id
