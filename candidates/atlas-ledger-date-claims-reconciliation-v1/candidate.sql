@@ -176,7 +176,7 @@ BEGIN
         'communityEventAssertions',pr.community_overlays,
         'organizationBindingAmbiguous',pr.organization_count>1,
         'organizationBindingMissing',pr.organization_count=0,
-        'sourceFieldDifferencesRequireReview',true,
+        'sourceFieldDifferencesNotAutoAdjudicated',true,
         'subjectEncounter',jsonb_build_object(
           'kind','canonical_occurrence','id',pr.id)
       ) ORDER BY pr.start_at,pr.id
