@@ -1,0 +1,24 @@
+name: Atlas prerequisite proposal source check
+
+on:
+  pull_request:
+    paths:
+      - "proposals/atlas_work_item_prerequisites_v1_*"
+      - "candidates/atlas/atlas_work_item_prerequisites_v1*"
+      - ".github/workflows/atlas-work-prerequisite-source-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proposal-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source only
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check SQL source boundaries without database access
+        run: node --test proposals/atlas_work_item_prerequisites_v1_SOURCE_CHECK.test.mjs
