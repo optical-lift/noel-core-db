@@ -326,6 +326,52 @@ begin
 end;
 $$;
 
+-- Independent append-only event readback. An OK mutation receipt alone is
+-- insufficient proof that a distinct, actor-attributed event was recorded.
+create or replace function atlas.work_prerequisite_event_owner_self_api_v1(
+  p_organization_id uuid,p_ledger_id uuid,p_recorded_event_id uuid)
+returns jsonb language plpgsql stable security definer set search_path=''
+as $
+declare
+  v_actor uuid;
+  v_event atlas.work_item_prerequisite_events_v1%rowtype;
+begin
+  v_actor:=atlas.company_work_native_ledger_owner_self_v1(
+    p_organization_id,p_ledger_id);
+  select e.* into v_event from atlas.work_item_prerequisite_events_v1 e
+  join atlas.work_item_relations r
+    on r.id=e.relation_id and r.organization_id=e.organization_id
+  where e.id=p_recorded_event_id
+    and e.organization_id=p_organization_id
+    and e.ledger_id=p_ledger_id
+    and r.relation_kind='depends_on'
+    and r.from_work_item_id=e.downstream_work_item_id
+    and r.to_work_item_id=e.prerequisite_work_item_id
+    and atlas.work_prerequisite_ledger_scope_v1(
+      p_organization_id,p_ledger_id,e.downstream_work_item_id)
+    and atlas.work_prerequisite_ledger_scope_v1(
+      p_organization_id,p_ledger_id,e.prerequisite_work_item_id);
+  if v_event.id is null then
+    raise exception 'No authorized original prerequisite event.' using errcode='42501';
+  end if;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','atlas_work_prerequisite_event_v1',
+    'recordedEventId',v_event.id,'relationId',v_event.relation_id,
+    'organizationId',v_event.organization_id,'ledgerId',v_event.ledger_id,
+    'downstreamWorkItemId',v_event.downstream_work_item_id,
+    'prerequisiteWorkItemId',v_event.prerequisite_work_item_id,
+    'actorPersonId',v_event.actor_person_id,
+    'sourceActionId',v_event.source_action_id,
+    'actionKind',v_event.action_kind,
+    'afterActive',v_event.after_active,
+    'recordedAt',v_event.recorded_at,
+    'preservedOriginalReason',v_event.reason
+  );
+end;
+$;
+revoke all on function atlas.work_prerequisite_event_owner_self_api_v1(uuid,uuid,uuid)
+  from public,anon,authenticated;
+
 -- Only narrow owner-authorized RPCs are exposed via public. Direct access to
 -- canonical Atlas relations and audit rows remains prohibited under RLS.
 revoke all on function atlas.work_prerequisite_candidates_owner_self_api_v1(uuid,uuid,integer,uuid)
@@ -346,6 +392,11 @@ create or replace function public.atlas_work_prerequisites_self_api_v1(
 returns jsonb language sql stable security definer set search_path=''
 as $$ select atlas.work_prerequisites_owner_self_api_v1(
   p_organization_id,p_ledger_id,p_downstream_work_item_id); $$;
+create or replace function public.atlas_work_prerequisite_event_self_api_v1(
+  p_organization_id uuid,p_ledger_id uuid,p_recorded_event_id uuid)
+returns jsonb language sql stable security definer set search_path=''
+as $ select atlas.work_prerequisite_event_owner_self_api_v1(
+  p_organization_id,p_ledger_id,p_recorded_event_id); $;
 create or replace function public.atlas_set_work_prerequisite_self_api_v1(
   p_organization_id uuid,p_ledger_id uuid,
   p_downstream_work_item_id uuid,p_prerequisite_work_item_id uuid,
@@ -365,4 +416,8 @@ grant execute on function public.atlas_work_prerequisite_candidates_self_api_v1(
 grant execute on function public.atlas_work_prerequisites_self_api_v1(uuid,uuid,uuid)
   to authenticated;
 grant execute on function public.atlas_set_work_prerequisite_self_api_v1(uuid,uuid,uuid,uuid,boolean,text,text)
+  to authenticated;
+revoke all on function public.atlas_work_prerequisite_event_self_api_v1(uuid,uuid,uuid)
+  from public,anon;
+grant execute on function public.atlas_work_prerequisite_event_self_api_v1(uuid,uuid,uuid)
   to authenticated;
