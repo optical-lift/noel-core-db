@@ -212,7 +212,7 @@ else:
         if fragment not in source:
             errors.append(f'Worker prerequisite source authority missing: {fragment}')
     for fragment in ('c1.sign_in(', 'original.setup_auth(', 'connected_ledger_direct_assign_self_api_v1',
-                     'atlas_set_work_prerequisite_self_api_v1', '42501',
+                     'atlas_set_work_prerequisite_self_api_v1', 'original.deny(',
                      'auth.sessions', 'ledger.seats'):
         if fragment not in proof:
             errors.append(f'Worker signed proof missing: {fragment}')
