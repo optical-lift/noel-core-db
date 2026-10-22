@@ -78,3 +78,14 @@ The test uses only generated fixture IDs and concludes with `ROLLBACK`. It is de
 **Remaining executable tests:** authorized principal vs connected-seat-only sessions, active/withdrawn Ledger evidence, cross-Organization/cross-Ledger denials, concurrent transaction deadlock/cycle protection under two sessions, full idempotency, the older communication-derived `depends_on` writer, existing Work retirement and completion flows. These cannot be certified from static source inspection or a catalog query.
 
 **Build boundary:** This draft remains a `proposals/` source candidate because the pinned Supabase CLI and Docker/PostgreSQL clone runner were unavailable in the execution environment. Do not guess a timestamped migration filename or use direct production SQL as a substitute for `supabase migration new` and the canonical validated release path. Reconcile concurrent `main` changes before creating the numbered migration.
+
+
+## Build refinement — independent action-event readback
+
+`public.atlas_work_prerequisite_event_self_api_v1` has been added to the **review-only proposal**. It requires exact governing authority and original same-Ledger source evidence for both Work IDs. It returns a specific event by `recordedEventId`, including the original `sourceActionId`, actor Person identity, relation identity, action kind, resulting active state, timestamp and preserved reason.
+
+The companion Atlas app adapter now rejects a purportedly successful change unless **three things** agree: the command receipt, the canonical `work_item_relations` reread and the independently queried append-only event row. No additional authority is inferred from this verification.
+
+The clone postconditions now include the event RPC's anonymous-denial and authenticated entrypoint checks; a separate real-session test must still prove governing-principal-only access despite the public authenticated wrapper.
+
+**Source-level static comparison passed 12/12 architecture checks before the audit readback extension.** This is not a CI/build or Postgres syntax pass. Run the numbered migration and clone tests through the canonical protected workflow before allowing release. Neither candidate repository has been merged or deployed.
