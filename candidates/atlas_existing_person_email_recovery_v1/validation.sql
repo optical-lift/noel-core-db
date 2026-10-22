@@ -17,6 +17,12 @@ BEGIN
     OR has_function_privilege('authenticated',v_approve,'EXECUTE') THEN
     RAISE EXCEPTION 'Recovery service must not be available to browser roles.';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_proc p WHERE p.oid=v_finish
+     AND pg_get_functiondef(p.oid) LIKE '%person_sign_in_emails%'
+     AND pg_get_functiondef(p.oid) LIKE '%primary_auth%'
+     AND pg_get_functiondef(p.oid) LIKE '%r.destination_email%') THEN
+     RAISE EXCEPTION 'Finish must establish verified new primary and retain historical alias.';
+  END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
     WHERE n.nspname='atlas' AND c.relname='person_email_recovery_cases' AND c.relrowsecurity

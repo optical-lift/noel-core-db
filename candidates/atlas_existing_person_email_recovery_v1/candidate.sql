@@ -124,8 +124,8 @@ BEGIN
  IF EXISTS(SELECT 1 FROM auth.users u WHERE lower(u.email)=v_email
     OR lower(u.email_change)=v_email)
  OR EXISTS(SELECT 1 FROM atlas.person_sign_in_emails e
-  WHERE e.normalized_email=v_email AND e.verification_state='verified'
-   AND e.person_id<>p_person) THEN
+  WHERE e.normalized_email=v_email AND
+    (e.person_id<>p_person OR e.auth_user_id<>v_user OR e.verification_state='disputed')) THEN
    RAISE EXCEPTION 'Recovery address conflicts with another account' USING errcode='23505';
  END IF;
  IF (SELECT count(*) FROM atlas.person_email_recovery_cases r WHERE r.person_id=p_person
@@ -250,6 +250,14 @@ BEGIN
        AND c.retired_at IS NULL) THEN
   RAISE EXCEPTION 'Auth Admin recovery result not verified' USING errcode='42501';
  END IF;
+ UPDATE atlas.person_sign_in_emails a SET
+   preferred=false,sign_in_transport='none',
+   verification_state=CASE WHEN a.sign_in_transport='primary_auth'
+     THEN 'retired' ELSE a.verification_state END,
+   updated_at=now()
+ WHERE a.person_id=r.person_id AND a.auth_user_id=r.auth_user_id
+   AND a.normalized_email<>r.destination_email
+   AND (a.preferred OR a.sign_in_transport='primary_auth');
  INSERT INTO atlas.person_sign_in_emails(
    person_id,auth_user_id,normalized_email,verification_state,
    sign_in_transport,preferred,verified_proof_receipt)
@@ -258,6 +266,16 @@ BEGIN
  ON CONFLICT(person_id,normalized_email) DO UPDATE SET
   verification_state='retired',sign_in_transport='none',
   preferred=false,updated_at=now();
+ INSERT INTO atlas.person_sign_in_emails(
+   person_id,auth_user_id,normalized_email,verification_state,
+   sign_in_transport,preferred,verified_at,verified_proof_receipt,identity_case_id)
+ VALUES (r.person_id,r.auth_user_id,r.destination_email,'verified','primary_auth',true,
+   now(),'recovery-approved:'||r.id::text,r.id)
+ ON CONFLICT(person_id,normalized_email) DO UPDATE SET
+  verification_state='verified',sign_in_transport='primary_auth',
+  preferred=true,verified_at=now(),
+  verified_proof_receipt='recovery-approved:'||r.id::text,
+  identity_case_id=r.id,updated_at=now();
  UPDATE atlas.person_email_recovery_cases SET case_state='completed',
  completed_at=now(),updated_at=now() WHERE id=p_case;
  INSERT INTO atlas.person_email_recovery_events(case_id,event_kind)
