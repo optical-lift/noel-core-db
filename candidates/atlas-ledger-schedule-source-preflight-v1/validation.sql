@@ -118,6 +118,33 @@ BEGIN
     RAISE EXCEPTION 'Unrelated Organization must be denied';
   END IF;
 
+  -- Same exact Event, but a DIFFERENT native Ledger Person with
+  -- source-governed root authority may see counts (never private contents).
+  PERFORM set_config('request.jwt.claim.sub',
+    'f5210000-0000-4000-8000-000000000403',true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object(
+    'sub','f5210000-0000-4000-8000-000000000403',
+    'role','authenticated',
+    'session_id','f5210000-0000-4000-8000-000000000413'
+  )::text,true);
+  v_a := public.ledger_occurrence_schedule_correction_preflight_self_api_v1(
+    v_org,v_ledger,v_a_id,
+    '2030-10-30 21:00+00'::timestamptz,
+    '2030-10-31 01:00+00'::timestamptz);
+  IF v_a->>'rootGoverningCandidate' <> 'true'
+     OR v_a#>>'{dependentSourceImpact,evaluation}' <>
+       'root_governing_scoped_summary'
+     OR v_a#>>'{dependentSourceImpact,activeResourceClaimCount}' <> '1'
+     OR v_a#>>'{dependentSourceImpact,nonCancelledBookingCount}' <> '0'
+     OR v_a->'commitBlockedReasons' @>
+       '["resource_claims_need_source_owned_retime_review"]'::jsonb IS NOT TRUE
+     OR v_a->>'approvedToCommit' <> 'false' THEN
+    RAISE EXCEPTION 'Root read must expose real claims but never authorize correction';
+  END IF;
+  IF v_a::text LIKE '%Synthetic Restricted Owner Planning%' THEN
+    RAISE EXCEPTION 'Root Ledger authority did not grant restricted Operational Event source rights';
+  END IF;
+
   -- Valid signed-style Auth claims but no Ledger seat.
   PERFORM set_config('request.jwt.claim.sub',v_outsider::text,true);
   PERFORM set_config('request.jwt.claims',jsonb_build_object(
