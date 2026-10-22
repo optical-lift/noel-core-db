@@ -251,6 +251,16 @@ begin
 end
 $function$;
 
+-- A checkmark reports confirmed shared checklist state, not the physical
+-- worker's testimony. Install this policy before the matching Work commands.
+INSERT INTO atlas.work_result_contract_policies(
+  contract_key,source_domain,acceptance_mode,active,description,metadata
+) VALUES (
+  'ledger_occurrence_shared_confirmation_v1','organization','domain_adapter',true,
+  'Authorized Ledger collaborator confirms an ordinary Event checklist state; performer not inferred.',
+  '{"source":"ledger_occurrence_shared_work_v1","workerDayRequired":false,"responsibleAllocationRequired":false,"physicalPerformerAsserted":false}'::jsonb
+) ON CONFLICT (contract_key) DO NOTHING;
+
 CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_shared_work_self_api_v1(
   p_organization_id uuid,p_ledger_id uuid,p_occurrence_id uuid
 ) RETURNS jsonb
