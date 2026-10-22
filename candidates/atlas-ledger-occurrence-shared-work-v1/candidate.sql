@@ -268,12 +268,13 @@ begin
     'workItemId',q.id,'title',q.title,'state',q.work_state,
     'createdAt',q.created_at,'completedAt',q.completed_at,
     'linkedAs',q.relation_kind,'resultContractKey',q.result_contract_key,
-    'canMarkDone',q.can_mark_done
+    'canMarkDone',q.can_mark_done,'markedDoneBy',q.marked_done_by
   ) order by q.created_at,q.id),'[]'::jsonb)
   into v_items
   from (
     select distinct on (w.id) w.id,w.title,w.work_state,w.created_at,
       w.completed_at,w.result_contract_key,ctx.relation_kind,
+      marker.display_name as marked_done_by,
       (w.source_object_type='ledger_occurrence_shared_work'
         and w.source_object_id=p_occurrence_id
         and w.result_contract_key='ledger_occurrence_shared_confirmation_v1'
@@ -285,6 +286,23 @@ begin
     join atlas.company_work_native_ledger_relevance rel
       on rel.work_item_id=w.id and rel.organization_id=w.organization_id
         and rel.ledger_id=p_ledger_id and rel.attribution_state='active'
+    left join lateral (
+      select person.display_name
+      from atlas.work_execution_results result
+      join atlas.work_result_acceptances accepted
+        on accepted.execution_result_id=result.id and accepted.decision='accepted'
+      join reality.entities person
+        on person.id=(result.metadata->>'actorPersonId')::uuid
+          and person.entity_kind='person' and person.identity_state='canonical'
+      where result.organization_id=w.organization_id
+        and result.work_item_id=w.id
+        and result.result_kind='completed'
+        and result.result_contract_key='ledger_occurrence_shared_confirmation_v1'
+        and result.metadata->>'source'=
+          'mark_ledger_occurrence_shared_work_done_self_api_v1'
+      order by accepted.accepted_at desc,result.id desc
+      limit 1
+    ) marker on true
     where ctx.organization_id=p_organization_id
       and ctx.subject_domain='temporal' and ctx.subject_kind='occurrence'
       and ctx.subject_id=p_occurrence_id and ctx.relation_kind in ('for','about','supports')
