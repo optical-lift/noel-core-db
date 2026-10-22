@@ -97,6 +97,7 @@ signed_date_http_probe=false
 signed_schedule_preflight_probe=false
 signed_event_writer_probe=false
 signed_calendar_reader_probe=false
+signed_work_prerequisite_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -141,6 +142,17 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_calendar_reader_probe=true
+fi
+
+# Exact Atlas Work prerequisites: genuine Auth + PostgREST and concurrent
+# signed root sessions, all synthetic and only on the disposable local clone.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_work_item_prerequisites_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Signed Work prerequisite proof requires disposable fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_work_prerequisite_probe=true
 fi
 
 finish() {
@@ -289,7 +301,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   if [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
      [ "$signed_schedule_preflight_probe" = true ] ||
       [ "$signed_event_writer_probe" = true ] ||
-      [ "$signed_calendar_reader_probe" = true ]; then
+      [ "$signed_calendar_reader_probe" = true ] ||
+      [ "$signed_work_prerequisite_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -406,6 +419,14 @@ if [ "$signed_event_writer_probe" = true ]; then
     >"$artifacts_dir/signed-one-event-writer.log" 2>&1
 fi
 
+if [ "$signed_work_prerequisite_probe" = true ]; then
+  phase="signed local prerequisite owner/worker authority, history and concurrent cycle proof"
+  python3 "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-work-prerequisite-summary.txt" \
+    >"$artifacts_dir/signed-work-prerequisite.log" 2>&1
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -438,5 +459,10 @@ if [ "$signed_calendar_reader_probe" = true ]; then
 fi
 if [ "$signed_event_writer_probe" = true ]; then
   printf '\nSIGNED One Event writer: root can correct one canonical Event; ordinary and outsider denied; stale sources, replay and revoked sessions passed.\n' \
+    >> "$artifacts_dir/summary.md"
+fi
+
+if [ "$signed_work_prerequisite_probe" = true ]; then
+  printf '\nSIGNED Work prerequisites: real GoTrue root, worker, outsider, no-seat denials; immutable history and concurrent cycle protection verified on disposable clone.\n' \
     >> "$artifacts_dir/summary.md"
 fi
