@@ -140,6 +140,11 @@ if not prereq.is_file() or not fixture.is_file():
 else:
     proof=prereq.read_text()
     synthetic=fixture.read_text()
+    import ast
+    try:
+        ast.parse(proof,filename=str(prereq))
+    except SyntaxError as exc:
+        errors.append(f'Signed prerequisite Python source is invalid: {exc}')
     for fragment in ('c1.local_status()', 'c1.sign_in(', 'ThreadPoolExecutor',
                      'signed session', 'sourceActionId', '42501',
                      'work_item_prerequisite_events_v1'):
