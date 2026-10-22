@@ -197,7 +197,7 @@ begin
   -- cases are disclosed as unresolved rather than silently choosing one.
   with source_events as (
     select o.id,o.title,o.status,o.start_at,o.end_at,
-      min(lop.organization_id) as organization_id,
+      min(lop.organization_id::text)::uuid as organization_id,
       count(distinct lop.organization_id) as organization_count
     from ledger.occurrence_calendar_bindings cb
     join local_intel.occurrences o on o.id=cb.occurrence_id
@@ -211,12 +211,12 @@ begin
     where cb.ledger_id=p_ledger_id and cb.binding_state='active'
     group by o.id,o.title,o.status,o.start_at,o.end_at
   )
-  select count(*)::integer filter (where organization_count<>1)
+  select count(*) filter (where organization_count<>1)::integer
     into v_unresolved from source_events;
 
   with source_events as (
     select o.id,o.title,o.status,o.start_at,o.end_at,
-      min(lop.organization_id) as organization_id,
+      min(lop.organization_id::text)::uuid as organization_id,
       count(distinct lop.organization_id) as organization_count
     from ledger.occurrence_calendar_bindings cb
     join local_intel.occurrences o on o.id=cb.occurrence_id
