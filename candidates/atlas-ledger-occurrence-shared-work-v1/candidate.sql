@@ -546,4 +546,46 @@ GRANT EXECUTE ON FUNCTION atlas.create_ledger_occurrence_shared_work_self_api_v1
 GRANT EXECUTE ON FUNCTION atlas.mark_ledger_occurrence_shared_work_done_self_api_v1(uuid,uuid,uuid,uuid,text)
   TO authenticated;
 
+-- Exact new native Event Work intentionally bypasses ONLY the unrelated
+-- compatibility-primary projection; its own accepted result/actor and
+-- Event source history remain canonical. All other Work projection code
+-- remains byte-identical to the current live function definition.
+CREATE OR REPLACE FUNCTION atlas.project_completed_company_work_to_ledger_v1()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas'
+AS $function$
+declare
+  v_result atlas.work_execution_results%rowtype; v_acceptance atlas.work_result_acceptances%rowtype; v_projection jsonb; v_entry_id uuid; v_assignee_membership_id uuid; v_position_id uuid; v_position_title text;
+begin
+  if old.work_state is not distinct from new.work_state or new.work_state<>'completed' then return new; end if;
+  -- This legacy Organization projection asks for a compatibility-primary Ledger.
+  -- An ordinary shared Event's source owns its true completion receipt and
+  -- exact native Ledger+Occurrence relation already. Running that old
+  -- compatibility projection here would reject otherwise valid native
+  -- Ledger work or attribute it to the wrong institutional Ledger.
+  if new.source_object_type='ledger_occurrence_shared_work'
+     and new.result_contract_key='ledger_occurrence_shared_confirmation_v1'
+     and new.metadata->>'sourceContract'='ledger_occurrence_shared_work_v1' then
+    return new;
+  end if;
+  select r.* into v_result from atlas.work_execution_results r join atlas.work_result_acceptances a on a.execution_result_id=r.id and a.decision='accepted' where r.organization_id=new.organization_id and r.work_item_id=new.id and r.result_kind='completed' order by a.accepted_at desc,r.reported_at desc,r.id desc limit 1;
+  if v_result.id is null then return new; end if;
+  select * into v_acceptance from atlas.work_result_acceptances a where a.execution_result_id=v_result.id and a.decision='accepted';
+  v_assignee_membership_id:=v_result.reported_by_organization_membership_id;
+  if v_assignee_membership_id is not null then
+    select p.id,p.display_title into v_position_id,v_position_title from atlas.organization_position_appointments opa join atlas.organization_positions p on p.id=opa.position_id and p.organization_id=opa.organization_id where opa.organization_id=new.organization_id and opa.organization_membership_id=v_assignee_membership_id and opa.status='active' and opa.begins_at<=coalesce(new.completed_at,now()) and (opa.ends_at is null or opa.ends_at>coalesce(new.completed_at,now())) and p.status='active' order by case when opa.appointment_kind='primary' then 0 else 1 end,opa.begins_at desc,opa.id limit 1;
+  end if;
+  v_projection:=atlas.project_organization_ledger_event_internal_v1(new.organization_id,new.organization_unit_id,'company-work-completed:'||new.id::text,'company_work','company_work_completed',v_result.id::text,coalesce(new.completed_at,v_acceptance.accepted_at,v_result.reported_at,now()),new.title,null,'established','closed',jsonb_strip_nulls(jsonb_build_object('workItemId',new.id,'resultId',v_result.id,'resultKind',v_result.result_kind,'resultContractKey',v_result.result_contract_key,'acceptanceId',v_acceptance.id,'acceptanceKind',v_acceptance.acceptance_kind,'responsibleAllocationId',v_result.responsible_allocation_id,'reportedByOrganizationMembershipId',v_result.reported_by_organization_membership_id,'reportedByFarmMembershipId',v_result.reported_by_farm_membership_id,'taskId',v_result.task_id,'positionId',v_position_id,'positionTitle',v_position_title,'completedAt',new.completed_at)),jsonb_build_object('source','project_completed_company_work_to_ledger_v1','institutionalOnly',true,'personalAtlasCausalityIncluded',false),jsonb_strip_nulls(jsonb_build_object('workItemId',new.id,'executionResultId',v_result.id,'acceptanceId',v_acceptance.id)),v_acceptance.accepted_at);
+  v_entry_id:=(v_projection->>'entryId')::uuid;
+  perform atlas.link_organization_ledger_subject_internal_v1(v_entry_id,'company_work','work_item',new.id::text,'completed_by_result',jsonb_build_object('source','project_completed_company_work_to_ledger_v1'),'{}'::jsonb);
+  perform atlas.link_organization_ledger_subject_internal_v1(v_entry_id,'company_work','execution_result',v_result.id::text,'evidence',jsonb_build_object('source','project_completed_company_work_to_ledger_v1'),'{}'::jsonb);
+  if v_result.responsible_allocation_id is not null then perform atlas.link_organization_ledger_subject_internal_v1(v_entry_id,'company_work','responsibility_allocation',v_result.responsible_allocation_id::text,'responsibility',jsonb_build_object('source','project_completed_company_work_to_ledger_v1'),'{}'::jsonb); end if;
+  if v_assignee_membership_id is not null then perform atlas.link_organization_ledger_subject_internal_v1(v_entry_id,'organization','membership',v_assignee_membership_id::text,'reported_by',jsonb_build_object('source','project_completed_company_work_to_ledger_v1'),'{}'::jsonb); end if;
+  if v_position_id is not null then perform atlas.link_organization_ledger_subject_internal_v1(v_entry_id,'organization','position',v_position_id::text,'under_position',jsonb_build_object('source','project_completed_company_work_to_ledger_v1'),'{}'::jsonb); end if;
+  if v_result.task_id is not null then perform atlas.link_organization_ledger_subject_internal_v1(v_entry_id,'execution','task',v_result.task_id::text,'execution_carrier',jsonb_build_object('source','project_completed_company_work_to_ledger_v1'),'{}'::jsonb); end if;
+  return new;
+end;$function$
+
 COMMIT;
