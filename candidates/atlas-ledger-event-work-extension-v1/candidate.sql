@@ -234,6 +234,12 @@ BEGIN
   AND v_work.source_object_id=p_occurrence_id
   AND v_work.result_contract_key='ledger_occurrence_shared_confirmation_v1'
   AND v_work.metadata->>'ledgerId'=p_ledger_id::text;
+ IF v_a IN ('blocked','reopened') AND NOT v_created_here
+    AND v_work.result_contract_key IS NOT NULL
+    AND v_work.result_contract_key<>'ledger_occurrence_shared_confirmation_v1' THEN
+   RAISE EXCEPTION 'Specialized existing Work retains its owning result and state contract'
+      USING ERRCODE='23514';
+ END IF;
  IF v_a='blocked' THEN
    IF v_work.work_state<>'open' OR v_previous='blocked' THEN
     RAISE EXCEPTION 'Only active outstanding Work may become blocked' USING ERRCODE='23514';
