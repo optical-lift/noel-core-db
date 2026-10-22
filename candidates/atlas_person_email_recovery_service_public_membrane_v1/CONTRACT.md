@@ -14,3 +14,4 @@ setting a header. Only `service_role` may execute these wrappers.
 - It does not create an Auth user, issue access, or email anyone.
 - Protected schema-clone validation and separate production release are
   mandatory before any worker rollout.
+**Institutional Person correction:** The signed-in owner relation is checked against active `institutional_person_records` rather than requiring a legacy `organization_memberships` seat for the recipient. This allows existing Katie Elm history to remain canonical and does not create an employee seat. These two corrected private functions are included in the same migration as the service-only public RPC transport, before the transport is released.
