@@ -163,13 +163,13 @@ $function$;
 -- Ledger AND the same Organization. This is intentionally not the root Ledger
 -- workspace, and does not disclose full action history or customer data.
 CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_shared_index_self_api_v1(
-  p_organization_id uuid,p_ledger_id uuid
+  p_ledger_id uuid
 ) RETURNS jsonb
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
 AS $function$
-declare v_actor uuid;v_access jsonb;v_events jsonb;
+declare v_actor uuid;v_access jsonb;v_events jsonb;v_unresolved integer;
 begin
-  if auth.uid() is null or p_organization_id is null or p_ledger_id is null then
+  if auth.uid() is null or p_ledger_id is null then
     raise exception 'Authenticated exact Ledger required.' using errcode='42501';
   end if;
   v_access:=atlas.reality_access_self_api_v1();
@@ -178,44 +178,78 @@ begin
     raise exception 'Personal Atlas identity access required.' using errcode='42501';
   end if;
   v_actor:=atlas.current_person_id_v1();
-  if v_actor is null or not atlas.person_has_native_ledger_connection_v1(
-    p_organization_id,p_ledger_id,v_actor
+  perform atlas.current_active_ledger_seat_v1(p_ledger_id);
+  if v_actor is null or not exists (
+    select 1 from atlas.ledger_organization_participations lop
+    join atlas.ledgers al on al.id=lop.ledger_id and al.status='active'
+    join ledger.ledgers l on l.id=al.id
+      and l.ledger_state='active' and l.retired_at is null
+    where lop.ledger_id=p_ledger_id and lop.status='active'
+      and lop.ended_at is null and lop.participation_kind in ('governing','operating')
   ) then
-    raise exception 'Current exact Ledger connection required.' using errcode='42501';
+    raise exception 'Current source-bound native Ledger participation required.'
+      using errcode='42501';
   end if;
+
+  -- A generic Ledger need not have the legacy Organization compatibility
+  -- field. Resolve the exact Organization by canonical live participation
+  -- and its own active Occurrence binding. Ambiguous multi-Organization
+  -- cases are disclosed as unresolved rather than silently choosing one.
+  with source_events as (
+    select o.id,o.title,o.status,o.start_at,o.end_at,
+      min(lop.organization_id) as organization_id,
+      count(distinct lop.organization_id) as organization_count
+    from ledger.occurrence_calendar_bindings cb
+    join local_intel.occurrences o on o.id=cb.occurrence_id
+    join atlas.ledger_organization_participations lop
+      on lop.ledger_id=cb.ledger_id and lop.status='active'
+        and lop.ended_at is null
+        and lop.participation_kind in ('governing','operating')
+    join atlas.organization_occurrence_bindings ob
+      on ob.occurrence_id=o.id and ob.organization_id=lop.organization_id
+        and ob.binding_state='active'
+    where cb.ledger_id=p_ledger_id and cb.binding_state='active'
+    group by o.id,o.title,o.status,o.start_at,o.end_at
+  )
+  select count(*)::integer filter (where organization_count<>1)
+    into v_unresolved from source_events;
+
+  with source_events as (
+    select o.id,o.title,o.status,o.start_at,o.end_at,
+      min(lop.organization_id) as organization_id,
+      count(distinct lop.organization_id) as organization_count
+    from ledger.occurrence_calendar_bindings cb
+    join local_intel.occurrences o on o.id=cb.occurrence_id
+    join atlas.ledger_organization_participations lop
+      on lop.ledger_id=cb.ledger_id and lop.status='active'
+        and lop.ended_at is null
+        and lop.participation_kind in ('governing','operating')
+    join atlas.organization_occurrence_bindings ob
+      on ob.occurrence_id=o.id and ob.organization_id=lop.organization_id
+        and ob.binding_state='active'
+    where cb.ledger_id=p_ledger_id and cb.binding_state='active'
+    group by o.id,o.title,o.status,o.start_at,o.end_at
+  )
   select coalesce(jsonb_agg(jsonb_build_object(
     'id',q.id,'title',q.title,'status',q.status,
+    'organizationId',q.organization_id,
     'startsAt',q.start_at,'endsAt',q.end_at
   ) order by q.start_at desc,q.id),'[]'::jsonb) into v_events
   from (
-    select o.id,o.title,o.status,o.start_at,o.end_at
-    from ledger.occurrence_calendar_bindings cb
-    join local_intel.occurrences o on o.id=cb.occurrence_id
-    join atlas.organization_occurrence_bindings ob
-      on ob.occurrence_id=o.id and ob.organization_id=p_organization_id
-        and ob.binding_state='active'
-    where cb.ledger_id=p_ledger_id and cb.binding_state='active'
-    order by o.start_at desc,o.id
-    limit 150
+    select se.* from source_events se
+    where se.organization_count=1
+    order by se.start_at desc,se.id limit 150
   ) q;
   return jsonb_build_object(
     'ok',true,'contractVersion','ledger_occurrence_shared_index_v1',
-    'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+    'ledgerId',p_ledger_id,'unresolvedOrganizationBindings',coalesce(v_unresolved,0),
     'events',v_events,'truthBoundary',jsonb_build_object(
-      'onlyBoundOccurrences',true,'noCustomerData',true,
-      'noGeneralLedgerHistory',true,'notGrantingWorkExecution',true));
+      'onlyBoundOccurrences',true,'organizationDerivedFromSource',true,
+      'ambiguousOrganizationBindingsNotSelected',true,
+      'noCustomerData',true,'noGeneralLedgerHistory',true,
+      'notGrantingWorkExecution',true));
 end
 $function$;
-
--- An ordinary shared check-off is a confirmation about Work state, not a
--- witness statement that the actor personally performed the physical work.
-INSERT INTO atlas.work_result_contract_policies(
-  contract_key,source_domain,acceptance_mode,active,description,metadata
-) VALUES (
-  'ledger_occurrence_shared_confirmation_v1','organization','domain_adapter',true,
-  'Authorized Ledger collaborator confirms an ordinary Event checklist state; performer not inferred.',
-  '{"source":"ledger_occurrence_shared_work_v1","workerDayRequired":false,"responsibleAllocationRequired":false,"physicalPerformerAsserted":false}'::jsonb
-) ON CONFLICT (contract_key) DO NOTHING;
 
 CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_shared_work_self_api_v1(
   p_organization_id uuid,p_ledger_id uuid,p_occurrence_id uuid
@@ -299,7 +333,7 @@ begin
     raise exception 'Ordinary shared confirmation policy unavailable.' using errcode='23514';
   end if;
   v_stable_key:='ledger-occurrence-shared:'||
-    md5(p_ledger_id::text||':'||p_occurrence_id::text||':'||v_action);
+    md5(p_ledger_id::text||':'||p_occurrence_id::text||':'||v_actor::text||':'||v_action);
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
     'atlas.ledger-occurrence-work:'||p_organization_id::text||':'||v_stable_key,0));
   select * into v_work from atlas.work_items
@@ -381,7 +415,7 @@ begin
     raise exception 'Ordinary shared confirmation policy unavailable.' using errcode='23514';
   end if;
   v_key:='ledger-occurrence-done:'||
-    md5(p_ledger_id::text||':'||p_occurrence_id::text||':'||v_action);
+    md5(p_ledger_id::text||':'||p_occurrence_id::text||':'||v_actor::text||':'||v_action);
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
     'atlas.company_work.shared-state:'||p_work_item_id::text,0));
   select * into v_work from atlas.work_items
@@ -467,7 +501,7 @@ $function$;
 
 REVOKE ALL ON FUNCTION atlas.ledger_occurrence_shared_work_actor_self_v1(uuid,uuid,uuid)
   FROM PUBLIC,anon,authenticated;
-REVOKE ALL ON FUNCTION atlas.ledger_occurrence_shared_index_self_api_v1(uuid,uuid)
+REVOKE ALL ON FUNCTION atlas.ledger_occurrence_shared_index_self_api_v1(uuid)
   FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION atlas.ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid)
   FROM PUBLIC,anon;
@@ -475,7 +509,7 @@ REVOKE ALL ON FUNCTION atlas.create_ledger_occurrence_shared_work_self_api_v1(uu
   FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION atlas.mark_ledger_occurrence_shared_work_done_self_api_v1(uuid,uuid,uuid,uuid,text)
   FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION atlas.ledger_occurrence_shared_index_self_api_v1(uuid,uuid)
+GRANT EXECUTE ON FUNCTION atlas.ledger_occurrence_shared_index_self_api_v1(uuid)
   TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas.ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid)
   TO authenticated;
