@@ -32,3 +32,31 @@ The full Universal Temporal Field needs separately governed Person/Household, Co
 No canonical occurrences, Work, billing, invitations, bookings, resource claims, source time, Org membership, Person access, UI route, Vercel configuration or production database row changed.
 
 October 30 still requires a real signed root-governor correction through the released `set_ledger_occurrence_schedule_self_api_v1`. Its 4–8 p.m. resource hold must remain untouched. The `network_outreach`/`system_fixture` alternate writer retirement remains a separate reviewed database migration.
+
+
+## Protected signed-session proof now attached
+
+The reviewed source packet includes a DML-only **synthetic** `fixture.sql`
+and `validation.sql` catalog + negative role checks. Canonical clone harness
+`scripts/validate-production-schema-clone.sh` recognizes only the exact
+`*_atlas_one_calendar_source_read_membrane_v1.sql` immutable migration. For
+that version it starts local Auth + REST and runs
+`scripts/validate-atlas-one-calendar-signed-http.py` using the *disposable*
+database URL, requiring local 127.0.0.1 endpoints. Production credentials are
+only used by the existing protected workflow for a read-only schema/role dump.
+
+The signed test requires:
+
+- a real GoTrue-signed **root** sees the canonical Occurrence exactly once
+  and Resource claim separately through the root-only Ledger composer;
+- signed **ordinary Ledger person** and **outsider** cannot read that broad
+  Ledger projection; forged editable metadata does not grant root authority;
+- Organization member/root can read only the specifically admitted context
+  and its one canonical Occurrence; outsider, anonymous and foreign context
+  are refused;
+- explicit `coverage.partial` survives; loss of native Ledger seat or
+  Organization membership is effective for the same already-signed token.
+
+This is a candidate test specification, **not a claim that it has passed yet**.
+If clone or signed sessions fail, this migration is on HOLD. The resulting
+validation issue/run artifact must be linked before protected manual release.
