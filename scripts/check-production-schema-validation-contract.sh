@@ -51,6 +51,9 @@ required = [
     'Publish validation summary',
     'actions/upload-artifact@v4',
     'if-no-files-found: error',
+    'signed_work_prerequisite_probe',
+    'validate-atlas-work-prerequisite-signed-http.py',
+    'signed-work-prerequisite.log',
 ]
 for fragment in required:
     if fragment not in workflow:
@@ -127,6 +130,27 @@ if snapshot_marker in workflow and candidate_marker in workflow:
     candidate_pos = workflow.index(candidate_marker)
     if 'NOEL_CORE_DATABASE_URL' in workflow[:snapshot_pos] or 'NOEL_CORE_DATABASE_URL' in workflow[candidate_pos:]:
         errors.append('The protected production DB secret may only appear inside the read-only snapshot step.')
+
+# A source-only check for the exact signed prerequisite proof. Any
+# production host or user-impersonation shortcut would violate its boundaries.
+prereq = Path('scripts/validate-atlas-work-prerequisite-signed-http.py')
+fixture = Path('validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql')
+if not prereq.is_file() or not fixture.is_file():
+    errors.append('Signed prerequisite probe and synthetic fixture are required')
+else:
+    proof=prereq.read_text()
+    synthetic=fixture.read_text()
+    for fragment in ('c1.local_status()', 'c1.sign_in(', 'ThreadPoolExecutor',
+                     'signed session', 'sourceActionId', '42501',
+                     'work_item_prerequisite_events_v1'):
+        if fragment not in proof:
+            errors.append(f'Missing signed prerequisite proof: {fragment}')
+    for fragment in ('insert into auth.users', 'insert into atlas.work_items',
+                     'insert into atlas.company_work_native_ledger_relevance'):
+        if fragment not in synthetic:
+            errors.append(f'Missing synthetic fixture setup: {fragment}')
+    if 'https://zirqkouammpwxlqfbsvf.supabase.co' in proof:
+        errors.append('Signed proof must not hardcode production Supabase endpoint')
 
 if errors:
     print('Production schema validation contract FAILED:')
