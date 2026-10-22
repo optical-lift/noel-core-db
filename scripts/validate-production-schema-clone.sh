@@ -93,12 +93,23 @@ database_url='postgresql://postgres:postgres@127.0.0.1:54322/postgres'
 phase="preflight"
 local_started=false
 signed_http_probe=false
+signed_date_http_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
     exit 2
   fi
   signed_http_probe=true
+fi
+# Only run the source-specific signed proof when the corresponding immutable
+# candidate and disposable fixture have been admitted. No remote HTTP.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_ledger_occurrence_date_evidence_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Ledger date signed HTTP proof requires disposable fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_date_http_probe=true
 fi
 
 finish() {
@@ -330,6 +341,13 @@ if [ "$signed_http_probe" = true ]; then
     --db-url "$database_url" \
     --output "$artifacts_dir/signed-http-summary.txt" \
     >"$artifacts_dir/signed-http.log" 2>&1
+fi
+if [ "$signed_date_http_probe" = true ]; then
+  phase="signed local Ledger date evidence HTTP authorization matrix"
+  python3 "$repo_root/scripts/validate-atlas-date-evidence-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-date-http-summary.txt" \
+    >"$artifacts_dir/signed-date-http.log" 2>&1
 fi
 
 phase="candidate domain schema lint"
