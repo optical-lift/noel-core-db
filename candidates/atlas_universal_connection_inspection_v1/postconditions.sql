@@ -25,7 +25,7 @@ BEGIN
     OR position('s.person_entity_id=v_person' IN definition)=0
     OR position('sa.person_entity_id=v_person' IN definition)=0
     OR position('sb.person_entity_id=v_person' IN definition)=0
-    OR position('r.subject_entity_id=v_person OR r.object_entity_id=v_person' IN definition)=0
+    OR position('reality.entity_relationships' IN definition)<>0
     OR position('recordAccessNotGranted' IN definition)=0
     OR position('INSERT INTO' IN pg_catalog.upper(definition))<>0
     OR position('UPDATE ' IN pg_catalog.upper(definition))<>0

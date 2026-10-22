@@ -32,8 +32,7 @@ BEGIN
 
   IF p_connection_id IS NULL OR p_carrier_kind IS NULL
     OR p_carrier_kind NOT IN (
-      'ledger_person_seat','ledger_ledger_connection',
-      'reality_entity_relationship'
+      'ledger_person_seat','ledger_ledger_connection'
     ) THEN
     RAISE EXCEPTION 'Recognized connection source and identity required.'
       USING errcode = '22023';
@@ -91,26 +90,7 @@ BEGIN
       )
     LIMIT 1;
 
-  ELSIF p_carrier_kind = 'reality_entity_relationship' THEN
-    -- The Person can inspect a canonical relation naming THEM as a
-    -- direct endpoint. No global relationship-graph lookup is offered.
-    SELECT pg_catalog.jsonb_build_object(
-      'carrierKind',p_carrier_kind,
-      'sourceId',r.id,
-      'source',pg_catalog.jsonb_build_object('kind','entity','id',r.subject_entity_id),
-      'target',pg_catalog.jsonb_build_object('kind','entity','id',r.object_entity_id),
-      'relationshipKind',r.relationship_kind,
-      'sourceState',r.relationship_state,
-      'beganAt',r.valid_from,'endedAt',r.valid_until
-    ) INTO v_payload
-    FROM reality.entity_relationships r
-    JOIN reality.entities subject ON subject.id=r.subject_entity_id
-      AND subject.identity_state='canonical'
-    JOIN reality.entities object_entity ON object_entity.id=r.object_entity_id
-      AND object_entity.identity_state='canonical'
-    WHERE r.id=p_connection_id
-      AND (r.subject_entity_id=v_person OR r.object_entity_id=v_person)
-    LIMIT 1;
+
   END IF;
 
   IF v_payload IS NULL THEN
