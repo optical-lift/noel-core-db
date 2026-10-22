@@ -89,3 +89,16 @@ The companion Atlas app adapter now rejects a purportedly successful change unle
 The clone postconditions now include the event RPC's anonymous-denial and authenticated entrypoint checks; a separate real-session test must still prove governing-principal-only access despite the public authenticated wrapper.
 
 **Source-level static comparison passed 12/12 architecture checks before the audit readback extension.** This is not a CI/build or Postgres syntax pass. Run the numbered migration and clone tests through the canonical protected workflow before allowing release. Neither candidate repository has been merged or deployed.
+
+
+## October 22 follow-on — historical immutability and CI evidence
+
+The reviewed SQL proposal now includes `atlas.guard_work_item_prerequisite_event_immutable_v1`, a database trigger preventing `UPDATE` or `DELETE` of event history. Direct browser access remains revoked with RLS as defense in depth. The rollback-only clone graph test now inserts a synthetic audit event and asserts that both attempted mutations fail, with the original reason preserved.
+
+Postconditions independently require this trigger as well as the previously documented permission and canonical relation protections.
+
+**GitHub Database Custody CI:** run #3449 passed for the draft branch, including custody trigger/static boundaries, domain isolation, Atlas lane, protected release and schema-validation contract checks. These are repository governance checks. **They did not apply the candidate SQL to PostgreSQL or run the synthetic clone tests.**
+
+Current read-only production catalog verification reconfirmed the existing governing-principal function's live `auth.uid()` and principal-matching checks, real Ledger relevance columns/evidence types, and original Work relation foreign keys and Work states. No live DDL or data was written.
+
+**Release hold:** no numbered migration generated, no production-schema clone, no two-principal authorization test, no transaction race test. The companion Atlas app branch also remains unmounted and requires reconciliation with current `main` and fresh application CI. Do not report this feature as operational.
