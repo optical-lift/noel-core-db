@@ -399,6 +399,41 @@ BEGIN
 END
 $f$;
 
+-- A direct call to the original Mark Done RPC must honor the new shared
+-- Blocked state too. Do not silently turn a blocked item into completed by
+-- bypassing the notebook's narrower UI.
+CREATE OR REPLACE FUNCTION atlas.guard_blocked_ledger_occurrence_completion_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $f$
+DECLARE v_work atlas.work_items%rowtype;v_latest text;
+BEGIN
+ IF new.result_kind<>'completed' OR
+    new.result_contract_key<>'ledger_occurrence_shared_confirmation_v1' THEN
+   RETURN new;
+ END IF;
+ SELECT * INTO v_work FROM atlas.work_items
+ WHERE id=new.work_item_id AND organization_id=new.organization_id;
+ IF v_work.source_object_type<>'ledger_occurrence_shared_work' THEN
+   RETURN new;
+ END IF;
+ SELECT action_kind INTO v_latest
+ FROM atlas.ledger_occurrence_work_actions_v1 e
+ WHERE e.work_item_id=new.work_item_id
+   AND e.occurrence_id=v_work.source_object_id
+   AND e.ledger_id=(v_work.metadata->>'ledgerId')::uuid
+   AND e.action_kind IN ('blocked','reopened','removed')
+ ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1;
+ IF v_latest IN ('blocked','removed') THEN
+   RAISE EXCEPTION 'Blocked or removed shared Event Work cannot be checked off'
+     USING ERRCODE='23514';
+ END IF;
+ RETURN new;
+END
+$f$;
+CREATE TRIGGER guard_blocked_ledger_occurrence_completion_v1
+ BEFORE INSERT ON atlas.work_execution_results
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_blocked_ledger_occurrence_completion_v1();
+
 -- Event-specific projection, with no second Work storage.
 -- Histories are source events; base Work remains canonical.
 CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_work_extension_self_api_v1(
@@ -448,16 +483,47 @@ BEGIN
     AND w.work_state IN ('open','completed')
     AND coalesce(action.action_kind,'')<>'removed'
  ) z;
+ -- History combines native Work creation and accepted completion evidence
+ -- with append-only Event actions. A completed task is not falsely labelled
+ -- as performed by the checker; actor/performer remains separate.
+ WITH historical_events AS (
+  SELECT a.work_item_id,a.action_kind,a.actor_person_id,
+    a.target_person_id,a.occurred_at,a.explanation,a.id
+  FROM atlas.ledger_occurrence_work_actions_v1 a
+  WHERE a.organization_id=p_organization_id AND a.ledger_id=p_ledger_id
+    AND a.occurrence_id=p_occurrence_id
+  UNION ALL
+  SELECT w.id,'created'::text,
+    NULLIF(w.metadata->>'createdByPersonId','')::uuid,NULL::uuid,
+    w.created_at,NULL::text,w.id
+  FROM atlas.work_items w
+  WHERE w.organization_id=p_organization_id
+    AND w.source_object_type='ledger_occurrence_shared_work'
+    AND w.source_object_id=p_occurrence_id
+    AND w.metadata->>'ledgerId'=p_ledger_id::text
+  UNION ALL
+  SELECT r.work_item_id,'marked_done'::text,
+    NULLIF(r.metadata->>'actorPersonId','')::uuid,NULL::uuid,
+    r.reported_at,NULL::text,r.id
+  FROM atlas.work_execution_results r
+  JOIN atlas.work_result_acceptances accepted
+    ON accepted.execution_result_id=r.id AND accepted.decision='accepted'
+  JOIN atlas.work_items w ON w.id=r.work_item_id
+  WHERE r.organization_id=p_organization_id
+    AND r.result_contract_key='ledger_occurrence_shared_confirmation_v1'
+    AND r.result_kind='completed'
+    AND w.source_object_type='ledger_occurrence_shared_work'
+    AND w.source_object_id=p_occurrence_id
+    AND w.metadata->>'ledgerId'=p_ledger_id::text
+ )
  SELECT coalesce(jsonb_agg(jsonb_build_object(
   'workItemId',e.work_item_id,'actionKind',e.action_kind,
   'actorPersonId',e.actor_person_id,'actorName',person.display_name,
   'targetPersonId',e.target_person_id,'at',e.occurred_at,
-  'explanation',e.explanation)
+  'explanation',e.explanation,'physicalPerformerNotAsserted',true)
   ORDER BY e.occurred_at,e.id),'[]'::jsonb) INTO v_history
- FROM atlas.ledger_occurrence_work_actions_v1 e
- JOIN reality.entities person ON person.id=e.actor_person_id
- WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id
-  AND e.occurrence_id=p_occurrence_id;
+ FROM historical_events e
+ LEFT JOIN reality.entities person ON person.id=e.actor_person_id;
  RETURN jsonb_build_object('ok',true,'ledgerId',p_ledger_id,
   'organizationId',p_organization_id,'occurrenceId',p_occurrence_id,
   'work',v_items,'history',v_history,
