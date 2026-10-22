@@ -21,10 +21,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 30
-    # Supabase's GitHub Actions runner registry; avoids shared-IP ECR throttling
-    # while preserving the pinned CLI, full disposable clone, and release gates.
-    env:
-      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+    # Use pinned Supabase CLI's image-registry fallback when a registry throttles.
+    # Read-only GHCR authentication remains in the protected workflow.
     steps:
       - name: Resolve governed validation request
         id: request
