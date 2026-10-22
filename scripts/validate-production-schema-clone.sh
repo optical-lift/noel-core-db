@@ -98,6 +98,7 @@ signed_schedule_preflight_probe=false
 signed_event_writer_probe=false
 signed_calendar_reader_probe=false
 signed_work_prerequisite_probe=false
+signed_connected_work_prerequisite_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -153,6 +154,17 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_work_prerequisite_probe=true
+fi
+
+# Worker prerequisites require a source-confirmed, signed Person assignment;
+# never substitute employee seats, JWT metadata or a bare synthetic allocation.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_connected_person_work_prerequisites_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Signed connected-Person prerequisite read requires fixture/postconditions." >&2
+    exit 2
+  fi
+  signed_connected_work_prerequisite_probe=true
 fi
 
 finish() {
@@ -302,7 +314,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
      [ "$signed_schedule_preflight_probe" = true ] ||
       [ "$signed_event_writer_probe" = true ] ||
       [ "$signed_calendar_reader_probe" = true ] ||
-      [ "$signed_work_prerequisite_probe" = true ]; then
+      [ "$signed_work_prerequisite_probe" = true ] ||
+      [ "$signed_connected_work_prerequisite_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -427,6 +440,14 @@ if [ "$signed_work_prerequisite_probe" = true ]; then
     >"$artifacts_dir/signed-work-prerequisite.log" 2>&1
 fi
 
+if [ "$signed_connected_work_prerequisite_probe" = true ]; then
+  phase="signed local person-native exact Work prerequisite projection"
+  python3 "$repo_root/scripts/validate-atlas-connected-work-prerequisite-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-connected-work-prerequisite-summary.txt" \
+    >"$artifacts_dir/signed-connected-work-prerequisite.log" 2>&1
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -464,5 +485,10 @@ fi
 
 if [ "$signed_work_prerequisite_probe" = true ]; then
   printf '\nSIGNED Work prerequisites: real GoTrue root, worker, outsider, no-seat denials; immutable history and concurrent cycle protection verified on disposable clone.\n' \
+    >> "$artifacts_dir/summary.md"
+fi
+
+if [ "$signed_connected_work_prerequisite_probe" = true ]; then
+  printf '\nSIGNED connected-Person prerequisite read: authentic direct Ledger Work assignment, original source, cross-Work denial and revoked sessions verified locally.\n' \
     >> "$artifacts_dir/summary.md"
 fi
