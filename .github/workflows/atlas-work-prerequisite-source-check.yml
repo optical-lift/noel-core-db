@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "proposals/atlas_work_item_prerequisites_v1_*"
+      - "candidates/atlas/atlas_work_item_prerequisites_v1*"
       - ".github/workflows/atlas-work-prerequisite-source-check.yml"
   workflow_dispatch:
 
