@@ -186,7 +186,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
 AS $f$
 DECLARE v_actor uuid;v_work atlas.work_items%rowtype;v_a text;
  v_key text;v_previous text;v_record atlas.ledger_occurrence_work_actions_v1%rowtype;
- v_impact jsonb;v_created_here boolean;
+ v_impact jsonb;v_created_here boolean;v_remove_underlying boolean:=false;
 BEGIN
  v_a:=lower(btrim(coalesce(p_action,'')));
  v_key:=nullif(btrim(coalesce(p_source_action_id,'')),'');
@@ -240,7 +240,18 @@ BEGIN
        USING ERRCODE='23514';
    END IF;
  ELSIF v_a='removed' THEN
-   IF v_created_here AND v_work.work_state='open' THEN
+   -- Cancellation is only appropriate when this was an Event-created item
+   -- with NO other subject or Ledger using it. Otherwise withdraw the
+   -- local Event's visibility and preserve the single institutional Work.
+   v_remove_underlying:=v_created_here AND v_work.work_state='open'
+    AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links c
+      WHERE c.work_item_id=v_work.id
+        AND NOT (c.subject_domain='temporal' AND c.subject_kind='occurrence'
+          AND c.subject_id=p_occurrence_id))
+    AND NOT EXISTS (SELECT 1 FROM atlas.company_work_native_ledger_relevance r
+      WHERE r.work_item_id=v_work.id AND r.attribution_state='active'
+        AND r.ledger_id<>p_ledger_id);
+   IF v_remove_underlying THEN
      v_impact:=atlas.company_work_retirement_dependency_snapshot_v1(v_work.id);
      IF jsonb_array_length(v_impact->'requirements')<>0
        OR jsonb_array_length(v_impact->'relations')<>0
@@ -266,7 +277,7 @@ BEGIN
       'physicalPerformerNotInferred',true));
  RETURN jsonb_build_object('ok',true,'idempotent',false,'workItemId',v_work.id,
   'action',v_a,'actorPersonId',v_actor,'underlyingWorkCancelled',
-    v_a='removed' AND v_created_here AND v_work.work_state='open');
+    v_a='removed' AND v_remove_underlying);
 END
 $f$;
 
