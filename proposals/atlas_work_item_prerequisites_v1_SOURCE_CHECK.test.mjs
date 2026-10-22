@@ -68,3 +68,26 @@ test("clone fixtures use generated data and irrevocably roll back",()=>{
   assert.match(graph,/gen_random_uuid\(\)/);
   assert.doesNotMatch(sql,/\binsert into atlas\.(?:work_items|organizations)\(/);
 });
+
+test("governed generation candidate matches the reviewed SQL and has a single migration transaction",()=>{
+  const candidate=read("../candidates/atlas/atlas_work_item_prerequisites_v1.sql");
+  assert.ok(candidate.startsWith("BEGIN;\n"),"Canonical migration must begin a transaction");
+  assert.ok(candidate.trimEnd().endsWith("COMMIT;"),"Canonical migration must commit atomically");
+  assert.equal([...candidate.matchAll(/^BEGIN;$/gm)].length,1);
+  assert.equal([...candidate.matchAll(/^COMMIT;$/gm)].length,1);
+  assert.ok(candidate.includes(sql.slice(sql.indexOf("-- Atlas-only post-fence machinery;"))),
+    "Original reviewed proposal content must remain unchanged inside generation candidate");
+  assert.doesNotMatch(candidate,/\bas \$(?!\$)/i);
+  assert.doesNotMatch(candidate,/(?:^|\n)\s*\$;/);
+  const opens=[...candidate.matchAll(/\bas \$\$/gi)].length;
+  assert.equal(opens,[...candidate.matchAll(/\$\$;/g)].length);
+});
+test("governed validation package contains exact reviewed postconditions and rollback-only graph",()=>{
+  const candidate=read("../candidates/atlas/atlas_work_item_prerequisites_v1_postconditions.sql");
+  assert.ok(candidate.includes(post.trimEnd()));
+  assert.ok(candidate.includes(graph.trimEnd()));
+  assert.ok(candidate.indexOf(post.trimEnd())<candidate.indexOf(graph.trimEnd()));
+  assert.ok(candidate.trimEnd().endsWith("rollback;"));
+  assert.equal([...candidate.matchAll(/^rollback;$/gm)].length,1);
+  assert.equal([...candidate.matchAll(/^begin;$/gm)].length,1);
+});
