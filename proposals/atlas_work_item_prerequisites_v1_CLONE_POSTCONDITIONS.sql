@@ -30,6 +30,13 @@ begin
     raise exception 'Global dependency cycle guard missing.';
   end if;
 
+  if not exists(select 1 from pg_catalog.pg_trigger t
+    where t.tgrelid='atlas.work_item_prerequisite_events_v1'::regclass
+      and t.tgname='guard_work_item_prerequisite_event_immutable_v1'
+      and not t.tgisinternal) then
+    raise exception 'Append-only audit event trigger missing.';
+  end if;
+
   if not exists(select 1 from pg_catalog.pg_class c
     where c.oid='atlas.work_item_prerequisite_events_v1'::regclass
       and c.relrowsecurity) then
