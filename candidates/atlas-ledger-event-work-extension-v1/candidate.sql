@@ -6,6 +6,8 @@ BEGIN;
 -- graph. "Blocked" is NOT an unsupported fifth atlas.work_items.work_state.
 CREATE TABLE IF NOT EXISTS atlas.ledger_occurrence_work_actions_v1 (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- Work-state ordering must be strictly monotone; transaction now() ties.
+  action_sequence bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
   organization_id uuid NOT NULL REFERENCES atlas.organizations(id),
   ledger_id uuid NOT NULL REFERENCES ledger.ledgers(id),
   occurrence_id uuid NOT NULL REFERENCES local_intel.occurrences(id),
@@ -30,7 +32,7 @@ CREATE TRIGGER ledger_occurrence_work_actions_append_only_v1
 
 CREATE INDEX IF NOT EXISTS ledger_occurrence_work_actions_latest_v1
  ON atlas.ledger_occurrence_work_actions_v1
- (ledger_id,occurrence_id,work_item_id,occurred_at DESC,id DESC);
+ (ledger_id,occurrence_id,work_item_id,action_sequence DESC);
 
 -- Attention has its own relational identity. It is never atlas.work_allocations
 -- and never a Worker Day obligation or acceptance offer.
@@ -220,7 +222,7 @@ BEGIN
  FROM atlas.ledger_occurrence_work_actions_v1 e
  WHERE e.organization_id=p_organization_id AND e.work_item_id=p_work_item_id
   AND e.action_kind IN ('blocked','reopened')
- ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1;
+ ORDER BY e.action_sequence DESC LIMIT 1;
  -- A Work blocker is source-global. Its Event association is not.
  IF EXISTS (
   SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 removed
@@ -407,7 +409,7 @@ BEGIN
     SELECT e.action_kind FROM atlas.ledger_occurrence_work_actions_v1 e
     WHERE e.work_item_id=a.work_item_id
       AND e.action_kind IN ('blocked','reopened')
-    ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1
+    ORDER BY e.action_sequence DESC LIMIT 1
   ) last_action ON true
   WHERE a.person_entity_id=v_person AND a.attention_state='active'
     AND w.work_state='open'
@@ -473,7 +475,7 @@ BEGIN
  FROM atlas.ledger_occurrence_work_actions_v1 e
  WHERE e.work_item_id=new.work_item_id
    AND e.action_kind IN ('blocked','reopened')
- ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1;
+ ORDER BY e.action_sequence DESC LIMIT 1;
  IF v_latest='blocked' OR EXISTS (
   SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 removed
   WHERE removed.work_item_id=new.work_item_id
@@ -535,7 +537,7 @@ BEGIN
     SELECT e.action_kind FROM atlas.ledger_occurrence_work_actions_v1 e
     WHERE e.work_item_id=w.id
       AND e.action_kind IN ('blocked','reopened')
-    ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1
+    ORDER BY e.action_sequence DESC LIMIT 1
   ) action ON true
   WHERE ctx.organization_id=p_organization_id
     AND ctx.subject_domain='temporal' AND ctx.subject_kind='occurrence'
@@ -552,14 +554,14 @@ BEGIN
  -- as performed by the checker; actor/performer remains separate.
  WITH historical_events AS (
   SELECT a.work_item_id,a.action_kind,a.actor_person_id,
-    a.target_person_id,a.occurred_at,a.explanation,a.id
+    a.target_person_id,a.occurred_at,a.explanation,a.id,a.action_sequence
   FROM atlas.ledger_occurrence_work_actions_v1 a
   WHERE a.organization_id=p_organization_id AND a.ledger_id=p_ledger_id
     AND a.occurrence_id=p_occurrence_id
   UNION ALL
   SELECT w.id,'created'::text,
     NULLIF(w.metadata->>'createdByPersonId','')::uuid,NULL::uuid,
-    w.created_at,NULL::text,w.id
+    w.created_at,NULL::text,w.id,NULL::bigint
   FROM atlas.work_items w
   WHERE w.organization_id=p_organization_id
     AND w.source_object_type='ledger_occurrence_shared_work'
@@ -568,7 +570,7 @@ BEGIN
   UNION ALL
   SELECT r.work_item_id,'marked_done'::text,
     NULLIF(r.metadata->>'actorPersonId','')::uuid,NULL::uuid,
-    r.reported_at,NULL::text,r.id
+    r.reported_at,NULL::text,r.id,NULL::bigint
   FROM atlas.work_execution_results r
   JOIN atlas.work_result_acceptances accepted
     ON accepted.execution_result_id=r.id AND accepted.decision='accepted'
@@ -585,7 +587,7 @@ BEGIN
   'actorPersonId',e.actor_person_id,'actorName',person.display_name,
   'targetPersonId',e.target_person_id,'at',e.occurred_at,
   'explanation',e.explanation,'physicalPerformerNotAsserted',true)
-  ORDER BY e.occurred_at,e.id),'[]'::jsonb) INTO v_history
+  ORDER BY e.occurred_at,e.action_sequence NULLS LAST,e.id),'[]'::jsonb) INTO v_history
  FROM historical_events e
  LEFT JOIN reality.entities person ON person.id=e.actor_person_id;
  RETURN jsonb_build_object('ok',true,'ledgerId',p_ledger_id,

@@ -313,6 +313,18 @@ BEGIN
   'f5200000-0000-4000-8000-000000000104'::uuid,
   'f5200000-0000-4000-8000-000000000201'::uuid,
    v_work,'reopened','extension-f520-reopen',null);
+ v_reader:=atlas.ledger_occurrence_work_extension_self_api_v1(
+  'f5200000-0000-4000-8000-000000000101'::uuid,
+  'f5200000-0000-4000-8000-000000000104'::uuid,
+  'f5200000-0000-4000-8000-000000000201'::uuid);
+ IF NOT EXISTS (
+  SELECT 1 FROM jsonb_array_elements(v_reader->'work') row_item
+  WHERE row_item->>'workItemId'=v_work::text
+    AND row_item->>'state'='open'
+    AND row_item->>'canMarkDone'='true'
+ ) THEN
+  RAISE EXCEPTION 'Reopen in Event A did not supersede Blocked in Event B';
+ END IF;
  v_unlinked:=atlas.change_ledger_event_ordinary_work_self_api_v1(
   'f5200000-0000-4000-8000-000000000101'::uuid,
   'f5200000-0000-4000-8000-000000000104'::uuid,
@@ -374,7 +386,19 @@ $event_extension_proof$;
 
 RESET ROLE;
 DO $private_validator$
+DECLARE v_block atlas.ledger_occurrence_work_actions_v1%rowtype;
+        v_reopen atlas.ledger_occurrence_work_actions_v1%rowtype;
 BEGIN
+ SELECT * INTO v_block FROM atlas.ledger_occurrence_work_actions_v1
+ WHERE source_action_id='extension-f520-block';
+ SELECT * INTO v_reopen FROM atlas.ledger_occurrence_work_actions_v1
+ WHERE source_action_id='extension-f520-reopen';
+ IF v_block.id IS NULL OR v_reopen.id IS NULL
+    OR v_block.work_item_id<>v_reopen.work_item_id
+    OR v_block.action_sequence>=v_reopen.action_sequence
+    OR v_block.occurred_at IS DISTINCT FROM v_reopen.occurred_at THEN
+   RAISE EXCEPTION 'Action order must be monotone even with identical transaction timestamps';
+ END IF;
  IF EXISTS (
    SELECT 1 FROM atlas.work_allocations a
    JOIN atlas.work_items w ON w.id=a.work_item_id
