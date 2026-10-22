@@ -57,6 +57,18 @@ The new candidate is intentionally narrower: only Ledger-bound Occurrences and s
 
 **Same date is not one Event:** The Venue Ledger currently has two independent bound Occurrences whose starts fall on the same October 30 civil day. The date reconciliation reader must preserve both separate canonical IDs; only the Harvest Party's own linked operational assertion is compared with its source record.
 
+## Owner-approved three governing extensions — October 22, 2026
+
+The following universal source-evidence requirements are **mandatory dependencies before the integrated Subject / Date workspace is declared complete**. Each requires its own reviewed source/writer and validation/release gate:
+
+1. **Schedule decision:** `architecture/ATLAS_SUBJECT_DATE_SCHEDULE_RECONCILIATION_CONTRACT_V1.md` — lawful adjudication and source-owned mutation, history and selective preflight. The current date-claim reader is not a correction writer.
+2. **Outcome evidence:** `architecture/ATLAS_ORDINARY_SHARED_WORK_OUTCOME_EVIDENCE_CONTRACT_V1.md` — one-sentence real state-change report with distinct recorder/performer and source policy. Existing bare-checkmark Event Done is insufficient.
+3. **Communication source receipts:** `architecture/ATLAS_SUBJECT_COMMUNICATION_SOURCE_RECEIPTS_CONTRACT_V1.md` — exact Event subject link, source-observed transport and reply standing, no fabricated `sent` status or Event-owned mailbox.
+
+**Integrated sequencing and shared acceptance:** `architecture/ATLAS_ONE_DATE_SUBJECT_THREE_EVIDENCE_ADDITIONS_BUILD_GATES_20261022.md`.
+
+These contracts are source-only governance, not live SQL, operational Event edits, email sends or completed functionality.
+
 ## Packet 0 audit still to complete
 
 1. Inventory and mechanically exercise every relevant database date writer, planner, projection and legacy calendar consumer, including task timing, personal day, correspondence and external calendars.
