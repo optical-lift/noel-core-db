@@ -72,6 +72,8 @@ create table if not exists atlas.work_item_prerequisite_events_v1(
   action_kind text not null check(action_kind in ('establish','withdraw')),
   before_active boolean,
   after_active boolean not null,
+  before_satisfied_at timestamptz,
+  after_satisfied_at timestamptz,
   reason text not null check(length(btrim(reason))>=8),
   recorded_at timestamptz not null default now(),
   unique(actor_person_id,source_action_id)
@@ -201,6 +203,7 @@ declare
   v_prerequisite atlas.work_items%rowtype;
   v_fingerprint text;
   v_before boolean;
+  v_before_satisfied_at timestamptz;
   v_applied boolean:=false;
 begin
   v_actor:=atlas.company_work_native_ledger_owner_self_v1(
@@ -269,6 +272,7 @@ begin
     and to_work_item_id=p_prerequisite_work_item_id
     and relation_kind='depends_on' for update;
   v_before:=case when v_link.id is null then null else v_link.active end;
+  v_before_satisfied_at:=v_link.satisfied_at;
   if v_link.id is null and p_enabled then
     insert into atlas.work_item_relations(
       organization_id,from_work_item_id,to_work_item_id,relation_kind,active,metadata)
@@ -282,7 +286,11 @@ begin
       using errcode='P0002';
   elsif v_link.active is distinct from p_enabled then
     update atlas.work_item_relations
-    set active=p_enabled,satisfied_at=null,updated_at=now()
+    set active=p_enabled,
+        -- Withdrawal preserves historical satisfaction; re-enabling requires
+        -- fresh evidence and preserves the old timestamp in the event record.
+        satisfied_at=case when p_enabled then null else satisfied_at end,
+        updated_at=now()
     where id=v_link.id returning * into v_link;
     v_applied:=true;
   end if;
@@ -291,12 +299,12 @@ begin
     organization_id,ledger_id,relation_id,
     downstream_work_item_id,prerequisite_work_item_id,
     actor_person_id,source_action_id,request_fingerprint,action_kind,
-    before_active,after_active,reason)
+    before_active,after_active,before_satisfied_at,after_satisfied_at,reason)
   values(p_organization_id,p_ledger_id,v_link.id,
     p_downstream_work_item_id,p_prerequisite_work_item_id,
     v_actor,p_source_action_id,v_fingerprint,
     case when p_enabled then 'establish' else 'withdraw' end,
-    v_before,v_link.active,p_reason);
+    v_before,v_link.active,v_before_satisfied_at,v_link.satisfied_at,p_reason);
 
   return jsonb_build_object(
     'ok',true,'contractVersion','atlas_work_prerequisite_set_v1',
