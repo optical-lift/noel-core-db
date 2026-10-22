@@ -1,6 +1,7 @@
 -- REVIEW CANDIDATE, NOT AN EXECUTABLE MIGRATION OR PRODUCTION RELEASE.
--- Atlas-only post-fence machinery; generate numbered canonical migration with
--- the noel-core-db reviewed migration workflow after schema-clone validation.
+-- Atlas-only post-fence machinery; first generate a numbered canonical
+-- migration through the reviewed noel-core-db CLI workflow, THEN validate
+-- that exact migration on a disposable production-schema clone.
 -- Existing canonical relation graph: atlas.work_item_relations.
 -- No new Work or duplicate dependency truth store.
 
