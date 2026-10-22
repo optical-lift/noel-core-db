@@ -76,6 +76,9 @@ harness_required = [
     'signed_work_prerequisite_probe',
     'validate-atlas-work-prerequisite-signed-http.py',
     'signed-work-prerequisite.log',
+    'signed_connected_work_prerequisite_probe',
+    'validate-atlas-connected-work-prerequisite-signed-http.py',
+    'signed-connected-work-prerequisite.log',
 ]
 for fragment in harness_required:
     if fragment not in harness:
@@ -174,6 +177,63 @@ else:
         for item in statements
     ):
         errors.append('Prerequisite fixture has non-DML statements')
+
+
+# Governed worker source: neither a Ledger seat nor editable JWT metadata
+# is a substitute for a current, source-confirmed responsible Work allocation.
+worker_sql=Path('candidates/atlas/atlas_connected_person_work_prerequisites_v1.sql')
+worker_fixture=Path('candidates/atlas/atlas_connected_person_work_prerequisites_v1_fixture.sql')
+worker_validation=Path('candidates/atlas/atlas_connected_person_work_prerequisites_v1_postconditions.sql')
+worker_test=Path('scripts/validate-atlas-connected-work-prerequisite-signed-http.py')
+worker_review=Path('proposals/atlas_connected_person_work_prerequisites_v1_REVIEW_ONLY.sql')
+if not all(p.is_file() for p in (worker_sql,worker_fixture,worker_validation,worker_test,worker_review)):
+    errors.append('Exact worker prerequisite generator, local fixture, validation and signed source proof are required')
+else:
+    source=worker_review.read_text()
+    candidate=worker_sql.read_text()
+    proof=worker_test.read_text()
+    generated_fixture=worker_fixture.read_text()
+    import ast
+    try:
+        ast.parse(proof,filename=str(worker_test))
+    except SyntaxError as exc:
+        errors.append(f'Signed connected Work reader source invalid: {exc}')
+    if not candidate.startswith('BEGIN;\n') or not candidate.rstrip().endswith('COMMIT;'):
+        errors.append('Worker prerequisite candidate missing atomic transaction boundaries')
+    if source.strip() not in candidate:
+        errors.append('Worker candidate differs from reviewed source SQL')
+    for fragment in ('reality_access_self_api_v1','current_person_id_v1',
+                     'person_has_native_ledger_connection_v1',
+                     'work_prerequisite_ledger_scope_v1',
+                     'assignee_canonical_person_id=v_person',
+                     'a.assignee_membership_id is null',
+                     "a.allocation_role='responsible'",
+                     'doesNotAuthorizeRelationChanges'):
+        if fragment not in source:
+            errors.append(f'Worker prerequisite source authority missing: {fragment}')
+    for fragment in ('c1.sign_in(', 'original.setup_auth(', 'connected_ledger_direct_assign_self_api_v1',
+                     'atlas_set_work_prerequisite_self_api_v1', '42501',
+                     'auth.sessions', 'ledger.seats'):
+        if fragment not in proof:
+            errors.append(f'Worker signed proof missing: {fragment}')
+    if 'https://zirqkouammpwxlqfbsvf.supabase.co' in proof:
+        errors.append('Worker signed proof must never hardcode production')
+    # Exact disposable-clone fixture sanitizer, including SQL keywords in
+    # literal titles; catches mistakes before a protected schema snapshot.
+    scrub=re.sub(r'/\*.*?\*/',' ',generated_fixture,flags=re.S)
+    scrub=re.sub(r'--[^\n]*',' ',scrub)
+    normalized=re.sub(r'\s+',' ',scrub).strip()
+    blocked=re.compile(
+        r'\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|'
+        r'reindex|cluster|refresh|copy|do|call|execute|prepare|deallocate|'
+        r'listen|notify|security)\b',re.I)
+    match=blocked.search(normalized)
+    if match: errors.append(f'Worker prerequisite fixture contains forbidden token: {match.group(0)}')
+    operations=[t.strip() for t in normalized.split(';') if t.strip()]
+    if not operations or any(
+        not re.match(r'^(insert\s+into|update\s+|delete\s+from|select\s+)',t,re.I)
+        for t in operations):
+        errors.append('Worker prerequisite fixture is not DML-only')
 
 if errors:
     print('Production schema validation contract FAILED:')
