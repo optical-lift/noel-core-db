@@ -233,12 +233,18 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'workItemId',q.id,'title',q.title,'state',q.work_state,
     'createdAt',q.created_at,'completedAt',q.completed_at,
-    'linkedAs',q.relation_kind,'resultContractKey',q.result_contract_key
+    'linkedAs',q.relation_kind,'resultContractKey',q.result_contract_key,
+    'canMarkDone',q.can_mark_done
   ) order by q.created_at,q.id),'[]'::jsonb)
   into v_items
   from (
     select distinct on (w.id) w.id,w.title,w.work_state,w.created_at,
-      w.completed_at,w.result_contract_key,ctx.relation_kind
+      w.completed_at,w.result_contract_key,ctx.relation_kind,
+      (w.source_object_type='ledger_occurrence_shared_work'
+        and w.source_object_id=p_occurrence_id
+        and w.result_contract_key='ledger_occurrence_shared_confirmation_v1'
+        and w.metadata->>'ledgerId'=p_ledger_id::text
+        and w.work_state='open') as can_mark_done
     from atlas.work_item_context_links ctx
     join atlas.work_items w on w.id=ctx.work_item_id
       and w.organization_id=p_organization_id
@@ -366,6 +372,14 @@ begin
   end if;
   v_actor:=atlas.ledger_occurrence_shared_work_actor_self_v1(
     p_organization_id,p_ledger_id,p_occurrence_id);
+  if not exists (
+    select 1 from atlas.work_result_contract_policies policy
+    where policy.contract_key='ledger_occurrence_shared_confirmation_v1'
+      and policy.active and policy.source_domain='organization'
+      and policy.acceptance_mode='domain_adapter'
+  ) then
+    raise exception 'Ordinary shared confirmation policy unavailable.' using errcode='23514';
+  end if;
   v_key:='ledger-occurrence-done:'||
     md5(p_ledger_id::text||':'||p_occurrence_id::text||':'||v_action);
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
