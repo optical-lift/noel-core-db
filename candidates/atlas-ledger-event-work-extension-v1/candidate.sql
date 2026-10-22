@@ -289,7 +289,11 @@ BEGIN
   p_organization_id,p_ledger_id,p_occurrence_id);
  v_work:=atlas.assert_ledger_occurrence_work_link_v1(
   p_organization_id,p_ledger_id,p_occurrence_id,p_work_item_id);
- IF v_work.work_state<>'open' OR NOT EXISTS (
+ IF v_work.work_state<>'open' OR EXISTS (
+   SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 removed
+   WHERE removed.ledger_id=p_ledger_id AND removed.occurrence_id=p_occurrence_id
+      AND removed.work_item_id=p_work_item_id AND removed.action_kind='removed'
+ ) OR NOT EXISTS (
   SELECT 1 FROM ledger.seats s JOIN reality.entities e ON e.id=s.person_entity_id
   WHERE s.ledger_id=p_ledger_id AND s.person_entity_id=p_person_entity_id
     AND s.seat_state='active' AND s.ended_at IS NULL AND e.entity_kind='person'
@@ -356,14 +360,17 @@ BEGIN
   FROM atlas.ledger_occurrence_work_attention_v1 a
   JOIN atlas.work_items w ON w.id=a.work_item_id AND w.organization_id=a.organization_id
   JOIN local_intel.occurrences o ON o.id=a.occurrence_id
-  JOIN atlas.ledger_organization_participations lop
-   ON lop.ledger_id=a.ledger_id AND lop.organization_id=a.organization_id
-      AND lop.status='active' AND lop.ended_at IS NULL
   JOIN ledger.occurrence_calendar_bindings cb
    ON cb.ledger_id=a.ledger_id AND cb.occurrence_id=a.occurrence_id
       AND cb.binding_state='active'
   WHERE a.person_entity_id=v_person AND a.attention_state='active'
     AND w.work_state='open'
+    AND EXISTS (SELECT 1 FROM atlas.ledger_organization_participations lop
+      WHERE lop.ledger_id=a.ledger_id AND lop.organization_id=a.organization_id
+        AND lop.status='active' AND lop.ended_at IS NULL)
+    AND EXISTS (SELECT 1 FROM atlas.organization_occurrence_bindings ob
+      WHERE ob.organization_id=a.organization_id AND ob.occurrence_id=a.occurrence_id
+        AND ob.binding_state='active')
     AND atlas.person_has_native_ledger_connection_v1(
      a.organization_id,a.ledger_id,v_person)
     AND NOT EXISTS (SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 e
