@@ -139,9 +139,10 @@ BEGIN
                 THEN ce.start_local_time IS DISTINCT FROM
                   (s.start_at AT TIME ZONE ce.timezone_name)::time
                 ELSE NULL END,
-              'endLocalTime',CASE WHEN EXISTS(
-                SELECT 1 FROM pg_catalog.pg_timezone_names z
-                WHERE z.name=ce.timezone_name)
+              'endLocalTime',CASE WHEN s.end_at IS NULL THEN NULL
+                WHEN EXISTS(
+                  SELECT 1 FROM pg_catalog.pg_timezone_names z
+                  WHERE z.name=ce.timezone_name)
                 THEN ce.end_local_time IS DISTINCT FROM
                   (s.end_at AT TIME ZONE ce.timezone_name)::time
                 ELSE NULL END
