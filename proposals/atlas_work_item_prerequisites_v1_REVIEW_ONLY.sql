@@ -205,6 +205,7 @@ declare
   v_before boolean;
   v_before_satisfied_at timestamptz;
   v_applied boolean:=false;
+  v_event_id uuid;
 begin
   v_actor:=atlas.company_work_native_ledger_owner_self_v1(
     p_organization_id,p_ledger_id);
@@ -234,10 +235,13 @@ begin
     end if;
     return jsonb_build_object(
       'ok',true,'contractVersion','atlas_work_prerequisite_set_v1',
-      'relationId',v_prior.relation_id,'downstreamWorkItemId',v_prior.downstream_work_item_id,
+      'relationId',v_prior.relation_id,'organizationId',p_organization_id,
+      'ledgerId',p_ledger_id,
+      'downstreamWorkItemId',v_prior.downstream_work_item_id,
       'prerequisiteWorkItemId',v_prior.prerequisite_work_item_id,
-      'active',v_prior.after_active,'idempotentReplay',true,
-      'recordedEventId',v_prior.id);
+      'active',v_prior.after_active,'applied',false,'idempotentReplay',true,
+      'recordedEventId',v_prior.id,
+      'doesNotCreateWork',true,'doesNotAutomaticallyBlockWork',true);
   end if;
 
   -- Stable row-lock ordering prevents deadlocks in simultaneous writer calls.
@@ -306,7 +310,8 @@ begin
     p_downstream_work_item_id,p_prerequisite_work_item_id,
     v_actor,p_source_action_id,v_fingerprint,
     case when p_enabled then 'establish' else 'withdraw' end,
-    v_before,v_link.active,v_before_satisfied_at,v_link.satisfied_at,p_reason);
+    v_before,v_link.active,v_before_satisfied_at,v_link.satisfied_at,p_reason)
+  returning id into v_event_id;
 
   return jsonb_build_object(
     'ok',true,'contractVersion','atlas_work_prerequisite_set_v1',
@@ -314,6 +319,7 @@ begin
     'ledgerId',p_ledger_id,'downstreamWorkItemId',p_downstream_work_item_id,
     'prerequisiteWorkItemId',p_prerequisite_work_item_id,
     'active',v_link.active,'applied',v_applied,'idempotentReplay',false,
+    'recordedEventId',v_event_id,
     'doesNotCreateWork',true,'doesNotAutomaticallyBlockWork',true
   );
 end;
