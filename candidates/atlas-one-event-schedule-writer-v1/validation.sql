@@ -21,6 +21,24 @@ BEGIN
 END
 $structural$;
 
+-- As database owner, directly invoking the old parallel source writer must
+-- also be blocked for operator-provided Events; not merely blocked by client ACL.
+BEGIN;
+DO $legacy_guard$
+DECLARE v_denied boolean := false;
+BEGIN
+ BEGIN
+   UPDATE atlas.community_events ce SET start_local_time='17:00'
+   WHERE ce.id='f5210000-0000-4000-8000-000000000301'::uuid;
+ EXCEPTION WHEN insufficient_privilege THEN v_denied:=true;
+ END;
+ IF NOT v_denied THEN
+   RAISE EXCEPTION 'Privileged legacy operational path produced another calendar schedule';
+ END IF;
+END
+$legacy_guard$;
+ROLLBACK;
+
 BEGIN;
 SET LOCAL ROLE authenticated;
 DO $proof$
