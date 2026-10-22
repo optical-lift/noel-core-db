@@ -141,9 +141,11 @@ VALUES
 
 -- An unrelated native participant is the ordinary member; the third Person
 -- has the *distinct* root_governing authority over this exact Ledger.
-INSERT INTO atlas.people(id,stable_key,display_name)
+-- stable_key is GENERATED ALWAYS as 'person:' || id by the canonical
+-- schema. Supply only the source-owned person identity and display name.
+INSERT INTO atlas.people(id,display_name)
 SELECT 'f5210000-0000-4000-8000-000000000004'::uuid,
-  'atlas-date-proof-root-person-f521','Synthetic Root Governor'
+  'Synthetic Root Governor'
 WHERE NOT EXISTS (
  SELECT 1 FROM atlas.people p
  WHERE p.id='f5210000-0000-4000-8000-000000000004'::uuid
