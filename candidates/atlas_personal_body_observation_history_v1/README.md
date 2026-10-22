@@ -35,7 +35,8 @@ The specific location and symptom are **examples of a normalized candidate** for
 - `reportedAt` is the raw capture's recorded timestamp; `reportDate` is that instant on the caller-supplied validated timezone.
 - `claimedEffectiveFrom/Until` are **not** inferred from the capture. They remain null unless a separately warranted explicit time was supplied and confirmed in the underlying Claim.
 - The 30-day window is 30 **local calendar dates**, inclusive of today.
-- `reportCount` counts distinct confirmed capture/region/side/symptom combinations; `distinctReportDates` counts dates. Neither is an episode count, an ongoing-duration count, a diagnosis or a causal inference.
+- A body observation's `subject.id` must match the value's `regionKey:side`; invalid subject/value pairings are rejected from this reader. This **does not** yet establish an independent human-anatomy registry.
+- `reportCount` counts source-linked statements in the window, including resolved/absent/unknown states; `distinctReportDates` counts their dates. `presentReportCount` and `distinctPresentReportDates` count only reports with `reportedState:present`, so a recovery/absence report cannot increase the number of pain occurrences. None of these are an episode count, a diagnosis or a causal inference.
 - The reader returns at most 100 source-linked observations, a full within-window count and `truncated` so the UI cannot pretend truncated history is complete.
 - A later body-domain validator must ensure valid anatomical region keys, laterality, and symptom vocabulary before app clients can automatically promote model proposals; this reader only consumes accepted shapes.
 
@@ -52,7 +53,7 @@ The specific location and symptom are **examples of a normalized candidate** for
 1. Disposable production-schema clone: apply this candidate and run its `postconditions.sql`; check Atlas lane security advisors and no new warnings.
 2. Negative authenticated runtime: anon, foreign auth user and no active Personal Atlas must not read a person's observations.
 3. Positive signed-in runtime: save a synthetic first-person symptom note; create a full existing Claim proposal; explicitly confirm/apply; verify exact source capture, region and laterality; reopen the 30-day reader.
-4. Repeated reports: one input replay is idempotent; a second distinct report increments report count, not inferred episode count.
+4. Repeated reports: one input replay is idempotent; a second distinct `present` report increments occurrence reports, not inferred episode count; `resolved` increases the history rows but does **not** increase present-report count.
 5. Time behavior: retroactive occurrence statements do not acquire invented onset; timezone boundaries preserve correct report dates.
 6. Correction: a superseded claim no longer appears, but its underlying raw note remains auditable and unmodified.
 7. UI admission and end-to-end human proof remain future app work; **do not call this first slice complete** merely because schema validation passes.

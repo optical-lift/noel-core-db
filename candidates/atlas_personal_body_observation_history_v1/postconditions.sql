@@ -28,6 +28,8 @@ BEGIN
     OR position('cap.principal_id = v_principal' IN definition) = 0
     OR position('c.source_kind = ''personal_reality_claim''' IN definition) = 0
     OR position('c.lifecycle_state IN' IN definition) = 0
+    OR position('c.subject_id = ' IN definition) = 0
+    OR position('presentReportCount' IN definition) = 0
     OR position('cap.captured_at AT TIME ZONE p_timezone' IN definition) = 0
     OR position('practice.' IN definition) <> 0
     OR position('INSERT INTO' IN upper(definition)) <> 0

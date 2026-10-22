@@ -21,6 +21,8 @@ DECLARE
   v_start date;
   v_total bigint := 0;
   v_dates bigint := 0;
+  v_present_total bigint := 0;
+  v_present_dates bigint := 0;
   v_items jsonb := '[]'::jsonb;
 BEGIN
   IF v_user IS NULL THEN
@@ -85,6 +87,10 @@ BEGIN
       AND c.value->>'side' IN (
         'left','right','bilateral','midline','unspecified'
       )
+      -- Source subject and value must name the same precise body location.
+      -- This is a consistency check, not a medical anatomy catalog.
+      AND c.subject_id = (c.value->>'regionKey') || ':' || (c.value->>'side')
+      AND c.value->>'reportedState' IN ('present','resolved','absent','unknown')
       AND (p_region_key IS NULL OR c.value->>'regionKey' = p_region_key)
       AND (p_side IS NULL OR c.value->>'side' = p_side)
       AND (cap.captured_at AT TIME ZONE p_timezone)::date >= v_start
@@ -106,6 +112,8 @@ BEGIN
   )
   SELECT count(*),
     count(DISTINCT report_date),
+    count(*) FILTER (WHERE reported_state='present'),
+    count(DISTINCT report_date) FILTER (WHERE reported_state='present'),
     coalesce(pg_catalog.jsonb_agg(
       pg_catalog.jsonb_build_object(
         'claimId',claim_id,
@@ -122,7 +130,7 @@ BEGIN
         'timeBoundary','reported_at_is_not_symptom_onset'
       ) ORDER BY seq
     ) FILTER (WHERE seq <= 100), '[]'::jsonb)
-  INTO v_total,v_dates,v_items
+  INTO v_total,v_dates,v_present_total,v_present_dates,v_items
   FROM numbered;
 
   RETURN pg_catalog.jsonb_build_object(
@@ -137,6 +145,8 @@ BEGIN
     ),
     'reportCount',v_total,
     'distinctReportDates',v_dates,
+    'presentReportCount',v_present_total,
+    'distinctPresentReportDates',v_present_dates,
     'items',v_items,
     'truncated',v_total > 100,
     'episodeCount',null,
@@ -145,6 +155,7 @@ BEGIN
       'humanConfirmedClaimsOnly',true,
       'reportedAtDoesNotEstablishOnset',true,
       'reportCountIsNotEpisodeCount',true,
+      'resolvedAbsentAndUnknownAreNotPainOccurrences',true,
       'noCausalOrDiagnosticInference',true,
       'noNoelPracticeRecords',true
     )
