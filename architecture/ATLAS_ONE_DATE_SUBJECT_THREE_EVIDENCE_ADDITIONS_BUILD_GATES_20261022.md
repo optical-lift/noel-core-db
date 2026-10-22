@@ -4,6 +4,16 @@
 **Recorded:** October 22, 2026.  
 **Parent:** `architecture/ATLAS_ONE_DATE_SUBJECT_PACKET0_AUDIT_20261022.md`; `architecture/ATLAS_UNIVERSAL_TEMPORAL_FIELD_CONSTITUTION_V1.md`; `architecture/ATLAS_TEMPORAL_CONTRIBUTION_PROTOCOL_V1.md`.
 
+## Corrected owner intent — one calendar, one Event schedule (October 22)
+
+**This correction has priority over every divergent schedule-comparison example below.**
+
+The owner clarified that the Harvest Party is **one real Event, 4–8 p.m.**, with its richer information in the older 6–8 p.m. canonical record. These are linked data carriers for **one canonical Occurrence**, not two equally legitimate calendar entries requiring perpetual reconciliation. Atlas must **repair the canonical schedule without losing the richer data**, route all date/Event reads and edits through one authority, and retire the parallel writable schedule path. Existing evidence/preflight functions are transitional diagnostics; their existence does not satisfy the one-calendar product requirement.
+
+Governing supersession and acceptance matrix: `architecture/ATLAS_ONE_CALENDAR_SINGLE_EVENT_AUTHORITY_CORRECTION_20261022.md`. The October 30 resource claim is 4–8 p.m. and must remain intact. The unrelated 6–7 a.m. Arise session is a genuinely separate Occurrence.
+
+**Packet 1B cannot close until the source writer, canonical 4–8 correction, route retirement and one Event/Date/Calendar user path are demonstrated.** Do not describe two calendars as an expected feature or ask the owner to choose between 4 and 6 again; she already established 4–8 p.m.
+
 ## Owner-adopted scope
 
 The October 30 example is an **acceptance oracle**, not a hardcoded Elm workflow. The user approved **all three** universal additions, before declaring the Event/Date workspace functionally complete:
