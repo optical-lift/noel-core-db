@@ -104,3 +104,26 @@ ROLLBACK;
 -- Positive real-user authorization, cross-Ledger and context isolation
 -- require the separately prepared signed local GoTrue+REST proof. This file
 -- never claims that unsourced Postgres role settings are genuine sessions.
+
+
+-- The protected synthetic member is ONE Reality/Atlas Person, never an
+-- accidental legacy user fork. Checked as fixture state, not production data.
+DO $identity$
+DECLARE v_total integer;
+BEGIN
+  SELECT count(*)::integer INTO v_total
+  FROM reality.auth_person_bindings r
+  JOIN atlas.person_auth_credentials c
+    ON c.auth_user_id=r.auth_user_id
+   AND c.person_id=r.person_entity_id
+   AND c.status='active'
+  WHERE r.auth_user_id IN (
+    'f5210000-0000-4000-8000-000000000401'::uuid,
+    'f5210000-0000-4000-8000-000000000403'::uuid
+  )
+  AND r.binding_state='active' AND r.retired_at IS NULL;
+  IF v_total<>2 THEN
+    RAISE EXCEPTION 'Disposable signed Calendar Persons do not resolve to one identity';
+  END IF;
+END
+$identity$;

@@ -223,6 +223,29 @@ WHERE id='f5210000-0000-4000-8000-000000000101'::uuid;
 -- Existing confirmed site hold is 4-8 PM, independent from public schedule.
 
 
+-- Synthetic member compatibility is the *same canonical Person* already
+-- bound through reality.auth_person_bindings. The legacy atlas trigger must
+-- not allocate an accidental second Person while admitting Org membership.
+INSERT INTO atlas.people(id,display_name)
+SELECT 'f5210000-0000-4000-8000-000000000002'::uuid,
+  'Synthetic Authorized Person'
+WHERE NOT EXISTS (
+ SELECT 1 FROM atlas.people p
+ WHERE p.id='f5210000-0000-4000-8000-000000000002'::uuid
+);
+INSERT INTO atlas.person_auth_credentials(
+ person_id,credential_kind,auth_user_id,status,provenance
+)
+SELECT 'f5210000-0000-4000-8000-000000000002'::uuid,
+       'supabase_auth_user',
+       'f5210000-0000-4000-8000-000000000401'::uuid,
+       'active',
+       '{"basis":"disposable_one_calendar_same_person_compatibility"}'::jsonb
+WHERE NOT EXISTS (
+ SELECT 1 FROM atlas.person_auth_credentials c
+ WHERE c.auth_user_id='f5210000-0000-4000-8000-000000000401'::uuid
+);
+
 -- ONE Calendar synthetic purpose-context admissions.
 -- Member and root are two independently authenticated Persons; only these
 -- have a current effective Organization membership. The outsider does not.
