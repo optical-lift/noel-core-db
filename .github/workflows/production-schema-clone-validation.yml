@@ -246,3 +246,38 @@ jobs:
           path: ${{ runner.temp }}/production-schema-validation-artifacts
           if-no-files-found: error
           retention-days: 30
+
+  report-result:
+    name: Report clone outcome to request
+    needs: [validate]
+    if: >-
+      always() &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      startsWith(github.event.issue.title, 'Production schema validation request:')
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    # This separate job has no protected environment and no database secrets.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish non-sensitive result and run link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUEST_NUMBER: ${{ github.event.issue.number }}
+          RESULT: ${{ needs.validate.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$RESULT" in
+            success|failure|cancelled|skipped) ;;
+            *) echo 'Unexpected validation status; refusing report.' >&2; exit 1 ;;
+          esac
+          gh issue comment "$REQUEST_NUMBER" --body "Disposable production-schema clone validation result: **$RESULT**.
+
+          [View the full GitHub Actions run]($RUN_URL) to inspect the validation summary, migration diagnostics, lint delta, and any failed steps.
+
+          This status report does not authorize a database release or attest to untested two-person permission and concurrency requirements."
