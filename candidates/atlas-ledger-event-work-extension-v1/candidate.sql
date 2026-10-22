@@ -218,11 +218,16 @@ BEGIN
  END IF;
  SELECT e.action_kind INTO v_previous
  FROM atlas.ledger_occurrence_work_actions_v1 e
- WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id
-  AND e.occurrence_id=p_occurrence_id AND e.work_item_id=p_work_item_id
-  AND e.action_kind IN ('blocked','reopened','removed')
+ WHERE e.organization_id=p_organization_id AND e.work_item_id=p_work_item_id
+  AND e.action_kind IN ('blocked','reopened')
  ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1;
- IF v_previous='removed' THEN
+ -- A Work blocker is source-global. Its Event association is not.
+ IF EXISTS (
+  SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 removed
+  WHERE removed.organization_id=p_organization_id AND removed.ledger_id=p_ledger_id
+   AND removed.occurrence_id=p_occurrence_id
+   AND removed.work_item_id=p_work_item_id AND removed.action_kind='removed'
+ ) THEN
   RAISE EXCEPTION 'Removed Event association cannot be operated without explicit restoration'
    USING ERRCODE='23514'; END IF;
  v_created_here:=v_work.source_object_type='ledger_occurrence_shared_work'
@@ -382,9 +387,8 @@ BEGIN
       AND cb.binding_state='active'
   LEFT JOIN LATERAL (
     SELECT e.action_kind FROM atlas.ledger_occurrence_work_actions_v1 e
-    WHERE e.ledger_id=a.ledger_id AND e.occurrence_id=a.occurrence_id
-      AND e.work_item_id=a.work_item_id
-      AND e.action_kind IN ('blocked','reopened','removed')
+    WHERE e.work_item_id=a.work_item_id
+      AND e.action_kind IN ('blocked','reopened')
     ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1
   ) last_action ON true
   WHERE a.person_entity_id=v_person AND a.attention_state='active'
@@ -450,11 +454,15 @@ BEGIN
  SELECT action_kind INTO v_latest
  FROM atlas.ledger_occurrence_work_actions_v1 e
  WHERE e.work_item_id=new.work_item_id
-   AND e.occurrence_id=v_work.source_object_id
-   AND e.ledger_id=(v_work.metadata->>'ledgerId')::uuid
-   AND e.action_kind IN ('blocked','reopened','removed')
+   AND e.action_kind IN ('blocked','reopened')
  ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1;
- IF v_latest IN ('blocked','removed') THEN
+ IF v_latest='blocked' OR EXISTS (
+  SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 removed
+  WHERE removed.work_item_id=new.work_item_id
+   AND removed.occurrence_id=v_work.source_object_id
+   AND removed.ledger_id=(v_work.metadata->>'ledgerId')::uuid
+   AND removed.action_kind='removed'
+ ) THEN
    RAISE EXCEPTION 'Blocked or removed shared Event Work cannot be checked off'
      USING ERRCODE='23514';
  END IF;
@@ -507,16 +515,19 @@ BEGIN
      AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
   LEFT JOIN LATERAL (
     SELECT e.action_kind FROM atlas.ledger_occurrence_work_actions_v1 e
-    WHERE e.work_item_id=w.id AND e.ledger_id=p_ledger_id
-      AND e.occurrence_id=p_occurrence_id
-      AND e.action_kind IN ('blocked','reopened','removed')
+    WHERE e.work_item_id=w.id
+      AND e.action_kind IN ('blocked','reopened')
     ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1
   ) action ON true
   WHERE ctx.organization_id=p_organization_id
     AND ctx.subject_domain='temporal' AND ctx.subject_kind='occurrence'
     AND ctx.subject_id=p_occurrence_id
     AND w.work_state IN ('open','completed')
-    AND coalesce(action.action_kind,'')<>'removed'
+    AND NOT EXISTS (
+      SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 removed
+      WHERE removed.work_item_id=w.id AND removed.ledger_id=p_ledger_id
+        AND removed.occurrence_id=p_occurrence_id AND removed.action_kind='removed'
+    )
  ) z;
  -- History combines native Work creation and accepted completion evidence
  -- with append-only Event actions. A completed task is not falsely labelled
