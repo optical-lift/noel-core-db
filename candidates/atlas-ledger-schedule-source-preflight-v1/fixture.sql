@@ -151,6 +151,23 @@ WHERE NOT EXISTS (
  WHERE p.id='f5210000-0000-4000-8000-000000000004'::uuid
 );
 
+-- The canonical reality.auth_person_bindings identity does not itself
+-- populate legacy atlas.person_auth_credentials. The Principal compatibility
+-- trigger resolves that separate bridge and otherwise allocates a second Person.
+-- Preserve ONE exact synthetic Person across both already-governed relations.
+INSERT INTO atlas.person_auth_credentials(
+  person_id,credential_kind,auth_user_id,status,provenance
+)
+SELECT 'f5210000-0000-4000-8000-000000000004'::uuid,
+       'supabase_auth_user',
+       'f5210000-0000-4000-8000-000000000403'::uuid,
+       'active',
+       '{"basis":"disposable_schedule_preflight_canonical_compatibility"}'::jsonb
+WHERE NOT EXISTS (
+  SELECT 1 FROM atlas.person_auth_credentials c
+  WHERE c.auth_user_id='f5210000-0000-4000-8000-000000000403'::uuid
+);
+
 INSERT INTO atlas.principals(user_id,person_id,stable_key,name)
 SELECT 'f5210000-0000-4000-8000-000000000403'::uuid,
   'f5210000-0000-4000-8000-000000000004'::uuid,
