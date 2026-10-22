@@ -84,6 +84,7 @@ BEGIN
            AND ob.occurrence_id=o.id AND ob.binding_state='active'
           JOIN atlas.community_events ce
             ON ce.occurrence_binding_id=ob.id
+           AND ce.visibility_scope='farm_shared'
           WHERE lop.ledger_id=p_ledger_id
             AND lop.status='active' AND lop.ended_at IS NULL
             AND lop.participation_kind IN ('governing','operating')
@@ -152,7 +153,8 @@ BEGIN
         )
         FROM atlas.organization_occurrence_bindings ob
         JOIN atlas.community_events ce ON ce.occurrence_binding_id=ob.id
-        WHERE s.organization_count=1
+        WHERE ce.visibility_scope='farm_shared'
+          AND s.organization_count=1
           AND ob.organization_id=s.organization_id
           AND ob.occurrence_id=s.id
           AND ob.binding_state='active'
@@ -195,14 +197,15 @@ BEGIN
     'coverage',jsonb_build_object(
       'sourceFamiliesEvaluated',jsonb_build_array(
         'active_ledger_bound_canonical_occurrences',
-        'linked_organization_community_event_assertions'),
+        'linked_farm_shared_operational_event_assertions'),
       'returnedOccurrenceCount',jsonb_array_length(v_items),
       'eligibleOccurrenceCount',v_total,
       'truncated',v_total>v_limit,
       'wholeTemporalFieldComplete',false,
       'nonIntegratedSourceFamiliesNotDeniedOrEmpty',true,
       'occurrencesWithoutLedgerBindingNotEvaluated',true,
-      'operationalSourceLocalDatesNotUniversalTimezoneCoverage',true
+      'operationalSourceLocalDatesNotUniversalTimezoneCoverage',true,
+      'restrictedOperationalViewsAreNotIncluded',true
     ),
     'truthBoundary',jsonb_build_object(
       'readOnly',true,
