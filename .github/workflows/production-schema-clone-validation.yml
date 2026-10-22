@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: noel-core-production-schema-clone-validation
@@ -105,6 +106,16 @@ jobs:
           supabase db dump --help >/dev/null
           supabase db start --help >/dev/null
           supabase db lint --help >/dev/null
+
+      - name: Authenticate read-only GHCR image pulls
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
 
       - name: Snapshot production user schemas read-only
         shell: bash
