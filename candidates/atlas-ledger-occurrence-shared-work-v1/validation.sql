@@ -19,14 +19,14 @@ BEGIN
   IF v_kind IS DISTINCT FROM 'domain_adapter' THEN
     RAISE EXCEPTION 'Shared checklist confirmation policy missing/mismatched';
   END IF;
-  IF to_regprocedure('atlas.ledger_occurrence_shared_index_self_api_v1(uuid,uuid)') IS NULL
+  IF to_regprocedure('atlas.ledger_occurrence_shared_index_self_api_v1(uuid)') IS NULL
      OR to_regprocedure('atlas.ledger_occurrence_shared_work_actor_self_v1(uuid,uuid,uuid)') IS NULL
      OR to_regprocedure('atlas.ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid)') IS NULL
      OR to_regprocedure('atlas.create_ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid,text,text)') IS NULL
      OR to_regprocedure('atlas.mark_ledger_occurrence_shared_work_done_self_api_v1(uuid,uuid,uuid,uuid,text)') IS NULL THEN
     RAISE EXCEPTION 'Required source operation was not created';
   END IF;
-  IF has_function_privilege('anon','atlas.ledger_occurrence_shared_index_self_api_v1(uuid,uuid)','EXECUTE')
+  IF has_function_privilege('anon','atlas.ledger_occurrence_shared_index_self_api_v1(uuid)','EXECUTE')
      OR has_function_privilege('anon','atlas.ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid)','EXECUTE')
      OR has_function_privilege('anon','atlas.create_ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid,text,text)','EXECUTE')
      OR has_function_privilege('anon','atlas.mark_ledger_occurrence_shared_work_done_self_api_v1(uuid,uuid,uuid,uuid,text)','EXECUTE')
@@ -34,7 +34,7 @@ BEGIN
   THEN
     RAISE EXCEPTION 'Source boundary leaked privileged function access';
   END IF;
-  IF NOT has_function_privilege('authenticated','atlas.ledger_occurrence_shared_index_self_api_v1(uuid,uuid)','EXECUTE')
+  IF NOT has_function_privilege('authenticated','atlas.ledger_occurrence_shared_index_self_api_v1(uuid)','EXECUTE')
      OR NOT has_function_privilege('authenticated','atlas.ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid)','EXECUTE')
      OR NOT has_function_privilege('authenticated','atlas.create_ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid,text,text)','EXECUTE')
      OR NOT has_function_privilege('authenticated','atlas.mark_ledger_occurrence_shared_work_done_self_api_v1(uuid,uuid,uuid,uuid,text)','EXECUTE')
