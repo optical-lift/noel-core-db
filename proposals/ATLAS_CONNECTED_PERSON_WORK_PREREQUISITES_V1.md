@@ -33,3 +33,18 @@ No automatic blocking, completion, status change, or new Work records. Historica
 ### Why the fixture remains unresolved in this review-only proposal
 
 The existing `atlas.work_allocations` guard rejects fabricated bare allocations. A synthetic row lacking the actual governed establishment evidence would create a misleading green test and must not be used. Use the existing source command to create the assignment on the disposable local server before verifying the proposed reader. The proposal is **not deployable** until that end-to-end test is in place.
+
+
+## Signed acceptance package now staged
+
+The exact reviewed candidate and validation inputs are at:
+
+- `candidates/atlas/atlas_connected_person_work_prerequisites_v1.sql` — canonical source-generation input, not a numbered migration
+- `candidates/atlas/atlas_connected_person_work_prerequisites_v1_postconditions.sql` — disposable structural/permission checks
+- `candidates/atlas/atlas_connected_person_work_prerequisites_v1_fixture.sql` — synthetic four-Person/Work fixture and ordinary Work contract policy
+
+The actual signed positive proof was added as `scripts/validate-atlas-connected-work-prerequisite-signed-http.py`, wired into the guarded `scripts/validate-production-schema-clone.sh` **only for the new migration's exact basename**. It signs the real four synthetic GoTrue sessions and calls the original `connected_ledger_direct_assign_self_api_v1` to produce a genuinely governed new allocated Work record. It then has the signed governing principal establish an original `depends_on` edge to an independently sourced Work and proves the connected recipient can read it, but cannot read another Work or operate governing RPCs. Withdrawal and revoked Ledger seat/Auth session are also covered. The test does not create any artificial employee seat.
+
+The existing C1 fixture is reused, with no production IDs, messages or data. The protected runner requires a real local Supabase Auth+REST endpoint and denies nonlocal Postgres URLs. **Source-custody checks succeeded in CI #3526; signed PostgreSQL execution has not yet occurred.** Any earlier note describing the fixture as unimplemented referred to an earlier review stage and is superseded by this section.
+
+**Generator handoff after source review/merge:** migration name `atlas_connected_person_work_prerequisites_v1`, `release_lane: atlas`, fixture path `candidates/atlas/atlas_connected_person_work_prerequisites_v1_fixture.sql`, validation path `candidates/atlas/atlas_connected_person_work_prerequisites_v1_postconditions.sql`; owner must use exact approved main candidate SHA. The generated version is assigned only by the canonical CLI source-generation workflow. The new RPC is *not* installed until a later successful protected release.
