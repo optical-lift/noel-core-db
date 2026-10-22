@@ -84,6 +84,25 @@ create index if not exists work_item_prerequisite_events_v1_relation_idx
 alter table atlas.work_item_prerequisite_events_v1 enable row level security;
 revoke all on atlas.work_item_prerequisite_events_v1 from public,anon,authenticated;
 
+-- Event custody is truly append-only, not merely an application convention.
+-- This protects against accidental UPDATE/DELETE from future definer writers
+-- as well as direct browser writes already denied by RLS and privileges.
+create or replace function atlas.guard_work_item_prerequisite_event_immutable_v1()
+returns trigger language plpgsql set search_path=''
+as $
+begin
+  raise exception 'Original prerequisite action history cannot be updated or deleted.'
+    using errcode='23514';
+end;
+$;
+revoke all on function atlas.guard_work_item_prerequisite_event_immutable_v1()
+  from public,anon,authenticated;
+drop trigger if exists guard_work_item_prerequisite_event_immutable_v1
+  on atlas.work_item_prerequisite_events_v1;
+create trigger guard_work_item_prerequisite_event_immutable_v1
+before update or delete on atlas.work_item_prerequisite_events_v1
+for each row execute function atlas.guard_work_item_prerequisite_event_immutable_v1();
+
 -- Reuse current, exact, evidenced Ledger relevance. Another organization
 -- or a loose connection/seat never creates access to Work.
 create or replace function atlas.work_prerequisite_ledger_scope_v1(
