@@ -111,6 +111,9 @@ BEGIN
   SELECT value INTO v_c FROM jsonb_array_elements(v_read->'occurrences') a(value)
     WHERE value#>>'{sourceRef,id}'='f5210000-0000-4000-8000-000000000103';
 
+  IF position('Synthetic Restricted Owner Planning' in v_read::text) > 0 THEN
+    RAISE EXCEPTION 'Owner-only operational source leaked into shared date evidence';
+  END IF;
   IF v_a IS NULL OR v_b IS NULL OR v_c IS NULL
      OR jsonb_array_length(v_a->'communityEventAssertions') <> 1
      OR jsonb_array_length(v_b->'communityEventAssertions') <> 1
