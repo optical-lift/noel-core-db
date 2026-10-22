@@ -306,9 +306,16 @@ BEGIN
   'f5200000-0000-4000-8000-000000000104'::uuid,
   'f5200000-0000-4000-8000-000000000202'::uuid,
    v_work,'removed','extension-f520-unlink',null);
+ v_reader:=atlas.ledger_occurrence_work_extension_self_api_v1(
+  'f5200000-0000-4000-8000-000000000101'::uuid,
+  'f5200000-0000-4000-8000-000000000104'::uuid,
+  'f5200000-0000-4000-8000-000000000201'::uuid);
  IF v_unlinked->>'underlyingWorkCancelled'<>'false'
-   OR NOT EXISTS (SELECT 1 FROM atlas.work_items
-      WHERE id=v_work AND work_state='open') THEN
+    OR NOT EXISTS (
+      SELECT 1 FROM jsonb_array_elements(v_reader->'work') row_item
+      WHERE row_item->>'workItemId'=v_work::text
+        AND row_item->>'workState'='open'
+    ) THEN
   RAISE EXCEPTION 'Event unlink cancelled or replaced underlying Work';
  END IF;
 
