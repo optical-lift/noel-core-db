@@ -156,6 +156,24 @@ else:
             errors.append(f'Missing synthetic fixture setup: {fragment}')
     if 'https://zirqkouammpwxlqfbsvf.supabase.co' in proof:
         errors.append('Signed proof must not hardcode production Supabase endpoint')
+    # Mirror the disposable harness's exact DML-only fixture safety guard.
+    import re
+    normalized = re.sub(r'/\*.*?\*/', ' ', synthetic, flags=re.S)
+    normalized = re.sub(r'--[^\n]*', ' ', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    forbidden = re.compile(
+        r'\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|'
+        r'reindex|cluster|refresh|copy|do|call|execute|prepare|deallocate|'
+        r'listen|notify|security)\b', re.I)
+    found = forbidden.search(normalized)
+    if found:
+        errors.append(f'Prerequisite fixture has forbidden token: {found.group(0)}')
+    statements = [item.strip() for item in normalized.split(';') if item.strip()]
+    if not statements or any(
+        not re.match(r'^(insert\s+into|update\s+|delete\s+from|select\s+)', item, re.I)
+        for item in statements
+    ):
+        errors.append('Prerequisite fixture has non-DML statements')
 
 if errors:
     print('Production schema validation contract FAILED:')
