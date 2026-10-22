@@ -253,11 +253,13 @@ begin
     raise exception 'Both Work records must belong to the same Organization.'
       using errcode='42501';
   end if;
-  if v_downstream.work_state<>'open' or
-     v_prerequisite.work_state not in ('open','completed') then
-    raise exception 'Cannot establish or revise retired/cancelled Work.'
+  if p_enabled and (v_downstream.work_state<>'open' or
+     v_prerequisite.work_state not in ('open','completed')) then
+    raise exception 'Cannot establish new prerequisites for retired/cancelled Work.'
       using errcode='23514';
   end if;
+  -- Withdrawal remains possible for an existing original relation, even if
+  -- the Work state changed after the relationship was established.
   if not atlas.work_prerequisite_ledger_scope_v1(
        p_organization_id,p_ledger_id,p_downstream_work_item_id)
      or not atlas.work_prerequisite_ledger_scope_v1(
