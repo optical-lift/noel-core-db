@@ -159,6 +159,54 @@ begin
 end
 $function$;
 
+-- Minimal Event index: discover only exact Occurrences bound to a live
+-- Ledger AND the same Organization. This is intentionally not the root Ledger
+-- workspace, and does not disclose full action history or customer data.
+CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_shared_index_self_api_v1(
+  p_organization_id uuid,p_ledger_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+declare v_actor uuid;v_access jsonb;v_events jsonb;
+begin
+  if auth.uid() is null or p_organization_id is null or p_ledger_id is null then
+    raise exception 'Authenticated exact Ledger required.' using errcode='42501';
+  end if;
+  v_access:=atlas.reality_access_self_api_v1();
+  if v_access->>'state' is distinct from 'ready'
+    or v_access->>'authenticated' is distinct from 'true' then
+    raise exception 'Personal Atlas identity access required.' using errcode='42501';
+  end if;
+  v_actor:=atlas.current_person_id_v1();
+  if v_actor is null or not atlas.person_has_native_ledger_connection_v1(
+    p_organization_id,p_ledger_id,v_actor
+  ) then
+    raise exception 'Current exact Ledger connection required.' using errcode='42501';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id',q.id,'title',q.title,'status',q.status,
+    'startsAt',q.start_at,'endsAt',q.end_at
+  ) order by q.start_at desc,q.id),'[]'::jsonb) into v_events
+  from (
+    select o.id,o.title,o.status,o.start_at,o.end_at
+    from ledger.occurrence_calendar_bindings cb
+    join local_intel.occurrences o on o.id=cb.occurrence_id
+    join atlas.organization_occurrence_bindings ob
+      on ob.occurrence_id=o.id and ob.organization_id=p_organization_id
+        and ob.binding_state='active'
+    where cb.ledger_id=p_ledger_id and cb.binding_state='active'
+    order by o.start_at desc,o.id
+    limit 150
+  ) q;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','ledger_occurrence_shared_index_v1',
+    'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+    'events',v_events,'truthBoundary',jsonb_build_object(
+      'onlyBoundOccurrences',true,'noCustomerData',true,
+      'noGeneralLedgerHistory',true,'notGrantingWorkExecution',true));
+end
+$function$;
+
 -- An ordinary shared check-off is a confirmation about Work state, not a
 -- witness statement that the actor personally performed the physical work.
 INSERT INTO atlas.work_result_contract_policies(
@@ -405,12 +453,16 @@ $function$;
 
 REVOKE ALL ON FUNCTION atlas.ledger_occurrence_shared_work_actor_self_v1(uuid,uuid,uuid)
   FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.ledger_occurrence_shared_index_self_api_v1(uuid,uuid)
+  FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION atlas.ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid)
   FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION atlas.create_ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid,text,text)
   FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION atlas.mark_ledger_occurrence_shared_work_done_self_api_v1(uuid,uuid,uuid,uuid,text)
   FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION atlas.ledger_occurrence_shared_index_self_api_v1(uuid,uuid)
+  TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas.ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid)
   TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas.create_ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid,text,text)
