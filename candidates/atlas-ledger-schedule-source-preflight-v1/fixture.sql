@@ -5,7 +5,8 @@ INSERT INTO reality.entities(id,stable_key,entity_kind,display_name)
 VALUES
  ('f5210000-0000-4000-8000-000000000001','atlas-date-proof-org-f521','organization','Synthetic Date Institution'),
  ('f5210000-0000-4000-8000-000000000002','atlas-date-proof-included-f521','person','Synthetic Authorized Person'),
- ('f5210000-0000-4000-8000-000000000003','atlas-date-proof-outsider-f521','person','Synthetic Unconnected Person');
+ ('f5210000-0000-4000-8000-000000000003','atlas-date-proof-outsider-f521','person','Synthetic Unconnected Person'),
+ ('f5210000-0000-4000-8000-000000000004','atlas-date-proof-governor-f521','person','Synthetic Root Governor');
 
 INSERT INTO atlas.organizations(id,stable_key,name)
 VALUES ('f5210000-0000-4000-8000-000000000010','atlas-date-proof-organization-f521','Synthetic Date Institution');
@@ -98,17 +99,21 @@ VALUES
  ('f5210000-0000-4000-8000-000000000401','00000000-0000-0000-0000-000000000000',
   'authenticated','authenticated','atlas-date-proof-1@example.invalid',now(),now()),
  ('f5210000-0000-4000-8000-000000000402','00000000-0000-0000-0000-000000000000',
-  'authenticated','authenticated','atlas-date-proof-2@example.invalid',now(),now());
+  'authenticated','authenticated','atlas-date-proof-2@example.invalid',now(),now()),
+ ('f5210000-0000-4000-8000-000000000403','00000000-0000-0000-0000-000000000000',
+  'authenticated','authenticated','atlas-date-proof-3@example.invalid',now(),now());
 
 INSERT INTO auth.sessions(id,user_id,created_at,updated_at)
 VALUES
  ('f5210000-0000-4000-8000-000000000411','f5210000-0000-4000-8000-000000000401',now(),now()),
- ('f5210000-0000-4000-8000-000000000412','f5210000-0000-4000-8000-000000000402',now(),now());
+ ('f5210000-0000-4000-8000-000000000412','f5210000-0000-4000-8000-000000000402',now(),now()),
+ ('f5210000-0000-4000-8000-000000000413','f5210000-0000-4000-8000-000000000403',now(),now());
 
 INSERT INTO reality.auth_person_bindings(auth_user_id,person_entity_id,binding_state)
 VALUES
  ('f5210000-0000-4000-8000-000000000401','f5210000-0000-4000-8000-000000000002','active'),
- ('f5210000-0000-4000-8000-000000000402','f5210000-0000-4000-8000-000000000003','active');
+ ('f5210000-0000-4000-8000-000000000402','f5210000-0000-4000-8000-000000000003','active'),
+ ('f5210000-0000-4000-8000-000000000403','f5210000-0000-4000-8000-000000000004','active');
 
 -- Identity admission can establish a Personal Atlas first.
 -- Insert a synthetic native Atlas only for a Person without one.
@@ -117,7 +122,8 @@ INSERT INTO personal.atlases(person_entity_id,atlas_state,native)
 SELECT seeded.person_entity_id, 'active', true
 FROM (VALUES
  ('f5210000-0000-4000-8000-000000000002'::uuid),
- ('f5210000-0000-4000-8000-000000000003'::uuid)
+ ('f5210000-0000-4000-8000-000000000003'::uuid),
+ ('f5210000-0000-4000-8000-000000000004'::uuid)
 ) AS seeded(person_entity_id)
 WHERE NOT EXISTS (
  SELECT 1 FROM personal.atlases existing
@@ -127,5 +133,63 @@ WHERE NOT EXISTS (
 -- Only first Person gets the Ledger relationship; second has valid synthetic
 -- session and Atlas, but is NOT authorized to read the Event.
 INSERT INTO ledger.seats(ledger_id,person_entity_id,seat_state)
-VALUES ('f5210000-0000-4000-8000-000000000014',
-        'f5210000-0000-4000-8000-000000000002','active');
+VALUES
+ ('f5210000-0000-4000-8000-000000000014',
+  'f5210000-0000-4000-8000-000000000002','active'),
+ ('f5210000-0000-4000-8000-000000000014',
+  'f5210000-0000-4000-8000-000000000004','active');
+
+-- An unrelated native participant is the ordinary member; the third Person
+-- has the *distinct* root_governing authority over this exact Ledger.
+INSERT INTO atlas.people(id,stable_key,display_name)
+SELECT 'f5210000-0000-4000-8000-000000000004'::uuid,
+  'atlas-date-proof-root-person-f521','Synthetic Root Governor'
+WHERE NOT EXISTS (
+ SELECT 1 FROM atlas.people p
+ WHERE p.id='f5210000-0000-4000-8000-000000000004'::uuid
+);
+
+INSERT INTO atlas.principals(user_id,person_id,stable_key,name)
+SELECT 'f5210000-0000-4000-8000-000000000403'::uuid,
+  'f5210000-0000-4000-8000-000000000004'::uuid,
+  'atlas-date-proof-root-principal-f521','Synthetic Root Governor'
+WHERE NOT EXISTS (
+ SELECT 1 FROM atlas.principals p
+ WHERE p.user_id='f5210000-0000-4000-8000-000000000403'::uuid
+);
+
+INSERT INTO atlas.principal_ledger_authorities(
+ principal_id,ledger_id,authority_kind,status,basis
+)
+SELECT p.id,'f5210000-0000-4000-8000-000000000014'::uuid,
+ 'root_governing','active','disposable schedule-correction root authorization proof'
+FROM atlas.principals p
+WHERE p.person_id='f5210000-0000-4000-8000-000000000004'::uuid
+  AND NOT EXISTS (
+    SELECT 1 FROM atlas.principal_ledger_authorities a
+    WHERE a.principal_id=p.id AND
+      a.ledger_id='f5210000-0000-4000-8000-000000000014'::uuid
+      AND a.status='active'
+  );
+
+-- This confirmed Resource claim proves root-only impact visibility while
+-- an ordinary authenticated Ledger Person must see NULL, not zero.
+INSERT INTO reality.resources(id,owner_entity_id,stable_key,label,resource_kind,
+  capacity_mode,timezone_name)
+VALUES (
+ 'f5210000-0000-4000-8000-000000000601',
+ 'f5210000-0000-4000-8000-000000000001',
+ 'atlas-date-proof-resource-f521','Synthetic Shared Space',
+ 'space','shared','America/Chicago');
+
+INSERT INTO ledger.occurrence_resource_claims(
+ ledger_id,occurrence_id,resource_id,claim_kind,claim_state,
+ starts_at,ends_at,provenance
+)
+VALUES (
+ 'f5210000-0000-4000-8000-000000000014',
+ 'f5210000-0000-4000-8000-000000000101',
+ 'f5210000-0000-4000-8000-000000000601',
+ 'shared','confirmed',
+ '2030-10-30 21:00+00','2030-10-31 01:00+00',
+ '{"source":"disposable_schedule_preflight_fixture"}'::jsonb);
