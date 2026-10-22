@@ -115,3 +115,51 @@ Source review found three malformed SQL function quote delimiters (`AS $` / `$;`
 A new restricted `.github/workflows/atlas-work-prerequisite-source-check.yml` runs those assertions on relevant PR changes with **contents-read-only permission**, no protected production environment, no database credentials and no deployment steps. **Source Check run #1 passed**, as did existing **Database Custody CI #3456** on the same draft commit.
 
 **Not completed:** the official, owner-requested `Production schema validation request: Atlas <14-digit-version>` workflow. Per `docs/PRODUCTION_SCHEMA_CLONE_VALIDATION.md`, that requires a CLI-generated canonical `atlas_` migration version, exact immutable candidate SHA and an owner-authored issue, and runs a separate disposable full production-schema clone. The no-cost GitHub clone route is preferable to a paid Supabase development branch. Until then, no candidate code is released, and app PR #343 must remain unmounted.
+
+
+## Source generator handoff — no paid Supabase branch
+
+The source package is now prepared for the **existing owner-gated GitHub generator**, not manually timestamped:
+
+- Migration name: `atlas_work_item_prerequisites_v1`
+- Candidate SQL: `candidates/atlas/atlas_work_item_prerequisites_v1.sql`
+- Candidate disposable postconditions: `candidates/atlas/atlas_work_item_prerequisites_v1_postconditions.sql`
+- Candidate fixture: `none` (the synthetic graph test runs as rollback-only postconditions; the harness rejects procedural SQL in the fixture slot)
+
+Both file bytes are checked against the reviewed `proposals/` source by the new no-secrets PR source-test workflow. The staged SQL begins with `BEGIN;` and ends with `COMMIT;` in the canonical release convention.
+
+**Sequence required by canonical governance:**
+
+1. Source-only review and merge of the candidate paths from PR #1947 to canonical `main`. This step places files in Git, **not in production Supabase**. Reconcile other `main` changes first.
+2. Only after that merge, the GitHub **repository OWNER** opens this exact issue title:
+
+   `Migration generation request: Atlas atlas_work_item_prerequisites_v1`
+
+   Issue body must be:
+   ```text
+   release_lane: atlas
+   migration_name: atlas_work_item_prerequisites_v1
+   candidate_sha: <40-character SHA already on canonical main containing the reviewed candidate>
+   candidate_path: candidates/atlas/atlas_work_item_prerequisites_v1.sql
+   fixture_path: none
+   validation_path: candidates/atlas/atlas_work_item_prerequisites_v1_postconditions.sql
+   ```
+
+   The actual SHA must be obtained from the approved canonical main commit, never guessed or copied from an unmerged feature branch.
+3. The owner-gated `migration-source-generation.yml` runs pinned `supabase migration new`, copies the exact reviewed candidate and creates a separate `generated/...` branch. Review this branch; it is **not a database release**.
+4. With the generated migration version and the generated branch's immutable 40-character commit SHA, the GitHub repository OWNER opens the exact validation issue:
+
+   `Production schema validation request: Atlas <14-digit-generated-version>`
+
+   With body:
+   ```text
+   migration_version: <actual-generated-version>
+   release_lane: atlas
+   production_target: zirqkouammpwxlqfbsvf
+   candidate_sha: <actual-immutable-commit-sha-of-generated-branch>
+   ```
+
+   The canonical `production-schema-clone-validation.yml` reads only production **schema and roles**, then applies the migration and graph checks to a disposable clone. This requires no paid Supabase preview branch.
+5. Inspect validation artifacts and run additional principal/seat denials and concurrency tests as required. Only after review and separately approved merge/release may the protected production release be considered.
+
+**This handoff is documentation, not an owner-authored issue.** Do not bypass the OWNER condition, invent a migration number or deploy candidate SQL directly via the Supabase connector.
