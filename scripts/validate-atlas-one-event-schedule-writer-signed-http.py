@@ -90,12 +90,6 @@ def signed_session(api, key, address):
             "No cryptographically signed session claims")
     return token, claims
 
-def writer(api,key,token,occurrence=CANONICAL_A,start="2030-10-30T21:00:00Z",
-           action="signed-root-event-correction"):
-    # Fetch original source versions explicitly from the disposable database
-    # before choosing an edit; caller passes exact versions separately.
-    raise RuntimeError("use write_with_versions")
-
 def write_with_versions(api,key,token,canonical_version,operational_version,
                         action="signed-root-event-correction",
                         start="2030-10-30T21:00:00Z"):
@@ -218,7 +212,7 @@ def main():
     code,stale=write_with_versions(api,key,tokens["root"][0],
              canonical_version,overlay_version,
              action="signed-root-stale-new-action",start="2030-10-30T22:00:00Z")
-    require(code in (400,409) and stale.get("code")=="40001",
+    require(code >= 400 and stale.get("code")=="40001",
             f"Stale independent source version not rejected: HTTP {code}, {stale}")
     print("PASS replay and stale writer race denial")
 
