@@ -255,8 +255,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   fi
 
   set +e
-  if [ "$signed_http_probe" = true ]; then
-    # Full LOCAL Auth + REST + Postgres, scoped to disposable C1 only.
+  if [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ]; then
+    # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
+    # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
   else
     supabase db start >"$startup_log" 2>&1
