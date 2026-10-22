@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS atlas.ledger_occurrence_work_actions_v1 (
     OR (action_kind NOT IN ('attention_directed','attention_cleared') AND target_person_id IS NULL)
   )
 );
+CREATE TRIGGER ledger_occurrence_work_actions_append_only_v1
+ BEFORE UPDATE OR DELETE ON atlas.ledger_occurrence_work_actions_v1
+ FOR EACH ROW EXECUTE FUNCTION atlas.block_company_work_result_history_mutation_v1();
+
 CREATE INDEX IF NOT EXISTS ledger_occurrence_work_actions_latest_v1
  ON atlas.ledger_occurrence_work_actions_v1
  (ledger_id,occurrence_id,work_item_id,occurred_at DESC,id DESC);
