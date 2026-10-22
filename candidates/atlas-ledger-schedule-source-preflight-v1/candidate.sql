@@ -53,6 +53,24 @@ BEGIN
   SELECT * INTO STRICT v_canonical
   FROM local_intel.occurrences o WHERE o.id=p_occurrence_id;
 
+  -- Preserve the Event Index's no-silent-selection rule when the same
+  -- canonical Occurrence is linked to multiple active Organizations within
+  -- one Ledger. A requested Organization ID is not a tie-break authority.
+  IF (
+    SELECT count(DISTINCT lop.organization_id)
+    FROM atlas.ledger_organization_participations lop
+    JOIN atlas.organization_occurrence_bindings ob
+      ON ob.organization_id=lop.organization_id
+     AND ob.occurrence_id=p_occurrence_id
+     AND ob.binding_state='active'
+    WHERE lop.ledger_id=p_ledger_id
+      AND lop.status='active' AND lop.ended_at IS NULL
+      AND lop.participation_kind IN ('governing','operating')
+  ) <> 1 THEN
+    RAISE EXCEPTION 'Unresolved multi-Organization Occurrence; source adjudication required.'
+      USING ERRCODE='23514';
+  END IF;
+
   -- A one-to-many overlay is a genuine source ambiguity, never choose the
   -- newest or first row as the source of authority.
   SELECT count(*)::integer INTO v_community_count
