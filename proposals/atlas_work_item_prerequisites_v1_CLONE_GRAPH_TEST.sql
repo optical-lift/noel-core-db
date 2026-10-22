@@ -11,6 +11,7 @@ declare
   v_c uuid;
   v_link_ab uuid;
   v_link_bc uuid;
+  v_event uuid;
   v_kind text;
   v_msg text;
   v_rejected boolean;
@@ -108,7 +109,39 @@ begin
     raise exception 'Existing completion-bundle relation behavior changed.';
   end if;
 
-  raise notice 'CLONE PASS: three-source chain; cycle rejected; reactivation rejected; unrelated relation types preserved; rollback follows.';
+  -- Event history has independent, database-enforced append-only custody.
+  insert into atlas.work_item_prerequisite_events_v1(
+    organization_id,ledger_id,relation_id,downstream_work_item_id,
+    prerequisite_work_item_id,actor_person_id,source_action_id,
+    request_fingerprint,action_kind,before_active,after_active,reason)
+  values(v_org,gen_random_uuid(),v_link_ab,v_a,v_b,gen_random_uuid(),
+    'clone-event-action-id','clone-fingerprint','establish',null,true,
+    'Verified fixture event')
+  returning id into v_event;
+
+  v_rejected:=false;
+  begin
+    update atlas.work_item_prerequisite_events_v1 set reason='altered history'
+    where id=v_event;
+  exception when check_violation then
+    v_rejected:=true;
+  end;
+  if not v_rejected then raise exception 'REJECT: audit history UPDATE admitted.'; end if;
+
+  v_rejected:=false;
+  begin
+    delete from atlas.work_item_prerequisite_events_v1 where id=v_event;
+  exception when check_violation then
+    v_rejected:=true;
+  end;
+  if not v_rejected then raise exception 'REJECT: audit history DELETE admitted.'; end if;
+
+  if not exists(select 1 from atlas.work_item_prerequisite_events_v1
+    where id=v_event and reason='Verified fixture event') then
+    raise exception 'Immutable original audit row was lost.';
+  end if;
+
+  raise notice 'CLONE PASS: three-source chain; cycle rejected; reactivation rejected; unrelated relation types and immutable audit retained; rollback follows.';
 end;
 $$;
 rollback;
