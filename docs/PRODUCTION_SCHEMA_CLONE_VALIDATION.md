@@ -68,3 +68,14 @@ The schema-clone validator is therefore a pre-merge/pre-release proof lane, not 
 ## Noel lane
 
 The owner-requested `Noel` lane validates `noel_` structural changes against a disposable complete production schema/role clone. It is **not** the path for adding word definitions, verse annotations or Reality Pool source anchors. Those are private records entered through the research workflow (`docs/NOEL_RESEARCH_OPERATIONS.md`), never a source migration or fixture. The validator must not dump production rows or disclose founder notes.
+
+
+## Non-sensitive validation result reporting
+
+An independent GitHub Actions job runs **after** the protected disposable-schema validation job and comments its GitHub job result (`success`, `failure`, `cancelled`, or `skipped`) and run URL on the original owner-authored validation issue. The reporting job has only `contents: read` and `issues: write` permissions. It has **no production environment, database URL, tokens to external services, clone dump, or SQL execution**.
+
+This improves visibility to reviewers who cannot enumerate the issue-triggered GitHub Actions runs through their installed integration. A reported `success` means only that the existing protected validator job succeeded; it is **not a production release**, nor proof that additional multi-principal permission and concurrent-cycle tests outside that job have passed. A `failure` requires inspecting the workflow summary and retained failure artifacts before correcting the immutable migration candidate.
+
+The reporting job must never quote schema data, execution logs, environment variables, connection strings or sensitive artifact contents in issue comments. Only the result enum, run URL and fixed interpretation text are permitted.
+
+For an issue opened before the reporter became part of canonical `main`, an owner-authorized issue edit or reopen can cause a **new** validation run under the existing `opened, edited, reopened` trigger. It does not retroactively comment old run results.
