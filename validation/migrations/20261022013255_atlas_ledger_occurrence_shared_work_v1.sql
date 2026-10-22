@@ -149,9 +149,7 @@ BEGIN
  IF (v_retry->>'workItemId')::uuid<>v_work OR v_retry->>'idempotent'<>'true' THEN
   RAISE EXCEPTION 'Replay must reuse exact Work identity: %',v_retry;
  END IF;
- IF EXISTS(select 1 from atlas.work_allocations where work_item_id=v_work) THEN
-  RAISE EXCEPTION 'Shared checklist falsely generated an allocation';
- END IF;
+ -- Allocation absence is verified after RESET ROLE, using local validator custody.
 
  -- Person 2 can mark this same source Work done without accepting assignment.
  PERFORM set_config('request.jwt.claim.sub','f5200000-0000-4000-8000-000000000002',true);
@@ -230,4 +228,16 @@ BEGIN
 END
 $event_work_proof$;
 RESET ROLE;
+DO $private_validator$
+BEGIN
+ IF EXISTS (
+   SELECT 1 FROM atlas.work_allocations a
+   JOIN atlas.work_items w ON w.id=a.work_item_id
+   WHERE w.organization_id='f5200000-0000-4000-8000-000000000101'::uuid
+     AND w.stable_key LIKE 'ledger-occurrence-shared:%'
+ ) THEN
+   RAISE EXCEPTION 'Ordinary Event checklist falsely generated a Work allocation';
+ END IF;
+END
+$private_validator$;
 ROLLBACK;
