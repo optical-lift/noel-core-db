@@ -94,6 +94,7 @@ phase="preflight"
 local_started=false
 signed_http_probe=false
 signed_date_http_probe=false
+signed_schedule_preflight_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -110,6 +111,15 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_date_http_probe=true
+fi
+# Require full Auth+REST for this specific source-owned schedule preflight.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_ledger_occurrence_schedule_preflight_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Schedule preflight signed HTTP proof requires synthetic fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_schedule_preflight_probe=true
 fi
 
 finish() {
@@ -255,7 +265,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   fi
 
   set +e
-  if [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ]; then
+  if [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
+     [ "$signed_schedule_preflight_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -349,6 +360,13 @@ if [ "$signed_date_http_probe" = true ]; then
     --db-url "$database_url" \
     --output "$artifacts_dir/signed-date-http-summary.txt" \
     >"$artifacts_dir/signed-date-http.log" 2>&1
+fi
+if [ "$signed_schedule_preflight_probe" = true ]; then
+  phase="signed local source-scoped schedule preflight authorization matrix"
+  python3 "$repo_root/scripts/validate-atlas-schedule-preflight-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-schedule-preflight-summary.txt" \
+    >"$artifacts_dir/signed-schedule-preflight.log" 2>&1
 fi
 
 phase="candidate domain schema lint"
