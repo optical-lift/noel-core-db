@@ -49,6 +49,14 @@ The new candidate is intentionally narrower: only Ledger-bound Occurrences and s
 - Date differences remain visible with selective commit-time blocks; absence of evidence is not proof of no more activity.
 - Task unlink, governed retirement and mistaken-entry disposition are separate, history-preserving actions.
 
+## New live findings that block broad Event-work completion
+
+**Current Venue connections:** A fresh read now finds **four** active native Ledger Person seats (not the three counted in an earlier snapshot). A Seat alone does not prove that Person has an authenticated Atlas session; signed-person proof remains separate.
+
+**Completion evidence gap:** `atlas.mark_ledger_occurrence_shared_work_done_self_api_v1` currently accepts only Organization, Ledger, Occurrence, Work and a source-action ID. It creates an immediately **accepted** completed result whose stored evidence contains the actor and action ID but no concrete outcome observation. This is faithful about *who checked the box* and does not claim physical performer; however it **does not satisfy the owner's chosen completion law (5D)**: actual completion needs evidence. The existing call must not be described as source-evidenced real-world completion. Before the first subject is declared done, define an ordinary outcome-evidence/verification policy and version the governed completion command; preserve old results as historical assertions, not retroactively proven outcomes. Do not silently require heavy paperwork for all tasks or treat a click alone as enough.
+
+**Same date is not one Event:** The Venue Ledger currently has two independent bound Occurrences whose starts fall on the same October 30 civil day. The date reconciliation reader must preserve both separate canonical IDs; only the Harvest Party's own linked operational assertion is compared with its source record.
+
 ## Packet 0 audit still to complete
 
 1. Inventory and mechanically exercise every relevant database date writer, planner, projection and legacy calendar consumer, including task timing, personal day, correspondence and external calendars.
