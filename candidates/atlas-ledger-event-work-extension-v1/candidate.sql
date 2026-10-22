@@ -255,6 +255,18 @@ BEGIN
        USING ERRCODE='23514';
    END IF;
  ELSIF v_a='removed' THEN
+   -- A new Event-born Work item still uses its source Occurrence as the
+   -- only ordinary Done route. Never hide that origin while another subject
+   -- relies on the same open Work; doing so would orphan its completion path.
+   IF v_created_here AND v_work.work_state='open' AND EXISTS (
+     SELECT 1 FROM atlas.work_item_context_links c
+     WHERE c.work_item_id=v_work.id AND NOT (
+       c.subject_domain='temporal' AND c.subject_kind='occurrence'
+       AND c.subject_id=p_occurrence_id)
+   ) THEN
+     RAISE EXCEPTION 'Source Event Work also serves other subjects; source custody must be reconciled before removing its origin'
+       USING ERRCODE='23514';
+   END IF;
    -- Cancellation is only appropriate when this was an Event-created item
    -- with NO other subject or Ledger using it. Otherwise withdraw the
    -- local Event's visibility and preserve the single institutional Work.
