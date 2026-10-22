@@ -102,3 +102,16 @@ Postconditions independently require this trigger as well as the previously docu
 Current read-only production catalog verification reconfirmed the existing governing-principal function's live `auth.uid()` and principal-matching checks, real Ledger relevance columns/evidence types, and original Work relation foreign keys and Work states. No live DDL or data was written.
 
 **Release hold:** no numbered migration generated, no production-schema clone, no two-principal authorization test, no transaction race test. The companion Atlas app branch also remains unmounted and requires reconciliation with current `main` and fresh application CI. Do not report this feature as operational.
+
+
+## October 22 — connected Supabase inspection and automated proposal syntax guard
+
+The connected Supabase project `noel-core` is active and has only its **main/default** branch. There is no existing separate development database. No new branch was created, no cost was incurred, and no production DDL or row mutation was performed.
+
+Read-only catalog checks against production confirmed **28 of 28** dependency-contract prerequisites: existing organizations, Work, relations and Ledger relevance tables; referenced column names; and two original governing-authority/source-verification functions. This establishes schema compatibility of named objects only, not executable SQL correctness.
+
+Source review found three malformed SQL function quote delimiters (`AS $` / `$;`) in the event-immutability trigger, private event-reader and public event-reader wrapper. They were corrected to paired `$$` delimiters in this proposal. A new zero-dependency `proposals/atlas_work_item_prerequisites_v1_SOURCE_CHECK.test.mjs` guards balanced function delimiters, canonical graph reuse, all-writer cycle protection, scope authority, immutable private action evidence, and rollback-only synthetic fixtures.
+
+A new restricted `.github/workflows/atlas-work-prerequisite-source-check.yml` runs those assertions on relevant PR changes with **contents-read-only permission**, no protected production environment, no database credentials and no deployment steps. **Source Check run #1 passed**, as did existing **Database Custody CI #3456** on the same draft commit.
+
+**Not completed:** the official, owner-requested `Production schema validation request: Atlas <14-digit-version>` workflow. Per `docs/PRODUCTION_SCHEMA_CLONE_VALIDATION.md`, that requires a CLI-generated canonical `atlas_` migration version, exact immutable candidate SHA and an owner-authored issue, and runs a separate disposable full production-schema clone. The no-cost GitHub clone route is preferable to a paid Supabase development branch. Until then, no candidate code is released, and app PR #343 must remain unmounted.
