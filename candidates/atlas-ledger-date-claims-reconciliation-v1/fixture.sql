@@ -110,13 +110,19 @@ VALUES
  ('f5210000-0000-4000-8000-000000000401','f5210000-0000-4000-8000-000000000002','active'),
  ('f5210000-0000-4000-8000-000000000402','f5210000-0000-4000-8000-000000000003','active');
 
--- Auth/Reality admission may have already established a native Personal Atlas
--- for each canonical Person. Preserve that original object, not a second Atlas.
+-- Identity admission can establish a Personal Atlas first.
+-- Insert a synthetic native Atlas only for a Person without one.
+-- This remains ordinary fixture data setup, not schema/privilege logic.
 INSERT INTO personal.atlases(person_entity_id,atlas_state,native)
-VALUES
- ('f5210000-0000-4000-8000-000000000002','active',true),
- ('f5210000-0000-4000-8000-000000000003','active',true)
-ON CONFLICT (person_entity_id) DO NOTHING;
+SELECT seeded.person_entity_id, 'active', true
+FROM (VALUES
+ ('f5210000-0000-4000-8000-000000000002'::uuid),
+ ('f5210000-0000-4000-8000-000000000003'::uuid)
+) AS seeded(person_entity_id)
+WHERE NOT EXISTS (
+ SELECT 1 FROM personal.atlases existing
+ WHERE existing.person_entity_id=seeded.person_entity_id
+);
 
 -- Only first Person gets the Ledger relationship; second has valid synthetic
 -- session and Atlas, but is NOT authorized to read the Event.
