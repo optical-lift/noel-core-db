@@ -104,7 +104,7 @@ insert into ledger.actions(id,ledger_id,action_kind,occurred_at,payload) values
 
 -- Same synthetic institution, original Work IDs and source-backed Ledger relevance.
 insert into atlas.work_items(id,organization_id,title,work_state) values
-('e5200000-0000-4000-8000-000000000901','e5200000-0000-4000-8000-000000000801','Clone work: prepare walkways','open'),
+('e5200000-0000-4000-8000-000000000901','e5200000-0000-4000-8000-000000000801','Clone work: clear walkways','open'),
 ('e5200000-0000-4000-8000-000000000902','e5200000-0000-4000-8000-000000000801','Clone work: replacement sprayer arrives','open'),
 ('e5200000-0000-4000-8000-000000000903','e5200000-0000-4000-8000-000000000801','Clone work: alternate preparation','open');
 
