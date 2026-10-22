@@ -51,9 +51,6 @@ required = [
     'Publish validation summary',
     'actions/upload-artifact@v4',
     'if-no-files-found: error',
-    'signed_work_prerequisite_probe',
-    'validate-atlas-work-prerequisite-signed-http.py',
-    'signed-work-prerequisite.log',
 ]
 for fragment in required:
     if fragment not in workflow:
@@ -76,6 +73,9 @@ harness_required = [
     'supabase stop --no-backup',
     'psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$roles_dump"',
     'psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$schema_clone"',
+    'signed_work_prerequisite_probe',
+    'validate-atlas-work-prerequisite-signed-http.py',
+    'signed-work-prerequisite.log',
 ]
 for fragment in harness_required:
     if fragment not in harness:
