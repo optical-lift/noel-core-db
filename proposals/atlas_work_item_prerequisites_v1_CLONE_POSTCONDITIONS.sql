@@ -46,14 +46,18 @@ begin
   if pg_catalog.has_function_privilege(
     'anon','public.atlas_work_prerequisites_self_api_v1(uuid,uuid,uuid)','EXECUTE') or
      pg_catalog.has_function_privilege(
-    'anon','public.atlas_set_work_prerequisite_self_api_v1(uuid,uuid,uuid,uuid,boolean,text,text)','EXECUTE') then
+    'anon','public.atlas_set_work_prerequisite_self_api_v1(uuid,uuid,uuid,uuid,boolean,text,text)','EXECUTE') or
+     pg_catalog.has_function_privilege(
+    'anon','public.atlas_work_prerequisite_event_self_api_v1(uuid,uuid,uuid)','EXECUTE') then
     raise exception 'Anonymous prerequisite RPC exposure.';
   end if;
 
   if not pg_catalog.has_function_privilege(
     'authenticated','public.atlas_work_prerequisites_self_api_v1(uuid,uuid,uuid)','EXECUTE') or
      not pg_catalog.has_function_privilege(
-    'authenticated','public.atlas_set_work_prerequisite_self_api_v1(uuid,uuid,uuid,uuid,boolean,text,text)','EXECUTE') then
+    'authenticated','public.atlas_set_work_prerequisite_self_api_v1(uuid,uuid,uuid,uuid,boolean,text,text)','EXECUTE') or
+     not pg_catalog.has_function_privilege(
+    'authenticated','public.atlas_work_prerequisite_event_self_api_v1(uuid,uuid,uuid)','EXECUTE') then
     raise exception 'Authenticated guarded RPC entrypoints unavailable.';
   end if;
 
