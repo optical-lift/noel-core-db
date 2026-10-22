@@ -414,3 +414,7 @@ if [ "$signed_http_probe" = true ]; then
   printf '\nDisposable signed GoTrue + PostgREST HTTP authorization matrix also passed.\n' \
     >> "$artifacts_dir/summary.md"
 fi
+if [ "$signed_event_writer_probe" = true ]; then
+  printf '\nSIGNED One Event writer: root can correct one canonical Event; ordinary and outsider denied; stale sources, replay and revoked sessions passed.\n' \
+    >> "$artifacts_dir/summary.md"
+fi
