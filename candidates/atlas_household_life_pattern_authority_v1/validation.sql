@@ -26,8 +26,15 @@ BEGIN
       AND p.prosecdef AND pg_get_functiondef(p.oid) LIKE '%principal_current_household_id_v1%'
       AND pg_get_functiondef(p.oid) LIKE '%household_members%'
       AND pg_get_functiondef(p.oid) LIKE '%expectedRevision%'
-      AND pg_get_functiondef(p.oid) LIKE '%sourceActionId%') THEN
+      AND pg_get_functiondef(p.oid) LIKE '%sourceActionId%'
+      AND pg_get_functiondef(p.oid) LIKE '%householdBasisKind%'
+      AND pg_get_functiondef(p.oid) LIKE '%householdBasisDescription%') THEN
     RAISE EXCEPTION 'Writer must check active Principal, member scope, revision, idempotence.';
+  END IF;
+  IF (SELECT count(*) FROM information_schema.columns WHERE table_schema='atlas'
+      AND table_name='household_life_patterns'
+      AND column_name IN ('household_basis_kind','household_basis_description'))<>2 THEN
+    RAISE EXCEPTION 'The relationship/responsibility basis must be recorded.';
   END IF;
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='atlas'
      AND table_name='household_life_patterns' AND column_name IN

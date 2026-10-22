@@ -9,6 +9,12 @@ CREATE TABLE atlas.household_life_patterns (
   title text NOT NULL CHECK (length(btrim(title)) BETWEEN 1 AND 180),
   description text NOT NULL CHECK (length(btrim(description)) BETWEEN 1 AND 1600),
   attention_shape text NOT NULL CHECK (length(btrim(attention_shape)) BETWEEN 1 AND 1000),
+  -- An attributed household claim of the relevant relationship/responsibility,
+  -- not a newly granted right or a verified external relationship source.
+  household_basis_kind text NOT NULL CHECK
+    (household_basis_kind IN ('household_relationship','household_responsibility')),
+  household_basis_description text NOT NULL CHECK
+    (length(btrim(household_basis_description)) BETWEEN 1 AND 1000),
   state text NOT NULL CHECK (state IN ('proposed','established','inactive')),
   participation_mode text NOT NULL CHECK
     (participation_mode IN ('undetermined','solo','shared','divided','rotating')),
@@ -61,6 +67,8 @@ DECLARE
   v_title text;
   v_description text;
   v_attention text;
+  v_basis_kind text;
+  v_basis_description text;
   v_mode text;
   v_reason text;
   v_members uuid[];
@@ -108,6 +116,8 @@ BEGIN
   v_title:=btrim(coalesce(p_input->>'title',''));
   v_description:=btrim(coalesce(p_input->>'description',''));
   v_attention:=btrim(coalesce(p_input->>'attentionShape',''));
+  v_basis_kind:=btrim(coalesce(p_input->>'householdBasisKind',''));
+  v_basis_description:=btrim(coalesce(p_input->>'householdBasisDescription',''));
   v_state:=btrim(coalesce(p_input->>'state',''));
   v_mode:=btrim(coalesce(p_input->>'participationMode','undetermined'));
   v_provenance:=btrim(coalesce(p_input->>'provenance',''));
@@ -116,6 +126,8 @@ BEGIN
   IF length(v_title) NOT BETWEEN 1 AND 180
      OR length(v_description) NOT BETWEEN 1 AND 1600
      OR length(v_attention) NOT BETWEEN 1 AND 1000
+     OR v_basis_kind NOT IN ('household_relationship','household_responsibility')
+     OR length(v_basis_description) NOT BETWEEN 1 AND 1000
      OR v_state NOT IN ('proposed','established','inactive')
      OR v_mode NOT IN ('undetermined','solo','shared','divided','rotating')
      OR v_provenance NOT IN ('explicit_household_plan','user_proposal')
@@ -159,10 +171,12 @@ BEGIN
       RAISE EXCEPTION 'New pattern requires revision zero and an active proposal.' USING errcode='22023';
     END IF;
     INSERT INTO atlas.household_life_patterns
-      (household_id,stable_key,title,description,attention_shape,state,
+      (household_id,stable_key,title,description,attention_shape,
+       household_basis_kind,household_basis_description,state,
        participation_mode,participant_member_ids,provenance,revision,
        changed_by_user_id,last_change_reason)
-    VALUES (v_household,v_stable_key,v_title,v_description,v_attention,v_state,
+    VALUES (v_household,v_stable_key,v_title,v_description,v_attention,
+      v_basis_kind,v_basis_description,v_state,
       v_mode,v_members,v_provenance,1,v_actor,v_reason)
     RETURNING * INTO v_changed;
   ELSE
@@ -171,6 +185,7 @@ BEGIN
     END IF;
     UPDATE atlas.household_life_patterns
       SET title=v_title,description=v_description,attention_shape=v_attention,
+          household_basis_kind=v_basis_kind,household_basis_description=v_basis_description,
           state=v_state,participation_mode=v_mode,participant_member_ids=v_members,
           provenance=v_provenance,revision=v_current.revision+1,
           changed_by_user_id=v_actor,last_change_reason=v_reason,
@@ -212,6 +227,8 @@ BEGIN
   SELECT coalesce(jsonb_agg(jsonb_build_object(
     'id',p.id,'stableKey',p.stable_key,'title',p.title,
     'description',p.description,'attentionShape',p.attention_shape,
+    'householdBasisKind',p.household_basis_kind,
+    'householdBasisDescription',p.household_basis_description,
     'state',p.state,'participationMode',p.participation_mode,
     'participantMemberIds',to_jsonb(p.participant_member_ids),
     'provenance',p.provenance,'revision',p.revision,

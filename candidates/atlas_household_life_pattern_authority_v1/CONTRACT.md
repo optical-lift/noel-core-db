@@ -7,6 +7,10 @@ to live Supabase. Atlas H8 PR #342 continues to use released reader contracts.
 - The Household's explicitly proposed or intentionally established pattern
   of life and allocation of attention; not a Task, compulsory weekly item,
   physical-condition fact, or Person Daily Commitment.
+- A required `householdBasisKind` (relationship or responsibility) and
+  `householdBasisDescription`, capturing **the Principal's attributed claim
+  of why this pattern belongs in the Household**. It is not independent
+  verification of that relationship or a grant of responsibility.
 - Pattern identity under one verified active Principal Household.
 - Named participation modes (undetermined, solo, shared, divided, rotating),
   with optional IDs of actual active members of that SAME Household.
@@ -20,7 +24,8 @@ to live Supabase. Atlas H8 PR #342 continues to use released reader contracts.
 
 New: `stableKey="pattern:<uuid>"`, `sourceActionId=<uuid>`,
 `expectedRevision=0`; update/retire uses the last source-read revision.
-Required: `title`, `description`, `attentionShape`, `state`,
+Required: `title`, `description`, `attentionShape`,
+`householdBasisKind`, `householdBasisDescription`, `state`,
 `participationMode`, `participantMemberIds` (optional array),
 `provenance`; `changeReason` required on inactive transition.
 
