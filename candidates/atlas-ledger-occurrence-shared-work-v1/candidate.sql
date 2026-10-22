@@ -586,6 +586,6 @@ begin
   if v_position_id is not null then perform atlas.link_organization_ledger_subject_internal_v1(v_entry_id,'organization','position',v_position_id::text,'under_position',jsonb_build_object('source','project_completed_company_work_to_ledger_v1'),'{}'::jsonb); end if;
   if v_result.task_id is not null then perform atlas.link_organization_ledger_subject_internal_v1(v_entry_id,'execution','task',v_result.task_id::text,'execution_carrier',jsonb_build_object('source','project_completed_company_work_to_ledger_v1'),'{}'::jsonb); end if;
   return new;
-end;$function$
+end;$function$;
 
 COMMIT;
