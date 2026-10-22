@@ -16,7 +16,7 @@ This candidate creates one **read-only, Ledger-seat-authorized evidence membrane
 - Includes only active **Ledger-bound canonical Occurrences** overlapping the requested civil date window **or** having a linked operational community-event assertion bearing a source-local date in that window.
 - Emits **one row per canonical Occurrence ID**, with explicit canonical source coordinates and an array of linked, source-qualified Organization community-event assertions.
 - Returns per-assertion difference fields as **review candidates**, not a judgment about which proposition is correct. Labels and statuses may have different lawful meanings.
-- Does not include customer, resource, contact, private communications, or unrelated Organization details.
+- Includes only `atlas.community_events.visibility_scope='farm_shared'` in this native Ledger-participant reader. Owner- and management-scoped operational assertions require separate, more restrictive Organization authorization; their titles, existence, and counts are not exposed through this projection. Does not include customer, resource, contact, private communications, or unrelated Organization details.
 - If multiple Organization relationships could supply a community Event, it exposes a source-bound ambiguity count without leaking competing Organization overlays.
 - Reports bounded-result truncation, admitted source families, and `wholeDayComplete=false`. Personal Life, Work timing, communication time, other calendars, unknown timezones, independent occupancy and non-bound Occurrences are **not** silently represented as complete.
 - Preserves current source values; no `INSERT`, `UPDATE`, `DELETE`, or new persisted calendar state.
@@ -29,7 +29,7 @@ This candidate creates one **read-only, Ledger-seat-authorized evidence membrane
 - The first query window is bounded to 46 civil days and the result to 250 Occurrences.
 - Source-local operational dates are compared against requested dates without coercing an unverified event timezone into an authoritative instant. Canonical time is returned as `timestamptz` and requested-zone civil fields are explicitly tagged.
 - Writer-side corrected schedule/adjudication, independent Work deadlines, non-Ledger personal data, source failures and freshness evaluation remain separate packets. **No automatic schedule correction.**
-- Tests include explicit outsider denial, role ACL, same-date different-occurrence non-conflation, one source ID, disagreement retained, and incomplete coverage.
+- Disposable synthetic fixture and postconditions test authorized Ledger Person, authenticated outsider denial, owner-only operational-overlay non-disclosure, role ACL, same-date different-occurrence non-conflation, one source ID, disagreement retained, source-local date drift, unknown canonical end time, and incomplete coverage. Actual signed GoTrue/PostgREST tests remain a separate release gate.
 - No synthetic data belongs in production.
 
 ## Release gate
