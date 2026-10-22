@@ -62,3 +62,19 @@ All public entrypoints recheck governing authority server-side and preserve the 
 ## Current proof
 
 Production introspection was **read-only**: table constraints, absence of existing Work relation triggers, current relation kinds, ownership rules, source attribution and available public APIs. No SQL candidate execution or disposable-schema test has yet been performed. Keep the proposal **non-executable by migration tooling** until those gates pass.
+
+
+## Review refinement — original record readback and synthetic graph proof
+
+The SQL candidate now returns a consistent receipt for first establishment **and** idempotent replay: exact Organization and Ledger, both Work IDs, active state, and the append-only `recordedEventId`. The application adapter refuses a receipt missing any of these or falsely claiming that the relationship created Work or automatically blocked it; it then independently rereads the original relation ID.
+
+The clone validation packet includes two distinct files, neither of which has been executed:
+
+- `atlas_work_item_prerequisites_v1_CLONE_POSTCONDITIONS.sql`: catalog/privilege checks, relation vocabulary preservation, global guard trigger presence, RLS and anonymous restrictions.
+- `atlas_work_item_prerequisites_v1_CLONE_GRAPH_TEST.sql`: rollback-only synthetic Organization plus three Work items, A→B→C, prohibition of C→A, deactivation of B→C, safe creation of C→A, rejection of B→C reactivation, plus `blocks` and `completion_bundle_member` untouched.
+
+The test uses only generated fixture IDs and concludes with `ROLLBACK`. It is designed for the disposable full-schema clone, not a production connection.
+
+**Remaining executable tests:** authorized principal vs connected-seat-only sessions, active/withdrawn Ledger evidence, cross-Organization/cross-Ledger denials, concurrent transaction deadlock/cycle protection under two sessions, full idempotency, the older communication-derived `depends_on` writer, existing Work retirement and completion flows. These cannot be certified from static source inspection or a catalog query.
+
+**Build boundary:** This draft remains a `proposals/` source candidate because the pinned Supabase CLI and Docker/PostgreSQL clone runner were unavailable in the execution environment. Do not guess a timestamped migration filename or use direct production SQL as a substitute for `supabase migration new` and the canonical validated release path. Reconcile concurrent `main` changes before creating the numbered migration.
