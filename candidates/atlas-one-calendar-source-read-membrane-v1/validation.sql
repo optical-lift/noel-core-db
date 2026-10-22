@@ -33,8 +33,74 @@ BEGIN
 END
 $proof$;
 
--- Signed GoTrue root/member/outsider tests must run against the protected
--- clone through the existing verification harness before production release.
--- Root Ledger: positive source-bound result; ordinary Seat: denied; outsider:
--- denied. Organization context: active authorized membership only. All result
--- coverage.partial and unsupported-family evidence must survive byte-for-byte.
+
+-- Denial behavior: anonymous and authenticated-without-a-signed-person are
+-- distinct test actors. No real auth identity is simulated by privileged SQL.
+BEGIN;
+SET LOCAL ROLE anon;
+DO $anonymous$
+DECLARE v_denied boolean := false;
+BEGIN
+  BEGIN
+    PERFORM public.ledger_temporal_composer_self_api_v1(
+      'f5210000-0000-4000-8000-000000000014'::uuid,
+      date '2030-10-01',date '2030-10-31','America/Chicago',10);
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'Anonymous caller reached Ledger Calendar composer';
+  END IF;
+  v_denied := false;
+  BEGIN
+    PERFORM public.organization_context_temporal_composer_self_api_v2(
+      'f5210000-0000-4000-8000-000000000010'::uuid,
+      'f5210000-0000-4000-8000-000000000011'::uuid,
+      date '2030-10-01',date '2030-10-31','America/Chicago',10);
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'Anonymous caller reached Organization Calendar composer';
+  END IF;
+END
+$anonymous$;
+ROLLBACK;
+
+BEGIN;
+SET LOCAL ROLE authenticated;
+DO $without_person$
+DECLARE v_denied boolean := false;
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    RAISE EXCEPTION 'No signed Person may be present in clone role test';
+  END IF;
+  BEGIN
+    PERFORM public.ledger_temporal_composer_self_api_v1(
+      'f5210000-0000-4000-8000-000000000014'::uuid,
+      date '2030-10-01',date '2030-10-31','America/Chicago',10);
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'Authenticated role without Person reached Ledger Calendar';
+  END IF;
+  v_denied := false;
+  BEGIN
+    PERFORM public.organization_context_temporal_composer_self_api_v2(
+      'f5210000-0000-4000-8000-000000000010'::uuid,
+      'f5210000-0000-4000-8000-000000000011'::uuid,
+      date '2030-10-01',date '2030-10-31','America/Chicago',10);
+  EXCEPTION WHEN SQLSTATE '28000' OR insufficient_privilege THEN
+    v_denied := true;
+  END;
+  IF NOT v_denied THEN
+    RAISE EXCEPTION 'Authenticated role without Person reached Organization Calendar';
+  END IF;
+END
+$without_person$;
+ROLLBACK;
+
+-- Positive real-user authorization, cross-Ledger and context isolation
+-- require the separately prepared signed local GoTrue+REST proof. This file
+-- never claims that unsourced Postgres role settings are genuine sessions.
