@@ -189,6 +189,14 @@ begin
     v_confirmation_required := true;
   end if;
 
+  -- A non-Foundry command cannot tunnel through a generic target contract
+  -- to a Foundry workspace just because an agent chooses that target kind.
+  IF v_target_kind='foundry_workspace'
+     AND v_command.scope_kind IS DISTINCT FROM 'foundry_workspace' THEN
+    v_allowed:=false;
+    v_reasons:=v_reasons||jsonb_build_array('non_foundry_command_cannot_target_workspace');
+  END IF;
+
   -- Foundry is neither a Ledger nor a Personal Atlas command.
   -- A JSON target allowlist alone cannot establish Foundry jurisdiction.
   IF v_command.scope_kind='foundry_workspace' THEN
