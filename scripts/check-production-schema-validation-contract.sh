@@ -261,6 +261,29 @@ for fragment in ('signed_foundry_workspace_probe=true',
     if fragment not in harness:
         errors.append(f'Foundry signed local harness dispatch missing: {fragment}')
 
+# Independent-human Foundry source-custody review is a signed LOCAL-only
+# extension of the existing Foundry workspace probe, not a new paid service.
+custody_probe = Path('scripts/validate-shared-foundry-custody-signed-http.py')
+if not custody_probe.is_file():
+    errors.append('Missing local signed two-human Foundry custody probe')
+else:
+    custody_source = custody_probe.read_text()
+    try:
+        ast.parse(custody_source,filename=str(custody_probe))
+    except SyntaxError as exc:
+        errors.append(f'Foundry human custody signed proof syntax invalid: {exc}')
+    for fragment in ('source_refs', 'foundry-other', 'foundry-owner',
+                     'independent', 'request_foundry_source_custody_review_self_api_v1',
+                     'decide_foundry_source_custody_review_self_api_v1',
+                     'revoke_foundry_source_custody_review_self_api_v1',
+                     'aiCarrierAccess', 'auth.sessions', 'signed'):
+        if fragment not in custody_source:
+            errors.append(f'Foundry custody proof missing boundary: {fragment}')
+for fragment in ('validate-shared-foundry-custody-signed-http.py',
+                 'to_regprocedure('):
+    if fragment not in Path('scripts/validate-shared-foundry-workspace-signed-http.py').read_text():
+        errors.append(f'Foundry signed workspace runner missing human custody hook: {fragment}')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:

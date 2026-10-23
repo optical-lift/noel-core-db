@@ -161,6 +161,19 @@ def main():
               "deleted GoTrue session cannot read despite unexpired JWT")
     forbidden(api,key,owner,PREP,{**args,"p_request_id":"f1900000-0000-4000-8000-000000000303"},
               "deleted GoTrue session cannot create")
+    # Only a schema containing the additional independent-human custody API
+    # activates the extra signed proof. The original Gate 2 probe is unchanged
+    # for earlier immutable candidates that do not have these functions.
+    if db(a.db_url,
+      "select to_regprocedure('public.request_foundry_source_custody_review_self_api_v1(text,uuid,uuid,text,text[],text[],text,text)') is not null")=="t":
+        import subprocess,sys
+        subprocess.run([
+          sys.executable,str(Path(__file__).resolve().parent/
+                             "validate-shared-foundry-custody-signed-http.py"),
+          "--db-url",a.db_url,
+          "--output",str(Path(a.output).with_name("signed-foundry-human-custody-summary.txt"))
+        ],check=True)
+
     path=Path(a.output)
     path.parent.mkdir(parents=True,exist_ok=True)
     path.write_text(
