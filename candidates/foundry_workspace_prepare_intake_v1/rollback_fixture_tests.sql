@@ -17,6 +17,7 @@ DECLARE
   v_workspace text;
   v_fail boolean;
   v_prev uuid;
+  v_owner_session uuid:=gen_random_uuid();
 BEGIN
   IF current_setting('foundry.validation_disposable_clone',true)
        IS DISTINCT FROM 'confirmed' THEN
@@ -25,6 +26,7 @@ BEGIN
 
   INSERT INTO auth.users(id,is_anonymous)
     VALUES (v_user_id,false),(v_other_user_id,false);
+  INSERT INTO auth.sessions(id,user_id) VALUES(v_owner_session,v_user_id);
   INSERT INTO atlas.principals(user_id,stable_key,name)
     VALUES (v_user_id,'foundryprep_'||replace(v_user_id::text,'-',''),
             'Synthetic Foundry Operator')
@@ -34,6 +36,7 @@ BEGIN
   -- transaction; production requires provider-backed authentication.
   PERFORM set_config('request.jwt.claim.sub',v_user_id::text,true);
   PERFORM set_config('request.jwt.claim.role','authenticated',true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',v_user_id,'role','authenticated','session_id',v_owner_session)::text,true);
 
   v_first := atlas.prepare_foundry_workspace_self_api_v1(
     v_request,'Provisional External Human','Synthetic external field',
@@ -83,6 +86,7 @@ BEGIN
 
   -- A second signed-in human who has no active Principal is denied.
   PERFORM set_config('request.jwt.claim.sub',v_other_user_id::text,true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',v_other_user_id,'role','authenticated','session_id',v_owner_session)::text,true);
   v_fail:=false;
   BEGIN
     PERFORM atlas.prepare_foundry_workspace_self_api_v1(
@@ -93,6 +97,7 @@ BEGIN
 
   -- Restore owner context, then verify all discovered custody stays pending.
   PERFORM set_config('request.jwt.claim.sub',v_user_id::text,true);
+  PERFORM set_config('request.jwt.claims',jsonb_build_object('sub',v_user_id,'role','authenticated','session_id',v_owner_session)::text,true);
   IF EXISTS(
     SELECT 1 FROM foundry.workspace_authority_registry_v1
     WHERE workspace_id=v_workspace AND custody_review_state='reviewed'
