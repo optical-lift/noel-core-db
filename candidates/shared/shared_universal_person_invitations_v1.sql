@@ -106,6 +106,21 @@ BEGIN
   OR length(v_email)>320 THEN
   RAISE EXCEPTION 'Valid name and recipient email required' USING errcode='22023';
  END IF;
+ -- A new-Person candidate must never be made merely because the caller
+ -- omitted the UUID for someone whose verified sign-in is already attached
+ -- to a canonical Person. An email match is a STOP for review, never proof
+ -- that this proposed name is the same human.
+ IF p_existing_person_id IS NULL AND EXISTS(
+    SELECT 1 FROM auth.users u
+    JOIN reality.auth_person_bindings b
+      ON b.auth_user_id=u.id AND b.binding_state='active'
+       AND b.retired_at IS NULL
+    JOIN reality.entities e ON e.id=b.person_entity_id
+      AND e.entity_kind='person' AND e.identity_state='canonical'
+    WHERE lower(u.email)=v_email AND u.email_confirmed_at IS NOT NULL
+ ) THEN RAISE EXCEPTION
+   'Verified login already has a canonical Person; select an authorized Person or request identity review'
+   USING errcode='23514'; END IF;
  IF p_existing_person_id IS NOT NULL THEN
   PERFORM 1 FROM reality.entities e
    JOIN atlas.people p ON p.id=e.id AND p.status='active'
