@@ -127,7 +127,7 @@ create or replace function atlas.person_body_weight_history_self_api_v1(
 ) returns jsonb language plpgsql stable security definer set search_path to ''
 as $body$
 declare v_user uuid:=auth.uid();v_principal uuid;v_grant timestamptz;v_items jsonb;
-v_total integer:=0;v_first date;v_today date;
+v_total integer:=0;v_first date;v_today date;v_approved_capture uuid;
 begin
   if v_user is null then raise exception 'Signed-in Person required.' using errcode='42501'; end if;
   if p_days is null or p_days<1 or p_days>365 then
@@ -138,7 +138,7 @@ begin
   ) then raise exception 'Recognized named timezone required.' using errcode='22023'; end if;
   v_principal:=atlas.require_active_task_principal_v1();
   v_today:=(now() at time zone p_timezone)::date;v_first:=v_today-(p_days-1);
-  select p.approved_at into v_grant from atlas.person_recognition_rule_permissions_v1 p
+  select p.approved_at,p.approved_capture_id into v_grant,v_approved_capture from atlas.person_recognition_rule_permissions_v1 p
     where p.owner_user_id=v_user and p.rule_key='measure.body_weight.reported'
       and p.rule_version=1 and p.revoked_at is null;
   if v_grant is null then return jsonb_build_object(
@@ -156,7 +156,61 @@ begin
       and c.source_surface='personal_notebook_daily_log'
       and c.metadata->>'notebookEntryKind'='raw_note'
       and c.capture_context->>'notebookDate' between v_first::text and v_today::text
-      and c.capture_context->>'notebookDate' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+      and c.capture_context->>'notebookDate' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}
+    select * from source_rows where parsed is not null
+  ), limited as (
+    select * from classified order by notebook_day desc,captured_at desc,capture_id desc limit 101
+  ), numbered as (
+    select *,row_number() over(order by notebook_day desc,captured_at desc,capture_id desc) as rn
+    from limited
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'captureId',capture_id,'evidenceId',evidence_id,
+    'originalText',testimony,'notebookDate',notebook_day,
+    'recordedAt',captured_at,'interpretation',parsed,
+    'ruleApprovedAt',v_grant
+  ) order by notebook_day desc,captured_at desc,capture_id desc)
+  filter(where rn<=100),'[]'::jsonb),count(*)::integer
+  into v_items,v_total
+  from numbered;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','person_body_weight_history_v1',
+    'fromDate',v_first,'throughDate',v_today,'items',v_items,
+    'count',case when v_total>100 then null else v_total end,
+    'truncated',v_total>100,'ruleApproved',true,
+    'coverage','only_matching_personal_notebook_weight_sentences',
+    'truthBoundary',jsonb_build_object(
+      'derivedReadOnly',true,'noMeasurementCopy',true,
+      'noInferredMeasurementOnset',true,'notClinicalClaim',true,
+      'notAllWeightMeasurements',true,'originalSourceIdentityRetained',true,
+      'firstApprovedNoteAndFutureOnly',true));
+end;
+$body$;
+
+create or replace function public.person_measurement_recognition_self_api_v1(p_capture_id uuid)
+returns jsonb language sql stable security definer set search_path to ''
+as $body$ select atlas.person_measurement_recognition_self_api_v1(p_capture_id); $body$;
+create or replace function public.set_person_measurement_rule_self_api_v1(
+ p_capture_id uuid,p_approve boolean)
+returns jsonb language sql security definer set search_path to ''
+as $body$ select atlas.set_person_measurement_rule_self_api_v1(p_capture_id,p_approve); $body$;
+create or replace function public.person_body_weight_history_self_api_v1(
+ p_days integer default 30,p_timezone text default 'UTC')
+returns jsonb language sql stable security definer set search_path to ''
+as $body$ select atlas.person_body_weight_history_self_api_v1(p_days,p_timezone); $body$;
+
+revoke all on function atlas.person_measurement_recognition_self_api_v1(uuid) from public,anon,authenticated;
+revoke all on function atlas.set_person_measurement_rule_self_api_v1(uuid,boolean) from public,anon,authenticated;
+revoke all on function atlas.person_body_weight_history_self_api_v1(integer,text) from public,anon,authenticated;
+revoke all on function public.person_measurement_recognition_self_api_v1(uuid) from public,anon;
+revoke all on function public.set_person_measurement_rule_self_api_v1(uuid,boolean) from public,anon;
+revoke all on function public.person_body_weight_history_self_api_v1(integer,text) from public,anon;
+grant execute on function public.person_measurement_recognition_self_api_v1(uuid) to authenticated;
+grant execute on function public.set_person_measurement_rule_self_api_v1(uuid,boolean) to authenticated;
+grant execute on function public.person_body_weight_history_self_api_v1(integer,text) to authenticated;
+commit;
+      -- Approval applies only to its first note and subsequent authored notes.
+      and (c.id=v_approved_capture or c.captured_at>=v_grant)
   ), classified as (
     select * from source_rows where parsed is not null
   ), limited as (
@@ -184,7 +238,7 @@ begin
       'derivedReadOnly',true,'noMeasurementCopy',true,
       'noInferredMeasurementOnset',true,'notClinicalClaim',true,
       'notAllWeightMeasurements',true,'originalSourceIdentityRetained',true,
-      'priorNotesInterpretedAtRuleApprovalNotRetroactivelyKnown',true));
+      'firstApprovedNoteAndFutureOnly',true));
 end;
 $body$;
 
