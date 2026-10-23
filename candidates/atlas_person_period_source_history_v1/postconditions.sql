@@ -1,8 +1,12 @@
--- Clone-only, read-only catalog checks after protected candidate application.
-select n.nspname,p.proname,pg_get_function_identity_arguments(p.oid) as args,
-  p.prosecdef, p.provolatile
-from pg_proc p join pg_namespace n on n.oid=p.pronamespace
-where p.proname='person_period_source_history_self_api_v1'
-and n.nspname in ('atlas','public');
--- Signed-user end-to-end and cross-person negative cases require real sessions.
--- No public test inserts, no owner identity spoofing, no fabricated production records.
+-- Protected clone-only structural proof.
+do $check$ begin
+ if to_regprocedure('public.person_period_source_history_self_api_v1(date,date,text,integer,date,timestamptz,text,uuid)') is null
+ or to_regprocedure('atlas.person_period_source_history_self_api_v1(date,date,text,integer,date,timestamptz,text,uuid)') is null then
+   raise exception 'Missing governed person history reader';
+ end if;
+ if has_function_privilege('anon','public.person_period_source_history_self_api_v1(date,date,text,integer,date,timestamptz,text,uuid)','EXECUTE')
+ or not has_function_privilege('authenticated','public.person_period_source_history_self_api_v1(date,date,text,integer,date,timestamptz,text,uuid)','EXECUTE')
+ or has_function_privilege('authenticated','atlas.person_period_source_history_self_api_v1(date,date,text,integer,date,timestamptz,text,uuid)','EXECUTE')
+ then raise exception 'Person history reader grants invalid'; end if;
+ raise notice 'Governed Person source history read-only membrane and grants exist';
+end $check$;
