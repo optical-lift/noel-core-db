@@ -230,4 +230,47 @@ REVOKE ALL ON FUNCTION atlas.get_foundry_workspace_preparation_self_api_v1(
 GRANT EXECUTE ON FUNCTION atlas.get_foundry_workspace_preparation_self_api_v1(
   text
 ) TO authenticated;
+
+-- The Data API exposes public RPCs, not Atlas's private function schema.
+-- Narrow SECURITY INVOKER bridges retain the signed caller's DB role;
+-- the atlas.* functions above perform all owner/session/custody checks.
+CREATE OR REPLACE FUNCTION public.prepare_foundry_workspace_self_api_v1(
+  p_request_id uuid,
+  p_subject_label text,
+  p_provisional_field text,
+  p_custody_scope_kind text
+) RETURNS jsonb
+LANGUAGE sql
+SECURITY INVOKER
+SET search_path TO ''
+AS $bridge$
+  SELECT atlas.prepare_foundry_workspace_self_api_v1(
+    p_request_id,p_subject_label,p_provisional_field,p_custody_scope_kind
+  );
+$bridge$;
+
+REVOKE ALL ON FUNCTION public.prepare_foundry_workspace_self_api_v1(
+  uuid,text,text,text
+) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.prepare_foundry_workspace_self_api_v1(
+  uuid,text,text,text
+) TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.get_foundry_workspace_preparation_self_api_v1(
+  p_workspace_id text
+) RETURNS jsonb
+LANGUAGE sql
+SECURITY INVOKER
+SET search_path TO ''
+AS $bridge$
+  SELECT atlas.get_foundry_workspace_preparation_self_api_v1(p_workspace_id);
+$bridge$;
+
+REVOKE ALL ON FUNCTION public.get_foundry_workspace_preparation_self_api_v1(
+  text
+) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.get_foundry_workspace_preparation_self_api_v1(
+  text
+) TO authenticated;
+
 COMMIT;
