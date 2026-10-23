@@ -30,6 +30,10 @@ Entity creation/adjudication is deliberately a separate stage; a service may not
 
 The postconditions verify structural invariants, role grants and no actual identity backfill. They are not yet live proof of every negative trigger scenario or a two-actor permission test. Those must run on a disposable clone before promotion; this candidate is not proof of a completed canonical engine.
 
-## Disposable negative-test fixture
+## Executable clone-only negative postconditions
 
-`fixture.sql` creates synthetic Reality identities and a temporary Ledger-shape table inside an exception-handled subtransaction. It verifies a correctly keyed identity binds successfully; mismatched Ledger key, invalid kind, disputed identity, context/business alias, rebinding and silent business substitution fail with check violations. The outer subtransaction explicitly rolls back its temporary table and all synthetic Reality records. It **must only run in the disposable production-schema-clone validation**, never the production release. This does not test the bound-Reality-row update guard against actual Ledger backfill (there are no bound rows by design); that acceptance remains held for the separate identity-adjudication build.
+The previous `fixture.sql` was removed because the existing production-schema-clone validator accepts **only DML data setup** before applying a migration. A DO block, synthetic temp table and test trigger cannot be a fixture, and the trigger function does not exist until the migration is applied.
+
+The negative checks are now appended to `postconditions.sql`, which the governed clone runs **after** applying the candidate DDL. They create synthetic identities and a temporary Ledger-shaped table inside a rollback-only exception subtransaction. A valid Ledger-context binding must work; wrong Ledger key, wrong entity kind, disputed identity, aliasing context to owning business, rebinding and silent business substitution must be rejected. The rollback removes all synthetic data and the temporary table.
+
+These postconditions are not included in the production migration and must never be executed against production. The separate bound Reality stable-key mutation proof remains for the later authorized Ledger identity-adjudication stage. **A passing custody check is not proof of PostgreSQL execution.**
