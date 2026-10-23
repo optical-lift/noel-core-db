@@ -169,6 +169,36 @@ BEGIN
       v_case.organization_id,v_case.person_entity_id,v_case.reviewed_by_user_id)
  THEN RAISE EXCEPTION 'Recipient, old account, and reviewer proof required'
    USING errcode='42501'; END IF;
+ -- Never disable an old Auth credential based on a stale plan: confirm
+ -- the claimant's CURRENT verified mailbox, exact old binding, Principal
+ -- ownership, and lack of separately delegated authorization right now.
+ IF NOT EXISTS (SELECT 1 FROM auth.users u WHERE u.id=v_actor
+       AND lower(u.email)=v_case.proposed_email)
+    OR NOT EXISTS (SELECT 1 FROM atlas.people p
+       JOIN reality.entities e ON e.id=p.id
+       WHERE p.id=v_case.person_entity_id AND p.status='active'
+         AND e.entity_kind='person' AND e.identity_state='canonical')
+    OR NOT EXISTS (SELECT 1 FROM atlas.person_auth_credentials c
+       JOIN reality.auth_person_bindings b ON b.id=c.id
+       WHERE c.id=v_case.replaces_credential_id
+         AND c.person_id=v_case.person_entity_id
+         AND c.auth_user_id=v_case.replaces_auth_user_id
+         AND c.status='active' AND c.retired_at IS NULL
+         AND b.binding_state='active' AND b.retired_at IS NULL
+         AND b.person_entity_id=c.person_id AND b.auth_user_id=c.auth_user_id)
+    OR EXISTS (SELECT 1 FROM atlas.principal_ledger_authorities a
+       JOIN atlas.principals p ON p.id=a.principal_id
+       WHERE p.person_id=v_case.person_entity_id AND a.status='active')
+    OR EXISTS (SELECT 1 FROM atlas.organization_memberships m
+       WHERE m.user_id=v_case.replaces_auth_user_id AND m.active)
+    OR EXISTS (SELECT 1 FROM atlas.principals p
+       WHERE p.person_id=v_case.person_entity_id AND p.status='active'
+         AND p.user_id<>v_case.replaces_auth_user_id)
+    OR EXISTS (SELECT 1 FROM atlas.principals p WHERE p.user_id=v_actor)
+    OR EXISTS (SELECT 1 FROM atlas.organization_memberships m
+       WHERE m.user_id=v_actor AND m.active)
+ THEN RAISE EXCEPTION 'Replacement conditions changed; old Auth may not be disabled'
+    USING errcode='42501'; END IF;
  -- Sensitive old Auth identifier is disclosed only to the signed,
  -- independently approved new recipient for one server-only action.
  RETURN jsonb_build_object('ok',true,'caseId',v_case.id,
