@@ -28,19 +28,19 @@ begin
  -- Separate genuine GoTrue-signed HTTP session proof remains compulsory.
  begin
    perform public.person_collection_sources_self_api_v1(h_a,100);
-   raise exception 'B was able to read A's Collection';
+   raise exception 'B was able to read A Collection';
  exception when insufficient_privilege then null;
  end;
  begin
    perform public.person_file_capture_self_api_v1(cap_a,h_b);
-   raise exception 'B was able to route A original';
+   raise exception 'B was able to route foreign original';
  exception when insufficient_privilege then null;
  end;
 
  perform set_config('request.jwt.claim.sub',a::text,true);
  begin
    perform public.person_file_capture_self_api_v1(cap_a,h_b);
-   raise exception 'A was able to route into B Collection';
+   raise exception 'A was able to route into foreign Collection';
  exception when insufficient_privilege then null;
  end;
  payload:=public.person_file_capture_self_api_v1(cap_a,null);
