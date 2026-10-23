@@ -495,4 +495,55 @@ GRANT EXECUTE ON FUNCTION
  atlas.prepared_person_decide_self_api_v1(uuid,text,text,text)
  TO authenticated;
 
+
+-- Public PostgREST transport: only authenticated sessions; source checks stay
+-- inside the atlas.* authoritative commands, not in a bearer URL or UI.
+CREATE FUNCTION public.prepared_person_scope_options_self_api_v1(p_organization_id uuid DEFAULT NULL,p_query text DEFAULT NULL) RETURNS jsonb
+ LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+ AS $transport$ SELECT atlas.prepared_person_scope_options_self_api_v1(p_organization_id,p_query); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_scope_options_self_api_v1(uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_scope_options_self_api_v1(uuid,text) TO authenticated;
+
+CREATE FUNCTION public.prepared_person_begin_self_api_v1(p_organization_id uuid,p_target_kind text,p_person_entity_id uuid,p_provisional_label text,p_scope_basis text,p_request_key text) RETURNS jsonb
+ LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+ AS $transport$ SELECT atlas.prepared_person_begin_self_api_v1(p_organization_id,p_target_kind,p_person_entity_id,p_provisional_label,p_scope_basis,p_request_key); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text) TO authenticated;
+
+CREATE FUNCTION public.prepared_person_record_self_api_v1(p_case_id uuid,p_request_key text,p_topic text,p_literal_text text,p_source_kind text,p_source_locator text,p_source_permission_basis text,p_observed_at timestamptz,p_confidence numeric,p_classification text,p_disclosure text,p_recipient_disclosure_basis text DEFAULT NULL,p_linked_record_kind text DEFAULT NULL,p_linked_record_id uuid DEFAULT NULL,p_revises_item_id uuid DEFAULT NULL,p_conflicts_with_item_id uuid DEFAULT NULL) RETURNS jsonb
+ LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+ AS $transport$ SELECT atlas.prepared_person_record_self_api_v1(p_case_id,p_request_key,p_topic,p_literal_text,p_source_kind,p_source_locator,p_source_permission_basis,p_observed_at,p_confidence,p_classification,p_disclosure,p_recipient_disclosure_basis,p_linked_record_kind,p_linked_record_id,p_revises_item_id,p_conflicts_with_item_id); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid) TO authenticated;
+
+CREATE FUNCTION public.prepared_person_operator_case_self_api_v1(p_case_id uuid) RETURNS jsonb
+ LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+ AS $transport$ SELECT atlas.prepared_person_operator_case_self_api_v1(p_case_id); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_operator_case_self_api_v1(uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_operator_case_self_api_v1(uuid) TO authenticated;
+
+CREATE FUNCTION public.prepared_person_operator_list_self_api_v1() RETURNS jsonb
+ LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+ AS $transport$ SELECT atlas.prepared_person_operator_list_self_api_v1(); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_operator_list_self_api_v1() FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_operator_list_self_api_v1() TO authenticated;
+
+CREATE FUNCTION public.prepared_person_issue_self_api_v1(p_case_id uuid) RETURNS jsonb
+ LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+ AS $transport$ SELECT atlas.prepared_person_issue_self_api_v1(p_case_id); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_issue_self_api_v1(uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_issue_self_api_v1(uuid) TO authenticated;
+
+CREATE FUNCTION public.prepared_person_recipient_self_api_v1() RETURNS jsonb
+ LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+ AS $transport$ SELECT atlas.prepared_person_recipient_self_api_v1(); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_recipient_self_api_v1() FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_recipient_self_api_v1() TO authenticated;
+
+CREATE FUNCTION public.prepared_person_decide_self_api_v1(p_item_id uuid,p_decision text,p_request_key text,p_correction_text text DEFAULT NULL) RETURNS jsonb
+ LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+ AS $transport$ SELECT atlas.prepared_person_decide_self_api_v1(p_item_id,p_decision,p_request_key,p_correction_text); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_decide_self_api_v1(uuid,text,text,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_decide_self_api_v1(uuid,text,text,text) TO authenticated;
+
 COMMIT;
