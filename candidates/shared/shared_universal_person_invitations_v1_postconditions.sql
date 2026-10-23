@@ -10,8 +10,9 @@ BEGIN
   'claim_universal_person_invitation_self_api_v1',
   'decline_universal_person_invitation_self_api_v1',
   'transition_universal_person_invitation_self_api_v1',
-  'list_universal_person_invitations_self_api_v1');
- IF v<>7 THEN RAISE EXCEPTION 'Seven universal Person invitation RPCs required'; END IF;
+  'list_universal_person_invitations_self_api_v1',
+  'universal_person_invitation_history_self_api_v1');
+ IF v<>8 THEN RAISE EXCEPTION 'Eight universal Person invitation RPCs required'; END IF;
  IF EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
  WHERE n.nspname='public' AND p.proname LIKE '%universal_person_invitation%'
  AND (p.prosecdef OR has_function_privilege('anon',p.oid,'EXECUTE')))

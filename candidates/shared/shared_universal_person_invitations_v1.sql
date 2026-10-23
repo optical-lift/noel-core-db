@@ -331,6 +331,7 @@ BEGIN
  IF v_i.id IS NULL OR v_i.recipient_email<>v_email
  OR v_i.state<>'issued' OR v_i.expires_at<=now()
  OR v_i.token_digest IS NULL
+ OR length(coalesce(p_code,'')) NOT BETWEEN 20 AND 128
  OR v_i.token_digest<>encode(extensions.digest(coalesce(p_code,''),'sha256'),'hex')
  THEN RAISE EXCEPTION 'Invitation unavailable' USING errcode='42501'; END IF;
  UPDATE atlas.universal_person_invitations SET
@@ -369,6 +370,33 @@ BEGIN
  RETURN jsonb_build_object('ok',true,'items',v_items,'limit',100);
 END $f$;
 
+
+CREATE FUNCTION atlas.universal_person_invitation_history_self_v1(p_invitation_id uuid)
+ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
+AS $f$
+DECLARE v_actor uuid;v_invite atlas.universal_person_invitations%rowtype;
+ v_events jsonb;
+BEGIN
+ v_actor:=atlas.existing_person_claim_signed_actor_v1();
+ SELECT * INTO v_invite FROM atlas.universal_person_invitations
+ WHERE id=p_invitation_id;
+ IF v_invite.id IS NULL THEN
+  RAISE EXCEPTION 'Invitation unavailable' USING errcode='42501'; END IF;
+ PERFORM atlas.universal_person_invitation_steward_self_v1(
+   v_invite.organization_id,v_invite.existing_person_id);
+ SELECT coalesce(jsonb_agg(x.data ORDER BY x.occurred_at DESC),'[]'::jsonb)
+ INTO v_events FROM (
+  SELECT e.occurred_at,jsonb_build_object(
+   'action',e.action,'actorAuthUserId',e.actor_user_id,
+   'occurredAt',e.occurred_at,'evidence',e.evidence) data
+  FROM atlas.universal_person_invitation_events e
+  WHERE e.invitation_id=p_invitation_id
+  ORDER BY e.occurred_at DESC,e.id DESC LIMIT 75
+ ) x;
+ RETURN jsonb_build_object('ok',true,'invitationId',v_invite.id,
+  'events',v_events,'limit',75);
+END $f$;
+
 -- Signed public RPCs are invokers; private schema retains guarded source.
 CREATE FUNCTION public.prepare_universal_person_invitation_self_api_v1(
  p_organization_id uuid,p_name text,p_email text,p_existing_person_id uuid DEFAULT NULL)
@@ -390,6 +418,9 @@ CREATE FUNCTION public.decline_universal_person_invitation_self_api_v1(p_invitat
 CREATE FUNCTION public.transition_universal_person_invitation_self_api_v1(p_invitation_id uuid,p_action text)
  RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
  AS $f$ SELECT atlas.transition_universal_person_invitation_self_v1(p_invitation_id,p_action) $f$;
+CREATE FUNCTION public.universal_person_invitation_history_self_api_v1(p_invitation_id uuid)
+ RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
+ AS $f$ SELECT atlas.universal_person_invitation_history_self_v1(p_invitation_id) $f$;
 CREATE FUNCTION public.list_universal_person_invitations_self_api_v1(p_org uuid)
  RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
  AS $f$ SELECT atlas.list_universal_person_invitations_self_v1(p_org) $f$;
@@ -402,6 +433,7 @@ REVOKE ALL ON FUNCTION atlas.universal_person_inviter_self_v1(uuid),
  atlas.claim_universal_person_invitation_self_v1(uuid,text,boolean),
  atlas.decline_universal_person_invitation_self_v1(uuid,text,boolean),
  atlas.transition_universal_person_invitation_self_v1(uuid,text),
+ atlas.universal_person_invitation_history_self_v1(uuid),
  atlas.list_universal_person_invitations_self_v1(uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION atlas.universal_person_inviter_self_v1(uuid),
  atlas.universal_person_invitation_steward_self_v1(uuid,uuid),
@@ -411,6 +443,7 @@ GRANT EXECUTE ON FUNCTION atlas.universal_person_inviter_self_v1(uuid),
  atlas.claim_universal_person_invitation_self_v1(uuid,text,boolean),
  atlas.decline_universal_person_invitation_self_v1(uuid,text,boolean),
  atlas.transition_universal_person_invitation_self_v1(uuid,text),
+ atlas.universal_person_invitation_history_self_v1(uuid),
  atlas.list_universal_person_invitations_self_v1(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION public.prepare_universal_person_invitation_self_api_v1(uuid,text,text,uuid),
  public.issue_universal_person_invitation_self_api_v1(uuid),
@@ -418,6 +451,7 @@ REVOKE ALL ON FUNCTION public.prepare_universal_person_invitation_self_api_v1(uu
  public.claim_universal_person_invitation_self_api_v1(uuid,text,boolean),
  public.decline_universal_person_invitation_self_api_v1(uuid,text,boolean),
  public.transition_universal_person_invitation_self_api_v1(uuid,text),
+ public.universal_person_invitation_history_self_api_v1(uuid),
  public.list_universal_person_invitations_self_api_v1(uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.prepare_universal_person_invitation_self_api_v1(uuid,text,text,uuid),
  public.issue_universal_person_invitation_self_api_v1(uuid),
@@ -425,5 +459,6 @@ GRANT EXECUTE ON FUNCTION public.prepare_universal_person_invitation_self_api_v1
  public.claim_universal_person_invitation_self_api_v1(uuid,text,boolean),
  public.decline_universal_person_invitation_self_api_v1(uuid,text,boolean),
  public.transition_universal_person_invitation_self_api_v1(uuid,text),
+ public.universal_person_invitation_history_self_api_v1(uuid),
  public.list_universal_person_invitations_self_api_v1(uuid) TO authenticated;
 COMMIT;
