@@ -45,4 +45,5 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f validation/atlas-person-weight-v1/fixture-data.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/atlas_person_deterministic_weight_v1/candidate.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/atlas-person-weight-v1/test-grammar-and-grants.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/atlas_person_deterministic_weight_v1/postconditions.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/atlas-person-weight-v1/test-approval-isolation.sql
