@@ -5,6 +5,8 @@ DO $test$
 DECLARE
   v_ledger uuid := gen_random_uuid();
   v_second_ledger uuid := gen_random_uuid();
+  v_kind_ledger uuid := gen_random_uuid();
+  v_disputed_ledger uuid := gen_random_uuid();
   v_business uuid := gen_random_uuid();
   v_other_business uuid := gen_random_uuid();
   v_context uuid := gen_random_uuid();
@@ -20,14 +22,13 @@ BEGIN
       (v_other_business,'test:owner:'||v_other_business::text,'business','Synthetic second owner','canonical'),
       (v_context,'ledger_context:'||v_ledger::text,'ledger_context','Synthetic Ledger context','canonical'),
       (v_wrong_context,'ledger_context:'||v_second_ledger::text,'ledger_context','Synthetic other Ledger context','canonical'),
-      (v_noncanonical,'test:disputed:'||v_noncanonical::text,'ledger_context','Synthetic disputed context','disputed'),
-      (v_wrong_kind,'test:wrong-kind:'||v_wrong_kind::text,'business','Synthetic wrong kind','canonical');
+      (v_noncanonical,'ledger_context:'||v_disputed_ledger::text,'ledger_context','Synthetic disputed context','disputed'),
+      (v_wrong_kind,'ledger_context:'||v_kind_ledger::text,'business','Synthetic wrong kind','canonical');
 
     CREATE TEMP TABLE _canonical_ledger_probe (
       id uuid PRIMARY KEY,
       subject_entity_id uuid NOT NULL,
       canonical_context_entity_id uuid UNIQUE
-        REFERENCES reality.entities(id)
     ) ON COMMIT DROP;
     CREATE TRIGGER ledger_canonical_context_identity_guard_v1
       BEFORE INSERT OR UPDATE OF id,subject_entity_id,canonical_context_entity_id
@@ -53,7 +54,7 @@ BEGIN
     BEGIN
       INSERT INTO pg_temp._canonical_ledger_probe
         (id,subject_entity_id,canonical_context_entity_id)
-      VALUES(v_second_ledger,v_business,v_wrong_kind);
+      VALUES(v_kind_ledger,v_business,v_wrong_kind);
     EXCEPTION WHEN check_violation THEN v_rejected := true;
     END;
     IF NOT v_rejected THEN RAISE EXCEPTION 'Wrong Reality entity kind accepted'; END IF;
@@ -63,7 +64,7 @@ BEGIN
     BEGIN
       INSERT INTO pg_temp._canonical_ledger_probe
         (id,subject_entity_id,canonical_context_entity_id)
-      VALUES(v_second_ledger,v_business,v_noncanonical);
+      VALUES(v_disputed_ledger,v_business,v_noncanonical);
     EXCEPTION WHEN check_violation THEN v_rejected := true;
     END;
     IF NOT v_rejected THEN RAISE EXCEPTION 'Disputed Reality context accepted'; END IF;
