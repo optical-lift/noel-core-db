@@ -85,6 +85,133 @@ ALTER TABLE atlas.prepared_person_decision_receipts ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON atlas.prepared_person_cases,atlas.prepared_person_items,
   atlas.prepared_person_decision_receipts FROM PUBLIC,anon,authenticated;
 
+-- Professional implementation access is always a scoped grant from an actual
+-- institutional steward; professional login alone cannot inspect people.
+CREATE TABLE atlas.prepared_person_operator_grants (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ case_id uuid NOT NULL REFERENCES atlas.prepared_person_cases(id) ON DELETE RESTRICT,
+ practitioner_user_id uuid NOT NULL
+   REFERENCES atlas.implementation_practitioners(human_user_id) ON DELETE RESTRICT,
+ granted_by_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+ grant_reason text NOT NULL CHECK (length(btrim(grant_reason)) BETWEEN 30 AND 1500),
+ can_issue boolean NOT NULL DEFAULT false,
+ granted_at timestamptz NOT NULL DEFAULT now(),
+ revoked_at timestamptz,
+ revoked_by_user_id uuid REFERENCES auth.users(id),
+ CHECK ((revoked_at IS NULL)=(revoked_by_user_id IS NULL))
+);
+CREATE UNIQUE INDEX prepared_person_one_active_practitioner_v1
+ ON atlas.prepared_person_operator_grants(case_id,practitioner_user_id)
+ WHERE revoked_at IS NULL;
+ALTER TABLE atlas.prepared_person_operator_grants ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON atlas.prepared_person_operator_grants FROM PUBLIC,anon,authenticated;
+
+-- The signed actor's present-day grant and its original issuing steward's
+-- current authority must both remain valid. Revoked authority is not inherited.
+CREATE FUNCTION atlas.prepared_person_actor_allowed_v1(
+ p_case_id uuid,p_operation text
+) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $fn$
+ SELECT auth.uid() IS NOT NULL AND p_operation IN ('read','record','issue')
+ AND EXISTS (
+  SELECT 1 FROM atlas.prepared_person_cases c
+  JOIN atlas.organizations o ON o.id=c.organization_id AND o.status='active'
+  WHERE c.id=p_case_id AND (
+   (c.prepared_by_user_id=auth.uid()
+    AND EXISTS(SELECT 1 FROM atlas.organization_memberships om
+      WHERE om.organization_id=c.organization_id AND om.user_id=auth.uid()
+        AND om.active AND om.role IN ('owner','consultant'))
+    AND (c.target_kind='provisional_person'
+      OR atlas.existing_person_claim_actor_steward_v1(
+        c.organization_id,c.person_entity_id,auth.uid())))
+   OR EXISTS (
+     SELECT 1 FROM atlas.prepared_person_operator_grants g
+     JOIN atlas.implementation_practitioners pr
+       ON pr.human_user_id=g.practitioner_user_id AND pr.status='active'
+     WHERE g.case_id=c.id AND g.practitioner_user_id=auth.uid()
+       AND g.revoked_at IS NULL
+       AND (p_operation<>'issue' OR g.can_issue)
+       AND NOT EXISTS(SELECT 1 FROM atlas.principals principal
+         WHERE principal.user_id=auth.uid() AND principal.status='active')
+       AND EXISTS(SELECT 1 FROM atlas.organization_memberships om
+         WHERE om.organization_id=c.organization_id
+           AND om.user_id=g.granted_by_user_id AND om.active
+           AND om.role IN ('owner','consultant'))
+       AND (c.target_kind='provisional_person'
+         OR atlas.existing_person_claim_actor_steward_v1(
+           c.organization_id,c.person_entity_id,g.granted_by_user_id))
+   )
+  )
+ );
+$fn$;
+
+CREATE FUNCTION atlas.prepared_person_assign_practitioner_self_api_v1(
+ p_case_id uuid,p_practitioner_user_id uuid,p_grant_reason text,
+ p_can_issue boolean DEFAULT false
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $fn$
+DECLARE v_case atlas.prepared_person_cases%rowtype; v_grant_id uuid;
+BEGIN
+ SELECT * INTO STRICT v_case FROM atlas.prepared_person_cases
+ WHERE id=p_case_id FOR UPDATE;
+ PERFORM atlas.require_identity_steward_v1(v_case.organization_id);
+ IF v_case.prepared_by_user_id IS DISTINCT FROM auth.uid()
+    OR v_case.case_state<>'preparing' OR
+    (v_case.target_kind='existing_person' AND NOT
+      atlas.existing_person_claim_actor_steward_v1(
+        v_case.organization_id,v_case.person_entity_id,auth.uid())) THEN
+  RAISE EXCEPTION 'Current preparer-steward only may delegate this case'
+     USING errcode='42501';
+ END IF;
+ IF length(btrim(coalesce(p_grant_reason,''))) NOT BETWEEN 30 AND 1500 OR
+    NOT EXISTS (SELECT 1 FROM atlas.implementation_practitioners ip
+       WHERE ip.human_user_id=p_practitioner_user_id AND ip.status='active')
+    OR EXISTS (SELECT 1 FROM atlas.principals p
+       WHERE p.user_id=p_practitioner_user_id AND p.status='active') THEN
+  RAISE EXCEPTION 'Verified separate practitioner credential and delegation basis required'
+     USING errcode='42501';
+ END IF;
+ SELECT id INTO v_grant_id FROM atlas.prepared_person_operator_grants
+  WHERE case_id=p_case_id AND practitioner_user_id=p_practitioner_user_id
+    AND revoked_at IS NULL;
+ IF v_grant_id IS NOT NULL THEN
+  RAISE EXCEPTION 'Practitioner already delegated; use separate revoke and new grant'
+    USING errcode='23505';
+ END IF;
+ INSERT INTO atlas.prepared_person_operator_grants
+   (case_id,practitioner_user_id,granted_by_user_id,grant_reason,can_issue)
+ VALUES(p_case_id,p_practitioner_user_id,auth.uid(),btrim(p_grant_reason),
+        coalesce(p_can_issue,false))
+ RETURNING id INTO v_grant_id;
+ RETURN jsonb_build_object('ok',true,'grantId',v_grant_id,'caseId',p_case_id,
+    'practitionerUserId',p_practitioner_user_id,'canIssue',coalesce(p_can_issue,false));
+END $fn$;
+
+CREATE FUNCTION atlas.prepared_person_revoke_practitioner_self_api_v1(
+ p_grant_id uuid
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $fn$
+DECLARE v_case atlas.prepared_person_cases%rowtype; v_grant atlas.prepared_person_operator_grants%rowtype;
+BEGIN
+ SELECT * INTO STRICT v_grant FROM atlas.prepared_person_operator_grants
+ WHERE id=p_grant_id FOR UPDATE;
+ SELECT * INTO STRICT v_case FROM atlas.prepared_person_cases WHERE id=v_grant.case_id;
+ PERFORM atlas.require_identity_steward_v1(v_case.organization_id);
+ IF v_case.prepared_by_user_id<>auth.uid() OR
+    (v_case.target_kind='existing_person' AND NOT
+     atlas.existing_person_claim_actor_steward_v1(
+       v_case.organization_id,v_case.person_entity_id,auth.uid())) THEN
+  RAISE EXCEPTION 'Current preparer-steward required to revoke'
+    USING errcode='42501';
+ END IF;
+ IF v_grant.revoked_at IS NOT NULL THEN
+   RETURN jsonb_build_object('ok',true,'alreadyRevoked',true);
+ END IF;
+ UPDATE atlas.prepared_person_operator_grants
+ SET revoked_at=now(),revoked_by_user_id=auth.uid() WHERE id=p_grant_id;
+ RETURN jsonb_build_object('ok',true,'revoked',true,'grantId',p_grant_id);
+END $fn$;
+
 -- Source: existing signed identity-steward authority.
 -- A real Person must already be canonical and institutionally in scope.
 -- Small, signed steward selector; no public directory and no inferred identity.
@@ -204,12 +331,10 @@ DECLARE v_case atlas.prepared_person_cases%rowtype;
 BEGIN
  SELECT * INTO STRICT v_case FROM atlas.prepared_person_cases
    WHERE id=p_case_id FOR UPDATE;
- PERFORM atlas.require_identity_steward_v1(v_case.organization_id);
- IF v_case.prepared_by_user_id<>auth.uid() OR v_case.case_state<>'preparing' THEN
-  RAISE EXCEPTION 'Case preparer and editable case required' USING errcode='42501';
- END IF;
- IF v_case.target_kind='existing_person' THEN
-  PERFORM atlas.existing_person_claim_steward_self_v1(v_case.organization_id,v_case.person_entity_id);
+ IF v_case.case_state<>'preparing' OR NOT
+     atlas.prepared_person_actor_allowed_v1(p_case_id,'record') THEN
+   RAISE EXCEPTION 'Current scoped operator required to record evidence'
+     USING errcode='42501';
  END IF;
  IF length(btrim(coalesce(p_request_key,''))) NOT BETWEEN 8 AND 160
   OR length(btrim(coalesce(p_topic,''))) NOT BETWEEN 2 AND 100
@@ -310,12 +435,8 @@ AS $fn$
 DECLARE v_case atlas.prepared_person_cases%rowtype; v_items jsonb;
 BEGIN
  SELECT * INTO STRICT v_case FROM atlas.prepared_person_cases WHERE id=p_case_id;
- PERFORM atlas.require_identity_steward_v1(v_case.organization_id);
- IF v_case.prepared_by_user_id<>auth.uid() THEN
-   RAISE EXCEPTION 'Case-level preparation authority required' USING errcode='42501';
- END IF;
- IF v_case.target_kind='existing_person' THEN
-   PERFORM atlas.existing_person_claim_steward_self_v1(v_case.organization_id,v_case.person_entity_id);
+ IF NOT atlas.prepared_person_actor_allowed_v1(p_case_id,'read') THEN
+   RAISE EXCEPTION 'Current scoped case operator authority required' USING errcode='42501';
  END IF;
  SELECT coalesce(jsonb_agg(jsonb_build_object(
      'id',i.id,'topic',i.topic,'classification',i.classification,
@@ -339,6 +460,13 @@ BEGIN
      WHERE r.organization_id=v_case.organization_id AND r.person_id=v_case.person_entity_id
        AND r.status='active' ORDER BY r.created_at LIMIT 1),
    'organizationId',v_case.organization_id,
+   'operatorGrants',(SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'grantId',g.id,'practitionerUserId',g.practitioner_user_id,
+      'canIssue',g.can_issue,'active',g.revoked_at IS NULL,
+      'grantedByUserId',g.granted_by_user_id,'grantedAt',g.granted_at,
+      'revokedAt',g.revoked_at) ORDER BY g.granted_at,g.id),'[]'::jsonb)
+     FROM atlas.prepared_person_operator_grants g WHERE g.case_id=v_case.id
+       AND v_case.prepared_by_user_id=auth.uid()),
    'scopeBasis',v_case.scope_basis,'items',v_items);
 END $fn$;
 
@@ -354,13 +482,7 @@ AS $fn$
       ORDER BY c.opened_at DESC,c.id)
      FROM atlas.prepared_person_cases c
      LEFT JOIN atlas.people p ON p.id=c.person_entity_id
-     WHERE c.prepared_by_user_id=auth.uid()
-       AND EXISTS (SELECT 1 FROM atlas.organization_memberships om
-         WHERE om.organization_id=c.organization_id AND om.user_id=auth.uid()
-           AND om.active AND om.role IN ('owner','consultant'))
-       AND (c.target_kind='provisional_person' OR
-          atlas.existing_person_claim_actor_steward_v1(
-            c.organization_id,c.person_entity_id,auth.uid()))),'[]'::jsonb));
+     WHERE atlas.prepared_person_actor_allowed_v1(c.id,'read')),'[]'::jsonb));
 $fn$;
 
 CREATE FUNCTION atlas.prepared_person_issue_self_api_v1(p_case_id uuid)
@@ -369,9 +491,8 @@ AS $fn$
 DECLARE v_case atlas.prepared_person_cases%rowtype;
 BEGIN
  SELECT * INTO STRICT v_case FROM atlas.prepared_person_cases WHERE id=p_case_id FOR UPDATE;
- PERFORM atlas.require_identity_steward_v1(v_case.organization_id);
- IF v_case.prepared_by_user_id<>auth.uid() THEN
-   RAISE EXCEPTION 'Case-level preparation authority required' USING errcode='42501';
+ IF NOT atlas.prepared_person_actor_allowed_v1(p_case_id,'issue') THEN
+   RAISE EXCEPTION 'Current scoped issue authority required' USING errcode='42501';
  END IF;
  -- Provisional subjects cannot be bound by name/email similarity.
  -- Build 2 must establish and verify the canonical identity first.
@@ -379,7 +500,7 @@ BEGIN
    RAISE EXCEPTION 'Provisional case awaits governed Person identity resolution'
     USING errcode='42501';
  END IF;
- PERFORM atlas.existing_person_claim_steward_self_v1(v_case.organization_id,v_case.person_entity_id);
+ -- Exact intended Person was already validated by the signed grant/steward check.
  IF v_case.case_state='issued' THEN
    RETURN jsonb_build_object('ok',true,'state','issued','caseId',p_case_id,'replay',true);
  END IF;
@@ -495,6 +616,8 @@ BEGIN
 END $fn$;
 
 REVOKE ALL ON FUNCTION
+ atlas.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean),
+ atlas.prepared_person_revoke_practitioner_self_api_v1(uuid),
  atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
  atlas.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid),
@@ -505,6 +628,8 @@ REVOKE ALL ON FUNCTION
  atlas.prepared_person_decide_self_api_v1(uuid,text,text,text)
  FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION
+ atlas.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean),
+ atlas.prepared_person_revoke_practitioner_self_api_v1(uuid),
  atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
  atlas.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid),
@@ -565,5 +690,22 @@ CREATE FUNCTION public.prepared_person_decide_self_api_v1(p_item_id uuid,p_decis
  AS $transport$ SELECT atlas.prepared_person_decide_self_api_v1(p_item_id,p_decision,p_request_key,p_correction_text); $transport$;
 REVOKE ALL ON FUNCTION public.prepared_person_decide_self_api_v1(uuid,text,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.prepared_person_decide_self_api_v1(uuid,text,text,text) TO authenticated;
+
+CREATE FUNCTION public.prepared_person_assign_practitioner_self_api_v1(
+ p_case_id uuid,p_practitioner_user_id uuid,p_grant_reason text,
+ p_can_issue boolean DEFAULT false
+) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+AS $transport$ SELECT atlas.prepared_person_assign_practitioner_self_api_v1(
+ p_case_id,p_practitioner_user_id,p_grant_reason,p_can_issue); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean) TO authenticated;
+
+CREATE FUNCTION public.prepared_person_revoke_practitioner_self_api_v1(
+ p_grant_id uuid
+) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+AS $transport$ SELECT atlas.prepared_person_revoke_practitioner_self_api_v1(
+ p_grant_id); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_revoke_practitioner_self_api_v1(uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_revoke_practitioner_self_api_v1(uuid) TO authenticated;
 
 COMMIT;
