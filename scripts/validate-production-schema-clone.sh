@@ -101,6 +101,7 @@ signed_work_prerequisite_probe=false
 signed_connected_work_prerequisite_probe=false
 signed_existing_person_auth_claim_probe=false
 signed_person_weight_probe=false
+signed_person_collections_probe=false
 signed_person_period_probe=false
 signed_foundry_workspace_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
@@ -191,6 +192,16 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_person_weight_probe=true
+fi
+
+# Genuine separate signed sessions for owner-only Person Collection filing.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_person_health_collections_filing_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Signed Person Collection proof requires fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_person_collections_probe=true
 fi
 
 # Period history reader: independent source-qualified Person read through real signed local GoTrue.
@@ -365,6 +376,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
       [ "$signed_connected_work_prerequisite_probe" = true ] ||
       [ "$signed_existing_person_auth_claim_probe" = true ] ||
        [ "$signed_person_weight_probe" = true ] ||
+       [ "$signed_person_collections_probe" = true ] ||
        [ "$signed_person_period_probe" = true ] ||
        [ "$signed_foundry_workspace_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
@@ -515,6 +527,18 @@ if [ "$signed_person_weight_probe" = true ]; then
     >"$artifacts_dir/signed-person-weight.log" 2>&1
 fi
 
+if [ "$signed_person_collections_probe" = true ]; then
+  phase="synthetic signed Person Collection fixture on disposable clone"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261023201945_atlas_person_deterministic_weight_v1.sql" \
+    >"$artifacts_dir/signed-person-collections-fixture.log" 2>&1
+  phase="genuine signed private Person Collection filing and privacy proof"
+  python3 "$repo_root/scripts/validate-atlas-person-collections-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-person-collections-summary.txt" \
+    >"$artifacts_dir/signed-person-collections.log" 2>&1
+fi
+
 if [ "$signed_person_period_probe" = true ]; then
   phase="signed local source-qualified Person period history, exact cursor and privacy"
   python3 "$repo_root/scripts/validate-atlas-person-period-signed-http.py" \
@@ -577,6 +601,10 @@ if [ "$signed_connected_work_prerequisite_probe" = true ]; then
 fi
 if [ "$signed_foundry_workspace_probe" = true ]; then
   printf '\nSIGNED Foundry workspace: real local GoTrue sessions, owner/outsider/unbound denial, idempotence, unreviewed subject custody, and revoked JWT session checks passed.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_person_collections_probe" = true ]; then
+  printf '\nSIGNED Person Collections: independent GoTrue sessions, original filing/readback, privacy, move and retry verified only in isolated clone.\n' \
+    >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_person_period_probe" = true ]; then
   printf '\nSIGNED Person period history: real local GoTrue sessions, original source standing, exact cursor and cross-Person denial passed.\n' \
