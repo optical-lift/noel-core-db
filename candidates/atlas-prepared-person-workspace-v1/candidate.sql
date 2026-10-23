@@ -98,6 +98,7 @@ CREATE TABLE atlas.prepared_person_operator_grants (
  granted_by_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
  grant_reason text NOT NULL CHECK (length(btrim(grant_reason)) BETWEEN 30 AND 1500),
  can_issue boolean NOT NULL DEFAULT false,
+ can_inspect_org_events boolean NOT NULL DEFAULT false,
  granted_at timestamptz NOT NULL DEFAULT now(),
  revoked_at timestamptz,
  revoked_by_user_id uuid REFERENCES auth.users(id),
@@ -150,7 +151,7 @@ $fn$;
 
 CREATE FUNCTION atlas.prepared_person_assign_practitioner_self_api_v1(
  p_case_id uuid,p_practitioner_user_id uuid,p_grant_reason text,
- p_can_issue boolean DEFAULT false
+ p_can_issue boolean DEFAULT false,p_can_inspect_org_events boolean DEFAULT false
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $fn$
 DECLARE v_case atlas.prepared_person_cases%rowtype;
@@ -181,28 +182,33 @@ BEGIN
  IF FOUND THEN
    IF v_existing.granted_by_user_id=auth.uid()
       AND v_existing.grant_reason=btrim(p_grant_reason)
-      AND v_existing.can_issue=coalesce(p_can_issue,false) THEN
+      AND v_existing.can_issue=coalesce(p_can_issue,false)
+      AND v_existing.can_inspect_org_events=coalesce(p_can_inspect_org_events,false) THEN
      RETURN jsonb_build_object('ok',true,'grantId',v_existing.id,
        'caseId',p_case_id,'practitionerUserId',p_practitioner_user_id,
-       'canIssue',v_existing.can_issue,'replay',true);
+       'canIssue',v_existing.can_issue,
+       'canInspectOrgEvents',v_existing.can_inspect_org_events,'replay',true);
    END IF;
    RAISE EXCEPTION 'Grant exists with different authority; revoke before replacing'
      USING errcode='23505';
  END IF;
  INSERT INTO atlas.prepared_person_operator_grants
-   (case_id,practitioner_user_id,granted_by_user_id,grant_reason,can_issue)
+   (case_id,practitioner_user_id,granted_by_user_id,grant_reason,
+     can_issue,can_inspect_org_events)
  VALUES(p_case_id,p_practitioner_user_id,auth.uid(),btrim(p_grant_reason),
-        coalesce(p_can_issue,false))
+        coalesce(p_can_issue,false),coalesce(p_can_inspect_org_events,false))
  RETURNING id INTO v_grant_id;
  RETURN jsonb_build_object('ok',true,'grantId',v_grant_id,'caseId',p_case_id,
-    'practitionerUserId',p_practitioner_user_id,'canIssue',coalesce(p_can_issue,false));
+    'practitionerUserId',p_practitioner_user_id,
+    'canIssue',coalesce(p_can_issue,false),
+    'canInspectOrgEvents',coalesce(p_can_inspect_org_events,false));
 END $fn$;
 
 -- Email locates a confirmed *professional Auth credential* only; this is
 -- not a name/email-based Person identity resolution or Person construction.
 CREATE FUNCTION atlas.prepared_person_assign_practitioner_email_self_api_v1(
  p_case_id uuid,p_practitioner_email text,p_grant_reason text,
- p_can_issue boolean DEFAULT false
+ p_can_issue boolean DEFAULT false,p_can_inspect_org_events boolean DEFAULT false
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $fn$
 DECLARE v_case atlas.prepared_person_cases%rowtype; v_target uuid; v_count integer;
@@ -230,7 +236,7 @@ BEGIN
       USING errcode='42501';
  END IF;
  RETURN atlas.prepared_person_assign_practitioner_self_api_v1(
-   p_case_id,v_target,p_grant_reason,p_can_issue);
+   p_case_id,v_target,p_grant_reason,p_can_issue,p_can_inspect_org_events);
 END $fn$;
 
 CREATE FUNCTION atlas.prepared_person_revoke_practitioner_self_api_v1(
@@ -429,8 +435,16 @@ BEGIN
          SELECT 1 FROM atlas.organization_occurrence_bindings ob
          JOIN local_intel.occurrences occ ON occ.id=ob.occurrence_id
          WHERE ob.id=p_linked_record_id AND ob.organization_id=v_case.organization_id
-           AND ob.binding_state='active') THEN
-     NULL; -- one existing institutional binding; no new Event.
+           AND ob.binding_state='active'
+           AND (v_case.prepared_by_user_id=auth.uid()
+              OR EXISTS(
+                SELECT 1 FROM atlas.prepared_person_operator_grants grant_event
+                WHERE grant_event.case_id=p_case_id
+                  AND grant_event.practitioner_user_id=auth.uid()
+                  AND grant_event.revoked_at IS NULL
+                  AND grant_event.can_inspect_org_events
+              ))) THEN
+     NULL; -- steward-authorized Event source access only.
    ELSIF p_linked_record_kind='work_allocation' AND
        p_classification='authorized_institutional' AND EXISTS (
          SELECT 1 FROM atlas.work_allocations a
@@ -572,6 +586,13 @@ BEGIN
          WHERE v_case.target_kind='existing_person'
            AND ob.organization_id=v_case.organization_id
            AND ob.binding_state='active'
+           AND (v_case.prepared_by_user_id=auth.uid()
+             OR EXISTS (
+               SELECT 1 FROM atlas.prepared_person_operator_grants grant_event
+               WHERE grant_event.case_id=v_case.id
+                 AND grant_event.practitioner_user_id=auth.uid()
+                 AND grant_event.revoked_at IS NULL
+                 AND grant_event.can_inspect_org_events))
          ORDER BY occ.start_at DESC,ob.id LIMIT 40
        ) recent_events
        ),'[]'::jsonb),
@@ -595,7 +616,9 @@ BEGIN
    'operatorGrants',(SELECT coalesce(jsonb_agg(jsonb_build_object(
       'grantId',g.id,'practitionerUserId',g.practitioner_user_id,
       'practitionerEmail',(SELECT au.email FROM auth.users au WHERE au.id=g.practitioner_user_id),
-      'canIssue',g.can_issue,'active',g.revoked_at IS NULL,
+      'canIssue',g.can_issue,
+      'canInspectOrgEvents',g.can_inspect_org_events,
+      'active',g.revoked_at IS NULL,
       'grantedByUserId',g.granted_by_user_id,'grantedAt',g.granted_at,
       'revokedAt',g.revoked_at) ORDER BY g.granted_at,g.id),'[]'::jsonb)
      FROM atlas.prepared_person_operator_grants g WHERE g.case_id=v_case.id
@@ -749,8 +772,8 @@ BEGIN
 END $fn$;
 
 REVOKE ALL ON FUNCTION
- atlas.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean),
- atlas.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean),
+ atlas.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean,boolean),
+ atlas.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean,boolean),
  atlas.prepared_person_revoke_practitioner_self_api_v1(uuid),
  atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
@@ -762,8 +785,8 @@ REVOKE ALL ON FUNCTION
  atlas.prepared_person_decide_self_api_v1(uuid,text,text,text)
  FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION
- atlas.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean),
- atlas.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean),
+ atlas.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean,boolean),
+ atlas.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean,boolean),
  atlas.prepared_person_revoke_practitioner_self_api_v1(uuid),
  atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
@@ -828,21 +851,21 @@ GRANT EXECUTE ON FUNCTION public.prepared_person_decide_self_api_v1(uuid,text,te
 
 CREATE FUNCTION public.prepared_person_assign_practitioner_self_api_v1(
  p_case_id uuid,p_practitioner_user_id uuid,p_grant_reason text,
- p_can_issue boolean DEFAULT false
+ p_can_issue boolean DEFAULT false,p_can_inspect_org_events boolean DEFAULT false
 ) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
 AS $transport$ SELECT atlas.prepared_person_assign_practitioner_self_api_v1(
- p_case_id,p_practitioner_user_id,p_grant_reason,p_can_issue); $transport$;
-REVOKE ALL ON FUNCTION public.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean) TO authenticated;
+ p_case_id,p_practitioner_user_id,p_grant_reason,p_can_issue,p_can_inspect_org_events); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean,boolean) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean,boolean) TO authenticated;
 
 CREATE FUNCTION public.prepared_person_assign_practitioner_email_self_api_v1(
  p_case_id uuid,p_practitioner_email text,p_grant_reason text,
- p_can_issue boolean DEFAULT false
+ p_can_issue boolean DEFAULT false,p_can_inspect_org_events boolean DEFAULT false
 ) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
 AS $transport$ SELECT atlas.prepared_person_assign_practitioner_email_self_api_v1(
- p_case_id,p_practitioner_email,p_grant_reason,p_can_issue); $transport$;
-REVOKE ALL ON FUNCTION public.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean) TO authenticated;
+ p_case_id,p_practitioner_email,p_grant_reason,p_can_issue,p_can_inspect_org_events); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean,boolean) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean,boolean) TO authenticated;
 
 CREATE FUNCTION public.prepared_person_revoke_practitioner_self_api_v1(
  p_grant_id uuid
