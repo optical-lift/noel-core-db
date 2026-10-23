@@ -18,6 +18,7 @@ DECLARE
   v_actor_user_id uuid := auth.uid();
   v_owner atlas.principals%rowtype;
   v_auth_user auth.users%rowtype;
+  v_session_id uuid;
   v_label text := NULLIF(BTRIM(p_subject_label),'');
   v_field text := NULLIF(BTRIM(p_provisional_field),'');
   v_existing foundry.workspace_authority_registry_v1%rowtype;
@@ -26,20 +27,37 @@ DECLARE
   v_append jsonb;
 BEGIN
   IF v_actor_user_id IS NULL THEN
-    RAISE EXCEPTION 'verified Atlas sign-in required';
+    RAISE EXCEPTION 'verified Atlas sign-in required' USING ERRCODE='42501';
   END IF;
 
   SELECT * INTO v_auth_user FROM auth.users WHERE id=v_actor_user_id;
   IF NOT FOUND OR v_auth_user.is_anonymous
      OR (v_auth_user.banned_until IS NOT NULL AND v_auth_user.banned_until>now())
   THEN
-    RAISE EXCEPTION 'active non-anonymous verified Atlas authentication required';
+    RAISE EXCEPTION 'active non-anonymous verified Atlas authentication required' USING ERRCODE='42501';
+  END IF;
+
+  -- A genuine signed JWT must reference an active GoTrue session, and
+  -- deleting that session must revoke this operation immediately even
+  -- while the JWT itself has not yet expired.
+  BEGIN
+    v_session_id := NULLIF(auth.jwt()->>'session_id','')::uuid;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'valid GoTrue signed session required' USING ERRCODE='42501';
+  END;
+  IF v_session_id IS NULL OR NOT EXISTS (
+    SELECT 1 FROM auth.sessions sess
+    WHERE sess.id=v_session_id
+      AND sess.user_id=v_actor_user_id
+      AND (sess.not_after IS NULL OR sess.not_after>now())
+  ) THEN
+    RAISE EXCEPTION 'active GoTrue session required' USING ERRCODE='42501';
   END IF;
 
   SELECT * INTO v_owner FROM atlas.principals
     WHERE user_id=v_actor_user_id AND status='active';
   IF NOT FOUND THEN
-    RAISE EXCEPTION 'active Atlas Principal required';
+    RAISE EXCEPTION 'active Atlas Principal required' USING ERRCODE='42501';
   END IF;
 
   IF p_request_id IS NULL THEN RAISE EXCEPTION 'stable request ID required'; END IF;
