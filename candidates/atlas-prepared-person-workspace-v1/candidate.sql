@@ -258,6 +258,11 @@ BEGIN
  RETURN jsonb_build_object('ok',true,'revoked',true,'grantId',p_grant_id);
 END $fn$;
 
+-- This internal permission predicate may be invoked by other definer functions,
+-- not by generic client callers or third-party session carriers.
+REVOKE ALL ON FUNCTION atlas.prepared_person_actor_allowed_v1(uuid,text)
+ FROM PUBLIC,anon,authenticated;
+
 -- Source: existing signed identity-steward authority.
 -- A real Person must already be canonical and institutionally in scope.
 -- Small, signed steward selector; no public directory and no inferred identity.
@@ -537,6 +542,7 @@ BEGIN
      WHERE r.organization_id=v_case.organization_id AND r.person_id=v_case.person_entity_id
        AND r.status='active' ORDER BY r.created_at LIMIT 1),
    'organizationId',v_case.organization_id,
+   'canIssue',atlas.prepared_person_actor_allowed_v1(p_case_id,'issue'),
    'knownSources',jsonb_build_object(
      'ledgerConnections',coalesce((
        SELECT jsonb_agg(jsonb_build_object(
