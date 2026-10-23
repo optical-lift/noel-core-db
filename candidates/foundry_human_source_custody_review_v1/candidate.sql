@@ -383,4 +383,71 @@ GRANT EXECUTE ON FUNCTION public.revoke_foundry_source_custody_review_self_api_v
 
 -- IMPORTANT: do not UPDATE workspace_authority_registry_v1 to "reviewed".
 -- Nothing in this migration registers a Foundry delegated-agent command.
+
+-- A reviewer is selected from existing connected, active human Principals.
+-- No global Auth-user directory and no new identity/seat type. The requesting
+-- owner must currently share an active Atlas organization membership.
+CREATE OR REPLACE FUNCTION atlas.list_foundry_source_custody_reviewers_self_api_v1(
+  p_workspace_id text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'pg_catalog','atlas','foundry','auth','pg_temp'
+AS $fn$
+DECLARE v_actor uuid:=atlas.foundry_current_signed_principal_v1();
+        v_uid uuid;
+        v_items jsonb;
+BEGIN
+  SELECT p.user_id INTO v_uid FROM atlas.principals p WHERE p.id=v_actor;
+  IF NOT EXISTS (
+    SELECT 1 FROM foundry.workspace_authority_registry_v1 w
+    WHERE w.workspace_id=p_workspace_id AND w.owner_principal_id=v_actor
+      AND w.custody_review_state='pending'
+      AND w.revoked_at IS NULL AND w.suspended_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Workspace inaccessible for human custody review'
+      USING ERRCODE='42501';
+  END IF;
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'principalId',r.id,'displayName',r.name
+  ) ORDER BY r.name,r.id),'[]'::jsonb) INTO v_items
+  FROM (
+    SELECT DISTINCT p.id,p.name
+    FROM atlas.organization_memberships own
+    JOIN atlas.organization_memberships connected
+      ON connected.organization_id=own.organization_id
+      AND connected.active
+      AND (connected.eligibility_begins_on IS NULL
+           OR connected.eligibility_begins_on<=current_date)
+      AND (connected.eligibility_ends_on IS NULL
+           OR connected.eligibility_ends_on>=current_date)
+    JOIN atlas.principals p ON p.user_id=connected.user_id
+      AND p.status='active' AND p.id<>v_actor
+    JOIN auth.users au ON au.id=p.user_id
+      AND au.is_anonymous=false
+      AND (au.banned_until IS NULL OR au.banned_until<=now())
+    WHERE own.user_id=v_uid AND own.active
+      AND (own.eligibility_begins_on IS NULL
+           OR own.eligibility_begins_on<=current_date)
+      AND (own.eligibility_ends_on IS NULL
+           OR own.eligibility_ends_on>=current_date)
+  ) r;
+  RETURN jsonb_build_object('ok',true,'workspaceId',p_workspace_id,
+    'reviewers',v_items,'selectionBasis','active_shared_atlas_connection',
+    'aiCarrierAccess',false);
+END
+$fn$;
+REVOKE ALL ON FUNCTION atlas.list_foundry_source_custody_reviewers_self_api_v1(text)
+ FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION atlas.list_foundry_source_custody_reviewers_self_api_v1(text)
+ TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.list_foundry_source_custody_reviewers_self_api_v1(
+ p_workspace_id text
+) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path TO ''
+AS $bridge$
+ SELECT atlas.list_foundry_source_custody_reviewers_self_api_v1(p_workspace_id);
+$bridge$;
+REVOKE ALL ON FUNCTION public.list_foundry_source_custody_reviewers_self_api_v1(text)
+ FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.list_foundry_source_custody_reviewers_self_api_v1(text)
+ TO authenticated;
 COMMIT;
