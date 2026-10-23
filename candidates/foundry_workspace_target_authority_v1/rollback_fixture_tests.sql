@@ -81,6 +81,25 @@ BEGIN
     RAISE EXCEPTION 'Valid reviewed workspace target unexpectedly denied: %',v_result;
   END IF;
 
+  -- A generic Personal command must not use a Foundry workspace target.
+  INSERT INTO atlas.agent_command_definitions
+    (command_key,label,scope_kind,execution_class,
+     confirmation_requirement,handler_key,target_contract)
+  VALUES
+    ('foundry.test.personal','Foundry synthetic personal control',
+     'personal','read','none','not_an_executable_handler','{}'::jsonb);
+  UPDATE atlas.delegated_agent_authorizations
+    SET allowed_command_keys=ARRAY['foundry.test.read','foundry.test.personal']
+    WHERE id=v_grant;
+  v_result:=atlas.evaluate_delegated_agent_command_target_authority_v1(
+    v_grant,'foundry.test.personal',1,
+    jsonb_build_object('kind','foundry_workspace','id',v_workspace));
+  IF COALESCE((v_result->>'allowed')::boolean,false) THEN
+    RAISE EXCEPTION 'Personal command tunneled into Foundry workspace';
+  END IF;
+  UPDATE atlas.delegated_agent_authorizations
+    SET allowed_command_keys=ARRAY['foundry.test.read'] WHERE id=v_grant;
+
   -- Same allowlist, different workspace ID: always denied.
   v_result:=atlas.evaluate_delegated_agent_command_target_authority_v1(
     v_grant,'foundry.test.read',1,
