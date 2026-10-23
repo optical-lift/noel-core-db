@@ -12,6 +12,7 @@ BEGIN;
 CREATE TABLE foundry.workspace_authority_registry_v1 (
   workspace_id text PRIMARY KEY
     CHECK (length(btrim(workspace_id)) BETWEEN 1 AND 180),
+  creation_request_id uuid NOT NULL,
   owner_principal_id uuid NOT NULL REFERENCES atlas.principals(id)
     ON DELETE RESTRICT,
   protocol_version text NOT NULL DEFAULT '0.1'
@@ -58,6 +59,7 @@ CREATE TABLE foundry.workspace_authority_registry_v1 (
     (custody_scope_kind='documented_external'
       AND (custody_review_method IS NULL OR custody_review_method='reviewed_source_authorization'))
   ),
+  UNIQUE (owner_principal_id, creation_request_id),
   CHECK (custody_review_state<>'revoked' OR revoked_at IS NOT NULL),
   CHECK (custody_review_state<>'suspended' OR suspended_at IS NOT NULL)
 );
