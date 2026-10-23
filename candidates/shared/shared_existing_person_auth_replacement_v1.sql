@@ -93,6 +93,28 @@ BEGIN
 END
 $fn$;
 
+
+CREATE FUNCTION atlas.inspect_existing_person_auth_replacement_old_self_v1(
+ p_case_id uuid
+) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
+AS $fn$
+DECLARE v_actor uuid;v_case atlas.existing_person_auth_claim_cases%rowtype;
+BEGIN
+ v_actor:=atlas.existing_person_claim_signed_actor_v1();
+ SELECT * INTO v_case FROM atlas.existing_person_auth_claim_cases WHERE id=p_case_id;
+ IF v_case.id IS NULL OR v_case.replaces_auth_user_id<>v_actor
+ THEN RAISE EXCEPTION 'No replacement for this original account'
+   USING errcode='42501'; END IF;
+ RETURN jsonb_build_object('ok',true,'caseId',v_case.id,
+    'intendedPersonName',(SELECT display_name FROM atlas.people
+       WHERE id=v_case.person_entity_id),
+    'proposedEmail',v_case.proposed_email,
+    'caseState',v_case.case_state,
+    'oldAccountConsented',v_case.old_account_consented_at IS NOT NULL,
+    'expiresAt',v_case.expires_at);
+END
+$fn$;
+
 CREATE FUNCTION atlas.consent_existing_person_auth_replacement_old_self_v1(
  p_case_id uuid,p_explicit_retirement_consent boolean
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
@@ -285,6 +307,9 @@ BEGIN
 END
 $fn$;
 
+CREATE FUNCTION public.inspect_existing_person_auth_replacement_old_self_api_v1(
+ p_case_id uuid) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
+AS $fn$ SELECT atlas.inspect_existing_person_auth_replacement_old_self_v1(p_case_id) $fn$;
 CREATE FUNCTION public.prepare_existing_person_auth_replacement_self_api_v1(
  p_organization_id uuid,p_person_id uuid,p_new_email text,p_basis text)
 RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
@@ -307,24 +332,28 @@ AS $fn$ SELECT atlas.finish_existing_person_auth_replacement_self_v1(
  p_case_id) $fn$;
 
 REVOKE ALL ON FUNCTION
+ atlas.inspect_existing_person_auth_replacement_old_self_v1(uuid),
  atlas.prepare_existing_person_auth_replacement_self_v1(uuid,uuid,text,text),
  atlas.consent_existing_person_auth_replacement_old_self_v1(uuid,boolean),
  atlas.plan_existing_person_auth_replacement_self_v1(uuid),
  atlas.finish_existing_person_auth_replacement_self_v1(uuid)
  FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION
+ atlas.inspect_existing_person_auth_replacement_old_self_v1(uuid),
  atlas.prepare_existing_person_auth_replacement_self_v1(uuid,uuid,text,text),
  atlas.consent_existing_person_auth_replacement_old_self_v1(uuid,boolean),
  atlas.plan_existing_person_auth_replacement_self_v1(uuid),
  atlas.finish_existing_person_auth_replacement_self_v1(uuid)
  TO authenticated;
 REVOKE ALL ON FUNCTION
+ public.inspect_existing_person_auth_replacement_old_self_api_v1(uuid),
  public.prepare_existing_person_auth_replacement_self_api_v1(uuid,uuid,text,text),
  public.consent_existing_person_auth_replacement_old_self_api_v1(uuid,boolean),
  public.plan_existing_person_auth_replacement_self_api_v1(uuid),
  public.finish_existing_person_auth_replacement_self_api_v1(uuid)
  FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION
+ public.inspect_existing_person_auth_replacement_old_self_api_v1(uuid),
  public.prepare_existing_person_auth_replacement_self_api_v1(uuid,uuid,text,text),
  public.consent_existing_person_auth_replacement_old_self_api_v1(uuid,boolean),
  public.plan_existing_person_auth_replacement_self_api_v1(uuid),
