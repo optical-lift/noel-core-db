@@ -101,7 +101,7 @@ begin
     'authoritySource','delegated_agent_authorization_v1'
   );
 end;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.evaluate_delegated_agent_command_target_authority_v1(p_authorization_id uuid, p_command_key text, p_command_version integer, p_target jsonb)
@@ -249,7 +249,7 @@ begin
     'targetScopeEvaluated',true
   );
 end;
-$function$
+$function$;
 
 
 -- No Foundry commands are activated in this gate. Do not add a broad
