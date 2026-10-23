@@ -150,7 +150,8 @@ CREATE FUNCTION atlas.prepared_person_assign_practitioner_self_api_v1(
  p_can_issue boolean DEFAULT false
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $fn$
-DECLARE v_case atlas.prepared_person_cases%rowtype; v_grant_id uuid;
+DECLARE v_case atlas.prepared_person_cases%rowtype;
+ v_existing atlas.prepared_person_operator_grants%rowtype; v_grant_id uuid;
 BEGIN
  SELECT * INTO STRICT v_case FROM atlas.prepared_person_cases
  WHERE id=p_case_id FOR UPDATE;
@@ -171,12 +172,19 @@ BEGIN
   RAISE EXCEPTION 'Verified separate practitioner credential and delegation basis required'
      USING errcode='42501';
  END IF;
- SELECT id INTO v_grant_id FROM atlas.prepared_person_operator_grants
+ SELECT * INTO v_existing FROM atlas.prepared_person_operator_grants
   WHERE case_id=p_case_id AND practitioner_user_id=p_practitioner_user_id
-    AND revoked_at IS NULL;
- IF v_grant_id IS NOT NULL THEN
-  RAISE EXCEPTION 'Practitioner already delegated; use separate revoke and new grant'
-    USING errcode='23505';
+    AND revoked_at IS NULL FOR UPDATE;
+ IF FOUND THEN
+   IF v_existing.granted_by_user_id=auth.uid()
+      AND v_existing.grant_reason=btrim(p_grant_reason)
+      AND v_existing.can_issue=coalesce(p_can_issue,false) THEN
+     RETURN jsonb_build_object('ok',true,'grantId',v_existing.id,
+       'caseId',p_case_id,'practitionerUserId',p_practitioner_user_id,
+       'canIssue',v_existing.can_issue,'replay',true);
+   END IF;
+   RAISE EXCEPTION 'Grant exists with different authority; revoke before replacing'
+     USING errcode='23505';
  END IF;
  INSERT INTO atlas.prepared_person_operator_grants
    (case_id,practitioner_user_id,granted_by_user_id,grant_reason,can_issue)
