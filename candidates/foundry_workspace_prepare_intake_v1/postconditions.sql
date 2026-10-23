@@ -33,6 +33,32 @@ BEGIN
        'atlas.get_foundry_workspace_preparation_self_api_v1(text)'::regprocedure,
        'EXECUTE')
   THEN RAISE EXCEPTION 'Owner-only read API privileges incorrect'; END IF;
+
+  -- Public API is a narrow SECURITY INVOKER bridge; no private Atlas
+  -- schema exposure and no elevated security-definer public function.
+  IF to_regprocedure('public.prepare_foundry_workspace_self_api_v1(uuid,text,text,text)') IS NULL
+     OR to_regprocedure('public.get_foundry_workspace_preparation_self_api_v1(text)') IS NULL
+  THEN RAISE EXCEPTION 'Missing public Foundry RPC bridges'; END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid IN (
+      'public.prepare_foundry_workspace_self_api_v1(uuid,text,text,text)'::regprocedure,
+      'public.get_foundry_workspace_preparation_self_api_v1(text)'::regprocedure
+    ) AND prosecdef
+  ) THEN RAISE EXCEPTION 'Public Foundry bridge must stay SECURITY INVOKER'; END IF;
+  IF NOT has_function_privilege('authenticated',
+       'public.prepare_foundry_workspace_self_api_v1(uuid,text,text,text)'::regprocedure,'EXECUTE')
+     OR NOT has_function_privilege('authenticated',
+       'public.get_foundry_workspace_preparation_self_api_v1(text)'::regprocedure,'EXECUTE')
+     OR has_function_privilege('anon',
+       'public.prepare_foundry_workspace_self_api_v1(uuid,text,text,text)'::regprocedure,'EXECUTE')
+     OR has_function_privilege('anon',
+       'public.get_foundry_workspace_preparation_self_api_v1(text)'::regprocedure,'EXECUTE')
+     OR has_function_privilege('service_role',
+       'public.prepare_foundry_workspace_self_api_v1(uuid,text,text,text)'::regprocedure,'EXECUTE')
+     OR has_function_privilege('service_role',
+       'public.get_foundry_workspace_preparation_self_api_v1(text)'::regprocedure,'EXECUTE')
+  THEN RAISE EXCEPTION 'Unexpected public Foundry bridge execute privileges'; END IF;
   IF NOT EXISTS(
     SELECT 1 FROM pg_constraint
     WHERE conrelid='foundry.workspace_authority_registry_v1'::regclass
