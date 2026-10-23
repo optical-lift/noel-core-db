@@ -1,0 +1,53 @@
+-- Assert source-review isolation on disposable schema-clone ONLY.
+DO $assert$
+DECLARE v_oid oid;
+BEGIN
+  SELECT 'foundry.source_custody_review_cases_v1'::regclass::oid INTO v_oid;
+  IF v_oid IS NULL OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid=v_oid) THEN
+    RAISE EXCEPTION 'Missing private RLS-gated human review record';
+  END IF;
+  IF has_table_privilege('authenticated',v_oid,'SELECT')
+     OR has_table_privilege('authenticated',v_oid,'INSERT')
+     OR has_table_privilege('anon',v_oid,'SELECT')
+     OR has_table_privilege('service_role',v_oid,'SELECT') THEN
+    RAISE EXCEPTION 'Direct custody case table access exposed';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.proname IN (
+        'request_foundry_source_custody_review_self_api_v1',
+        'inspect_foundry_source_custody_review_self_api_v1',
+        'decide_foundry_source_custody_review_self_api_v1',
+        'revoke_foundry_source_custody_review_self_api_v1'
+      ) AND p.prosecdef
+  ) THEN RAISE EXCEPTION 'Elevated public custody review RPC'; END IF;
+  IF (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname='public' AND p.proname IN (
+        'request_foundry_source_custody_review_self_api_v1',
+        'inspect_foundry_source_custody_review_self_api_v1',
+        'decide_foundry_source_custody_review_self_api_v1',
+        'revoke_foundry_source_custody_review_self_api_v1'
+      ))<>4 THEN RAISE EXCEPTION 'Missing narrow public custody review RPC'; END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='public'
+      AND p.proname IN (
+        'request_foundry_source_custody_review_self_api_v1',
+        'inspect_foundry_source_custody_review_self_api_v1',
+        'decide_foundry_source_custody_review_self_api_v1',
+        'revoke_foundry_source_custody_review_self_api_v1'
+      ) AND (has_function_privilege('anon',p.oid,'EXECUTE')
+        OR has_function_privilege('service_role',p.oid,'EXECUTE')
+        OR NOT has_function_privilege('authenticated',p.oid,'EXECUTE'))
+  ) THEN RAISE EXCEPTION 'Custody review RPC grants incorrect'; END IF;
+  IF EXISTS(SELECT 1 FROM foundry.workspace_authority_registry_v1
+            WHERE custody_review_state='reviewed') THEN
+    RAISE EXCEPTION 'Human review silently elevated carrier-level custody';
+  END IF;
+  IF EXISTS(SELECT 1 FROM atlas.agent_command_definitions
+            WHERE scope_kind='foundry_workspace') THEN
+    RAISE EXCEPTION 'Human review registered an AI command';
+  END IF;
+END
+$assert$;
