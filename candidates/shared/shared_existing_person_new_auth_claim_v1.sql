@@ -30,6 +30,9 @@ CREATE TABLE atlas.existing_person_auth_claim_cases (
     length(btrim(review_basis)) BETWEEN 40 AND 1800),
   reviewed_at timestamptz,
   conflict_reason text,
+  rejected_by_user_id uuid REFERENCES auth.users(id),
+  rejection_reason text,
+  rejected_at timestamptz,
   completed_binding_id uuid REFERENCES reality.auth_person_bindings(id),
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL DEFAULT (now()+interval '7 days'),
@@ -391,6 +394,103 @@ BEGIN
 END
 $fn$;
 
+
+-- Exact case, minimum necessary source-backed identity: no email enumeration.
+CREATE FUNCTION atlas.inspect_existing_person_auth_claim_self_v1(p_case_id uuid)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
+AS $fn$
+DECLARE v_actor uuid; v_email text;
+ v_case atlas.existing_person_auth_claim_cases%rowtype;
+BEGIN
+ v_actor:=atlas.existing_person_claim_signed_actor_v1();
+ SELECT * INTO v_case FROM atlas.existing_person_auth_claim_cases WHERE id=p_case_id;
+ IF v_case.id IS NULL THEN RETURN jsonb_build_object('ok',false,'state','unavailable'); END IF;
+ SELECT lower(email) INTO v_email FROM auth.users WHERE id=v_actor;
+ IF v_email=v_case.proposed_email AND v_actor<>v_case.prepared_by_user_id THEN
+   RETURN jsonb_build_object('ok',true,'caseId',v_case.id,
+    'caseState',v_case.case_state,'intendedPersonName',
+      (SELECT display_name FROM reality.entities WHERE id=v_case.person_entity_id
+       AND entity_kind='person' AND identity_state='canonical'),
+    'recipientAccepted',v_case.claimant_auth_user_id=v_actor
+      AND v_case.claimant_accepted_at IS NOT NULL,
+    'requiresIndependentReview',true);
+ END IF;
+ PERFORM atlas.existing_person_claim_steward_self_v1(
+    v_case.organization_id,v_case.person_entity_id);
+ RETURN jsonb_build_object('ok',true,'caseId',v_case.id,
+   'personId',v_case.person_entity_id,'caseState',v_case.case_state,
+   'recipientAccepted',v_case.claimant_accepted_at IS NOT NULL,
+   'reviewed',v_case.reviewed_at IS NOT NULL,
+   'completed',v_case.completed_at IS NOT NULL,'expiresAt',v_case.expires_at,
+   'conflictReason',v_case.conflict_reason);
+END
+$fn$;
+
+-- Wrong-email recipients can decline without claiming an identity.
+CREATE FUNCTION atlas.reject_existing_person_auth_claim_self_v1(
+ p_case_id uuid,p_reason text
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $fn$
+DECLARE v_actor uuid;v_email text;
+ v_case atlas.existing_person_auth_claim_cases%rowtype;
+BEGIN
+ v_actor:=atlas.existing_person_claim_signed_actor_v1();
+ IF length(btrim(coalesce(p_reason,''))) NOT BETWEEN 10 AND 400 THEN
+  RAISE EXCEPTION 'Reason required' USING errcode='22023'; END IF;
+ SELECT * INTO v_case FROM atlas.existing_person_auth_claim_cases
+  WHERE id=p_case_id FOR UPDATE;
+ IF v_case.id IS NULL THEN RAISE EXCEPTION 'Claim not available'
+   USING errcode='42501'; END IF;
+ SELECT lower(email) INTO v_email FROM auth.users WHERE id=v_actor;
+ IF NOT (v_case.proposed_email=v_email AND
+   v_actor<>v_case.prepared_by_user_id) THEN
+  PERFORM atlas.existing_person_claim_steward_self_v1(
+    v_case.organization_id,v_case.person_entity_id);
+ END IF;
+ IF v_case.case_state='rejected' THEN
+  RETURN jsonb_build_object('ok',true,'state','rejected',
+    'idempotentReplay',true); END IF;
+ IF v_case.case_state NOT IN ('prepared','accepted','approved','conflicted') THEN
+  RAISE EXCEPTION 'Claim is not open for rejection' USING errcode='42501'; END IF;
+ UPDATE atlas.existing_person_auth_claim_cases SET
+  case_state='rejected',rejected_at=now(),rejected_by_user_id=v_actor,
+  rejection_reason=btrim(p_reason),updated_at=now()
+ WHERE id=v_case.id;
+ RETURN jsonb_build_object('ok',true,'state','rejected',
+   'idempotentReplay',false);
+END
+$fn$;
+
+CREATE FUNCTION atlas.list_existing_person_auth_claims_self_v1(p_organization_id uuid)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
+AS $fn$
+DECLARE v_actor uuid;v_cases jsonb;
+BEGIN
+ v_actor:=atlas.existing_person_claim_signed_actor_v1();
+ PERFORM atlas.require_identity_steward_v1(p_organization_id);
+ IF NOT EXISTS (SELECT 1 FROM atlas.principals
+   WHERE user_id=v_actor AND status='active') THEN
+  RAISE EXCEPTION 'Active identity steward required' USING errcode='42501';
+ END IF;
+ SELECT coalesce(jsonb_agg(data ORDER BY created_at DESC),'[]'::jsonb)
+ INTO v_cases FROM (
+  SELECT c.created_at,jsonb_build_object('caseId',c.id,
+    'personId',c.person_entity_id,'personName',p.display_name,
+    'caseState',c.case_state,'recipientAccepted',c.claimant_accepted_at IS NOT NULL,
+    'reviewed',c.reviewed_at IS NOT NULL,'completed',c.completed_at IS NOT NULL,
+    'expiresAt',c.expires_at) data
+  FROM atlas.existing_person_auth_claim_cases c
+  JOIN atlas.people p ON p.id=c.person_entity_id AND p.status='active'
+  WHERE c.organization_id=p_organization_id
+   AND EXISTS (SELECT 1 FROM atlas.institutional_person_records r
+    WHERE r.organization_id=c.organization_id AND r.person_id=c.person_entity_id
+      AND r.status='active')
+  ORDER BY c.created_at DESC LIMIT 100
+ ) q;
+ RETURN jsonb_build_object('ok',true,'cases',v_cases,'limit',100);
+END
+$fn$;
+
 -- Expose only signed-in wrappers. Private claim table stays outside Data API.
 CREATE FUNCTION public.prepare_existing_person_auth_claim_self_api_v1(
  p_organization_id uuid,p_person_id uuid,p_email text,p_basis text
@@ -412,30 +512,56 @@ CREATE FUNCTION public.finish_existing_person_auth_claim_self_api_v1(
 ) RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
 AS $fn$ SELECT atlas.finish_existing_person_auth_claim_self_v1(p_case_id) $fn$;
 
+CREATE FUNCTION public.inspect_existing_person_auth_claim_self_api_v1(p_case_id uuid)
+RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
+AS $fn$ SELECT atlas.inspect_existing_person_auth_claim_self_v1(p_case_id) $fn$;
+CREATE FUNCTION public.reject_existing_person_auth_claim_self_api_v1(
+ p_case_id uuid,p_reason text)
+RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
+AS $fn$ SELECT atlas.reject_existing_person_auth_claim_self_v1(
+ p_case_id,p_reason) $fn$;
+CREATE FUNCTION public.list_existing_person_auth_claims_self_api_v1(
+ p_organization_id uuid)
+RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
+AS $fn$ SELECT atlas.list_existing_person_auth_claims_self_v1(
+ p_organization_id) $fn$;
+
 REVOKE ALL ON FUNCTION atlas.existing_person_claim_steward_self_v1(uuid,uuid),
  atlas.existing_person_claim_signed_actor_v1(),
  atlas.prepare_existing_person_auth_claim_self_v1(uuid,uuid,text,text),
  atlas.accept_existing_person_auth_claim_self_v1(uuid,boolean),
  atlas.approve_existing_person_auth_claim_self_v1(uuid,text,text),
- atlas.finish_existing_person_auth_claim_self_v1(uuid)
+ atlas.finish_existing_person_auth_claim_self_v1(uuid),
+ atlas.inspect_existing_person_auth_claim_self_v1(uuid),
+ atlas.reject_existing_person_auth_claim_self_v1(uuid,text),
+ atlas.list_existing_person_auth_claims_self_v1(uuid)
  FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION atlas.existing_person_claim_steward_self_v1(uuid,uuid),
  atlas.existing_person_claim_signed_actor_v1(),
  atlas.prepare_existing_person_auth_claim_self_v1(uuid,uuid,text,text),
  atlas.accept_existing_person_auth_claim_self_v1(uuid,boolean),
  atlas.approve_existing_person_auth_claim_self_v1(uuid,text,text),
- atlas.finish_existing_person_auth_claim_self_v1(uuid) TO authenticated;
+ atlas.finish_existing_person_auth_claim_self_v1(uuid),
+ atlas.inspect_existing_person_auth_claim_self_v1(uuid),
+ atlas.reject_existing_person_auth_claim_self_v1(uuid,text),
+ atlas.list_existing_person_auth_claims_self_v1(uuid) TO authenticated;
 REVOKE ALL ON FUNCTION
  public.prepare_existing_person_auth_claim_self_api_v1(uuid,uuid,text,text),
  public.accept_existing_person_auth_claim_self_api_v1(uuid,boolean),
  public.approve_existing_person_auth_claim_self_api_v1(uuid,text,text),
- public.finish_existing_person_auth_claim_self_api_v1(uuid)
+ public.finish_existing_person_auth_claim_self_api_v1(uuid),
+ public.inspect_existing_person_auth_claim_self_api_v1(uuid),
+ public.reject_existing_person_auth_claim_self_api_v1(uuid,text),
+ public.list_existing_person_auth_claims_self_api_v1(uuid)
  FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION
  public.prepare_existing_person_auth_claim_self_api_v1(uuid,uuid,text,text),
  public.accept_existing_person_auth_claim_self_api_v1(uuid,boolean),
  public.approve_existing_person_auth_claim_self_api_v1(uuid,text,text),
- public.finish_existing_person_auth_claim_self_api_v1(uuid)
+ public.finish_existing_person_auth_claim_self_api_v1(uuid),
+ public.inspect_existing_person_auth_claim_self_api_v1(uuid),
+ public.reject_existing_person_auth_claim_self_api_v1(uuid,text),
+ public.list_existing_person_auth_claims_self_api_v1(uuid)
  TO authenticated;
 
 COMMIT;

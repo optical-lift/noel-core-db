@@ -11,9 +11,12 @@ BEGIN
  'prepare_existing_person_auth_claim_self_api_v1',
  'accept_existing_person_auth_claim_self_api_v1',
  'approve_existing_person_auth_claim_self_api_v1',
- 'finish_existing_person_auth_claim_self_api_v1'
+ 'finish_existing_person_auth_claim_self_api_v1',
+ 'inspect_existing_person_auth_claim_self_api_v1',
+ 'reject_existing_person_auth_claim_self_api_v1',
+ 'list_existing_person_auth_claims_self_api_v1'
  );
- IF n<>4 THEN RAISE EXCEPTION 'Claim public membrane incomplete'; END IF;
+ IF n<>7 THEN RAISE EXCEPTION 'Claim public membrane incomplete'; END IF;
  IF EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace
  WHERE s.nspname='public' AND p.proname LIKE '%existing_person_auth_claim%'
  AND (p.prosecdef OR has_function_privilege('anon',p.oid,'EXECUTE'))) THEN
