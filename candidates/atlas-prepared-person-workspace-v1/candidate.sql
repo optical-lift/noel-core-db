@@ -113,12 +113,26 @@ BEGIN
      SELECT p.id AS person_id,p.display_name,
        jsonb_build_object('personId',p.id,'displayName',p.display_name,
                          'institutionalPersonRecordId',r.id) AS row_data
-     FROM atlas.institutional_person_records r
-     JOIN atlas.people p ON p.id=r.person_id AND p.status='active'
+     FROM atlas.people p
      JOIN reality.entities e ON e.id=p.id AND e.entity_kind='person'
        AND e.identity_state='canonical'
-     WHERE r.organization_id=p_organization_id AND r.status='active'
-      AND (btrim(coalesce(p_query,''))=''
+     LEFT JOIN LATERAL (
+       SELECT r.id FROM atlas.institutional_person_records r
+       WHERE r.organization_id=p_organization_id AND r.person_id=p.id
+         AND r.status='active' ORDER BY r.created_at LIMIT 1
+     ) r ON true
+     WHERE p.status='active'
+       AND (r.id IS NOT NULL OR EXISTS (
+         SELECT 1 FROM atlas.ledger_organization_participations lop
+         JOIN ledger.seats s ON s.ledger_id=lop.ledger_id
+           AND s.person_entity_id=p.id AND s.seat_state='active'
+           AND s.ended_at IS NULL
+         WHERE lop.organization_id=p_organization_id
+           AND lop.status='active' AND lop.ended_at IS NULL
+           AND lop.participation_kind IN ('governing','operating')))
+       AND atlas.existing_person_claim_actor_steward_v1(
+         p_organization_id,p.id,auth.uid())
+       AND (btrim(coalesce(p_query,''))=''
            OR lower(p.display_name) LIKE '%'||lower(btrim(p_query))||'%')
      ORDER BY p.display_name,p.id
      LIMIT 25
