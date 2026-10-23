@@ -9,7 +9,7 @@
 - Server verifies ownership, exact source kind and deterministic match before human can approve/revoke the rule.
 - Approval is persisted under the signed-in Person only. Future matching entries can be *projected* as weight readings automatically, without per-note prompt.
 - Parsing derives numeric unit-safe information from preserved original text; it does not create independent medical facts, health claims, work or clock effects.
-- Only the first approved source and later authored notes are projected. Earlier notes are not retroactively classified; approval time remains visible.
+- Only the first approved source and later authored matching notes are projected. Earlier notes are not retroactively classified, and approval time remains visible.
 - Existing symptom reader and future activity reader remain independent source adapters, not special notebook writers.
 
 ## Supported pattern v1
