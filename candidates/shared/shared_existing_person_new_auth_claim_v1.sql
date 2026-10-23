@@ -42,6 +42,9 @@ CREATE TABLE atlas.existing_person_auth_claim_cases (
   CHECK (completed_at IS NULL OR completed_binding_id IS NOT NULL)
 );
 
+ALTER TABLE atlas.existing_person_auth_claim_cases ENABLE ROW LEVEL SECURITY;
+-- No authenticated direct policies: the governed RPC is the only carrier.
+
 -- One unresolved claimant association per Person. No duplicate authority.
 CREATE UNIQUE INDEX existing_person_auth_claim_one_pending_v1
 ON atlas.existing_person_auth_claim_cases(person_entity_id)
@@ -256,12 +259,14 @@ BEGIN
  SELECT * INTO v_case FROM atlas.existing_person_auth_claim_cases
  WHERE id=p_case_id FOR UPDATE;
  IF v_case.id IS NULL OR v_case.claimant_auth_user_id<>v_actor
-  OR v_case.proposed_email<>v_email OR v_case.expires_at<=now() THEN
-  RAISE EXCEPTION 'Verified claimant and live claim required'
+  OR v_case.proposed_email<>v_email THEN
+  RAISE EXCEPTION 'Verified claimant and exact claim required'
     USING errcode='42501'; END IF;
  IF v_case.case_state='completed' THEN
   RETURN jsonb_build_object('ok',true,'caseId',v_case.id,
    'state','completed','idempotentReplay',true); END IF;
+ IF v_case.expires_at<=now() THEN
+  RAISE EXCEPTION 'Identity claim expired' USING errcode='42501'; END IF;
  IF v_case.case_state<>'approved' OR v_case.reviewed_at IS NULL
    OR v_case.reviewed_by_user_id=v_actor THEN
   RAISE EXCEPTION 'Authorized independent approval required'
@@ -275,8 +280,30 @@ BEGIN
   AND entity_kind='person' AND identity_state='canonical' FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Canonical Person no longer admissible'
   USING errcode='23514'; END IF;
- PERFORM atlas.existing_person_claim_steward_self_v1(
-  v_case.organization_id,v_case.person_entity_id);
+ -- The CLAIMANT is finishing the transition: do not accidentally require
+ -- the CLAIMANT to be her own institutional identity steward. Revalidate
+ -- the original preparer and independent reviewer against CURRENT authority
+ -- in the exact same organization before any credential is written.
+ IF NOT EXISTS (
+   SELECT 1 FROM atlas.institutional_person_records r
+   JOIN atlas.organization_memberships m
+     ON m.organization_id=r.organization_id
+   JOIN atlas.principals p ON p.user_id=m.user_id AND p.status='active'
+   WHERE r.organization_id=v_case.organization_id
+     AND r.person_id=v_case.person_entity_id AND r.status='active'
+     AND m.user_id=v_case.prepared_by_user_id
+     AND m.active AND m.role IN ('owner','consultant')
+ ) OR NOT EXISTS (
+   SELECT 1 FROM atlas.institutional_person_records r
+   JOIN atlas.organization_memberships m
+     ON m.organization_id=r.organization_id
+   JOIN atlas.principals p ON p.user_id=m.user_id AND p.status='active'
+   WHERE r.organization_id=v_case.organization_id
+     AND r.person_id=v_case.person_entity_id AND r.status='active'
+     AND m.user_id=v_case.reviewed_by_user_id
+     AND m.active AND m.role IN ('owner','consultant')
+ ) THEN RAISE EXCEPTION 'Original identity stewardship no longer authorized'
+   USING errcode='42501'; END IF;
 
  -- No Auth, Principal, or institutional authority may be reassigned by
  -- a mere email match. Existing active credentials need a separate

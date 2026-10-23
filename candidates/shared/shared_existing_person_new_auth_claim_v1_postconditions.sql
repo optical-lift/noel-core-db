@@ -23,6 +23,12 @@ BEGIN
   'atlas.existing_person_auth_claim_cases','SELECT') THEN
   RAISE EXCEPTION 'Private identity cases exposed to authenticated role';
  END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace n
+    ON n.oid=c.relnamespace WHERE n.nspname='atlas'
+    AND c.relname='existing_person_auth_claim_cases'
+    AND c.relrowsecurity) THEN
+   RAISE EXCEPTION 'Private claim table RLS missing';
+ END IF;
  IF NOT EXISTS (SELECT 1 FROM pg_indexes
    WHERE schemaname='atlas' AND tablename='person_auth_credentials'
      AND indexname='person_auth_one_active_person_shared_v1') THEN
