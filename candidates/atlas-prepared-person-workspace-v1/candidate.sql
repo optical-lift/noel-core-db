@@ -42,7 +42,10 @@ CREATE TABLE atlas.prepared_person_items (
    'operator_attested','authored_personal_proposal','missing_disputed'
  )),
  disclosure text NOT NULL CHECK (disclosure IN ('operator_only','recipient_review','withheld')),
- linked_record_kind text CHECK (linked_record_kind IN ('person','institutional_person_record')),
+ linked_record_kind text CHECK (linked_record_kind IN (
+   'person','institutional_person_record',
+   'organization_occurrence_binding','work_allocation','ledger_seat'
+ )),
  linked_record_id uuid,
  revises_item_id uuid REFERENCES atlas.prepared_person_items(id) ON DELETE RESTRICT,
  conflicts_with_item_id uuid REFERENCES atlas.prepared_person_items(id) ON DELETE RESTRICT,
@@ -415,6 +418,37 @@ BEGIN
         WHERE r.id=p_linked_record_id AND r.organization_id=v_case.organization_id
           AND r.person_id=v_case.person_entity_id AND r.status='active') THEN
      NULL; -- exact organization-owned relationship, not a new seat.
+   ELSIF p_linked_record_kind='organization_occurrence_binding' AND
+       p_classification='authorized_institutional' AND
+       v_case.target_kind='existing_person' AND EXISTS (
+         SELECT 1 FROM atlas.organization_occurrence_bindings ob
+         JOIN local_intel.occurrences occ ON occ.id=ob.occurrence_id
+         WHERE ob.id=p_linked_record_id AND ob.organization_id=v_case.organization_id
+           AND ob.binding_state='active') THEN
+     NULL; -- one existing institutional binding; no new Event.
+   ELSIF p_linked_record_kind='work_allocation' AND
+       p_classification='authorized_institutional' AND EXISTS (
+         SELECT 1 FROM atlas.work_allocations a
+         JOIN atlas.work_items w ON w.id=a.work_item_id
+           AND w.organization_id=v_case.organization_id
+         WHERE a.id=p_linked_record_id AND a.organization_id=v_case.organization_id
+           AND a.assignee_canonical_person_id=v_case.person_entity_id
+           AND a.state='active') THEN
+     NULL; -- this exact Person's real active allocation, no new Work.
+   ELSIF p_linked_record_kind='ledger_seat' AND
+       p_classification='authorized_institutional' AND EXISTS (
+         SELECT 1 FROM ledger.seats seat
+         JOIN atlas.ledger_organization_participations lop
+           ON lop.ledger_id=seat.ledger_id
+         JOIN ledger.ledgers led ON led.id=seat.ledger_id
+         WHERE seat.id=p_linked_record_id
+           AND seat.person_entity_id=v_case.person_entity_id
+           AND seat.seat_state='active' AND seat.ended_at IS NULL
+           AND led.ledger_state='active' AND led.retired_at IS NULL
+           AND lop.organization_id=v_case.organization_id
+           AND lop.status='active' AND lop.ended_at IS NULL
+           AND lop.participation_kind IN ('governing','operating')) THEN
+     NULL; -- original active native Ledger seat.
    ELSE
      RAISE EXCEPTION 'Referenced canonical domain record not proved in scope'
        USING errcode='42501';
@@ -503,6 +537,55 @@ BEGIN
      WHERE r.organization_id=v_case.organization_id AND r.person_id=v_case.person_entity_id
        AND r.status='active' ORDER BY r.created_at LIMIT 1),
    'organizationId',v_case.organization_id,
+   'knownSources',jsonb_build_object(
+     'ledgerConnections',coalesce((
+       SELECT jsonb_agg(jsonb_build_object(
+           'kind','ledger_seat','id',seat.id,
+           'label',led.name,'ledgerId',led.id)
+         ORDER BY led.name,seat.id)
+       FROM ledger.seats seat
+       JOIN atlas.ledger_organization_participations lop
+         ON lop.ledger_id=seat.ledger_id
+       JOIN ledger.ledgers led ON led.id=seat.ledger_id
+       WHERE v_case.target_kind='existing_person'
+         AND seat.person_entity_id=v_case.person_entity_id
+         AND seat.seat_state='active' AND seat.ended_at IS NULL
+         AND led.ledger_state='active' AND led.retired_at IS NULL
+         AND lop.organization_id=v_case.organization_id
+         AND lop.status='active' AND lop.ended_at IS NULL
+         AND lop.participation_kind IN ('governing','operating')
+       ),'[]'::jsonb),
+     'institutionalEvents',coalesce((
+       SELECT jsonb_agg(event_row ORDER BY start_at,id) FROM (
+         SELECT ob.id,occ.start_at,
+          jsonb_build_object('kind','organization_occurrence_binding',
+            'id',ob.id,'label',occ.title,'occurrenceId',occ.id,
+            'startsAt',occ.start_at,'eventStatus',occ.status) AS event_row
+         FROM atlas.organization_occurrence_bindings ob
+         JOIN local_intel.occurrences occ ON occ.id=ob.occurrence_id
+         WHERE v_case.target_kind='existing_person'
+           AND ob.organization_id=v_case.organization_id
+           AND ob.binding_state='active'
+         ORDER BY occ.start_at DESC,ob.id LIMIT 40
+       ) recent_events
+       ),'[]'::jsonb),
+     'assignedWork',coalesce((
+       SELECT jsonb_agg(work_row ORDER BY allocated_at DESC,id) FROM (
+         SELECT a.id,a.allocated_at,
+          jsonb_build_object('kind','work_allocation','id',a.id,
+            'label',w.title,'workItemId',w.id,
+            'allocationState',a.state) AS work_row
+         FROM atlas.work_allocations a
+         JOIN atlas.work_items w ON w.id=a.work_item_id
+           AND w.organization_id=v_case.organization_id
+         WHERE v_case.target_kind='existing_person'
+           AND a.organization_id=v_case.organization_id
+           AND a.assignee_canonical_person_id=v_case.person_entity_id
+           AND a.state='active'
+         ORDER BY a.allocated_at DESC,a.id LIMIT 50
+       ) source_work
+       ),'[]'::jsonb)
+   ),
    'operatorGrants',(SELECT coalesce(jsonb_agg(jsonb_build_object(
       'grantId',g.id,'practitionerUserId',g.practitioner_user_id,
       'practitionerEmail',(SELECT au.email FROM auth.users au WHERE au.id=g.practitioner_user_id),
