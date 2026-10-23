@@ -45,7 +45,7 @@ begin
   v_principal := atlas.require_active_task_principal_v1();
   with source_rows as (
     -- A page date is an authored notebook coordinate, never observation onset.
-    select (c.capture_context->>'notebookDate')::date as entry_day,
+    select c.capture_context->>'notebookDate' as entry_day,
       c.captured_at as recorded_at,
       'personal_raw_observation'::text as source_kind,
       c.id as source_id,
@@ -76,7 +76,7 @@ begin
         between p_start_date::text and p_end_date::text
     union all
     -- Task completion is a task-state receipt, not a verified physical outcome.
-    select (t.completed_at at time zone p_timezone)::date as entry_day,
+    select to_char(t.completed_at at time zone p_timezone,'YYYY-MM-DD') as entry_day,
       t.completed_at as recorded_at,
       'personal_task_state'::text as source_kind,
       t.id as source_id,
@@ -105,7 +105,7 @@ begin
     from source_rows s
     where p_after_day is null
       or (s.entry_day,s.recorded_at,s.source_kind,s.source_id)
-       < (p_after_day,p_after_recorded_at,p_after_kind,p_after_source_id)
+       < (p_after_day::text,p_after_recorded_at,p_after_kind,p_after_source_id)
   ), bounded as (
     select * from after_cursor
     order by entry_day desc,recorded_at desc,source_kind desc,source_id desc
