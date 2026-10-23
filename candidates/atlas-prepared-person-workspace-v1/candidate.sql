@@ -379,7 +379,8 @@ CREATE FUNCTION atlas.prepared_person_record_self_api_v1(
  p_observed_at timestamptz,p_confidence numeric,p_classification text,
  p_disclosure text,p_recipient_disclosure_basis text DEFAULT NULL,
  p_linked_record_kind text DEFAULT NULL,p_linked_record_id uuid DEFAULT NULL,
- p_revises_item_id uuid DEFAULT NULL,p_conflicts_with_item_id uuid DEFAULT NULL
+ p_revises_item_id uuid DEFAULT NULL,p_conflicts_with_item_id uuid DEFAULT NULL,
+ p_effective_from timestamptz DEFAULT NULL,p_effective_until timestamptz DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $fn$
 DECLARE v_case atlas.prepared_person_cases%rowtype;
@@ -414,6 +415,11 @@ BEGIN
  END IF;
  IF p_confidence IS NOT NULL AND (p_confidence<0 OR p_confidence>1) THEN
    RAISE EXCEPTION 'Confidence must be between 0 and 1' USING errcode='22023';
+ END IF;
+ IF p_effective_from IS NOT NULL AND p_effective_until IS NOT NULL
+    AND p_effective_until<p_effective_from THEN
+   RAISE EXCEPTION 'Effective end must not precede effective start'
+     USING errcode='22023';
  END IF;
  IF p_classification IN ('established_canonical','authorized_institutional') THEN
    IF p_linked_record_kind='person' AND
@@ -491,9 +497,26 @@ BEGIN
  WHERE i.case_id=p_case_id AND e.scope_kind='prepared_person_case'
    AND e.scope_id=p_case_id AND e.source_kind=p_source_kind AND e.source_key=p_request_key;
  IF FOUND THEN
-   IF (SELECT e.value->>'literalText' FROM atlas.evidence_records e
-        WHERE e.id=v_existing.evidence_record_id)<>p_literal_text
-     OR v_existing.classification<>p_classification OR v_existing.disclosure<>p_disclosure THEN
+   IF NOT EXISTS (
+      SELECT 1 FROM atlas.evidence_records evidence
+      WHERE evidence.id=v_existing.evidence_record_id
+        AND evidence.value->>'literalText'=p_literal_text
+        AND evidence.value->>'topic'=p_topic
+        AND evidence.value->>'sourceLocator'=p_source_locator
+        AND evidence.provenance->>'sourcePermissionBasis'=p_source_permission_basis
+        AND evidence.provenance->>'recipientDisclosureBasis' IS NOT DISTINCT FROM
+            p_recipient_disclosure_basis
+        AND evidence.observed_at IS NOT DISTINCT FROM p_observed_at
+        AND evidence.effective_from IS NOT DISTINCT FROM p_effective_from
+        AND evidence.effective_until IS NOT DISTINCT FROM p_effective_until
+        AND evidence.confidence IS NOT DISTINCT FROM p_confidence
+        AND v_existing.classification=p_classification
+        AND v_existing.disclosure=p_disclosure
+        AND v_existing.linked_record_kind IS NOT DISTINCT FROM p_linked_record_kind
+        AND v_existing.linked_record_id IS NOT DISTINCT FROM p_linked_record_id
+        AND v_existing.revises_item_id IS NOT DISTINCT FROM p_revises_item_id
+        AND v_existing.conflicts_with_item_id IS NOT DISTINCT FROM p_conflicts_with_item_id
+   ) THEN
       RAISE EXCEPTION 'Operation key reused for different evidence' USING errcode='23505';
    END IF;
    RETURN jsonb_build_object('ok',true,'itemId',v_existing.id,'evidenceId',
@@ -504,11 +527,11 @@ BEGIN
  INSERT INTO atlas.evidence_records
    (scope_kind,scope_id,subject_domain,subject_kind,subject_id,
     evidence_kind,source_kind,source_key,actor_user_id,value,confidence,
-    observed_at,learned_at,provenance,metadata)
+    observed_at,learned_at,effective_from,effective_until,provenance,metadata)
  VALUES ('prepared_person_case',p_case_id,'person',v_case.target_kind,v_subject,
   'prepared_person_original_observation',p_source_kind,p_request_key,auth.uid(),
   jsonb_build_object('literalText',p_literal_text,'topic',p_topic,'sourceLocator',p_source_locator),
-  p_confidence,p_observed_at,now(),
+  p_confidence,p_observed_at,now(),p_effective_from,p_effective_until,
   jsonb_build_object('recordedByUserId',auth.uid(),'sourcePermissionBasis',p_source_permission_basis,
     'recipientDisclosureBasis',p_recipient_disclosure_basis,
     'observationNotAcceptance',true),
@@ -542,7 +565,8 @@ BEGIN
      'literalText',e.value->>'literalText',
      'sourceKind',e.source_kind,'sourceLocator',e.value->>'sourceLocator',
      'sourcePermissionBasis',e.provenance->>'sourcePermissionBasis',
-     'observedAt',e.observed_at,'recordedAt',e.learned_at,
+     'observedAt',e.observed_at,'effectiveFrom',e.effective_from,
+     'effectiveUntil',e.effective_until,'recordedAt',e.learned_at,
      'recordedByUserId',e.actor_user_id,'evidenceId',e.id,
      'confidence',e.confidence)
      ORDER BY i.created_at,i.id),'[]'::jsonb) INTO v_items
@@ -698,7 +722,8 @@ BEGIN
        'conflictsWithItemId',i.conflicts_with_item_id,
        'literalText',e.value->>'literalText',
        'sourceKind',e.source_kind,'sourceDetailAccess','not_admitted',
-       'observedAt',e.observed_at,'recordedAt',e.learned_at,
+       'observedAt',e.observed_at,'effectiveFrom',e.effective_from,
+       'effectiveUntil',e.effective_until,'recordedAt',e.learned_at,
        'recordedByUserId',e.actor_user_id,'evidenceId',e.id,
        'linkedRecordKind',i.linked_record_kind,'linkedRecordId',i.linked_record_id,
        'latestDecision', (SELECT r.decision FROM atlas.prepared_person_decision_receipts r
@@ -777,7 +802,7 @@ REVOKE ALL ON FUNCTION
  atlas.prepared_person_revoke_practitioner_self_api_v1(uuid),
  atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
- atlas.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid),
+ atlas.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid,timestamptz,timestamptz),
  atlas.prepared_person_operator_case_self_api_v1(uuid),
  atlas.prepared_person_operator_list_self_api_v1(),
  atlas.prepared_person_issue_self_api_v1(uuid),
@@ -790,7 +815,7 @@ GRANT EXECUTE ON FUNCTION
  atlas.prepared_person_revoke_practitioner_self_api_v1(uuid),
  atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
- atlas.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid),
+ atlas.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid,timestamptz,timestamptz),
  atlas.prepared_person_operator_case_self_api_v1(uuid),
  atlas.prepared_person_operator_list_self_api_v1(),
  atlas.prepared_person_issue_self_api_v1(uuid),
@@ -813,11 +838,11 @@ CREATE FUNCTION public.prepared_person_begin_self_api_v1(p_organization_id uuid,
 REVOKE ALL ON FUNCTION public.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text) TO authenticated;
 
-CREATE FUNCTION public.prepared_person_record_self_api_v1(p_case_id uuid,p_request_key text,p_topic text,p_literal_text text,p_source_kind text,p_source_locator text,p_source_permission_basis text,p_observed_at timestamptz,p_confidence numeric,p_classification text,p_disclosure text,p_recipient_disclosure_basis text DEFAULT NULL,p_linked_record_kind text DEFAULT NULL,p_linked_record_id uuid DEFAULT NULL,p_revises_item_id uuid DEFAULT NULL,p_conflicts_with_item_id uuid DEFAULT NULL) RETURNS jsonb
+CREATE FUNCTION public.prepared_person_record_self_api_v1(p_case_id uuid,p_request_key text,p_topic text,p_literal_text text,p_source_kind text,p_source_locator text,p_source_permission_basis text,p_observed_at timestamptz,p_confidence numeric,p_classification text,p_disclosure text,p_recipient_disclosure_basis text DEFAULT NULL,p_linked_record_kind text DEFAULT NULL,p_linked_record_id uuid DEFAULT NULL,p_revises_item_id uuid DEFAULT NULL,p_conflicts_with_item_id uuid DEFAULT NULL,p_effective_from timestamptz DEFAULT NULL,p_effective_until timestamptz DEFAULT NULL) RETURNS jsonb
  LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
- AS $transport$ SELECT atlas.prepared_person_record_self_api_v1(p_case_id,p_request_key,p_topic,p_literal_text,p_source_kind,p_source_locator,p_source_permission_basis,p_observed_at,p_confidence,p_classification,p_disclosure,p_recipient_disclosure_basis,p_linked_record_kind,p_linked_record_id,p_revises_item_id,p_conflicts_with_item_id); $transport$;
-REVOKE ALL ON FUNCTION public.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid) TO authenticated;
+ AS $transport$ SELECT atlas.prepared_person_record_self_api_v1(p_case_id,p_request_key,p_topic,p_literal_text,p_source_kind,p_source_locator,p_source_permission_basis,p_observed_at,p_confidence,p_classification,p_disclosure,p_recipient_disclosure_basis,p_linked_record_kind,p_linked_record_id,p_revises_item_id,p_conflicts_with_item_id,p_effective_from,p_effective_until); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid,timestamptz,timestamptz) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid,timestamptz,timestamptz) TO authenticated;
 
 CREATE FUNCTION public.prepared_person_operator_case_self_api_v1(p_case_id uuid) RETURNS jsonb
  LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
