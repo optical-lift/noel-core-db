@@ -64,7 +64,15 @@ BEGIN
   LIMIT 1;
   v_result:=CASE
     WHEN v_active_cred>1 OR v_active_reality>1
-      OR v_active_cred<>v_active_reality THEN 'identity_conflict'
+      OR v_active_cred<>v_active_reality
+      OR EXISTS (
+        SELECT 1 FROM atlas.person_auth_credentials c
+        JOIN reality.auth_person_bindings b ON b.person_entity_id=c.person_id
+        WHERE c.person_id=p_person_id AND c.status='active'
+          AND c.retired_at IS NULL AND b.binding_state='active'
+          AND b.retired_at IS NULL
+          AND (c.auth_user_id<>b.auth_user_id OR c.id<>b.id)
+      ) THEN 'identity_conflict'
     WHEN v_revoked_legacy_blockers>0 OR v_active_old_sessions>0
       THEN 'retired_access_needs_revocation'
     WHEN v_case_state IS NOT NULL THEN 'claim_in_progress'
