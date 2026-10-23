@@ -30,6 +30,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'missing canonical Principal custody FK';
   END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid=v_oid AND contype='u'
+      AND pg_get_constraintdef(oid) LIKE '%owner_principal_id%'
+      AND pg_get_constraintdef(oid) LIKE '%creation_request_id%'
+  ) THEN
+    RAISE EXCEPTION 'missing owner-scoped idempotent creation uniqueness';
+  END IF;
   IF (SELECT count(*) FROM foundry.workspace_authority_registry_v1)<>0 THEN
     RAISE EXCEPTION 'candidate created/backfilled registry rows unexpectedly';
   END IF;
