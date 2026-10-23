@@ -404,7 +404,8 @@ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
 AS $fn$
 DECLARE v_uid uuid:=auth.uid(); v_person uuid; v_packets jsonb;
 BEGIN
- SELECT b.person_entity_id INTO v_person FROM reality.auth_person_bindings b
+ SELECT CASE WHEN count(*)=1 THEN (array_agg(b.person_entity_id))[1] ELSE NULL END
+ INTO v_person FROM reality.auth_person_bindings b
  JOIN reality.entities e ON e.id=b.person_entity_id
   AND e.entity_kind='person' AND e.identity_state='canonical'
  JOIN auth.users u ON u.id=b.auth_user_id AND u.email_confirmed_at IS NOT NULL
@@ -450,7 +451,8 @@ DECLARE v_uid uuid:=auth.uid(); v_person uuid; v_item atlas.prepared_person_item
 BEGIN
  SELECT * INTO STRICT v_item FROM atlas.prepared_person_items WHERE id=p_item_id;
  SELECT * INTO STRICT v_case FROM atlas.prepared_person_cases WHERE id=v_item.case_id;
- SELECT b.person_entity_id INTO v_person FROM reality.auth_person_bindings b
+ SELECT CASE WHEN count(*)=1 THEN (array_agg(b.person_entity_id))[1] ELSE NULL END
+ INTO v_person FROM reality.auth_person_bindings b
  JOIN reality.entities e ON e.id=b.person_entity_id
   AND e.entity_kind='person' AND e.identity_state='canonical'
  JOIN auth.users u ON u.id=b.auth_user_id AND u.email_confirmed_at IS NOT NULL
