@@ -21,6 +21,18 @@ BEGIN
      OR has_function_privilege('service_role',v_proc,'EXECUTE') THEN
     RAISE EXCEPTION 'Unexpected direct API execution privilege';
   END IF;
+  IF to_regprocedure('atlas.get_foundry_workspace_preparation_self_api_v1(text)') IS NULL
+  THEN RAISE EXCEPTION 'Missing verified owner-only workspace inspection'; END IF;
+  IF has_function_privilege('anon',
+       'atlas.get_foundry_workspace_preparation_self_api_v1(text)'::regprocedure,
+       'EXECUTE')
+     OR has_function_privilege('service_role',
+       'atlas.get_foundry_workspace_preparation_self_api_v1(text)'::regprocedure,
+       'EXECUTE')
+     OR NOT has_function_privilege('authenticated',
+       'atlas.get_foundry_workspace_preparation_self_api_v1(text)'::regprocedure,
+       'EXECUTE')
+  THEN RAISE EXCEPTION 'Owner-only read API privileges incorrect'; END IF;
   IF NOT EXISTS(
     SELECT 1 FROM pg_constraint
     WHERE conrelid='foundry.workspace_authority_registry_v1'::regclass
