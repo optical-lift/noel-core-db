@@ -226,6 +226,8 @@ BEGIN
  THEN RAISE EXCEPTION 'Invitation unavailable' USING errcode='42501'; END IF;
  v_current:=atlas.current_person_id_v1();
  v_identity:=CASE
+  WHEN v_i.existing_person_id IS NULL AND v_current IS NOT NULL
+    THEN 'identity_review_required'
   WHEN v_i.existing_person_id IS NULL THEN 'new_person_candidate'
   WHEN v_current=v_i.existing_person_id THEN 'already_canonical'
   WHEN v_current IS NOT NULL THEN 'identity_conflict'
@@ -263,6 +265,10 @@ BEGIN
  IF v_i.state<>'issued' OR v_i.expires_at<=now() THEN
   RAISE EXCEPTION 'Invitation expired or revoked' USING errcode='42501'; END IF;
  v_current:=atlas.current_person_id_v1();
+ IF v_i.existing_person_id IS NULL AND v_current IS NOT NULL THEN
+   RETURN jsonb_build_object('ok',false,
+     'state','identity_review_required');
+ END IF;
  IF v_i.existing_person_id IS NOT NULL AND
   v_current IS DISTINCT FROM v_i.existing_person_id THEN
   RETURN jsonb_build_object('ok',false,'state','identity_claim_required',
