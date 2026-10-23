@@ -69,28 +69,79 @@ REVOKE ALL ON TABLE atlas.existing_person_auth_claim_cases
 
 -- Reuse the existing signed institution identity-steward authority.
 -- This authority DOES NOT come from holding an email address or knowing a UUID.
+
+-- Two independently governed routes: an institutional steward for a real
+-- institutional Person record, OR a current native Ledger root authority for
+-- an actual connected Person. No employee seat or name/email matching.
+-- Can be used to revalidate the recorded preparer/reviewer during claim finish
+-- even though finish itself runs under the recipient Auth session.
+CREATE FUNCTION atlas.existing_person_claim_actor_steward_v1(
+ p_organization_id uuid,p_person_id uuid,p_actor uuid
+) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $fn$
+ SELECT EXISTS(
+   SELECT 1 FROM atlas.principals pr
+   JOIN reality.auth_person_bindings b
+    ON b.auth_user_id=pr.user_id AND b.person_entity_id=pr.person_id
+      AND b.binding_state='active' AND b.retired_at IS NULL
+   JOIN atlas.organization_memberships m
+    ON m.user_id=pr.user_id AND m.organization_id=p_organization_id
+      AND m.active AND m.role IN ('owner','consultant')
+   JOIN atlas.institutional_person_records ipr
+    ON ipr.organization_id=m.organization_id
+      AND ipr.person_id=p_person_id AND ipr.status='active'
+   WHERE pr.user_id=p_actor AND pr.status='active'
+ ) OR EXISTS(
+   SELECT 1 FROM atlas.principals pr
+   JOIN reality.auth_person_bindings b
+    ON b.auth_user_id=pr.user_id AND b.person_entity_id=pr.person_id
+      AND b.binding_state='active' AND b.retired_at IS NULL
+   JOIN atlas.ledger_organization_participations participation
+    ON participation.organization_id=p_organization_id
+      AND participation.status='active' AND participation.ended_at IS NULL
+      AND participation.participation_kind IN ('governing','operating')
+   JOIN ledger.ledgers nl ON nl.id=participation.ledger_id
+      AND nl.ledger_state='active' AND nl.retired_at IS NULL
+   JOIN ledger.seats target ON target.ledger_id=participation.ledger_id
+      AND target.person_entity_id=p_person_id
+      AND target.seat_state='active' AND target.ended_at IS NULL
+   JOIN ledger.seats steward ON steward.ledger_id=participation.ledger_id
+      AND steward.person_entity_id=pr.person_id
+      AND steward.seat_state='active' AND steward.ended_at IS NULL
+   JOIN atlas.principal_ledger_authorities root ON root.principal_id=pr.id
+      AND root.ledger_id=participation.ledger_id
+      AND root.authority_kind='root_governing' AND root.status='active'
+   JOIN atlas.ledger_organization_participations primary_governing
+      ON primary_governing.organization_id=p_organization_id
+      AND primary_governing.participation_kind='governing'
+      AND primary_governing.is_compatibility_primary
+      AND primary_governing.status='active'
+      AND primary_governing.ended_at IS NULL
+   JOIN atlas.principal_ledger_authorities org_root
+      ON org_root.principal_id=pr.id
+      AND org_root.ledger_id=primary_governing.ledger_id
+      AND org_root.authority_kind='root_governing'
+      AND org_root.status='active'
+   WHERE pr.user_id=p_actor AND pr.status='active'
+ )
+$fn$;
+
 CREATE FUNCTION atlas.existing_person_claim_steward_self_v1(
-  p_organization_id uuid, p_person_id uuid
-) RETURNS void
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
+ p_organization_id uuid,p_person_id uuid
+) RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
 AS $fn$
 BEGIN
-  PERFORM atlas.require_identity_steward_v1(p_organization_id);
-  IF atlas.current_person_id_v1() IS NULL
-    OR NOT EXISTS (SELECT 1 FROM atlas.principals p
-      WHERE p.user_id=auth.uid() AND p.status='active')
-    OR NOT EXISTS (SELECT 1 FROM atlas.institutional_person_records r
-      WHERE r.organization_id=p_organization_id
-        AND r.person_id=p_person_id AND r.status='active')
-    OR NOT EXISTS (SELECT 1 FROM atlas.people p
-      WHERE p.id=p_person_id AND p.status='active')
-    OR NOT EXISTS (SELECT 1 FROM reality.entities e
-      WHERE e.id=p_person_id AND e.entity_kind='person'
-        AND e.identity_state='canonical')
-  THEN
-    RAISE EXCEPTION 'Authorized steward and exact existing canonical Person required'
-      USING errcode='42501';
-  END IF;
+ IF auth.uid() IS NULL OR atlas.current_person_id_v1() IS NULL
+   OR NOT EXISTS (SELECT 1 FROM atlas.people p
+     WHERE p.id=p_person_id AND p.status='active')
+   OR NOT EXISTS (SELECT 1 FROM reality.entities e
+     WHERE e.id=p_person_id AND e.entity_kind='person'
+       AND e.identity_state='canonical')
+   OR NOT atlas.existing_person_claim_actor_steward_v1(
+       p_organization_id,p_person_id,auth.uid())
+ THEN RAISE EXCEPTION 'Exact canonical Person and authorized source steward required'
+   USING errcode='42501';
+ END IF;
 END
 $fn$;
 
@@ -287,29 +338,13 @@ BEGIN
   AND entity_kind='person' AND identity_state='canonical' FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Canonical Person no longer admissible'
   USING errcode='23514'; END IF;
- -- The CLAIMANT is finishing the transition: do not accidentally require
- -- the CLAIMANT to be her own institutional identity steward. Revalidate
- -- the original preparer and independent reviewer against CURRENT authority
- -- in the exact same organization before any credential is written.
- IF NOT EXISTS (
-   SELECT 1 FROM atlas.institutional_person_records r
-   JOIN atlas.organization_memberships m
-     ON m.organization_id=r.organization_id
-   JOIN atlas.principals p ON p.user_id=m.user_id AND p.status='active'
-   WHERE r.organization_id=v_case.organization_id
-     AND r.person_id=v_case.person_entity_id AND r.status='active'
-     AND m.user_id=v_case.prepared_by_user_id
-     AND m.active AND m.role IN ('owner','consultant')
- ) OR NOT EXISTS (
-   SELECT 1 FROM atlas.institutional_person_records r
-   JOIN atlas.organization_memberships m
-     ON m.organization_id=r.organization_id
-   JOIN atlas.principals p ON p.user_id=m.user_id AND p.status='active'
-   WHERE r.organization_id=v_case.organization_id
-     AND r.person_id=v_case.person_entity_id AND r.status='active'
-     AND m.user_id=v_case.reviewed_by_user_id
-     AND m.active AND m.role IN ('owner','consultant')
- ) THEN RAISE EXCEPTION 'Original identity stewardship no longer authorized'
+ -- Do not evaluate the recipient's Ledger authority: revalidate the original
+ -- prepared/reviewed steward identities against current scope and exact Person.
+ IF NOT atlas.existing_person_claim_actor_steward_v1(
+     v_case.organization_id,v_case.person_entity_id,v_case.prepared_by_user_id)
+ OR NOT atlas.existing_person_claim_actor_steward_v1(
+     v_case.organization_id,v_case.person_entity_id,v_case.reviewed_by_user_id)
+ THEN RAISE EXCEPTION 'Original identity stewardship no longer authorized'
    USING errcode='42501'; END IF;
 
  -- No Auth, Principal, or institutional authority may be reassigned by
@@ -467,7 +502,13 @@ AS $fn$
 DECLARE v_actor uuid;v_cases jsonb;
 BEGIN
  v_actor:=atlas.existing_person_claim_signed_actor_v1();
- PERFORM atlas.require_identity_steward_v1(p_organization_id);
+ IF NOT EXISTS (
+   SELECT 1 FROM atlas.existing_person_auth_claim_cases c
+   WHERE c.organization_id=p_organization_id
+     AND atlas.existing_person_claim_actor_steward_v1(
+        c.organization_id,c.person_entity_id,v_actor)
+ ) THEN RAISE EXCEPTION 'No authorized identity case in this Organization'
+   USING errcode='42501'; END IF;
  IF NOT EXISTS (SELECT 1 FROM atlas.principals
    WHERE user_id=v_actor AND status='active') THEN
   RAISE EXCEPTION 'Active identity steward required' USING errcode='42501';
@@ -482,9 +523,8 @@ BEGIN
   FROM atlas.existing_person_auth_claim_cases c
   JOIN atlas.people p ON p.id=c.person_entity_id AND p.status='active'
   WHERE c.organization_id=p_organization_id
-   AND EXISTS (SELECT 1 FROM atlas.institutional_person_records r
-    WHERE r.organization_id=c.organization_id AND r.person_id=c.person_entity_id
-      AND r.status='active')
+    AND atlas.existing_person_claim_actor_steward_v1(
+      c.organization_id,c.person_entity_id,v_actor)
   ORDER BY c.created_at DESC LIMIT 100
  ) q;
  RETURN jsonb_build_object('ok',true,'cases',v_cases,'limit',100);
@@ -526,7 +566,8 @@ RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path=''
 AS $fn$ SELECT atlas.list_existing_person_auth_claims_self_v1(
  p_organization_id) $fn$;
 
-REVOKE ALL ON FUNCTION atlas.existing_person_claim_steward_self_v1(uuid,uuid),
+REVOKE ALL ON FUNCTION atlas.existing_person_claim_actor_steward_v1(uuid,uuid,uuid),
+ atlas.existing_person_claim_steward_self_v1(uuid,uuid),
  atlas.existing_person_claim_signed_actor_v1(),
  atlas.prepare_existing_person_auth_claim_self_v1(uuid,uuid,text,text),
  atlas.accept_existing_person_auth_claim_self_v1(uuid,boolean),
@@ -536,7 +577,8 @@ REVOKE ALL ON FUNCTION atlas.existing_person_claim_steward_self_v1(uuid,uuid),
  atlas.reject_existing_person_auth_claim_self_v1(uuid,text),
  atlas.list_existing_person_auth_claims_self_v1(uuid)
  FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION atlas.existing_person_claim_steward_self_v1(uuid,uuid),
+GRANT EXECUTE ON FUNCTION atlas.existing_person_claim_actor_steward_v1(uuid,uuid,uuid),
+ atlas.existing_person_claim_steward_self_v1(uuid,uuid),
  atlas.existing_person_claim_signed_actor_v1(),
  atlas.prepare_existing_person_auth_claim_self_v1(uuid,uuid,text,text),
  atlas.accept_existing_person_auth_claim_self_v1(uuid,boolean),
