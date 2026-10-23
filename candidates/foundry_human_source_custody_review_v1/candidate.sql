@@ -31,7 +31,6 @@ CREATE TABLE foundry.source_custody_review_cases_v1 (
   CHECK(owner_principal_id<>reviewer_principal_id),
   CHECK(review_state<>'approved' OR (reviewed_at IS NOT NULL AND length(btrim(review_basis)) >= 25)),
   CHECK(review_state<>'revoked' OR (revoked_at IS NOT NULL AND revoked_by_principal_id IS NOT NULL)),
-  CHECK(source_refs <@ source_refs), -- array existence only; syntax checked by private writer
   CHECK(permitted_human_actions <@ ARRAY['catalog','preserve','transcribe','analyze']::text[]),
   CHECK(NOT ('agent_access' = ANY(permitted_human_actions))),
   CHECK(expires_at IS NULL OR expires_at>created_at)
@@ -173,7 +172,7 @@ BEGIN
     'sequence',v_seq,'payload',jsonb_build_object(
       'case_id',v_case_id,'scope_description',btrim(p_scope_description),
       'source_refs',to_jsonb(p_source_refs),'permitted_human_actions',to_jsonb(p_permitted_human_actions),
-      'claim_basis_kind',p_claim_basis_kind,'review_state','pending',
+      'claimed_authority_basis',btrim(p_claimed_authority_basis),'claim_basis_kind',p_claim_basis_kind,'review_state','pending',
       'ai_carrier_access',false),
     'basis_refs',to_jsonb(p_source_refs),
     'authority','authenticated_owner_attestation_unreviewed',
