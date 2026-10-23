@@ -94,8 +94,43 @@ begin
  if jsonb_array_length(payload->'items')<>1 then
    raise exception 'Current Today must display only latest movement'; end if;
 
- -- An explicit manual route remains distinct from rule-derived recognition.
- -- New matching source beyond an existing approval is covered by Build 2.
+ -- Exact, existing, approved v1 rule may auto-file ONLY later matching notes.
+ insert into atlas.person_recognition_rule_permissions_v1(
+   owner_user_id,rule_key,rule_version,approved_capture_id,approved_at
+ ) values(a,'measure.body_weight.reported',1,cap_a,now()-interval '1 minute');
+ insert into atlas.personal_reality_captures(
+   id,principal_id,owner_user_id,source_action_id,testimony,evidence_id,
+   capture_state,source_surface,metadata,captured_at
+ ) values('00000000-0000-4000-8000-000000000004',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',a,'fixture-approved',
+   'I weighed 172 pounds this morning.',
+   'e0000000-0000-4000-8000-000000000004','captured',
+   'personal_notebook_daily_log','{"notebookEntryKind":"raw_note"}',now());
+ payload:=public.person_file_capture_self_api_v1(
+   '00000000-0000-4000-8000-000000000004',null);
+ if payload->>'routed'<>'true' or payload->>'filingMode'<>'approved_rule_v1' then
+   raise exception 'Approved exact grammar did not file a later original'; end if;
+ update atlas.person_recognition_rule_permissions_v1
+   set revoked_at=now()
+ where owner_user_id=a and rule_key='measure.body_weight.reported'
+   and rule_version=1;
+ payload:=public.person_collection_sources_self_api_v1(h_a,100);
+ if jsonb_array_length(payload->'items')<>1 or
+    payload->'items'->0->>'captureId'<>cap_a::text then
+   raise exception 'Revocation must suppress derived automatic route, not erase manual testimony'; end if;
+
+ -- Future real user-bound principals gain the standard canonical Collection.
+ insert into auth.users(id) values('33333333-3333-4333-8333-333333333333');
+ insert into atlas.principals(id,user_id,status)
+ values('cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+   '33333333-3333-4333-8333-333333333333','active');
+ if (select count(*) from atlas.notebook_spread_instances
+   where principal_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+     and spread_key='personal.health')<>1
+ then raise exception 'Future Person onboarding must seed one Health Collection'; end if;
+
+ -- The accepted v1 grammar is mocked only in this disposable fixture.
+ -- The real separately approved source grammar remains unchanged in production.
 end;
 $body$;
 rollback;
