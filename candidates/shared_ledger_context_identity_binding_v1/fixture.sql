@@ -1,0 +1,107 @@
+-- Disposable schema-clone ONLY. Everything, including temp objects and
+-- synthetic Reality entities, rolls back inside an exception subtransaction.
+-- Never run this fixture in the production release lane.
+DO $test$
+DECLARE
+  v_ledger uuid := gen_random_uuid();
+  v_second_ledger uuid := gen_random_uuid();
+  v_kind_ledger uuid := gen_random_uuid();
+  v_disputed_ledger uuid := gen_random_uuid();
+  v_business uuid := gen_random_uuid();
+  v_other_business uuid := gen_random_uuid();
+  v_context uuid := gen_random_uuid();
+  v_wrong_context uuid := gen_random_uuid();
+  v_noncanonical uuid := gen_random_uuid();
+  v_wrong_kind uuid := gen_random_uuid();
+  v_rejected boolean;
+BEGIN
+  BEGIN
+    INSERT INTO reality.entities(id,stable_key,entity_kind,display_name,identity_state)
+    VALUES
+      (v_business,'test:owner:'||v_business::text,'business','Synthetic owner','canonical'),
+      (v_other_business,'test:owner:'||v_other_business::text,'business','Synthetic second owner','canonical'),
+      (v_context,'ledger_context:'||v_ledger::text,'ledger_context','Synthetic Ledger context','canonical'),
+      (v_wrong_context,'ledger_context:'||v_second_ledger::text,'ledger_context','Synthetic other Ledger context','canonical'),
+      (v_noncanonical,'ledger_context:'||v_disputed_ledger::text,'ledger_context','Synthetic disputed context','disputed'),
+      (v_wrong_kind,'ledger_context:'||v_kind_ledger::text,'business','Synthetic wrong kind','canonical');
+
+    CREATE TEMP TABLE _canonical_ledger_probe (
+      id uuid PRIMARY KEY,
+      subject_entity_id uuid NOT NULL,
+      canonical_context_entity_id uuid UNIQUE
+    ) ON COMMIT DROP;
+    CREATE TRIGGER ledger_canonical_context_identity_guard_v1
+      BEFORE INSERT OR UPDATE OF id,subject_entity_id,canonical_context_entity_id
+      ON pg_temp._canonical_ledger_probe
+      FOR EACH ROW EXECUTE FUNCTION ledger.guard_canonical_context_identity_v1();
+
+    INSERT INTO pg_temp._canonical_ledger_probe
+      (id,subject_entity_id,canonical_context_entity_id)
+    VALUES (v_ledger,v_business,v_context);
+
+    -- Attempt to attach a Ledger's context identity to a different Ledger.
+    v_rejected := false;
+    BEGIN
+      INSERT INTO pg_temp._canonical_ledger_probe
+        (id,subject_entity_id,canonical_context_entity_id)
+      VALUES(v_second_ledger,v_business,v_context);
+    EXCEPTION WHEN check_violation THEN v_rejected := true;
+    END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'Cross-Ledger context identity accepted'; END IF;
+
+    -- Explicitly wrong canonical entity kind must not be accepted.
+    v_rejected := false;
+    BEGIN
+      INSERT INTO pg_temp._canonical_ledger_probe
+        (id,subject_entity_id,canonical_context_entity_id)
+      VALUES(v_kind_ledger,v_business,v_wrong_kind);
+    EXCEPTION WHEN check_violation THEN v_rejected := true;
+    END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'Wrong Reality entity kind accepted'; END IF;
+
+    -- A disputed identity cannot be promoted as canonical just by binding.
+    v_rejected := false;
+    BEGIN
+      INSERT INTO pg_temp._canonical_ledger_probe
+        (id,subject_entity_id,canonical_context_entity_id)
+      VALUES(v_disputed_ledger,v_business,v_noncanonical);
+    EXCEPTION WHEN check_violation THEN v_rejected := true;
+    END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'Disputed Reality context accepted'; END IF;
+
+    -- Canonical Ledger identity and owning business may not be the same.
+    v_rejected := false;
+    BEGIN
+      INSERT INTO pg_temp._canonical_ledger_probe
+        (id,subject_entity_id,canonical_context_entity_id)
+      VALUES(v_second_ledger,v_wrong_context,v_wrong_context);
+    EXCEPTION WHEN check_violation THEN v_rejected := true;
+    END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'Context-business identity alias accepted'; END IF;
+
+    -- Once established, existing context/ownership cannot be silently moved.
+    v_rejected := false;
+    BEGIN
+      UPDATE pg_temp._canonical_ledger_probe
+        SET canonical_context_entity_id=v_wrong_context
+      WHERE id=v_ledger;
+    EXCEPTION WHEN check_violation THEN v_rejected := true;
+    END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'Rebinding accepted'; END IF;
+
+    v_rejected := false;
+    BEGIN
+      UPDATE pg_temp._canonical_ledger_probe
+        SET subject_entity_id=v_other_business
+      WHERE id=v_ledger;
+    EXCEPTION WHEN check_violation THEN v_rejected := true;
+    END;
+    IF NOT v_rejected THEN RAISE EXCEPTION 'Silent owning-business substitution accepted'; END IF;
+
+    -- No actual data or temporary test objects survive this test.
+    RAISE EXCEPTION 'Synthetic identity probe rolled back' USING ERRCODE='ZZ001';
+  EXCEPTION WHEN SQLSTATE 'ZZ001' THEN
+    NULL;
+  END;
+END
+$test$;
