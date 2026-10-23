@@ -419,11 +419,14 @@ BEGIN
      (SELECT coalesce(jsonb_agg(jsonb_build_object(
        'id',i.id,'topic',i.topic,'classification',i.classification,
        'literalText',e.value->>'literalText',
-       'sourceKind',e.source_kind,'sourceLocator',e.value->>'sourceLocator',
+       'sourceKind',e.source_kind,'sourceDetailAccess','not_admitted',
        'observedAt',e.observed_at,'recordedAt',e.learned_at,
        'recordedByUserId',e.actor_user_id,'evidenceId',e.id,
        'linkedRecordKind',i.linked_record_kind,'linkedRecordId',i.linked_record_id,
        'latestDecision', (SELECT r.decision FROM atlas.prepared_person_decision_receipts r
+          WHERE r.item_id=i.id AND r.person_entity_id=v_person
+            ORDER BY r.decided_at DESC,r.id DESC LIMIT 1),
+       'latestCorrectionText', (SELECT r.correction_text FROM atlas.prepared_person_decision_receipts r
           WHERE r.item_id=i.id AND r.person_entity_id=v_person
             ORDER BY r.decided_at DESC,r.id DESC LIMIT 1))
        ORDER BY i.created_at,i.id),'[]'::jsonb)
