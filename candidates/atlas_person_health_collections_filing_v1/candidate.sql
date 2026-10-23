@@ -5,6 +5,7 @@ begin;
 
 create table atlas.person_collection_filing_events_v1 (
   id uuid primary key default gen_random_uuid(),
+  event_sequence bigint generated always as identity unique,
   principal_id uuid not null references atlas.principals(id),
   owner_user_id uuid not null references auth.users(id),
   capture_id uuid not null references atlas.personal_reality_captures(id),
@@ -15,7 +16,7 @@ create table atlas.person_collection_filing_events_v1 (
   filing_mode text not null check (filing_mode in ('explicit','approved_rule_v1')),
   rule_key text,
   rule_version integer,
-  occurred_at timestamptz not null default now(),
+  occurred_at timestamptz not null default clock_timestamp(),
   basis jsonb not null default '{}'::jsonb,
   constraint person_collection_rule_pair_ck check (
     (filing_mode='explicit' and rule_key is null and rule_version is null)
@@ -197,7 +198,7 @@ declare
     select e.id into receipt_id from atlas.person_collection_filing_events_v1 e
       where e.principal_id=p and e.capture_id=cap.id
         and e.to_spread_instance_id=dst.id and e.binding_id=v_binding_id
-      order by e.occurred_at desc,e.id desc limit 1;
+      order by e.event_sequence desc limit 1;
     if receipt_id is not null then
       return jsonb_build_object('ok',true,'routed',true,'idempotent',true,
         'captureId',cap.id,'receiptId',receipt_id,
@@ -263,17 +264,17 @@ begin
   with eligible as (
     select c.id as capture_id,c.testimony,c.captured_at,c.evidence_id,
       c.source_surface,c.capture_context,b.id as binding_id,b.created_at as bound_at,
-      e.id as receipt_id,e.occurred_at as filed_at,e.filing_mode
+      e.id as receipt_id,e.event_sequence,e.occurred_at as filed_at,e.filing_mode
     from atlas.notebook_spread_source_bindings b
     join atlas.personal_reality_captures c
       on b.source_domain='atlas' and b.source_kind='personal_reality_capture'
       and b.source_id=c.id::text
     join lateral (
-      select evt.id,evt.occurred_at,evt.filing_mode
+      select evt.id,evt.event_sequence,evt.occurred_at,evt.filing_mode
       from atlas.person_collection_filing_events_v1 evt
       where evt.capture_id=c.id and evt.principal_id=p
         and evt.to_spread_instance_id=s.id and evt.binding_id=b.id
-      order by evt.occurred_at desc,evt.id desc limit 1
+      order by evt.event_sequence desc limit 1
     ) e on true
     where b.spread_instance_id=s.id and b.relationship_kind='memory'
       and b.binding_state='active' and c.principal_id=p and c.owner_user_id=u
@@ -289,16 +290,16 @@ begin
   with eligible as (
     select c.id as capture_id,c.testimony,c.captured_at,c.evidence_id,
       c.source_surface,c.capture_context,b.id as binding_id,
-      e.id as receipt_id,e.occurred_at as filed_at,e.filing_mode
+      e.id as receipt_id,e.event_sequence,e.occurred_at as filed_at,e.filing_mode
     from atlas.notebook_spread_source_bindings b
     join atlas.personal_reality_captures c
       on b.source_domain='atlas' and b.source_kind='personal_reality_capture'
       and b.source_id=c.id::text
     join lateral (
-      select evt.id,evt.occurred_at,evt.filing_mode from atlas.person_collection_filing_events_v1 evt
+      select evt.id,evt.event_sequence,evt.occurred_at,evt.filing_mode from atlas.person_collection_filing_events_v1 evt
       where evt.capture_id=c.id and evt.principal_id=p
         and evt.to_spread_instance_id=s.id and evt.binding_id=b.id
-      order by evt.occurred_at desc,evt.id desc limit 1
+      order by evt.event_sequence desc limit 1
     ) e on true
     where b.spread_instance_id=s.id and b.relationship_kind='memory'
       and b.binding_state='active' and c.principal_id=p and c.owner_user_id=u
@@ -315,8 +316,8 @@ begin
      'capturedAt',t.captured_at,'filedAt',t.filed_at,
      'evidenceId',t.evidence_id,'sourceSurface',t.source_surface,
      'captureContext',t.capture_context,'filingMode',t.filing_mode)
-    order by t.filed_at desc,t.capture_id),'[]'::jsonb) into items
-  from (select * from eligible order by filed_at desc,capture_id limit p_limit) t;
+    order by t.event_sequence desc),'[]'::jsonb) into items
+  from (select * from eligible order by event_sequence desc limit p_limit) t;
 
   return jsonb_build_object('ok',true,'contractVersion','person_collection_sources_v1',
     'spreadInstanceId',s.id,'title',s.title,'items',items,
@@ -350,7 +351,7 @@ begin
       and s.spread_state='open'
       and e.id=(select latest.id from atlas.person_collection_filing_events_v1 latest
         where latest.principal_id=p and latest.capture_id=c.id
-        order by latest.occurred_at desc,latest.id desc limit 1)
+        order by latest.event_sequence desc limit 1)
       and (e.filing_mode<>'approved_rule_v1' or exists(
         select 1 from atlas.person_recognition_rule_permissions_v1 permission
         where permission.owner_user_id=u and permission.rule_key='measure.body_weight.reported'
@@ -360,7 +361,7 @@ begin
       'spreadInstanceId',x.to_spread_instance_id,'title',x.title,
       'eventKind',x.event_kind,'filedAt',x.occurred_at,
       'fromSpreadInstanceId',x.from_spread_instance_id)
-      order by x.occurred_at desc,x.id),'[]'::jsonb) into items
+      order by x.event_sequence desc),'[]'::jsonb) into items
   from (
     select e.*,s.title from atlas.person_collection_filing_events_v1 e
     join atlas.notebook_spread_instances s on s.id=e.to_spread_instance_id
@@ -373,12 +374,12 @@ begin
       and s.spread_state='open'
       and e.id=(select latest.id from atlas.person_collection_filing_events_v1 latest
         where latest.principal_id=p and latest.capture_id=c.id
-        order by latest.occurred_at desc,latest.id desc limit 1)
+        order by latest.event_sequence desc limit 1)
       and (e.filing_mode<>'approved_rule_v1' or exists(
         select 1 from atlas.person_recognition_rule_permissions_v1 permission
         where permission.owner_user_id=u and permission.rule_key='measure.body_weight.reported'
           and permission.rule_version=1 and permission.revoked_at is null))
-    order by e.occurred_at desc,e.id limit 100
+    order by e.event_sequence desc limit 100
   ) x;
   return jsonb_build_object('ok',true,
     'contractVersion','person_today_filing_receipts_v1',
