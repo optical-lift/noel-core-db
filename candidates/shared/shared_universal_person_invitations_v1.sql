@@ -110,6 +110,17 @@ BEGIN
  -- omitted the UUID for someone whose verified sign-in is already attached
  -- to a canonical Person. An email match is a STOP for review, never proof
  -- that this proposed name is the same human.
+ -- Prior Atlas mailbox evidence is an ambiguity signal, NOT identity
+ -- authority. A new-Person candidate stops; an operator must select/review
+ -- the Person explicitly rather than silently creating a duplicate.
+ IF p_existing_person_id IS NULL AND EXISTS (
+   SELECT 1 FROM atlas.person_sign_in_emails m
+   JOIN reality.entities e ON e.id=m.person_id
+    AND e.entity_kind='person' AND e.identity_state='canonical'
+   WHERE m.normalized_email=v_email
+ ) THEN RAISE EXCEPTION
+   'Email already appears on a known canonical Person; identity review required'
+   USING errcode='23514'; END IF;
  IF p_existing_person_id IS NULL AND EXISTS(
     SELECT 1 FROM auth.users u
     JOIN reality.auth_person_bindings b
@@ -226,7 +237,12 @@ BEGIN
  THEN RAISE EXCEPTION 'Invitation unavailable' USING errcode='42501'; END IF;
  v_current:=atlas.current_person_id_v1();
  v_identity:=CASE
-  WHEN v_i.existing_person_id IS NULL AND v_current IS NOT NULL
+  WHEN v_i.existing_person_id IS NULL AND
+      (v_current IS NOT NULL OR EXISTS (
+        SELECT 1 FROM atlas.person_sign_in_emails m
+        JOIN reality.entities e ON e.id=m.person_id
+        WHERE m.normalized_email=v_email AND e.entity_kind='person'
+          AND e.identity_state='canonical'))
     THEN 'identity_review_required'
   WHEN v_i.existing_person_id IS NULL THEN 'new_person_candidate'
   WHEN v_current=v_i.existing_person_id THEN 'already_canonical'
@@ -265,9 +281,14 @@ BEGIN
  IF v_i.state<>'issued' OR v_i.expires_at<=now() THEN
   RAISE EXCEPTION 'Invitation expired or revoked' USING errcode='42501'; END IF;
  v_current:=atlas.current_person_id_v1();
- IF v_i.existing_person_id IS NULL AND v_current IS NOT NULL THEN
-   RETURN jsonb_build_object('ok',false,
-     'state','identity_review_required');
+ IF v_i.existing_person_id IS NULL AND (
+    v_current IS NOT NULL OR EXISTS (
+      SELECT 1 FROM atlas.person_sign_in_emails m
+      JOIN reality.entities e ON e.id=m.person_id
+      WHERE m.normalized_email=v_email AND e.entity_kind='person'
+        AND e.identity_state='canonical')
+   ) THEN
+   RETURN jsonb_build_object('ok',false,'state','identity_review_required');
  END IF;
  IF v_i.existing_person_id IS NOT NULL AND
   v_current IS DISTINCT FROM v_i.existing_person_id THEN
