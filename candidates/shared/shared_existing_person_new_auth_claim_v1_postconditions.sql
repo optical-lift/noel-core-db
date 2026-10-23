@@ -34,4 +34,11 @@ BEGIN
      AND indexname='person_auth_one_active_person_shared_v1') THEN
    RAISE EXCEPTION 'Active Person credential uniqueness missing';
  END IF;
+ IF NOT EXISTS (
+   SELECT 1 FROM pg_indexes
+   WHERE schemaname='reality' AND tablename='auth_person_bindings'
+     AND indexname='reality_auth_one_active_person_shared_v1'
+ ) THEN
+    RAISE EXCEPTION 'Reality active Person uniqueness gate missing';
+ END IF;
 END $test$;

@@ -57,6 +57,10 @@ CREATE UNIQUE INDEX person_auth_one_active_person_shared_v1
 ON atlas.person_auth_credentials(person_id)
 WHERE status='active' AND retired_at IS NULL;
 
+CREATE UNIQUE INDEX reality_auth_one_active_person_shared_v1
+ON reality.auth_person_bindings(person_entity_id)
+WHERE binding_state='active' AND retired_at IS NULL;
+
 REVOKE ALL ON TABLE atlas.existing_person_auth_claim_cases
   FROM PUBLIC, anon, authenticated;
 
