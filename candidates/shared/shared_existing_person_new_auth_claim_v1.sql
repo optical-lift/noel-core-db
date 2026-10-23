@@ -502,12 +502,25 @@ AS $fn$
 DECLARE v_actor uuid;v_cases jsonb;
 BEGIN
  v_actor:=atlas.existing_person_claim_signed_actor_v1();
- IF NOT EXISTS (
-   SELECT 1 FROM atlas.existing_person_auth_claim_cases c
-   WHERE c.organization_id=p_organization_id
-     AND atlas.existing_person_claim_actor_steward_v1(
-        c.organization_id,c.person_entity_id,v_actor)
- ) THEN RAISE EXCEPTION 'No authorized identity case in this Organization'
+ -- Authorization must be provable even when there are zero claim cases.
+ -- This is a queue reader, not a request to create a dummy claim first.
+ IF NOT EXISTS(
+   SELECT 1 FROM atlas.organization_memberships m
+   WHERE m.user_id=v_actor AND m.organization_id=p_organization_id
+     AND m.active AND m.role IN ('owner','consultant')
+ ) AND NOT EXISTS(
+   SELECT 1 FROM atlas.principals p
+   JOIN reality.auth_person_bindings b
+      ON b.auth_user_id=p.user_id AND b.person_entity_id=p.person_id
+       AND b.binding_state='active' AND b.retired_at IS NULL
+   JOIN atlas.ledger_organization_participations lp
+      ON lp.organization_id=p_organization_id AND lp.status='active'
+       AND lp.ended_at IS NULL
+   JOIN atlas.principal_ledger_authorities a
+      ON a.principal_id=p.id AND a.ledger_id=lp.ledger_id
+       AND a.status='active' AND a.authority_kind='root_governing'
+   WHERE p.user_id=v_actor AND p.status='active'
+ ) THEN RAISE EXCEPTION 'Authorized identity steward required'
    USING errcode='42501'; END IF;
  IF NOT EXISTS (SELECT 1 FROM atlas.principals
    WHERE user_id=v_actor AND status='active') THEN
