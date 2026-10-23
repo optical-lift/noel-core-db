@@ -64,12 +64,12 @@ BEGIN
     RETURNING id INTO v_grant;
 
   INSERT INTO foundry.workspace_authority_registry_v1
-    (workspace_id,owner_principal_id,provisional_subject_label,
+    (workspace_id,creation_request_id,owner_principal_id,provisional_subject_label,
      provisional_field,custody_scope_kind,custody_review_state,
      custody_basis_refs,custody_reviewed_by_principal_id,
      custody_reviewed_at,custody_review_method,created_by_principal_id)
   VALUES
-    (v_workspace,v_owner,'synthetic third-party subject',
+    (v_workspace,gen_random_uuid(),v_owner,'synthetic third-party subject',
      'isolated Foundry field','documented_external','reviewed',
      ARRAY['synthetic-authority-receipt'],v_owner,
      now(),'reviewed_source_authorization',v_owner);
