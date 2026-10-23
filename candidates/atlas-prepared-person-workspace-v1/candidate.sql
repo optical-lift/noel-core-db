@@ -87,6 +87,47 @@ REVOKE ALL ON atlas.prepared_person_cases,atlas.prepared_person_items,
 
 -- Source: existing signed identity-steward authority.
 -- A real Person must already be canonical and institutionally in scope.
+-- Small, signed steward selector; no public directory and no inferred identity.
+CREATE FUNCTION atlas.prepared_person_scope_options_self_api_v1(
+ p_organization_id uuid DEFAULT NULL,p_query text DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
+AS $fn$
+DECLARE v_organizations jsonb; v_people jsonb:='[]'::jsonb;
+BEGIN
+ IF auth.uid() IS NULL THEN
+   RAISE EXCEPTION 'Signed steward required' USING errcode='42501';
+ END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+     'organizationId',o.id,'organizationLabel',o.name) ORDER BY o.name,o.id),'[]'::jsonb)
+ INTO v_organizations
+ FROM (SELECT DISTINCT om.organization_id
+       FROM atlas.organization_memberships om
+       WHERE om.user_id=auth.uid() AND om.active
+         AND om.role IN ('owner','consultant')) scope
+ JOIN atlas.organizations o ON o.id=scope.organization_id
+  AND o.status='active';
+ IF p_organization_id IS NOT NULL THEN
+   PERFORM atlas.require_identity_steward_v1(p_organization_id);
+   SELECT coalesce(jsonb_agg(row_data ORDER BY display_name,person_id),'[]'::jsonb)
+    INTO v_people FROM (
+     SELECT p.id AS person_id,p.display_name,
+       jsonb_build_object('personId',p.id,'displayName',p.display_name,
+                         'institutionalPersonRecordId',r.id) AS row_data
+     FROM atlas.institutional_person_records r
+     JOIN atlas.people p ON p.id=r.person_id AND p.status='active'
+     JOIN reality.entities e ON e.id=p.id AND e.entity_kind='person'
+       AND e.identity_state='canonical'
+     WHERE r.organization_id=p_organization_id AND r.status='active'
+      AND (btrim(coalesce(p_query,''))=''
+           OR lower(p.display_name) LIKE '%'||lower(btrim(p_query))||'%')
+     ORDER BY p.display_name,p.id
+     LIMIT 25
+   ) bounded;
+ END IF;
+ RETURN jsonb_build_object('ok',true,'organizations',v_organizations,
+                            'people',v_people);
+END $fn$;
+
 CREATE FUNCTION atlas.prepared_person_begin_self_api_v1(
  p_organization_id uuid,p_target_kind text,p_person_entity_id uuid,
  p_provisional_label text,p_scope_basis text,p_request_key text
@@ -280,6 +321,10 @@ BEGIN
  RETURN jsonb_build_object('ok',true,'caseId',v_case.id,
    'targetKind',v_case.target_kind,'personEntityId',v_case.person_entity_id,
    'provisionalLabel',v_case.provisional_label,'caseState',v_case.case_state,
+   'institutionalPersonRecordId',(SELECT r.id FROM atlas.institutional_person_records r
+     WHERE r.organization_id=v_case.organization_id AND r.person_id=v_case.person_entity_id
+       AND r.status='active' ORDER BY r.created_at LIMIT 1),
+   'organizationId',v_case.organization_id,
    'scopeBasis',v_case.scope_basis,'items',v_items);
 END $fn$;
 
@@ -430,6 +475,7 @@ BEGIN
 END $fn$;
 
 REVOKE ALL ON FUNCTION
+ atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
  atlas.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid),
  atlas.prepared_person_operator_case_self_api_v1(uuid),
@@ -439,6 +485,7 @@ REVOKE ALL ON FUNCTION
  atlas.prepared_person_decide_self_api_v1(uuid,text,text,text)
  FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION
+ atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
  atlas.prepared_person_record_self_api_v1(uuid,text,text,text,text,text,text,timestamptz,numeric,text,text,text,text,uuid,uuid,uuid),
  atlas.prepared_person_operator_case_self_api_v1(uuid),
