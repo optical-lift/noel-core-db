@@ -11,7 +11,7 @@ end $proof$;
 select pg_catalog.set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);
 select pg_catalog.set_config('atlas.fixture_principal','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',false);
 do $proof$
-declare r jsonb;
+declare r jsonb; first_approval timestamptz;
 begin
  r:=public.person_measurement_recognition_self_api_v1('00000000-0000-4000-8000-000000000001');
  if r->>'recognition'<>'approval_required' then raise exception 'First pattern was not gated'; end if;
@@ -22,6 +22,19 @@ begin
  end;
  r:=public.set_person_measurement_rule_self_api_v1('00000000-0000-4000-8000-000000000001',true);
  if r->>'approved'<>'true' then raise exception 'Rule approval was not recorded'; end if;
+ first_approval:=(r->>'approvalAt')::timestamptz;
+ r:=public.set_person_measurement_rule_self_api_v1('00000000-0000-4000-8000-000000000001',true);
+ if (r->>'approvalAt')::timestamptz is distinct from first_approval
+   then raise exception 'Approval retry changed the original receipt timestamp'; end if;
+ r:=public.set_person_measurement_rule_self_api_v1('00000000-0000-4000-8000-000000000002',true);
+ if r->>'approvalSourceCaptureId'<>'00000000-0000-4000-8000-000000000001'
+    or (r->>'approvalAt')::timestamptz is distinct from first_approval
+   then raise exception 'A second recognized note replaced the standing approval source'; end if;
+ begin
+  perform public.set_person_measurement_rule_self_api_v1('00000000-0000-4000-8000-000000000003',true);
+  raise exception 'Foreign Person rule approval was permitted';
+ exception when insufficient_privilege then null;
+ end;
  r:=public.person_measurement_recognition_self_api_v1('00000000-0000-4000-8000-000000000001');
  if r->>'recognition'<>'approved_rule' then raise exception 'Standing rule was not reread'; end if;
 end $proof$;

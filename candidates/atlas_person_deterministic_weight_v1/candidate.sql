@@ -98,12 +98,15 @@ begin
   v_rule:=atlas.recognize_body_weight_sentence_v1(v_cap.testimony);
   if v_rule is null then raise exception 'Capture does not satisfy the exact versioned rule.' using errcode='22023'; end if;
   if p_approve then
-    insert into atlas.person_recognition_rule_permissions_v1(
+    insert into atlas.person_recognition_rule_permissions_v1 as existing(
       owner_user_id,rule_key,rule_version,approved_capture_id,approved_at,revoked_at
     ) values(v_user,'measure.body_weight.reported',1,v_cap.id,now(),null)
     on conflict(owner_user_id,rule_key,rule_version) do update
-      set approved_capture_id=excluded.approved_capture_id,
-        approved_at=excluded.approved_at,revoked_at=null;
+      set approved_capture_id=case when existing.revoked_at is null
+        then existing.approved_capture_id else excluded.approved_capture_id end,
+        approved_at=case when existing.revoked_at is null
+        then existing.approved_at else excluded.approved_at end,
+        revoked_at=null;
   else
     update atlas.person_recognition_rule_permissions_v1
       set revoked_at=now()
