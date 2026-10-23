@@ -102,6 +102,7 @@ signed_connected_work_prerequisite_probe=false
 signed_existing_person_auth_claim_probe=false
 signed_person_weight_probe=false
 signed_person_period_probe=false
+signed_foundry_workspace_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -200,6 +201,17 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_person_period_probe=true
+fi
+
+# Source-exact pre-Ledger Foundry signed-owner proof. This is the
+# approved local GoTrue/PostgREST route, never a production HTTP request.
+if [ "$lane" = "shared" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_foundry_connected_workspace_gate1_signed_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Foundry signed session proof requires fictional fixture/postconditions." >&2
+    exit 2
+  fi
+  signed_foundry_workspace_probe=true
 fi
 
 finish() {
@@ -353,7 +365,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
       [ "$signed_connected_work_prerequisite_probe" = true ] ||
       [ "$signed_existing_person_auth_claim_probe" = true ] ||
        [ "$signed_person_weight_probe" = true ] ||
-       [ "$signed_person_period_probe" = true ]; then
+       [ "$signed_person_period_probe" = true ] ||
+       [ "$signed_foundry_workspace_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -510,6 +523,14 @@ if [ "$signed_person_period_probe" = true ]; then
     >"$artifacts_dir/signed-person-period.log" 2>&1
 fi
 
+if [ "$signed_foundry_workspace_probe" = true ]; then
+  phase="genuine signed local Foundry workspace isolation, session revocation and pending-only subject scope"
+  python3 "$repo_root/scripts/validate-shared-foundry-workspace-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-foundry-workspace-summary.txt" \
+    >"$artifacts_dir/signed-foundry-workspace.log" 2>&1
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -553,6 +574,9 @@ fi
 if [ "$signed_connected_work_prerequisite_probe" = true ]; then
   printf '\nSIGNED connected-Person prerequisite read: authentic direct Ledger Work assignment, original source, cross-Work denial and revoked sessions verified locally.\n' \
     >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_foundry_workspace_probe" = true ]; then
+  printf '\nSIGNED Foundry workspace: real local GoTrue sessions, owner/outsider/unbound denial, idempotence, unreviewed subject custody, and revoked JWT session checks passed.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_person_period_probe" = true ]; then
   printf '\nSIGNED Person period history: real local GoTrue sessions, original source standing, exact cursor and cross-Person denial passed.\n' \
