@@ -81,8 +81,13 @@ def main():
            "A cannot file source into B's Collection")
     denied(api, key, b, "person_collection_sources_self_api_v1",
            {"p_spread_instance_id": dest_a, "p_limit": 100}, "B cannot read A's Health")
-    denied(api, key, b, "personal_reality_capture_self_api_v1",
-           {"p_capture_id": first}, "B cannot read original A capture")
+    # The preexisting original-capture contract conceals foreign captures
+    # with P0002 (not-found) instead of disclosing their existence.
+    status, foreign_capture = auth.rpc(api, key, "personal_reality_capture_self_api_v1",
+                                       {"p_capture_id": first}, b)
+    ok(status in (401, 403, 404) and isinstance(foreign_capture, dict)
+       and foreign_capture.get("code") in ("P0002", "42501"),
+       "Foreign signed Person must not read source or infer its contents")
 
     # Auto intent without approval is not a successful filing.
     no = get(a, "person_file_capture_self_api_v1",
