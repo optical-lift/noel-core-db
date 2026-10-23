@@ -328,23 +328,23 @@ $body$;
 revoke all on function atlas.person_collection_sources_self_api_v1(uuid,integer)
   from public,anon,authenticated;
 
-create or replace function atlas.person_today_filing_receipts_self_api_v1(p_date date default current_date)
+create or replace function atlas.person_today_filing_receipts_self_api_v1(p_date date default null)
 returns jsonb language plpgsql stable security definer set search_path to ''
 as $body$
-declare u uuid:=auth.uid(); p uuid; tz text; items jsonb; total_count integer;
+declare u uuid:=auth.uid(); p uuid; tz text; local_day date; items jsonb; total_count integer;
 begin
   if u is null then raise exception 'Sign in required.' using errcode='42501'; end if;
-  if p_date is null then raise exception 'Date required.' using errcode='22023'; end if;
   p:=atlas.require_active_task_principal_v1();
   select home_timezone into tz from atlas.principals where id=p and user_id=u and status='active';
   if tz is null or not exists(select 1 from pg_catalog.pg_timezone_names where name=tz)
     then raise exception 'Principal timezone unresolved.' using errcode='22023'; end if;
+  local_day:=coalesce(p_date,(now() at time zone tz)::date);
   select count(*) into total_count from atlas.person_collection_filing_events_v1 e
     join atlas.notebook_spread_instances s on s.id=e.to_spread_instance_id
     join atlas.notebook_spread_source_bindings b on b.id=e.binding_id
     join atlas.personal_reality_captures c on c.id=e.capture_id
     where e.principal_id=p and e.owner_user_id=u
-      and (e.occurred_at at time zone tz)::date=p_date
+      and (e.occurred_at at time zone tz)::date=local_day
       and s.principal_id=p and s.scope_kind='person' and s.scope_id=u::text
       and b.binding_state='active' and c.owner_user_id=u and c.principal_id=p
       and s.spread_state='open'
@@ -367,7 +367,7 @@ begin
     join atlas.notebook_spread_source_bindings b on b.id=e.binding_id
     join atlas.personal_reality_captures c on c.id=e.capture_id
     where e.principal_id=p and e.owner_user_id=u
-      and (e.occurred_at at time zone tz)::date=p_date
+      and (e.occurred_at at time zone tz)::date=local_day
       and s.principal_id=p and s.scope_kind='person' and s.scope_id=u::text
       and b.binding_state='active' and c.owner_user_id=u and c.principal_id=p
       and s.spread_state='open'
@@ -382,7 +382,7 @@ begin
   ) x;
   return jsonb_build_object('ok',true,
     'contractVersion','person_today_filing_receipts_v1',
-    'date',p_date,'timezone',tz,'items',items,'count',total_count,
+    'date',local_day,'timezone',tz,'items',items,'count',total_count,
     'truncated',total_count>100,'sourceTextDuplicated',false);
 end;
 $body$;
@@ -408,7 +408,7 @@ create or replace function public.person_collection_sources_self_api_v1(
 as $body$
   select atlas.person_collection_sources_self_api_v1(p_spread_instance_id,p_limit)
 $body$;
-create or replace function public.person_today_filing_receipts_self_api_v1(p_date date default current_date)
+create or replace function public.person_today_filing_receipts_self_api_v1(p_date date default null)
 returns jsonb language sql security definer set search_path to ''
 as $body$
   select atlas.person_today_filing_receipts_self_api_v1(p_date)
