@@ -99,6 +99,7 @@ signed_event_writer_probe=false
 signed_calendar_reader_probe=false
 signed_work_prerequisite_probe=false
 signed_connected_work_prerequisite_probe=false
+signed_existing_person_auth_claim_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -165,6 +166,17 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_connected_work_prerequisite_probe=true
+fi
+
+# Build 1 verified account binding requires real disposable signed claimant and
+# independent source-steward sessions, never merely a structural clone.
+if [ "$lane" = "shared" ] &&
+  [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_existing_person_new_auth_claim_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Person claim signed HTTP proof requires synthetic fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_existing_person_auth_claim_probe=true
 fi
 
 finish() {
@@ -315,7 +327,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
       [ "$signed_event_writer_probe" = true ] ||
       [ "$signed_calendar_reader_probe" = true ] ||
       [ "$signed_work_prerequisite_probe" = true ] ||
-      [ "$signed_connected_work_prerequisite_probe" = true ]; then
+      [ "$signed_connected_work_prerequisite_probe" = true ] ||
+      [ "$signed_existing_person_auth_claim_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -448,6 +461,14 @@ if [ "$signed_connected_work_prerequisite_probe" = true ]; then
     >"$artifacts_dir/signed-connected-work-prerequisite.log" 2>&1
 fi
 
+if [ "$signed_existing_person_auth_claim_probe" = true ]; then
+  phase="signed local canonical Person new-Auth claim, wrong recipient, retired credential and session revocation"
+  python3 "$repo_root/scripts/validate-shared-existing-person-auth-claim-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-person-auth-claim-summary.txt" \
+    >"$artifacts_dir/signed-person-auth-claim.log" 2>&1
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -490,5 +511,9 @@ fi
 
 if [ "$signed_connected_work_prerequisite_probe" = true ]; then
   printf '\nSIGNED connected-Person prerequisite read: authentic direct Ledger Work assignment, original source, cross-Work denial and revoked sessions verified locally.\n' \
+    >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_existing_person_auth_claim_probe" = true ]; then
+  printf '\nSIGNED existing Person new Auth binding: actual local GoTrue recipient, native Ledger steward, wrong-email, repeated claim and revoked-session checks passed.\n' \
     >> "$artifacts_dir/summary.md"
 fi
