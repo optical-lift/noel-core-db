@@ -1,0 +1,48 @@
+name: Atlas weight candidate isolated SQL proof
+
+on:
+  pull_request:
+    paths:
+      - "candidates/atlas_person_deterministic_weight_v1/**"
+      - "validation/atlas-person-weight-v1/**"
+      - ".github/workflows/atlas-person-weight-candidate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ephemeral-fixture-only
+      PGDATABASE: postgres
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prove source SQL with fictional People only
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-person-weight-v1/fixture-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-person-weight-v1/fixture-data.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/atlas_person_deterministic_weight_v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-person-weight-v1/test-grammar-and-grants.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-person-weight-v1/test-approval-isolation.sql
