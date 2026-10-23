@@ -101,6 +101,7 @@ signed_work_prerequisite_probe=false
 signed_connected_work_prerequisite_probe=false
 signed_existing_person_auth_claim_probe=false
 signed_person_weight_probe=false
+signed_person_period_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -189,6 +190,16 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_person_weight_probe=true
+fi
+
+# Period history reader: independent source-qualified Person read through real signed local GoTrue.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_person_period_source_history_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Signed Person period reader requires fictional fixture/postconditions." >&2
+    exit 2
+  fi
+  signed_person_period_probe=true
 fi
 
 finish() {
@@ -341,7 +352,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
       [ "$signed_work_prerequisite_probe" = true ] ||
       [ "$signed_connected_work_prerequisite_probe" = true ] ||
       [ "$signed_existing_person_auth_claim_probe" = true ] ||
-       [ "$signed_person_weight_probe" = true ]; then
+       [ "$signed_person_weight_probe" = true ] ||
+       [ "$signed_person_period_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -490,6 +502,14 @@ if [ "$signed_person_weight_probe" = true ]; then
     >"$artifacts_dir/signed-person-weight.log" 2>&1
 fi
 
+if [ "$signed_person_period_probe" = true ]; then
+  phase="signed local source-qualified Person period history, exact cursor and privacy"
+  python3 "$repo_root/scripts/validate-atlas-person-period-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-person-period-summary.txt" \
+    >"$artifacts_dir/signed-person-period.log" 2>&1
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -532,6 +552,10 @@ fi
 
 if [ "$signed_connected_work_prerequisite_probe" = true ]; then
   printf '\nSIGNED connected-Person prerequisite read: authentic direct Ledger Work assignment, original source, cross-Work denial and revoked sessions verified locally.\n' \
+    >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_person_period_probe" = true ]; then
+  printf '\nSIGNED Person period history: real local GoTrue sessions, original source standing, exact cursor and cross-Person denial passed.\n' \
     >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_person_weight_probe" = true ]; then
