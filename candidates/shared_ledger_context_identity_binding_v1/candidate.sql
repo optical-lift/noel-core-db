@@ -51,7 +51,11 @@ BEGIN
   SELECT e.entity_kind,e.identity_state,e.stable_key
   INTO v_kind,v_state,v_stable_key
   FROM reality.entities e
-  WHERE e.id=NEW.canonical_context_entity_id;
+  WHERE e.id=NEW.canonical_context_entity_id
+  -- The FK's KEY SHARE alone does not serialize changes to non-key
+  -- identity attributes (e.g. entity_kind). Serialize establishment
+  -- against the Reality-side bound-identity guard before deciding.
+  FOR SHARE;
 
   IF v_kind IS DISTINCT FROM 'ledger_context'
      OR v_state IS DISTINCT FROM 'canonical'
