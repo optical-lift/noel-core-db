@@ -253,12 +253,21 @@ BEGIN
   RETURN jsonb_build_object('ok',false,'state','identity_claim_required',
     'identityClaimCaseId',v_i.identity_claim_case_id);
  END IF;
- -- Exactly the existing entitlement writer. No Stripe customer, invoice,
- -- setup intent, subscription, membership or Ledger seat.
- v_redeem:=public.redeem_personal_atlas_complimentary_test_self_api_v1(p_code);
- IF v_redeem->>'ok' IS DISTINCT FROM 'true'
-   OR v_redeem->>'accessKind'<>'complimentary_testing' THEN
-  RAISE EXCEPTION 'Complimentary entitlement unavailable' USING errcode='42501';
+ -- Only the existing complimentary entitlement writer can establish
+ -- new access. If this verified account already owns a genuine active access
+ -- basis (paid or previously granted), accept WITHOUT creating a duplicate
+ -- grant; retire this unused code so it cannot be separately redeemed.
+ IF coalesce((atlas.personal_atlas_access_status_self_api_v1()->>'eligible')::boolean,false)
+ THEN
+  UPDATE atlas.personal_atlas_complimentary_test_invitations
+    SET state='revoked'
+  WHERE id=v_i.complimentary_invitation_id AND claimed_by_user_id IS NULL;
+ ELSE
+  v_redeem:=public.redeem_personal_atlas_complimentary_test_self_api_v1(p_code);
+  IF v_redeem->>'ok' IS DISTINCT FROM 'true'
+    OR v_redeem->>'accessKind'<>'complimentary_testing' THEN
+   RAISE EXCEPTION 'Complimentary entitlement unavailable' USING errcode='42501';
+  END IF;
  END IF;
  UPDATE atlas.universal_person_invitations SET state='claimed',
    claimed_by_user_id=v_actor,claimed_at=now(),changed_at=now()
