@@ -44,6 +44,16 @@ BEGIN
     RAISE EXCEPTION 'Migration must not backfill any real Ledger identities';
   END IF;
 
+  IF has_function_privilege('authenticated',
+       'ledger.guard_canonical_context_identity_v1()'::regprocedure,'EXECUTE')
+     OR has_function_privilege('anon',
+       'ledger.guard_canonical_context_identity_v1()'::regprocedure,'EXECUTE')
+     OR has_function_privilege('authenticated',
+       'reality.guard_bound_ledger_context_kind_v1()'::regprocedure,'EXECUTE')
+     OR has_function_privilege('anon',
+       'reality.guard_bound_ledger_context_kind_v1()'::regprocedure,'EXECUTE')
+  THEN RAISE EXCEPTION 'Trigger helpers cannot be invoked as application functions'; END IF;
+
   IF has_table_privilege('authenticated','ledger.ledgers','UPDATE')
     OR has_table_privilege('anon','ledger.ledgers','UPDATE')
     OR has_table_privilege('authenticated','reality.entities','INSERT')

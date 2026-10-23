@@ -100,6 +100,12 @@ ON reality.entities
 FOR EACH ROW
 EXECUTE FUNCTION reality.guard_bound_ledger_context_kind_v1();
 
+-- Trigger functions are never standalone application APIs.
+REVOKE ALL ON FUNCTION ledger.guard_canonical_context_identity_v1()
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION reality.guard_bound_ledger_context_kind_v1()
+  FROM PUBLIC, anon, authenticated;
+
 -- Deliberately no Ledger row UPDATE, Reality entity INSERT, relationship
 -- establishment, public RPC, RLS policy or expanded role grant.
 COMMIT;

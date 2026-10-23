@@ -29,3 +29,7 @@ Entity creation/adjudication is deliberately a separate stage; a service may not
 ## Known proof limitation
 
 The postconditions verify structural invariants, role grants and no actual identity backfill. They are not yet live proof of every negative trigger scenario or a two-actor permission test. Those must run on a disposable clone before promotion; this candidate is not proof of a completed canonical engine.
+
+## Disposable negative-test fixture
+
+`fixture.sql` creates synthetic Reality identities and a temporary Ledger-shape table inside an exception-handled subtransaction. It verifies a correctly keyed identity binds successfully; mismatched Ledger key, invalid kind, disputed identity, context/business alias, rebinding and silent business substitution fail with check violations. The outer subtransaction explicitly rolls back its temporary table and all synthetic Reality records. It **must only run in the disposable production-schema-clone validation**, never the production release. This does not test the bound-Reality-row update guard against actual Ledger backfill (there are no bound rows by design); that acceptance remains held for the separate identity-adjudication build.
