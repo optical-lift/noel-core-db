@@ -187,6 +187,41 @@ BEGIN
     'practitionerUserId',p_practitioner_user_id,'canIssue',coalesce(p_can_issue,false));
 END $fn$;
 
+-- Email locates a confirmed *professional Auth credential* only; this is
+-- not a name/email-based Person identity resolution or Person construction.
+CREATE FUNCTION atlas.prepared_person_assign_practitioner_email_self_api_v1(
+ p_case_id uuid,p_practitioner_email text,p_grant_reason text,
+ p_can_issue boolean DEFAULT false
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $fn$
+DECLARE v_case atlas.prepared_person_cases%rowtype; v_target uuid; v_count integer;
+BEGIN
+ SELECT * INTO STRICT v_case FROM atlas.prepared_person_cases WHERE id=p_case_id;
+ PERFORM atlas.require_identity_steward_v1(v_case.organization_id);
+ IF v_case.prepared_by_user_id<>auth.uid() OR v_case.case_state<>'preparing'
+   OR (v_case.target_kind='existing_person' AND NOT
+       atlas.existing_person_claim_actor_steward_v1(
+       v_case.organization_id,v_case.person_entity_id,auth.uid())) THEN
+    RAISE EXCEPTION 'Exact case stewardship required' USING errcode='42501';
+ END IF;
+ IF length(btrim(coalesce(p_practitioner_email,''))) NOT BETWEEN 5 AND 320 THEN
+   RAISE EXCEPTION 'Exact confirmed practitioner email required' USING errcode='22023';
+ END IF;
+ SELECT count(*)::integer, (array_agg(u.id))[1] INTO v_count,v_target
+ FROM auth.users u
+ JOIN atlas.implementation_practitioners p ON p.human_user_id=u.id
+   AND p.status='active'
+ WHERE lower(btrim(u.email))=lower(btrim(p_practitioner_email))
+   AND u.email_confirmed_at IS NOT NULL AND u.deleted_at IS NULL
+   AND (u.banned_until IS NULL OR u.banned_until<=now());
+ IF v_count<>1 THEN
+   RAISE EXCEPTION 'One confirmed active practitioner credential required'
+      USING errcode='42501';
+ END IF;
+ RETURN atlas.prepared_person_assign_practitioner_self_api_v1(
+   p_case_id,v_target,p_grant_reason,p_can_issue);
+END $fn$;
+
 CREATE FUNCTION atlas.prepared_person_revoke_practitioner_self_api_v1(
  p_grant_id uuid
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
@@ -462,6 +497,7 @@ BEGIN
    'organizationId',v_case.organization_id,
    'operatorGrants',(SELECT coalesce(jsonb_agg(jsonb_build_object(
       'grantId',g.id,'practitionerUserId',g.practitioner_user_id,
+      'practitionerEmail',(SELECT au.email FROM auth.users au WHERE au.id=g.practitioner_user_id),
       'canIssue',g.can_issue,'active',g.revoked_at IS NULL,
       'grantedByUserId',g.granted_by_user_id,'grantedAt',g.granted_at,
       'revokedAt',g.revoked_at) ORDER BY g.granted_at,g.id),'[]'::jsonb)
@@ -617,6 +653,7 @@ END $fn$;
 
 REVOKE ALL ON FUNCTION
  atlas.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean),
+ atlas.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean),
  atlas.prepared_person_revoke_practitioner_self_api_v1(uuid),
  atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
@@ -629,6 +666,7 @@ REVOKE ALL ON FUNCTION
  FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION
  atlas.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean),
+ atlas.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean),
  atlas.prepared_person_revoke_practitioner_self_api_v1(uuid),
  atlas.prepared_person_scope_options_self_api_v1(uuid,text),
  atlas.prepared_person_begin_self_api_v1(uuid,text,uuid,text,text,text),
@@ -699,6 +737,15 @@ AS $transport$ SELECT atlas.prepared_person_assign_practitioner_self_api_v1(
  p_case_id,p_practitioner_user_id,p_grant_reason,p_can_issue); $transport$;
 REVOKE ALL ON FUNCTION public.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.prepared_person_assign_practitioner_self_api_v1(uuid,uuid,text,boolean) TO authenticated;
+
+CREATE FUNCTION public.prepared_person_assign_practitioner_email_self_api_v1(
+ p_case_id uuid,p_practitioner_email text,p_grant_reason text,
+ p_can_issue boolean DEFAULT false
+) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path='pg_catalog'
+AS $transport$ SELECT atlas.prepared_person_assign_practitioner_email_self_api_v1(
+ p_case_id,p_practitioner_email,p_grant_reason,p_can_issue); $transport$;
+REVOKE ALL ON FUNCTION public.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.prepared_person_assign_practitioner_email_self_api_v1(uuid,text,text,boolean) TO authenticated;
 
 CREATE FUNCTION public.prepared_person_revoke_practitioner_self_api_v1(
  p_grant_id uuid
