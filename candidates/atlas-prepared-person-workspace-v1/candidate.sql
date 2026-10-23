@@ -30,7 +30,7 @@ CREATE UNIQUE INDEX prepared_person_case_request_v1
  ON atlas.prepared_person_cases(organization_id,prepared_by_user_id,request_key);
 CREATE UNIQUE INDEX prepared_person_one_open_existing_v1
  ON atlas.prepared_person_cases(organization_id,person_entity_id)
- WHERE target_kind='existing_person' AND case_state IN ('preparing','issued');
+ WHERE target_kind='existing_person' AND case_state='preparing';
 
 CREATE TABLE atlas.prepared_person_items (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -418,6 +418,7 @@ BEGIN
    'caseId',c.id,'issuedAt',c.issued_at,'items',
      (SELECT coalesce(jsonb_agg(jsonb_build_object(
        'id',i.id,'topic',i.topic,'classification',i.classification,
+       'conflictsWithItemId',i.conflicts_with_item_id,
        'literalText',e.value->>'literalText',
        'sourceKind',e.source_kind,'sourceDetailAccess','not_admitted',
        'observedAt',e.observed_at,'recordedAt',e.learned_at,
