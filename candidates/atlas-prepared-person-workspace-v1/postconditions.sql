@@ -18,7 +18,7 @@ BEGIN
    RAISE EXCEPTION 'RLS must cover all prepared Person custody tables';
  END IF;
  IF (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-     WHERE n.nspname='atlas' AND p.proname LIKE 'prepared_person_%self_api_v1') <> 7 THEN
+     WHERE n.nspname='atlas' AND p.proname LIKE 'prepared_person_%self_api_v1') <> 8 THEN
    RAISE EXCEPTION 'Prepared Person RPC surface incomplete';
  END IF;
 END $check$;
