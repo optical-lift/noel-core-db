@@ -22,6 +22,7 @@ BEGIN
   IF v_def IS NULL
      OR position('foundry_workspace_not_explicitly_delegated' in v_def)=0
      OR position('foundry_workspace_custody_not_authorized' in v_def)=0
+     OR position('non_foundry_command_cannot_target_workspace' in v_def)=0
      OR position('foundry.workspace_authority_registry_v1' in v_def)=0
      OR position('w.owner_principal_id=v_auth.principal_id' in v_def)=0
   THEN RAISE EXCEPTION 'Verified registry owner/consent target check missing'; END IF;
