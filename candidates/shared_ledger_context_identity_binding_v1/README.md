@@ -26,6 +26,16 @@ Entity creation/adjudication is deliberately a separate stage; a service may not
 
 **Never treat `canonical_context_entity_id` presence as permission to see Ledger/client/private medical records.**
 
+## Concurrent identity-establishment safety
+
+The Ledger trigger now reads its proposed canonical Reality endpoint using PostgreSQL `FOR SHARE`. This is a source-level repair to a real race at the shared identity boundary: the Ledger FK may acquire only `KEY SHARE` on a Reality entity, which does not conflict with a concurrent non-key `entity_kind` or `identity_state` change. Without the stronger lock, one transaction could accept a canonical Ledger binding while another concurrently changes the same Reality entity kind or stable identity before either can observe the other's uncommitted work.
+
+The bound-Reality trigger still rejects changes to `entity_kind` and `stable_key` after binding; an explicit governed dispute/retirement may change `identity_state`, in which case later Connect commands must refuse that endpoint. The lock serializes initial validation against concurrent Reality identity edits rather than inventing a new consent or relationship authority.
+
+**Additional release proof is required:** On a disposable schema clone, exercise two genuine PostgreSQL connections against a synthetic Ledger row and its synthetic canonical Reality endpoint. Race Ledger binding versus Reality `entity_kind` mutation in both execution orders and verify that no outcome commits a Ledger bound to a wrong-kind identity. Also race `stable_key` mutation, `identity_state` dispute, and competing Ledger bindings; distinguish permitted explicit dispute-after-binding from a forbidden stale binding. Assert transaction outcome, final row state, and lack of provenance/permission drift. These multi-session tests are **not** supplied by the current one-session rollback-only postconditions and are not claimed as passed.
+
+The governed writer must have sufficient server-side privileges for the `FOR SHARE` lock; no `anon` or `authenticated` grants should be added to accommodate this. A permission failure must be escalated rather than silently widening access.
+
 ## Known proof limitation
 
 The postconditions verify structural invariants, role grants and no actual identity backfill. They are not yet live proof of every negative trigger scenario or a two-actor permission test. Those must run on a disposable clone before promotion; this candidate is not proof of a completed canonical engine.
