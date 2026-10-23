@@ -235,6 +235,32 @@ else:
         for t in operations):
         errors.append('Worker prerequisite fixture is not DML-only')
 
+# Foundry's new signed proof runs through the **same** protected
+# schema-clone harness, and must never substitute unsigned SQL GUC identity.
+foundry_probe = Path('scripts/validate-shared-foundry-workspace-signed-http.py')
+if not foundry_probe.is_file():
+    errors.append('Missing genuine local signed Foundry workspace proof')
+else:
+    probe_text = foundry_probe.read_text()
+    try:
+        ast.parse(probe_text,filename=str(foundry_probe))
+    except SyntaxError as exc:
+        errors.append(f'Foundry signed proof Python syntax invalid: {exc}')
+    for fragment in ("127[.]0[.]0[.]1", "c1.sign_in(", "auth.sessions",
+                     "get_foundry_workspace_preparation_self_api_v1",
+                     "prepare_foundry_workspace_self_api_v1",
+                     "deleted GoTrue session", "cross-Principal",
+                     "custody_review_state='pending'"):
+        if fragment not in probe_text:
+            errors.append(f'Missing Foundry signed-auth boundary: {fragment}')
+    if 'https://zirqkouammpwxlqfbsvf.supabase.co' in probe_text:
+        errors.append('Foundry signed test cannot contact production Supabase')
+for fragment in ('signed_foundry_workspace_probe=true',
+                 'validate-shared-foundry-workspace-signed-http.py',
+                 'shared_foundry_connected_workspace_gate1_signed_v1'):
+    if fragment not in harness:
+        errors.append(f'Foundry signed local harness dispatch missing: {fragment}')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
