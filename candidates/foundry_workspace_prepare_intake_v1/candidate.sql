@@ -161,4 +161,73 @@ REVOKE ALL ON FUNCTION atlas.prepare_foundry_workspace_self_api_v1(
 GRANT EXECUTE ON FUNCTION atlas.prepare_foundry_workspace_self_api_v1(
   uuid,text,text,text
 ) TO authenticated;
+
+-- Narrow owner-only read of an unreviewed workspace's preparation state.
+-- Does not expose testimony, source documents, candidate interpretation,
+-- any legacy stream, or a claim that the subject has granted authority.
+CREATE OR REPLACE FUNCTION atlas.get_foundry_workspace_preparation_self_api_v1(
+  p_workspace_id text
+) RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'atlas','foundry','auth','pg_temp'
+AS $read$
+DECLARE
+  v_user_id uuid:=auth.uid();
+  v_session_id uuid;
+  v_principal_id uuid;
+  v_workspace foundry.workspace_authority_registry_v1%rowtype;
+BEGIN
+  IF v_user_id IS NULL OR NOT EXISTS(
+    SELECT 1 FROM auth.users u
+    WHERE u.id=v_user_id AND u.is_anonymous=false
+      AND (u.banned_until IS NULL OR u.banned_until<=now())
+  ) THEN
+    RAISE EXCEPTION 'verified human sign-in required' USING ERRCODE='42501';
+  END IF;
+  BEGIN
+    v_session_id:=NULLIF(auth.jwt()->>'session_id','')::uuid;
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'valid GoTrue signed session required' USING ERRCODE='42501';
+  END;
+  IF v_session_id IS NULL OR NOT EXISTS(
+    SELECT 1 FROM auth.sessions s
+    WHERE s.id=v_session_id AND s.user_id=v_user_id
+      AND (s.not_after IS NULL OR s.not_after>now())
+  ) THEN
+    RAISE EXCEPTION 'active GoTrue session required' USING ERRCODE='42501';
+  END IF;
+  SELECT p.id INTO v_principal_id FROM atlas.principals p
+    WHERE p.user_id=v_user_id AND p.status='active';
+  IF v_principal_id IS NULL THEN
+    RAISE EXCEPTION 'active Atlas Principal required' USING ERRCODE='42501';
+  END IF;
+  IF NULLIF(BTRIM(p_workspace_id),'') IS NULL THEN
+    RAISE EXCEPTION 'workspace ID required' USING ERRCODE='22023';
+  END IF;
+  SELECT * INTO v_workspace
+  FROM foundry.workspace_authority_registry_v1 w
+  WHERE w.workspace_id=p_workspace_id
+    AND w.owner_principal_id=v_principal_id;
+  IF NOT FOUND THEN
+    -- Foreign workspace IDs are indistinguishable from nonexistent IDs.
+    RAISE EXCEPTION 'workspace not accessible' USING ERRCODE='42501';
+  END IF;
+  RETURN jsonb_build_object(
+    'ok',true,'workspaceId',v_workspace.workspace_id,
+    'custodyReviewState',v_workspace.custody_review_state,
+    'subjectIdentityState',v_workspace.subject_identity_state,
+    'provisionalSubjectLabel',v_workspace.provisional_subject_label,
+    'provisionalField',v_workspace.provisional_field,
+    'protocolVersion',v_workspace.protocol_version,
+    'canonicalAtlasMutation',false
+  );
+END;
+$read$;
+REVOKE ALL ON FUNCTION atlas.get_foundry_workspace_preparation_self_api_v1(
+  text
+) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION atlas.get_foundry_workspace_preparation_self_api_v1(
+  text
+) TO authenticated;
 COMMIT;
