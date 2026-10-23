@@ -134,8 +134,7 @@ declare
   perm atlas.person_recognition_rule_permissions_v1%rowtype;
   match jsonb; mode text:='explicit';
   previous_id uuid; binding_id uuid; receipt_id uuid; change_kind text;
-  old_route uuid;
-begin
+  begin
   if u is null then raise exception 'Sign in required.' using errcode='42501'; end if;
   p:=atlas.require_active_task_principal_v1();
   if p_capture_id is null then raise exception 'Original capture ID required.' using errcode='22023'; end if;
@@ -348,6 +347,10 @@ begin
       and (e.occurred_at at time zone tz)::date=p_date
       and s.principal_id=p and s.scope_kind='person' and s.scope_id=u::text
       and b.binding_state='active' and c.owner_user_id=u and c.principal_id=p
+      and s.spread_state='open'
+      and e.id=(select latest.id from atlas.person_collection_filing_events_v1 latest
+        where latest.principal_id=p and latest.capture_id=c.id
+        order by latest.occurred_at desc,latest.id desc limit 1)
       and (e.filing_mode<>'approved_rule_v1' or exists(
         select 1 from atlas.person_recognition_rule_permissions_v1 permission
         where permission.owner_user_id=u and permission.rule_key='measure.body_weight.reported'
@@ -367,6 +370,10 @@ begin
       and (e.occurred_at at time zone tz)::date=p_date
       and s.principal_id=p and s.scope_kind='person' and s.scope_id=u::text
       and b.binding_state='active' and c.owner_user_id=u and c.principal_id=p
+      and s.spread_state='open'
+      and e.id=(select latest.id from atlas.person_collection_filing_events_v1 latest
+        where latest.principal_id=p and latest.capture_id=c.id
+        order by latest.occurred_at desc,latest.id desc limit 1)
       and (e.filing_mode<>'approved_rule_v1' or exists(
         select 1 from atlas.person_recognition_rule_permissions_v1 permission
         where permission.owner_user_id=u and permission.rule_key='measure.body_weight.reported'
