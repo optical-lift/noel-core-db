@@ -133,7 +133,7 @@ declare
   dst atlas.notebook_spread_instances%rowtype;
   perm atlas.person_recognition_rule_permissions_v1%rowtype;
   match jsonb; mode text:='explicit';
-  previous_id uuid; binding_id uuid; receipt_id uuid; change_kind text;
+  previous_id uuid; v_binding_id uuid; receipt_id uuid; change_kind text;
   begin
   if u is null then raise exception 'Sign in required.' using errcode='42501'; end if;
   p:=atlas.require_active_task_principal_v1();
@@ -190,13 +190,13 @@ declare
     order by b.created_at,b.id limit 1;
 
   if previous_id=dst.id then
-    select b.id into binding_id from atlas.notebook_spread_source_bindings b
+    select b.id into v_binding_id from atlas.notebook_spread_source_bindings b
     where b.spread_instance_id=dst.id and b.source_domain='atlas'
       and b.source_kind='personal_reality_capture' and b.source_id=cap.id::text
       and b.relationship_kind='memory' and b.binding_state='active';
     select e.id into receipt_id from atlas.person_collection_filing_events_v1 e
       where e.principal_id=p and e.capture_id=cap.id
-        and e.to_spread_instance_id=dst.id and e.binding_id=binding_id
+        and e.to_spread_instance_id=dst.id and e.binding_id=v_binding_id
       order by e.occurred_at desc,e.id desc limit 1;
     if receipt_id is not null then
       return jsonb_build_object('ok',true,'routed',true,'idempotent',true,
@@ -216,7 +216,7 @@ declare
       and b.source_id=cap.id::text and b.relationship_kind='memory'
       and b.binding_state='active' and b.spread_instance_id<>dst.id;
 
-  binding_id:=atlas.bind_notebook_spread_source_v1(
+  v_binding_id:=atlas.bind_notebook_spread_source_v1(
     dst.id,'atlas','personal_reality_capture',cap.id::text,'memory','active',
     jsonb_build_object('source','personal_reality_captures','captureId',cap.id),
     jsonb_build_object('filingMode',mode,'ruleKey',
@@ -227,7 +227,7 @@ declare
     principal_id,owner_user_id,capture_id,from_spread_instance_id,
     to_spread_instance_id,binding_id,event_kind,filing_mode,rule_key,rule_version,basis
   ) values(
-    p,u,cap.id,previous_id,dst.id,binding_id,change_kind,mode,
+    p,u,cap.id,previous_id,dst.id,v_binding_id,change_kind,mode,
     case when mode='approved_rule_v1' then 'measure.body_weight.reported' else null end,
     case when mode='approved_rule_v1' then 1 else null end,
     jsonb_build_object('sourceSurface',cap.source_surface,'sourceCapturedAt',cap.captured_at)
