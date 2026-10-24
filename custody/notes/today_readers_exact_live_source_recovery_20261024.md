@@ -14,3 +14,9 @@ Both original SQL bodies were independently recovered **read-only** from `supaba
 No synthetic SQL, replay, regenerated migration version, manual DDL, user data, secrets, or product behavior updates. Do not run these already-executed SQL files again.
 
 Once source-custody CI independently confirms v57's sealed hash receipt and current live correspondence, the historical receipt may be merged without publishing or replaying a new unprefixed SQL migration, allowing the separately protected Foundry release gate to be retried. The Foundry migration remains under the separate protected database-release workflow and does not gain approval from this recovery alone.
+
+## Completion of v57 canonical materialization
+
+The sealed v57 historical exception by itself is not the final global custody state. After the registry was pinned and merged, Noel's global reconciler still classified the two live receipts as active-tail gaps because the policy's recovery range ended at v56. The v57 completion therefore (1) extends `recoveryRegistry.lastContractVersion` to 57, and (2) materializes the two *identical original executed-body Git blobs* into `supabase/migrations`. Each returned GitHub SHA-1 was independently checked against the original production receipt. The static owner-prefix checker now accepts these files **only** because v57 explicitly seals their filename + hash. A different SQL body or any new unprefixed filename remains prohibited.
+
+These files are **already executed**; they are historical source custody, not new runnable migrations. This step must not replay them, change production data, or authorize later unprefixed migrations.
