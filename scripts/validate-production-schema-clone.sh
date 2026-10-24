@@ -104,6 +104,7 @@ signed_person_weight_probe=false
 signed_person_collections_probe=false
 signed_person_period_probe=false
 signed_foundry_workspace_probe=false
+signed_native_standing_work_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -223,6 +224,17 @@ if [ "$lane" = "shared" ] &&
     exit 2
   fi
   signed_foundry_workspace_probe=true
+fi
+
+# Exact source-owned signed native Ledger standing-work candidate only.
+# Never pretend structural postconditions prove Person authorization.
+if [ "$lane" = "shared" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_native_ledger_standing_work_person_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Native Person standing Work requires synthetic fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_native_standing_work_probe=true
 fi
 
 finish() {
@@ -378,7 +390,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_person_weight_probe" = true ] ||
        [ "$signed_person_collections_probe" = true ] ||
        [ "$signed_person_period_probe" = true ] ||
-       [ "$signed_foundry_workspace_probe" = true ]; then
+       [ "$signed_foundry_workspace_probe" = true ] ||
+       [ "$signed_native_standing_work_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -555,6 +568,14 @@ if [ "$signed_foundry_workspace_probe" = true ]; then
     >"$artifacts_dir/signed-foundry-workspace.log" 2>&1
 fi
 
+if [ "$signed_native_standing_work_probe" = true ]; then
+  phase="genuine signed native Ledger standing-Work Person authorization, acceptance and revocation"
+  python3 "$repo_root/scripts/validate-shared-native-standing-work-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-native-standing-work-summary.txt" \
+    >"$artifacts_dir/signed-native-standing-work.log" 2>&1
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -601,6 +622,10 @@ if [ "$signed_connected_work_prerequisite_probe" = true ]; then
 fi
 if [ "$signed_foundry_workspace_probe" = true ]; then
   printf '\nSIGNED Foundry workspace: real local GoTrue sessions, owner/outsider/unbound denial, idempotence, unreviewed subject custody, and revoked JWT session checks passed.\n' >> "$artifacts_dir/summary.md"
+fi
+
+if [ "$signed_native_standing_work_probe" = true ]; then
+  printf '\nSIGNED native standing Work: real independent owner/worker/outsider GoTrue sessions, zero memberships, recipient acceptance, exact responsibility, denied impersonation and revocation passed.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_person_collections_probe" = true ]; then
   printf '\nSIGNED Person Collections: independent GoTrue sessions, original filing/readback, privacy, move and retry verified only in isolated clone.\n' \
