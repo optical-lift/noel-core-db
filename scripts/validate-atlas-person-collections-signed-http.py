@@ -85,8 +85,18 @@ def main():
     # with P0002 (not-found) instead of disclosing their existence.
     status, foreign_capture = auth.rpc(api, key, "personal_reality_capture_self_api_v1",
                                        {"p_capture_id": first}, b)
-    ok(status in (400, 401, 403, 404) and isinstance(foreign_capture, dict)
-       and foreign_capture.get("code") in ("P0002", "42501"),
+    # PostgREST maps SQLSTATE P0002 (PL/pgSQL no_data_found class) to HTTP 500.
+    # That status alone does NOT establish a denial. Require the EXACT
+    # owner-scoped P0002 source code and refuse all successful responses.
+    # Keep the existing public original-capture RPC unchanged.
+    concealed = (
+        isinstance(foreign_capture, dict)
+        and (
+            (status == 500 and foreign_capture.get("code") == "P0002")
+            or (status in (401, 403) and foreign_capture.get("code") == "42501")
+        )
+    )
+    ok(concealed,
        f"Foreign signed Person must not read source or infer its contents: HTTP {status} {str(foreign_capture)[:220]}")
 
     # Auto intent without approval is not a successful filing.
