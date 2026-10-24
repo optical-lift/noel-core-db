@@ -93,6 +93,23 @@ def main():
        p_subject_label="Fictional external research subject",
        p_provisional_field="Historical source custody, with independent human check",
        p_custody_scope_kind="documented_external"),"review owner prepares pending workspace")["workspaceId"]
+    # Only the source-specific connected-People selector candidate exercises
+    # this extra assertion. Prior immutable signed custody candidates stay valid.
+    if local_sql(a.db_url,
+      "select to_regprocedure('public.list_foundry_source_custody_reviewers_self_api_v1(text)') is not null")=="t":
+        selected=allowed(api,key,owner,
+          "list_foundry_source_custody_reviewers_self_api_v1",
+          {"p_workspace_id":workspace},"owner sees connected reviewer people")
+        expect(selected["aiCarrierAccess"] is False,"Reviewer list granted AI access")
+        reviewer_ids=[item["principalId"] for item in selected.get("reviewers",[])]
+        expect(reviewer_ids==[base.OTHER_P],
+          f"Connected directory must contain only other active shared Principal: {reviewer_ids}")
+        denied(api,key,reviewer,"list_foundry_source_custody_reviewers_self_api_v1",
+          {"p_workspace_id":workspace},"unrelated signed person cannot see private owner reviewer list")
+        denied(api,key,outsider,"list_foundry_source_custody_reviewers_self_api_v1",
+          {"p_workspace_id":workspace},"outsider cannot enumerate eligible reviewers")
+        denied(api,key,None,"list_foundry_source_custody_reviewers_self_api_v1",
+          {"p_workspace_id":workspace},"anonymous reviewer directory is closed")
     request=dict(
       p_workspace_id=workspace,
       p_request_id="f1900000-0000-4000-8000-000000000321",
