@@ -35,22 +35,28 @@ BEGIN
 END
 $audit$;
 
--- Fake owner and reviewer have shared canonical Ledger participation even
--- though no organization membership row exists; outsider does not.
+-- Reviewer and owner share active native Ledger participation with no
+-- employee/consultant/org membership. A disconnected signed Principal does not.
 DO $truth$
+DECLARE v_owner uuid;
+        v_reviewer uuid;
+        v_stranger uuid;
 BEGIN
+ SELECT person_id INTO v_owner FROM atlas.principals
+   WHERE user_id='f1900000-0000-4000-8000-000000000001';
+ SELECT person_id INTO v_reviewer FROM atlas.principals
+   WHERE user_id='f1900000-0000-4000-8000-000000000002';
+ SELECT person_id INTO v_stranger FROM atlas.principals
+   WHERE user_id='f1900000-0000-4000-8000-000000000004';
+ IF v_owner IS NULL OR v_reviewer IS NULL OR v_stranger IS NULL
+ THEN RAISE EXCEPTION 'Required signed fixture Persons missing'; END IF;
+ IF NOT atlas.persons_share_active_native_ledger_v1(v_owner,v_reviewer)
+ THEN RAISE EXCEPTION 'Native Ledger reviewer relationship missing'; END IF;
+ IF atlas.persons_share_active_native_ledger_v1(v_owner,v_stranger)
+ THEN RAISE EXCEPTION 'Disconnected signed Principal gained relationship'; END IF;
  IF NOT atlas.persons_share_active_native_ledger_v1(
-   'f1900000-0000-4000-8000-000000000401',
-   'f1900000-0000-4000-8000-000000000402')
- THEN RAISE EXCEPTION 'Native Ledger relation missing for signed reviewer'; END IF;
- IF atlas.persons_share_active_native_ledger_v1(
-   'f1900000-0000-4000-8000-000000000401',
-   'f1900000-0000-4000-8000-000000000403')
- THEN RAISE EXCEPTION 'Disconnected signed outsider admitted'; END IF;
- IF NOT atlas.persons_share_active_native_ledger_v1(
-   'f1900000-0000-4000-8000-000000000401',
-   'f1900000-0000-4000-8000-000000000405')
- THEN RAISE EXCEPTION 'Accountless canonical Person lost native Ledger relation'; END IF;
+  v_owner,'f1900000-0000-4000-8000-000000000405'::uuid)
+ THEN RAISE EXCEPTION 'Accountless recognized Person lost Ledger relation'; END IF;
  IF EXISTS (
   SELECT 1 FROM atlas.organization_memberships m
   WHERE m.user_id IN (
