@@ -1,0 +1,27 @@
+{
+  "contractVersion": 57,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v56.json",
+  "rule": "Two already-executed unclassified Atlas Today reader migrations reached production without approved owner-prefixed names and blocked the shared Foundry release. Their exact original executed-statement Git blobs were independently verified against live Supabase migration receipts, and are preserved here as retrospective custody evidence. This v57 tail does not authorize replay, new unprefixed migrations, expansion of shared-lane release permissions, or changing either original receipt.",
+  "recoveries": [
+    {
+      "version": "20261024173945",
+      "name": "today_person_agenda_backlog_activity_readers_20261024",
+      "filename": "20261024173945_today_person_agenda_backlog_activity_readers_20261024.sql",
+      "gitBlobSha1": "9f20381e2d32492acc1b3b8d3e2f9d579ce9d3c7",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261024175617",
+      "name": "today_new_readers_revoke_anon_execution_20261024",
+      "filename": "20261024175617_today_new_readers_revoke_anon_execution_20261024.sql",
+      "gitBlobSha1": "94a6d901a718fb7aba1ae1a02043685812aca588",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
