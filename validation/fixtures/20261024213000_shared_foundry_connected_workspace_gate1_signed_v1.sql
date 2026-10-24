@@ -39,9 +39,17 @@ VALUES
  ('f1900000-0000-4000-8000-000000000405','foundry-native-person-accountless-20261024','person','Fictional accountless person'),
  ('f1900000-0000-4000-8000-000000000499','foundry-native-ledger-subject-20261024','organization','Fictional Ledger subject');
 
-INSERT INTO ledger.onboarding_cases(id,subject_entity_id,desired_ledger_name)
-VALUES('f1900000-0000-4000-8000-000000000480',
-       'f1900000-0000-4000-8000-000000000499','Fictional shared Ledger');
+-- Use the real governed practitioner-onboarding readiness state; do not
+-- disable the Ledger activation guard or manufacture a second Person.
+INSERT INTO ledger.onboarding_cases(
+  id,subject_entity_id,desired_ledger_name,
+  practitioner_person_entity_id,onboarding_state
+)
+SELECT 'f1900000-0000-4000-8000-000000000480'::uuid,
+       'f1900000-0000-4000-8000-000000000499'::uuid,
+       'Fictional shared Ledger',p.person_id,'ready_to_activate'
+FROM atlas.principals p
+WHERE p.user_id='f1900000-0000-4000-8000-000000000001';
 
 INSERT INTO ledger.ledgers(id,subject_entity_id,onboarding_case_id,stable_key,name)
 VALUES('f1900000-0000-4000-8000-000000000490',
