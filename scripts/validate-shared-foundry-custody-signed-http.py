@@ -126,6 +126,24 @@ def main():
     case=first["caseId"]
     expect(first["reviewState"]=="pending" and first["aiCarrierAccess"] is False,
       "Submitted custody case was incorrectly promoted to approved AI authority")
+    if local_sql(a.db_url,
+      "select to_regprocedure('public.list_foundry_source_custody_reviews_self_api_v1()') is not null")=="t":
+        owner_inbox=allowed(api,key,owner,"list_foundry_source_custody_reviews_self_api_v1",
+          {},"owner sees own source review inbox")
+        reviewer_inbox=allowed(api,key,reviewer,"list_foundry_source_custody_reviews_self_api_v1",
+          {},"designated reviewer sees assigned source review inbox")
+        expect(any(item["caseId"]==case and item["myRole"]=="owner"
+          for item in owner_inbox["items"]),"owner review inbox lost case")
+        expect(any(item["caseId"]==case and item["myRole"]=="reviewer"
+          for item in reviewer_inbox["items"]),"reviewer inbox lost assigned case")
+        outsider_inbox=allowed(api,key,outsider,"list_foundry_source_custody_reviews_self_api_v1",
+          {},"unrelated Principal sees no custody review cases")
+        expect(all(item["caseId"]!=case for item in outsider_inbox["items"]),
+          "private source review leaked to unrelated Principal")
+        denied(api,key,unbound,"list_foundry_source_custody_reviews_self_api_v1",
+          {},"unbound signed user cannot enumerate reviewer inbox")
+        denied(api,key,None,"list_foundry_source_custody_reviews_self_api_v1",
+          {},"anonymous client cannot enumerate reviewer inbox")
     again=allowed(api,key,owner,REQUEST,request,"exact request retry is stable")
     expect(again["caseId"]==case and again["replayed"] is True,
       "Request replay did not preserve case identity")
