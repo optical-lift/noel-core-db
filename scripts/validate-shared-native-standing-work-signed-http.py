@@ -73,7 +73,7 @@ def main():
     args=parser.parse_args()
     need(bool(re.fullmatch(r"postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres",args.db_url)),
          "Refuse nonlocal database URL")
-    identities=work.original.setup_auth(args.db_url)
+    identities=work.setup_auth(args.db_url)
     api,key=c1.local_status()
     signed={}
     for name,user_id in identities:
