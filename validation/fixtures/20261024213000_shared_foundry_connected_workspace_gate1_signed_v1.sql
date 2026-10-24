@@ -20,31 +20,24 @@ values('f1900000-0000-4000-8000-000000000204','f1900000-0000-4000-8000-000000000
 
 -- No legacy organization membership is created for any test Person.
 -- All participant relationships below use only canonical Person+native Ledger.
+-- Principal creation has already established immutable auth -> Person IDs
+-- through atlas.ensure_person_for_auth_user_v1; reuse rather than replace.
 INSERT INTO reality.entities(id,stable_key,entity_kind,display_name)
-VALUES
- ('f1900000-0000-4000-8000-000000000401','foundry-native-person-owner-20261024','person','Fictional owner'),
- ('f1900000-0000-4000-8000-000000000402','foundry-native-person-reviewer-20261024','person','Fictional reviewer'),
- ('f1900000-0000-4000-8000-000000000403','foundry-native-person-outsider-20261024','person','Fictional outsider'),
- ('f1900000-0000-4000-8000-000000000405','foundry-native-person-accountless-20261024','person','Fictional accountless person'),
- ('f1900000-0000-4000-8000-000000000499','foundry-native-ledger-subject-20261024','organization','Fictional Ledger subject');
-
-INSERT INTO atlas.people(id,display_name)
-VALUES
- ('f1900000-0000-4000-8000-000000000401','Fictional owner'),
- ('f1900000-0000-4000-8000-000000000402','Fictional reviewer'),
- ('f1900000-0000-4000-8000-000000000403','Fictional outsider'),
- ('f1900000-0000-4000-8000-000000000405','Fictional accountless person');
-
-UPDATE atlas.principals SET person_id=CASE
- WHEN user_id='f1900000-0000-4000-8000-000000000001' THEN 'f1900000-0000-4000-8000-000000000401'::uuid
- WHEN user_id='f1900000-0000-4000-8000-000000000002' THEN 'f1900000-0000-4000-8000-000000000402'::uuid
- WHEN user_id='f1900000-0000-4000-8000-000000000004' THEN 'f1900000-0000-4000-8000-000000000403'::uuid
- END
-WHERE user_id IN (
+SELECT p.person_id, 'foundry-native-person-'||p.id::text,'person',p.name
+FROM atlas.principals p
+WHERE p.user_id IN (
  'f1900000-0000-4000-8000-000000000001',
  'f1900000-0000-4000-8000-000000000002',
- 'f1900000-0000-4000-8000-000000000004'
-);
+ 'f1900000-0000-4000-8000-000000000004');
+
+-- A recognized person needs neither an auth credential nor a Principal.
+INSERT INTO atlas.people(id,display_name)
+VALUES('f1900000-0000-4000-8000-000000000405','Fictional accountless person');
+
+INSERT INTO reality.entities(id,stable_key,entity_kind,display_name)
+VALUES
+ ('f1900000-0000-4000-8000-000000000405','foundry-native-person-accountless-20261024','person','Fictional accountless person'),
+ ('f1900000-0000-4000-8000-000000000499','foundry-native-ledger-subject-20261024','organization','Fictional Ledger subject');
 
 INSERT INTO ledger.onboarding_cases(id,subject_entity_id,desired_ledger_name)
 VALUES('f1900000-0000-4000-8000-000000000480',
@@ -61,7 +54,12 @@ VALUES('f1900000-0000-4000-8000-000000000490',
        'foundry-native-shared-ledger-20261024','Fictional shared Ledger');
 
 INSERT INTO ledger.seats(ledger_id,person_entity_id)
-VALUES
- ('f1900000-0000-4000-8000-000000000490','f1900000-0000-4000-8000-000000000401'),
- ('f1900000-0000-4000-8000-000000000490','f1900000-0000-4000-8000-000000000402'),
- ('f1900000-0000-4000-8000-000000000490','f1900000-0000-4000-8000-000000000405');
+SELECT 'f1900000-0000-4000-8000-000000000490'::uuid,p.person_id
+FROM atlas.principals p
+WHERE p.user_id IN (
+ 'f1900000-0000-4000-8000-000000000001',
+ 'f1900000-0000-4000-8000-000000000002'
+);
+INSERT INTO ledger.seats(ledger_id,person_entity_id)
+VALUES('f1900000-0000-4000-8000-000000000490',
+       'f1900000-0000-4000-8000-000000000405');
