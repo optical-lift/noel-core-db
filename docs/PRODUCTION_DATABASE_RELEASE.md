@@ -4,6 +4,13 @@
 
 Production release is intentionally separate from custody verification. The scheduled custody workflow proves that every live post-fence migration has exact source in this repository; it does not apply source-only migrations.
 
+## Solo-owner code review (effective 2026-10-24)
+
+This owner-controlled project does **not** require a second human developer, external GitHub PR approver, or independent security reviewer to move an otherwise passing candidate through the governed release path. The repository OWNER is authorized to perform and record the source/security/custody review, supported by actual signed authorization tests and immutable migration evidence. An earlier blanket independent-review requirement is superseded by [the solo-owner release decision](release/SOLO_OWNER_RELEASE_REVIEW_20261024.md).
+
+Keep source merge separate from migration generation and from the explicit protected production release. Owner review is not permission to skip branch protection if GitHub enforces a reviewer, nor permission to use someone else's source without consent or to claim an unperformed two-person product test. The owner-triggered release issue still must authorize its exact version, lane, and production target. No production migration is authorized merely by merging this policy.
+
+
 ## Governed release path
 
 Use the GitHub Actions workflow **Production Database Release** from `main`.
