@@ -2,6 +2,9 @@
 
 This repository can promote a reviewed candidate SQL packet into a real Supabase migration identity without requiring a developer's local checkout.
 
+For this solo-owner project, “reviewed” means the repository OWNER has examined the candidate and the required automated, disposable-clone, signed authorization, and source-custody evidence. A second human GitHub reviewer is not a prerequisite. The [2026-10-24 owner review decision](release/SOLO_OWNER_RELEASE_REVIEW_20261024.md) supersedes earlier instructions that insist on independent code-review approval; all existing migration-generation and production-release gates remain active.
+
+
 ## Authority boundary
 
 The generator is `.github/workflows/migration-source-generation.yml` on canonical `main`.
