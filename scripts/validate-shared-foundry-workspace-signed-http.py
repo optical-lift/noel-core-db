@@ -143,6 +143,22 @@ def main():
     need(approved(api,key,other,READ,{"p_workspace_id":other_wid},
                   "other Principal own read").get("workspaceId")==other_wid,
          "Other Principal own read mismatch")
+    if db(a.db_url,
+      "select to_regprocedure('public.list_foundry_owned_workspaces_self_api_v1()') is not null")=="t":
+        owner_index=approved(api,key,owner,"list_foundry_owned_workspaces_self_api_v1",
+          {},"signed owner reads only own Foundry Index")
+        other_index=approved(api,key,other,"list_foundry_owned_workspaces_self_api_v1",
+          {},"signed second Principal reads only own Foundry Index")
+        need(any(item["workspaceId"]==wid for item in owner_index["items"]) and
+             all(item["workspaceId"]!=other_wid for item in owner_index["items"]),
+             "Foundry owner Index contains foreign workspace or loses owned one")
+        need(any(item["workspaceId"]==other_wid for item in other_index["items"]) and
+             all(item["workspaceId"]!=wid for item in other_index["items"]),
+             "Second Principal Foundry Index contains foreign workspace")
+        denied(api,key,None,"list_foundry_owned_workspaces_self_api_v1",
+               {},"anonymous cannot enumerate a Foundry Index")
+        denied(api,key,unbound,"list_foundry_owned_workspaces_self_api_v1",
+               {},"unbound signed caller cannot read Foundry Index")
     need(db(a.db_url,
       f"select count(*) from foundry.workspace_authority_registry_v1 where workspace_id='{wid}' and owner_principal_id='{OWNER_P}'::uuid and custody_review_state='pending' and cardinality(custody_basis_refs)=0")=="1",
          "Initial source-custody authority must remain absent")
