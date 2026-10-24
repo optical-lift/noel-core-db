@@ -1,0 +1,16 @@
+# 2026-10-24 Today reader production-source custody recovery
+
+This is an **exact-live-body source restoration only**, not a new migration deployment and not a change to Today feature logic.
+
+The protected shared Foundry release #2149 halted in GitHub Actions run #40131650933 before its SQL step because the global/live shared-lane custody verifier found these two **unclassified** already-executed production migration receipts absent from canonical Git:
+
+| Supabase version | Name | Exact live Git blob SHA-1 |
+|---|---|---|
+| 20261024173945 | today_person_agenda_backlog_activity_readers_20261024 | 9f20381e2d32492acc1b3b8d3e2f9d579ce9d3c7 |
+| 20261024175617 | today_new_readers_revoke_anon_execution_20261024 | 94a6d901a718fb7aba1ae1a02043685812aca588 |
+
+Both files were sourced **read-only** from `supabase_migrations.schema_migrations.statements` on production `zirqkouammpwxlqfbsvf`, using `array_to_string(statements, E'\\n')`. A GitHub `fetch_file` read after each file creation independently verified the resulting exact blob SHA-1 equals the live custody packet. This does not claim recovery of an unavailable author's separate draft; it restores the *executed statement bytes* that the production migration ledger attests.
+
+No synthetic SQL, replay, regenerated migration version, manual DDL, user data, secrets, or product behavior updates. Do not run these already-executed SQL files again.
+
+Once source-custody CI independently confirms exact live correspondence, these two records can be merged into canonical source, allowing the shared release gate to be retried. The Foundry migration remains under the separate protected database-release workflow and does not gain approval from this recovery alone.
