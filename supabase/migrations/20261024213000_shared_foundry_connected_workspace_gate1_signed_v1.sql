@@ -173,4 +173,16 @@ BEGIN
     'reviewState','pending','replayed',false,'aiCarrierAccess',false);
 END
 $function$;
+
+-- Schema-clone restores can rehydrate default PUBLIC EXECUTE on RPC wrappers.
+-- Reassert the public-to-private membrane whenever source-review functions
+-- are redefined. Never permit anon or service_role invocation here.
+REVOKE ALL ON FUNCTION public.list_foundry_source_custody_reviewers_self_api_v1(text)
+ FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.list_foundry_source_custody_reviewers_self_api_v1(text)
+ TO authenticated;
+REVOKE ALL ON FUNCTION public.request_foundry_source_custody_review_self_api_v1(text,uuid,uuid,text,text[],text[],text,text)
+ FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.request_foundry_source_custody_review_self_api_v1(text,uuid,uuid,text,text[],text[],text,text)
+ TO authenticated;
 COMMIT;
