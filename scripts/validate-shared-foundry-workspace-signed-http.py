@@ -155,9 +155,9 @@ def main():
         need(any(item["workspaceId"]==other_wid for item in other_index["items"]) and
              all(item["workspaceId"]!=wid for item in other_index["items"]),
              "Second Principal Foundry Index contains foreign workspace")
-        denied(api,key,None,"list_foundry_owned_workspaces_self_api_v1",
+        forbidden(api,key,None,"list_foundry_owned_workspaces_self_api_v1",
                {},"anonymous cannot enumerate a Foundry Index")
-        denied(api,key,unbound,"list_foundry_owned_workspaces_self_api_v1",
+        forbidden(api,key,unbound,"list_foundry_owned_workspaces_self_api_v1",
                {},"unbound signed caller cannot read Foundry Index")
     need(db(a.db_url,
       f"select count(*) from foundry.workspace_authority_registry_v1 where workspace_id='{wid}' and owner_principal_id='{OWNER_P}'::uuid and custody_review_state='pending' and cardinality(custody_basis_refs)=0")=="1",
