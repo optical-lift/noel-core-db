@@ -194,7 +194,7 @@ for path, contract_version, inherits in specs:
             )
         seen[filename] = sha
 
-assert len(seen) == 330
+assert len(seen) == 332
 for filename in sorted(seen):
     print(f"{filename}|{seen[filename]}")
 PY
