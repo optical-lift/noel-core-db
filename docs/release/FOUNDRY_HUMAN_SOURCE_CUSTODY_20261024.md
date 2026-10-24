@@ -1,5 +1,17 @@
 # Foundry human source-custody production release candidate
 
+> **2026-10-24 governing correction — mandatory second code reviewer superseded.**
+> This page is preserved as historical release evidence. Its earlier blanket
+> requirement for a separate human developer to approve GitHub security,
+> custody, or grant code is replaced by the [solo-owner source/security/custody
+> review rule](SOLO_OWNER_RELEASE_REVIEW_20261024.md). The owner can record
+> the source review and authorize the exact protected release after the
+> required verification. No independent GitHub reviewer is required by the
+> project. **Different signed humans for actual Foundry source review,
+> genuine consent and independent sign-in tests are NOT waived.**
+> This note does not assert that the particular original release candidate
+> was newly reviewed, merged, or deployed.
+
 **Prepared, clone-validated, but not approved for production deployment.** This draft branch carries migration `20261024010000_shared_foundry_connected_workspace_gate1_signed_v1.sql` byte-for-byte identical to the immutable validation PR #2139 at commit `fe817fe0ae9af6484ef238d3c25d57e5fc67498e` (Git blob `a1ffbafa3f43f52996d72ec9b8836390eec107d0`). The validation artifact is never merged or deployed.
 
 ## Protected no-cost validation evidence — 2026-10-24
