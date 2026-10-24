@@ -126,16 +126,27 @@ def main():
     # Create an additional collection solely in the disposable test DB.
     principal = auth.sql(args.db_url,
         f"select id from atlas.principals where status='active' and user_id='{w.ONE}'::uuid limit 1")
-    aux = auth.sql(args.db_url, f"""
+    # psql -A -t emits command status after INSERT ... RETURNING. Never
+    # pass that multi-line output as a UUID into a signed API request.
+    aux = "a1400000-0000-4000-8000-000000000605"
+    inserted = auth.sql(args.db_url, f"""
       insert into atlas.notebook_spread_instances(
-        principal_id,spread_key,scope_kind,scope_id,subject_domain,subject_kind,
+        id,principal_id,spread_key,scope_kind,scope_id,subject_domain,subject_kind,
         subject_id,purpose_key,horizon_key,thread_key,creation_mode,spread_state,title,section_key
       ) values (
-        '{principal}'::uuid,'personal.fixture-other','person','{w.ONE}',
+        '{aux}'::uuid,'{principal}'::uuid,'personal.fixture-other','person','{w.ONE}',
         'personal','private_fixture_collection','{principal}','collection',
         'permanent','personal.fixture-other','explicit','open','Other Fixture Collection','Private'
-      ) returning id
-    """).strip()
+      )
+    """)
+    ok(inserted == "INSERT 0 1", "Disposable additional Collection insert must affect one row")
+    confirmed_aux = auth.sql(args.db_url, f"""
+      select id from atlas.notebook_spread_instances
+      where id='{aux}'::uuid and principal_id='{principal}'::uuid
+        and scope_kind='person' and scope_id='{w.ONE}'
+        and purpose_key='collection' and spread_state='open'
+    """)
+    ok(confirmed_aux == aux, "Additional Collection identity must be independently read back")
     moved = get(a, "person_file_capture_self_api_v1",
                 {"p_capture_id": first, "p_destination_spread_id": aux})
     ok(moved.get("eventKind") == "moved", "Moving must append a new event")
