@@ -527,4 +527,49 @@ REVOKE ALL ON FUNCTION public.list_foundry_source_custody_reviews_self_api_v1()
  FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.list_foundry_source_custody_reviews_self_api_v1()
  TO authenticated;
+
+-- Owner Index projection for a signed person's own new Foundry workspaces.
+-- No historical workspace backfill and no global workspace enumeration.
+CREATE OR REPLACE FUNCTION atlas.list_foundry_owned_workspaces_self_api_v1()
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'pg_catalog','atlas','foundry','auth','pg_temp'
+AS $fn$
+DECLARE v_actor uuid:=atlas.foundry_current_signed_principal_v1();
+        v_items jsonb;
+BEGIN
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'workspaceId',w.workspace_id,
+    'provisionalSubjectLabel',w.provisional_subject_label,
+    'provisionalField',w.provisional_field,
+    'custodyReviewState',w.custody_review_state,
+    'subjectIdentityState',w.subject_identity_state,
+    'createdAt',w.created_at
+  ) ORDER BY w.created_at DESC,w.workspace_id),'[]'::jsonb)
+  INTO v_items
+  FROM (
+    SELECT * FROM foundry.workspace_authority_registry_v1
+    WHERE owner_principal_id=v_actor
+    ORDER BY created_at DESC,workspace_id
+    LIMIT 80
+  ) w;
+  RETURN jsonb_build_object(
+    'ok',true,'items',v_items,
+    'contractVersion','foundry_owned_workspace_index_v1',
+    'aiCarrierAccess',false,'canonicalAtlasMutation',false);
+END
+$fn$;
+REVOKE ALL ON FUNCTION atlas.list_foundry_owned_workspaces_self_api_v1()
+ FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION atlas.list_foundry_owned_workspaces_self_api_v1()
+ TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.list_foundry_owned_workspaces_self_api_v1()
+RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path TO ''
+AS $bridge$
+ SELECT atlas.list_foundry_owned_workspaces_self_api_v1();
+$bridge$;
+REVOKE ALL ON FUNCTION public.list_foundry_owned_workspaces_self_api_v1()
+ FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.list_foundry_owned_workspaces_self_api_v1()
+ TO authenticated;
 COMMIT;
