@@ -28,12 +28,12 @@ VALUES
  ('f1900000-0000-4000-8000-000000000405','foundry-native-person-accountless-20261024','person','Fictional accountless person'),
  ('f1900000-0000-4000-8000-000000000499','foundry-native-ledger-subject-20261024','organization','Fictional Ledger subject');
 
-INSERT INTO atlas.people(id,stable_key,display_name)
+INSERT INTO atlas.people(id,display_name)
 VALUES
- ('f1900000-0000-4000-8000-000000000401','foundry-native-person-owner-20261024','Fictional owner'),
- ('f1900000-0000-4000-8000-000000000402','foundry-native-person-reviewer-20261024','Fictional reviewer'),
- ('f1900000-0000-4000-8000-000000000403','foundry-native-person-outsider-20261024','Fictional outsider'),
- ('f1900000-0000-4000-8000-000000000405','foundry-native-person-accountless-20261024','Fictional accountless person');
+ ('f1900000-0000-4000-8000-000000000401','Fictional owner'),
+ ('f1900000-0000-4000-8000-000000000402','Fictional reviewer'),
+ ('f1900000-0000-4000-8000-000000000403','Fictional outsider'),
+ ('f1900000-0000-4000-8000-000000000405','Fictional accountless person');
 
 UPDATE atlas.principals SET person_id=CASE
  WHEN user_id='f1900000-0000-4000-8000-000000000001' THEN 'f1900000-0000-4000-8000-000000000401'::uuid
