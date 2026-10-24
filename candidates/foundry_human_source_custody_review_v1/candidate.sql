@@ -123,6 +123,34 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'A distinct active human reviewer is required' USING ERRCODE='22023';
   END IF;
+  -- Reviewer must be an existing verified connection to this operator.
+  -- Never trust an arbitrary UUID or merely client-rendered picker selection.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM atlas.principals reviewer
+    JOIN auth.users reviewer_user ON reviewer_user.id=reviewer.user_id
+      AND reviewer_user.is_anonymous=false
+      AND (reviewer_user.banned_until IS NULL OR reviewer_user.banned_until<=now())
+    JOIN atlas.organization_memberships rmember ON rmember.user_id=reviewer.user_id
+      AND rmember.active
+      AND (rmember.eligibility_begins_on IS NULL
+           OR rmember.eligibility_begins_on<=current_date)
+      AND (rmember.eligibility_ends_on IS NULL
+           OR rmember.eligibility_ends_on>=current_date)
+    JOIN atlas.organization_memberships omember
+      ON omember.organization_id=rmember.organization_id
+      AND omember.active
+      AND (omember.eligibility_begins_on IS NULL
+           OR omember.eligibility_begins_on<=current_date)
+      AND (omember.eligibility_ends_on IS NULL
+           OR omember.eligibility_ends_on>=current_date)
+    JOIN atlas.principals operator ON operator.user_id=omember.user_id
+      AND operator.id=v_actor
+    WHERE reviewer.id=p_reviewer_principal_id
+  ) THEN
+    RAISE EXCEPTION 'Reviewer is not an active verified connected Principal'
+      USING ERRCODE='42501';
+  END IF;
   IF p_claim_basis_kind IS NULL OR p_claim_basis_kind NOT IN (
       'first_party','public_source','subject_authorization','custodian_authorization')
      OR coalesce(cardinality(p_source_refs),0) NOT BETWEEN 1 AND 12
