@@ -61,6 +61,16 @@ BEGIN
      OR (SELECT prosecdef FROM pg_proc WHERE
        oid='public.list_foundry_source_custody_reviews_self_api_v1()'::regprocedure)
   THEN RAISE EXCEPTION 'Reviewer inbox must be signed and private'; END IF;
+  IF to_regprocedure('public.list_foundry_owned_workspaces_self_api_v1()') IS NULL
+     OR NOT has_function_privilege('authenticated',
+       'public.list_foundry_owned_workspaces_self_api_v1()'::regprocedure,'EXECUTE')
+     OR has_function_privilege('anon',
+       'public.list_foundry_owned_workspaces_self_api_v1()'::regprocedure,'EXECUTE')
+     OR has_function_privilege('service_role',
+       'public.list_foundry_owned_workspaces_self_api_v1()'::regprocedure,'EXECUTE')
+     OR (SELECT prosecdef FROM pg_proc WHERE
+       oid='public.list_foundry_owned_workspaces_self_api_v1()'::regprocedure)
+  THEN RAISE EXCEPTION 'Owner Index must require signed private scoped access'; END IF;
   IF EXISTS(SELECT 1 FROM foundry.workspace_authority_registry_v1
             WHERE custody_review_state='reviewed') THEN
     RAISE EXCEPTION 'Human review silently elevated carrier-level custody';
