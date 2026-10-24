@@ -218,7 +218,8 @@ fi
 # Source-exact Foundry workspace and native Person reviewer signed proof. This is the
 # approved local GoTrue/PostgREST route, never a production HTTP request.
 if [ "$lane" = "shared" ] &&
-   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_foundry_(connected_workspace_gate1_signed_v1|native_person_ledger_reviewer_v1)[.]sql$ ]]; then
+   { [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_foundry_connected_workspace_gate1_signed_v1[.]sql$ ]] ||
+     [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_foundry_native_person_ledger_reviewer_v1[.]sql$ ]]; }; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "Foundry signed session proof requires fictional fixture/postconditions." >&2
     exit 2
