@@ -19,16 +19,16 @@ RETIRED = {
     "propose_native_ledger_standing_scope_owner_self_api_v1",
     "assign_native_ledger_company_work_under_scope_owner_self_api_v1",
 }
-FUNCTION = re.compile(r"\\bCREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+(?:\\w+\\.)?(\\w+)\\s*\\(", re.I)
-LEGACY = re.compile(r"\\batlas\\.organization_memberships\\b|\\borganization_employee_seats\\b", re.I)
-SUBTYPE = re.compile(r"\\b(?:person|human|user|reviewer)_(?:employee|consultant|subscriber)_(?:seat|identity|access)\\b", re.I)
+FUNCTION = re.compile(r"\bCREATE\s+OR\s+REPLACE\s+FUNCTION\s+(?:\w+\.)?(\w+)\s*\(", re.I)
+LEGACY = re.compile(r"\batlas\.organization_memberships\b|\borganization_employee_seats\b", re.I)
+SUBTYPE = re.compile(r"\b(?:person|human|user|reviewer)_(?:employee|consultant|subscriber)_(?:seat|identity|access)\b", re.I)
 
 
 def violations(sql, prior_functions):
-    without_comments = re.sub(r"/\\*.*?\\*/", " ", sql, flags=re.S)
-    without_comments = re.sub(r"--[^\\n]*", " ", without_comments)
+    without_comments = re.sub(r"/\*.*?\*/", " ", sql, flags=re.S)
+    without_comments = re.sub(r"--[^\n]*", " ", without_comments)
     found = []
-    if re.search(r"\\bCREATE\\s+TABLE\\s+(?:atlas\\.)?organization_employee_seats\\b", without_comments, re.I):
+    if re.search(r"\bCREATE\s+TABLE\s+(?:atlas\.)?organization_employee_seats\b", without_comments, re.I):
         found.append("Physical employee-person seat resurrected")
     if SUBTYPE.search(without_comments):
         found.append("New separate Person access/identity type")
