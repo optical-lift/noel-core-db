@@ -50,3 +50,19 @@ This is a **shared-Ledger reviewer-discovery pilot**, not the final universal pe
 6. **UI convergence:** users always enter through their own Atlas notebook. Ledgers control bounded views; names of old business relationships can be descriptive only. Source-custody reviewer picker must never become a special business-membership or employee-seat chooser again.
 
 **No production row/table/function was removed by this source-only first cutover. No billing or consent was changed.**
+
+## Non-negotiable final acceptance matrix
+
+| Case | Person exists | Ledger connection | Credential | Expected |
+| --- | --- | --- | --- | --- |
+| Anna-like active historical membership | yes | active Elm Ledgers | yes | Listed through Person + native Ledger, NOT membership |
+| Katie-like inactive `consultant` membership | yes | active Elm Ledgers | yes | Exactly the same connected-Person outcome |
+| Marshall-like no membership row | yes | active Elm Ledgers | yes | Exactly the same connected-Person outcome |
+| Accountless recognized Person | yes | active Elm Ledger | no | Person and relationship exist; task can be assigned; interactive decision awaits login |
+| Signed disconnected stranger | yes | none in common | yes | No access to another's Ledger/private review |
+| Member/employee/subscriber label without Ledger relation | yes | none | perhaps | No implicit Ledger viewing, work, governance or case review |
+| Connected Person without governing grant | yes | active | any | Participation yes; management/finance read or decisions no without exact grant |
+| Revoked native Ledger relation | yes | ended | any | Person persists and prior history remains; future Ledger operations denied |
+| Login or subscription revoked | yes | unchanged unless separately ended | no / expired | Person and Ledger relation persist; authenticated operations denied |
+
+Do not pass an implementation that fixes only a dropdown. The entry, permission check, work assignment, today projection, communication, source review and revocation must all use the same Person/relationship authority graph before declaring universal cutover complete.
