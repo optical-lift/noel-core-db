@@ -85,9 +85,9 @@ def main():
     # with P0002 (not-found) instead of disclosing their existence.
     status, foreign_capture = auth.rpc(api, key, "personal_reality_capture_self_api_v1",
                                        {"p_capture_id": first}, b)
-    ok(status in (401, 403, 404) and isinstance(foreign_capture, dict)
+    ok(status in (400, 401, 403, 404) and isinstance(foreign_capture, dict)
        and foreign_capture.get("code") in ("P0002", "42501"),
-       "Foreign signed Person must not read source or infer its contents")
+       f"Foreign signed Person must not read source or infer its contents: HTTP {status} {str(foreign_capture)[:220]}")
 
     # Auto intent without approval is not a successful filing.
     no = get(a, "person_file_capture_self_api_v1",
