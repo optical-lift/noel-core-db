@@ -29,7 +29,7 @@ jobs:
 
       - name: Reject new employee/consultant Person admission paths
         run: |
-          python3 -m unittest discover -s tests -p 'test-universal-person-authority.py'
+          python3 -m unittest discover -s tests -p 'test_universal_person_authority.py'
           python3 scripts/check-universal-person-authority.py
 
       - name: Verify WNPH product schema membrane
