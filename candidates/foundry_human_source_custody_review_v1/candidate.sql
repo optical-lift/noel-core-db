@@ -478,4 +478,53 @@ REVOKE ALL ON FUNCTION public.list_foundry_source_custody_reviewers_self_api_v1(
  FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION public.list_foundry_source_custody_reviewers_self_api_v1(text)
  TO authenticated;
+
+-- A person who was designated as reviewer can find their assigned pending
+-- cases without anyone sharing a raw UUID. Only their own active Principal
+-- and real signed GoTrue session can query this inbox.
+CREATE OR REPLACE FUNCTION atlas.list_foundry_source_custody_reviews_self_api_v1()
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+SET search_path TO 'pg_catalog','atlas','foundry','auth','pg_temp'
+AS $fn$
+DECLARE v_actor uuid:=atlas.foundry_current_signed_principal_v1();
+        v_cases jsonb;
+BEGIN
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'caseId',r.case_id,
+    'workspaceId',r.workspace_id,
+    'reviewState',r.review_state,
+    'myRole',CASE WHEN r.reviewer_principal_id=v_actor
+      THEN 'reviewer' ELSE 'owner' END,
+    'provisionalSubjectLabel',w.provisional_subject_label,
+    'ownerName',own.name,
+    'createdAt',r.created_at
+  ) ORDER BY r.created_at DESC,r.case_id),'[]'::jsonb) INTO v_cases
+  FROM (
+    SELECT *
+    FROM foundry.source_custody_review_cases_v1 c
+    WHERE c.owner_principal_id=v_actor OR c.reviewer_principal_id=v_actor
+    ORDER BY c.created_at DESC,c.case_id
+    LIMIT 80
+  ) r
+  JOIN foundry.workspace_authority_registry_v1 w ON w.workspace_id=r.workspace_id
+  JOIN atlas.principals own ON own.id=r.owner_principal_id;
+  RETURN jsonb_build_object('ok',true,'items',v_cases,
+    'contractVersion','foundry_source_custody_human_inbox_v1',
+    'aiCarrierAccess',false);
+END
+$fn$;
+REVOKE ALL ON FUNCTION atlas.list_foundry_source_custody_reviews_self_api_v1()
+ FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION atlas.list_foundry_source_custody_reviews_self_api_v1()
+ TO authenticated;
+
+CREATE OR REPLACE FUNCTION public.list_foundry_source_custody_reviews_self_api_v1()
+RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path TO ''
+AS $bridge$
+ SELECT atlas.list_foundry_source_custody_reviews_self_api_v1();
+$bridge$;
+REVOKE ALL ON FUNCTION public.list_foundry_source_custody_reviews_self_api_v1()
+ FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.list_foundry_source_custody_reviews_self_api_v1()
+ TO authenticated;
 COMMIT;
