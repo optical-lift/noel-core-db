@@ -41,6 +41,16 @@ BEGIN
         OR has_function_privilege('service_role',p.oid,'EXECUTE')
         OR NOT has_function_privilege('authenticated',p.oid,'EXECUTE'))
   ) THEN RAISE EXCEPTION 'Custody review RPC grants incorrect'; END IF;
+  IF to_regprocedure('public.list_foundry_source_custody_reviewers_self_api_v1(text)') IS NULL
+     OR NOT has_function_privilege('authenticated',
+       'public.list_foundry_source_custody_reviewers_self_api_v1(text)'::regprocedure,'EXECUTE')
+     OR has_function_privilege('anon',
+       'public.list_foundry_source_custody_reviewers_self_api_v1(text)'::regprocedure,'EXECUTE')
+     OR has_function_privilege('service_role',
+       'public.list_foundry_source_custody_reviewers_self_api_v1(text)'::regprocedure,'EXECUTE')
+     OR (SELECT prosecdef FROM pg_proc WHERE
+       oid='public.list_foundry_source_custody_reviewers_self_api_v1(text)'::regprocedure)
+  THEN RAISE EXCEPTION 'Connected reviewer directory must stay narrow and session-owned'; END IF;
   IF EXISTS(SELECT 1 FROM foundry.workspace_authority_registry_v1
             WHERE custody_review_state='reviewed') THEN
     RAISE EXCEPTION 'Human review silently elevated carrier-level custody';
