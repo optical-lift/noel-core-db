@@ -47,3 +47,11 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-universal-program-source-identity-v1/postconditions.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/atlas-universal-program-source-identity-v1/test-source-identity.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/atlas-universal-program-source-identity-v1/test-negative-access.sql
+      - name: Verify free signed clone bridge syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-program-source-identity-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          grep -q 'signed_program_source_identity_probe=true' scripts/validate-production-schema-clone.sh
+          grep -q 'validate-atlas-program-source-identity-signed-http.py' scripts/validate-production-schema-clone.sh
