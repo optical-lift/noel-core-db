@@ -1,0 +1,41 @@
+name: Atlas Proper developer work signed source check
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-proper-developer-work-source.yml'
+      - 'scripts/validate-atlas-proper-developer-needs-signed-http.py'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'candidates/shared_atlas_proper_developer_needs_v1*.sql'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/atlas-proper-developer-work-source.yml'
+      - 'scripts/validate-atlas-proper-developer-needs-signed-http.py'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'candidates/shared_atlas_proper_developer_needs_v1*.sql'
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-proper-developer-needs-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          sql=Path('candidates/shared_atlas_proper_developer_needs_v1.sql').read_text()
+          test=Path('scripts/validate-atlas-proper-developer-needs-signed-http.py').read_text()
+          harness=Path('scripts/validate-production-schema-clone.sh').read_text()
+          assert sql.count('BEGIN;')==1 and sql.count('COMMIT;')==1
+          assert 'implementation_discovery_subject_guard_self_v1' in sql
+          assert 'implementation_foundry_discovery_inventory_self_api_v1' in sql
+          assert 'ENABLE ROW LEVEL SECURITY' in sql
+          assert 'caseCreated' in sql and 'sourceReadAuthorized' in sql
+          assert 'signed_atlas_proper_needs_probe=true' in harness
+          for s in ('revoked operator','ordinary Principal','idempotent'):
+            assert s.lower() in test.lower()
+          print('PASS signed developer work source shape')
+          PY
