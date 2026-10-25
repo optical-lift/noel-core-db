@@ -379,5 +379,4 @@ GRANT EXECUTE ON FUNCTION atlas.identify_foundry_as_personal_implementation_sour
  TO authenticated;
 GRANT EXECUTE ON FUNCTION public.identify_foundry_as_personal_implementation_source_self_api_v1(text)
  TO authenticated;
-C
 COMMIT;
