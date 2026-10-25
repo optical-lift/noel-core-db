@@ -1,0 +1,44 @@
+name: Foundry historical signed-proof source syntax
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/foundry-historical-signed-proof-source.yml'
+      - 'scripts/validate-shared-foundry-historical-continuity-signed-http.py'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'candidates/atlas_foundry_historical_continuity_v1_fixture.sql'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/foundry-historical-signed-proof-source.yml'
+      - 'scripts/validate-shared-foundry-historical-continuity-signed-http.py'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'candidates/atlas_foundry_historical_continuity_v1_fixture.sql'
+permissions:
+  contents: read
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax and fixture scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-shared-foundry-historical-continuity-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('scripts/validate-shared-foundry-historical-continuity-signed-http.py').read_text()
+          fixture=Path('candidates/atlas_foundry_historical_continuity_v1_fixture.sql').read_text()
+          harness=Path('scripts/validate-production-schema-clone.sh').read_text()
+          required=('recover_foundry_historical_workspace_self_api_v1',
+                    'list_foundry_workspace_history_self_api_v1',
+                    'identify_foundry_as_personal_implementation_source_self_api_v1',
+                    'delete from auth.sessions')
+          assert all(s in source for s in required)
+          assert 'FW-FICTIONAL-001' in fixture and 'f1900000-' in fixture
+          assert 'signed_foundry_historical_probe=true' in harness
+          assert 'validate-shared-foundry-historical-continuity-signed-http.py' in harness
+          print('PASS syntactic and source-scoped historical Foundry test harness')
+          PY
