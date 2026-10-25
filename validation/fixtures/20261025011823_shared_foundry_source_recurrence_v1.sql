@@ -72,6 +72,23 @@ INSERT INTO ledger.seats(ledger_id,person_entity_id)
 VALUES('f1900000-0000-4000-8000-000000000490',
        'f1900000-0000-4000-8000-000000000405');
 
+-- Establish canonical Auth -> Person bindings in this disposable clone.
+-- The earlier Foundry fixture established atlas.person_auth_credentials for
+-- compatibility, but the Ledger schedule domain checks the separate canonical
+-- reality.auth_person_bindings through atlas.current_person_id_v1().
+-- Reuse the SAME canonical p.person_id; never create a second Person.
+INSERT INTO reality.auth_person_bindings(
+  auth_user_id,person_entity_id,binding_state,binding_basis
+)
+SELECT p.user_id,p.person_id,'active',
+  jsonb_build_object('basis','fictional_signed_local_authorization',
+    'purpose','validate_real_native_ledger_schedule_permission')
+FROM atlas.principals p
+WHERE p.user_id IN (
+ 'f1900000-0000-4000-8000-000000000001'::uuid,
+ 'f1900000-0000-4000-8000-000000000002'::uuid
+);
+
 -- Exact source-backed recurrence positive grant for the fictional owner ONLY.
 -- This grant exists exclusively in a disposable local production-schema clone,
 -- never in production; the unrelated fictional Principal has a Ledger Seat but
