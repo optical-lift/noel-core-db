@@ -15,6 +15,10 @@ VALUES ('f1900000-0000-4000-8000-000000000001','active',
 jsonb_build_object('synthetic','signed-discovery-fixture'));
 
 INSERT INTO reality.entities(id,stable_key,entity_kind,display_name)
+SELECT p.person_id,'fictional-inventory-person-'||p.id::text,'person',p.name
+FROM atlas.principals p WHERE p.id='f1900000-0000-4000-8000-000000000202';
+
+INSERT INTO reality.entities(id,stable_key,entity_kind,display_name)
 VALUES
 ('f1900000-0000-4000-8000-000000000499','fictional-discovery-company-a','business','Fictional Company A'),
 ('f1900000-0000-4000-8000-000000000498','fictional-discovery-company-b','business','Fictional Company B');
