@@ -1,0 +1,37 @@
+name: Universal Program v2 signed-proof source
+on:
+  pull_request:
+    paths:
+      - "scripts/validate-atlas-universal-program-v2-signed-http.py"
+      - "scripts/validate-production-schema-clone.sh"
+      - ".github/workflows/atlas-universal-program-v2-signed.yml"
+permissions:
+  contents: read
+jobs:
+  source-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-universal-program-v2-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("scripts/validate-production-schema-clone.sh").read_text()
+          for x in ("signed_universal_program_probe=false",
+                    "atlas_universal_program_author_v2",
+                    "validate-atlas-universal-program-v2-signed-http.py",
+                    "signed-universal-program-v2-summary.txt"):
+              assert x in s,x
+          p=Path("scripts/validate-atlas-universal-program-v2-signed-http.py").read_text()
+          for x in ("personal_program_author_create_self_api_v2",
+                    "personal_program_author_read_self_api_v2",
+                    '"contract": "personal_program_author_source_v2"',
+                    "auth.sessions","revoked entitlement"):
+              assert x in p,x
+          print("PASS source-owned v2 signed-proof bridge")
+          PY

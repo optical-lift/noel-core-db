@@ -107,6 +107,7 @@ signed_foundry_workspace_probe=false
 signed_foundry_historical_probe=false
 signed_native_standing_work_probe=false
 signed_program_author_probe=false
+signed_universal_program_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -260,6 +261,14 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_program_author_probe=true
+fi
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_universal_program_author_v2[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Universal Program v2 signed proof requires fictional fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_universal_program_probe=true
 fi
 
 finish() {
@@ -418,7 +427,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_foundry_workspace_probe" = true ] ||
        [ "$signed_foundry_historical_probe" = true ] ||
        [ "$signed_native_standing_work_probe" = true ] ||
-       [ "$signed_program_author_probe" = true ]; then
+       [ "$signed_program_author_probe" = true ] ||
+       [ "$signed_universal_program_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -611,6 +621,14 @@ if [ "$signed_native_standing_work_probe" = true ]; then
     >"$artifacts_dir/signed-native-standing-work.log" 2>&1
 fi
 
+if [ "$signed_universal_program_probe" = true ]; then
+  phase="real signed local universal Program v2 author and revocation authorization"
+  python3 "$repo_root/scripts/validate-atlas-universal-program-v2-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-universal-program-v2-summary.txt" \
+    >"$artifacts_dir/signed-universal-program-v2.log" 2>&1
+fi
+
 if [ "$signed_program_author_probe" = true ]; then
   phase="real signed local Program author, outsider, unbound, and revocation authorization"
   python3 "$repo_root/scripts/validate-atlas-program-author-signed-http.py" \
@@ -669,6 +687,9 @@ fi
 
 if [ "$signed_foundry_historical_probe" = true ]; then
   printf '\nSIGNED historical Foundry: independent real GoTrue owner/nonowner/unbound/anonymous, exact source history, source-only Implementation case registration and session revocation all passed in local clone.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_universal_program_probe" = true ]; then
+  printf '\nSIGNED universal Program v2: genuine GoTrue sessions, budget/goal/window source intent, immutable versions, foreign/unbound/anonymous denials and revocation passed.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_program_author_probe" = true ]; then
   printf '\nSIGNED Program author: genuine separate GoTrue sessions, approved immutable versions, foreign/unbound/anonymous denial, replay defense, and entitlement revocation verified in disposable clone.\n' >> "$artifacts_dir/summary.md"
