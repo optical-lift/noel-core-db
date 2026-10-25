@@ -76,7 +76,7 @@ BEGIN
   IF jsonb_typeof(v_source)<>'object'
    OR length(btrim(coalesce(v_source->>'key',''))) NOT BETWEEN 1 AND 120
    OR length(btrim(coalesce(v_source->>'locator',''))) NOT BETWEEN 3 AND 1600
-   OR v_source->>'disclosure' NOT IN ('author_private','recipient_disclosed')
+   OR coalesce(v_source->>'disclosure','') NOT IN ('author_private','recipient_disclosed')
    OR EXISTS (SELECT 1 FROM jsonb_object_keys(v_source) k
               WHERE k NOT IN ('key','locator','disclosure'))
   THEN RAISE EXCEPTION 'Invalid source manifest entry' USING ERRCODE='22023'; END IF;
@@ -89,9 +89,10 @@ BEGIN
    OR length(btrim(coalesce(v_component->>'key',''))) NOT BETWEEN 1 AND 120
    OR length(btrim(coalesce(v_component->>'label',''))) NOT BETWEEN 3 AND 200
    OR length(btrim(coalesce(v_component->>'instructions',''))) NOT BETWEEN 3 AND 8000
-   OR v_component->>'kind' NOT IN ('session','method','capacity_test','review','reference')
+   OR coalesce(v_component->>'kind','') NOT IN ('session','method','capacity_test','review','reference')
    OR jsonb_typeof(v_component->'sourceKeys') IS DISTINCT FROM 'array'
    OR jsonb_array_length(v_component->'sourceKeys')<1
+   OR EXISTS (SELECT 1 FROM jsonb_array_elements(v_component->'sourceKeys') x WHERE jsonb_typeof(x.value)<>'string')
    OR jsonb_typeof(v_component->'function') IS DISTINCT FROM 'object'
    OR length(btrim(coalesce(v_component->'function'->>'key',''))) NOT BETWEEN 1 AND 120
    OR length(btrim(coalesce(v_component->'function'->>'intendedChange',''))) NOT BETWEEN 3 AND 1200
@@ -114,7 +115,7 @@ BEGIN
     OR length(btrim(coalesce(v_alt->>'key',''))) NOT BETWEEN 1 AND 120
     OR length(btrim(coalesce(v_alt->>'instructions',''))) NOT BETWEEN 3 AND 8000
     OR length(btrim(coalesce(v_alt->>'rationale',''))) NOT BETWEEN 3 AND 1200
-    OR v_alt->>'relation' NOT IN ('direct_author_claim','partial_author_claim','unresolved')
+    OR coalesce(v_alt->>'relation','') NOT IN ('direct_author_claim','partial_author_claim','unresolved')
     OR jsonb_typeof(v_alt->'authorApproved') IS DISTINCT FROM 'boolean'
     OR EXISTS (SELECT 1 FROM jsonb_object_keys(v_alt) k
               WHERE k NOT IN ('key','instructions','rationale','relation','authorApproved'))
