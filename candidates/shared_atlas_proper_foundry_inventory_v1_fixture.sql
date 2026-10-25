@@ -19,10 +19,16 @@ VALUES
 ('f1900000-0000-4000-8000-000000000499','fictional-discovery-company-a','business','Fictional Company A'),
 ('f1900000-0000-4000-8000-000000000498','fictional-discovery-company-b','business','Fictional Company B');
 
-INSERT INTO ledger.onboarding_cases(id,subject_entity_id,desired_ledger_name,onboarding_state)
-VALUES
-('f1900000-0000-4000-8000-000000000481','f1900000-0000-4000-8000-000000000499','Fictional A Ledger','completed'),
-('f1900000-0000-4000-8000-000000000482','f1900000-0000-4000-8000-000000000498','Fictional B Ledger','completed');
+INSERT INTO ledger.onboarding_cases(
+ id,subject_entity_id,desired_ledger_name,onboarding_state,practitioner_person_entity_id)
+SELECT records.case_id,records.subject_id,records.name,
+ 'ready_to_activate',p.person_id
+FROM (VALUES
+('f1900000-0000-4000-8000-000000000481'::uuid,'f1900000-0000-4000-8000-000000000499'::uuid,'Fictional A Ledger'),
+('f1900000-0000-4000-8000-000000000482'::uuid,'f1900000-0000-4000-8000-000000000498'::uuid,'Fictional B Ledger')
+) AS records(case_id,subject_id,name)
+CROSS JOIN atlas.principals p
+WHERE p.id='f1900000-0000-4000-8000-000000000202';
 
 INSERT INTO atlas.ledgers(id,stable_key,name)
 VALUES
