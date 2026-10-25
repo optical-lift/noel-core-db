@@ -46,3 +46,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-universal-program-source-identity-v1/candidate.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-universal-program-source-identity-v1/postconditions.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/atlas-universal-program-source-identity-v1/test-source-identity.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-universal-program-source-identity-v1/test-negative-access.sql
