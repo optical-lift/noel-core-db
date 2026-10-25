@@ -246,6 +246,12 @@ def main():
               "deleted GoTrue session cannot read despite unexpired JWT")
     forbidden(api,key,owner,PREP,{**args,"p_request_id":"f1900000-0000-4000-8000-000000000303"},
               "deleted GoTrue session cannot create")
+    if intake_enabled:
+        forbidden(api,key,owner,reader,{"p_workspace_id":wid},
+                  "revoked GoTrue session cannot read original evidence")
+        forbidden(api,key,owner,writer,{**capture,
+          "p_request_id":"f1900000-0000-4000-8000-000000000315"},
+                  "revoked GoTrue session cannot append original evidence")
     # Only a schema containing the additional independent-human custody API
     # activates the extra signed proof. The original Gate 2 probe is unchanged
     # for earlier immutable candidates that do not have these functions.
