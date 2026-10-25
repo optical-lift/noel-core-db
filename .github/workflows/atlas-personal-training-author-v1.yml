@@ -1,0 +1,48 @@
+name: Atlas Program authoring candidate isolated SQL proof
+on:
+  pull_request:
+    paths:
+      - "candidates/atlas-personal-training-author-v1/**"
+      - "validation/atlas-personal-training-author-v1/**"
+      - ".github/workflows/atlas-personal-training-author-v1.yml"
+permissions:
+  contents: read
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres_major: ['16','17']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres_major }}-alpine
+        env:
+          POSTGRES_PASSWORD: synthetic-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: synthetic-only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile and exercise scoped Program SQL using fictional people
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-personal-training-author-v1/fixture-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-personal-training-author-v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-personal-training-author-v1/postconditions.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-personal-training-author-v1/test-author-lifecycle.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-personal-training-author-v1/test-negative-boundaries.sql
