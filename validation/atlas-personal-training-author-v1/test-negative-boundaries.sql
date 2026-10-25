@@ -61,6 +61,23 @@ BEGIN
    id,2,d,'safe-approve-replay-001');
   RAISE EXCEPTION 'Approval request key re-used for different version';
  EXCEPTION WHEN SQLSTATE '23505' THEN NULL; END;
+ -- An exact retry while the returned revision is current is idempotent.
+ IF (public.personal_training_author_save_self_api_v1(id,1,
+   jsonb_set(p,'{title}','"Revised synthetic mechanics"'::jsonb),'safe-edit-replay-001')
+   ->>'draftRevision') <> '2'
+ THEN RAISE EXCEPTION 'Current edit replay did not preserve revision'; END IF;
+ -- A later edit must not permit an earlier request key to mutate history.
+ PERFORM public.personal_training_author_save_self_api_v1(id,2,
+   jsonb_set(p,'{title}','"Third synthetic mechanics"'::jsonb),'safe-edit-replay-002');
+ BEGIN
+  PERFORM public.personal_training_author_save_self_api_v1(id,1,
+    jsonb_set(p,'{title}','"Revised synthetic mechanics"'::jsonb),'safe-edit-replay-001');
+  RAISE EXCEPTION 'Historic request replay incorrectly claimed latest revision';
+ EXCEPTION WHEN SQLSTATE '40001' THEN NULL; END;
+ BEGIN
+  PERFORM public.personal_training_author_save_self_api_v1(id,3,p,'safe-edit-replay-001');
+  RAISE EXCEPTION 'Reused historical edit key with changed content was accepted';
+ EXCEPTION WHEN SQLSTATE '23505' THEN NULL; END;
 END;
 $test$;
 COMMIT;
