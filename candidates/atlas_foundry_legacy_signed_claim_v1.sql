@@ -16,6 +16,11 @@ WITH evidence AS (
    AND e.event_type='WORKSPACE_CREATED' AND e.workspace_id LIKE 'FW-%'
    AND e.inserted_at<'2026-10-23'::timestamptz
    AND e.envelope#>>'{provisional_subject,subject_ref}' LIKE 'reality.entities:%'
+   -- Until a governed union-of-inventories contract exists, reject legacy
+   -- workspaces with multiple snapshots rather than cherry-pick a subset.
+   AND (SELECT count(*) FROM foundry.events inventory
+        WHERE inventory.workspace_id=e.workspace_id
+          AND inventory.event_type='ATLAS_EVIDENCE_INVENTORIED')=1
 )
 SELECT EXISTS(
  SELECT 1 FROM evidence src
