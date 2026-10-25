@@ -38,11 +38,14 @@ begin
  select coalesce(jsonb_agg(jsonb_build_object(
   'workItemId',x.work_item_id,'allocationId',x.allocation_id,
   'personEntityId',x.assignee_canonical_person_id,
+  'organizationUnitId',x.organization_unit_id,
+  'operationClass',x.operation_class,
   'responsibilityState',case when x.allocation_id is null then 'unassigned'
     else 'assigned' end)
   order by x.work_item_id),'[]'::jsonb) into v_items
  from (
-  select w.id as work_item_id,a.id as allocation_id,a.assignee_canonical_person_id
+  select w.id as work_item_id,a.id as allocation_id,a.assignee_canonical_person_id,
+    w.organization_unit_id,w.operation_class
   from atlas.work_item_context_links ctx
   join atlas.work_items w on w.id=ctx.work_item_id
     and w.organization_id=p_organization_id and w.work_state='open'
@@ -57,7 +60,7 @@ begin
     and not exists(select 1 from atlas.ledger_occurrence_work_actions_v1 rm
       where rm.work_item_id=w.id and rm.ledger_id=p_ledger_id
         and rm.occurrence_id=p_occurrence_id and rm.action_kind='removed')
-  group by w.id,a.id,a.assignee_canonical_person_id
+  group by w.id,w.organization_unit_id,w.operation_class,a.id,a.assignee_canonical_person_id
  ) x;
  -- Show pre-accepted standing agreements only; membership/seat alone does
  -- NOT create authority to give someone a task.
