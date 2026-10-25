@@ -2,12 +2,13 @@
 
 **Status:** reviewed-source candidate, not a migration or release. **Date:** 2026-10-24.
 
-Source follow-through for [Atlas draft PR #388](https://github.com/optical-lift/atlas/pull/388) and [DB issue #2144](https://github.com/optical-lift/noel-core-db/issues/2144).
+Source follow-through for [Atlas rebased draft PR #398](https://github.com/optical-lift/atlas/pull/398) and [DB issue #2144](https://github.com/optical-lift/noel-core-db/issues/2144).
 It supersedes the **author-program portion** of the unreleased, hardcoded-15K co-participant draft [DB PR #1462](https://github.com/optical-lift/noel-core-db/pull/1462), which MUST NOT be merged together with this candidate.
 
 ## Canonical roles
 
 - **Program draft**: `atlas.personal_training_programs` is an *author-owned training* draft, not an accepted recipient undertaking; an idempotency key establishes the first draft and subsequent saves need an expected revision.
+- **Edit idempotency receipt**: `atlas.personal_training_program_edit_receipts` preserves the original request key, expected/result revision, and packet digest for every successful edit; it is RLS-protected and has no direct authenticated table grants.
 - **Reviewed version**: `atlas.personal_training_program_versions` contains an exact immutable approved author packet, its Postgres-side SHA-256 digest, approving signed-in Auth user, revision and timestamp.
 - **Source manifest**: `sources[].locator` is author-declared provenance, not independent proof of source ownership or availability. `disclosure` expresses intended handling, **not a recipient grant**.
 - **Functional statements**: `function.intendedChange` and `alternatives[].relation` preserve author intentions and claims, NOT medically/physiologically confirmed equivalence or a safety certification.
@@ -34,14 +35,14 @@ The author reader currently returns their private source manifest and all versio
 
 - `candidate.sql`: source-only DDL/RPC and access rules, NOT executable migration custody.
 - `postconditions.sql`: RLS/direct privileges/RPC structural checks.
-- `validation/atlas-personal-training-author-v1/fixture-schema.sql`: isolated PostgreSQL 16 with two fictional users.
+- `validation/atlas-personal-training-author-v1/fixture-schema.sql`: isolated PostgreSQL 16 and 17 with two fictional users.
 - `validation/atlas-personal-training-author-v1/test-author-lifecycle.sql`: create, retry, digest rejection, approval, draft revision, 2-version immutability, foreign user and locked-access denials.
-- `.github/workflows/atlas-personal-training-author-v1.yml`: no-secrets isolated Postgres service, candidate-scoped checks only; not a production-shaped Supabase clone.
+- `.github/workflows/atlas-personal-training-author-v1.yml`: no-secrets isolated PostgreSQL 16/17 matrix, candidate-scoped checks only; not a production-shaped Supabase clone.
 
 ## Gates before release
 
 1. Review concurrent Build 2 Person invitation/Foundry locks; preserve one source of truth for invitation and Program adoption.
-2. Verify the exact candidate compiles and source tests pass. Add production-shaped clone and signed-user behavior/security tests (including wrong Principal, session, RLS/ACL and source disclosure) before any migration generation.
+2. Verify exact candidate source, isolated SQL and security checks pass before source merge. The canonical generator requires reviewed candidate bytes on `main`; after generation, perform the separately governed production-shaped clone and signed-user authorization tests (including wrong Principal, expired or revoked access, RLS/ACL and source disclosure) **before production release**. Do not mistake generation or synthetic tests for permission to deploy.
 3. Review sensitive author source custody; Git fixtures are fictional, and the real Katie document must not be copied into public source.
 4. Merge reviewed **candidate source** only after approval. Use the **owner-controlled canonical migration source generation workflow** to obtain an `atlas_` migration, then separately validate and authorize protected production release. No ad hoc live DDL.
 5. Only after released RPC verification may `optical-lift/atlas` wire its existing Index/notebook authoring surface. The app source preflight is not canonical approval.
