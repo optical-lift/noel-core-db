@@ -64,7 +64,8 @@ BEGIN
     v_blockers:=v_blockers||jsonb_build_array('verified_sponsor_missing');
   END IF;
 
-  SELECT count(DISTINCT b.person_entity_id), min(b.person_entity_id)
+  SELECT count(DISTINCT b.person_entity_id),
+         (array_agg(DISTINCT b.person_entity_id))[1]
     INTO v_person_count,v_practitioner_person
   FROM reality.auth_person_bindings b
   JOIN reality.entities e ON e.id=b.person_entity_id
