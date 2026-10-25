@@ -26,7 +26,7 @@ BEGIN
  AND NOT has_table_privilege('anon',c.oid,'SELECT');
  IF n<>3 THEN RAISE EXCEPTION 'Original author Program table privacy altered'; END IF;
  SELECT count(*) INTO n FROM pg_class c JOIN pg_namespace ns ON ns.oid=c.relnamespace
- WHERE ns.nspname='atlas' AND c.relname LIKE 'personal%program%';
+ WHERE ns.nspname='atlas' AND c.relkind='r' AND c.relname LIKE 'personal%program%';
  IF n<>3 THEN RAISE EXCEPTION 'Unexpected parallel author Program store detected'; END IF;
 END;
 $test$;
