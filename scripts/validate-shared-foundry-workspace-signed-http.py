@@ -312,6 +312,9 @@ def main():
         forbidden(api,key,owner,writer,{**capture,
           "p_request_id":"f1900000-0000-4000-8000-000000000315"},
                   "revoked GoTrue session cannot append original evidence")
+    if bridge_enabled:
+        forbidden(api,key,owner,bridge,call,
+                  "revoked GoTrue session cannot re-establish or inspect source")
     # Only a schema containing the additional independent-human custody API
     # activates the extra signed proof. The original Gate 2 probe is unchanged
     # for earlier immutable candidates that do not have these functions.
