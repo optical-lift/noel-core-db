@@ -105,6 +105,7 @@ signed_person_collections_probe=false
 signed_person_period_probe=false
 signed_foundry_workspace_probe=false
 signed_foundry_historical_probe=false
+signed_atlas_proper_inventory_probe=false
 signed_native_standing_work_probe=false
 signed_program_author_probe=false
 signed_universal_program_probe=false
@@ -240,6 +241,16 @@ if [ "$lane" = "shared" ] &&
     exit 2
   fi
   signed_foundry_historical_probe=true
+fi
+
+# Exact signed Atlas Proper metadata inventory: full local GoTrue/PostgREST only.
+if [ "$lane" = "shared" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_atlas_proper_foundry_inventory_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Atlas Proper discovery requires fictional fixture/postconditions." >&2
+    exit 2
+  fi
+  signed_atlas_proper_inventory_probe=true
 fi
 
 # Exact source-owned signed native Ledger standing-work candidate only.
@@ -426,6 +437,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_person_period_probe" = true ] ||
        [ "$signed_foundry_workspace_probe" = true ] ||
        [ "$signed_foundry_historical_probe" = true ] ||
+       [ "$signed_atlas_proper_inventory_probe" = true ] ||
        [ "$signed_native_standing_work_probe" = true ] ||
        [ "$signed_program_author_probe" = true ] ||
        [ "$signed_universal_program_probe" = true ]; then
@@ -613,6 +625,14 @@ if [ "$signed_foundry_historical_probe" = true ]; then
     >"$artifacts_dir/signed-foundry-historical.log" 2>&1
 fi
 
+if [ "$signed_atlas_proper_inventory_probe" = true ]; then
+  phase="signed local Atlas Proper metadata-only inventory and revocation"
+  python3 "$repo_root/scripts/validate-atlas-proper-discovery-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-atlas-proper-inventory-summary.txt" \
+    >"$artifacts_dir/signed-atlas-proper-inventory.log" 2>&1
+fi
+
 if [ "$signed_native_standing_work_probe" = true ]; then
   phase="genuine signed native Ledger standing-Work Person authorization, acceptance and revocation"
   python3 "$repo_root/scripts/validate-shared-native-standing-work-signed-http.py" \
@@ -690,6 +710,9 @@ if [ "$signed_foundry_historical_probe" = true ]; then
 fi
 if [ "$signed_universal_program_probe" = true ]; then
   printf '\nSIGNED universal Program v2: genuine GoTrue sessions, budget/goal/window source intent, immutable versions, foreign/unbound/anonymous denials and revocation passed.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_atlas_proper_inventory_probe" = true ]; then
+  printf '\nSIGNED Atlas Proper discovery: real local operator, ordinary Principal, outsider, anonymous and revoked GoTrue sessions; no original source material or canonical mutation.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_program_author_probe" = true ]; then
   printf '\nSIGNED Program author: genuine separate GoTrue sessions, approved immutable versions, foreign/unbound/anonymous denial, replay defense, and entitlement revocation verified in disposable clone.\n' >> "$artifacts_dir/summary.md"
