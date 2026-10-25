@@ -119,7 +119,7 @@ BEGIN
            ) ORDER BY q.workspace_id)
            FROM qualified q WHERE q.subject_id=i.id
          ),'[]'::jsonb),
-         'caseAssociation','not_established',
+         'caseAssociation','not_evaluated',
          'requirementStatus','not_yet_adjudicated',
          'originalTestimonyIncluded',false
        ) ORDER BY i.display_name,i.id
