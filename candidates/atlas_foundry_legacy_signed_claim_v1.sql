@@ -21,10 +21,12 @@ SELECT EXISTS(
  SELECT 1 FROM evidence src
  JOIN reality.entities entity ON entity.id::text=src.subject_id
   AND entity.identity_state='canonical'
- WHERE jsonb_typeof(src.ledger_refs)='array'
-   AND jsonb_array_length(src.ledger_refs)>0
+ WHERE CASE WHEN jsonb_typeof(src.ledger_refs)='array'
+      THEN jsonb_array_length(src.ledger_refs)>0 ELSE false END
    AND NOT EXISTS (
-    SELECT 1 FROM jsonb_array_elements(src.ledger_refs) item
+    SELECT 1 FROM jsonb_array_elements(CASE
+      WHEN jsonb_typeof(src.ledger_refs)='array' THEN src.ledger_refs
+      ELSE '[]'::jsonb END) item
     WHERE NOT EXISTS (
       SELECT 1 FROM ledger.ledgers l
       JOIN atlas.principal_ledger_authorities pa ON pa.ledger_id=l.id
