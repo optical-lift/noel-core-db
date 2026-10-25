@@ -1,4 +1,4 @@
--- SOURCE ONLY. Do not run on the live database. Atlas release lane, Noel-owned.
+-- SOURCE ONLY. Do not run on the live database. Shared release lane, Noel-owned; crosses historical Foundry, Ledger and identity.
 -- Requires signed full-schema clone tests, source/custody review and manual production approval.
 BEGIN;
 CREATE OR REPLACE FUNCTION atlas.foundry_historical_eligible_self_v1(
