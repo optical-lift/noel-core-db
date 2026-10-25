@@ -57,6 +57,12 @@ BEGIN
     RAISE EXCEPTION 'Foundry source not accessible' USING ERRCODE='42501';
   END IF;
 
+  -- External references are not automatically licensed for establishment.
+  IF v_source.envelope->'payload'->>'source_kind' NOT IN
+     ('operator_statement','firsthand_observation') THEN
+    RAISE EXCEPTION 'Outside-source authority must be verified separately' USING ERRCODE='42501';
+  END IF;
+
   v_parts := v_source.envelope->'payload'->'segments';
   IF jsonb_typeof(v_parts)<>'array'
      OR p_segment_index>=jsonb_array_length(v_parts) THEN
