@@ -63,6 +63,15 @@ BEGIN
    q,'identity-fork-test-002','A separately scoped learning endeavor is intended.');
  IF fork->>'programId'=first->>'programId'
  THEN RAISE EXCEPTION 'Explicit distinct endeavor reused first Program ID'; END IF;
+ -- An ordinary SAVE cannot become an accidental second Program from an
+ -- already owned source set; only explicit author fork creates such cases.
+ BEGIN
+  PERFORM public.personal_program_author_save_self_api_v2(
+   (fork->>'programId')::uuid,1,
+   jsonb_set(p,'{sources,0,sha256}',to_jsonb(repeat('b',64))),
+   'identity-forbidden-overlap-save-001');
+  RAISE EXCEPTION 'Overlapping source save was silently permitted';
+ EXCEPTION WHEN SQLSTATE '23505' THEN NULL; END;
  replay:=public.personal_program_author_create_distinct_self_api_v1(
    q,'identity-fork-test-002','A separately scoped learning endeavor is intended.');
  IF replay->>'programId'<>fork->>'programId'
