@@ -163,7 +163,8 @@ BEGIN
  IF v_row.id IS NULL OR v_row.create_packet_digest<>v_digest
  THEN RAISE EXCEPTION 'Create request conflict' USING ERRCODE='23505'; END IF;
  RETURN jsonb_build_object('ok',true,'programId',v_row.id,'draftRevision',v_row.draft_revision,
-   'packetDigest',v_digest,'standing','author_draft');
+   'packetDigest',encode(extensions.digest(v_row.draft_packet::text,'sha256'),'hex'),
+   'standing','author_draft');
 END;
 $fn$;
 
