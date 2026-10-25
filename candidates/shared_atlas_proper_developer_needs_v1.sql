@@ -158,10 +158,15 @@ BEGIN
  -- Request UUID is carried in append-only event, and duplicate retries only
  -- return the same event. A conflicting repeat is rejected.
  SELECT a.id INTO v_seen FROM atlas.implementation_discovery_need_activity_v1 a
- WHERE a.actor_user_id=v_user AND a.need_id=p_need_id
-   AND a.id=p_request_id;
+ WHERE a.actor_user_id=v_user AND a.need_id=p_need_id AND a.id=p_request_id
+   AND a.action_kind=p_action AND a.note=btrim(p_note)
+   AND a.next_state IS NOT DISTINCT FROM p_next_state;
  IF v_seen IS NOT NULL THEN
    RETURN jsonb_build_object('ok',true,'activityId',v_seen,'replayed',true);
+ END IF;
+ IF EXISTS (SELECT 1 FROM atlas.implementation_discovery_need_activity_v1
+    WHERE id=p_request_id) THEN
+   RAISE EXCEPTION 'A previously used activity request cannot be changed' USING ERRCODE='22023';
  END IF;
  IF p_action='state_changed' AND v_need.state=p_next_state THEN
    RAISE EXCEPTION 'State is unchanged; use a note instead' USING ERRCODE='22023';
