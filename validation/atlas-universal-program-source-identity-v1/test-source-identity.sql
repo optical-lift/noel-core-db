@@ -72,6 +72,14 @@ BEGIN
    'identity-forbidden-overlap-save-001');
   RAISE EXCEPTION 'Overlapping source save was silently permitted';
  EXCEPTION WHEN SQLSTATE '23505' THEN NULL; END;
+ -- A legitimate explicitly distinct Program is still editable without
+ -- being confused with a forbidden new source identity.
+ replay:=public.personal_program_author_save_self_api_v2(
+   (fork->>'programId')::uuid,1,
+   jsonb_set(q,'{title}','"Revised distinct author instructions"'::jsonb),
+   'identity-fork-valid-edit-001');
+ IF replay->>'draftRevision'<>'2'
+ THEN RAISE EXCEPTION 'Legitimate distinct Program became uneditable'; END IF;
  replay:=public.personal_program_author_create_distinct_self_api_v1(
    q,'identity-fork-test-002','A separately scoped learning endeavor is intended.');
  IF replay->>'programId'<>fork->>'programId'
