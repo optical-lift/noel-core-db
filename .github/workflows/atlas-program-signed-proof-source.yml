@@ -1,0 +1,42 @@
+name: Atlas Program signed-proof source checks
+on:
+  pull_request:
+    paths:
+      - "scripts/validate-atlas-program-author-signed-http.py"
+      - "scripts/validate-production-schema-clone.sh"
+      - "validation/fixtures/20261025020804_atlas_personal_training_author_v1.sql"
+      - ".github/workflows/atlas-program-signed-proof-source.yml"
+permissions:
+  contents: read
+jobs:
+  source-shape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile Python and check Bash syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-program-author-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("scripts/validate-production-schema-clone.sh").read_text()
+          checks=[
+            "signed_program_author_probe=false",
+            'signed_program_author_probe=true',
+            "validate-atlas-program-author-signed-http.py",
+            "signed-program-author-summary.txt",
+          ]
+          for item in checks:
+            assert item in p, f"Missing dedicated Program signed test bridge: {item}"
+          f=Path("validation/fixtures/20261025020804_atlas_personal_training_author_v1.sql").read_text()
+          assert "INSERT INTO auth.users" in f
+          assert "INSERT INTO atlas.personal_atlas_access_grants" in f
+          assert "INSERT INTO atlas.principals" in f
+          assert "UPDATE " not in f.upper() and "DELETE " not in f.upper()
+          print("PASS Program-specific signed proof source shape")
+          PY

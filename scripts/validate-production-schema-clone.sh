@@ -105,6 +105,7 @@ signed_person_collections_probe=false
 signed_person_period_probe=false
 signed_foundry_workspace_probe=false
 signed_native_standing_work_probe=false
+signed_program_author_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -238,6 +239,16 @@ if [ "$lane" = "shared" ] &&
     exit 2
   fi
   signed_native_standing_work_probe=true
+fi
+
+# Author-only Program versions require real local GoTrue/REST sessions, not role-switched SQL.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_personal_training_author_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Program author signed-proof requires fictional fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_program_author_probe=true
 fi
 
 finish() {
@@ -394,7 +405,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_person_collections_probe" = true ] ||
        [ "$signed_person_period_probe" = true ] ||
        [ "$signed_foundry_workspace_probe" = true ] ||
-       [ "$signed_native_standing_work_probe" = true ]; then
+       [ "$signed_native_standing_work_probe" = true ] ||
+       [ "$signed_program_author_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -579,6 +591,14 @@ if [ "$signed_native_standing_work_probe" = true ]; then
     >"$artifacts_dir/signed-native-standing-work.log" 2>&1
 fi
 
+if [ "$signed_program_author_probe" = true ]; then
+  phase="real signed local Program author, outsider, unbound, and revocation authorization"
+  python3 "$repo_root/scripts/validate-atlas-program-author-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-program-author-summary.txt" \
+    >"$artifacts_dir/signed-program-author.log" 2>&1
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -627,6 +647,9 @@ if [ "$signed_foundry_workspace_probe" = true ]; then
   printf '\nSIGNED Foundry workspace: real local GoTrue sessions, owner/outsider/unbound denial, idempotence, unreviewed subject custody, and revoked JWT session checks passed.\n' >> "$artifacts_dir/summary.md"
 fi
 
+if [ "$signed_program_author_probe" = true ]; then
+  printf '\nSIGNED Program author: genuine separate GoTrue sessions, approved immutable versions, foreign/unbound/anonymous denial, replay defense, and entitlement revocation verified in disposable clone.\n' >> "$artifacts_dir/summary.md"
+fi
 if [ "$signed_native_standing_work_probe" = true ]; then
   printf '\nSIGNED native standing Work: real independent owner/worker/outsider GoTrue sessions, zero memberships, recipient acceptance, exact responsibility, denied impersonation and revocation passed.\n' >> "$artifacts_dir/summary.md"
 fi
