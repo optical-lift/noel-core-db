@@ -82,6 +82,18 @@ END;
 $test$;
 COMMIT;
 
+-- Privileged row edits cannot rewrite idempotent request history.
+DO $test$
+BEGIN
+ BEGIN
+  UPDATE atlas.personal_training_program_edit_receipts
+    SET packet_digest=repeat('0',64)
+    WHERE request_key='safe-edit-replay-001';
+  RAISE EXCEPTION 'Historical edit receipt was mutable';
+ EXCEPTION WHEN SQLSTATE '55000' THEN NULL; END;
+END;
+$test$;
+
 -- There is no raw select path for an authenticated person.
 BEGIN;
 SET LOCAL ROLE authenticated;
