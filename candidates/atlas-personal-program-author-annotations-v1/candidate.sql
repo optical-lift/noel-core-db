@@ -80,6 +80,9 @@ BEGIN
   THEN RAISE EXCEPTION 'Passage does not occur in approved component'
     USING ERRCODE='22023'; END IF;
  END IF;
+ -- Two retries with one request key must serialize before inspecting receipts.
+ PERFORM pg_catalog.pg_advisory_xact_lock(
+  pg_catalog.hashtextextended(p_program_id::text||':'||p_request_key,0));
  SELECT * INTO v_existing FROM atlas.personal_program_author_note_events
  WHERE program_id=p_program_id AND request_key=p_request_key;
  IF v_existing.event_id IS NOT NULL THEN
