@@ -36,6 +36,27 @@ SELECT EXISTS(
         AND pa.authority_kind='root_governing'
     )
    )
+   -- A recovered private archive additionally requires at least one
+   -- inventoried Ledger whose active root governance is exclusive to the
+   -- claimant. Shared Ledger authority alone never exposes the archive.
+   -- Multi-root institutional archives need a separate human custody
+   -- adjudication, not a silent workspace assignment.
+   AND EXISTS (
+     SELECT 1 FROM jsonb_array_elements(src.ledger_refs) item
+     JOIN ledger.ledgers root_ledger ON root_ledger.id::text=item->>'id'
+       AND root_ledger.subject_entity_id=entity.id
+     JOIN atlas.principal_ledger_authorities own
+       ON own.ledger_id=root_ledger.id
+       AND own.principal_id=p_principal_id
+       AND own.authority_kind='root_governing' AND own.status='active'
+     WHERE NOT EXISTS (
+       SELECT 1 FROM atlas.principal_ledger_authorities another
+       WHERE another.ledger_id=root_ledger.id
+         AND another.authority_kind='root_governing'
+         AND another.status='active'
+         AND another.principal_id<>p_principal_id
+     )
+   )
 );
 $body$;
 CREATE OR REPLACE FUNCTION atlas.list_foundry_historical_recovery_candidates_self_api_v1()
