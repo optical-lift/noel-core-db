@@ -7,7 +7,7 @@ An authenticated governing Ledger owner may record **institutional completion st
 
 ## Preconditions and checks
 1. Compare candidate source with the *current live* `atlas` function catalog and the applied migrations `20261025210219`, `20261025210452`, `20261025211045`, `20261025211116`.
-2. Check relevant table triggers and helper signature contracts in a disposable production-shaped schema clone; especially completion/allocations guard triggers and unique idempotency indexes.
+2. Verify the signed-in Person has an active **Organization-owner membership**, not only a Ledger connection or a governing-Principal seat; then check relevant table triggers and helper signature contracts in a disposable production-shaped schema clone; especially completion/allocations guard triggers and unique idempotency indexes.
 3. Confirm `reported_by_user_id` and optional `reported_by_institutional_person_record_id` have the correct actual actor; confirm accepted result does not assert `performedByPersonId`.
 4. Confirm the exact bound Event relation remains active and not removed, and `nativeLedgerId` is present for each admissible original allocation establishment kind; if any legitimate kind differs, preserve unknowns rather than broadening the predicate casually.
 5. Verify authenticated grants ONLY; `anon` and `PUBLIC` have no EXECUTE on both wrapper and internal source. Verify effective invoker privileges for the SQL public wrapper.
@@ -19,7 +19,7 @@ An authenticated governing Ledger owner may record **institutional completion st
 - **T04** reused source action with changed Work/actor/recipient/owner note: rejects collision, no side effects.
 - **T05** concurrent owner/worker completion: one accepted terminal result, no silent double completion; actor/result relation remains truthful.
 - **T06** owner with real Ledger authority but wrong Event binding or removed Event relation: denied.
-- **T07** authorized Ledger Person without governing-owner authority: denied.
+- **T07** authorized Ledger Person without governing-owner authority: denied. A governing Principal/Ledger seat without an active Organization-owner membership is also denied.
 - **T08** authenticated foreign-Ledger owner / other Organization: denied; neither source nor result existence leaks.
 - **T09** anonymous or no Principal/Person: denied; `anon` has no EXECUTE.
 - **T10** stale expected allocation after reassignment: conflict, not completion of the new person's work.
