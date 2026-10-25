@@ -239,6 +239,66 @@ def main():
         for table,n in baseline.items():
             need(int(db(a.db_url,"select count(*) from "+table))==n,
                  f"Source intake must not establish canonical {table}")
+    bridge_enabled = db(a.db_url,
+      "select to_regprocedure('public.establish_foundry_weekly_recurrence_self_api_v1(text,text,integer,uuid,text,smallint,text,date,boolean,time,time)') is not null")=="t"
+    if bridge_enabled:
+        need(intake_enabled,"Recurrence bridge requires owner-scoped evidence")
+        bridge="establish_foundry_weekly_recurrence_self_api_v1"
+        ledger_id="f1900000-0000-4000-8000-000000000490"
+        call=dict(p_workspace_id=wid,p_entry_id=first_evidence["entryId"],
+          p_segment_index=1,p_ledger_id=ledger_id,
+          p_title="Fictional Thursday recurring gathering",
+          p_weekday=4,p_timezone_name="America/Chicago",
+          p_effective_start_date="2026-10-29",
+          p_all_day=True,p_local_start_time=None,p_local_end_time=None)
+        forbidden(api,key,None,bridge,call,"anonymous cannot establish source")
+        forbidden(api,key,other,bridge,call,"other signed principal cannot establish owner's source")
+        forbidden(api,key,unbound,bridge,call,"unbound caller cannot establish source")
+        status,missing=check_rpc(api,key,owner,bridge,
+            {**call,"p_entry_id":"foundry-reality-intake-does-not-exist"})
+        need(status in (401,403),"Missing evidence must be denied")
+        status,not_recurrence=check_rpc(api,key,owner,bridge,
+            {**call,"p_segment_index":2})
+        need(status>=400,"An operating instruction cannot be a recurrence")
+        status,bad_zone=check_rpc(api,key,owner,bridge,
+            {**call,"p_timezone_name":"Made/Up"})
+        need(status>=400,"Made-up time zone must be rejected")
+        status,bad_time=check_rpc(api,key,owner,bridge,
+            {**call,"p_all_day":False})
+        need(status>=400,"Unknown time cannot be made into a timed event")
+        forbidden(api,key,other,bridge,
+                  {**call,"p_workspace_id":other_wid,
+                   "p_entry_id":independent["entryId"]},
+                  "connected person with no schedule responsibility cannot establish")
+        original_count=int(db(a.db_url,"select count(*) from ledger.recurrence_series"))
+        created=approved(api,key,owner,bridge,call,
+                         "authorized human establishes sourced weekly event")
+        need(created.get("replayed") is False
+             and created.get("canonicalConsequenceKind")=="ledger_recurrence_series"
+             and created.get("weekdays")==[4]
+             and created.get("sourceEntryId")==first_evidence["entryId"]
+             and created.get("aiCarrierAccess") is False,
+             "Sourced recurrence receipt wrong")
+        need(int(db(a.db_url,"select count(*) from ledger.recurrence_series"))==original_count+1,
+             "Actual recurrence was not established once")
+        series_id=created["seriesId"]
+        need(db(a.db_url,
+              f"select count(*) from ledger.recurrence_series where id='{series_id}'::uuid "
+              "and frequency='weekly' and occurrence_type='event' "
+              "and weekdays=array[4]::smallint[] and all_day=true "
+              "and local_start_time is null and local_end_time is null "
+              "and metadata->'foundrySource'->>'literal'='Thursday events recur.'")=="1",
+             "Existing canonical domain record did not preserve exact source")
+        retry=approved(api,key,owner,bridge,call,"repeat source establishment")
+        need(retry.get("replayed") is True and retry.get("seriesId")==series_id,
+             "Retry updated or duplicated canonical recurrence")
+        need(int(db(a.db_url,"select count(*) from ledger.recurrence_series"))==original_count+1,
+             "Retry created duplicate recurrence")
+        status,changed=check_rpc(api,key,owner,bridge,{**call,
+              "p_title":"Different scheduling instruction"})
+        need(status>=400,"Source retry must not overwrite original calendar rule")
+        need(int(db(a.db_url,"select count(*) from atlas.work_items"))==baseline["atlas.work_items"],
+             "Source-based schedule cannot invent Work tasks")
     # Deleting an actual local GoTrue session must immediately revoke access.
     db(a.db_url,
       f"delete from auth.sessions where id='{signed['foundry-owner'][1]['session_id']}'::uuid")
