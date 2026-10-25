@@ -24,7 +24,7 @@ The author reader currently returns their private source manifest and all versio
 ## Source commands
 
 1. `create(p_packet,p_request_key)` — authenticated author creates draft or idempotently returns existing creation identity.
-2. `save(p_program_id,p_expected_revision,p_packet,p_request_key)` — authenticated author revises a draft, never edits approved versions. Last-edit retry is recognized; older retried updates must be refreshed because only the latest edit key is retained.
+2. `save(p_program_id,p_expected_revision,p_packet,p_request_key)` — authenticated author revises a draft, never edits approved versions. Every successful edit now writes a private durable idempotency receipt. Exact current-revision retries return their original outcome; a historical retry after later edits is rejected as stale, and a reused key with changed inputs is rejected as a conflict.
 3. `approve(p_program_id,p_expected_revision,p_expected_digest,p_request_key)` — reviewed immutable version or idempotent replay, fail closed on stale digest/revision.
 4. `read(p_program_id DEFAULT NULL)` — author-only listing (latest 100) or detailed source/version history; no recipient view.
 
