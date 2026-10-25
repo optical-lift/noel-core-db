@@ -92,8 +92,7 @@ BEGIN
       OR v_old.envelope->'payload'->'segments' IS DISTINCT FROM p_segments
       OR v_old.envelope->'payload'->>'source_kind' IS DISTINCT FROM p_source_kind
       OR (v_old.envelope->'payload'->>'observed_at') IS DISTINCT FROM
-        CASE WHEN p_observed_at IS NULL THEN NULL ELSE
-          to_char(p_observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') END
+          to_char(p_observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')
     THEN
       RAISE EXCEPTION 'Request ID already used for different evidence' USING ERRCODE='23505';
     END IF;
@@ -112,8 +111,7 @@ BEGIN
     'payload',jsonb_build_object(
       'original_text',v_content,
       'source_kind',p_source_kind,
-      'observed_at',CASE WHEN p_observed_at IS NULL THEN NULL ELSE
-        to_char(p_observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"') END,
+      'observed_at',to_char(p_observed_at AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"'),
       'segments',p_segments,
       'segment_status','unresolved',
       'subject_label',v_workspace.provisional_subject_label,
