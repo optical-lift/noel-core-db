@@ -71,8 +71,6 @@ BEGIN
  SELECT p.id,p.create_request_key INTO v_prior,v_prior_key
  FROM atlas.personal_training_programs p
  JOIN atlas.personal_program_same_sources_v1(v_owner,v_fingerprint) d ON d.program_id=p.id
- WHERE NOT EXISTS (SELECT 1 FROM atlas.personal_program_author_distinct_import_decisions f
-                   WHERE f.program_id=p.id)
  ORDER BY p.created_at,p.id LIMIT 1;
  IF v_prior IS NOT NULL AND v_prior_key IS DISTINCT FROM p_request_key
  THEN RAISE EXCEPTION 'Same author source is already represented by a Program'
