@@ -1,5 +1,5 @@
 -- Atlas Foundry Historical Continuity v1
--- Single source-only SQL candidate for governed atlas_ migration generation.
+-- Single source-only SQL candidate for governed shared_ migration generation.
 -- Linked to original historical workspace; does not create customer data.
 -- Promotion requires disposable clone, genuine signed tests, explicit owner
 -- production release authorization and current migration/custody receipt.
