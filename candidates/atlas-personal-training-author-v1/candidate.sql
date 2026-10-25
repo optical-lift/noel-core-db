@@ -156,8 +156,7 @@ $fn$;
 CREATE FUNCTION atlas.personal_training_author_create_self_api_v1(p_packet jsonb,p_request_key text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
  SET search_path=pg_catalog,atlas,auth,extensions AS $fn$
-DECLARE v_principal uuid; v_row atlas.personal_training_programs%ROWTYPE;
- v_receipt atlas.personal_training_program_edit_receipts%ROWTYPE; v_digest text;
+DECLARE v_principal uuid; v_row atlas.personal_training_programs%ROWTYPE; v_digest text;
 BEGIN
  v_principal := atlas.personal_training_author_guard_v1();
  PERFORM atlas.personal_training_validate_author_packet_v1(p_packet);
@@ -182,7 +181,8 @@ CREATE FUNCTION atlas.personal_training_author_save_self_api_v1(
  p_program_id uuid,p_expected_revision integer,p_packet jsonb,p_request_key text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
  SET search_path=pg_catalog,atlas,auth,extensions AS $fn$
-DECLARE v_principal uuid; v_row atlas.personal_training_programs%ROWTYPE; v_digest text;
+DECLARE v_principal uuid; v_row atlas.personal_training_programs%ROWTYPE;
+ v_receipt atlas.personal_training_program_edit_receipts%ROWTYPE; v_digest text;
 BEGIN
  v_principal := atlas.personal_training_author_guard_v1();
  PERFORM atlas.personal_training_validate_author_packet_v1(p_packet);
