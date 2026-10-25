@@ -10,7 +10,7 @@ Date: 2026-10-24.
 - Practitioner Workbench credentials do not grant private Principal research access.
 
 ## Proposed release order
-1. DB source candidate in Noel's `atlas_` lane. Signed Principal eligibility searches canonical identity anchored in the historical `WORKSPACE_CREATED` event, the exact inventory of preexisting Ledger IDs, matching canonical ledger subject IDs, and active root governance for **every** inventoried Ledger. The actor must explicitly acknowledge recovery; possession of an ID or Ledger membership does not suffice.
+1. DB source candidate in Noel's `shared_` lane because recovery crosses Foundry, Ledger, canonical identity and Atlas Implementation authority. Signed Principal eligibility searches canonical identity anchored in the historical `WORKSPACE_CREATED` event, the exact inventory of preexisting Ledger IDs, matching canonical ledger subject IDs, and active root governance for **every** inventoried Ledger. The actor must explicitly acknowledge recovery; possession of an ID or Ledger membership does not suffice.
 2. The signed claim writes only a registry link and one new recovery receipt. Historical source rows are never modified, copied or relabeled. Conflicting claims fail closed; stable request UUIDs are idempotent.
 3. A paginated signed-owner chronology projects event IDs/types/dates and brief source excerpts. Full original envelopes require a second, event-scoped owner-authorized read. No unbounded Index dump.
 4. A signed owner-only context projection returns references to the existing Personal Atlas Implementation Case and canonical Ledger onboarding cases. It cannot create or promote any cases or truth.
