@@ -13,6 +13,7 @@ BEGIN
    OR to_regprocedure('public.list_foundry_workspace_history_self_api_v1(text,bigint,integer)') IS NULL
    OR to_regprocedure('public.get_foundry_workspace_event_self_api_v1(text,text)') IS NULL
    OR to_regprocedure('public.get_foundry_existing_implementation_context_self_api_v1(text)') IS NULL
+   OR to_regprocedure('public.identify_foundry_as_personal_implementation_source_self_api_v1(text)') IS NULL
  THEN RAISE EXCEPTION 'Historical Foundry continuity RPC missing'; END IF;
 
  FOREACH f IN ARRAY ARRAY[
@@ -20,7 +21,8 @@ BEGIN
    'recover_foundry_historical_workspace_self_api_v1(text,uuid,boolean)',
    'list_foundry_workspace_history_self_api_v1(text,bigint,integer)',
    'get_foundry_workspace_event_self_api_v1(text,text)',
-   'get_foundry_existing_implementation_context_self_api_v1(text)'
+   'get_foundry_existing_implementation_context_self_api_v1(text)',
+   'identify_foundry_as_personal_implementation_source_self_api_v1(text)'
  ] LOOP
    IF has_function_privilege('anon','public.'||f,'EXECUTE')
      OR has_function_privilege('service_role','public.'||f,'EXECUTE')
@@ -44,6 +46,15 @@ BEGIN
  IF decl NOT ILIKE '%owner_principal_id=actor%'
     OR decl NOT ILIKE '%LEAST(25%'
  THEN RAISE EXCEPTION 'History is not owner-scoped and bounded'; END IF;
+
+ SELECT pg_get_functiondef(
+ 'atlas.identify_foundry_as_personal_implementation_source_self_api_v1(text)'::regprocedure)
+ INTO decl;
+ IF decl NOT ILIKE '%owner_principal_id=actor%'
+    OR decl NOT ILIKE '%personal_atlas%'
+    OR decl NOT ILIKE '%sourceReadAuthorized%'
+    OR decl NOT ILIKE '%source_state%'
+ THEN RAISE EXCEPTION 'Foundry personal source registration bypasses ownership or source-only state'; END IF;
 
  SELECT count(*) INTO row_cnt FROM foundry.events;
  IF row_cnt<0 THEN RAISE EXCEPTION 'Impossible source custody baseline'; END IF;
