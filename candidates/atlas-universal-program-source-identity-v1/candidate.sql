@@ -125,7 +125,8 @@ BEGIN
  -- same source identity. Check under the same lock used by default creation.
  PERFORM pg_catalog.pg_advisory_xact_lock(
    pg_catalog.hashtextextended(v_owner::text||':'||v_fingerprint,0));
- IF EXISTS (
+ IF atlas.personal_program_source_fingerprint_v1(v_saved->'draftPacket'->'sources')
+    IS DISTINCT FROM v_fingerprint AND EXISTS (
   SELECT 1 FROM atlas.personal_program_same_sources_v1(v_owner,v_fingerprint) d
   WHERE d.program_id<>p_program_id
  ) THEN RAISE EXCEPTION 'Edited source is already attached to another Program'
