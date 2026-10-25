@@ -1,0 +1,43 @@
+name: Atlas Proper discovery source syntax
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-proper-discovery-source.yml'
+      - 'scripts/validate-atlas-proper-discovery-signed-http.py'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'candidates/shared_atlas_proper_foundry_inventory_v1*.sql'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/atlas-proper-discovery-source.yml'
+      - 'scripts/validate-atlas-proper-discovery-signed-http.py'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'candidates/shared_atlas_proper_foundry_inventory_v1*.sql'
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and check safe source
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-proper-discovery-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          d=Path('candidates/shared_atlas_proper_foundry_inventory_v1.sql').read_text()
+          s=Path('scripts/validate-atlas-proper-discovery-signed-http.py').read_text()
+          h=Path('scripts/validate-production-schema-clone.sh').read_text()
+          assert d.count('BEGIN;')==1 and d.count('COMMIT;')==1
+          assert 'implementation_practitioner_authorized_self_v1' in d
+          assert 'auth.sessions' in d
+          assert 'sourceReadAuthorized' in d
+          assert 'foundry.events' in d
+          assert 'signed_atlas_proper_inventory_probe=true' in h
+          assert 'delete from auth.sessions' in s
+          assert 'foundry.events' in s
+          print('PASS Atlas Proper signed-only inventory source shape')
+          PY
