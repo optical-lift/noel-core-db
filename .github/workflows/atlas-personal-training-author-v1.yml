@@ -41,3 +41,4 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-personal-training-author-v1/candidate.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-personal-training-author-v1/postconditions.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/atlas-personal-training-author-v1/test-author-lifecycle.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-personal-training-author-v1/test-negative-boundaries.sql
