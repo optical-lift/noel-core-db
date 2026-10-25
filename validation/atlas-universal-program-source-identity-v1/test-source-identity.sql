@@ -28,6 +28,20 @@ BEGIN
  replay:=public.personal_program_author_create_self_api_v2(p,'identity-create-original-001');
  IF first->>'programId'<>replay->>'programId'
  THEN RAISE EXCEPTION 'Exact request retry created duplicate'; END IF;
+
+ -- Edit source set before any author version was approved.
+ -- The original source identity must still be discoverable and protected.
+ q:=jsonb_set(p,'{sources,0,sha256}',to_jsonb(repeat('b',64)));
+ replay:=public.personal_program_author_save_self_api_v2(
+  (first->>'programId')::uuid,1,q,'identity-save-with-new-source-001');
+ IF replay->>'draftRevision'<>'2'
+ THEN RAISE EXCEPTION 'Source-edit revision was not established'; END IF;
+ entries:=public.personal_program_author_same_sources_self_api_v1(source_set);
+ IF jsonb_array_length(entries->'items')<>1
+ THEN RAISE EXCEPTION 'Original source identity lost after unapproved source edit'; END IF;
+ entries:=public.personal_program_author_same_sources_self_api_v1(q->'sources');
+ IF jsonb_array_length(entries->'items')<>1
+ THEN RAISE EXCEPTION 'Edited source identity was not preserved'; END IF;
  BEGIN
   PERFORM public.personal_program_author_create_self_api_v2(p,'identity-create-unwanted-002');
   RAISE EXCEPTION 'Duplicate same source was accepted without explicit distinct decision';
