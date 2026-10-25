@@ -1,0 +1,45 @@
+{
+  "contractVersion": 58,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v57.json",
+  "rule": "Four already-executed Atlas Event Work migrations reached production without approved Noel source custody on 2026-10-25. Each entry below was recovered read-only from the immutable executed-statement body in Supabase migration history and independently compared to the Git blob committed under the identical original version/name. This registry seals historical executed bytes only; it authorizes no replay, no production mutation, no substituted author claim and no future out-of-band deployment.",
+  "recoveries": [
+    {
+      "version": "20261025210219",
+      "name": "atlas_event_shared_work_canonicalization_v1",
+      "filename": "20261025210219_atlas_event_shared_work_canonicalization_v1.sql",
+      "gitBlobSha1": "b7f1fe2f559882ac685e9dbac2a979526e44fea6",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261025210452",
+      "name": "atlas_event_work_responsibility_scope_v1",
+      "filename": "20261025210452_atlas_event_work_responsibility_scope_v1.sql",
+      "gitBlobSha1": "9546090b6b79d36176e0798fa8805793b3f37990",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261025211045",
+      "name": "atlas_existing_event_work_connected_guard_v1",
+      "filename": "20261025211045_atlas_existing_event_work_connected_guard_v1.sql",
+      "gitBlobSha1": "d5392ff6bfdff7991e52575811b9e64318ca2ffc",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    },
+    {
+      "version": "20261025211116",
+      "name": "atlas_event_existing_work_connected_assignment_v1",
+      "filename": "20261025211116_atlas_event_existing_work_connected_assignment_v1.sql",
+      "gitBlobSha1": "63195f1f0eace800dc1e3a2eeb61ea9cde04ac66",
+      "logicalOwner": "atlas",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
