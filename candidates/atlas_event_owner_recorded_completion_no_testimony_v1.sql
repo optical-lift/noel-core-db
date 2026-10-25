@@ -46,6 +46,18 @@ begin
   -- institutional Ledger and the occurrence must belong to that Ledger.
   v_owner_person_id := atlas.company_work_native_ledger_owner_self_v1(
     p_organization_id,p_ledger_id);
+  -- An authoritative Principal/Ledger seat alone is not an Organization-owner
+  -- role. Match the ordinary Company Work authoring permission boundary.
+  if not exists (
+    select 1 from atlas.organization_memberships m
+     where m.id=atlas.current_effective_organization_membership_v1(
+       p_organization_id)
+       and m.organization_id=p_organization_id and m.person_id=v_owner_person_id
+       and m.role='owner' and m.active
+  ) then
+    raise exception 'Current Organization-owner membership required to record completion'
+      using errcode='42501';
+  end if;
   perform atlas.ledger_occurrence_shared_work_actor_self_v1(
     p_organization_id,p_ledger_id,p_occurrence_id);
 
