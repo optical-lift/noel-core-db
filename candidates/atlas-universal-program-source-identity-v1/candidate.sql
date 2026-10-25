@@ -120,9 +120,18 @@ BEGIN
  v_saved:=atlas.personal_training_author_read_self_api_v1(p_program_id);
  IF v_saved->'draftPacket'->>'contract' IS DISTINCT FROM 'personal_program_author_source_v2'
  THEN RAISE EXCEPTION 'Program unavailable for v2 edit' USING ERRCODE='42501'; END IF;
+ v_fingerprint:=atlas.personal_program_source_fingerprint_v1(p_packet->'sources');
+ -- Saving cannot quietly turn two independent author Programs into the
+ -- same source identity. Check under the same lock used by default creation.
+ PERFORM pg_catalog.pg_advisory_xact_lock(
+   pg_catalog.hashtextextended(v_owner::text||':'||v_fingerprint,0));
+ IF EXISTS (
+  SELECT 1 FROM atlas.personal_program_same_sources_v1(v_owner,v_fingerprint) d
+  WHERE d.program_id<>p_program_id
+ ) THEN RAISE EXCEPTION 'Edited source is already attached to another Program'
+     USING ERRCODE='23505'; END IF;
  v_saved:=atlas.personal_training_author_save_self_api_v1(
    p_program_id,p_expected_revision,p_packet,p_request_key);
- v_fingerprint:=atlas.personal_program_source_fingerprint_v1(p_packet->'sources');
  INSERT INTO atlas.personal_program_author_source_receipts
   (program_id,source_fingerprint,owner_principal_id,author_auth_user_id)
  VALUES (p_program_id,v_fingerprint,v_owner,auth.uid())
