@@ -170,6 +170,75 @@ def main():
     for table,n in baseline.items():
         need(int(db(a.db_url,"select count(*) from "+table))==n,
              f"Pre-Ledger preparation unexpectedly mutated {table}")
+    # Optional exact-version typed reality evidence proof. Only candidate
+    # packages that contain the new API exercise these extra signed checks.
+    intake_enabled = db(a.db_url,
+      "select to_regprocedure('public.capture_foundry_reality_input_self_api_v1(text,uuid,text,jsonb,text,timestamptz)') is not null")=="t"
+    if intake_enabled:
+        writer="capture_foundry_reality_input_self_api_v1"
+        reader="list_foundry_reality_inputs_self_api_v1"
+        original="The north garden has three beds. Thursday events recur. Set the mower blade to 3 inches."
+        segments=[
+          {"text":"The north garden has three beds.","kind":"place"},
+          {"text":"Thursday events recur.","kind":"recurrence"},
+          {"text":"Set the mower blade to 3 inches.","kind":"operating_instruction"}
+        ]
+        capture=dict(p_workspace_id=wid,p_request_id="f1900000-0000-4000-8000-000000000311",
+            p_original_text=original,p_segments=segments,p_source_kind="operator_statement",
+            p_observed_at=None)
+        forbidden(api,key,None,writer,capture,"anonymous cannot record new evidence")
+        forbidden(api,key,other,writer,capture,"other Principal cannot write owner's evidence")
+        forbidden(api,key,unbound,writer,capture,"no-Principal signed caller cannot append")
+        first_evidence=approved(api,key,owner,writer,capture,"owner captures typed original")
+        need(first_evidence.get("canonicalMutation") is False and
+             first_evidence.get("aiCarrierAccess") is False and
+             first_evidence.get("replayed") is False,
+             "Evidence capture improperly promoted source or granted AI access")
+        retry=approved(api,key,owner,writer,capture,"idempotent evidence retry")
+        need(retry.get("replayed") is True and
+             retry.get("entryId")==first_evidence.get("entryId"),
+             "Duplicate source evidence produced on retry")
+        status,invalid=check_rpc(api,key,owner,writer,{**capture,
+          "p_original_text":"Changed without changing request ID"})
+        need(status>=400,"Reused request ID with different original must fail")
+        status,invalid=check_rpc(api,key,owner,writer,{**capture,
+          "p_request_id":"f1900000-0000-4000-8000-000000000312",
+          "p_segments":[{"text":"Fabricated segment","kind":"place"}]})
+        need(status>=400,"Evidence segment not in original must be rejected")
+        status,invalid=check_rpc(api,key,owner,writer,{**capture,
+          "p_request_id":"f1900000-0000-4000-8000-000000000313",
+          "p_segments":[{"text":"Thursday events recur.","kind":"canonical_price"}]})
+        need(status>=400,"Unapproved semantic class must be rejected")
+        owned=approved(api,key,owner,reader,{"p_workspace_id":wid},
+                       "owner reads original evidence")
+        need(owned.get("aiCarrierAccess") is False and owned.get("canonicalMutation") is False,
+             "Readback incorrectly claims canonical or AI grant")
+        rows=[row for row in owned.get("items",[])
+              if row.get("entryId")==first_evidence["entryId"]]
+        need(len(rows)==1 and rows[0].get("originalText")==original and
+             rows[0].get("segments")==segments and
+             rows[0].get("segmentStatus")=="unresolved" and
+             rows[0].get("authorPrincipalId")==OWNER_P,
+             "Original typed evidence or signed author did not round-trip")
+        need(db(a.db_url,f"select count(*) from foundry.events where workspace_id='{wid}' and event_type='foundry_reality_input_v1'")=="1",
+             "Repeated evidence request duplicated append-only event")
+        forbidden(api,key,None,reader,{"p_workspace_id":wid},
+                  "anonymous cannot inspect source evidence")
+        forbidden(api,key,other,reader,{"p_workspace_id":wid},
+                  "foreign human cannot inspect source evidence")
+        forbidden(api,key,unbound,reader,{"p_workspace_id":wid},
+                  "unbound signed caller cannot inspect source evidence")
+        independent=approved(api,key,other,writer,
+            {**capture,"p_workspace_id":other_wid,
+             "p_request_id":"f1900000-0000-4000-8000-000000000314"},
+            "second human appends only to own workspace")
+        need(independent.get("entryId")!=first_evidence.get("entryId"),
+             "Distinct signed sources share evidence ID")
+        forbidden(api,key,owner,reader,{"p_workspace_id":other_wid},
+                  "owner cannot inspect second person's source")
+        for table,n in baseline.items():
+            need(int(db(a.db_url,"select count(*) from "+table))==n,
+                 f"Source intake must not establish canonical {table}")
     # Deleting an actual local GoTrue session must immediately revoke access.
     db(a.db_url,
       f"delete from auth.sessions where id='{signed['foundry-owner'][1]['session_id']}'::uuid")
