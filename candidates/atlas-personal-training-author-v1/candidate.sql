@@ -42,15 +42,18 @@ CREATE TABLE atlas.personal_training_program_edit_receipts (
  PRIMARY KEY(program_id,request_key)
 );
 
-CREATE FUNCTION atlas.personal_training_version_immutable_v1() RETURNS trigger
+CREATE FUNCTION atlas.personal_training_history_immutable_v1() RETURNS trigger
  LANGUAGE plpgsql SET search_path=pg_catalog AS $fn$
 BEGIN
- RAISE EXCEPTION 'Approved Program versions are immutable' USING ERRCODE='55000';
+ RAISE EXCEPTION 'Program review and edit request history are immutable' USING ERRCODE='55000';
 END;
 $fn$;
 CREATE TRIGGER personal_training_version_immutable_v1
  BEFORE UPDATE OR DELETE ON atlas.personal_training_program_versions
- FOR EACH ROW EXECUTE FUNCTION atlas.personal_training_version_immutable_v1();
+ FOR EACH ROW EXECUTE FUNCTION atlas.personal_training_history_immutable_v1();
+CREATE TRIGGER personal_training_edit_receipt_immutable_v1
+ BEFORE UPDATE OR DELETE ON atlas.personal_training_program_edit_receipts
+ FOR EACH ROW EXECUTE FUNCTION atlas.personal_training_history_immutable_v1();
 
 ALTER TABLE atlas.personal_training_programs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE atlas.personal_training_program_versions ENABLE ROW LEVEL SECURITY;
@@ -315,6 +318,7 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $fn$
 $fn$;
 
 REVOKE ALL ON FUNCTION
+ atlas.personal_training_history_immutable_v1(),
  atlas.personal_training_validate_author_packet_v1(jsonb),
  atlas.personal_training_author_guard_v1(),
  atlas.personal_training_author_create_self_api_v1(jsonb,text),
