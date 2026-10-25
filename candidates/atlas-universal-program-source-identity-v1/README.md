@@ -2,7 +2,7 @@
 
 Source-only candidate. Reuses the **existing** `atlas.personal_training_programs` and immutable `personal_training_program_versions`; introduces no second Program table.
 
-The default v2 create operation serializes requests by author Principal and a SHA-256 fingerprint of the sorted unique **source-content digests**, and rejects a separate create attempt if an authored draft or any approved version already cites the identical source set. The same original request key retains canonical idempotency. The author-only lookup displays existing matches for review; it is not an access grant.
+The default v2 create operation serializes requests by author Principal and a SHA-256 fingerprint of the sorted unique **source-content digests**, and rejects a separate create attempt if an authored draft or any approved version already cites the identical source set. The same original request key retains canonical idempotency. An additional private append-only `personal_program_author_source_receipts` register preserves the source fingerprint on **every create and save**, including documents replaced in an unapproved draft before any immutable version exists. These receipts are custody metadata, not a second Program store. The author-only lookup displays existing matches for review; it is not an access grant.
 
 A separate, explicitly named `personal_program_author_create_distinct_self_api_v1` operation requires a reason and stores it in an append-only, inaccessible-to-clients author fork-audit table. Distinct endeavors are intentional, not automatic reimports. All API commands preserve current Principal and Personal Atlas access checks.
 
