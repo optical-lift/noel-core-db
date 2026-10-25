@@ -11,9 +11,13 @@ jobs:
   isolated-postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres_major: ['16','17']
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:${{ matrix.postgres_major }}-alpine
         env:
           POSTGRES_PASSWORD: synthetic-only
         ports:
