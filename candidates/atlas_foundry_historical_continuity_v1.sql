@@ -301,7 +301,6 @@ GRANT EXECUTE ON FUNCTION atlas.get_foundry_existing_implementation_context_self
 GRANT EXECUTE ON FUNCTION public.list_foundry_workspace_history_self_api_v1(text,bigint,integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_foundry_workspace_event_self_api_v1(text,text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_foundry_existing_implementation_context_self_api_v1(text) TO authenticated;
-C
 
 CREATE OR REPLACE FUNCTION atlas.identify_foundry_as_personal_implementation_source_self_api_v1(
  p_workspace_id text)
