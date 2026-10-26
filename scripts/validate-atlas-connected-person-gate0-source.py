@@ -32,7 +32,7 @@ check("subject_person.entity_kind='person'" in review and
       "subject_person.identity_state='canonical'" in review, "canonical Person source check missing")
 for s in ("auth.uid() IS NULL", "principal_has_ledger_authority_v1",
           "ledger.seats", "seat_state='active'", "s.ended_at IS NULL",
-          "verification_incomplete", "mayCertifyNonDisclosure',false",
+          "verification_incomplete", "mayCertifyNonDisclosure',false", "reality_access_self_api_v1", "current_person_id_v1",
           "'not_found'", "current_principal_id_v1", "targetSeatIsNotDisclosurePermission"):
     check(s in review, f"governor-only source guard absent: {s}")
 check("'atlas.zone_registry_source_v1'" not in review, "universal reviewer cannot hardcode Flower readers")
