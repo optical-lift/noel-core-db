@@ -46,6 +46,15 @@ begin
       raise exception 'Authenticated forwarding chain blocked: %',v_priv.label;
     end if;
  end loop;
+ if not exists (
+   select 1 from pg_catalog.pg_trigger t
+   where t.tgrelid=v_table and t.tgname='ledger_event_progress_notes_append_only_v1'
+     and t.tgenabled='O' and not t.tgisinternal
+     and (t.tgtype & 16)=16 -- UPDATE
+     and (t.tgtype & 8)=8   -- DELETE
+ ) then
+   raise exception 'Original Event progress does not forbid update and delete';
+ end if;
  if (select count(*) from pg_catalog.pg_constraint
      where conrelid=v_table and contype='u' and
      pg_catalog.pg_get_constraintdef(oid) like
