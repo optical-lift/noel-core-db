@@ -43,3 +43,14 @@
 ## Source protections
 
 Never embed actual Person data, production user identities, private notes or test credentials in public SQL. Never simulate signed independent proof through a service role. This source branch is not a deployment or a signed-acceptance receipt.
+
+## Candidate direct-RPC closure (not releasable by itself)
+
+`gate0_direct_rpc_containment_hold.sql` stages only SQL EXECUTE revocation for the three named old readers from ordinary API roles. **DO NOT DEPLOY THIS ALONE**: check old owner/worker clients, preserve legitimate owner operations through scoped replacement readers, trace indirect SECURITY DEFINER calls and the other farm-wide readers, and pass signed positive/negative API checks before any approved release. Its presence in this PR is not an authorization or production safeguard.
+
+## Source-preserving two-subject Work decomposition inspection
+
+- `atlas.work_execution_components` and `work_execution_relations` are anchored to legacy `tasks` or `planned_work_occurrences`, **not** independently completable canonical Work items. The relevant old U-Pick task has one prerequisite component and no relation rows; neither table alone solves Bed 3 / Bed 4 independent completion.
+- Reuse canonical `atlas.work_item_relations` with established `part_of` semantics (child Work → original composite Work) for multiple distinct children. `work_items.superseded_by_work_item_id` points to **only one** successor and cannot by itself preserve a one-to-two split. Do not mark original composite complete or drop its allocations/results.
+- `work_item_context_links` on live production currently checks spatial subjects `zone` or `place`, not `growing_object`. Unreleased `20261026010327` supplies the guarded `growing_object` relation. It still does not create either child Work or establish crop custody. Therefore real per-bed Work decomposition remains gated, not implemented by adding UI subrows.
+- The eventual source governor command must verify original Work open and source-proven task slice, exact Ledger crop custody, exact distinct existing bed IDs in the source zone, current allocation and prerequisites; create two independent canonical Work identities/results idempotently; preserve old Work via two `part_of` links; and require separate signed authority for assignments and any bed-read grant. Test repeat, mismatch, concurrent split, outsider, revoked and cross-Ledger denial on a protected clone before executing against real records.
