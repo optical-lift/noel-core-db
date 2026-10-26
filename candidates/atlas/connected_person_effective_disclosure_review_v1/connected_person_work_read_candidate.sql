@@ -73,6 +73,8 @@ BEGIN
       AND a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text
       AND w.work_state='open'
       AND (p_after_allocation_id IS NULL OR a.id>p_after_allocation_id)
+      AND atlas.connected_person_work_field_currently_approved_v1(
+        p_ledger_id,w.id,v_person_id,'title')
       AND atlas.person_has_native_ledger_connection_v1(
          w.organization_id,p_ledger_id,v_person_id
       )
