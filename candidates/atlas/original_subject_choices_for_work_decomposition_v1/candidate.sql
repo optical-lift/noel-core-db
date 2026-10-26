@@ -13,7 +13,7 @@ DECLARE
  v_next uuid;
  v_more boolean:=false;
 BEGIN
- IF p_limit NOT BETWEEN 1 AND 100 OR p_work_item_id IS NULL THEN
+ IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 OR p_work_item_id IS NULL THEN
   RAISE EXCEPTION 'Exact Work and bounded page required' USING ERRCODE='22023';
  END IF;
  v_person:=atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id);
