@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Signed local GoTrue/PostgREST Work disclosure proof (C1 synthetic fixture).
 
-Requires disposable full-schema clone with the already-established fixture
+Requires disposable full-schema clone with the held governor-review candidate,
+three original Person-reader source cutovers and the already-established fixture
 validation/fixtures/20261024231215_shared_native_ledger_standing_work_person_only_v1.sql
 and the new Work-only reader candidate applied. NEVER operates on production.
 No forged JWT or service-role substitution can count as signed proof.
@@ -24,6 +25,8 @@ FN="connected_person_authorized_ledger_work_self_api_v1"
 LEGACY_MY_WORK="connected_person_my_work_self_api_v1"
 ORIGINAL_TODAY="connected_person_company_work_today_self_api_v1"
 ORIGINAL_DATED="connected_person_company_work_day_self_api_v1"
+GOVERNOR_REVIEW="connected_person_effective_disclosure_review_self_api_v1"
+SYNTHETIC_PRIVATE_INSTRUCTIONS="Clone private instructions — governor field review only"
 
 def need(ok,message):
     c1.check(ok,message)
@@ -43,6 +46,10 @@ def original_today(api,key,token):
 
 def dated_work(api,key,token,day):
     return c1.rpc(api,key,ORIGINAL_DATED,{"p_date":day},token)
+
+def governor_review(api,key,token,ledger,person):
+    return c1.rpc(api,key,GOVERNOR_REVIEW,{
+        "p_ledger_id":ledger,"p_person_entity_id":person},token)
 
 def denied(api,key,token,ledger,label):
     status,data=request(api,key,token,ledger)
@@ -111,6 +118,46 @@ def main():
     need(assigned.get("newWorkCreated") is False,
          "Read-boundary test unexpectedly created institutional Work")
 
+    # Test-only source text is never made available to a worker merely by
+    # responsible allocation. The already authorized root governor can
+    # inspect the exact field candidate before deciding a later grant.
+    c1.sql(a.db_url,
+        "update atlas.work_items set instructions="
+        f"'{SYNTHETIC_PRIVATE_INSTRUCTIONS}' "
+        f"where id='{standing.TASK_A}'::uuid")
+    gov_status,gov_data=governor_review(api,key,owner,ledger,standing.WORKER_PERSON)
+    need(gov_status==200 and isinstance(gov_data,dict) and gov_data.get("ok") is True,
+         "Signed root governor cannot inspect this exact connected Person review")
+    need(gov_data.get("verificationStatus")=="verification_incomplete" and
+         gov_data.get("mayCertifyNonDisclosure") is False,
+         "Governor candidate preview falsely certified existing effective disclosure")
+    preview=gov_data.get("preliminaryWorkFieldReview")
+    need(isinstance(preview,dict) and
+         preview.get("status")=="governor_review_inputs_only" and
+         preview.get("workFieldsRequireSeparateDecisions") is True and
+         preview.get("hasMoreCandidateWork") is False and
+         isinstance(preview.get("items"),list),
+         "Governor review must return a bounded explicitly unapproved source preview")
+    work_candidates=preview["items"]
+    matched=[x for x in work_candidates if x.get("workItemId")==standing.TASK_A]
+    need(len(matched)==1 and matched[0].get("instructionsCandidate")==
+         SYNTHETIC_PRIVATE_INSTRUCTIONS and
+         matched[0].get("titleFieldDecisionStatus")=="not_evaluated" and
+         matched[0].get("instructionsFieldDecisionStatus")=="not_evaluated",
+         "Governor field candidate does not show exact source without fake permission")
+    need(all(x.get("workItemId")!=standing.TASK_B for x in work_candidates),
+         "Governor target review should not enumerate unrelated unassigned Work")
+    worker_review=governor_review(api,key,worker,ledger,standing.WORKER_PERSON)
+    need(worker_review[0] in (200,401,403) and
+         (worker_review[0]!=200 or worker_review[1]=={"ok":False,"code":"not_found"}),
+         "Connected Person obtained governor-only instructions via preview RPC")
+    stranger_review=governor_review(api,key,outsider,ledger,standing.WORKER_PERSON)
+    need(stranger_review[0] in (200,401,403) and
+         (stranger_review[0]!=200 or
+          stranger_review[1]=={"ok":False,"code":"not_found"}),
+         "Outsider could preview exact Work fields without Ledger authority")
+    print("PASS governor-only Work fields are visible for adjudication, not recipient grant")
+
     status,data=request(api,key,worker,ledger)
     need(status==200 and isinstance(data,dict) and data.get("ok") is True,
          f"Worker's signed positive read failed: {status}: {str(data)[:250]}")
@@ -151,6 +198,8 @@ def main():
          "Existing My Work included Work without proven exact Ledger relevance")
     need(all(x.get("instructions") is None for x in old_items),
          "Existing My Work leaked unapproved institutional Work instructions")
+    need(SYNTHETIC_PRIVATE_INSTRUCTIONS not in json.dumps(old_data),
+         "Unapproved governor preview instruction appeared in connected Person My Work")
     print("PASS existing My Work matches authorized narrow-source boundary")
     today_status,today_data=original_today(api,key,worker)
     need(today_status==200 and isinstance(today_data,dict) and
@@ -166,6 +215,8 @@ def main():
              x.get("sourceType") is None and x.get("sourceDate") is None
              for x in today_items),
          "Original Today leaks unapproved instructions/source identity/history")
+    need(SYNTHETIC_PRIVATE_INSTRUCTIONS not in json.dumps(today_data),
+         "Unapproved governor Work instruction appeared in ordinary Person Today")
     print("PASS current all-date Person Today retains only original authorized Work")
 
     # The existing dated Work reader is a distinct public API used to open
@@ -203,6 +254,8 @@ def main():
            all(x.get("workItemId")!=standing.TASK_A
                for x in denied_day[1].get("items",[]) if isinstance(x,dict)))),
          "An independently signed outsider read the worker's original dated Work")
+    need(SYNTHETIC_PRIVATE_INSTRUCTIONS not in json.dumps(day_data),
+         "Unapproved governor Work instruction appeared in original dated Work")
     print("PASS original dated Work positive assignment, plan and field deny")
 
     # Genuine same-JWT deny as soon as the native Seat ends, then restore only
