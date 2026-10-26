@@ -188,3 +188,89 @@ No application, live source, migration, grant, real Work, old
 Worker Day implementation or deployed domain was changed by the held
 Today candidate. Protected-clone signed positive/negative and rollback
 receipts are absent; production remains HOLD.
+
+## Held dated-Work source cutover and coordinated Worker Day retirement
+
+A 2026-10-26 **read-only live SQL function audit** inspected
+`atlas.connected_person_company_work_day_self_api_v1(date)` and the
+distinct older Worker Day read, refresh and report APIs. The existing
+dated Work reader checks signed Person identity, current native Ledger
+connection and original allocation, but it does **not** require
+verified original Work-to-Ledger relevance, independently check live
+GoTrue session status or grant Work instruction and metadata fields.
+It also carries **completed original Work** with source results and
+acceptance evidence; unlike an all-open-Work list this history cannot be
+discarded without separate adjudication.
+
+- `connected_person_dated_work_existing_reader_cutover_hold.sql`
+  is a **source-only, same-signature, UNAPPLIED** replacement that
+  requires the existing `reality_access_self_api_v1` active session
+  and canonical Person check, exact active native Ledger connection,
+  and original `company_work_native_ledger_relevance` with attested or
+  independently verified exact-source evidence. It retains the
+  original Work, allocation, plan, completion/result and acceptance
+  identities and JSON contract, but returns NULL for unapproved
+  instructions and work-metadata classification pending distinct field
+  decisions. Work title and result/acceptance fields still need
+  the governor's explicit approved disclosure policy.
+- `connected_person_dated_work_existing_reader_cutover_postconditions_hold.sql`
+  is a protected-clone structural guard for source predicate, existing
+  wrapper ACL, historical completion fields and withheld text.
+- The existing genuine-signed local clone script now uses the original
+  `connected_person_place_work_self_api_v1` to place an assigned
+  synthetic Work A on a real synthetic day, then reads the *original
+  dated Work API*. It checks positive Work/plan/allocation identity,
+  exclusion of unassigned Work B, NULL instructions/classification,
+  outsider denial, ended Seat denial, Work relevance withdrawal denial,
+  and revoked same-GoTrue-session JWT denial. **This expanded signed
+  script has not been run on a protected clone**. Completed-item
+  acceptance/readback still needs its own positive historic case.
+
+Read-only production aggregate evidence (no Personal names or IDs
+returned): active Person-native allocations currently include 22
+open and 2 completed Work allocations, each with at least one
+verified exact native Ledger relevance row. This supports **planning
+the historical positive test only**, not general authorization or proof
+that all fields can be shown.
+
+The distinct older Worker Day source reads all stored projection
+`requiredWork` instructions, the frozen operating instruction snapshot,
+delivery payload and related farm membership information for the
+legacy farm-hand path. The reachable related public APIs include
+`company_work_worker_day_self_api_v1`,
+`company_work_worker_day_refresh_self_api_v1`,
+`worker_report_company_work_projection_self_api_v1`, and
+`company_work_employee_home_self_api_v1`. A UI-hide is not revocation;
+only revoking the read would still leave a separate refresh/report or
+home carrier. Their historical functionality and valid worker source
+results must be carried forward before old paths can retire.
+
+`legacy_worker_day_public_route_retirement_hold.sql` is therefore an
+**explicit, coordinated, non-deployable ACL retirement proposal** for
+all four public and internal SQL routes. It is intentionally not
+released: it will break the older EmployeeAccessClient and original
+Worker Day action paths until actual Person-native Work/instruction,
+planning and reporting parity is accepted. The matching
+`legacy_worker_day_public_route_retirement_postconditions_hold.sql`
+checks `authenticated`/`anon` ACL denials on a disposable clone but
+cannot certify another definer wrapper, old Vercel GET endpoint,
+service-role backend, or stored snapshot route is inaccessible.
+
+A native Ledger Seat is a connection, **not automatically a Work detail
+or crop permission**. Current source metadata searches found no
+verified universal per-Work field-disclosure grant that can be reused
+without review. Therefore no new grant table was invented in this
+packet. A governor-owned exact Work-details/instruction decision,
+explicit revocation behavior, a positive worker end-to-end read/Done
+receipt and a complete alternative-route exposure test remain
+mandatory. In particular, a deliberately redacted instructions list
+must **never** be treated as production-ready for Anna's distinct
+Bed 3 and Bed 4 Work.
+
+**Release sequencing remains coupled:** check original source and
+worker-positive parity; review field grants; stage on disposable
+full-schema clone; run actual independent signed/governor/worker,
+outsider/same-organization different-Ledger, past participant, ended
+Seat and revoked-session tests; verify Legacy Farm, Index, Event, Today
+and history bypass closure; only then prepare authorized release and
+rollback. No production schema, grants, app, Work or user data changed.
