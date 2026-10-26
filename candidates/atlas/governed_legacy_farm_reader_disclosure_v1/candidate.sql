@@ -121,7 +121,7 @@ begin
     ), '[]'::jsonb)
   );
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION atlas.object_crop_bed_map_v1(p_object_id uuid)
  RETURNS jsonb
@@ -256,7 +256,7 @@ BEGIN
     'placements', coalesce(v_rows, '[]'::jsonb)
   );
 END;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION atlas.farm_care_zone_v1(p_farm_id uuid, p_zone_key text, p_history_limit integer DEFAULT 20)
  RETURNS jsonb
@@ -376,7 +376,7 @@ begin
 
   return coalesce(v_result,atlas.farm_care_zone_card_v1(v_zone.id));
 end
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION atlas.farm_care_object_v1(p_farm_id uuid, p_object_key text, p_history_limit integer DEFAULT 20)
  RETURNS jsonb
@@ -491,7 +491,7 @@ begin
 
   return v_result;
 end
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION atlas.farm_care_summary_v1(p_farm_id uuid, p_history_days integer DEFAULT 30)
  RETURNS jsonb
@@ -752,7 +752,7 @@ begin
 
   return v_result;
 end
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION atlas.farm_snapshot_for_member_v1(p_farm_id uuid)
  RETURNS jsonb
@@ -831,6 +831,6 @@ begin
     'stemsLogged', round(v_stems_logged)
   );
 end;
-$function$
+$function$;
 
 COMMIT;
