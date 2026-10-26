@@ -85,4 +85,29 @@ check("SELECT *" in inventory or "SELECT " in inventory,
       "replay inventory missing")
 check("DO NOT" in notes.upper() and "signed" in notes.lower(), "release safety status missing")
 
+work = read("connected_person_work_read_candidate.sql")
+work_tests = read("connected_person_work_read_postconditions.sql")
+check(work.count("CREATE OR REPLACE FUNCTION") == 2, "only internal Work reader and public wrapper allowed")
+check(work.count("BEGIN;") == 1 and work.count("COMMIT;") == 1, "Work source transaction shape")
+for authority in ("reality_access_self_api_v1", "current_person_id_v1",
+                  "ledger.seats", "s.ended_at IS NULL",
+                  "person_has_native_ledger_connection_v1",
+                  "company_work_native_ledger_relevance",
+                  "company_work_native_ledger_exact_source_v1",
+                  "rel.attribution_state='active'",
+                  "a.assignee_canonical_person_id=v_person_id",
+                  "a.state='active'", "a.assignee_membership_id IS NULL",
+                  "w.work_state='open'", "not_found",
+                  "permissionAuditComplete',false"):
+    check(authority in work, f"Work reader must source-check {authority}")
+for disallowed in ("w.instructions", "w.metadata", "growing_objects", "crop_cycles",
+                   "care_state_history", "work_item_context_links",
+                   "object_crop_bed_map_v1", "zone_registry_source_v1"):
+    check(disallowed not in work, f"Work reader must not expose {disallowed}")
+check(work.count("GRANT EXECUTE ON FUNCTION") == 1, "Work source grant only for public API")
+check("TO authenticated;" in work and "FROM PUBLIC,anon,authenticated;" in work,
+      "Work API ACL needs explicit roles")
+check("to_regprocedure" in work_tests and "has_function_privilege" in work_tests,
+      "Work protected-clone postconditions missing")
+
 print("PASS Gate 0 static source guards (NOT clone/signed privacy acceptance)")
