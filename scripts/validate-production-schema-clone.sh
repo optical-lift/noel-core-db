@@ -112,6 +112,19 @@ signed_program_author_probe=false
 signed_universal_program_probe=false
 signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
+signed_universal_original_work_probe=false
+# Only the exact Atlas original Work candidate may trigger this signed local
+# GoTrue/REST probe. It requires an admitted DML-only synthetic fixture and
+# original source postconditions on the disposable production-shaped clone.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_universal_original_work_integrated_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Universal original Work requires synthetic fixture and source postconditions." >&2
+    exit 2
+  fi
+  signed_universal_original_work_probe=true
+fi
+
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
     echo "C1 signed HTTP test requires its disposable fixture and postconditions." >&2
@@ -600,6 +613,16 @@ if [ "$signed_work_prerequisite_probe" = true ]; then
     --db-url "$database_url" \
     --output "$artifacts_dir/signed-work-prerequisite-summary.txt" \
     >"$artifacts_dir/signed-work-prerequisite.log" 2>&1
+fi
+
+if [ "$signed_universal_original_work_probe" = true ]; then
+  phase="signed original Bed3/Bed4, worker disclosure denial and Household Laundry Actual"
+  python3 "$repo_root/scripts/validate-atlas-universal-original-work-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-universal-original-work-summary.txt" \
+    >"$artifacts_dir/signed-universal-original-work.log" 2>&1
+  test -s "$artifacts_dir/signed-universal-original-work-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-universal-original-work-summary.txt"
 fi
 
 if [ "$signed_connected_work_prerequisite_probe" = true ]; then
