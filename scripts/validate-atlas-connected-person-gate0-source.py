@@ -172,4 +172,37 @@ check("company_work_native_ledger_relevance" in native_today_checks and
 check(not re.search(r"\\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\\b", native_today, re.I),
       "Original Today cutover cannot write data, grant permissions or edit any table")
 
+# The dated Work route is a third separately exposed original API.
+dated_work = read("connected_person_dated_work_existing_reader_cutover_hold.sql")
+dated_work_checks = read("connected_person_dated_work_existing_reader_cutover_postconditions_hold.sql")
+check(dated_work.count("CREATE OR REPLACE FUNCTION") == 1,
+      "Held dated Work cutover may replace only its original private implementation")
+check(dated_work.count("BEGIN;") == 1 and dated_work.count("COMMIT;") == 1,
+      "Held dated Work replacement needs exact one-transaction shape")
+for required in ("connected_person_company_work_day_self_api_v1(p_date date)",
+                 "reality_access_self_api_v1",
+                 "person_has_native_ledger_connection_v1",
+                 "company_work_native_ledger_relevance",
+                 "company_work_native_ledger_exact_source_v1",
+                 "rel.attribution_state='active'",
+                 "a.assignee_membership_id IS NULL",
+                 "p.plan_state='completed'",
+                 "w.work_state='completed'",
+                 "res.acceptance_decision",
+                 "'instructions',NULL::text",
+                 "NULL::text,",
+                 "connected_person_company_work_day_v1"):
+    check(required in dated_work,
+          f"Held dated Work original identity/field guard missing: {required}")
+for leak in ("'instructions',w.instructions",
+             "w.metadata->>'taskClassification'"):
+    check(leak not in dated_work, f"Held dated Work leaks institutional text: {leak}")
+check("has_function_privilege" in dated_work_checks and
+      "res.acceptance_decision" in dated_work_checks and
+      "company_work_native_ledger_exact_source_v1" in dated_work_checks,
+      "Dated Work protected-clone postconditions missing")
+check(not re.search(r"\\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\\b",
+                    dated_work, re.I),
+      "Held dated Work may not mutate Work, permissions or source tables")
+
 print("PASS Gate 0 static source guards (NOT clone/signed privacy acceptance)")
