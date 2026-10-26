@@ -138,3 +138,25 @@ redacting source readers without a governor-authorized instructions
 route. Static source CI does not prove field disclosure or practical
 worker usability. Source row-count checks do not replace actual
 signed-person result inspection.
+
+## Governor-only preliminary exact Work field-review acceptance
+
+This extends the *existing* root governor review candidate without
+new user-facing permission or production scope.
+
+| Synthetic signed principal / source | Required result |
+| --- | --- |
+| Root governor of Ledger A reviews canonical active target Person's Ledger A Seat after true native assignment of Work A | `preliminaryWorkFieldReview.items` shows Work A original ID and exact fictional `titleCandidate`/`instructionsCandidate` for adjudication; statuses `not_evaluated`, never implied granted |
+| Same governor targets unrelated Work B not assigned to reviewed Person | No Work B in preliminary Work field-review candidates |
+| Root governor targets Ledger B, for which they hold no root-governing authority | Uniform `not_found`; no other Ledger Work text |
+| Governor targets unrelated canonical Person with no active Seat | Uniform `not_found` without Person existence confirmation |
+| Connected Person reviews their own Seat | Uniform `not_found` even if they have Work A allocation |
+| Independent outsider reviews the target Seat | Uniform `not_found` |
+| Connected Person reads their ordinary My Work/Today/dated Work | Fictional private Work A instruction absent (all title/instruction candidates are governor review inputs, not grants) |
+| Governor reviews more than 50 verified original Work allocations | Capped first 50, `hasMoreCandidateWork=true`; source reviews remain incomplete |
+| GoTrue session revoked while JWT unchanged | Governor review denied, no cached credential promotion |
+| Existing source fields are unadjudicated, or any older reader is still reachable | `verification_incomplete` and `mayCertifyNonDisclosure=false`, no production permission release |
+
+All above are **unrun** until a protected production-shaped
+local clone exists. Source-only CI does not exercise PostgREST,
+application routes or real independent signed sessions.
