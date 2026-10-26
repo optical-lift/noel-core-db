@@ -82,7 +82,7 @@ live source returns `w.instructions` and Work titles even when
 | Unapproved source instructions in original institutional Work | My Work does not return them; it preserves a nullable `instructions` slot until an approved Work-details source exists |
 | Authentic active worker, same JWT after native Seat ends | No Work rows through either reader; still test the actual legacy Today/Worker Day alternate APIs |
 | Authentic active worker, same JWT after real GoTrue session deletion | Both routes deny; old JWT signature by itself is insufficient |
-| Governor positively approves exact Work details and instructions | **NOT YET IMPLEMENTED**. Must return usable instruction content through a source-owned field decision and independent worker-browser acceptance BEFORE any cutover |
+| Governor positively approves exact Work details and instructions | **Held source candidate staged, not deployed**: signed source-value SHA-256 decision and separate approved-fields reader exist in PR #2263. Real worker-browser acceptance and full privacy audit remain UNRUN and mandatory BEFORE any cutover |
 | Connected Person opens Index/Today/Event/legacy farm-atlas | **NOT YET PROVEN**. No route may return withheld source, Work or historical data by another path |
 
 The work signed script now includes the original My Work public route,
@@ -152,7 +152,7 @@ new user-facing permission or production scope.
 | Governor targets unrelated canonical Person with no active Seat | Uniform `not_found` without Person existence confirmation |
 | Connected Person reviews their own Seat | Uniform `not_found` even if they have Work A allocation |
 | Independent outsider reviews the target Seat | Uniform `not_found` |
-| Connected Person reads their ordinary My Work/Today/dated Work | Fictional private Work A instruction absent (all title/instruction candidates are governor review inputs, not grants) |
+| Connected Person reads their ordinary My Work/Today/dated Work before governor field decision | Fictional private Work A title/instructions absent; after an exact title grant, title-only is visible; a separate current instructions grant is required to show those bytes |
 | Governor reviews more than 50 verified original Work allocations | Capped first 50, `hasMoreCandidateWork=true`; source reviews remain incomplete |
 | GoTrue session revoked while JWT unchanged | Governor review denied, no cached credential promotion |
 | Existing source fields are unadjudicated, or any older reader is still reachable | `verification_incomplete` and `mayCertifyNonDisclosure=false`, no production permission release |
