@@ -40,6 +40,14 @@ jobs:
         if: github.event_name == 'pull_request'
         run: python3 scripts/assemble-atlas-universal-original-work-candidate.py
 
+      - name: Parse Atlas Work PostgreSQL and PLpgSQL grammar
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 scripts/parse-atlas-universal-original-work-candidates.py
+
       - name: Verify WNPH product schema membrane
         run: bash scripts/check-wnph-membrane.sh
 
