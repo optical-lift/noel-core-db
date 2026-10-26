@@ -434,3 +434,67 @@ hardcoded Elm), then split the real Bed 3 and Bed 4 Work preserving
 the combined task's original history. Governor approvals themselves
 are human decisions, not automatically assigned. Nothing here
 was migrated, deployed or granted in production.
+
+## 2026-10-26 production read-only compatibility receipt and machine decision
+
+The owner has explicitly approved **using the existing production project as
+a test environment** because no outside users are actively relying on Atlas.
+RiverSong is **Intel macOS 11.7.11 (Big Sur), 8 GB RAM, 34 GB free**, with
+Homebrew but no Supabase CLI, `psql`, Docker or OrbStack. Current Supabase
+native local runtime does not support Intel macOS, and a full containerized
+Noel schema is unsuitable on the available machine. No Mac installation or
+cloud branch was made.
+
+**Important reality:** production is not disposable simply because there
+are no outside consumers. The live read-only census returned:
+
+| Existing production source | Records |
+|---|---:|
+| `auth.users` | 6 |
+| `auth.sessions` | 131 |
+| `reality.entities` | 2,188 |
+| `ledger.seats` | 10 |
+| `atlas.work_items` | 215 |
+| `atlas.work_allocations` | 193 |
+| `atlas.company_work_native_ledger_relevance` | 61 |
+
+**Source compatibility verified by read-only Supabase SQL:**
+
+- All 21 expected Work, allocation and original Ledger-relevance column
+  names and types match the held source candidate.
+- All 15 referenced PostgreSQL/Auth/Atlas and legacy public Work helper
+  signatures exist, including `sha256(bytea)`,
+  `pg_advisory_xact_lock(bigint)`, `reality_access_self_api_v1`,
+  `principal_has_ledger_authority_v1`, exact native Ledger connection
+  and exact original Work source validator.
+- The proposed private field decision table and internal/public
+  approved-field APIs remain **absent** from production.
+- Original native Person Work allocations grouped by actual source state:
+  **22 active/open**, **1 completed/completed**, **1 released/completed**.
+  Every group has active native Ledger connections and an active
+  original Work-relevance row. The last historic released/completed
+  allocation is a **specific positive-history/recipient-access decision
+  to adjudicate**; do not erase it or assume revocation means safe
+  automatic redisclosure.
+
+The repeatable audit query is
+`production_catalog_compatibility_readonly_20261026.sql`, which selects
+only catalog fields and aggregate counts (not real people or their Work
+text). A basic `BEGIN READ ONLY; SELECT ...; ROLLBACK;` probe succeeded.
+
+**Test restriction encountered:** a further attempt to compile the
+staged grant schema in a single production SQL transaction ending in
+`ROLLBACK` was **blocked before execution by tool safety controls**.
+It produced **NO compile result and NO signed recipient test**.
+Do not reinterpret the failed tool invocation as a database error,
+as a successful rollback receipt, or authorization to try an
+alternate mutating tool to work around the restriction. Continue with
+available source-only CI, live read-only catalog/access audits and
+separately authorized protected signed release testing when a compatible
+environment becomes available.
+
+**Live production changes from this round: NONE.** Neither governor
+decisions nor Work-field grants exist in production; no original
+record, Auth session, ACL, reader, migration or deployment changed.
+Existing Gate 0 Source CI PASS / Database Custody CI PASS are
+not permission proofs.
