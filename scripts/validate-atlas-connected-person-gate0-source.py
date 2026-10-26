@@ -148,7 +148,7 @@ for authority in ("reality_access_self_api_v1",
                   "company_work_native_ledger_relevance",
                   "company_work_native_ledger_exact_source_v1",
                   "AND relevance.has_relevance IS TRUE",
-                  "NULL::text AS instructions",
+                  "connected_person_work_field_currently_approved_v1",
                   "'instructions',r.instructions",
                   "workRelevanceVerified',r.has_relevance",
                   "scheduleReadAcrossAllDates",
@@ -160,7 +160,7 @@ check("w.title,w.instructions,w.result_contract_key" not in my_work,
 check(not re.search(r"\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\b", sql_statements_only(my_work), re.I),
       "Original My Work cutover is only a held read-source function replacement")
 check("relevance.has_relevance IS TRUE" in my_work_checks and
-      "NULL::text AS instructions" in my_work_checks and
+      "connected_person_work_field_currently_approved_v1" in my_work_checks and
       "has_function_privilege" in my_work_checks,
       "Protected-clone original My Work postconditions missing")
 
@@ -180,7 +180,7 @@ for part in ("connected_person_company_work_today_self_api_v1(p_limit integer",
              "company_work_native_ledger_exact_source_v1",
              "a.assignee_membership_id IS NULL",
              "rel.attribution_state='active'",
-             "NULL::text AS instructions",
+             "connected_person_work_field_currently_approved_v1",
              "NULL::uuid AS source_id",
              "NULL::text AS source_type",
              "NULL::text AS source_date",
@@ -212,7 +212,7 @@ for required in ("connected_person_company_work_day_self_api_v1(p_date date)",
                  "p.plan_state='completed'",
                  "w.work_state='completed'",
                  "res.acceptance_decision",
-                 "'instructions',NULL::text",
+                 "connected_person_work_field_currently_approved_v1",
                  "NULL::text,",
                  "connected_person_company_work_day_v1"):
     check(required in dated_work,
@@ -227,6 +227,41 @@ check("has_function_privilege" in dated_work_checks and
 check(not re.search(r"\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\b",
                     sql_statements_only(dated_work), re.I),
       "Held dated Work may not mutate Work, permissions or source tables")
+
+# Governor approval is append-only, exact Person + Ledger + Work + field,
+# content-hash bound and automatically invalidated by scope/content changes.
+fields = read("connected_person_work_field_decisions_hold.sql")
+for field_guard in (
+    "CREATE TABLE atlas.connected_person_work_field_decision_events_v1",
+    "request_id uuid NOT NULL UNIQUE",
+    "decision IN ('allow','deny')",
+    "ENABLE ROW LEVEL SECURITY",
+    "connected_person_work_field_source_eligible_v1",
+    "connected_person_work_field_currently_approved_v1",
+    "v_access:=atlas.reality_access_self_api_v1()",
+    "principal_has_ledger_authority_v1",
+    "pg_catalog.sha256",
+    "pg_catalog.pg_advisory_xact_lock",
+    "p_request_id",
+    "valid_until",
+    "governor_principal_id",
+    "sourceFieldDecisionsEnforced",
+    "RETURN jsonb_build_object('ok',false,'code','not_found')",
+):
+    check(field_guard in fields, f"Exact native Work field grant safeguard absent: {field_guard}")
+check("atlas.organization_memberships" not in fields and
+      "atlas.farm_memberships" not in fields and
+      "employee_seat" not in fields.lower(),
+      "Native Person Work field rights must not depend on deprecated employee seats")
+check("GRANT EXECUTE ON FUNCTION\n public.connected_person_work_approved_fields_self_api_v1" in fields
+      and "TO authenticated;" in fields,
+      "Approved Work reader must have explicit authenticated bridge grant")
+strict = read("connected_person_work_read_candidate.sql")
+check("connected_person_work_field_currently_approved_v1" in strict,
+      "New narrow reader cannot leak unapproved Work title")
+for source_file in (my_work,native_today,dated_work):
+    check("'title')" in source_file and "'instructions')" in source_file,
+          "Every existing Work reader must respect independent source title/instruction decision")
 
 # Held legacy Worker Day retirement must never be applied without a positive
 # native Person Work/details/results substitute. This is only an ACL plan.
