@@ -56,6 +56,7 @@ DECLARE
  v_subject_id uuid;
  v_title text;
  v_instructions text;
+ v_result_contract text;
  v_child uuid;
  v_ordinal integer:=0;
  v_fingerprint text;
@@ -94,7 +95,9 @@ BEGIN
      RAISE EXCEPTION 'Work was already decomposed by a different decision.' USING ERRCODE='23505';
    END IF;
    SELECT coalesce(jsonb_agg(jsonb_build_object(
-      'workItemId',m.child_work_item_id,'subjectDomain',m.subject_domain,
+      'workItemId',m.child_work_item_id,'resultContractKey',(
+         SELECT w.result_contract_key FROM atlas.work_items w WHERE w.id=m.child_work_item_id
+       ),'subjectDomain',m.subject_domain,
       'subjectKind',m.subject_kind,'subjectId',m.subject_id)
      ORDER BY m.part_ordinal),'[]'::jsonb) INTO v_children
      FROM atlas.work_decomposition_members m WHERE m.group_id=v_group.id;
@@ -116,6 +119,25 @@ BEGIN
    v_subject_kind:=nullif(btrim(v_part->>'subjectKind'),'');
    v_title:=nullif(btrim(v_part->>'title'),'');
    v_instructions:=nullif(btrim(v_part->>'instructions'),'');
+   v_result_contract:=coalesce(nullif(btrim(v_part->>'resultContractKey'),''),
+     v_parent.result_contract_key);
+   -- Preserving existing manager acceptance is the default. Changing it
+   -- for one independently actionable part requires the governor's explicit
+   -- physical worker-attestation decision, not an inferred old task setting.
+   IF v_result_contract IS DISTINCT FROM v_parent.result_contract_key THEN
+     IF v_parent.result_contract_key<>'ordinary_company_work_manager_acceptance_v1'
+       OR v_result_contract<>'ordinary_company_work_worker_attestation_v1'
+       OR coalesce(v_part->>'confirmWorkerAttestationAuthority','')<>'true'
+       OR NOT EXISTS(
+          SELECT 1 FROM atlas.work_result_contract_policies p
+          WHERE p.contract_key=v_result_contract AND p.active
+            AND p.source_domain='organization'
+            AND p.acceptance_mode='worker_attestation'
+       ) THEN
+       RAISE EXCEPTION 'Original Work result authority change requires explicit authorized worker-attestation selection.'
+         USING ERRCODE='23514';
+     END IF;
+   END IF;
    IF v_title IS NULL OR length(v_title)>300 OR
       length(coalesce(v_instructions,''))>3000 OR
       nullif(v_part->>'subjectId','') IS NULL THEN
@@ -170,12 +192,14 @@ BEGIN
    v_subject_id:=(v_part->>'subjectId')::uuid;
    v_title:=btrim(v_part->>'title');
    v_instructions:=nullif(btrim(v_part->>'instructions'),'');
+   v_result_contract:=coalesce(nullif(btrim(v_part->>'resultContractKey'),''),
+     v_parent.result_contract_key);
    INSERT INTO atlas.work_items(
       organization_id,title,instructions,work_state,source_object_type,
       source_object_id,result_contract_key,created_by_user_id,stable_key,metadata)
    VALUES (
       p_organization_id,v_title,v_instructions,'open','work_decomposition',
-      v_parent.id,v_parent.result_contract_key,auth.uid(),
+      v_parent.id,v_result_contract,auth.uid(),
       'decomposition:'||v_parent.id::text||':'||v_ordinal::text,
       jsonb_build_object(
         'canonicalWorkDecompositionGroupId',v_group.id,
@@ -183,7 +207,10 @@ BEGIN
         'originalParentSourceType',v_parent.source_object_type,
         'originalParentSourceId',v_parent.source_object_id,
         'partOrdinal',v_ordinal,'notAnAssignment',true,
-        'originalResultContractRetained',true
+        'originalResultContractRetained',v_result_contract IS NOT DISTINCT FROM v_parent.result_contract_key,
+        'resultAuthoritySelectedByGovernor',v_result_contract,
+        'workerAttestationExplicit',v_result_contract='ordinary_company_work_worker_attestation_v1'
+          AND v_result_contract IS DISTINCT FROM v_parent.result_contract_key
       )
    ) RETURNING id INTO v_child;
    INSERT INTO atlas.work_decomposition_members(
@@ -202,7 +229,8 @@ BEGIN
       'original-canonical-work:'||v_parent.id::text,
       btrim(p_decision_reason),v_owner);
    v_children:=v_children||jsonb_build_array(jsonb_build_object(
-      'workItemId',v_child,'subjectDomain',v_subject_domain,
+      'workItemId',v_child,'resultContractKey',v_result_contract,
+      'subjectDomain',v_subject_domain,
       'subjectKind',v_subject_kind,'subjectId',v_subject_id));
  END LOOP;
  -- Stop the old combined Work from remaining an executable duplicate.
