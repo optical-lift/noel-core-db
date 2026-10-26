@@ -37,8 +37,9 @@ jobs:
           assert "supabase db dump --db-url" in src
           assert "candidate_sha:" in src
           assert src.count("${{") >= 16
-          for prohibited in ("supabase db push", "supabase db reset --linked", "gh pr merge",
-                             "supabase migration repair"):
+          for fragments in (("supabase"," db push"), ("supabase"," db reset --linked"),
+                            ("gh ","pr merge"), ("supabase migration"," repair")):
+              prohibited="".join(fragments)
               assert prohibited not in src, prohibited
           print("PASS untrusted PR gets no credential; owner issue runs only read-only snapshot and local clone")
           PY
