@@ -141,4 +141,35 @@ check("relevance.has_relevance IS TRUE" in my_work_checks and
       "has_function_privilege" in my_work_checks,
       "Protected-clone original My Work postconditions missing")
 
+# The OTHER already-shipped connected Person all-date Today source is also
+# directly callable. A narrow replacement My Work API is not a privacy fix
+# until these original public source routes are cut over together.
+native_today = read("connected_person_today_existing_reader_cutover_hold.sql")
+native_today_checks = read("connected_person_today_existing_reader_cutover_postconditions_hold.sql")
+check(native_today.count("CREATE OR REPLACE FUNCTION") == 1,
+      "Today cutover may replace only the original internal reader")
+check(native_today.count("BEGIN;") == 1 and native_today.count("COMMIT;") == 1,
+      "Today cutover must have one source transaction")
+for part in ("connected_person_company_work_today_self_api_v1(p_limit integer",
+             "reality_access_self_api_v1",
+             "person_has_native_ledger_connection_v1",
+             "company_work_native_ledger_relevance",
+             "company_work_native_ledger_exact_source_v1",
+             "a.assignee_membership_id IS NULL",
+             "rel.attribution_state='active'",
+             "NULL::text AS instructions",
+             "NULL::uuid AS source_id",
+             "NULL::text AS source_type",
+             "NULL::text AS source_date",
+             "connected_person_company_work_today_v1"):
+    check(part in native_today, f"Existing Person Today cutover missing {part}")
+for leak in ("w.title,w.instructions", "w.source_object_type source_type",
+             "w.source_object_id source_id"):
+    check(leak not in native_today, f"Today still directly returns private source fields: {leak}")
+check("company_work_native_ledger_relevance" in native_today_checks and
+      "has_function_privilege" in native_today_checks,
+      "Existing Today clone checks missing source and ACL constraints")
+check(not re.search(r"\\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\\b", native_today, re.I),
+      "Original Today cutover cannot write data, grant permissions or edit any table")
+
 print("PASS Gate 0 static source guards (NOT clone/signed privacy acceptance)")
