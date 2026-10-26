@@ -26,7 +26,8 @@ BEGIN
  v:=to_regprocedure('atlas.universal_home_v1(uuid,uuid,date,date)');
  IF v IS NULL THEN RAISE EXCEPTION 'Universal home missing'; END IF;
  SELECT pg_get_functiondef(v) INTO v_sql;
- IF (length(v_sql)-length(replace(v_sql, 'fm.role = ''owner''',''))) / length('fm.role = ''owner''') < 3
+ -- Two independent active-membership selection sites: preferred farm and loop.
+ IF (length(v_sql)-length(replace(v_sql, 'and fm.role = ''owner''',''))) / length('and fm.role = ''owner''') <> 2
    OR NOT has_function_privilege('authenticated',v,'EXECUTE')
  THEN RAISE EXCEPTION 'Universal home owner-only legacy farm selection not proven'; END IF;
 END;
