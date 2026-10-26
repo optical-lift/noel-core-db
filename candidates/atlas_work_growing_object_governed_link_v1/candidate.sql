@@ -3,6 +3,168 @@
 -- All subject values are data-driven; no Elm/Anna-specific keys in executable SQL.
 BEGIN;
 
+-- A crop source must be explicitly admitted to ONE native Ledger context.
+-- Sharing an Organization or holding a generic operating seat is insufficient.
+CREATE TABLE atlas.farm_crop_ledger_custody_v1 (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  farm_id uuid NOT NULL REFERENCES atlas.farms(id),
+  ledger_id uuid NOT NULL REFERENCES ledger.ledgers(id),
+  authority_domain text NOT NULL
+    DEFAULT 'farm_crop_operations'
+    CHECK (authority_domain='farm_crop_operations'),
+  custody_state text NOT NULL DEFAULT 'active'
+    CHECK (custody_state IN ('active','ended')),
+  established_by_principal_id uuid NOT NULL REFERENCES atlas.principals(id),
+  adjudication jsonb NOT NULL CHECK (jsonb_typeof(adjudication)='object'),
+  established_at timestamptz NOT NULL DEFAULT now(),
+  ended_at timestamptz,
+  CHECK (
+    (custody_state='active' AND ended_at IS NULL)
+    OR (custody_state='ended' AND ended_at IS NOT NULL)
+  )
+);
+CREATE UNIQUE INDEX farm_crop_ledger_custody_one_active_v1
+  ON atlas.farm_crop_ledger_custody_v1(farm_id)
+  WHERE custody_state='active';
+CREATE INDEX farm_crop_ledger_custody_exact_ledger_active_v1
+  ON atlas.farm_crop_ledger_custody_v1(ledger_id,farm_id)
+  WHERE custody_state='active';
+ALTER TABLE atlas.farm_crop_ledger_custody_v1 ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON atlas.farm_crop_ledger_custody_v1
+  FROM PUBLIC,anon,authenticated;
+
+CREATE FUNCTION atlas.establish_farm_crop_ledger_custody_self_api_v1(
+  p_farm_id uuid,p_ledger_id uuid,p_review jsonb
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $custody$
+DECLARE
+  v_principal uuid := atlas.current_principal_id_v1();
+  v_org uuid;
+  v_id uuid;
+  v_current_ledger uuid;
+BEGIN
+  IF auth.uid() IS NULL OR v_principal IS NULL
+     OR NOT coalesce(atlas.principal_has_ledger_authority_v1(
+          v_principal,p_ledger_id),false)
+  THEN
+    RETURN jsonb_build_object('ok',false,'code','not_found');
+  END IF;
+  IF p_review IS NULL OR jsonb_typeof(p_review)<>'object'
+     OR p_review->>'cropLedgerBoundaryReviewed'<>'true'
+     OR p_review->>'authorityDomain'<>'farm_crop_operations'
+  THEN
+    RETURN jsonb_build_object('ok',false,'code','review_required');
+  END IF;
+
+  SELECT f.organization_id INTO v_org
+  FROM atlas.farms f WHERE f.id=p_farm_id FOR UPDATE;
+  IF v_org IS NULL OR NOT EXISTS (
+    SELECT 1 FROM atlas.ledger_organization_participations lop
+    JOIN ledger.ledgers nl ON nl.id=lop.ledger_id
+    WHERE lop.ledger_id=p_ledger_id AND lop.organization_id=v_org
+      AND lop.status='active' AND lop.ended_at IS NULL
+      AND lop.participation_kind IN ('governing','operating')
+      AND nl.ledger_state='active' AND nl.retired_at IS NULL
+  ) THEN
+    RETURN jsonb_build_object('ok',false,'code','not_found');
+  END IF;
+
+  SELECT id,ledger_id INTO v_id,v_current_ledger
+  FROM atlas.farm_crop_ledger_custody_v1 c
+  WHERE c.farm_id=p_farm_id AND c.custody_state='active'
+  FOR UPDATE;
+  IF v_id IS NOT NULL THEN
+    IF v_current_ledger=p_ledger_id THEN
+      RETURN jsonb_build_object(
+        'ok',true,'custodyId',v_id,'created',false
+      );
+    END IF;
+    RETURN jsonb_build_object('ok',false,'code','custody_conflict');
+  END IF;
+  INSERT INTO atlas.farm_crop_ledger_custody_v1(
+    farm_id,ledger_id,established_by_principal_id,adjudication
+  ) VALUES(
+    p_farm_id,p_ledger_id,v_principal,
+    jsonb_build_object(
+      'decisionKind','signed_farm_crop_custody_review_v1',
+      'authorityDomain','farm_crop_operations',
+      'source','governed_principal_review',
+      'reviewConfirmed',true
+    )
+  ) RETURNING id INTO v_id;
+  RETURN jsonb_build_object(
+    'ok',true,'custodyId',v_id,'created',true,
+    'confersPersonAccess',false
+  );
+END;
+$custody$;
+
+CREATE FUNCTION atlas.end_farm_crop_ledger_custody_self_api_v1(
+  p_farm_id uuid,p_ledger_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $end_custody$
+DECLARE
+  v_principal uuid:=atlas.current_principal_id_v1();
+  v_affected integer;
+BEGIN
+  IF auth.uid() IS NULL OR v_principal IS NULL
+     OR NOT coalesce(atlas.principal_has_ledger_authority_v1(
+       v_principal,p_ledger_id),false)
+  THEN
+    RETURN jsonb_build_object('ok',false,'code','not_found');
+  END IF;
+  UPDATE atlas.farm_crop_ledger_custody_v1
+  SET custody_state='ended',ended_at=now()
+  WHERE farm_id=p_farm_id AND ledger_id=p_ledger_id
+    AND custody_state='active';
+  GET DIAGNOSTICS v_affected=ROW_COUNT;
+  RETURN jsonb_build_object(
+    'ok',v_affected=1,'ended',v_affected=1
+  );
+END;
+$end_custody$;
+
+REVOKE ALL ON FUNCTION
+  atlas.establish_farm_crop_ledger_custody_self_api_v1(uuid,uuid,jsonb)
+  FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION
+  atlas.end_farm_crop_ledger_custody_self_api_v1(uuid,uuid)
+  FROM PUBLIC,anon,authenticated;
+
+CREATE FUNCTION public.establish_farm_crop_ledger_custody_self_api_v1(
+  p_farm_id uuid,p_ledger_id uuid,p_review jsonb
+) RETURNS jsonb
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path='pg_catalog'
+AS $wrapper_custody$
+  SELECT atlas.establish_farm_crop_ledger_custody_self_api_v1(
+    p_farm_id,p_ledger_id,p_review
+  );
+$wrapper_custody$;
+CREATE FUNCTION public.end_farm_crop_ledger_custody_self_api_v1(
+  p_farm_id uuid,p_ledger_id uuid
+) RETURNS jsonb
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path='pg_catalog'
+AS $wrapper_end_custody$
+  SELECT atlas.end_farm_crop_ledger_custody_self_api_v1(
+    p_farm_id,p_ledger_id
+  );
+$wrapper_end_custody$;
+REVOKE ALL ON FUNCTION
+  public.establish_farm_crop_ledger_custody_self_api_v1(uuid,uuid,jsonb)
+  FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION
+  public.end_farm_crop_ledger_custody_self_api_v1(uuid,uuid)
+  FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION
+  public.establish_farm_crop_ledger_custody_self_api_v1(uuid,uuid,jsonb)
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION
+  public.end_farm_crop_ledger_custody_self_api_v1(uuid,uuid)
+  TO authenticated;
+
+
 ALTER TABLE atlas.work_item_context_links
   DROP CONSTRAINT work_item_context_links_subject_pair_v1;
 ALTER TABLE atlas.work_item_context_links
@@ -66,6 +228,11 @@ BEGIN
       ON g.id=NEW.subject_id
     JOIN atlas.farms f
       ON f.id=g.farm_id AND f.id=t.farm_id
+    JOIN atlas.farm_crop_ledger_custody_v1 custody
+      ON custody.farm_id=f.id
+     AND custody.ledger_id=v_ledger
+     AND custody.custody_state='active'
+     AND custody.ended_at IS NULL
     JOIN atlas.ledger_organization_participations lop
       ON lop.organization_id=w.organization_id
      AND lop.organization_id=f.organization_id
@@ -261,6 +428,9 @@ BEGIN
        AND lop.ledger_id=p_ledger_id
        AND lop.status='active' AND lop.ended_at IS NULL
        AND lop.participation_kind IN ('governing','operating')
+      JOIN atlas.farm_crop_ledger_custody_v1 custody
+        ON custody.farm_id=f.id AND custody.ledger_id=p_ledger_id
+       AND custody.custody_state='active' AND custody.ended_at IS NULL
       JOIN ledger.ledgers nl ON nl.id=lop.ledger_id
        AND nl.ledger_state='active' AND nl.retired_at IS NULL
       WHERE f.id=v_legacy.farm_id
