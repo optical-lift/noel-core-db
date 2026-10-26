@@ -140,7 +140,8 @@ REVOKE ALL ON FUNCTION
 CREATE OR REPLACE FUNCTION atlas.governor_decide_connected_person_work_field_self_api_v1(
  p_ledger_id uuid,p_work_item_id uuid,p_person_entity_id uuid,
  p_field_key text,p_decision text,p_reason text,
- p_request_id uuid,p_valid_until timestamptz DEFAULT NULL
+ p_request_id uuid,p_expected_value_sha256 text DEFAULT NULL,
+ p_valid_until timestamptz DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
 AS $decide$
 DECLARE
@@ -157,7 +158,10 @@ BEGIN
    OR p_field_key IS NULL OR p_field_key NOT IN ('title','instructions')
    OR p_decision IS NULL OR p_decision NOT IN ('allow','deny')
    OR length(btrim(coalesce(p_reason,''))) NOT BETWEEN 12 AND 1200
-   OR (p_decision='deny' AND p_valid_until IS NOT NULL)
+   OR (p_decision='deny' AND (p_valid_until IS NOT NULL OR
+       p_expected_value_sha256 IS NOT NULL))
+   OR (p_decision='allow' AND (p_expected_value_sha256 IS NULL OR
+       p_expected_value_sha256 !~ '^[0-9a-f]{64}$'))
    OR (p_decision='allow' AND p_valid_until IS NOT NULL
        AND p_valid_until<=statement_timestamp())
  THEN
@@ -191,6 +195,7 @@ BEGIN
     AND v_existing.decision=p_decision
     AND v_existing.reason=p_reason
     AND v_existing.valid_until IS NOT DISTINCT FROM p_valid_until
+    AND v_existing.approved_value_sha256 IS NOT DISTINCT FROM p_expected_value_sha256
     AND v_existing.governor_principal_id=v_governor
    THEN
      RETURN jsonb_build_object('ok',true,
@@ -235,6 +240,9 @@ BEGIN
  IF p_decision='allow' THEN
    v_hash:=pg_catalog.encode(pg_catalog.sha256(
      pg_catalog.convert_to(v_field_value,'UTF8')),'hex');
+   IF v_hash IS DISTINCT FROM p_expected_value_sha256 THEN
+     RETURN jsonb_build_object('ok',false,'code','not_found');
+   END IF;
  END IF;
  INSERT INTO atlas.connected_person_work_field_decision_events_v1 (
    request_id,ledger_id,organization_id,work_item_id,
@@ -255,27 +263,28 @@ END;
 $decide$;
 REVOKE ALL ON FUNCTION
  atlas.governor_decide_connected_person_work_field_self_api_v1(
- uuid,uuid,uuid,text,text,text,uuid,timestamptz)
+ uuid,uuid,uuid,text,text,text,uuid,text,timestamptz)
  FROM PUBLIC,anon,authenticated;
 
 CREATE OR REPLACE FUNCTION public.governor_decide_connected_person_work_field_self_api_v1(
  p_ledger_id uuid,p_work_item_id uuid,p_person_entity_id uuid,
  p_field_key text,p_decision text,p_reason text,
- p_request_id uuid,p_valid_until timestamptz DEFAULT NULL
+ p_request_id uuid,p_expected_value_sha256 text DEFAULT NULL,
+ p_valid_until timestamptz DEFAULT NULL
 ) RETURNS jsonb LANGUAGE sql VOLATILE SECURITY DEFINER
 SET search_path TO ''
 AS $bridge$
  SELECT atlas.governor_decide_connected_person_work_field_self_api_v1(
   p_ledger_id,p_work_item_id,p_person_entity_id,p_field_key,
-  p_decision,p_reason,p_request_id,p_valid_until)
+  p_decision,p_reason,p_request_id,p_expected_value_sha256,p_valid_until)
 $bridge$;
 REVOKE ALL ON FUNCTION
  public.governor_decide_connected_person_work_field_self_api_v1(
- uuid,uuid,uuid,text,text,text,uuid,timestamptz)
+ uuid,uuid,uuid,text,text,text,uuid,text,timestamptz)
  FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION
  public.governor_decide_connected_person_work_field_self_api_v1(
- uuid,uuid,uuid,text,text,text,uuid,timestamptz)
+ uuid,uuid,uuid,text,text,text,uuid,text,timestamptz)
  TO authenticated;
 
 -- Executed by a signed canonical connected Person using ONLY their own
