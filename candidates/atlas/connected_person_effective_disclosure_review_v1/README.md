@@ -333,3 +333,101 @@ connected-Person authority.
 **No production work is changed.** The governor preview is a HOLD
 candidate only. Bed 3/4 real Work is still unsplit; worker-approved
 instructions and completion parity remain necessary before release.
+
+## Exact governor Work-field decisions and source-backed recipient details (2026-10-26)
+
+A **HELD, clone-only** next-stage authority component is staged in
+`connected_person_work_field_decisions_hold.sql`; a matching
+`connected_person_work_field_decisions_postconditions_hold.sql`
+verifies its schema, private/public RPC boundaries, append-only
+event history, live-session source and content-hash enforcement.
+
+This continues the **existing governor-only Effective Disclosure Review**
+and original canonical Work engine. It does not introduce an employee
+seat, organization-member credentials, blanket Ledger disclosure,
+crop-bed data permissions, duplicated Work identity or a second
+notebook permission framework.
+
+**Decision source:** `atlas.connected_person_work_field_decision_events_v1`
+is an append-only, direct-role-inaccessible, RLS-enabled private
+event table. A decision identifies exact native Ledger, original
+organization + Work, target canonical Person, **one field**
+(`title` or `instructions`), `allow` or `deny`, the root-governor
+principal and signed Auth actor, audit reason, a unique request ID,
+optional expiry, and a SHA-256 fingerprint of the exact content
+approved. `deny` appends a revocation with no content hash. A
+monotonic `decision_sequence` establishes latest-wins order under a
+per-field advisory lock; older decisions and source Work remain.
+A trigger prevents event UPDATE/DELETE, including by future
+application code. Existing live data has **no approvals** from this
+not-yet-installed table.
+
+**Governor write:** `public.governor_decide_connected_person_work_field_self_api_v1`
+requires a genuine current GoTrue session, correct canonical Person,
+a current original root-governing principal for the **exact Ledger**,
+and the target's exact current original Work allocation + Ledger Seat
++ verified Work-to-Ledger relevance for any approval. It requires
+`p_expected_value_sha256` from the governor's viewed candidate; if the
+Work text changes before approval, the command **fails closed** rather
+than implicitly approving new text. It is idempotent by `request_id`
+and will not replay an ID across a different field/scope. Signed
+revocation can be recorded even after the Seat or allocation ends,
+provided a previous exact decision exists.
+
+**Existing governor review:** `candidate.sql` now projects up to
+50 exact active/completed Work field candidates with the original
+`titleCandidate`/`instructionsCandidate`, their current SHA-256,
+and current last-decision status: `not_evaluated`, `approved`,
+`denied`, `expired` or `source_changed`. Decision IDs and the
+presence of additional rows are included. A candidate remains only
+a governor inspection input. Full effective-disclosure verification
+stays incomplete; no permission approval is inferred from the
+governor's ability to inspect it.
+
+**Recipient read:** `public.connected_person_work_approved_fields_self_api_v1`
+derives the recipient from the **current session**, never a caller-supplied
+Person. It requires current exact original Work allocation, native
+Ledger connection, relevant original Work evidence, and the
+monotonically latest, unexpired `allow` with unchanged source text for
+each returned field. It returns **only permitted keys** under
+`fields`; if no approved field remains it responds with uniform
+`not_found`. It does not expose source UUIDs, full Ledger, crop
+records, historical results, or unrelated Work.
+
+**Alternate original Work readers:** the four *held* Work readers
+(new narrow Work, existing My Work, original Today, original dated Work)
+now all require the same live source-approved **title** decision to
+list a Work item, with original My Work/Today/dated Work independently
+projecting `instructions` only under that field's own current grant.
+Legacy Worker Day farm-hand read/refresh/report/home remain
+**separate retirement blockers**, not silently superseded by this grant.
+
+**Important implementation order for a disposable full-schema clone:**
+existing original Ledger/Work/schema and synthetic fixtures; then the
+new `connected_person_work_field_decisions_hold.sql` authority table
+and functions; then `candidate.sql` governor review and the held
+same-signature original Work reader cutovers + new narrow reader;
+then clone postconditions and independent GoTrue/PostgREST signed tests.
+Do **not** install the other source readers before the field helper
+exists. This is a test plan, not production migration approval.
+
+The expanded signed fixture now covers zero-permission default,
+root-governor-only review, mismatched SHA denial, worker cannot
+self-grant, title-only disclosure, separate instructions authorization,
+other Ledger/Work/Person denial, newly edited instructions being
+withheld, reapproval of the new exact text, field-specific revocation,
+original My Work/Today/dated Work parity, immutable decision history,
+and ended-Seat/work-relevance/GoTrue-session revocation. **These signed
+tests remain UNRUN** on a protected full-schema local clone; static
+GitHub CI checks do not establish real signed reachability or
+privacy certification.
+
+**Outstanding stop conditions:** govern historical completion/result/
+acceptance fields separately; prove real worker Done reporting,
+permission-aware Index/Event/old farm read/media/cache exposure,
+and all original alternate SQL/HTTP routes. Connect the reviewer
+and recipient views into the universal Atlas notebook (not
+hardcoded Elm), then split the real Bed 3 and Bed 4 Work preserving
+the combined task's original history. Governor approvals themselves
+are human decisions, not automatically assigned. Nothing here
+was migrated, deployed or granted in production.
