@@ -14,6 +14,7 @@ SET search_path TO ''
 AS $review$
 DECLARE
   v_principal_id uuid;
+  v_actor_access jsonb;
   v_seat_id uuid;
   v_as_of timestamptz := statement_timestamp();
 BEGIN
@@ -22,6 +23,16 @@ BEGIN
   IF auth.uid() IS NULL
      OR p_ledger_id IS NULL
      OR p_person_entity_id IS NULL
+  THEN
+    RETURN jsonb_build_object('ok',false,'code','not_found');
+  END IF;
+
+  -- Reuse the live session + canonical Person membrane. An unexpired JWT
+  -- whose GoTrue session has been revoked is NOT a valid governor sign-in.
+  v_actor_access := atlas.reality_access_self_api_v1();
+  IF (v_actor_access->>'state') NOT IN ('ready','personal_atlas_required')
+     OR (v_actor_access->'person'->>'id')
+        IS DISTINCT FROM atlas.current_person_id_v1()::text
   THEN
     RETURN jsonb_build_object('ok',false,'code','not_found');
   END IF;
