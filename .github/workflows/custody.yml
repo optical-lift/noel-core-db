@@ -32,6 +32,10 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_universal_person_authority.py'
           python3 scripts/check-universal-person-authority.py
 
+      - name: Validate held Atlas original Work source candidates
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/check-atlas-universal-original-work-candidates.py
+
       - name: Verify WNPH product schema membrane
         run: bash scripts/check-wnph-membrane.sh
 
