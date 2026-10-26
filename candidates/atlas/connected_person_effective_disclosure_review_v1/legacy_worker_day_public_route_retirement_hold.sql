@@ -2,7 +2,8 @@
 -- These APIs are currently callable under the former farm-hand/employee
 -- authority model. Revoking them before source-enforced Person Work reads,
 -- approved instructions, assignment/results parity, original history and
--- regression evidence will break legitimate existing worker functionality.
+-- independent positive worker signed acceptance will break legitimate existing
+-- worker functionality; no revocation may precede those source receipts.
 --
 -- This is an explicit catalog ACL cutover option for the existing authorization
 -- owner in Noel #2255/#2263, NOT a standalone migration or release instruction.
