@@ -25,6 +25,22 @@ revoke all on atlas.ledger_event_progress_notes_v1 from public,anon,authenticate
 comment on table atlas.ledger_event_progress_notes_v1 is
  'Append-only original Event progress observations; not task outcomes, messages, or approvals. Read and append only via exact-Event signed Person APIs.';
 
+-- Preserve the entire longitudinal record. Corrections are later observations,
+-- not row replacement or deletion, including from elevated batch carriers.
+create function atlas.reject_ledger_event_progress_mutation_v1()
+returns trigger language plpgsql set search_path to ''
+as $tr$
+begin
+ raise exception 'Original Event progress is append-only; record a new corrective observation'
+   using errcode='23514';
+end
+$tr$;
+revoke all on function atlas.reject_ledger_event_progress_mutation_v1()
+ from public,anon,authenticated;
+create trigger ledger_event_progress_notes_append_only_v1
+ before update or delete on atlas.ledger_event_progress_notes_v1
+ for each row execute function atlas.reject_ledger_event_progress_mutation_v1();
+
 create function atlas.record_ledger_event_progress_self_api_v1(
   p_organization_id uuid,p_ledger_id uuid,p_occurrence_id uuid,
   p_work_item_id uuid,p_body text,p_source_action_id text
