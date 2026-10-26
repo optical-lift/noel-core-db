@@ -1,6 +1,59 @@
 BEGIN;
 -- Requires original_work_decomposition + native guarded reader extensions.
 -- Assigns ONE EXISTING canonical Work ID; never creates or imports another.
+CREATE OR REPLACE FUNCTION atlas.owner_original_split_work_part_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid
+) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+DECLARE v_owner uuid;v_work atlas.work_items%rowtype;
+ v_group atlas.work_decomposition_groups%rowtype;
+ v_subject atlas.work_decomposition_members%rowtype;
+BEGIN
+ v_owner:=atlas.company_work_native_ledger_owner_self_v1(
+    p_organization_id,p_ledger_id);
+ SELECT * INTO v_work FROM atlas.work_items
+ WHERE id=p_work_item_id AND organization_id=p_organization_id;
+ IF v_work.id IS NULL OR v_work.source_object_type<>'work_decomposition'
+    OR v_work.work_state<>'open' THEN
+  RAISE EXCEPTION 'Open original split Work unavailable.' USING ERRCODE='42501';
+ END IF;
+ SELECT m.* INTO v_subject
+ FROM atlas.work_decomposition_members m
+ JOIN atlas.work_decomposition_groups g ON g.id=m.group_id
+ WHERE m.child_work_item_id=v_work.id
+   AND g.authorized_ledger_id=p_ledger_id
+   AND g.parent_work_item_id=v_work.source_object_id;
+ IF v_subject.id IS NULL OR NOT EXISTS (
+  SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+  WHERE rel.work_item_id=v_work.id AND rel.organization_id=p_organization_id
+   AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
+ ) THEN RAISE EXCEPTION 'Exact original Work/Ledger relevance unavailable.'
+    USING ERRCODE='42501';
+ END IF;
+ RETURN jsonb_build_object(
+   'ok',true,'contractVersion','original_split_work_part_v1',
+   'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+   'workItemId',v_work.id,'groupId',v_subject.group_id,
+   'subjectDomain',v_subject.subject_domain,
+   'subjectKind',v_subject.subject_kind,'subjectId',v_subject.subject_id,
+   'isOneOriginalWork',true,'workerCanSelfAttest',
+   v_work.result_contract_key='ordinary_company_work_worker_attestation_v1');
+END;
+$function$;
+REVOKE ALL ON FUNCTION atlas.owner_original_split_work_part_self_api_v1(
+ uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
+CREATE OR REPLACE FUNCTION public.owner_original_split_work_part_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid
+) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
+AS $function$
+ SELECT atlas.owner_original_split_work_part_self_api_v1(
+ p_organization_id,p_ledger_id,p_work_item_id);
+$function$;
+REVOKE ALL ON FUNCTION public.owner_original_split_work_part_self_api_v1(
+ uuid,uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.owner_original_split_work_part_self_api_v1(
+ uuid,uuid,uuid) TO authenticated;
+
 CREATE OR REPLACE FUNCTION atlas.owner_direct_assign_existing_original_work_self_api_v1(
  p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,
  p_target_person_id uuid,p_service_date date,p_action_id uuid,p_reason text
