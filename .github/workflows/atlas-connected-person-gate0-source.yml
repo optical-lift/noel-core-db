@@ -1,0 +1,26 @@
+name: Atlas connected Person Gate 0 source guard
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-connected-person-gate0-source.yml'
+      - 'scripts/validate-atlas-connected-person-gate0-source.py'
+      - 'candidates/atlas/connected_person_effective_disclosure_review_v1/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/atlas-connected-person-gate0-source.yml'
+      - 'scripts/validate-atlas-connected-person-gate0-source.py'
+      - 'candidates/atlas/connected_person_effective_disclosure_review_v1/**'
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate source only, not authorization or release
+        run: |
+          python3 -m py_compile scripts/validate-atlas-connected-person-gate0-source.py
+          python3 scripts/validate-atlas-connected-person-gate0-source.py
