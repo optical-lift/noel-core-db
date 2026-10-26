@@ -2,6 +2,9 @@ name: Atlas Program notes premerge signed clone
 on:
   issues:
     types: [edited, reopened]
+  pull_request:
+    paths:
+      - ".github/workflows/atlas-program-notes-premerge-clone.yml"
 permissions:
   contents: read
   packages: read
@@ -9,6 +12,37 @@ concurrency:
   group: atlas-program-author-note-premerge-proof
   cancel-in-progress: false
 jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check source-only, owner-only, secrets-after-snapshot boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-program-notes-premerge-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path(".github/workflows/atlas-program-notes-premerge-clone.yml").read_text()
+          assert "github.event.issue.author_association == 'OWNER'" in src
+          assert "environment: production" in src
+          assert src.index("name: Snapshot production roles and user schema") < src.index("name: Checkout exact private-safe candidate source")
+          assert "supabase migration new atlas_personal_program_author_annotations_v1" in src
+          assert "signed-program-author-notes-summary.txt" in src
+          assert "supabase db dump --db-url" in src
+          assert "candidate_sha:" in src
+          assert src.count("${{") >= 16
+          for prohibited in ("supabase db push", "supabase db reset --linked", "gh pr merge",
+                             "supabase migration repair"):
+              assert prohibited not in src, prohibited
+          print("PASS untrusted PR gets no credential; owner issue runs only read-only snapshot and local clone")
+          PY
+
   validate:
     if: >-
       github.event.issue.state == 'open' &&
