@@ -56,7 +56,9 @@ for source_guard in ("preliminaryWorkFieldReview",
                      "titleCandidateSha256",
                      "instructionsCandidateSha256",
                      "title_dec.id",
-                     "instructions_dec.id"):
+                     "instructions_dec.id",
+                     "ORDER BY e.decision_sequence DESC LIMIT 1",
+                     "connected_person_work_field_source_eligible_v1"):
     check(source_guard in review,
           f"Preliminary governor-only Work field review missing source guard: {source_guard}")
 check("preliminaryWorkFieldReview" in review_tests and
@@ -255,6 +257,9 @@ for field_guard in (
     "p_request_id",
     "p_expected_value_sha256",
     "v_hash IS DISTINCT FROM p_expected_value_sha256",
+    "decision_sequence bigint GENERATED ALWAYS AS IDENTITY UNIQUE",
+    "ORDER BY e.decision_sequence DESC",
+    "approved_value_sha256",
     "connected_person_work_field_decisions_append_only_v1",
     "valid_until",
     "governor_principal_id",
