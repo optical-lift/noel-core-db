@@ -38,6 +38,10 @@ BEGIN
   FROM ledger.seats s
   JOIN ledger.ledgers l ON l.id=s.ledger_id
     AND l.ledger_state='active' AND l.retired_at IS NULL
+  JOIN reality.entities subject_person
+    ON subject_person.id=s.person_entity_id
+    AND subject_person.entity_kind='person'
+    AND subject_person.identity_state='canonical'
   WHERE s.ledger_id=p_ledger_id
     AND s.person_entity_id=p_person_entity_id
     AND s.seat_state='active' AND s.ended_at IS NULL
