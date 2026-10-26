@@ -23,6 +23,7 @@ BEGIN
   v_program,v_version,'W1-A','Read the first',
   'A private source annotation.','isolate-create-note-001');
  IF v_replay->>'noteId'<>v_note_id::text OR v_replay->>'replay'<>'true'
+ OR v_replay->>'visibility'<>'author_private'
  THEN RAISE EXCEPTION 'Idempotent create did not identify original note'; END IF;
  BEGIN
   PERFORM public.personal_program_author_note_create_self_api_v1(
@@ -57,6 +58,7 @@ BEGIN
   v_program,v_note_id,1,
   'Author revised note words.','resolved','isolate-revise-note-001');
  IF v_replay->>'replay'<>'true' OR v_replay->>'revision'<>'2'
+ OR v_replay->>'visibility'<>'author_private'
  THEN RAISE EXCEPTION 'Idempotent revise replay failed'; END IF;
  BEGIN
   PERFORM public.personal_program_author_note_revise_self_api_v1(
