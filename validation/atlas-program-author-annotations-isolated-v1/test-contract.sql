@@ -203,3 +203,36 @@ BEGIN
 END;
 $test$;
 ROLLBACK;
+
+
+-- A note with over fifty revisions still has full append-only event custody.
+-- The reader explicitly reports that the returned per-note history is partial.
+INSERT INTO atlas.personal_program_author_note_events
+ (note_id,revision,program_id,component_key,anchor_version_id,
+  anchor_excerpt,body,standing,actor_auth_user_id,request_key,created_at)
+SELECT pg_catalog.current_setting('test.author_note_id')::uuid,
+ seq,'61000000-0000-4000-8000-000000000201'::uuid,
+ 'W1-A','61000000-0000-4000-8000-000000000301'::uuid,
+ 'Read the first','Historical note revision '||seq::text,'open',
+ '61000000-0000-4000-8000-000000000001'::uuid,
+ 'isolate-historical-note-revision-'||seq::text,
+ timestamptz '2033-01-01T00:00:00Z'+seq*interval '1 second'
+FROM pg_catalog.generate_series(4,52) AS seq;
+BEGIN;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claim.sub='61000000-0000-4000-8000-000000000001';
+DO $test$
+DECLARE v_read jsonb;
+BEGIN
+ v_read:=public.personal_program_author_notes_read_self_api_v1(
+  '61000000-0000-4000-8000-000000000201');
+ IF v_read#>>'{items,0,revision}'<>'52'
+  OR v_read#>>'{items,0,historyTruncated}'<>'true'
+  OR pg_catalog.jsonb_array_length(v_read#>'{items,0,history}')<>50
+  OR v_read#>>'{items,0,history,0,revision}'<>'3'
+  OR v_read#>>'{items,0,history,49,revision}'<>'52'
+  OR v_read#>>'{items,1,historyTruncated}'<>'false'
+ THEN RAISE EXCEPTION 'Partial per-note history was presented as complete'; END IF;
+END;
+$test$;
+ROLLBACK;
