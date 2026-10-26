@@ -26,7 +26,7 @@ BEGIN
   OR v_def NOT LIKE '%p.plan_state=%'
   OR v_def NOT LIKE '%w.work_state=%'
   OR v_def NOT LIKE '%res.acceptance_decision%'
-  OR v_def NOT LIKE '%NULL::text%'
+  OR v_def NOT LIKE '%connected_person_work_field_currently_approved_v1%'
   OR v_def NOT LIKE '%connected_person_company_work_day_v1%' THEN
   RAISE EXCEPTION 'Dated Work lost completed/active original identity or source deny';
  END IF;
