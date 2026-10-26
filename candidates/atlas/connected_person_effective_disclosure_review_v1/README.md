@@ -274,3 +274,62 @@ outsider/same-organization different-Ledger, past participant, ended
 Seat and revoked-session tests; verify Legacy Farm, Index, Event, Today
 and history bypass closure; only then prepare authorized release and
 rollback. No production schema, grants, app, Work or user data changed.
+
+## Governor field-review inputs (held; not a permission decision)
+
+The existing `candidate.sql` governor-only
+`connected_person_effective_disclosure_review_self_api_v1(uuid,uuid)`
+now includes a bounded `preliminaryWorkFieldReview` section *after* its
+existing real-session, exact root-governing principal, and canonical
+active target Ledger Seat guards. This was added to the original
+unfinished Effective Disclosure Review; it is NOT a new authorization
+system or a parallel permission API.
+
+It identifies **up to 50** original active or completed Work allocations
+for the exact canonical Person and Ledger, and only when the existing
+source-relevance record is active and owner/participant attested or
+source verified against `company_work_native_ledger_exact_source_v1`.
+The governor can inspect exact `titleCandidate` and
+`instructionsCandidate` from the Work record and select which fields
+still need to be adjudicated. The JSON explicitly labels each field
+`not_evaluated`, provides `hasMoreCandidateWork` when the preview
+has more than 50 candidates, and marks each candidate
+`candidateIsNotAnEffectiveDisclosureGrant:true`. No farm crop/zone/
+history/attachment record is joined into this field preview.
+
+This is NOT a list of what the Person currently sees. In particular:
+`verificationStatus` remains `verification_incomplete`;
+`mayCertifyNonDisclosure` remains false; no source grants or
+exclusions are created; no permission writer or recipient preview
+exists; `effectiveExposure.actualReadableFields` remains NULL. No
+work title or instruction is newly visible to the connected Person.
+The governor sees source text as **decision input only**.
+
+The protected-clone `postconditions.sql` and static source validator
+now check the role/session guards, original Ledger-relevance filter,
+bounded 51-row inspection, and lack of permission certification.
+The genuine GoTrue synthetic signed test now places a fictional
+private Work instruction into the **disposable clone**, asserts the
+root governor's review sees the exact candidate and no false
+field approval, and checks independent worker, outsider, wrong
+Ledger, missing Seat and revoked-session denial. It separately checks
+the current original My Work / Today / dated Work read sources do
+not return that instruction. These tests have NOT been executed in
+a disposable clone yet; structural GitHub CI is not a signed receipt.
+
+**Next actual authority build still required:** source-owned,
+root-governor-approved exact Work+field decisions (title and
+instructions independently), explicit Person/Ledger scope,
+expiry/revocation and original Work history, plus the signed
+recipient view. The existing legacy `semantic_exposure_envelope_v1`
+does use policy and grant structures, but checks old
+`organization_memberships`, credential rows and
+`audience_kind='organization_member'`. It cannot directly serve a
+native `ledger.seats`/canonical-Person recipient without
+reintroducing employee/membership identity. Do not silently map
+an old organization-member exposure grant to the new
+connected-Person authority.
+
+**No production work is changed.** The governor preview is a HOLD
+candidate only. Bed 3/4 real Work is still unsplit; worker-approved
+instructions and completion parity remain necessary before release.
