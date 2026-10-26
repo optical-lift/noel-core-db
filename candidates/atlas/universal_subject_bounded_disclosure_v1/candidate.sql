@@ -20,6 +20,20 @@ CREATE TABLE atlas.subject_disclosure_decision_events_v1 (
    subject_domain='spatial' AND subject_kind='growing_object'
  )
 );
+CREATE OR REPLACE FUNCTION atlas.block_subject_disclosure_mutation_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $function$
+BEGIN
+ RAISE EXCEPTION 'Original Subject disclosure decisions are append-only.'
+ USING ERRCODE='42501';
+END;
+$function$;
+REVOKE ALL ON FUNCTION atlas.block_subject_disclosure_mutation_v1()
+ FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER subject_disclosure_append_only_v1
+ BEFORE UPDATE OR DELETE ON atlas.subject_disclosure_decision_events_v1
+ FOR EACH ROW EXECUTE FUNCTION atlas.block_subject_disclosure_mutation_v1();
+
 CREATE INDEX subject_disclosure_current_lookup_v1
  ON atlas.subject_disclosure_decision_events_v1(
  ledger_id,target_person_id,subject_domain,subject_kind,subject_id,
@@ -76,8 +90,14 @@ BEGIN
    RAISE EXCEPTION 'Original Subject unavailable on governed Ledger.'
      USING ERRCODE='42501';
  END IF;
+ -- Serialize all competing grants/withholds on this exact Person + Subject
+ -- + field class, not just retries with the same idempotency key.
  PERFORM pg_advisory_xact_lock(hashtextextended(
-  'atlas.subject_disclosure:'||p_ledger_id::text||':'||p_source_action_id::text,0));
+  'atlas.subject_disclosure:'||p_ledger_id::text||':'||
+  p_target_person_id::text||':'||p_subject_domain||':'||
+  p_subject_kind||':'||p_subject_id::text||':'||p_disclosure_class,0));
+ PERFORM pg_advisory_xact_lock(hashtextextended(
+  'atlas.subject_action:'||p_ledger_id::text||':'||p_source_action_id::text,0));
  SELECT * INTO v_existing
  FROM atlas.subject_disclosure_decision_events_v1
  WHERE ledger_id=p_ledger_id AND source_action_id=p_source_action_id;
@@ -97,10 +117,10 @@ BEGIN
  ELSE
    INSERT INTO atlas.subject_disclosure_decision_events_v1(
      organization_id,ledger_id,target_person_id,subject_domain,subject_kind,
-     subject_id,disclosure_class,decision_kind,source_action_id,reason,decided_by_person_id
+     subject_id,disclosure_class,decision_kind,source_action_id,reason,decided_by_person_id,recorded_at
    ) VALUES(
      p_organization_id,p_ledger_id,p_target_person_id,p_subject_domain,p_subject_kind,
-     p_subject_id,p_disclosure_class,p_decision_kind,p_source_action_id,btrim(p_reason),v_owner
+     p_subject_id,p_disclosure_class,p_decision_kind,p_source_action_id,btrim(p_reason),v_owner,clock_timestamp()
    ) RETURNING * INTO v_created;
  END IF;
  RETURN jsonb_build_object(
