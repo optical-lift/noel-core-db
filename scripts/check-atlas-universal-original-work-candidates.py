@@ -178,17 +178,17 @@ require(fixture_source.is_file() and fixture_clone.is_file()
         and fixture_source.read_bytes() == fixture_clone.read_bytes(),
         "Clone-only fixture must be exact original synthetic source")
 synthetic = fixture_source.read_text()
-clean = re.sub(r"/\\*.*?\\*/", " ", synthetic, flags=re.S)
-clean = re.sub(r"--[^\\n]*", " ", clean)
-clean = re.sub(r"\\s+", " ", clean).strip()
+clean = re.sub(r"/\*.*?\*/", " ", synthetic, flags=re.S)
+clean = re.sub(r"--[^\n]*", " ", clean)
+clean = re.sub(r"\s+", " ", clean).strip()
 forbidden = re.search(
-    r"\\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|"
+    r"\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|"
     r"reindex|cluster|refresh|copy|do|call|execute|prepare|deallocate|"
-    r"listen|notify|security)\\b", clean, re.I
+    r"listen|notify|security)\b", clean, re.I
 )
 require(forbidden is None,
         "Clone synthetic fixture has forbidden non-DML token")
-require(all(re.match(r"^(insert\\s+into|update\\s+|delete\\s+from|select\\s+)",
+require(all(re.match(r"^(insert\s+into|update\s+|delete\s+from|select\s+)",
                      item.strip(), re.I)
             for item in clean.split(";") if item.strip()),
         "Clone synthetic fixture must use bounded DML statements only")
