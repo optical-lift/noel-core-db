@@ -202,4 +202,4 @@ insert into atlas.work_result_contract_policies(
  'Fictional manager decision path for independent Bed Work'),
 ('ordinary_company_work_worker_attestation_v1','organization','worker_attestation',true,
  'Fictional responsible Person attests physical completion')
-on conflict (contract_key) do nothing;
+;
