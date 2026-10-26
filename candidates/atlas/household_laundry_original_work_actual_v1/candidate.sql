@@ -71,18 +71,10 @@ BEGIN
   END IF;
   v_id:=v_old.id;
  ELSE
-  INSERT INTO atlas.care_current_state(
-    subject_domain,subject_kind,subject_id,scope_kind,scope_id,
-    condition_state,disposition,last_observed_at,last_observation_id,metadata
-  ) VALUES(
-    'household','household_kernel_instance',p_kernel_instance_id::text,
-    'household',v_household,'ready_for_cycle','intervene',now(),v_id,
-    jsonb_build_object('evidenceKind','confirmed_observation')
-  ) ON CONFLICT(scope_kind,scope_id,subject_domain,subject_kind,subject_id)
-    DO UPDATE SET condition_state='ready_for_cycle',disposition='intervene',
-      last_observed_at=excluded.last_observed_at,
-      last_observation_id=excluded.last_observation_id,
-      updated_at=now();
+  -- Existing care_apply_observation_current_state_v1 is the single
+  -- observation-to-state writer. A second unconditional update here could
+  -- overwrite a newer physical observation made in another session.
+  NULL;
  END IF;
  RETURN jsonb_build_object('ok',true,
     'contractVersion','household_laundry_observation_v1',
@@ -360,12 +352,22 @@ BEGIN
    'household-laundry-actual-observation:'||v_result::text,
    nullif(btrim(p_note),''),false,jsonb_build_object('careResultId',v_result)
  ) RETURNING id INTO v_observation;
- UPDATE atlas.care_current_state
- SET condition_state='washing',disposition='observe',
-   last_observed_at=v_at,last_observation_id=v_observation,updated_at=now()
- WHERE scope_kind='household' AND scope_id=v_work.household_id
-   AND subject_domain='household' AND subject_kind='household_kernel_instance'
-   AND subject_id=v_need.instance_id::text;
+ -- Existing observation trigger already applied the genuine
+ -- 'washing' observation by observed_at; no second state update or
+ -- silent overwrite of a newer independent observation.
+ IF NOT EXISTS(
+   SELECT 1 FROM atlas.care_current_state current_state
+   WHERE current_state.scope_kind='household'
+     AND current_state.scope_id=v_work.household_id
+     AND current_state.subject_domain='household'
+     AND current_state.subject_kind='household_kernel_instance'
+     AND current_state.subject_id=v_need.instance_id::text
+     AND current_state.condition_state='washing'
+     AND current_state.last_observation_id=v_observation
+ ) THEN
+   RAISE EXCEPTION 'Original Laundry state readback failed after physical observation.'
+    USING ERRCODE='23514';
+ END IF;
  INSERT INTO atlas.work_execution_results(
    household_id,organization_id,work_item_id,reported_by_user_id,
    result_kind,result_contract_key,idempotency_key,payload,metadata,reported_at
