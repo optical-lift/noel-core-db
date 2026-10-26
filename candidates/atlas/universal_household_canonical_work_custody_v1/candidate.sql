@@ -157,7 +157,8 @@ ALTER TABLE atlas.work_allocations
     (assignee_canonical_person_id IS NOT NULL AND
      establishment_basis_kind IN(
        'person_connection_receiver_uptake','delegated_under_standing_scope',
-       'ledger_connection_direct_assignment'
+       'ledger_connection_direct_assignment',
+       'original_subject_direct_assignment_v1'
      ))) AND assignee_household_member_id IS NULL)
   OR
   (household_id IS NOT NULL
