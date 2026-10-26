@@ -18,6 +18,20 @@ BEGIN
   THEN
     RAISE EXCEPTION 'Governor read guard lost signed-session or canonical Person check';
   END IF;
+  -- The preliminary Work field preview is for the verified root governor,
+  -- not a new recipient grant, audit certificate, or general institutional read.
+  IF pg_get_functiondef(v_internal) NOT LIKE '%preliminaryWorkFieldReview%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%workFieldsRequireSeparateDecisions%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%candidateIsNotAnEffectiveDisclosureGrant%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%a.assignee_canonical_person_id=p_person_entity_id%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%rel.ledger_id=p_ledger_id%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%company_work_native_ledger_exact_source_v1%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%LIMIT 51%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%mayCertifyNonDisclosure%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%verification_incomplete%'
+  THEN
+    RAISE EXCEPTION 'Governor preview has lost bounded exact Work source or noncertification safeguards';
+  END IF;
   IF NOT (SELECT prosecdef FROM pg_proc WHERE oid=v_internal)
     OR NOT (SELECT prosecdef FROM pg_proc WHERE oid=v_bridge) THEN
     RAISE EXCEPTION 'Reviewed read membranes must maintain source checks';
