@@ -53,23 +53,8 @@ begin
   if v_actor is null then
     raise exception 'Signed connected Person required' using errcode='42501';
   end if;
-  if p_work_item_id is not null then
-    perform atlas.assert_ledger_occurrence_work_link_v1(
-      p_organization_id,p_ledger_id,p_occurrence_id,p_work_item_id);
-    -- Historical Event links may still exist after their current Event
-    -- association is removed. Preserve old notes; don't append new progress
-    -- to a Work item withdrawn from this Event.
-    if exists(select 1 from atlas.ledger_occurrence_work_actions_v1 removed
-      where removed.organization_id=p_organization_id
-        and removed.ledger_id=p_ledger_id
-        and removed.occurrence_id=p_occurrence_id
-        and removed.work_item_id=p_work_item_id
-        and removed.action_kind='removed') then
-      raise exception 'Work has been removed from this Event; new Work-specific progress is not admitted'
-        using errcode='23514';
-    end if;
-  end if;
-
+  -- Authorize the exact Event before reviewing an existing stable
+  -- action. Replay must survive a later Work withdrawal; new writes must not.
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
     'atlas.event.progress:'||p_ledger_id::text||':'||
     p_occurrence_id::text||':'||v_key,0));
@@ -85,6 +70,21 @@ begin
         using errcode='23505';
     end if;
   else
+    if p_work_item_id is not null then
+      perform atlas.assert_ledger_occurrence_work_link_v1(
+        p_organization_id,p_ledger_id,p_occurrence_id,p_work_item_id);
+      -- The original relationship is still readable after a removal, but
+      -- no new progress assertion may attach to its withdrawn Event role.
+      if exists(select 1 from atlas.ledger_occurrence_work_actions_v1 removed
+        where removed.organization_id=p_organization_id
+          and removed.ledger_id=p_ledger_id
+          and removed.occurrence_id=p_occurrence_id
+          and removed.work_item_id=p_work_item_id
+          and removed.action_kind='removed') then
+        raise exception 'Work has been removed from this Event; new Work-specific progress is not admitted'
+          using errcode='23514';
+      end if;
+    end if;
     insert into atlas.ledger_event_progress_notes_v1(
       organization_id,ledger_id,occurrence_id,work_item_id,
       author_person_id,source_action_id,body)
