@@ -5,6 +5,8 @@ on:
     paths:
       - "candidates/atlas-personal-program-author-annotations-v1/**"
       - "validation/atlas-program-author-annotations-isolated-v1/**"
+      - "scripts/validate-atlas-program-author-notes-signed-http.py"
+      - "scripts/validate-production-schema-clone.sh"
       - ".github/workflows/atlas-program-author-notes-candidate.yml"
 
 permissions:
@@ -38,6 +40,35 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Validate signed-proof source contract and clone-only fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-program-author-notes-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          file=Path("candidates/atlas-personal-program-author-annotations-v1/fixture.sql").read_text()
+          text=re.sub(r"/\*.*?\*/", " ", file, flags=re.S)
+          text=re.sub(r"--[^\n]*", " ", text)
+          statements=[s.strip() for s in text.split(";") if s.strip()]
+          assert statements and all(re.match(r"(?i)^INSERT\s+INTO\s+",s) for s in statements)
+          script=Path("scripts/validate-production-schema-clone.sh").read_text()
+          for needle in (
+            "signed_program_author_notes_probe=true",
+            "atlas_personal_program_author_annotations_v1",
+            "validate-atlas-program-author-notes-signed-http.py",
+            "signed-program-author-notes-summary.txt",
+          ):
+            assert needle in script,needle
+          probe=Path("scripts/validate-atlas-program-author-notes-signed-http.py").read_text()
+          for needle in ("auth.sessions","revoked","personal_program_author_notes_read_self_api_v1",
+                         "personal_program_author_note_create_self_api_v1",
+                         "personal_program_author_note_revise_self_api_v1"):
+            assert needle in probe,needle
+          print("PASS source-only clone fixture safety and future signed HTTP bridge")
+          PY
       - name: Compile candidate and verify note custody and role boundaries
         shell: bash
         run: |
