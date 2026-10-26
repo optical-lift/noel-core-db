@@ -167,4 +167,43 @@ print("PASS original Bed/Task opaque ID non-discovery")
 
 
 print("PASS held SQL source-contract preflight ONLY")
+
+# A real signed acceptance runner is staged for disposable local GoTrue/REST.
+# Protect its explicitly non-production harness fixture from DDL, arbitrary
+# SQL, accidental recipient identities and drift from its source.
+import ast
+fixture_source = BASE / "atlas_universal_original_work_integrated_v1" / "fixture.sql"
+fixture_clone = ROOT / "validation/fixtures/20261026215011_atlas_universal_original_work_integrated_v1.sql"
+require(fixture_source.is_file() and fixture_clone.is_file()
+        and fixture_source.read_bytes() == fixture_clone.read_bytes(),
+        "Clone-only fixture must be exact original synthetic source")
+synthetic = fixture_source.read_text()
+clean = re.sub(r"/\\*.*?\\*/", " ", synthetic, flags=re.S)
+clean = re.sub(r"--[^\\n]*", " ", clean)
+clean = re.sub(r"\\s+", " ", clean).strip()
+forbidden = re.search(
+    r"\\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|"
+    r"reindex|cluster|refresh|copy|do|call|execute|prepare|deallocate|"
+    r"listen|notify|security)\\b", clean, re.I
+)
+require(forbidden is None,
+        "Clone synthetic fixture has forbidden non-DML token")
+require(all(re.match(r"^(insert\\s+into|update\\s+|delete\\s+from|select\\s+)",
+                     item.strip(), re.I)
+            for item in clean.split(";") if item.strip()),
+        "Clone synthetic fixture must use bounded DML statements only")
+require("Synthetic U-Pick Bed 3" in synthetic and
+        "Synthetic withheld Bed 5" in synthetic and
+        "clone-household-laundry" in synthetic and
+        "insert into auth.users" in synthetic,
+        "Required fictional identity, Bed and Laundry fixtures missing")
+signed = ROOT / "scripts/validate-atlas-universal-original-work-signed-http.py"
+require(signed.is_file(), "Missing signed local universal Work acceptance")
+proof = signed.read_text()
+ast.parse(proof, filename=str(signed))
+require("127[.]0[.]0[.]1" in proof and "c1.sign_in" in proof
+        and "production" in proof.lower(),
+        "Signed acceptance must require genuine local GoTrue and reject production")
+print("PASS synthetic fixture DML-only and signed local acceptance source")
+
 print("PENDING full schema-clone compilation + signed Household/Anna/outsider/Event proof")
