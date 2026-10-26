@@ -205,4 +205,34 @@ check(not re.search(r"\\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\\b",
                     dated_work, re.I),
       "Held dated Work may not mutate Work, permissions or source tables")
 
+# Held legacy Worker Day retirement must never be applied without a positive
+# native Person Work/details/results substitute. This is only an ACL plan.
+legacy_worker = read("legacy_worker_day_public_route_retirement_hold.sql")
+legacy_worker_checks = read("legacy_worker_day_public_route_retirement_postconditions_hold.sql")
+worker_routes = (
+    "company_work_worker_day_self_api_v1(date,integer)",
+    "company_work_worker_day_refresh_self_api_v1(date,integer)",
+    "worker_report_company_work_projection_self_api_v1(uuid,text,text,jsonb)",
+    "company_work_employee_home_self_api_v1()",
+)
+check(legacy_worker.count("REVOKE EXECUTE ON FUNCTION") == 2*len(worker_routes),
+      "Worker Day retirement must close both original public and internal SQL routes")
+for sig in worker_routes:
+    for schema in ("public", "atlas"):
+        check(f"REVOKE EXECUTE ON FUNCTION {schema}.{sig}" in legacy_worker,
+              f"Original Worker Day route still executable at the cutover: {schema}.{sig}")
+    check(sig in legacy_worker_checks,
+          f"Clone Worker Day RPC revocation check missing for {sig}")
+check("has_function_privilege('authenticated',v_public,'EXECUTE')" in legacy_worker_checks and
+      "has_function_privilege('anon',v_internal,'EXECUTE')" in legacy_worker_checks,
+      "Worker Day retired RPC ACL clone checks missing")
+check("DO NOT EXECUTE" in legacy_worker and
+      "positive" in legacy_worker.lower() and
+      "parity" in legacy_worker.lower(),
+      "Worker Day retirement must remain blocked on native worker parity")
+check("GRANT EXECUTE" not in legacy_worker and
+      "CREATE OR REPLACE FUNCTION" not in legacy_worker and
+      "DROP FUNCTION" not in legacy_worker,
+      "Worker Day ACL hold cannot add privileges, replace source or remove history")
+
 print("PASS Gate 0 static source guards (NOT clone/signed privacy acceptance)")
