@@ -5,6 +5,7 @@ on:
       - '.github/workflows/atlas-connected-person-gate0-source.yml'
       - 'scripts/validate-atlas-connected-person-gate0-source.py'
       - 'scripts/validate-atlas-connected-person-work-signed-http.py'
+      - 'scripts/run-connected-person-local-proof.py'
       - 'candidates/atlas/connected_person_effective_disclosure_review_v1/**'
   push:
     branches: [main]
@@ -12,6 +13,7 @@ on:
       - '.github/workflows/atlas-connected-person-gate0-source.yml'
       - 'scripts/validate-atlas-connected-person-gate0-source.py'
       - 'scripts/validate-atlas-connected-person-work-signed-http.py'
+      - 'scripts/run-connected-person-local-proof.py'
       - 'candidates/atlas/connected_person_effective_disclosure_review_v1/**'
 permissions:
   contents: read
@@ -26,4 +28,5 @@ jobs:
         run: |
           python3 -m py_compile scripts/validate-atlas-connected-person-gate0-source.py
           python3 -m py_compile scripts/validate-atlas-connected-person-work-signed-http.py
+          python3 -m py_compile scripts/run-connected-person-local-proof.py
           python3 scripts/validate-atlas-connected-person-gate0-source.py
