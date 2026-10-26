@@ -21,6 +21,7 @@ SOURCES = (
     "governed_legacy_farm_reader_disclosure_gate0_extension_v1/candidate.sql",
     "governed_legacy_farm_reader_disclosure_gate0_context_v1/candidate.sql",
     "governed_legacy_farm_reader_disclosure_gate0_deep_v1/candidate.sql",
+    "governed_legacy_farm_reader_disclosure_gate0_residual_v1/candidate.sql",
     "universal_subject_bounded_disclosure_v1/candidate.sql",
     "governor_effective_subject_disclosure_review_v1/candidate.sql",
     "original_subject_choices_for_work_decomposition_v1/candidate.sql",
@@ -76,7 +77,7 @@ def main() -> None:
     if not packaged_sql.is_file() or packaged_sql.read_text() != sql:
         raise RuntimeError("integrated SQL candidate differs from exact original sources")
     post_names = tuple(dict.fromkeys(path.split("/")[0] for path in SOURCES))
-    post = "-- HELD POSTCONDITIONS: all 14 original source validations, not signed acceptance.\n"
+    post = "-- HELD POSTCONDITIONS: all 16 original source validations, not signed acceptance.\n"
     for name in post_names:
         source = BASE / name / "postconditions.sql"
         if not source.is_file():
