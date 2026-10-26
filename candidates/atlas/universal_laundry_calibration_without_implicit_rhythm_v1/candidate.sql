@@ -134,5 +134,5 @@ begin
     )
   );
 end;
-$function$
+$function$;
 COMMIT;
