@@ -22,6 +22,7 @@ PERSON="e5200000-0000-4000-8000-000000000102"
 PARENT="e5200000-0000-4000-8000-000000000b10"
 BED3="e5200000-0000-4000-8000-000000000b03"
 BED4="e5200000-0000-4000-8000-000000000b04"
+FARM="e5200000-0000-4000-8000-000000000b01"
 HOUSEHOLD="e5200000-0000-4000-8000-000000000c01"
 LAUNDRY="e5200000-0000-4000-8000-000000000c03"
 check=base.check
@@ -158,6 +159,28 @@ def main():
          subject(bed4,BED4),"Bed 4 not disclosed through Bed 3 assignment")
     deny(api,key,outsider,"connected_person_original_work_subject_self_api_v1",
          subject(bed3,BED3),"Unconnected Person cannot read Bed 3")
+
+    # This worker simultaneously holds a live *inherited* farm_hand membership.
+    # The new exact Bed 3 Work allocation and governor-granted identity must
+    # NEVER reopen whole-farm historic readers. A missing ID must not turn
+    # a denial into an existence oracle.
+    check(sql(args.db_url,
+        f"select count(*) from atlas.farm_memberships where farm_id='{FARM}'::uuid "
+        f"and user_id='{c1.WORKER}'::uuid and role='farm_hand' and active")=="1",
+        "No realistic older farm_hand membership in signed fixture")
+    old_farm_reads=(
+      ("zone_registry_source_v1",{"p_farm_id":FARM}),
+      ("object_crop_bed_map_v1",{"p_object_id":BED3}),
+      ("farm_care_zone_v1",
+       {"p_farm_id":FARM,"p_zone_key":"u-pick","p_history_limit":25}),
+      ("farm_snapshot_for_member_v1",{"p_farm_id":FARM}),
+      ("bed_components_state_v1",{"p_bed_id":BED3}),
+    )
+    for old_reader,old_args in old_farm_reads:
+        deny(api,key,worker,old_reader,old_args,
+             "Inherited farm_hand cannot bypass source governor gate via "+old_reader)
+    print("PASS signed legacy membership cannot reopen five whole-farm readers")
+
     actual=ok(api,key,worker,"report_connected_person_company_work_self_api_v1",
           dict(p_work_item_id=bed3,p_result_kind="completed",
                p_idempotency_key="clone-universal-bed3-physical-actual",
