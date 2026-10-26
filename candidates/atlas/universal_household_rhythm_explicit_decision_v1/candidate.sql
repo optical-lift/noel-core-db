@@ -59,7 +59,7 @@ DECLARE
  v_reason text:=nullif(btrim(coalesce(p_decision_reason,'')),'');
 BEGIN
  IF p_kernel_instance_id IS NULL OR p_action_id IS NULL
-   OR p_decision_kind NOT IN ('establish','withdraw')
+   OR p_decision_kind IS NULL OR p_decision_kind NOT IN ('establish','withdraw')
    OR (p_decision_kind='establish' AND
       (p_renew_after_days IS NULL OR p_renew_after_days NOT BETWEEN 1 AND 365))
    OR (p_decision_kind='withdraw' AND p_renew_after_days IS NOT NULL)
