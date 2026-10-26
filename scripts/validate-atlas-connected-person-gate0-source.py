@@ -320,8 +320,8 @@ check(production_catalog.count("SELECT ")>=4 and
       "auth.sessions" in production_catalog and
       "work_state" in production_catalog,
       "Production catalog audit must preserve function, table and history checks")
-check(not re.search(r"\\b(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|CREATE|ALTER|DROP|"
-                    r"GRANT|REVOKE|BEGIN|COMMIT|CALL|DO|COPY)\\b",
+check(not re.search(r"\b(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|CREATE|ALTER|DROP|"
+                    r"GRANT|REVOKE|BEGIN|COMMIT|CALL|DO|COPY)\b",
                     catalog_body,re.I),
       "Production compatibility catalog must remain read-only")
 check("blocked before execution" in notes and
