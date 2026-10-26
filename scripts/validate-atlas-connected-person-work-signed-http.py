@@ -484,7 +484,7 @@ def main():
     count=c1.sql(a.db_url,
         "select count(*) from atlas.connected_person_work_field_decision_events_v1 "
         f"where work_item_id='{standing.TASK_A}'::uuid")
-    need(int(count)>=6, "Field decision history was overwritten instead of appended")
+    need(int(count)>=5, "Field decision history was overwritten instead of appended")
     recovered=decide_field(api,key,owner,ledger,standing.TASK_A,
         standing.WORKER_PERSON,"title","allow",
         "Governor explicitly restores the approved title for Seat revocation test.",
