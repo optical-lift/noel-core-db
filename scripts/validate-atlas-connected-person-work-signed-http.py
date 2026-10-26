@@ -156,6 +156,18 @@ def main():
          (stranger_review[0]!=200 or
           stranger_review[1]=={"ok":False,"code":"not_found"}),
          "Outsider could preview exact Work fields without Ledger authority")
+    wrong_ledger_review=governor_review(
+        api,key,owner,other_ledger,standing.WORKER_PERSON)
+    need(wrong_ledger_review[0] in (200,401,403) and
+         (wrong_ledger_review[0]!=200 or
+          wrong_ledger_review[1]=={"ok":False,"code":"not_found"}),
+         "Root governor of one Ledger previewed another Ledger's Work fields")
+    missing_review=governor_review(
+        api,key,owner,ledger,"e5200000-0000-4000-8000-000000000104")
+    need(missing_review[0] in (200,401,403) and
+         (missing_review[0]!=200 or
+          missing_review[1]=={"ok":False,"code":"not_found"}),
+         "Governor review exposed a connected Person shell for non-seat target")
     print("PASS governor-only Work fields are visible for adjudication, not recipient grant")
 
     status,data=request(api,key,worker,ledger)
@@ -337,6 +349,12 @@ def main():
     need(old_revoked_status in (401,403) or
          (old_revoked_status==200 and old_revoked_data=={"ok":False,"code":"not_found"}),
          "Old My Work must deny the SAME JWT after its genuine GoTrue session is revoked")
+    gov_session_check=governor_review(
+        api,key,worker,ledger,standing.WORKER_PERSON)
+    need(gov_session_check[0] in (200,401,403) and
+         (gov_session_check[0]!=200 or
+          gov_session_check[1]=={"ok":False,"code":"not_found"}),
+         "Revoked worker session obtained governor Work preview")
     day_revoked=dated_work(api,key,worker,test_day)
     need(day_revoked[0] in (401,403) or
          (day_revoked[0]==200 and
