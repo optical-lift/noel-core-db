@@ -56,6 +56,18 @@ begin
   if p_work_item_id is not null then
     perform atlas.assert_ledger_occurrence_work_link_v1(
       p_organization_id,p_ledger_id,p_occurrence_id,p_work_item_id);
+    -- Historical Event links may still exist after their current Event
+    -- association is removed. Preserve old notes; don't append new progress
+    -- to a Work item withdrawn from this Event.
+    if exists(select 1 from atlas.ledger_occurrence_work_actions_v1 removed
+      where removed.organization_id=p_organization_id
+        and removed.ledger_id=p_ledger_id
+        and removed.occurrence_id=p_occurrence_id
+        and removed.work_item_id=p_work_item_id
+        and removed.action_kind='removed') then
+      raise exception 'Work has been removed from this Event; new Work-specific progress is not admitted'
+        using errcode='23514';
+    end if;
   end if;
 
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
