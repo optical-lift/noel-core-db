@@ -90,12 +90,19 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
 AS $function$
 BEGIN
  IF NEW.household_id IS NULL THEN RETURN NEW; END IF;
- IF TG_OP='INSERT' OR
-    (TG_OP='UPDATE' AND NEW.work_state IS DISTINCT FROM OLD.work_state
-        AND NEW.work_state<>'completed') THEN
+ IF TG_OP='INSERT' THEN
    PERFORM atlas.require_household_governor_self_v1(NEW.household_id);
- ELSE
+ ELSIF NEW.work_state='completed' AND OLD.work_state='open'
+   AND NEW.title IS NOT DISTINCT FROM OLD.title
+   AND NEW.instructions IS NOT DISTINCT FROM OLD.instructions
+   AND NEW.metadata IS NOT DISTINCT FROM OLD.metadata
+   AND NEW.stable_key IS NOT DISTINCT FROM OLD.stable_key
+   AND NEW.operation_class IS NOT DISTINCT FROM OLD.operation_class THEN
+   -- The signed carrier may close only one original Work with the accepted
+   -- qualifying physical Actual, not revise its Work scope or instructions.
    PERFORM atlas.household_work_actor_v1(NEW.household_id);
+ ELSE
+   PERFORM atlas.require_household_governor_self_v1(NEW.household_id);
  END IF;
  IF NEW.organization_id IS NOT NULL OR NEW.organization_unit_id IS NOT NULL
     OR NOT EXISTS(
