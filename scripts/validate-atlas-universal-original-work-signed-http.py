@@ -8,6 +8,8 @@ Event regression is separate and remains mandatory before production release.
 import argparse
 import importlib.util
 import re
+import json
+import subprocess
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent
@@ -22,6 +24,7 @@ PERSON="e5200000-0000-4000-8000-000000000102"
 PARENT="e5200000-0000-4000-8000-000000000b10"
 BED3="e5200000-0000-4000-8000-000000000b03"
 BED4="e5200000-0000-4000-8000-000000000b04"
+FARM="e5200000-0000-4000-8000-000000000b01"
 HOUSEHOLD="e5200000-0000-4000-8000-000000000c01"
 LAUNDRY="e5200000-0000-4000-8000-000000000c03"
 check=base.check
@@ -39,6 +42,60 @@ def deny(api,key,token,name,payload,label):
           (token is None or data.get("code")=="42501"),
           f"{label}: signed source denial failed {status}: {str(data)[:200]}")
     print("PASS",label)
+
+# Original and residual historical readers belong to the INTERNAL atlas schema, not the
+# public PostgREST API. A PGRST202/404 must never count as a source denial.
+# Execute the same SQL guard with the claims from a genuinely signed local
+# GoTrue session, verified against the live disposable auth.sessions table.
+def deny_internal_legacy(db,api,key,bearer,name,params):
+    claims=c1.jwt_payload(bearer)
+    uid=claims.get("sub")
+    sid=claims.get("session_id")
+    check(claims.get("role")=="authenticated" and uid==c1.WORKER and
+          bool(re.fullmatch(r"[0-9a-f-]{36}",str(sid))),
+          "Real signed worker GoTrue session required for old reader")
+    check(sql(db,f"select count(*) from auth.sessions where "
+              f"id='{sid}'::uuid and user_id='{uid}'::uuid")=="1",
+          "Signed local session was not recorded")
+    check(sql(db,"select count(*) from pg_proc p join pg_namespace n on "
+              "n.oid=p.pronamespace where n.nspname='public' and "
+              f"p.proname='{name}'")=="0",
+          "Historical broad reader unexpectedly exposed in public")
+    status,body=rpc(api,key,bearer,name,params)
+    check(status==404 and isinstance(body,dict)
+          and body.get("code")=="PGRST202",
+          f"Unexpected public legacy reader result: {name} {status} {body}")
+    calls={
+      "zone_registry_source_v1":f"atlas.zone_registry_source_v1('{FARM}'::uuid)",
+      "object_crop_bed_map_v1":f"atlas.object_crop_bed_map_v1('{BED3}'::uuid)",
+      "farm_care_zone_v1":f"atlas.farm_care_zone_v1('{FARM}'::uuid,'u-pick'::text,25)",
+      "farm_snapshot_for_member_v1":f"atlas.farm_snapshot_for_member_v1('{FARM}'::uuid)",
+      "bed_components_state_v1":f"atlas.bed_components_state_v1('{BED3}'::uuid)",
+      "farm_day_task_cards_v1":f"atlas.farm_day_task_cards_v1('{FARM}'::uuid,'2030-10-30'::date),
+      "home_task_cards_v2":f"atlas.home_task_cards_v2('{FARM}'::uuid,NULL::text,NULL::date,NULL::date),
+      "seed_inventory_dashboard_v1":f"atlas.seed_inventory_dashboard_v1('{FARM}'::uuid),
+      "task_cards_v1":f"atlas.task_cards_v1('{FARM}'::uuid,NULL::uuid),
+      "tending_task_context_v1":f"atlas.tending_task_context_v1('{FARM}'::uuid,'{PARENT}'::uuid,NULL::text),
+      "tending_task_context_v2":f"atlas.tending_task_context_v2('{FARM}'::uuid,'{PARENT}'::uuid,'clone-upick-bed-3'::text,NULL::text),
+      "worker_day_state_transition_cards_v1":f"atlas.worker_day_state_transition_cards_v1('{FARM}'::uuid,'{PARENT}'::uuid,'2030-10-30'::date),
+      "worker_future_day_projection_source_v1":f"atlas.worker_future_day_projection_source_v1('{FARM}'::uuid,'{PARENT}'::uuid,'2030-10-30'::date,'2030-11-06'::date),
+    }
+    check(name in calls,"Unexpected legacy read")
+    encoded=json.dumps(claims,separators=(",",":")).replace("'","''")
+    query=("BEGIN;\nSET LOCAL ROLE authenticated;\n"
+           "SELECT set_config('request.jwt.claims','" + encoded + "',true);\n"
+           "SELECT set_config('request.jwt.claim.sub','" + uid + "',true);\n"
+           "SELECT " + calls[name] + ";\nROLLBACK;\n")
+    result=subprocess.run(["psql",db,"-X","-A","-t",
+        "-v","ON_ERROR_STOP=1","-v","VERBOSITY=verbose","-c",query],
+        text=True,capture_output=True,check=False)
+    check(result.returncode!=0 and
+          re.search(r"\b42501\b",result.stderr) and
+          "Source unavailable to this Person." in result.stderr,
+          f"Authenticated internal {name} failed to enforce governor "
+          f"source permission: {result.stderr[-600:]}")
+    print("PASS internal legacy source guard for signed worker:",name)
+
 def subject(work,bed):
     return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
                 p_work_item_id=work,p_subject_domain="spatial",
@@ -158,6 +215,35 @@ def main():
          subject(bed4,BED4),"Bed 4 not disclosed through Bed 3 assignment")
     deny(api,key,outsider,"connected_person_original_work_subject_self_api_v1",
          subject(bed3,BED3),"Unconnected Person cannot read Bed 3")
+
+    # This worker simultaneously holds a live *inherited* farm_hand membership.
+    # The new exact Bed 3 Work allocation and governor-granted identity must
+    # NEVER reopen whole-farm historic readers. A missing ID must not turn
+    # a denial into an existence oracle.
+    check(sql(args.db_url,
+        f"select count(*) from atlas.farm_memberships where farm_id='{FARM}'::uuid "
+        f"and user_id='{c1.WORKER}'::uuid and role='farm_hand' and active")=="1",
+        "No realistic older farm_hand membership in signed fixture")
+    old_farm_reads=(
+       ("farm_day_task_cards_v1",{}),
+       ("home_task_cards_v2",{}),
+       ("seed_inventory_dashboard_v1",{}),
+       ("task_cards_v1",{}),
+       ("tending_task_context_v1",{}),
+       ("tending_task_context_v2",{}),
+       ("worker_day_state_transition_cards_v1",{}),
+       ("worker_future_day_projection_source_v1",{}),
+      ("zone_registry_source_v1",{"p_farm_id":FARM}),
+      ("object_crop_bed_map_v1",{"p_object_id":BED3}),
+      ("farm_care_zone_v1",
+       {"p_farm_id":FARM,"p_zone_key":"u-pick","p_history_limit":25}),
+      ("farm_snapshot_for_member_v1",{"p_farm_id":FARM}),
+      ("bed_components_state_v1",{"p_bed_id":BED3}),
+    )
+    for old_reader,old_args in old_farm_reads:
+        deny_internal_legacy(args.db_url,api,key,worker,old_reader,old_args)
+    print("PASS thirteen signed internal broad-farm source denials")
+
     actual=ok(api,key,worker,"report_connected_person_company_work_self_api_v1",
           dict(p_work_item_id=bed3,p_result_kind="completed",
                p_idempotency_key="clone-universal-bed3-physical-actual",
