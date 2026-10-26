@@ -272,7 +272,22 @@ BEGIN
  IF v_need.id IS NULL THEN
   RAISE EXCEPTION 'Work original Need record unavailable.' USING ERRCODE='23514';
  END IF;
- v_source_key:='household-laundry-wash-started:'||v_work.id::text||':'||p_action_id::text;
+ IF NOT EXISTS(
+   SELECT 1 FROM atlas.households h JOIN atlas.principals p ON p.id=h.principal_id
+   WHERE h.id=v_work.household_id AND p.status='active'
+     AND p.user_id=auth.uid() AND p.person_id=v_person
+ ) AND NOT EXISTS(
+   SELECT 1 FROM atlas.work_allocations a
+   LEFT JOIN atlas.household_members hm ON hm.id=a.assignee_household_member_id
+   WHERE a.household_id=v_work.household_id AND a.work_item_id=v_work.id
+     AND a.allocation_role='responsible' AND a.state='active'
+     AND (a.assignee_canonical_person_id=v_person
+       OR (hm.person_id=v_person AND hm.user_id=auth.uid() AND hm.active))
+ ) THEN
+  RAISE EXCEPTION 'Physical Work Actual requires authorized original carrier.'
+   USING ERRCODE='42501';
+ END IF;
+  v_source_key:='household-laundry-wash-started:'||v_work.id::text||':'||p_action_id::text;
  SELECT id INTO v_result FROM atlas.care_result_events
  WHERE source_key=v_source_key AND scope_id=v_work.household_id
   AND subject_id=v_need.instance_id::text
@@ -307,21 +322,6 @@ BEGIN
  IF v_work.work_state<>'open' OR v_need.state<>'open' THEN
   RAISE EXCEPTION 'Work transition already closed or unavailable.'
    USING ERRCODE='23514';
- END IF;
- IF NOT EXISTS(
-   SELECT 1 FROM atlas.households h JOIN atlas.principals p ON p.id=h.principal_id
-   WHERE h.id=v_work.household_id AND p.status='active'
-     AND p.user_id=auth.uid() AND p.person_id=v_person
- ) AND NOT EXISTS(
-   SELECT 1 FROM atlas.work_allocations a
-   LEFT JOIN atlas.household_members hm ON hm.id=a.assignee_household_member_id
-   WHERE a.household_id=v_work.household_id AND a.work_item_id=v_work.id
-     AND a.allocation_role='responsible' AND a.state='active'
-     AND (a.assignee_canonical_person_id=v_person
-       OR (hm.person_id=v_person AND hm.user_id=auth.uid() AND hm.active))
- ) THEN
-  RAISE EXCEPTION 'Physical Work Actual requires authorized original carrier.'
-   USING ERRCODE='42501';
  END IF;
  SELECT c.condition_state INTO v_before FROM atlas.care_current_state c
  WHERE c.scope_kind='household' AND c.scope_id=v_work.household_id
