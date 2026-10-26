@@ -45,7 +45,11 @@ BEGIN
       -- A Work allocation is not a grant to disclose arbitrary source details.
       -- Keep response field shape for the existing Atlas My Work client,
       -- but withhold instructions until an exact source-owned field decision.
-      w.title,NULL::text AS instructions,w.result_contract_key,
+      w.title,
+      CASE WHEN atlas.connected_person_work_field_currently_approved_v1(
+        (a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self,
+        'instructions') THEN w.instructions ELSE NULL::text END AS instructions,
+      w.result_contract_key,
       a.establishment_basis_kind,a.allocated_at,
       plan.id plan_id,plan.plan_state,
       plan.planned_service_date,plan.exposure_service_date,
@@ -104,6 +108,8 @@ BEGIN
       -- Critical: source relevance must FILTER rows; the old implementation
       -- only returned relevance as a flag alongside disclosable fields.
       AND relevance.has_relevance IS TRUE
+      AND atlas.connected_person_work_field_currently_approved_v1(
+        (a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self,'title')
     ORDER BY a.id
     LIMIT p_limit+1
   ), numbered AS (
