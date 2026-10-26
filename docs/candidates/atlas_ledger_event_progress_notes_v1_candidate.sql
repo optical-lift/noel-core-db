@@ -169,6 +169,14 @@ revoke all on function
 revoke all on function
   atlas.ledger_event_progress_self_api_v1(uuid,uuid,uuid,uuid,timestamptz,uuid,uuid)
   from public,anon,authenticated;
+-- The public forwarding functions execute under authenticated, just like
+-- current signed Atlas RPC adapters. Internal functions recheck exact source.
+grant execute on function
+  atlas.record_ledger_event_progress_self_api_v1(uuid,uuid,uuid,uuid,text,text)
+  to authenticated;
+grant execute on function
+  atlas.ledger_event_progress_self_api_v1(uuid,uuid,uuid,uuid,timestamptz,uuid,uuid)
+  to authenticated;
 
 -- Existing exposed browser API pattern: explicit minimal invoker forwarding.
 create function public.record_ledger_event_progress_self_api_v1(
