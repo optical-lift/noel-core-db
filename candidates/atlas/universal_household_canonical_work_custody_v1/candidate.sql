@@ -60,6 +60,49 @@ ALTER TABLE atlas.work_time_contracts
  ADD CONSTRAINT work_time_contracts_one_native_custody_v1
  CHECK ((organization_id IS NULL) <> (household_id IS NULL));
 
+-- An original Work and its dependent receipts can never be converted from
+-- Household to Institution or the reverse by editing their custody columns.
+-- The protected source requires a new Work identity and explicit provenance
+-- for a genuine transfer, not a rewritten original.
+CREATE OR REPLACE FUNCTION atlas.guard_canonical_work_custody_immutability_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $function$
+BEGIN
+ IF NEW.organization_id IS DISTINCT FROM OLD.organization_id OR
+    NEW.household_id IS DISTINCT FROM OLD.household_id THEN
+   RAISE EXCEPTION 'Original Work custody cannot be rewritten.'
+     USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END;
+$function$;
+REVOKE ALL ON FUNCTION atlas.guard_canonical_work_custody_immutability_v1()
+ FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER work_items_immutable_custody_v1
+ BEFORE UPDATE OF organization_id,household_id ON atlas.work_items
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_canonical_work_custody_immutability_v1();
+CREATE TRIGGER work_allocations_immutable_custody_v1
+ BEFORE UPDATE OF organization_id,household_id ON atlas.work_allocations
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_canonical_work_custody_immutability_v1();
+CREATE TRIGGER work_execution_plans_immutable_custody_v1
+ BEFORE UPDATE OF organization_id,household_id ON atlas.work_execution_plans
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_canonical_work_custody_immutability_v1();
+CREATE TRIGGER work_execution_plan_events_immutable_custody_v1
+ BEFORE UPDATE OF organization_id,household_id ON atlas.work_execution_plan_events
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_canonical_work_custody_immutability_v1();
+CREATE TRIGGER work_execution_results_immutable_custody_v1
+ BEFORE UPDATE OF organization_id,household_id ON atlas.work_execution_results
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_canonical_work_custody_immutability_v1();
+CREATE TRIGGER work_result_acceptances_immutable_custody_v1
+ BEFORE UPDATE OF organization_id,household_id ON atlas.work_result_acceptances
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_canonical_work_custody_immutability_v1();
+CREATE TRIGGER work_item_context_links_immutable_custody_v1
+ BEFORE UPDATE OF organization_id,household_id ON atlas.work_item_context_links
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_canonical_work_custody_immutability_v1();
+CREATE TRIGGER work_time_contracts_immutable_custody_v1
+ BEFORE UPDATE OF organization_id,household_id ON atlas.work_time_contracts
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_canonical_work_custody_immutability_v1();
+
 -- Reference the SAME Work ID across contexts; composite foreign keys also
 -- prevent cross-household Work/Plan/Result copying.
 CREATE UNIQUE INDEX work_items_household_id_id_v1
