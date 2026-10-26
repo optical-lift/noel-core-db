@@ -20,6 +20,7 @@ SOURCES = (
     "governed_legacy_farm_reader_disclosure_v1/candidate.sql",
     "governed_legacy_farm_reader_disclosure_gate0_extension_v1/candidate.sql",
     "governed_legacy_farm_reader_disclosure_gate0_context_v1/candidate.sql",
+    "governed_legacy_farm_reader_disclosure_gate0_deep_v1/candidate.sql",
     "universal_subject_bounded_disclosure_v1/candidate.sql",
     "governor_effective_subject_disclosure_review_v1/candidate.sql",
     "original_subject_choices_for_work_decomposition_v1/candidate.sql",
