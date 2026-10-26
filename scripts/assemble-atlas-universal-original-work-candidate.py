@@ -68,6 +68,24 @@ def main() -> None:
     for marker in guards:
         if marker not in sql:
             raise RuntimeError("bundle lost source boundary " + marker)
+    # The single governed integrated candidate is a byte-exact view of
+    # original source files. A stale bundle fails before any clone request.
+    package = BASE / "atlas_universal_original_work_integrated_v1"
+    packaged_sql = package / "candidate.sql"
+    if not packaged_sql.is_file() or packaged_sql.read_text() != sql:
+        raise RuntimeError("integrated SQL candidate differs from exact original sources")
+    post_names = tuple(dict.fromkeys(path.split("/")[0] for path in SOURCES))
+    post = "-- HELD POSTCONDITIONS: all 14 original source validations, not signed acceptance.\n"
+    for name in post_names:
+        source = BASE / name / "postconditions.sql"
+        if not source.is_file():
+            raise RuntimeError("missing original postcondition " + str(source))
+        post += ("\n-- Original held postcondition: " + name
+                 + "/postconditions.sql\n" + source.read_text().strip() + "\n\n")
+    packaged_post = package / "postconditions.sql"
+    if not packaged_post.is_file() or packaged_post.read_text() != post:
+        raise RuntimeError("integrated postconditions differ from exact original assertions")
+    print(f"PASS byte-exact integrated candidate and {len(post_names)} source postconditions")
     # Never use a live database endpoint or an automatic migration filename.
     if args.output:
         dest = args.output.resolve()
