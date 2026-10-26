@@ -44,15 +44,19 @@ for source_guard in ("preliminaryWorkFieldReview",
                      "governor_review_inputs_only",
                      "workFieldsRequireSeparateDecisions",
                      "candidateIsNotAnEffectiveDisclosureGrant",
-                     "titleFieldDecisionStatus','not_evaluated'",
-                     "instructionsFieldDecisionStatus','not_evaluated'",
+                     "titleFieldDecisionStatus',title_field_decision_status",
+                     "instructionsFieldDecisionStatus',instructions_field_decision_status",
                      "a.assignee_canonical_person_id=p_person_entity_id",
                      "a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text",
                      "rel.ledger_id=p_ledger_id",
                      "company_work_native_ledger_exact_source_v1",
                      "LIMIT 51",
                      "hasMoreCandidateWork",
-                     "mayCertifyNonDisclosure',false"):
+                     "mayCertifyNonDisclosure',false",
+                     "titleCandidateSha256",
+                     "instructionsCandidateSha256",
+                     "title_dec.id",
+                     "instructions_dec.id"):
     check(source_guard in review,
           f"Preliminary governor-only Work field review missing source guard: {source_guard}")
 check("preliminaryWorkFieldReview" in review_tests and
@@ -231,6 +235,12 @@ check(not re.search(r"\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\b",
 # Governor approval is append-only, exact Person + Ledger + Work + field,
 # content-hash bound and automatically invalidated by scope/content changes.
 fields = read("connected_person_work_field_decisions_hold.sql")
+fields_postconditions = read("connected_person_work_field_decisions_postconditions_hold.sql")
+check("connected_person_work_field_decision_events_v1" in fields_postconditions
+      and "pg_get_functiondef" in fields_postconditions
+      and "has_table_privilege" in fields_postconditions
+      and "has_function_privilege" in fields_postconditions,
+      "Exact Work field protected-clone structural postconditions are required")
 for field_guard in (
     "CREATE TABLE atlas.connected_person_work_field_decision_events_v1",
     "request_id uuid NOT NULL UNIQUE",
@@ -243,6 +253,9 @@ for field_guard in (
     "pg_catalog.sha256",
     "pg_catalog.pg_advisory_xact_lock",
     "p_request_id",
+    "p_expected_value_sha256",
+    "v_hash IS DISTINCT FROM p_expected_value_sha256",
+    "connected_person_work_field_decisions_append_only_v1",
     "valid_until",
     "governor_principal_id",
     "sourceFieldDecisionsEnforced",
