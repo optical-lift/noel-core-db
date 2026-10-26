@@ -159,6 +159,12 @@ BEGIN
       'allocationState',allocation_state,
       'titleCandidate',title,
       'instructionsCandidate',instructions,
+      'titleCandidateSha256',CASE WHEN title IS NULL THEN NULL
+        ELSE pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(
+          title,'UTF8')),'hex') END,
+      'instructionsCandidateSha256',CASE WHEN instructions IS NULL THEN NULL
+        ELSE pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(
+          instructions,'UTF8')),'hex') END,
       'titleFieldDecisionStatus',title_field_decision_status,
       'instructionsFieldDecisionStatus',instructions_field_decision_status,
       'titleFieldDecisionId',title_field_decision_id,
