@@ -124,5 +124,29 @@ missing = [name for name in source_names if f"'{name}'" not in review]
 require(not missing, f"effective disclosure review missing historical paths: {missing}")
 print("PASS 26 source-guarded legacy reader inventory")
 
+# A guessed object ID must not reveal whether a withheld original Bed/Task
+# exists. Nonexistence and lack of full disclosure have the same 42501 source
+# denial; old P0002 vs 42501 would be an existence oracle.
+opaque = texts["governed_legacy_farm_reader_disclosure_gate0_extension_v1"]
+for function_name, missing_check in (
+    ("bed_components_state_v1", "if v_bed.id is null"),
+    ("real_operation_explanation_v1", "if v_transition.id is null"),
+    ("weed_card_task_focus_v1", "if v_task.id is null"),
+):
+    source = opaque.split(
+        "CREATE OR REPLACE FUNCTION atlas." + function_name + "(", 1
+    )[1].split("$function$;", 1)[0]
+    require(missing_check in source,
+            function_name + ": missing original-ID existence handling")
+    before_gate = source.split(
+        "PERFORM atlas.require_governed_farm_full_disclosure_self_v1(", 1
+    )[0]
+    require("raise exception 'Source unavailable to this Person.'" in before_gate
+            and "errcode='42501'" in before_gate
+            and "errcode='P0002'" not in before_gate.lower(),
+            function_name + ": original-ID existence oracle before governor gate")
+print("PASS original Bed/Task opaque ID non-discovery")
+
+
 print("PASS held SQL source-contract preflight ONLY")
 print("PENDING full schema-clone compilation + signed Household/Anna/outsider/Event proof")
