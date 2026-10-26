@@ -71,3 +71,19 @@ The seven inspected farm read tables `zones`, `growing_objects`, `crop_cycles`, 
 ### No certification criteria met by the held containment candidate
 
 It does not establish current native-Ledger grants/exclusions; farm owner is still legacy authority; it does not close every `farm_care_summary`, `farm_care_object`, `grow_room_state`, continuity or task-context operation; does not prove signed Anna HTTP visibility or denial; does not replace worker home with authorized Work/bed source projections; and does not run through a disposable production-schema clone. **No green flag, migration generation, source merge, release or app handoff may be inferred** from source-custody CI alone.
+
+## Strict connected Person individual Work reader — staged, not deployed
+
+`connected_person_work_read_candidate.sql` and its `connected_person_work_read_postconditions.sql` add a **source-owning read path**, not a new Work engine or new permission table. It reuses native `ledger.seats`, canonical `reality.entities`, the active signed `reality_access_self_api_v1` membrane, original `work_items` and `work_allocations`, `person_has_native_ledger_connection_v1`, and `company_work_native_ledger_relevance` with exact evidence checks. A real allocation is a *necessary but not sufficient* condition; active exact-Ledger Work attribution must also be proven.
+
+- Output is bounded, paginated, and only for **open original Work allocated responsibly to the signed Person under that same active native Ledger**.
+- Includes Work identifier, allocation ID, exact Ledger ID, original Work title, Work state and ordinary completion capability. The original Work title is treated as text intentionally communicated by an explicit assignment; **the release must verify Work titles do not contain source fields the governor excluded**.
+- No instructions, crop/bed/zone records, source-object UUIDs, historical observations, private metadata, attachments, project descriptions or farm-wide totals. No write operation, no completion event, no new Person, Seat, grant or Work row.
+- Separately owns an ACL for a public authenticated bridge. The private `atlas` helper is not directly executable by ordinary authenticated or anonymous roles.
+- Explicitly returns `permissionAuditComplete:false`; it **does not** implement the full effective disclosure decision inventory or make all other legacy routes safe.
+- A direct Work title/ID read still requires checking the legacy notebook's pre-existing Work readers for bypasses. These must be retired/replaced in the same approved secure cutover; do not claim a new safe RPC protects every old reader.
+- The old full-farm home containment would remove legacy farm-hand home task projections before the new notebook is wired. Positive worker experience and source security must ship together.
+
+`scripts/validate-atlas-connected-person-work-signed-http.py` reuses the **existing** C1 synthetic native standing Work fixture `validation/fixtures/20261024231215_shared_native_ledger_standing_work_person_only_v1.sql`, the actual local signed Work proposal/accept/assignment utilities, and adds disposable `personal.atlases` for synthetic People. It checks genuine independent worker/owner/outsider/no-seat sessions; wrong Ledger, unassigned Work, withheld source/title, active native Seat, ended Seat, retained-JWT revoked-session, and absence of employee memberships. The script **refuses nonlocal database URLs**. Source CI only compiles it; it has **not run** against an appropriately staged protected schema clone. Required future clone package must include the source candidate, strict postconditions and fixture; do not report a signed PASS before that run is actually observed.
+
+The active protected clone/release contract uses an exact reviewed migration identity. No replacement version was generated, no candidate was merged and no production access was widened in this iteration.
