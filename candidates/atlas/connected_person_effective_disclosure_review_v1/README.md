@@ -259,11 +259,11 @@ service-role backend, or stored snapshot route is inaccessible.
 A native Ledger Seat is a connection, **not automatically a Work detail
 or crop permission**. Current source metadata searches found no
 verified universal per-Work field-disclosure grant that can be reused
-without review. Therefore no new grant table was invented in this
-packet. A governor-owned exact Work-details/instruction decision,
-explicit revocation behavior, a positive worker end-to-end read/Done
-receipt and a complete alternative-route exposure test remain
-mandatory. In particular, a deliberately redacted instructions list
+without review. A source-bound, append-only exact Work-field decision
+table is now **staged in this same draft PR**, rather than repurposing
+an employee-membership grant. Its live signed authorization,
+a positive worker end-to-end read/Done receipt, and complete
+alternate-route exposure tests remain mandatory. In particular, a deliberately redacted instructions list
 must **never** be treated as production-ready for Anna's distinct
 Bed 3 and Bed 4 Work.
 
@@ -291,18 +291,21 @@ source-relevance record is active and owner/participant attested or
 source verified against `company_work_native_ledger_exact_source_v1`.
 The governor can inspect exact `titleCandidate` and
 `instructionsCandidate` from the Work record and select which fields
-still need to be adjudicated. The JSON explicitly labels each field
-`not_evaluated`, provides `hasMoreCandidateWork` when the preview
-has more than 50 candidates, and marks each candidate
+still need to be adjudicated. The JSON initially labels each field `not_evaluated` and, once
+the held decisions component is installed on a clone, derives
+`approved`, `denied`, `expired` or `source_changed` from the
+latest source-bound decision. It provides `hasMoreCandidateWork`
+when the preview has more than 50 candidates, and marks each candidate
 `candidateIsNotAnEffectiveDisclosureGrant:true`. No farm crop/zone/
 history/attachment record is joined into this field preview.
 
 This is NOT a list of what the Person currently sees. In particular:
 `verificationStatus` remains `verification_incomplete`;
-`mayCertifyNonDisclosure` remains false; no source grants or
-exclusions are created; no permission writer or recipient preview
-exists; `effectiveExposure.actualReadableFields` remains NULL. No
-work title or instruction is newly visible to the connected Person.
+`mayCertifyNonDisclosure` remains false; the governor's preview itself creates no grants or exclusions;
+the **separate, unreleased Work-field writer and approved-fields reader**
+now exist only as draft SQL candidates; `effectiveExposure.actualReadableFields`
+remains NULL. No work title or instruction is newly visible to a live
+connected Person.
 The governor sees source text as **decision input only**.
 
 The protected-clone `postconditions.sql` and static source validator
@@ -317,11 +320,11 @@ the current original My Work / Today / dated Work read sources do
 not return that instruction. These tests have NOT been executed in
 a disposable clone yet; structural GitHub CI is not a signed receipt.
 
-**Next actual authority build still required:** source-owned,
-root-governor-approved exact Work+field decisions (title and
-instructions independently), explicit Person/Ledger scope,
-expiry/revocation and original Work history, plus the signed
-recipient view. The existing legacy `semantic_exposure_envelope_v1`
+**Next acceptance/integration work still required:** apply and
+independently test the *staged* source-owned governor decision and
+recipient approved-fields read on a protected clone; connect them
+through the real governor and worker notebooks; verify preserved
+original Work history and signed ordinary completion before release. The existing legacy `semantic_exposure_envelope_v1`
 does use policy and grant structures, but checks old
 `organization_memberships`, credential rows and
 `audience_kind='organization_member'`. It cannot directly serve a
