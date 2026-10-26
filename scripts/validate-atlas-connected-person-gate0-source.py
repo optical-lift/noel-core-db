@@ -19,7 +19,7 @@ def read(filename: str) -> str:
     return (BASE / filename).read_text(encoding="utf-8")
 def sql_statements_only(value: str) -> str:
     # Ignore leading SQL safety comments, not executable mutation statements.
-    return re.sub(r"(?m)^\\s*--[^\\n]*$", "", value)
+    return re.sub(r"(?m)^\s*--[^\n]*$", "", value)
 
 
 review = read("candidate.sql")
