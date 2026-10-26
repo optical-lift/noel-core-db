@@ -38,17 +38,18 @@ Actual live source inspection on Oct 25 found:
    authority, active Work allocation and state, exact organization/unit/farm,
    original source task/zone, real growing bed, active Ledger↔organization
    participation, and independent legacy-slice provenance where applicable.
-3. Offer a **signed owner-only** review RPC for the existing candidate beds;
+3. Require an explicit, signed **farm crop-operations → one native Ledger** custody decision first. The old `zone.metadata` Flower annotation and mere Organization participation are source hints, NOT admissible boundary authorization. Use the new private custody carrier plus governor-only establish/end commands, recording a source-owned attestation; do not auto-bind or assume Flower based on a business name. Ending this crop custody must halt future link admissions. No row is auto-created by this migration.
+4. Offer a **signed owner-only** review RPC for the existing candidate beds;
    the governor explicitly attests to the specific Work stable key and bed
    stable key before the idempotent establishment RPC writes the link.
-4. The only new external functions are a governor-only *preview* and
+5. The only new worker/physical link functions are a governor-only *preview* and
    *establish context* operation. Neither exposes data to ordinary connected
    People. No user obtains a Flower read/edit grant, Work allocation, or
    crop condition command. The Work context link is evidence for future
    permitted projections, **never itself an access grant**.
 
 No Anna, Elm, U-Pick, Person UUID, farm/zone keys or Ledger IDs are
-hardcoded in executable SQL. The governor deliberately chooses each
+hardcoded in executable SQL. The two Ledgers share the same Elm Organization; this is why explicit separately established crop-domain Ledger custody is mandatory. The governor deliberately chooses each
 source-proven bed. A title match alone is never establishment authority.
 
 ## Security stop gates before a usable worker view
@@ -71,7 +72,7 @@ source-proven bed. A title match alone is never establishment authority.
 
 ## Tests and release discipline
 
-Clone-only postconditions verify the canonical spatial admission, guard,
+Clone-only postconditions verify the crop-domain custody privacy and unsigned denial, canonical spatial admission, guard,
 role privileges, unsigned denial, idempotent entry point and absence of
 direct canonical grants. These tests are **not** signed principal/Anna/outsider
 browser tests. Future signed positive/revoke/non-enumeration proofs remain
