@@ -40,9 +40,12 @@ Do not use notes in an eventual reader preview. Even where Program source metada
 ## Source/tests
 
 - `candidate.sql`: new note-event structure and three governed API operations, **no data rows**, wrapped in transaction.
-- `fixture.sql`: fictional cross-domain learning example, retry and stale-revision tests, readback, approved Program immutability and second-author denial. Run only in a disposable clone, not in production. Its fake JWT contexts are **not equivalent** to independently signed GoTrue/PostgREST sessions.
+- `fixture.sql`: **data-only** fictional Program-v2 author, other and unbound principal identities; compatible with the protected validator's exact `INSERT`-only fixture gate and the existing GoTrue fixture. No DO blocks, role-switching or spoofed JWT contexts are allowed in this clone fixture.
 - `postconditions.sql`: private table RLS, grants and API shape checks.
-- No new deployment, CI definition, production grant, table or receipt has been made by committing these source files.
+- `validation/atlas-program-author-annotations-isolated-v1/`: disposable PostgreSQL 16 contract tests, synthetic-role denials, 209-note/52-revision truncation, and parallel idempotency/stale-write checks. The original pre-clone simulated-role tests are retained as `legacy-role-simulation.sql`, **not used as the production-schema clone fixture**.
+- `scripts/validate-atlas-program-author-notes-signed-http.py`: independently signed local GoTrue/PostgREST author, unrelated signed owner, unbound and anonymous test matrix; verifies immutable approved source and denial after live entitlement revocation. It is activated by the existing `scripts/validate-production-schema-clone.sh` **only** for the generated `atlas_personal_program_author_annotations_v1` migration with its required fixture and postconditions.
+- `.github/workflows/atlas-program-author-notes-candidate.yml`: PR-time SQL, grant and concurrency tests plus source/syntax checks for the later signed clone probe. These PR tests do **not** invoke a production-backed clone or mint real GoTrue tokens.
+- No database release, additional production grant, Program mutation, or real account access is made by committing these source files.
 
 ## Required full verification and release path
 
@@ -54,3 +57,8 @@ Do not use notes in an eventual reader preview. Even where Program source metada
 6. After verified live receipt, implement the notebook UI/adapter against these real RPCs, including failed-save recovery and a signed desktop/mobile acceptance scenario on W1-B.
 
 **Never put Katie's Program data, her private source files, or real margin-note text in SQL fixtures or Git.**
+
+## Verification checkpoint — October 26, 2026
+The isolated PostgreSQL 16 proof and database custody checks have succeeded in draft. The guarded fixture was made data-only and the genuine local GoTrue/PostgREST test was wired to the existing production-schema clone harness with fail-closed exact migration-name admission.
+
+**Not yet executed:** the production-shaped schema/role snapshot clone, actual note RPCs under separately signed GoTrue sessions in that clone, source merge, governed migration generation and the separately authorized protected database release. Clone validation requires a generated immutable migration file and owner-triggered request after source review; a draft candidate SQL path alone cannot impersonate a migration version. The executable code is prepared for that gate, not a substitute for it.
