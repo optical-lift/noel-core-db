@@ -318,6 +318,15 @@ for fragment in ('signed_universal_original_work_probe=true',
     if fragment not in harness:
         errors.append(f'Protected local clone missing universal signed gate: {fragment}')
 
+
+# Executing signed original Work requires LOCAL Auth and PostgREST, not only
+# the local PostgreSQL container. Guard against silently falling back to
+# `supabase db start` while a signed probe appears to have been selected.
+startup = harness.split('if [ "$signed_http_probe" = true ] ||',1)[-1]
+startup = startup.split('supabase start >"$startup_log" 2>&1',1)[0]
+if '[ "$signed_universal_original_work_probe" = true ]' not in startup:
+    errors.append('Universal signed probe accidentally starts PostgreSQL-only')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
