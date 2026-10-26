@@ -83,10 +83,10 @@ BEGIN
       'searchTodayIndexAndExports','open',
       'notebookSignedPreview','open'
     ),
-    'priorityLegacyReaders',jsonb_build_array(
-      'atlas.zone_registry_source_v1',
-      'atlas.object_crop_bed_map_v1',
-      'atlas.farm_care_zone_v1'
+    'sourceCoverage',jsonb_build_object(
+      'sourceAdaptersReported',0,
+      'verificationCompleteness','unknown',
+      'sourceSpecificReviewRequired',true
     ),
     'authorityBoundary','native_ledger_root_governor_only',
     'targetSeatIsNotDisclosurePermission',true
