@@ -14,6 +14,7 @@ CANDIDATES = (
     "governed_legacy_farm_reader_disclosure_v1",
     "governed_legacy_farm_reader_disclosure_gate0_extension_v1",
     "governed_legacy_farm_reader_disclosure_gate0_context_v1",
+    "governed_legacy_farm_reader_disclosure_gate0_deep_v1",
     "governor_effective_subject_disclosure_review_v1",
     "universal_subject_bounded_disclosure_v1",
     "original_subject_choices_for_work_decomposition_v1",
@@ -109,7 +110,8 @@ print("PASS single canonical Work and independently governed Bed split")
 source_names = []
 for name in ("governed_legacy_farm_reader_disclosure_v1",
              "governed_legacy_farm_reader_disclosure_gate0_extension_v1",
-             "governed_legacy_farm_reader_disclosure_gate0_context_v1"):
+             "governed_legacy_farm_reader_disclosure_gate0_context_v1",
+             "governed_legacy_farm_reader_disclosure_gate0_deep_v1"):
     sql = texts[name]
     names = re.findall(r"CREATE OR REPLACE FUNCTION atlas\.([a-z_0-9]+)\(", sql)
     for found in names:
@@ -117,8 +119,8 @@ for name in ("governed_legacy_farm_reader_disclosure_v1",
             require("PERFORM atlas.require_governed_farm_full_disclosure_self_v1(" in sql,
                     f"{name}: no signed native governor source check")
             source_names.append(found)
-require(len(source_names) == 26 and len(set(source_names)) == 26,
-        "Gate 0 must enumerate 26 unique guarded historical readers")
+require(len(source_names) == 39 and len(set(source_names)) == 39,
+        "Gate 0 must enumerate 39 unique guarded historical readers")
 review = texts["governor_effective_subject_disclosure_review_v1"]
 missing = [name for name in source_names if f"'{name}'" not in review]
 require(not missing, f"effective disclosure review missing historical paths: {missing}")
@@ -140,7 +142,7 @@ for slug, old, boundary in (
             slug + ": UUID cursor must be the last visible ordered page item")
 print("PASS genuine PostgreSQL UUID pagination boundary")
 
-print("PASS 26 source-guarded legacy reader inventory")
+print("PASS 39 source-guarded legacy reader inventory")
 
 # A guessed object ID must not reveal whether a withheld original Bed/Task
 # exists. Nonexistence and lack of full disclosure have the same 42501 source
