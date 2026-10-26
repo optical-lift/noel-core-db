@@ -302,7 +302,11 @@ else:
                      'owner_direct_assign_existing_original_work_self_api_v1',
                      'connected_person_original_work_subject_self_api_v1',
                      'record_household_laundry_wash_started_self_api_v1',
-                     'household_laundry_explicit_rhythm_decide_self_api_v1'):
+                     'household_laundry_explicit_rhythm_decide_self_api_v1',
+                     'farm_memberships', 'zone_registry_source_v1',
+                     'object_crop_bed_map_v1', 'farm_care_zone_v1',
+                     'farm_snapshot_for_member_v1',
+                     'bed_components_state_v1'):
         if fragment not in proof:
             errors.append(f'Universal Work signed proof missing boundary: {fragment}')
     if 'https://zirqkouammpwxlqfbsvf.supabase.co' in proof:
