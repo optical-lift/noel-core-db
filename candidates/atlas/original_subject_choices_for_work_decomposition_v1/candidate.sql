@@ -40,7 +40,7 @@ BEGIN
     'subjectDomain','spatial','subjectKind','growing_object',
     'subjectId',q.id,'label',q.label,'kindLabel',q.object_type)
     ORDER BY q.id) FILTER(WHERE q.rn<=p_limit),'[]'::jsonb),
-    count(*)>p_limit,max(q.id) FILTER(WHERE q.rn<=p_limit)
+    count(*)>p_limit,(array_agg(q.id ORDER BY q.rn) FILTER(WHERE q.rn=p_limit))[1]
  INTO v_rows,v_more,v_next FROM page q;
  RETURN jsonb_build_object('ok',true,
    'contractVersion','owner_original_subject_choices_for_work_v1',
