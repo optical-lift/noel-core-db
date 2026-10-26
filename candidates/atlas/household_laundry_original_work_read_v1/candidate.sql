@@ -8,6 +8,8 @@ DECLARE v_household uuid;v_kernel atlas.household_kernel_instances%rowtype;
  v_condition text;v_observation uuid;v_need atlas.household_need_occurrences_v1%rowtype;
  v_work atlas.work_items%rowtype;v_allocation atlas.work_allocations%rowtype;
  v_last_completed_work_id uuid;v_last_completed_at timestamptz;
+ v_rhythm atlas.household_rhythms%rowtype;
+ v_rhythm_decision atlas.household_rhythm_explicit_decisions_v1%rowtype;
 BEGIN
  v_household:=atlas.principal_current_household_id_v1();
  IF v_household IS NULL THEN
@@ -37,6 +39,18 @@ BEGIN
   WHERE n.household_id=v_household AND n.instance_id=v_kernel.id
     AND n.state='satisfied' AND w.work_state='completed'
   ORDER BY n.satisfied_at DESC,n.id DESC LIMIT 1;
+  -- The original Household Rhythm remains a separate decision, not a
+  -- presumed side effect of calibrating the world kernel.
+  SELECT * INTO v_rhythm FROM atlas.household_rhythms r
+   WHERE r.household_id=v_household
+     AND r.stable_key='kernel:household.laundry:general';
+  IF v_rhythm.id IS NOT NULL THEN
+   SELECT * INTO v_rhythm_decision
+   FROM atlas.household_rhythm_explicit_decisions_v1 d
+   WHERE d.household_id=v_household AND d.rhythm_id=v_rhythm.id
+     AND d.instance_id=v_kernel.id
+   ORDER BY d.decision_seq DESC LIMIT 1;
+  END IF;
   IF v_need.id IS NOT NULL THEN
     SELECT * INTO v_work FROM atlas.work_items w WHERE w.id=v_need.current_work_item_id
        AND w.household_id=v_household;
@@ -58,6 +72,15 @@ BEGIN
   'workItemId',v_work.id,
   'lastCompletedWorkItemId',v_last_completed_work_id,
   'lastCompletedWashStartedAt',v_last_completed_at,
+  'rhythmId',v_rhythm.id,
+  'rhythmDecisionId',v_rhythm_decision.decision_id,
+  'rhythmDecisionKind',v_rhythm_decision.decision_kind,
+  'rhythmRenewAfterDays',v_rhythm_decision.renew_after_days,
+  'rhythmCurrentlyEstablished',v_rhythm.active IS TRUE
+    AND v_rhythm_decision.decision_kind='establish',
+  'rhythmNextWindowStart',CASE WHEN v_rhythm.active
+    AND v_rhythm_decision.decision_kind='establish'
+    THEN v_rhythm.next_window_start ELSE NULL END,
   'workTitle',v_work.title,
   'workState',v_work.work_state,
   'carrierAllocationId',v_allocation.id,
