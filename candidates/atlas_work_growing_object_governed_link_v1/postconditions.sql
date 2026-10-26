@@ -45,6 +45,43 @@ BEGIN
     RAISE EXCEPTION 'Canonical growing-object link was not admitted/guarded';
   END IF;
 
+
+  IF to_regprocedure(
+      'public.establish_farm_crop_ledger_custody_self_api_v1(uuid,uuid,jsonb)'
+    ) IS NULL OR to_regprocedure(
+      'public.end_farm_crop_ledger_custody_self_api_v1(uuid,uuid)'
+    ) IS NULL OR has_table_privilege(
+      'authenticated','atlas.farm_crop_ledger_custody_v1','SELECT'
+    ) OR has_table_privilege(
+      'authenticated','atlas.farm_crop_ledger_custody_v1','INSERT'
+    ) OR NOT EXISTS (
+      SELECT 1 FROM pg_class c
+      WHERE c.oid='atlas.farm_crop_ledger_custody_v1'::regclass
+        AND c.relrowsecurity
+    )
+  THEN
+    RAISE EXCEPTION 'Farm crop to Ledger custody must be private, signed, explicit';
+  END IF;
+  IF EXISTS (
+    SELECT farm_id FROM atlas.farm_crop_ledger_custody_v1
+    WHERE custody_state='active' GROUP BY farm_id HAVING count(*)>1
+  ) THEN
+    RAISE EXCEPTION 'Ambiguous farm crop custody';
+  END IF;
+  v_response:=public.establish_farm_crop_ledger_custody_self_api_v1(
+    gen_random_uuid(),gen_random_uuid(),
+    '{"cropLedgerBoundaryReviewed":true,"authorityDomain":"farm_crop_operations"}'::jsonb
+  );
+  IF v_response->>'ok' IS DISTINCT FROM 'false' THEN
+    RAISE EXCEPTION 'Unsigned crop custody admission succeeded';
+  END IF;
+  v_response:=public.end_farm_crop_ledger_custody_self_api_v1(
+    gen_random_uuid(),gen_random_uuid()
+  );
+  IF v_response->>'ok' IS DISTINCT FROM 'false' THEN
+    RAISE EXCEPTION 'Unsigned crop custody retirement succeeded';
+  END IF;
+
   SELECT count(*) INTO v_rows
     FROM atlas.work_item_context_links;
   -- Unauthenticated caller must receive no view into existing scope and
