@@ -138,6 +138,7 @@ begin
   );
 end;
 $function$;
+
 -- Original held candidate: governed_legacy_farm_reader_disclosure_v1/candidate.sql
 -- Protect inherited wide farm projections from old role/seat-based disclosure.
 -- Narrow connected-Person subject readers are a separate source-authorized path.
@@ -972,6 +973,7 @@ begin
   );
 end;
 $function$;
+
 -- Original held candidate: governed_legacy_farm_reader_disclosure_gate0_extension_v1/candidate.sql
 -- Gate 0 continuation. Existing legacy membership-only calls can expose
 -- other beds, counts, crop placements, history and even absent-auth aggregate
@@ -3071,6 +3073,7 @@ begin
   ));
 end;
 $function$;
+
 -- Original held candidate: governed_legacy_farm_reader_disclosure_gate0_context_v1/candidate.sql
 -- Gate 0 source-only candidates: eight more old farm/role based readers,
 -- including unbounded membership roster, crop-cycle and task card contexts.
@@ -4144,6 +4147,7 @@ begin
   where f.id = p_farm_id;
 end;
 $function$;
+
 -- Original held candidate: universal_subject_bounded_disclosure_v1/candidate.sql
 -- A Person's exact Work responsibility and a native Ledger seat never grant
 -- broad Subject discovery. Governor decisions are append-only and field-bounded.
@@ -4497,6 +4501,7 @@ REVOKE ALL ON FUNCTION public.connected_person_work_subject_links_self_api_v1(
  uuid,uuid,uuid,integer,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.connected_person_work_subject_links_self_api_v1(
  uuid,uuid,uuid,integer,uuid) TO authenticated;
+
 -- Original held candidate: governor_effective_subject_disclosure_review_v1/candidate.sql
 -- Governor-only disclosure observation. Original source grants remain authority.
 -- Never infer the target actor's successful signed call from a review projection.
@@ -4639,6 +4644,7 @@ REVOKE ALL ON FUNCTION public.owner_effective_subject_disclosure_review_self_api
  uuid,uuid,uuid,integer,uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.owner_effective_subject_disclosure_review_self_api_v1(
  uuid,uuid,uuid,integer,uuid) TO authenticated;
+
 -- Original held candidate: original_subject_choices_for_work_decomposition_v1/candidate.sql
 -- The user chooses exact existing Subjects; no title-matching or farm-task import.
 -- This generic Work-subject choice seam may gain further source adapters in
@@ -4705,6 +4711,7 @@ REVOKE ALL ON FUNCTION public.owner_original_subject_choices_for_work_self_api_v
  uuid,uuid,uuid,integer,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.owner_original_subject_choices_for_work_self_api_v1(
  uuid,uuid,uuid,integer,uuid) TO authenticated;
+
 -- Original held candidate: universal_original_work_decomposition_v1/candidate.sql
 -- Reuse atlas.work_items, work_allocations, plans, results and original
 -- Ledger relevance; this is decomposition/provenance, NOT a new task system.
@@ -4975,6 +4982,7 @@ REVOKE ALL ON FUNCTION public.split_original_canonical_work_owner_self_api_v1(
  uuid,uuid,uuid,jsonb,uuid,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.split_original_canonical_work_owner_self_api_v1(
  uuid,uuid,uuid,jsonb,uuid,text) TO authenticated;
+
 -- Original held candidate: universal_household_canonical_work_custody_v1/candidate.sql
 -- One canonical Work identity. Household is another protected custody context,
 -- never a fabricated Organization. This release candidate MUST be applied after
@@ -5229,6 +5237,7 @@ CREATE TRIGGER work_items_project_completed_company_work_to_ledger_v1 AFTER UPDA
 
 -- A separate source guard/writer for household rows follows in this
 -- same staged release; until then, the new private household rows are inert.
+
 -- Original held candidate: universal_household_canonical_work_guards_v1/candidate.sql
 -- Must follow universal_household_canonical_work_custody_v1.
 -- A Need is not a task: it is the original, still-applicable physical
@@ -5597,6 +5606,7 @@ CREATE TRIGGER z_guard_household_work_acceptance_v1
 
 -- Keep original append-only acceptance and Actual guards; no new Household
 -- reader or writer accepts farm_id, Organization Membership or employee seat.
+
 -- Original held candidate: universal_household_rhythm_explicit_decision_v1/candidate.sql
 -- Same original atlas.household_rhythms, not a new scheduler or task system.
 -- An author-controlled metadata flag cannot substitute for this authorized
@@ -5771,6 +5781,7 @@ REVOKE ALL ON FUNCTION public.household_laundry_explicit_rhythm_decide_self_api_
  uuid,uuid,text,integer,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.household_laundry_explicit_rhythm_decide_self_api_v1(
  uuid,uuid,text,integer,text) TO authenticated;
+
 -- Original held candidate: household_laundry_original_work_actual_v1/candidate.sql
 -- After universal_household_canonical_work_custody_v1 and
 -- universal_household_canonical_work_guards_v1. Use exact original Work IDs.
@@ -6254,6 +6265,7 @@ REVOKE ALL ON FUNCTION public.record_household_laundry_wash_started_self_api_v1(
  uuid,uuid,text) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.record_household_laundry_wash_started_self_api_v1(
  uuid,uuid,text) TO authenticated;
+
 -- Original held candidate: household_laundry_original_work_read_v1/candidate.sql
 -- Governor's original Laundry notebook; signed actor-only Work Focus by UUID.
 -- No private Household data is inferred through Ledger or farm membership.
@@ -6443,6 +6455,7 @@ REVOKE ALL ON FUNCTION public.household_original_work_focus_self_api_v1(
  uuid,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.household_original_work_focus_self_api_v1(
  uuid,uuid) TO authenticated;
+
 -- Original held candidate: original_subject_work_existing_direct_responsibility_v1/guarded_native_reader_extensions.sql
 -- Extension of the installed original canonical Person Work readers/guards.
 -- Source definitions are based on the signed/current Noel function bodies
@@ -7924,6 +7937,7 @@ begin
   'noNewJournalTestimony',true);
 end $function$
 ;
+
 -- Original held candidate: original_subject_work_existing_direct_responsibility_v1/candidate.sql
 -- Requires original_work_decomposition + native guarded reader extensions.
 -- Assigns ONE EXISTING canonical Work ID; never creates or imports another.
