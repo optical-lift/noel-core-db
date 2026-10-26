@@ -364,6 +364,135 @@ def main():
          "Unapproved governor Work instruction appeared in original dated Work")
     print("PASS original dated Work positive assignment, plan and field deny")
 
+    instructions_approval=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"instructions","allow",
+        "Governor expressly shares the exact instructions on only Work A.",
+        expected=private_hash)
+    need(instructions_approval[0]==200 and
+         instructions_approval[1].get("decision")=="allow",
+         "Exact single Work instructions approval failed")
+    approved_now=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(approved_now[0]==200 and approved_now[1].get("fields")=={
+        "title":title_text,"instructions":SYNTHETIC_PRIVATE_INSTRUCTIONS},
+        "Worker did not receive ONLY the two approved Work fields")
+    need(SYNTHETIC_PRIVATE_INSTRUCTIONS in json.dumps(my_work(api,key,worker)[1])
+         and SYNTHETIC_PRIVATE_INSTRUCTIONS in
+             json.dumps(original_today(api,key,worker)[1])
+         and SYNTHETIC_PRIVATE_INSTRUCTIONS in
+             json.dumps(dated_work(api,key,worker,test_day)[1]),
+         "Original Work readers did not honor the same positive instructions grant")
+    other_work=approved_fields(api,key,worker,ledger,standing.TASK_B)
+    need(other_work[0] in (200,401,403) and
+         (other_work[0]!=200 or
+          other_work[1]=={"ok":False,"code":"not_found"}),
+         "One Work grant exposed unassigned Work B")
+    wrong_ledger=approved_fields(api,key,worker,other_ledger,standing.TASK_A)
+    need(wrong_ledger[0] in (200,401,403) and
+         (wrong_ledger[0]!=200 or
+          wrong_ledger[1]=={"ok":False,"code":"not_found"}),
+         "One Ledger approval opened another Ledger's source")
+    foreign=approved_fields(api,key,outsider,ledger,standing.TASK_A)
+    need(foreign[0] in (200,401,403) and
+         (foreign[0]!=200 or
+          foreign[1]=={"ok":False,"code":"not_found"}),
+         "Outsider retrieved assigned worker's approved instruction")
+    print("PASS approved Work instruction appears only on exact signed Person/Ledger/Work")
+
+    changed_text="Clone changed instructions were NOT yet approved"
+    c1.sql(a.db_url,"update atlas.work_items set instructions="
+        f"'{changed_text}' where id='{standing.TASK_A}'::uuid")
+    text_changed=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(text_changed[0]==200 and
+         text_changed[1].get("fields")=={"title":title_text},
+         "Changed instructions leaked under governor approval of older source words")
+    for surface,packet in (
+        ("My Work",my_work(api,key,worker)),
+        ("Today",original_today(api,key,worker)),
+        ("Dated",dated_work(api,key,worker,test_day)),
+    ):
+        need(packet[0]==200 and changed_text not in json.dumps(packet[1]) and
+             SYNTHETIC_PRIVATE_INSTRUCTIONS not in json.dumps(packet[1]),
+             f"{surface} leaked changed or withdrawn Work instructions")
+    stale_preview=governor_review(api,key,owner,ledger,standing.WORKER_PERSON)
+    stale_items=stale_preview[1].get("preliminaryWorkFieldReview",{}).get("items",[])
+    stale=[x for x in stale_items if x.get("workItemId")==standing.TASK_A]
+    need(len(stale)==1 and
+         stale[0].get("instructionsFieldDecisionStatus")=="source_changed" and
+         stale[0].get("titleFieldDecisionStatus")=="approved",
+         "Governor preview must show stale instructions and still-approved title")
+    stale_reapprove=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"instructions","allow",
+        "Governor cannot silently reapprove changed unreviewed instructions.",
+        expected=private_hash)
+    need(stale_reapprove[0] in (200,401,403) and
+         (stale_reapprove[0]!=200 or
+          stale_reapprove[1]=={"ok":False,"code":"not_found"}),
+         "Changed Work field was approved using the obsolete reviewed hash")
+    new_hash=source_sha(changed_text)
+    new_approval=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"instructions","allow",
+        "Governor separately reviews and approves the changed Work instructions.",
+        expected=new_hash)
+    need(new_approval[0]==200 and
+         new_approval[1].get("decision")=="allow",
+         "Changed Work text could not be independently reapproved")
+    changed_approved=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(changed_approved[0]==200 and
+         changed_approved[1].get("fields",{}).get("instructions")==changed_text,
+         "Governor's new exact-field approval did not authorize changed words")
+
+    deny_instructions=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"instructions","deny",
+        "Governor revokes previously shared Work instructions after review.")
+    need(deny_instructions[0]==200 and
+         deny_instructions[1].get("decision")=="deny",
+         "Exact Work instructions revocation did not append a decision")
+    revoked_fields=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(revoked_fields[0]==200 and
+         revoked_fields[1].get("fields")=={"title":title_text},
+         "Revoking one field exposed instructions or incorrectly revoked title")
+    for surface,packet in (
+        ("My Work",my_work(api,key,worker)),
+        ("Today",original_today(api,key,worker)),
+        ("Dated",dated_work(api,key,worker,test_day))
+    ):
+        need(packet[0]==200 and
+             changed_text not in json.dumps(packet[1]) and
+             SYNTHETIC_PRIVATE_INSTRUCTIONS not in json.dumps(packet[1]),
+             f"{surface} returned revoked instructions through alternate source")
+    deny_title=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"title","deny",
+        "Governor revokes original Work title as a separate field decision.")
+    need(deny_title[0]==200 and deny_title[1].get("decision")=="deny",
+         "Revoking the independent Work title field failed")
+    after_both=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(after_both[0] in (200,401,403) and
+         (after_both[0]!=200 or
+          after_both[1]=={"ok":False,"code":"not_found"}),
+         "Worker still retrieved Work fields after title and instructions denied")
+    for surface,packet in (
+        ("narrow",request(api,key,worker,ledger)),
+        ("My Work",my_work(api,key,worker)),
+        ("Today",original_today(api,key,worker)),
+        ("Dated",dated_work(api,key,worker,test_day))
+    ):
+        need(packet[0]==200 and
+             standing.TASK_A not in {
+               x.get("workItemId") for x in packet[1].get("items",[])
+               if isinstance(x,dict)},
+             f"{surface} still listed Work title after title field revocation")
+    count=c1.sql(a.db_url,
+        "select count(*) from atlas.connected_person_work_field_decision_events_v1 "
+        f"where work_item_id='{standing.TASK_A}'::uuid")
+    need(int(count)>=6, "Field decision history was overwritten instead of appended")
+    recovered=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"title","allow",
+        "Governor explicitly restores the approved title for Seat revocation test.",
+        expected=title_hash)
+    need(recovered[0]==200 and recovered[1].get("decision")=="allow",
+         "Independent title reapproval after revocation failed")
+    print("PASS changed source, separate revocations, append-only history and restoration")
+
     # Genuine same-JWT deny as soon as the native Seat ends, then restore only
     # the synthetic Seat to isolate session revocation from Seat revocation.
     seat="e5200000-0000-4000-8000-000000000502"
