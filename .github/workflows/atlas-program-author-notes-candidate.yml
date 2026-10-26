@@ -47,3 +47,9 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-personal-program-author-annotations-v1/postconditions.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/atlas-program-author-annotations-isolated-v1/test-contract.sql
           echo "Disposable PG16 and simulated-claim tests passed; this is NOT a production-shaped clone, independent GoTrue signature test, or migration release."
+      - name: Prove concurrent create idempotency and revision conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash validation/atlas-program-author-annotations-isolated-v1/concurrency-check.sh
+
