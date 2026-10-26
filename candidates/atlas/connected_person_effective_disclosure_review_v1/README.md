@@ -44,9 +44,14 @@
 
 Never embed actual Person data, production user identities, private notes or test credentials in public SQL. Never simulate signed independent proof through a service role. This source branch is not a deployment or a signed-acceptance receipt.
 
-## Candidate direct-RPC closure (not releasable by itself)
+## Coupled source-reader containment (held, not releasable by itself)
 
-`gate0_direct_rpc_containment_hold.sql` stages only SQL EXECUTE revocation for the three named old readers from ordinary API roles. **DO NOT DEPLOY THIS ALONE**: check old owner/worker clients, preserve legitimate owner operations through scoped replacement readers, trace indirect SECURITY DEFINER calls and the other farm-wide readers, and pass signed positive/negative API checks before any approved release. Its presence in this PR is not an authorization or production safeguard.
+`legacy_farm_reader_body_containment_hold.sql` stages exact current source bodies for the original three readers, the inherited `farm_snapshot_for_member_v1`, and `universal_home_v1`. The contained readers replace farm-member/farm-hand-wide gates with transitional farm-owner-only checks, give missing and unauthorized bed IDs the same error class, and revoke direct browser SQL execution of the four named read helpers. `universal_home_v1` must filter its farm loop to owners in the same candidate so an ordinary farm-hand home does not call the newly guarded snapshot and fail. The legacy home remains SQL-executable only for compatibility and is NOT claimed to be exact-Ledger scoped.
+
+This is a **temporary source risk containment proposal only**, not a completed crop/Work entitlement model: a legacy farm owner is not equivalent to the root governor for a specific native Ledger; `universal_home_v1` may still disclose organization or project information via other source paths; other farm-care/grow-room/continuity readers and write operations remain broader than needed. Worker home disappearance/replacement and legitimate owner path parity must be independently tested before release. SQL signature preservation and replacement-body comparison are required. `legacy_farm_reader_postconditions_hold.sql` provides structural checks, not signed-user proof. The earlier redundant direct-only candidate was withdrawn from this branch to maintain a single containment proposal.
+
+**Observed alternate SQL caller:** `atlas.universal_home_v1` invokes `atlas.farm_snapshot_for_member_v1` from its active membership loop; this is a proven indirect SQL path, not proof of signed Anna API/browser invocation. Farm-wide `totalBeds`, `growingBeds`, `activeSqft`, sowings, stems and farm activity could reveal withheld operational existence, even as aggregates. No matching requests to the named RPC paths appeared in the accessible 24-hour edge-log aggregate; that is not proof of no reachable path.
+
 
 ## Source-preserving two-subject Work decomposition inspection
 
