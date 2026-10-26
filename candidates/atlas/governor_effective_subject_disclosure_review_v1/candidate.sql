@@ -85,7 +85,7 @@ BEGIN
      'allocationId',b.allocation_id
    ) ORDER BY b.id) FILTER(WHERE b.rn<=p_limit),'[]'::jsonb),
    count(*)>p_limit,
-   max(b.id) FILTER(WHERE b.rn<=p_limit)
+   (array_agg(b.id ORDER BY b.rn) FILTER(WHERE b.rn=p_limit))[1]
  INTO v_work,v_more,v_next
  FROM (SELECT selected.*,row_number() over (order by id) rn FROM selected) b;
  RETURN jsonb_build_object(
