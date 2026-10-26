@@ -44,6 +44,23 @@ ALTER TABLE atlas.connected_person_work_field_decision_events_v1 ENABLE ROW LEVE
 REVOKE ALL ON TABLE atlas.connected_person_work_field_decision_events_v1
   FROM PUBLIC,anon,authenticated;
 
+-- The log is append-only even for privileged future application code.
+-- Corrections and revocations are separate signed governor decisions.
+CREATE OR REPLACE FUNCTION atlas.connected_person_work_field_no_mutation_v1()
+RETURNS trigger LANGUAGE plpgsql SET search_path TO ''
+AS $immutable$
+BEGIN
+ RAISE EXCEPTION 'Work field decisions are append-only; record a new decision'
+   USING errcode='42501';
+END;
+$immutable$;
+CREATE TRIGGER connected_person_work_field_decisions_append_only_v1
+BEFORE UPDATE OR DELETE ON atlas.connected_person_work_field_decision_events_v1
+FOR EACH ROW EXECUTE FUNCTION
+ atlas.connected_person_work_field_no_mutation_v1();
+REVOKE ALL ON FUNCTION atlas.connected_person_work_field_no_mutation_v1()
+ FROM PUBLIC,anon,authenticated;
+
 -- Explicit authority predicate used for BOTH deciding and reading.
 -- This does not rely on the legacy organization membership or the
 -- existence of a native Ledger Seat alone.
