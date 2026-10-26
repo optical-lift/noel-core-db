@@ -311,4 +311,21 @@ check("GRANT EXECUTE" not in legacy_worker and
       "DROP FUNCTION" not in legacy_worker,
       "Worker Day ACL hold cannot add privileges, replace source or remove history")
 
+# Production testing for now is an actual READ-ONLY catalog/audit receipt,
+# NOT installed authorization SQL or proof of an independently signed worker.
+production_catalog=read("production_catalog_compatibility_readonly_20261026.sql")
+catalog_body=sql_statements_only(production_catalog)
+check(production_catalog.count("SELECT ")>=4 and
+      "pg_catalog.pg_attribute" in production_catalog and
+      "auth.sessions" in production_catalog and
+      "work_state" in production_catalog,
+      "Production catalog audit must preserve function, table and history checks")
+check(not re.search(r"\\b(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|CREATE|ALTER|DROP|"
+                    r"GRANT|REVOKE|BEGIN|COMMIT|CALL|DO|COPY)\\b",
+                    catalog_body,re.I),
+      "Production compatibility catalog must remain read-only")
+check("blocked before execution" in notes and
+      "production_catalog_compatibility_readonly_20261026.sql" in notes,
+      "Release notes must not claim blocked rollback compile or signed access pass")
+
 print("PASS Gate 0 static source guards (NOT clone/signed privacy acceptance)")
