@@ -11,6 +11,7 @@ from pglast import parse_plpgsql, parse_sql
 root = Path(__file__).resolve().parents[1] / "candidates" / "atlas"
 paths = sorted(root.glob("*/candidate.sql"))
 paths += sorted(root.glob("*/guarded_native_reader_extensions.sql"))
+paths += sorted(root.glob("*/postconditions.sql"))
 if len(paths) < 15:
     raise SystemExit(f"Missing original SQL candidate sources (found {len(paths)})")
 
@@ -47,6 +48,6 @@ for path in paths:
           f"{len(statements)} SQL statements, {parsed} PL/pgSQL functions")
 if functions < 20:
     raise SystemExit(f"Too few PL/pgSQL bodies parsed ({functions})")
-print(f"PASS SQL and PL/pgSQL grammar on {len(paths)} held candidates, "
+print(f"PASS SQL and PL/pgSQL grammar on {len(paths)} held candidates and postconditions, "
       f"{functions} function bodies")
 print("PENDING disposable production-schema compilation and independent signed acceptance")
