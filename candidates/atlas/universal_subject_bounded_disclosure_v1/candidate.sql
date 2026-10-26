@@ -272,7 +272,7 @@ DECLARE v_person uuid;v_owner boolean:=false;v_rows jsonb:='[]'::jsonb;
 BEGIN
  IF auth.uid() IS NULL OR
     (atlas.reality_access_self_api_v1()->>'state') IS DISTINCT FROM 'ready'
-    OR p_limit NOT BETWEEN 1 AND 50 OR p_work_item_id IS NULL THEN
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50 OR p_work_item_id IS NULL THEN
   RAISE EXCEPTION 'Original Work Subjects unavailable.' USING ERRCODE='42501';
  END IF;
  v_person:=atlas.current_person_id_v1();
