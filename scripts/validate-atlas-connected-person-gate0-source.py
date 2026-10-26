@@ -40,6 +40,25 @@ for s in ("auth.uid() IS NULL", "principal_has_ledger_authority_v1",
           "'not_found'", "current_principal_id_v1", "targetSeatIsNotDisclosurePermission"):
     check(s in review, f"governor-only source guard absent: {s}")
 check("'atlas.zone_registry_source_v1'" not in review, "universal reviewer cannot hardcode Flower readers")
+for source_guard in ("preliminaryWorkFieldReview",
+                     "governor_review_inputs_only",
+                     "workFieldsRequireSeparateDecisions",
+                     "candidateIsNotAnEffectiveDisclosureGrant",
+                     "titleFieldDecisionStatus','not_evaluated'",
+                     "instructionsFieldDecisionStatus','not_evaluated'",
+                     "a.assignee_canonical_person_id=p_person_entity_id",
+                     "a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text",
+                     "rel.ledger_id=p_ledger_id",
+                     "company_work_native_ledger_exact_source_v1",
+                     "LIMIT 51",
+                     "hasMoreCandidateWork",
+                     "mayCertifyNonDisclosure',false"):
+    check(source_guard in review,
+          f"Preliminary governor-only Work field review missing source guard: {source_guard}")
+check("preliminaryWorkFieldReview" in review_tests and
+      "LIMIT 51" in review_tests and
+      "verification_incomplete" in review_tests,
+      "Governor-only field preview clone postconditions missing")
 check(not re.search(r"CREATE TABLE|INSERT INTO|UPDATE atlas\.|DELETE FROM",review,re.I),
       "read-only governor review cannot mutate data")
 check(review.count("GRANT EXECUTE ON FUNCTION") == 1 and
