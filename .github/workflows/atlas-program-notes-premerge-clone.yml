@@ -37,7 +37,7 @@ jobs:
           assert "signed-program-author-notes-summary.txt" in src
           assert "supabase db dump --db-url" in src
           assert "candidate_sha:" in src
-          assert src.count("${{") >= 16
+          assert src.count("$"+"{{") >= 16
           for fragments in (("supabase"," db push"), ("supabase"," db reset --linked"),
                             ("gh ","pr merge"), ("supabase migration"," repair")):
               prohibited="".join(fragments)
