@@ -90,3 +90,26 @@ synthetic active relevance deletion and GoTrue same-JWT revocation.
 **Execution receipt: NOT RUN**. Clone-only files and scripts are test
 assets, not a claim that live production security changed. Do not
 silently reinterpret a new narrow reader's pass as complete route closure.
+
+## Existing Person Today, dated Work and Worker Day alternate routes
+
+The original native Person work entry points are not interchangeable.
+Closing `connected_person_my_work_self_api_v1` does **not** close
+these separately callable source-read functions.
+
+| Existing public API | Verified current source-level carrier | Gate |
+| --- | --- | --- |
+| `connected_person_company_work_today_self_api_v1(integer)` | Original Work title, **instructions**, source type, original source UUID/date from active canonical Person allocation, but **without an explicit current Ledger connection or verified relevance filter** | `connected_person_today_existing_reader_cutover_hold.sql` and postconditions staged. Real signed current-Ledger and withdrawn-relevance tests UNRUN |
+| `connected_person_company_work_day_self_api_v1(date)` | Original Work title, **instructions**, `taskClassification` from Work metadata, historical result/acceptance fields; filters by native connection but not verified Work relevance | Not fixed. Requires source-enforced exact relevance and separately approved details/history/identity fields without hiding lawfully completed Work |
+| `company_work_worker_day_self_api_v1(date,integer)` | Legacy farm-hand membership and worker projection; **requiredWork instructions**, operating snapshot and other farm/delivery fields in result | Not fixed. Govern old farm source/dependencies with Worker Day positive-parity proof before narrowing or revoking access |
+
+**Source findings are not proof of actual signed Anna HTTP reads.**
+Run independent GoTrue owner, connected Person, same-organization
+different-Ledger, outsider, ended-Seat and revoked-session scenarios
+on a protected disposable clone. Test both current and historical
+Work, original Work details, employer-era positive access and
+interacting Index/Today routes. Confirm the source-owned writer can
+show approved instructions, and any private Work/source fields are
+unavailable through all these paths. New feature/permission controls
+must not be released while the dated and Worker Day readers are
+unclosed.
