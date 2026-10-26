@@ -16,7 +16,7 @@ DECLARE
  v_next uuid;
 BEGIN
  IF p_target_person_id IS NULL OR p_organization_id IS NULL OR p_ledger_id IS NULL
-    OR p_limit NOT BETWEEN 1 AND 50 THEN
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50 THEN
    RAISE EXCEPTION 'Exact Ledger, Person and bounded page required.' USING ERRCODE='22023';
  END IF;
  v_owner:=atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id);
