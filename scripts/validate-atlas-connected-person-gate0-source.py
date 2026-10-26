@@ -17,6 +17,10 @@ def check(ok: bool, msg: str) -> None:
 
 def read(filename: str) -> str:
     return (BASE / filename).read_text(encoding="utf-8")
+def sql_statements_only(value: str) -> str:
+    # Ignore leading SQL safety comments, not executable mutation statements.
+    return re.sub(r"(?m)^\\s*--[^\\n]*$", "", value)
+
 
 review = read("candidate.sql")
 review_tests = read("postconditions.sql")
@@ -134,7 +138,7 @@ for authority in ("reality_access_self_api_v1",
           f"Held original My Work authorized source cutover missing: {authority}")
 check("w.title,w.instructions,w.result_contract_key" not in my_work,
       "Held original My Work reader cannot disclose unreviewed instructions")
-check(not re.search(r"\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\b", my_work, re.I),
+check(not re.search(r"\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\b", sql_statements_only(my_work), re.I),
       "Original My Work cutover is only a held read-source function replacement")
 check("relevance.has_relevance IS TRUE" in my_work_checks and
       "NULL::text AS instructions" in my_work_checks and
@@ -169,7 +173,7 @@ for leak in ("w.title,w.instructions", "w.source_object_type source_type",
 check("company_work_native_ledger_relevance" in native_today_checks and
       "has_function_privilege" in native_today_checks,
       "Existing Today clone checks missing source and ACL constraints")
-check(not re.search(r"\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\b", native_today, re.I),
+check(not re.search(r"\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\b", sql_statements_only(native_today), re.I),
       "Original Today cutover cannot write data, grant permissions or edit any table")
 
 # The dated Work route is a third separately exposed original API.
@@ -202,7 +206,7 @@ check("has_function_privilege" in dated_work_checks and
       "company_work_native_ledger_exact_source_v1" in dated_work_checks,
       "Dated Work protected-clone postconditions missing")
 check(not re.search(r"\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\b",
-                    dated_work, re.I),
+                    sql_statements_only(dated_work), re.I),
       "Held dated Work may not mutate Work, permissions or source tables")
 
 # Held legacy Worker Day retirement must never be applied without a positive
