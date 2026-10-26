@@ -623,6 +623,16 @@ if [ "$signed_universal_original_work_probe" = true ]; then
     >"$artifacts_dir/signed-universal-original-work.log" 2>&1
   test -s "$artifacts_dir/signed-universal-original-work-summary.txt"
   grep -q '^PASS' "$artifacts_dir/signed-universal-original-work-summary.txt"
+  # Regression: original Event schedule authority must remain independent of
+  # newly admitted Household and per-Bed Work. Reuse its existing signed
+  # local C1 fixture/proof, never synthesize a second Event scheduler.
+  phase="signed original Event source and schedule-writer regression"
+  python3 "$repo_root/scripts/validate-atlas-one-event-schedule-writer-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-universal-original-work-event-regression.txt" \
+    >"$artifacts_dir/signed-universal-original-work-event-regression.log" 2>&1
+  test -s "$artifacts_dir/signed-universal-original-work-event-regression.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-universal-original-work-event-regression.txt"
 fi
 
 if [ "$signed_connected_work_prerequisite_probe" = true ]; then
