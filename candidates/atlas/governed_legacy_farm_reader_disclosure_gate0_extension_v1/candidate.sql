@@ -19,7 +19,7 @@ declare
   v_result jsonb;
 begin
   select * into v_bed from atlas.growing_objects where id=p_bed_id;
-  if v_bed.id is null then raise exception 'Growing object not found.' using errcode='P0002'; end if;
+  if v_bed.id is null then raise exception 'Source unavailable to this Person.' using errcode='42501'; end if;
 
   PERFORM atlas.require_governed_farm_full_disclosure_self_v1(v_bed.farm_id);
 
@@ -1063,7 +1063,7 @@ begin
   where id=p_transition_id;
 
   if v_transition.id is null then
-    raise exception 'Task transition was not found.' using errcode='P0002';
+    raise exception 'Source unavailable to this Person.' using errcode='42501';
   end if;
 
   PERFORM atlas.require_governed_farm_full_disclosure_self_v1(v_transition.farm_id);
@@ -1526,7 +1526,7 @@ declare
   v_bed_trail jsonb;
 begin
   select t.* into v_task from atlas.tasks t where t.id=p_task_id;
-  if v_task.id is null then raise exception 'Task not found.' using errcode='P0002'; end if;
+  if v_task.id is null then raise exception 'Source unavailable to this Person.' using errcode='42501'; end if;
 
   PERFORM atlas.require_governed_farm_full_disclosure_self_v1(v_task.farm_id);
 
