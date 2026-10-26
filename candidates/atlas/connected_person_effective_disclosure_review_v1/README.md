@@ -87,3 +87,54 @@ It does not establish current native-Ledger grants/exclusions; farm owner is sti
 `scripts/validate-atlas-connected-person-work-signed-http.py` reuses the **existing** C1 synthetic native standing Work fixture `validation/fixtures/20261024231215_shared_native_ledger_standing_work_person_only_v1.sql`, the actual local signed Work proposal/accept/assignment utilities, and adds disposable `personal.atlases` for synthetic People. It checks genuine independent worker/owner/outsider/no-seat sessions; wrong Ledger, unassigned Work, withheld source/title, active native Seat, ended Seat, retained-JWT revoked-session, and absence of employee memberships. The script **refuses nonlocal database URLs**. Source CI only compiles it; it has **not run** against an appropriately staged protected schema clone. Required future clone package must include the source candidate, strict postconditions and fixture; do not report a signed PASS before that run is actually observed.
 
 The active protected clone/release contract uses an exact reviewed migration identity. No replacement version was generated, no candidate was merged and no production access was widened in this iteration.
+
+## Held cutover of the existing public My Work reader (2026-10-26)
+
+The original `public.connected_person_my_work_self_api_v1(integer,uuid)`
+is ALREADY callable by `authenticated` via its private
+`atlas.connected_person_my_work_self_api_v1` implementation. The live
+implementation returns original institutional Work titles and instructions
+for active canonical-Person allocations with a native Ledger connection.
+It **calculates** `workRelevanceVerified`, but does not require that
+exact-Ledger relevance to be true to return the Work. It checks
+`auth.uid()`, but does not itself call the live GoTrue-session gate.
+
+- `connected_person_my_work_existing_reader_cutover_hold.sql` stages a
+  **same-signature replacement of only the current private implementation**.
+  It adds the existing `reality_access_self_api_v1` live-session/Person
+  membrane, converts verified Work relevance from a diagnostic flag into
+  an actual eligible-row predicate, and retains the original pagination
+  and current `connected_person_my_work_v1` output contract. It returns
+  `instructions:null` pending a separately source-approved exact-Work
+  instruction/details projection. It does **not** modify the existing
+  public wrapper or grant more access.
+- `connected_person_my_work_existing_reader_cutover_postconditions_hold.sql`
+  checks the exact function/bridge ACL, authenticated route, session and
+  relevance predicate and NULL instruction projection on a protected clone.
+- The existing `scripts/validate-atlas-connected-person-work-signed-http.py`
+  now also exercises the **currently shipped public My Work API**.
+  After source-authorized synthetic standing assignment, a distinct signed
+  worker must see correct Work A (but not unassigned Work B), with no
+  unreviewed instructions. After exact relevance is deleted **in the
+  disposable fixture only**, the same JWT must not retrieve Work A on
+  either the narrow new API or old My Work API. Deleting the underlying
+  GoTrue session must deny the original API even with a previously valid
+  JWT. This is a real signed test design, but it has **NOT been run**.
+
+**Important positive-parity stop:** This candidate intentionally
+sacrifices instructions in the old list until a separately approved
+original-Work details/instruction disclosure authority exists. It is
+**NOT releasable standalone**: workers still need permitted instructions
+to complete the independently linked Bed 3 and Bed 4 Work. Original Work
+titles also require disclosure review; exact relevance/assignment is not
+blanket authorization to every field embedded in a title.
+
+**Important negative-route stop:** This closes no Event/attention Work
+reader, original Today day reader, old farm-atlas GET route, search, media,
+notification, historical export or Event notes access by itself. Source
+closures and positive worker parity must release together. The only
+Supabase branch currently visible for the project is `main`; no
+cost-incurring protected branch has been created or used. No production
+SQL, grants, real Work, task splits, migration or Vercel deployment
+changed from this patch. The earlier owner-reported RiverSong PASS
+applies to Atlas PR #442, not this unexecuted Noel clone package.
