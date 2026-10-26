@@ -15,11 +15,11 @@ Current older GitHub main also has these source entrypoints:
 | `/api/atlas/zone-registry` | `zone_registry_source_v1` | active farm member | SQL source and deployed commit checked |
 | `/api/atlas/farm-snapshot` | `farm_snapshot_for_member_v1` | active farm member | SQL source and deployed commit checked |
 | `/api/atlas/farm-care` | `farm_care_summary_v1` | active farm member | SQL source and deployed commit checked |
-| `/api/atlas/farm-care/zone?zoneKey=...` | `farm_care_zone_v1` | active farm member | source in old main; deployed file identity requires confirmation |
-| `/api/atlas/farm-care/object?objectKey=...` | `farm_care_object_v1` | active farm member | source in old main; deployed file identity requires confirmation |
-| `/api/atlas/objects/[objectKey]` | `object_workbench_v1` | active farm member | source in old main; deployed file identity requires confirmation |
-| `/api/atlas/grow-room` | `grow_room_state_v1` | active farm member | source in old main; deployed file identity requires confirmation |
-| `/api/atlas/task-bed-map?taskId=...` | `object_crop_bed_map_v1` | active farm member + legacy task/object read | source in old main; deployed file identity requires confirmation |
+| `/api/atlas/farm-care/zone?zoneKey=...` | `farm_care_zone_v1` | active farm member | SQL source and deployed commit checked |
+| `/api/atlas/farm-care/object?objectKey=...` | `farm_care_object_v1` | active farm member | SQL source and deployed commit checked |
+| `/api/atlas/objects/[objectKey]` | `object_workbench_v1` | active farm member | SQL source and deployed commit checked |
+| `/api/atlas/grow-room` | `grow_room_state_v1` | active farm member | SQL source and deployed commit checked |
+| `/api/atlas/task-bed-map?taskId=...` | `object_crop_bed_map_v1` | active farm member + legacy task/object read | SQL source and deployed commit checked |
 
 These are source routes, **not proof of successful Anna GETs**. Full current Data API schema exposure, deployment routing, source aliases, notification/media/cache/search indirect pathways and signed runtime results remain unresolved.
 
