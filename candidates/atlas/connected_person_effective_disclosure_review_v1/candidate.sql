@@ -76,10 +76,48 @@ BEGIN
   WITH governed_work AS MATERIALIZED (
     SELECT a.id AS allocation_id,w.id AS work_item_id,
       w.title,w.instructions,w.work_state,a.state AS allocation_state,
-      a.allocated_at
+      a.allocated_at,
+      title_dec.id AS title_field_decision_id,
+      instructions_dec.id AS instructions_field_decision_id,
+      CASE
+        WHEN title_dec.id IS NULL THEN 'not_evaluated'
+        WHEN title_dec.decision='deny' THEN 'denied'
+        WHEN title_dec.valid_until<=v_as_of THEN 'expired'
+        WHEN title_dec.approved_value_sha256 IS DISTINCT FROM
+          pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(
+            w.title,'UTF8')),'hex') THEN 'source_changed'
+        ELSE 'approved'
+      END AS title_field_decision_status,
+      CASE
+        WHEN instructions_dec.id IS NULL THEN 'not_evaluated'
+        WHEN instructions_dec.decision='deny' THEN 'denied'
+        WHEN instructions_dec.valid_until<=v_as_of THEN 'expired'
+        WHEN instructions_dec.approved_value_sha256 IS DISTINCT FROM
+          pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(
+            w.instructions,'UTF8')),'hex') THEN 'source_changed'
+        ELSE 'approved'
+      END AS instructions_field_decision_status
     FROM atlas.work_allocations a
     JOIN atlas.work_items w ON w.id=a.work_item_id
       AND w.organization_id=a.organization_id
+    LEFT JOIN LATERAL (
+      SELECT e.id,e.decision,e.valid_until,e.approved_value_sha256
+      FROM atlas.connected_person_work_field_decision_events_v1 e
+      WHERE e.ledger_id=p_ledger_id AND e.organization_id=w.organization_id
+        AND e.work_item_id=w.id
+        AND e.recipient_person_entity_id=p_person_entity_id
+        AND e.field_key='title'
+      ORDER BY e.decided_at DESC,e.id DESC LIMIT 1
+    ) title_dec ON true
+    LEFT JOIN LATERAL (
+      SELECT e.id,e.decision,e.valid_until,e.approved_value_sha256
+      FROM atlas.connected_person_work_field_decision_events_v1 e
+      WHERE e.ledger_id=p_ledger_id AND e.organization_id=w.organization_id
+        AND e.work_item_id=w.id
+        AND e.recipient_person_entity_id=p_person_entity_id
+        AND e.field_key='instructions'
+      ORDER BY e.decided_at DESC,e.id DESC LIMIT 1
+    ) instructions_dec ON true
     WHERE a.assignee_canonical_person_id=p_person_entity_id
       AND a.assignee_membership_id IS NULL
       AND a.allocation_role='responsible'
@@ -121,8 +159,10 @@ BEGIN
       'allocationState',allocation_state,
       'titleCandidate',title,
       'instructionsCandidate',instructions,
-      'titleFieldDecisionStatus','not_evaluated',
-      'instructionsFieldDecisionStatus','not_evaluated',
+      'titleFieldDecisionStatus',title_field_decision_status,
+      'instructionsFieldDecisionStatus',instructions_field_decision_status,
+      'titleFieldDecisionId',title_field_decision_id,
+      'instructionsFieldDecisionId',instructions_field_decision_id,
       'candidateIsNotAnEffectiveDisclosureGrant',true
     ) ORDER BY allocation_id) FILTER (WHERE rn<=50),'[]'::jsonb),
     COUNT(*)::integer
