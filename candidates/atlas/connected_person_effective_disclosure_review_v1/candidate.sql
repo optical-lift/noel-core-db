@@ -107,7 +107,7 @@ BEGIN
         AND e.work_item_id=w.id
         AND e.recipient_person_entity_id=p_person_entity_id
         AND e.field_key='title'
-      ORDER BY e.decided_at DESC,e.id DESC LIMIT 1
+      ORDER BY e.decision_sequence DESC LIMIT 1
     ) title_dec ON true
     LEFT JOIN LATERAL (
       SELECT e.id,e.decision,e.valid_until,e.approved_value_sha256
@@ -116,9 +116,11 @@ BEGIN
         AND e.work_item_id=w.id
         AND e.recipient_person_entity_id=p_person_entity_id
         AND e.field_key='instructions'
-      ORDER BY e.decided_at DESC,e.id DESC LIMIT 1
+      ORDER BY e.decision_sequence DESC LIMIT 1
     ) instructions_dec ON true
-    WHERE a.assignee_canonical_person_id=p_person_entity_id
+    WHERE atlas.connected_person_work_field_source_eligible_v1(
+      p_ledger_id,w.id,p_person_entity_id)
+      AND a.assignee_canonical_person_id=p_person_entity_id
       AND a.assignee_membership_id IS NULL
       AND a.allocation_role='responsible'
       AND a.state IN ('active','completed')
