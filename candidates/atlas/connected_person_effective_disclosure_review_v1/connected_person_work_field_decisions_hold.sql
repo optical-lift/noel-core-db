@@ -14,6 +14,7 @@ BEGIN;
 
 CREATE TABLE atlas.connected_person_work_field_decision_events_v1 (
   id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
+  decision_sequence bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
   request_id uuid NOT NULL UNIQUE,
   ledger_id uuid NOT NULL,
   organization_id uuid NOT NULL,
@@ -26,7 +27,7 @@ CREATE TABLE atlas.connected_person_work_field_decision_events_v1 (
   governor_principal_id uuid NOT NULL,
   governor_auth_user_id uuid NOT NULL,
   reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 12 AND 1200),
-  decided_at timestamptz NOT NULL DEFAULT statement_timestamp(),
+  decided_at timestamptz NOT NULL DEFAULT clock_timestamp(),
   CONSTRAINT exact_work_field_positive_fingerprint
     CHECK (
       (decision='allow' AND approved_value_sha256 ~ '^[0-9a-f]{64}$')
@@ -39,7 +40,7 @@ CREATE TABLE atlas.connected_person_work_field_decision_events_v1 (
 CREATE INDEX connected_person_work_field_decisions_latest_v1
 ON atlas.connected_person_work_field_decision_events_v1
 (ledger_id,organization_id,recipient_person_entity_id,work_item_id,field_key,
- decided_at DESC,id DESC);
+ decision_sequence DESC);
 ALTER TABLE atlas.connected_person_work_field_decision_events_v1 ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE atlas.connected_person_work_field_decision_events_v1
   FROM PUBLIC,anon,authenticated;
@@ -135,7 +136,7 @@ AS $approved$
         AND e.work_item_id=d.work_item_id
         AND e.recipient_person_entity_id=d.recipient_person_entity_id
         AND e.field_key=d.field_key
-      ORDER BY e.decided_at DESC,e.id DESC LIMIT 1
+      ORDER BY e.decision_sequence DESC LIMIT 1
     )
     AND d.approved_value_sha256=pg_catalog.encode(pg_catalog.sha256(
       pg_catalog.convert_to(
@@ -350,7 +351,7 @@ BEGIN
     AND e.organization_id=v_org
     AND e.work_item_id=p_work_item_id
     AND e.recipient_person_entity_id=v_self
-  ORDER BY e.field_key,e.decided_at DESC,e.id DESC
+  ORDER BY e.field_key,e.decision_sequence DESC
  LOOP
   IF v_decision.decision<>'allow' OR
     (v_decision.valid_until IS NOT NULL AND
