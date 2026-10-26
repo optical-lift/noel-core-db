@@ -21,6 +21,7 @@ c1=standing.c1
 base=standing.work
 FN="connected_person_authorized_ledger_work_self_api_v1"
 LEGACY_MY_WORK="connected_person_my_work_self_api_v1"
+ORIGINAL_TODAY="connected_person_company_work_today_self_api_v1"
 
 def need(ok,message):
     c1.check(ok,message)
@@ -33,6 +34,10 @@ def my_work(api,key,token):
     # Existing shipped Atlas My Work path: separate from the held strict reader.
     return c1.rpc(api,key,LEGACY_MY_WORK,{
         "p_limit":100,"p_after_allocation_id":None},token)
+
+def original_today(api,key,token):
+    # Distinct existing all-date Today RPC; its own source must be secure.
+    return c1.rpc(api,key,ORIGINAL_TODAY,{"p_limit":100},token)
 
 def denied(api,key,token,ledger,label):
     status,data=request(api,key,token,ledger)
@@ -142,12 +147,35 @@ def main():
     need(all(x.get("instructions") is None for x in old_items),
          "Existing My Work leaked unapproved institutional Work instructions")
     print("PASS existing My Work matches authorized narrow-source boundary")
+    today_status,today_data=original_today(api,key,worker)
+    need(today_status==200 and isinstance(today_data,dict) and
+         today_data.get("ok") is True and
+         today_data.get("contractVersion")=="connected_person_company_work_today_v1",
+         "Existing Person Today source did not return its exact governed contract")
+    today_items=today_data.get("items")
+    need(isinstance(today_items,list),"Person Today Work must be an array")
+    today_ids={x.get("workItemId") for x in today_items if isinstance(x,dict)}
+    need(standing.TASK_A in today_ids and standing.TASK_B not in today_ids,
+         "Original Today cannot lose real Work A or expose unrelated Work B")
+    need(all(x.get("instructions") is None and x.get("sourceId") is None and
+             x.get("sourceType") is None and x.get("sourceDate") is None
+             for x in today_items),
+         "Original Today leaks unapproved instructions/source identity/history")
+    print("PASS current all-date Person Today retains only original authorized Work")
 
     # Genuine same-JWT deny as soon as the native Seat ends, then restore only
     # the synthetic Seat to isolate session revocation from Seat revocation.
     seat="e5200000-0000-4000-8000-000000000502"
     c1.sql(a.db_url,f"update ledger.seats set ended_at=now() where id='{seat}'::uuid")
     denied(api,key,worker,ledger,"ended native Seat denies retained worker JWT")
+    old_ended=original_today(api,key,worker)
+    need(old_ended[0] in (200,401,403) and
+         (old_ended[0]!=200 or (
+             isinstance(old_ended[1],dict) and
+             standing.TASK_A not in {
+                 item.get("workItemId") for item in old_ended[1].get("items",[])
+                 if isinstance(item,dict)})),
+         "Existing Today leaks Work after native Ledger Seat ends")
     c1.sql(a.db_url,f"update ledger.seats set ended_at=null where id='{seat}'::uuid")
     restored=request(api,key,worker,ledger)
     need(restored[0]==200 and restored[1].get("ok") is True,
@@ -186,6 +214,13 @@ def main():
          f"where id='{standing.TASK_A}'::uuid and work_state='open'")=="1",
          "Negative disclosure test must not erase original Work")
     print("PASS legacy My Work loses an original Work when relevance is revoked")
+    today_lost=original_today(api,key,worker)
+    need(today_lost[0]==200 and isinstance(today_lost[1],dict) and
+         standing.TASK_A not in {
+             item.get("workItemId") for item in today_lost[1].get("items",[])
+             if isinstance(item,dict)},
+         "OLDER PERSON TODAY BYPASS: Work still visible after relevance removal")
+    print("PASS older Today loses original Work whose Ledger relevance is removed")
 
     sid=tokens["worker"][1]["session_id"]
     c1.sql(a.db_url,f"delete from auth.sessions where id='{sid}'::uuid")
@@ -194,12 +229,17 @@ def main():
     need(old_revoked_status in (401,403) or
          (old_revoked_status==200 and old_revoked_data=={"ok":False,"code":"not_found"}),
          "Old My Work must deny the SAME JWT after its genuine GoTrue session is revoked")
+    today_revoked=original_today(api,key,worker)
+    need(today_revoked[0] in (401,403) or
+         (today_revoked[0]==200 and
+          today_revoked[1]=={"ok":False,"code":"not_found"}),
+         "Existing Today must deny a revoked GoTrue session with the same JWT")
     need(c1.sql(a.db_url,"select count(*) from atlas.organization_memberships")=="0",
          "Signed Work read created a prohibited employee membership")
     Path(a.output).write_text(
         "PASS local independent GoTrue owner/worker/outsider/no-seat; "
         "real signed Work scope acceptance and assignment; exact visible Work; "
-        "withheld Work/title/source denied, including original My Work route; "
+        "withheld Work/title/source denied on My Work and Today public routes; "
         "relevance-removal bypass closed; wrong-Ledger, ended Seat and "
         "revoked-session denials; no memberships or new Work.\n",
         encoding="utf-8")
