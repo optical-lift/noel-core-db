@@ -4476,7 +4476,7 @@ BEGIN
      'subjectDomain',q.subject_domain,'subjectKind',q.subject_kind,
      'subjectId',q.subject_id,'subjectLabel',q.label
     ) ORDER BY q.subject_id) FILTER(WHERE q.rn<=p_limit),'[]'::jsonb),
-    count(*)>p_limit,max(q.subject_id) FILTER(WHERE q.rn<=p_limit)
+    count(*)>p_limit,(array_agg(q.subject_id ORDER BY q.rn) FILTER(WHERE q.rn=p_limit))[1]
  INTO v_rows,v_more,v_next FROM page q;
  RETURN jsonb_build_object(
     'ok',true,'contractVersion','connected_person_work_subject_links_v1',
@@ -4589,7 +4589,7 @@ BEGIN
      'allocationId',b.allocation_id
    ) ORDER BY b.id) FILTER(WHERE b.rn<=p_limit),'[]'::jsonb),
    count(*)>p_limit,
-   max(b.id) FILTER(WHERE b.rn<=p_limit)
+   (array_agg(b.id ORDER BY b.rn) FILTER(WHERE b.rn=p_limit))[1]
  INTO v_work,v_more,v_next
  FROM (SELECT selected.*,row_number() over (order by id) rn FROM selected) b;
  RETURN jsonb_build_object(
@@ -4687,7 +4687,7 @@ BEGIN
     'subjectDomain','spatial','subjectKind','growing_object',
     'subjectId',q.id,'label',q.label,'kindLabel',q.object_type)
     ORDER BY q.id) FILTER(WHERE q.rn<=p_limit),'[]'::jsonb),
-    count(*)>p_limit,max(q.id) FILTER(WHERE q.rn<=p_limit)
+    count(*)>p_limit,(array_agg(q.id ORDER BY q.rn) FILTER(WHERE q.rn=p_limit))[1]
  INTO v_rows,v_more,v_next FROM page q;
  RETURN jsonb_build_object('ok',true,
    'contractVersion','owner_original_subject_choices_for_work_v1',
