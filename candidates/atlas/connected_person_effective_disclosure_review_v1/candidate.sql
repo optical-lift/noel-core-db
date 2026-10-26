@@ -121,8 +121,8 @@ BEGIN
       'allocationState',allocation_state,
       'titleCandidate',title,
       'instructionsCandidate',instructions,
-      'titleFieldApproved',false,
-      'instructionsFieldApproved',false,
+      'titleFieldDecisionStatus','not_evaluated',
+      'instructionsFieldDecisionStatus','not_evaluated',
       'candidateIsNotAnEffectiveDisclosureGrant',true
     ) ORDER BY allocation_id) FILTER (WHERE rn<=50),'[]'::jsonb),
     COUNT(*)::integer
@@ -147,7 +147,7 @@ BEGIN
       'status','governor_review_inputs_only',
       'notAnActualAccessInventory',true,
       'workFieldsRequireSeparateDecisions',true,
-      'reviewedCandidateCount',jsonb_array_length(v_work_review),
+      'presentedCandidateCount',jsonb_array_length(v_work_review),
       'hasMoreCandidateWork',v_work_candidate_count>50,
       'items',v_work_review
     ),
