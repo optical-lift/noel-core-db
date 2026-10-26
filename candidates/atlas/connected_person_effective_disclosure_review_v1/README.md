@@ -138,3 +138,53 @@ cost-incurring protected branch has been created or used. No production
 SQL, grants, real Work, task splits, migration or Vercel deployment
 changed from this patch. The earlier owner-reported RiverSong PASS
 applies to Atlas PR #442, not this unexecuted Noel clone package.
+
+## Additional held cutover of the existing connected Person Today reader
+
+A new **read-only catalog comparison** showed that shipped
+`public.connected_person_company_work_today_self_api_v1(integer)`
+still delegates to `atlas.connected_person_company_work_today_self_api_v1`.
+The internal reader returns `w.title`, `w.instructions`,
+`w.source_object_type`, `w.source_object_id` and a source date to a
+canonical Person holding an active Work allocation. Unlike the existing
+My Work list, this implementation **does not itself require a current
+native Ledger Seat / connection or verified Work-to-Ledger relevance**.
+It only checks `auth.uid()` and resolved canonical Person and has no
+live GoTrue-session recheck.
+
+- `connected_person_today_existing_reader_cutover_hold.sql` is a
+  source-preserving **same-signature** held replacement that adds the
+  current signed-session membrane; requires exact active native Ledger
+  connection **and** verified original Work relevance via the existing
+  `company_work_native_ledger_relevance` and exact-source validator.
+  It excludes legacy membership-assigned Work. It preserves the
+  original `connected_person_company_work_today_v1` response shape but
+  projects `instructions`, `sourceType`, `sourceId`, `sourceDate`
+  as NULL rather than revealing unapproved underlying Work metadata.
+- `connected_person_today_existing_reader_cutover_postconditions_hold.sql`
+  adds protected-clone structural/ACL checks. The existing synthetic
+  signed-work script now asserts real Work A remains, irrelevant Work B
+  is absent, ended Seat removes visibility, removed Work relevance
+  removes visibility, and a removed GoTrue session invalidates the
+  retained same JWT. All these tests **remain UNRUN on a clone**.
+- Like the My Work candidate, this is **not permission to ship an
+  instructions-less notebook**. Implement the approved exact-Work
+  instructions/details disclosure source and test positive worker
+  task completion before releasing either reader. Work title content
+  itself still needs governor disclosure adjudication.
+
+The **dated** `public.connected_person_company_work_day_self_api_v1(date)`
+is another existing public route: the internal source enforces a
+native Ledger connection but returns `w.instructions`,
+`w.metadata` classification, Work result/acceptance fields and dates,
+and does not require a verified Work-to-Ledger relevance row or check
+the live GoTrue session itself. The separate
+`public.company_work_worker_day_self_api_v1(date,integer)` returns
+frozen Work instructions and operating snapshots through legacy farm
+membership. These two readers are **unclosed alternate exposure routes**
+and cannot be ignored or merely hidden by React.
+
+No application, live source, migration, grant, real Work, old
+Worker Day implementation or deployed domain was changed by the held
+Today candidate. Protected-clone signed positive/negative and rollback
+receipts are absent; production remains HOLD.
