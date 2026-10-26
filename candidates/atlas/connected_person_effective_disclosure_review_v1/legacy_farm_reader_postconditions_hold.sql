@@ -12,7 +12,11 @@ BEGIN
   ('zone_registry_source_v1','atlas.zone_registry_source_v1(uuid)'),
   ('object_crop_bed_map_v1','atlas.object_crop_bed_map_v1(uuid)'),
   ('farm_care_zone_v1','atlas.farm_care_zone_v1(uuid,text,integer)'),
-  ('farm_snapshot_for_member_v1','atlas.farm_snapshot_for_member_v1(uuid)')
+  ('farm_snapshot_for_member_v1','atlas.farm_snapshot_for_member_v1(uuid)'),
+  ('farm_care_summary_v1','atlas.farm_care_summary_v1(uuid,integer)'),
+  ('farm_care_object_v1','atlas.farm_care_object_v1(uuid,text,integer)'),
+  ('grow_room_state_v1','atlas.grow_room_state_v1(uuid)'),
+  ('object_workbench_v1','atlas.object_workbench_v1(uuid,text,integer,integer)')
  ) t(name,sig) LOOP
   v := to_regprocedure(v_sig);
   IF v IS NULL THEN RAISE EXCEPTION 'Legacy reader missing: %',v_sig; END IF;
