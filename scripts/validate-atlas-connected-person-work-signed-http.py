@@ -20,6 +20,7 @@ spec.loader.exec_module(standing)
 c1=standing.c1
 base=standing.work
 FN="connected_person_authorized_ledger_work_self_api_v1"
+LEGACY_MY_WORK="connected_person_my_work_self_api_v1"
 
 def need(ok,message):
     c1.check(ok,message)
@@ -27,6 +28,11 @@ def need(ok,message):
 def request(api,key,token,ledger):
     return c1.rpc(api,key,FN,{"p_ledger_id":ledger,"p_limit":100,
                               "p_after_allocation_id":None},token)
+
+def my_work(api,key,token):
+    # Existing shipped Atlas My Work path: separate from the held strict reader.
+    return c1.rpc(api,key,LEGACY_MY_WORK,{
+        "p_limit":100,"p_after_allocation_id":None},token)
 
 def denied(api,key,token,ledger,label):
     status,data=request(api,key,token,ledger)
@@ -118,6 +124,25 @@ def main():
     need("Clone work: replacement sprayer arrives" not in json.dumps(data),
          "Unassigned title leaked")
 
+    # Gate 0 cannot be proved by installing a newly narrow RPC while the
+    # existing public connected_person_my_work_self_api_v1 remains readable.
+    # Both should return the actual accepted Work A and withhold source detail.
+    old_status,old_data=my_work(api,key,worker)
+    need(old_status==200 and isinstance(old_data,dict) and old_data.get("ok") is True,
+         f"Existing My Work positive source read failed: {old_status}")
+    old_items=old_data.get("items")
+    need(isinstance(old_items,list),"Existing My Work list must be an array")
+    old_ids={x.get("workItemId") for x in old_items if isinstance(x,dict)}
+    need(standing.TASK_A in old_ids,
+         "Secure My Work cutover removed truly assigned original Worker Work")
+    need(standing.TASK_B not in old_ids,
+         "Existing My Work list leaked unassigned original Work")
+    need(all(x.get("workRelevanceVerified") is True for x in old_items),
+         "Existing My Work included Work without proven exact Ledger relevance")
+    need(all(x.get("instructions") is None for x in old_items),
+         "Existing My Work leaked unapproved institutional Work instructions")
+    print("PASS existing My Work matches authorized narrow-source boundary")
+
     # Genuine same-JWT deny as soon as the native Seat ends, then restore only
     # the synthetic Seat to isolate session revocation from Seat revocation.
     seat="e5200000-0000-4000-8000-000000000502"
@@ -128,15 +153,54 @@ def main():
     need(restored[0]==200 and restored[1].get("ok") is True,
          "Seat restoration did not isolate signed session test")
 
+    # Simulate a revoked/removed exact Work relevance *in this disposable
+    # clone only*, without deleting the Work identity or its allocation.
+    # A Ledger connection and real active allocation alone cannot continue
+    # disclosing a Work title after source attribution has been withdrawn.
+    relevance_count=c1.sql(a.db_url,
+        "select count(*) from atlas.company_work_native_ledger_relevance "
+        f"where work_item_id='{standing.TASK_A}'::uuid "
+        f"and ledger_id='{standing.LEDGER}'::uuid "
+        "and attribution_state='active'")
+    need(int(relevance_count)>0,"Synthetic Work relevance fixture absent")
+    c1.sql(a.db_url,
+        "delete from atlas.company_work_native_ledger_relevance "
+        f"where work_item_id='{standing.TASK_A}'::uuid "
+        f"and ledger_id='{standing.LEDGER}'::uuid")
+    strict_lost=request(api,key,worker,ledger)
+    need(strict_lost[0]==200 and isinstance(strict_lost[1],dict) and
+         strict_lost[1].get("ok") is True and
+         standing.TASK_A not in {
+             x.get("workItemId") for x in strict_lost[1].get("items",[])
+             if isinstance(x,dict)},
+         "Strict reader still disclosed Work whose exact Ledger relevance ended")
+    old_lost=my_work(api,key,worker)
+    need(old_lost[0]==200 and isinstance(old_lost[1],dict) and
+         old_lost[1].get("ok") is True and
+         standing.TASK_A not in {
+             x.get("workItemId") for x in old_lost[1].get("items",[])
+             if isinstance(x,dict)},
+         "OLDER PUBLIC MY WORK BYPASS: Work title/metadata returned after source relevance withdrawn")
+    need(c1.sql(a.db_url,
+         "select count(*) from atlas.work_items "
+         f"where id='{standing.TASK_A}'::uuid and work_state='open'")=="1",
+         "Negative disclosure test must not erase original Work")
+    print("PASS legacy My Work loses an original Work when relevance is revoked")
+
     sid=tokens["worker"][1]["session_id"]
     c1.sql(a.db_url,f"delete from auth.sessions where id='{sid}'::uuid")
     denied(api,key,worker,ledger,"deleted GoTrue session denies retained valid JWT")
+    old_revoked_status,old_revoked_data=my_work(api,key,worker)
+    need(old_revoked_status in (401,403) or
+         (old_revoked_status==200 and old_revoked_data=={"ok":False,"code":"not_found"}),
+         "Old My Work must deny the SAME JWT after its genuine GoTrue session is revoked")
     need(c1.sql(a.db_url,"select count(*) from atlas.organization_memberships")=="0",
          "Signed Work read created a prohibited employee membership")
     Path(a.output).write_text(
         "PASS local independent GoTrue owner/worker/outsider/no-seat; "
         "real signed Work scope acceptance and assignment; exact visible Work; "
-        "withheld Work/title/source denied; wrong-Ledger, ended Seat and "
+        "withheld Work/title/source denied, including original My Work route; "
+        "relevance-removal bypass closed; wrong-Ledger, ended Seat and "
         "revoked-session denials; no memberships or new Work.\n",
         encoding="utf-8")
     print("PASS source-isolated connected Person Work read on signed local clone")
