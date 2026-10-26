@@ -93,7 +93,7 @@ BEGIN
    RAISE EXCEPTION 'Annotation request conflict' USING ERRCODE='23505';
   END IF;
   RETURN pg_catalog.jsonb_build_object('ok',true,'noteId',v_existing.note_id,
-    'revision',1,'standing','open','replay',true);
+    'revision',1,'standing','open','visibility','author_private','replay',true);
  END IF;
  v_id:=pg_catalog.gen_random_uuid();
  INSERT INTO atlas.personal_program_author_note_events
@@ -136,7 +136,8 @@ BEGIN
   IF v_latest.revision<>v_replay.revision
   THEN RAISE EXCEPTION 'Historical annotation replay is stale' USING ERRCODE='40001'; END IF;
   RETURN pg_catalog.jsonb_build_object('ok',true,'noteId',p_note_id,
-    'revision',v_replay.revision,'standing',v_replay.standing,'replay',true);
+    'revision',v_replay.revision,'standing',v_replay.standing,
+    'visibility','author_private','replay',true);
  END IF;
  IF v_latest.revision<>p_expected_revision
  THEN RAISE EXCEPTION 'Stale annotation revision' USING ERRCODE='40001'; END IF;
