@@ -204,6 +204,19 @@ insert into atlas.work_result_contract_policies(
  'Fictional responsible Person attests physical completion')
 ;
 
+-- A signed connected Person can still inherit an older farm_hand
+-- membership. This fixture forces inherited readers to honor SOURCE-level
+-- whole-farm disclosure even after exact Bed 3 identity was granted.
+insert into atlas.farm_memberships(
+ id,user_id,farm_id,role,worker_key,active,permissions
+) values(
+ 'e5200000-0000-4000-8000-000000000b06',
+ 'e5200000-0000-4000-8000-000000000002',
+ 'e5200000-0000-4000-8000-000000000b01',
+ 'farm_hand','clone-worker-with-legacy-farm-access',true,
+ '{}'::jsonb
+);
+
 -- Original Event signed regression fixture, separate canonical Event IDs.
 -- DISPOSABLE DATABASE CLONE ONLY. Never apply synthetic principals to production.
 -- All identities, addresses, labels, and occurrences are artificial.
