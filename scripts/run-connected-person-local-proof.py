@@ -141,7 +141,7 @@ def main() -> None:
                         help="Local output directory, no secrets copied.")
     args = parser.parse_args()
     require(not (args.preflight and args.execute), "Choose only one mode.")
-    for tool in ("supabase", "psql", "git"):
+    for tool in ("supabase", "psql"):
         require(shutil.which(tool) is not None, f"{tool} is required; no installations performed.")
     hashes = collect_hashes()
     db_url, _ = local_status(args.stack_dir.resolve())
@@ -176,10 +176,12 @@ def main() -> None:
          "--output", str(output)], cwd=args.stack_dir.resolve())
     require(output.is_file() and "PASS" in output.read_text(),
             "Signed GoTrue result receipt missing; DO NOT claim success.")
+    source_commit = ("UNVERIFIED_ARCHIVE_SOURCE" if not (ROOT/".git").exists()
+                     else run(["git", "rev-parse", "HEAD"], cwd=ROOT))
     receipt = {
         "status": "LOCAL_CANDIDATE_SIGNED_TEST_PASS_NOT_PRODUCTION_CERTIFICATION",
         "time": datetime.now(timezone.utc).isoformat(),
-        "commit": run(["git", "rev-parse", "HEAD"], cwd=ROOT),
+        "source_commit": source_commit,
         "source_sha256": hashes,
         "result": output.read_text().strip(),
         "disclosure_review_complete": False,
