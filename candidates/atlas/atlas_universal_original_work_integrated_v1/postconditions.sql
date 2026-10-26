@@ -342,3 +342,4 @@ END $proof$;
 -- recipient cannot discover other Beds, owner private information or all crops;
 -- unconnected Person, unrelated Ledger governor, anon all denied;
 -- Event original Work and other preexisting Person assignment flows unchanged.
+
