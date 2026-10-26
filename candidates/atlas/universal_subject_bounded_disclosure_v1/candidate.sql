@@ -326,7 +326,7 @@ BEGIN
      'subjectDomain',q.subject_domain,'subjectKind',q.subject_kind,
      'subjectId',q.subject_id,'subjectLabel',q.label
     ) ORDER BY q.subject_id) FILTER(WHERE q.rn<=p_limit),'[]'::jsonb),
-    count(*)>p_limit,max(q.subject_id) FILTER(WHERE q.rn<=p_limit)
+    count(*)>p_limit,(array_agg(q.subject_id ORDER BY q.rn) FILTER(WHERE q.rn=p_limit))[1]
  INTO v_rows,v_more,v_next FROM page q;
  RETURN jsonb_build_object(
     'ok',true,'contractVersion','connected_person_work_subject_links_v1',
