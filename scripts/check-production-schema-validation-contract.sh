@@ -318,6 +318,17 @@ for fragment in ('signed_universal_original_work_probe=true',
     if fragment not in harness:
         errors.append(f'Protected local clone missing universal signed gate: {fragment}')
 
+# Registered signed proof must actually launch Auth/REST, not the database-
+# only service. Catch cases where a new test flag is wired to its runner but
+# excluded from the canonical local Supabase service-selection predicate.
+local_auth_start = (
+    '[ "$signed_program_source_identity_probe" = true ] ||\n'
+    '       [ "$signed_universal_original_work_probe" = true ]; then'
+)
+if local_auth_start not in harness or 'supabase start >"$startup_log" 2>&1' not in harness:
+    errors.append('Universal Work signed proof must boot genuine local Auth and REST')
+
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
