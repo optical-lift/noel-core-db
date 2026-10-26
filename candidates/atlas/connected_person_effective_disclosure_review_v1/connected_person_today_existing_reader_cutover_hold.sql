@@ -47,7 +47,11 @@ begin
       (a.establishment_basis->>'nativeLedgerId')::uuid ledger_id,
       -- These are separate source/field disclosures, not implicitly
       -- licensed by Work allocation. Keep the old JSON keys nullable.
-      w.title,NULL::text AS instructions,NULL::text AS source_type,
+      w.title,
+      CASE WHEN atlas.connected_person_work_field_currently_approved_v1(
+        (a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self,
+        'instructions') THEN w.instructions ELSE NULL::text END AS instructions,
+      NULL::text AS source_type,
       NULL::uuid AS source_id,NULL::text AS source_date,
       w.result_contract_key result_contract,
       a.establishment_basis->>'uptakeKind' uptake_kind,a.establishment_basis_kind basis_kind,a.allocated_at
@@ -81,6 +85,8 @@ begin
             ))
           )
       )
+      and atlas.connected_person_work_field_currently_approved_v1(
+        (a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self,'title')
     order by a.allocated_at,a.id
     limit p_limit
   ) row;
