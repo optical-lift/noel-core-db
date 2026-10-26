@@ -113,3 +113,28 @@ show approved instructions, and any private Work/source fields are
 unavailable through all these paths. New feature/permission controls
 must not be released while the dated and Worker Day readers are
 unclosed.
+
+## Active and completed dated Work, legacy Worker Day cutover
+
+These are signed tests and release conditions, **not test receipts**.
+The native Person Day original reader is distinct from My Work's
+all-date list and from the older farm-hand Worker Day.
+
+| Source case | Acceptance outcome | Current evidence |
+| --- | --- | --- |
+| Current Person has a genuine signed standing Work A allocation, native Seat, source-proven Ledger relevance and an active plan | Dated Work returns that exact original Work, allocation ID, plan ID, exposure and execution dates; no Work B | New signed-clone script; UNRUN |
+| Same User Date API, different signed outsider or same-organization unrelated Ledger | Work A entirely absent, no metadata, no title or UUID | New signed-clone script outsider; cross-Ledger separately UNRUN |
+| Revoked native Seat with original GoTrue JWT retained | Original dated Work absent even if plan still exists | New signed-clone script; UNRUN |
+| Exact source Work relevance removed, Work row/allocation/plan preserved | Original dated Work absent even if original plan remains | New signed-clone script; UNRUN |
+| GoTrue session deleted with same signed JWT | Dated Work request denied despite unexpired JWT | New signed-clone script; UNRUN |
+| Original Work completed with independently recorded result and accepted/declined source decision | Historical original Work, allocation, plan, result/acceptance **if and only if permitted by source field policy**; no false actor claim; no history erasure | **Not implemented yet**; live aggregate includes completed allocations but no signed receipt |
+| Legacy farm-hand original Worker Day reads | New source-owned Worker Day/Person replacement retains all permitted task instructions and lawful results **before** old route is revoked | **Not implemented yet**; original source is still callable in production |
+| Legacy Worker Day read, refresh, report and employee home after authorized cutover | All four old public routes deny authenticated/anon; indirect farm/definer routes independently tested | Held revoke/clone ACL files only, NOT DEPLOYED or SIGNED |
+| Bed 3 and Bed 4 real-world acceptance | Independently assigned, instructed, completable Work; composite history preserved; no withheld crop, bed or other farm data in any path | NOT IMPLEMENTED OR VERIFIED |
+
+Do **not** apply the held Worker Day revoke while the current worker
+notebook still uses `EmployeeAccessClient`, nor apply the three
+redacting source readers without a governor-authorized instructions
+route. Static source CI does not prove field disclosure or practical
+worker usability. Source row-count checks do not replace actual
+signed-person result inspection.
