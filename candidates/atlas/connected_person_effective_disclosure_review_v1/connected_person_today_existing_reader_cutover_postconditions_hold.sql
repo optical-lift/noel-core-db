@@ -24,7 +24,7 @@ BEGIN
      OR v_definition NOT LIKE '%company_work_native_ledger_exact_source_v1%'
      OR v_definition NOT LIKE '%rel.attribution_state=%'
      OR v_definition NOT LIKE '%a.assignee_membership_id IS NULL%'
-     OR v_definition NOT LIKE '%NULL::text AS instructions%'
+     OR v_definition NOT LIKE '%connected_person_work_field_currently_approved_v1%'
      OR v_definition NOT LIKE '%NULL::text AS source_type%'
      OR v_definition NOT LIKE '%NULL::uuid AS source_id%'
      OR v_definition NOT LIKE '%connected_person_company_work_today_v1%'
