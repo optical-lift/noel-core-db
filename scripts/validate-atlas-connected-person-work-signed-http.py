@@ -498,6 +498,11 @@ def main():
     seat="e5200000-0000-4000-8000-000000000502"
     c1.sql(a.db_url,f"update ledger.seats set ended_at=now() where id='{seat}'::uuid")
     denied(api,key,worker,ledger,"ended native Seat denies retained worker JWT")
+    field_ended=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(field_ended[0] in (200,401,403) and
+         (field_ended[0]!=200 or
+          field_ended[1]=={"ok":False,"code":"not_found"}),
+         "Signed connected Person still reads approved Work after Seat ended")
     day_ended=dated_work(api,key,worker,test_day)
     need(day_ended[0] in (200,401,403) and
          (day_ended[0]!=200 or
@@ -564,10 +569,20 @@ def main():
              for x in day_lost[1].get("items",[]) if isinstance(x,dict)),
          "OLDER DATED WORK BYPASS: Work remains exposed after exact relevance deletion")
     print("PASS original dated Work hides revoked Ledger-relevance items")
+    field_lost=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(field_lost[0] in (200,401,403) and
+         (field_lost[0]!=200 or
+          field_lost[1]=={"ok":False,"code":"not_found"}),
+         "Approved Work field remains after exact Work-to-Ledger relevance ended")
 
     sid=tokens["worker"][1]["session_id"]
     c1.sql(a.db_url,f"delete from auth.sessions where id='{sid}'::uuid")
     denied(api,key,worker,ledger,"deleted GoTrue session denies retained valid JWT")
+    field_revoked=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(field_revoked[0] in (200,401,403) and
+         (field_revoked[0]!=200 or
+          field_revoked[1]=={"ok":False,"code":"not_found"}),
+         "Same JWT still read approved fields after real GoTrue session deleted")
     old_revoked_status,old_revoked_data=my_work(api,key,worker)
     need(old_revoked_status in (401,403) or
          (old_revoked_status==200 and old_revoked_data=={"ok":False,"code":"not_found"}),
