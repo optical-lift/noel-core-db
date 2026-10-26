@@ -122,6 +122,24 @@ require(len(source_names) == 26 and len(set(source_names)) == 26,
 review = texts["governor_effective_subject_disclosure_review_v1"]
 missing = [name for name in source_names if f"'{name}'" not in review]
 require(not missing, f"effective disclosure review missing historical paths: {missing}")
+# PostgreSQL has no built-in MAX(uuid). The page cursor must be the exact
+# ordered row at p_limit, not a text cast or an unsupported UUID aggregate.
+for slug, old, boundary in (
+    ("universal_subject_bounded_disclosure_v1",
+      "max(q.subject_id)",
+      "(array_agg(q.subject_id ORDER BY q.rn) FILTER(WHERE q.rn=p_limit))[1]"),
+    ("governor_effective_subject_disclosure_review_v1",
+      "max(b.id)",
+      "(array_agg(b.id ORDER BY b.rn) FILTER(WHERE b.rn=p_limit))[1]"),
+    ("original_subject_choices_for_work_decomposition_v1",
+      "max(q.id)",
+      "(array_agg(q.id ORDER BY q.rn) FILTER(WHERE q.rn=p_limit))[1]"),
+):
+    candidate = texts[slug]
+    require(old not in candidate and boundary in candidate,
+            slug + ": UUID cursor must be the last visible ordered page item")
+print("PASS genuine PostgreSQL UUID pagination boundary")
+
 print("PASS 26 source-guarded legacy reader inventory")
 
 # A guessed object ID must not reveal whether a withheld original Bed/Task
