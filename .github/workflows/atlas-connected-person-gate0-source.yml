@@ -4,12 +4,14 @@ on:
     paths:
       - '.github/workflows/atlas-connected-person-gate0-source.yml'
       - 'scripts/validate-atlas-connected-person-gate0-source.py'
+      - 'scripts/validate-atlas-connected-person-work-signed-http.py'
       - 'candidates/atlas/connected_person_effective_disclosure_review_v1/**'
   push:
     branches: [main]
     paths:
       - '.github/workflows/atlas-connected-person-gate0-source.yml'
       - 'scripts/validate-atlas-connected-person-gate0-source.py'
+      - 'scripts/validate-atlas-connected-person-work-signed-http.py'
       - 'candidates/atlas/connected_person_effective_disclosure_review_v1/**'
 permissions:
   contents: read
@@ -23,4 +25,5 @@ jobs:
       - name: Validate source only, not authorization or release
         run: |
           python3 -m py_compile scripts/validate-atlas-connected-person-gate0-source.py
+          python3 -m py_compile scripts/validate-atlas-connected-person-work-signed-http.py
           python3 scripts/validate-atlas-connected-person-gate0-source.py
