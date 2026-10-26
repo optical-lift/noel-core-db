@@ -173,11 +173,14 @@ BEGIN
              FROM atlas.personal_program_author_note_events
              WHERE program_id=p_program_id AND note_id=n.note_id
              ORDER BY revision DESC LIMIT 50) h)
-    ) ORDER BY n.created_at,n.note_id),'[]'::jsonb) INTO v_items
- FROM (SELECT DISTINCT ON (note_id) *
-       FROM atlas.personal_program_author_note_events
-       WHERE program_id=p_program_id
-       ORDER BY note_id,revision DESC LIMIT 200) n;
+    ) ORDER BY n.created_at DESC,n.note_id DESC),'[]'::jsonb) INTO v_items
+ FROM (SELECT * FROM
+         (SELECT DISTINCT ON (note_id) *
+          FROM atlas.personal_program_author_note_events
+          WHERE program_id=p_program_id
+          ORDER BY note_id,revision DESC) latest
+       ORDER BY latest.created_at DESC,latest.note_id DESC
+       LIMIT 200) n;
  RETURN pg_catalog.jsonb_build_object('ok',true,'programId',p_program_id,
   'items',v_items,'total',v_count,'truncated',v_count>pg_catalog.jsonb_array_length(v_items),
   'standing','author_private','readerOnly',true);
