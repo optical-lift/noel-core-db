@@ -311,7 +311,10 @@ for fragment in ('signed_universal_original_work_probe=true',
                  'atlas_universal_original_work_integrated_v1',
                  'validate-atlas-universal-original-work-signed-http.py',
                  'signed-universal-original-work-summary.txt',
-                 'signed-universal-original-work.log'):
+                 'signed-universal-original-work.log',
+                 'validate-atlas-one-event-schedule-writer-signed-http.py',
+                 'signed-universal-original-work-event-regression.txt',
+                 'signed-universal-original-work-event-regression.log'):
     if fragment not in harness:
         errors.append(f'Protected local clone missing universal signed gate: {fragment}')
 
