@@ -30,6 +30,7 @@ jobs:
           from pathlib import Path
           src=Path(".github/workflows/atlas-program-notes-premerge-clone.yml").read_text()
           assert "github.event.issue.author_association == 'OWNER'" in src
+          assert src.count("github.actor == github.repository_owner") == 2
           assert "environment: production" in src
           assert src.index("name: Snapshot production roles and user schema") < src.index("name: Checkout exact private-safe candidate source")
           assert "supabase migration new atlas_personal_program_author_annotations_v1" in src
@@ -48,6 +49,7 @@ jobs:
     if: >-
       github.event.issue.state == 'open' &&
       github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
       github.event.issue.title == 'Atlas Program notes: pre-generation signed clone validation gate'
     runs-on: ubuntu-latest
     environment: production
@@ -214,6 +216,7 @@ jobs:
       always() &&
       github.event.issue.state == 'open' &&
       github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
       github.event.issue.title == 'Atlas Program notes: pre-generation signed clone validation gate'
     runs-on: ubuntu-latest
     permissions:
