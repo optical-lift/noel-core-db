@@ -110,6 +110,7 @@ signed_atlas_proper_needs_probe=false
 signed_native_standing_work_probe=false
 signed_program_author_probe=false
 signed_universal_program_probe=false
+signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
 if [ "$lane" = "atlas" ] && [ "$version" = "20261019201528" ]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
@@ -294,6 +295,17 @@ if [ "$lane" = "atlas" ] &&
   signed_universal_program_probe=true
 fi
 
+# Signed author-private notes: exact generated migration, genuine local GoTrue
+# sessions, unchanged approved source and immediate entitlement revocation.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_personal_program_author_annotations_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Program author notes signed proof requires data-only fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_program_author_notes_probe=true
+fi
+
 # Signed source identity proof on an isolated clone; never against production.
 if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_universal_program_source_identity_v1[.]sql$ ]]; then
@@ -464,6 +476,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_native_standing_work_probe" = true ] ||
        [ "$signed_program_author_probe" = true ] ||
        [ "$signed_universal_program_probe" = true ] ||
+       [ "$signed_program_author_notes_probe" = true ] ||
        [ "$signed_program_source_identity_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
@@ -681,6 +694,14 @@ if [ "$signed_universal_program_probe" = true ]; then
     >"$artifacts_dir/signed-universal-program-v2.log" 2>&1
 fi
 
+if [ "$signed_program_author_notes_probe" = true ]; then
+  phase="genuine signed Program author note owner, outsider and revocation matrix"
+  python3 "$repo_root/scripts/validate-atlas-program-author-notes-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-program-author-notes-summary.txt" \
+    >"$artifacts_dir/signed-program-author-notes.log" 2>&1
+fi
+
 if [ "$signed_program_source_identity_probe" = true ]; then
   phase="signed local Program source identity/duplicate/fork/revocation matrix"
   python3 "$repo_root/scripts/validate-atlas-program-source-identity-signed-http.py" \
@@ -753,6 +774,9 @@ if [ "$signed_program_source_identity_probe" = true ]; then
 fi
 if [ "$signed_universal_program_probe" = true ]; then
   printf '\nSIGNED universal Program v2: genuine GoTrue sessions, budget/goal/window source intent, immutable versions, foreign/unbound/anonymous denials and revocation passed.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_program_author_notes_probe" = true ]; then
+  printf '\nSIGNED author Program margin notes: independent genuine GoTrue sessions, private source anchors, append-only note history, denied cross-owner/anonymous/unbound access and revoked entitlement verified in disposable clone.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_atlas_proper_inventory_probe" = true ]; then
   printf '\nSIGNED Atlas Proper discovery: real local operator, ordinary Principal, outsider, anonymous and revoked GoTrue sessions; no original source material or canonical mutation.\n' >> "$artifacts_dir/summary.md"

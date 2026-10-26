@@ -1,0 +1,238 @@
+name: Atlas Program notes premerge signed clone
+on:
+  issues:
+    types: [edited, reopened]
+  pull_request:
+    paths:
+      - ".github/workflows/atlas-program-notes-premerge-clone.yml"
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: atlas-program-author-note-premerge-proof
+  cancel-in-progress: false
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check source-only, owner-only, secrets-after-snapshot boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-program-notes-premerge-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path(".github/workflows/atlas-program-notes-premerge-clone.yml").read_text()
+          assert "github.event.issue.author_association == 'OWNER'" in src
+          assert src.count("github.actor == github.repository_owner") >= 2
+          assert "environment: production" in src
+          assert src.index("name: Snapshot production roles and user schema") < src.index("name: Checkout exact private-safe candidate source")
+          assert "supabase migration new atlas_personal_program_author_annotations_v1" in src
+          assert "signed-program-author-notes-summary.txt" in src
+          assert "supabase db dump --db-url" in src
+          assert "candidate_sha:" in src
+          assert src.count("$"+"{{") >= 16
+          for fragments in (("supabase"," db push"), ("supabase"," db reset --linked"),
+                            ("gh ","pr merge"), ("supabase migration"," repair")):
+              prohibited="".join(fragments)
+              assert prohibited not in src, prohibited
+          print("PASS untrusted PR gets no credential; owner issue runs only read-only snapshot and local clone")
+          PY
+
+  validate:
+    if: >-
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Program notes: pre-generation signed clone validation gate'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 35
+    steps:
+      - name: Resolve exact owner-supplied immutable candidate
+        id: request
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          matches=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',
+                             os.environ.get('ISSUE_BODY',''),re.M)
+          if len(matches)!=1:
+              raise SystemExit('Exactly one candidate_sha: <40-hex> issue field required')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+              output.write('candidate_sha='+matches[0]+'\n')
+          PY
+
+      - name: Checkout canonical validator from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify existing custody/clone contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+      - name: Authenticate read-only container registry
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      # The sole credential-bearing step. Candidate code is NOT checked out yet.
+      # The Supabase CLI exports ROLES + SCHEMA only; no production row data.
+      - name: Snapshot production roles and user schema READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only --file "$RUNNER_TEMP/program-note-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/program-note-user-schema.sql"
+          test -s "$RUNNER_TEMP/program-note-roles.sql"
+          test -s "$RUNNER_TEMP/program-note-user-schema.sql"
+
+      # Only now checkout the owner-specified candidate SHA; no DB URL in env.
+      - name: Checkout exact private-safe candidate source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Validate source paths and exact candidate contract
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ steps.request.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C candidate rev-parse HEAD)" = "$EXPECTED_SHA"
+          dir="candidate/candidates/atlas-personal-program-author-annotations-v1"
+          for name in candidate.sql fixture.sql postconditions.sql; do test -s "$dir/$name"; done
+          test -s candidate/scripts/validate-atlas-program-author-notes-signed-http.py
+          python3 -m py_compile candidate/scripts/validate-atlas-program-author-notes-signed-http.py
+          bash -n candidate/scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('candidate/candidates/atlas-personal-program-author-annotations-v1')
+          sql=(p/'candidate.sql').read_text().strip()
+          assert re.search(r'(?m)^BEGIN;',sql) and sql.endswith('COMMIT;')
+          fixture=(p/'fixture.sql').read_text()
+          fixture=re.sub(r'/\*.*?\*/',' ',fixture,flags=re.S)
+          fixture=re.sub(r'--[^\n]*',' ',fixture)
+          statements=[s.strip() for s in fixture.split(';') if s.strip()]
+          assert statements and all(re.match(r'(?i)^INSERT\s+INTO\s+',s) for s in statements)
+          harness=Path('candidate/scripts/validate-production-schema-clone.sh').read_text()
+          for s in ('signed_program_author_notes_probe=true',
+                    'validate-atlas-program-author-notes-signed-http.py',
+                    'signed-program-author-notes-summary.txt'):
+              assert s in harness,s
+          PY
+          sha256sum "$dir/candidate.sql" "$dir/fixture.sql" "$dir/postconditions.sql"
+
+      # This is ONLY an ephemeral CLI scratch filename used by the existing
+      # clone harness. No canonical migration is created, merged or released.
+      - name: Produce scratch file for existing version-named clone harness
+        id: scratch
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/program-note-scratch"
+          cd "$RUNNER_TEMP/program-note-scratch"
+          supabase init --force
+          supabase migration new atlas_personal_program_author_annotations_v1
+          mapfile -t found < <(find supabase/migrations -maxdepth 1 -type f \
+             -name '*_atlas_personal_program_author_annotations_v1.sql')
+          test "${#found[@]}" = 1
+          file="$PWD/${found[0]}"
+          cp "$GITHUB_WORKSPACE/candidate/candidates/atlas-personal-program-author-annotations-v1/candidate.sql" "$file"
+          basename="$(basename "$file")"
+          version="${basename%%_*}"
+          [[ "$version" =~ ^[0-9]{14}$ ]]
+          echo "scratch_file=$file" >> "$GITHUB_OUTPUT"
+          echo "scratch_version=$version" >> "$GITHUB_OUTPUT"
+      - name: Validate full disposable clone and real signed local GoTrue/REST
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash "$GITHUB_WORKSPACE/candidate/scripts/validate-production-schema-clone.sh" \
+            --migration-version "${{ steps.scratch.outputs.scratch_version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.scratch_file }}" \
+            --candidate-fixture "$GITHUB_WORKSPACE/candidate/candidates/atlas-personal-program-author-annotations-v1/fixture.sql" \
+            --candidate-validation "$GITHUB_WORKSPACE/candidate/candidates/atlas-personal-program-author-annotations-v1/postconditions.sql" \
+            --roles-dump "$RUNNER_TEMP/program-note-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/program-note-user-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/program-note-clone-artifacts"
+          test -s "$RUNNER_TEMP/program-note-clone-artifacts/signed-program-author-notes-summary.txt"
+          grep -q '^PASS' "$RUNNER_TEMP/program-note-clone-artifacts/signed-program-author-notes-summary.txt"
+      - name: Publish non-sensitive local clone summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -s "$RUNNER_TEMP/program-note-clone-artifacts/summary.md" ]]; then
+            cat "$RUNNER_TEMP/program-note-clone-artifacts/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No completed clone summary. Inspect the failing step." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preserve clone diagnostics only, never schemas or credentials
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-note-premerge-clone-review
+          path: ${{ runner.temp }}/program-note-clone-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
+  report:
+    name: Report result to source review issue
+    needs: [validate]
+    if: >-
+      always() &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Program notes: pre-generation signed clone validation gate'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish result enum and run link, not private material
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RESULT: ${{ needs.validate.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$RESULT" in success|failure|cancelled|skipped) ;; *) exit 2 ;; esac
+          gh issue comment "$ISSUE_NUMBER" --body \
+            "Atlas note candidate full-schema and signed local GoTrue premerge proof: **$RESULT**. [View exact validation run]($RUN_URL). No source merge, migration, production release or reader permission was created."

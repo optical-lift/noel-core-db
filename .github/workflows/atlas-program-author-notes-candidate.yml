@@ -1,0 +1,86 @@
+name: Atlas Program author notes isolated SQL contract
+
+on:
+  pull_request:
+    paths:
+      - "candidates/atlas-personal-program-author-annotations-v1/**"
+      - "validation/atlas-program-author-annotations-isolated-v1/**"
+      - "scripts/validate-atlas-program-author-notes-signed-http.py"
+      - "scripts/validate-production-schema-clone.sh"
+      - ".github/workflows/atlas-program-author-notes-candidate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-synthetic-postgres:
+    name: Source-owned annotations isolated PG16 proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ephemeral-fixture-only
+      PGDATABASE: postgres
+    steps:
+      - name: Checkout exact candidate PR source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate signed-proof source contract and clone-only fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-program-author-notes-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          file=Path("candidates/atlas-personal-program-author-annotations-v1/fixture.sql").read_text()
+          text=re.sub(r"/\*.*?\*/", " ", file, flags=re.S)
+          text=re.sub(r"--[^\n]*", " ", text)
+          statements=[s.strip() for s in text.split(";") if s.strip()]
+          assert statements and all(re.match(r"(?i)^INSERT\s+INTO\s+",s) for s in statements)
+          script=Path("scripts/validate-production-schema-clone.sh").read_text()
+          for needle in (
+            "signed_program_author_notes_probe=true",
+            "atlas_personal_program_author_annotations_v1",
+            "validate-atlas-program-author-notes-signed-http.py",
+            "signed-program-author-notes-summary.txt",
+          ):
+            assert needle in script,needle
+          probe=Path("scripts/validate-atlas-program-author-notes-signed-http.py").read_text()
+          for needle in ("auth.sessions","revoked","personal_program_author_notes_read_self_api_v1",
+                         "personal_program_author_note_create_self_api_v1",
+                         "personal_program_author_note_revise_self_api_v1"):
+            assert needle in probe,needle
+          print("PASS source-only clone fixture safety and future signed HTTP bridge")
+          PY
+      - name: Compile candidate and verify note custody and role boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-program-author-annotations-isolated-v1/base-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-personal-program-author-annotations-v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/atlas-personal-program-author-annotations-v1/postconditions.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/atlas-program-author-annotations-isolated-v1/test-contract.sql
+          echo "Disposable PG16 and simulated-claim tests passed; this is NOT a production-shaped clone, independent GoTrue signature test, or migration release."
+      - name: Prove concurrent create idempotency and revision conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash validation/atlas-program-author-annotations-isolated-v1/concurrency-check.sh
+
