@@ -160,3 +160,30 @@ new user-facing permission or production scope.
 All above are **unrun** until a protected production-shaped
 local clone exists. Source-only CI does not exercise PostgREST,
 application routes or real independent signed sessions.
+
+## Exact Work-field governor decision and revocation
+
+All checks are designed for an isolated disposable full-schema
+PostgREST + genuine GoTrue session test. **No signed run receipt exists.**
+
+| Source condition | Expected signed result |
+| --- | --- |
+| Canonical Person with current Work assignment + native Seat + verified original relevance, but no field decision | No Work title through any of the four held Work readers; exact approved-fields reader responds `not_found`; original Work/assignment preserved |
+| Root governor previews the assigned original Work | Candidate content plus exact SHA-256 for each source field, with `not_evaluated`; no false overall disclosure certification |
+| Person/outsider invokes governor decision | `not_found`; no new permission event |
+| Governor submits expected SHA-256 differing from current source | Fail closed; no new approval |
+| Governor authorizes only Work title | Exact original Work becomes visible to signed worker; instructions absent from My Work, Today, dated Work, and exact approved-fields response |
+| Governor separately authorizes instructions | Only original approved title/instructions available on exact Person + Work + Ledger; unrelated work/another Ledger/outsider receive no content |
+| Work instructions edited after approval | Exact approved instruction stops appearing everywhere, `source_changed` in governor review; new SHA-256 approval required |
+| Duplicate identical approval request ID | Original receipt is idempotent, no new event; reusing request ID for another field is denied |
+| Governor revokes instructions but not title | Title remains, instructions stop appearing through every approved Work reader; event is appended |
+| Governor revokes title after instructions revoked | Work entirely absent from listed Work readers; exact Work-field read `not_found`; no Work erased |
+| Governor reapproves original title | Original Work returns; previous signed deny/allow events remain immutable |
+| Seat ends, exact Work relevance withdrawn, or GoTrue session revoked with JWT retained | Entire Work content inaccessible on all four Work routes and exact approved-fields endpoint, without clearing original Work data |
+| Historic completed Work with permitted result/acceptance fields | Original result and acceptance identity preserved; additional history-field authorizations not yet implemented or proven |
+| Farm readers, old Worker Day, Index, Event, caches and media | Held until separately signed and source-audited; no reliance on application-hidden components |
+
+The original `connected_person_work_field_decision_events_v1`
+is **not a global permission table**: one Person, one original Work,
+one native Ledger, one field, one governor-reviewed content hash,
+independent last signed decision and automatic source invalidation.
