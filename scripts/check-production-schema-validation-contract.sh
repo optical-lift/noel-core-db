@@ -284,6 +284,37 @@ for fragment in ('validate-shared-foundry-custody-signed-http.py',
     if fragment not in Path('scripts/validate-shared-foundry-workspace-signed-http.py').read_text():
         errors.append(f'Foundry signed workspace runner missing human custody hook: {fragment}')
 
+
+# Universal Work is the same canonical Work engine across Bed and Household
+# Subjects. This checker authorizes only the pre-existing protected clone,
+# fictional DML fixtures and genuine local GoTrue/REST source assertions.
+signed_universal = Path('scripts/validate-atlas-universal-original-work-signed-http.py')
+if not signed_universal.is_file():
+    errors.append('Universal original Work signed proof missing')
+else:
+    proof = signed_universal.read_text()
+    try:
+        ast.parse(proof, filename=str(signed_universal))
+    except SyntaxError as exc:
+        errors.append(f'Universal original Work signed proof syntax invalid: {exc}')
+    for fragment in ('127[.]0[.]0[.]1', 'c1.sign_in(', 'auth.sessions',
+                     'split_original_canonical_work_owner_self_api_v1',
+                     'owner_direct_assign_existing_original_work_self_api_v1',
+                     'connected_person_original_work_subject_self_api_v1',
+                     'record_household_laundry_wash_started_self_api_v1',
+                     'household_laundry_explicit_rhythm_decide_self_api_v1'):
+        if fragment not in proof:
+            errors.append(f'Universal Work signed proof missing boundary: {fragment}')
+    if 'https://zirqkouammpwxlqfbsvf.supabase.co' in proof:
+        errors.append('Universal Work signed proof may not reach production')
+for fragment in ('signed_universal_original_work_probe=true',
+                 'atlas_universal_original_work_integrated_v1',
+                 'validate-atlas-universal-original-work-signed-http.py',
+                 'signed-universal-original-work-summary.txt',
+                 'signed-universal-original-work.log'):
+    if fragment not in harness:
+        errors.append(f'Protected local clone missing universal signed gate: {fragment}')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
