@@ -226,4 +226,93 @@ GRANT EXECUTE ON FUNCTION
   public.establish_work_growing_object_context_self_api_v1(uuid,uuid,uuid,jsonb)
   TO authenticated;
 
+
+-- Owner-only review of existing physical candidates; no candidate is a grant.
+CREATE FUNCTION atlas.work_growing_object_context_review_self_api_v1(
+  p_ledger_id uuid,p_work_item_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=''
+AS $review$
+DECLARE
+  v_work atlas.work_items%ROWTYPE;
+  v_legacy atlas.tasks%ROWTYPE;
+  v_candidate_rows jsonb;
+BEGIN
+  IF auth.uid() IS NULL OR atlas.current_principal_id_v1() IS NULL
+     OR NOT coalesce(atlas.principal_has_ledger_authority_v1(
+           atlas.current_principal_id_v1(),p_ledger_id),false)
+  THEN
+    RETURN jsonb_build_object('ok',false,'code','not_found');
+  END IF;
+  SELECT * INTO v_work FROM atlas.work_items
+    WHERE id=p_work_item_id;
+  IF v_work.id IS NULL
+     OR v_work.source_object_type NOT IN ('legacy_task','legacy_task_slice')
+  THEN
+    RETURN jsonb_build_object('ok',false,'code','not_found');
+  END IF;
+  SELECT * INTO v_legacy FROM atlas.tasks
+    WHERE id=v_work.source_object_id;
+  IF v_legacy.id IS NULL
+    OR NOT EXISTS (
+      SELECT 1 FROM atlas.farms f
+      JOIN atlas.ledger_organization_participations lop
+        ON lop.organization_id=f.organization_id
+       AND lop.ledger_id=p_ledger_id
+       AND lop.status='active' AND lop.ended_at IS NULL
+       AND lop.participation_kind IN ('governing','operating')
+      JOIN ledger.ledgers nl ON nl.id=lop.ledger_id
+       AND nl.ledger_state='active' AND nl.retired_at IS NULL
+      WHERE f.id=v_legacy.farm_id
+        AND f.organization_id=v_work.organization_id
+        AND f.organization_unit_id=v_work.organization_unit_id
+    )
+  THEN
+    RETURN jsonb_build_object('ok',false,'code','not_found');
+  END IF;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'objectId',g.id,'stableKey',g.stable_key,'label',g.label,
+    'existingLink',EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links l
+      WHERE l.work_item_id=v_work.id AND l.subject_domain='spatial'
+        AND l.subject_kind='growing_object' AND l.subject_id=g.id
+        AND l.relation_kind='acts_on'
+    )) ORDER BY g.stable_key),'[]'::jsonb)
+  INTO v_candidate_rows
+  FROM atlas.growing_objects g
+  WHERE g.farm_id=v_legacy.farm_id
+    AND g.zone_id=v_legacy.zone_id
+    AND g.object_type='bed';
+
+  RETURN jsonb_build_object(
+    'ok',true,'contractVersion','work_growing_object_context_review_v1',
+    'workItemId',v_work.id,'workStableKey',v_work.stable_key,
+    'originalTaskId',v_legacy.id,
+    'candidates',v_candidate_rows,
+    'confersAccess',false
+  );
+END;
+$review$;
+
+REVOKE ALL ON FUNCTION
+  atlas.work_growing_object_context_review_self_api_v1(uuid,uuid)
+  FROM PUBLIC,anon,authenticated;
+
+CREATE FUNCTION public.work_growing_object_context_review_self_api_v1(
+  p_ledger_id uuid,p_work_item_id uuid
+) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path='pg_catalog'
+AS $read_wrapper$
+  SELECT atlas.work_growing_object_context_review_self_api_v1(
+    p_ledger_id,p_work_item_id
+  );
+$read_wrapper$;
+REVOKE ALL ON FUNCTION
+  public.work_growing_object_context_review_self_api_v1(uuid,uuid)
+  FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION
+  public.work_growing_object_context_review_self_api_v1(uuid,uuid)
+  TO authenticated;
+
 COMMIT;
