@@ -110,4 +110,35 @@ check("TO authenticated;" in work and "FROM PUBLIC,anon,authenticated;" in work,
 check("to_regprocedure" in work_tests and "has_function_privilege" in work_tests,
       "Work protected-clone postconditions missing")
 
+my_work = read("connected_person_my_work_existing_reader_cutover_hold.sql")
+my_work_checks = read("connected_person_my_work_existing_reader_cutover_postconditions_hold.sql")
+check(my_work.count("CREATE OR REPLACE FUNCTION") == 1,
+      "Held old My Work cutover may replace only the original internal source")
+check(my_work.count("BEGIN;") == 1 and my_work.count("COMMIT;") == 1,
+      "Held old My Work cutover transaction shape")
+check("connected_person_my_work_self_api_v1(p_limit integer" in my_work,
+      "Must retain the existing My Work signature and public wrapper")
+for authority in ("reality_access_self_api_v1",
+                  "v_session_access->'person'->>'id'",
+                  "current_person_id_v1",
+                  "person_has_native_ledger_connection_v1",
+                  "company_work_native_ledger_relevance",
+                  "company_work_native_ledger_exact_source_v1",
+                  "AND relevance.has_relevance IS TRUE",
+                  "NULL::text AS instructions",
+                  "'instructions',r.instructions",
+                  "workRelevanceVerified',r.has_relevance",
+                  "scheduleReadAcrossAllDates",
+                  "optionalRequestsExcluded"):
+    check(authority in my_work,
+          f"Held original My Work authorized source cutover missing: {authority}")
+check("w.title,w.instructions,w.result_contract_key" not in my_work,
+      "Held original My Work reader cannot disclose unreviewed instructions")
+check(not re.search(r"\\b(?:GRANT|ALTER TABLE|INSERT|DELETE|UPDATE)\\b", my_work, re.I),
+      "Original My Work cutover is only a held read-source function replacement")
+check("relevance.has_relevance IS TRUE" in my_work_checks and
+      "NULL::text AS instructions" in my_work_checks and
+      "has_function_privilege" in my_work_checks,
+      "Protected-clone original My Work postconditions missing")
+
 print("PASS Gate 0 static source guards (NOT clone/signed privacy acceptance)")
