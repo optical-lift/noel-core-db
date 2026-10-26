@@ -162,7 +162,8 @@ BEGIN
  SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
     'noteId',n.note_id,'componentKey',n.component_key,
     'anchorVersionId',n.anchor_version_id,'anchorExcerpt',n.anchor_excerpt,
-    'revision',n.revision,'text',n.body,'standing',n.standing,
+    'revision',n.revision,'historyTruncated',n.revision>50,
+    'text',n.body,'standing',n.standing,
     'visibility',n.visibility,'actorAuthUserId',n.actor_auth_user_id,
     'updatedAt',n.created_at,'history',
       (SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
