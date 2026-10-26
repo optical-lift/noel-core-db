@@ -10,6 +10,14 @@ BEGIN
   IF v_internal IS NULL OR v_bridge IS NULL THEN
     RAISE EXCEPTION 'Governor-only disclosure review endpoints missing';
   END IF;
+  -- Protected clone must prove the governor endpoint checks real Auth sessions
+  -- through the canonical Person membrane, not merely a parseable JWT.
+  IF pg_get_functiondef(v_internal) NOT LIKE '%atlas.reality_access_self_api_v1()%'
+     OR pg_get_functiondef(v_internal) NOT LIKE '%subject_person.identity_state=%'
+     OR pg_get_functiondef(v_internal) NOT LIKE '%principal_has_ledger_authority_v1%'
+  THEN
+    RAISE EXCEPTION 'Governor read guard lost signed-session or canonical Person check';
+  END IF;
   IF NOT (SELECT prosecdef FROM pg_proc WHERE oid=v_internal)
     OR NOT (SELECT prosecdef FROM pg_proc WHERE oid=v_bridge) THEN
     RAISE EXCEPTION 'Reviewed read membranes must maintain source checks';
