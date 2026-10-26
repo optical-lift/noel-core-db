@@ -36,6 +36,13 @@ BEGIN
   RAISE EXCEPTION 'Native Person exact Work field event table directly accessible';
  END IF;
  IF NOT EXISTS (
+   SELECT 1 FROM pg_attribute att
+   WHERE att.attrelid=v_table AND att.attname='decision_sequence'
+     AND att.attidentity='a' AND att.attnotnull
+ ) THEN
+   RAISE EXCEPTION 'Signed grant/deny source order is not monotonic';
+ END IF;
+ IF NOT EXISTS (
   SELECT 1 FROM pg_trigger t
   WHERE t.tgrelid=v_table AND t.tgname=
     'connected_person_work_field_decisions_append_only_v1'
@@ -67,6 +74,8 @@ BEGIN
  OR v_writer_code NOT LIKE '%connected_person_work_field_source_eligible_v1%'
  OR v_writer_code NOT LIKE '%p_expected_value_sha256%'
  OR v_writer_code NOT LIKE '%v_hash IS DISTINCT FROM p_expected_value_sha256%'
+ OR v_reader_code NOT LIKE '%e.decision_sequence DESC%'
+ OR pg_get_functiondef(v_field) NOT LIKE '%e.decision_sequence DESC%'
  OR v_writer_code NOT LIKE '%pg_advisory_xact_lock%'
  OR v_writer_code NOT LIKE '%INSERT INTO atlas.connected_person_work_field_decision_events_v1%'
  OR v_writer_code LIKE '%UPDATE atlas.connected_person_work_field_decision_events_v1%'
