@@ -43,7 +43,7 @@ def deny(api,key,token,name,payload,label):
           f"{label}: signed source denial failed {status}: {str(data)[:200]}")
     print("PASS",label)
 
-# All five historical readers belong to the INTERNAL atlas schema, not the
+# Original and residual historical readers belong to the INTERNAL atlas schema, not the
 # public PostgREST API. A PGRST202/404 must never count as a source denial.
 # Execute the same SQL guard with the claims from a genuinely signed local
 # GoTrue session, verified against the live disposable auth.sessions table.
@@ -71,6 +71,14 @@ def deny_internal_legacy(db,api,key,bearer,name,params):
       "farm_care_zone_v1":f"atlas.farm_care_zone_v1('{FARM}'::uuid,'u-pick'::text,25)",
       "farm_snapshot_for_member_v1":f"atlas.farm_snapshot_for_member_v1('{FARM}'::uuid)",
       "bed_components_state_v1":f"atlas.bed_components_state_v1('{BED3}'::uuid)",
+      "farm_day_task_cards_v1":f"atlas.farm_day_task_cards_v1('{FARM}'::uuid,'2030-10-30'::date),
+      "home_task_cards_v2":f"atlas.home_task_cards_v2('{FARM}'::uuid,NULL::text,NULL::date,NULL::date),
+      "seed_inventory_dashboard_v1":f"atlas.seed_inventory_dashboard_v1('{FARM}'::uuid),
+      "task_cards_v1":f"atlas.task_cards_v1('{FARM}'::uuid,NULL::uuid),
+      "tending_task_context_v1":f"atlas.tending_task_context_v1('{FARM}'::uuid,'{PARENT}'::uuid,NULL::text),
+      "tending_task_context_v2":f"atlas.tending_task_context_v2('{FARM}'::uuid,'{PARENT}'::uuid,'clone-upick-bed-3'::text,NULL::text),
+      "worker_day_state_transition_cards_v1":f"atlas.worker_day_state_transition_cards_v1('{FARM}'::uuid,'{PARENT}'::uuid,'2030-10-30'::date),
+      "worker_future_day_projection_source_v1":f"atlas.worker_future_day_projection_source_v1('{FARM}'::uuid,'{PARENT}'::uuid,'2030-10-30'::date,'2030-11-06'::date),
     }
     check(name in calls,"Unexpected legacy read")
     encoded=json.dumps(claims,separators=(",",":")).replace("'","''")
@@ -217,6 +225,14 @@ def main():
         f"and user_id='{c1.WORKER}'::uuid and role='farm_hand' and active")=="1",
         "No realistic older farm_hand membership in signed fixture")
     old_farm_reads=(
+       ("farm_day_task_cards_v1",{}),
+       ("home_task_cards_v2",{}),
+       ("seed_inventory_dashboard_v1",{}),
+       ("task_cards_v1",{}),
+       ("tending_task_context_v1",{}),
+       ("tending_task_context_v2",{}),
+       ("worker_day_state_transition_cards_v1",{}),
+       ("worker_future_day_projection_source_v1",{}),
       ("zone_registry_source_v1",{"p_farm_id":FARM}),
       ("object_crop_bed_map_v1",{"p_object_id":BED3}),
       ("farm_care_zone_v1",
@@ -226,7 +242,7 @@ def main():
     )
     for old_reader,old_args in old_farm_reads:
         deny_internal_legacy(args.db_url,api,key,worker,old_reader,old_args)
-    print("PASS five signed internal broad-farm source denials")
+    print("PASS thirteen signed internal broad-farm source denials")
 
     actual=ok(api,key,worker,"report_connected_person_company_work_self_api_v1",
           dict(p_work_item_id=bed3,p_result_kind="completed",
