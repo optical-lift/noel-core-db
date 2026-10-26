@@ -9,8 +9,10 @@ No forged JWT or service-role substitution can count as signed proof.
 """
 import argparse
 import importlib.util
+import hashlib
 import json
 import re
+import uuid
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -26,6 +28,8 @@ LEGACY_MY_WORK="connected_person_my_work_self_api_v1"
 ORIGINAL_TODAY="connected_person_company_work_today_self_api_v1"
 ORIGINAL_DATED="connected_person_company_work_day_self_api_v1"
 GOVERNOR_REVIEW="connected_person_effective_disclosure_review_self_api_v1"
+GOVERNOR_DECIDE="governor_decide_connected_person_work_field_self_api_v1"
+APPROVED_FIELDS="connected_person_work_approved_fields_self_api_v1"
 SYNTHETIC_PRIVATE_INSTRUCTIONS="Clone private instructions — governor field review only"
 
 def need(ok,message):
@@ -50,6 +54,22 @@ def dated_work(api,key,token,day):
 def governor_review(api,key,token,ledger,person):
     return c1.rpc(api,key,GOVERNOR_REVIEW,{
         "p_ledger_id":ledger,"p_person_entity_id":person},token)
+
+def decide_field(api,key,token,ledger,work,person,field,decision,reason,
+                 expected=None,request_id=None):
+    return c1.rpc(api,key,GOVERNOR_DECIDE,{
+        "p_ledger_id":ledger,"p_work_item_id":work,
+        "p_person_entity_id":person,"p_field_key":field,
+        "p_decision":decision,"p_reason":reason,
+        "p_request_id":request_id or str(uuid.uuid4()),
+        "p_expected_value_sha256":expected,"p_valid_until":None},token)
+
+def approved_fields(api,key,token,ledger,work):
+    return c1.rpc(api,key,APPROVED_FIELDS,{
+        "p_ledger_id":ledger,"p_work_item_id":work},token)
+
+def source_sha(value):
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 def denied(api,key,token,ledger,label):
     status,data=request(api,key,token,ledger)
@@ -169,6 +189,80 @@ def main():
           missing_review[1]=={"ok":False,"code":"not_found"}),
          "Governor review exposed a connected Person shell for non-seat target")
     print("PASS governor-only Work fields are visible for adjudication, not recipient grant")
+
+    candidate=matched[0]
+    title_text=candidate["titleCandidate"]
+    title_hash=candidate["titleCandidateSha256"]
+    private_hash=candidate["instructionsCandidateSha256"]
+    need(title_hash==source_sha(title_text) and
+         private_hash==source_sha(SYNTHETIC_PRIVATE_INSTRUCTIONS),
+         "Governor must receive an exact source-text SHA256, not a loose Work field approval")
+
+    # Allocations and Seats are NOT Work title or instructions grants.
+    pre_status,pre_data=request(api,key,worker,ledger)
+    need(pre_status==200 and isinstance(pre_data,dict) and
+         standing.TASK_A not in {
+             x.get("workItemId") for x in pre_data.get("items",[])
+             if isinstance(x,dict)},
+         "Even the newly narrow Work API revealed a title before governor approval")
+    first_fields=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(first_fields[0] in (200,401,403) and
+         (first_fields[0]!=200 or
+          first_fields[1]=={"ok":False,"code":"not_found"}),
+         "Connected Person could inspect Work instructions before any field approval")
+    old_before=my_work(api,key,worker)
+    today_before=original_today(api,key,worker)
+    for label,response in (("My Work",old_before),("Today",today_before)):
+        need(response[0]==200 and isinstance(response[1],dict) and
+             standing.TASK_A not in {
+                 x.get("workItemId") for x in response[1].get("items",[])
+                 if isinstance(x,dict)},
+             f"Original {label} reader leaked Work title without governor field decision")
+
+    # The signer must send the hash of EXACTLY what was previewed. An edit
+    # between review and approval fails rather than approving changed words.
+    bad_hash=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"title","allow",
+        "Governor approves the exact original Work title.",
+        expected="0"*64)
+    need(bad_hash[0] in (200,401,403) and
+         (bad_hash[0]!=200 or bad_hash[1]=={"ok":False,"code":"not_found"}),
+         "Governor approved Work text with a mismatched preview SHA256")
+    worker_grant=decide_field(api,key,worker,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"title","allow",
+        "Worker must not approve their own Work field.",expected=title_hash)
+    need(worker_grant[0] in (200,401,403) and
+         (worker_grant[0]!=200 or worker_grant[1]=={"ok":False,"code":"not_found"}),
+         "Connected Person successfully granted their own field")
+    title_request=str(uuid.uuid4())
+    title_approval=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"title","allow",
+        "Governor approves this Work title and no other fields.",
+        expected=title_hash,request_id=title_request)
+    need(title_approval[0]==200 and
+         title_approval[1].get("contractVersion")==
+           "connected_person_work_field_decision_v1" and
+         title_approval[1].get("decision")=="allow" and
+         title_approval[1].get("idempotent") is False,
+         "Governed title-only field approval failed")
+    repeated=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"title","allow",
+        "Governor approves this Work title and no other fields.",
+        expected=title_hash,request_id=title_request)
+    need(repeated[0]==200 and repeated[1].get("idempotent") is True
+         and repeated[1].get("decisionId")==title_approval[1].get("decisionId"),
+         "Exact idempotent Work title decision minted duplicate authority")
+    rerouted=decide_field(api,key,owner,ledger,standing.TASK_A,
+        standing.WORKER_PERSON,"instructions","allow",
+        "Governor approval request ID cannot be replayed across fields.",
+        expected=private_hash,request_id=title_request)
+    need(rerouted[0] in (200,401,403) and
+         (rerouted[0]!=200 or rerouted[1]=={"ok":False,"code":"not_found"}),
+         "One signed approval request could be replayed to grant another field")
+    title_only=approved_fields(api,key,worker,ledger,standing.TASK_A)
+    need(title_only[0]==200 and title_only[1].get("fields")=={"title":title_text},
+         "Approved Work title must be returned with NO unapproved instructions")
+    print("PASS exact signed governor SHA-bound title approval; instructions still withheld")
 
     status,data=request(api,key,worker,ledger)
     need(status==200 and isinstance(data,dict) and data.get("ok") is True,
