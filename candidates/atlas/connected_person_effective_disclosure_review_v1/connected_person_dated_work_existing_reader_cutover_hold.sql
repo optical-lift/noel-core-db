@@ -36,7 +36,10 @@ BEGIN
     'workItemId',w.id,'allocationId',a.id,'planId',p.id,
     'organizationId',w.organization_id,
     'ledgerId',(a.establishment_basis->>'nativeLedgerId')::uuid,
-    'title',w.title,'instructions',NULL::text,
+    'title',w.title,'instructions',
+      CASE WHEN atlas.connected_person_work_field_currently_approved_v1(
+        (a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self,
+        'instructions') THEN w.instructions ELSE NULL::text END,
     'executionDate',p.planned_service_date,'exposureDate',p.exposure_service_date,
     'dueDate',t.due_on_date,'taskClassification',
       NULL::text,
@@ -84,6 +87,8 @@ BEGIN
       OR (a.state='completed' AND w.work_state='completed'))
     AND atlas.person_has_native_ledger_connection_v1(
       w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,v_self)
+    AND atlas.connected_person_work_field_currently_approved_v1(
+      (a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self,'title')
     -- Exact original Work->Ledger attribution is a source requirement,
     -- not a UI diagnostic, even for retained completed Work history.
     AND EXISTS (
