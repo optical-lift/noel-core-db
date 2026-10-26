@@ -10,6 +10,7 @@ import argparse
 import importlib.util
 import json
 import re
+from datetime import date, timedelta
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -22,6 +23,7 @@ base=standing.work
 FN="connected_person_authorized_ledger_work_self_api_v1"
 LEGACY_MY_WORK="connected_person_my_work_self_api_v1"
 ORIGINAL_TODAY="connected_person_company_work_today_self_api_v1"
+ORIGINAL_DATED="connected_person_company_work_day_self_api_v1"
 
 def need(ok,message):
     c1.check(ok,message)
@@ -38,6 +40,9 @@ def my_work(api,key,token):
 def original_today(api,key,token):
     # Distinct existing all-date Today RPC; its own source must be secure.
     return c1.rpc(api,key,ORIGINAL_TODAY,{"p_limit":100},token)
+
+def dated_work(api,key,token,day):
+    return c1.rpc(api,key,ORIGINAL_DATED,{"p_date":day},token)
 
 def denied(api,key,token,ledger,label):
     status,data=request(api,key,token,ledger)
@@ -163,11 +168,55 @@ def main():
          "Original Today leaks unapproved instructions/source identity/history")
     print("PASS current all-date Person Today retains only original authorized Work")
 
+    # The existing dated Work reader is a distinct public API used to open
+    # the original Work detail and confirm honest source-native completion.
+    # Placement uses the REAL signed worker command, never a new mock task.
+    test_day=(date.today()+timedelta(days=1)).isoformat()
+    placed=standing.allowed(api,key,worker,"connected_person_place_work_self_api_v1",
+        {"p_work_item_id":standing.TASK_A,
+         "p_service_date":test_day,
+         "p_reason":"Synthetic worker independently places original Work on a day."},
+        "signed worker places canonical synthetic Work without making a new Work item")
+    need(placed.get("newWorkCreated") is False and
+         placed.get("executionDate")==test_day and placed.get("workItemId")==standing.TASK_A,
+         "Signed placement failed source receipt parity")
+    day_status,day_data=dated_work(api,key,worker,test_day)
+    need(day_status==200 and isinstance(day_data,dict) and
+         day_data.get("contractVersion")=="connected_person_company_work_day_v1"
+         and day_data.get("date")==test_day, "Existing dated Work read failed")
+    day_items=day_data.get("items")
+    need(isinstance(day_items,list),"Original dated Work items must be an array")
+    day_ids={x.get("workItemId") for x in day_items if isinstance(x,dict)}
+    need(standing.TASK_A in day_ids and standing.TASK_B not in day_ids,
+         "Dated source dropped legitimate Work or exposed unassigned Work")
+    need(all(x.get("instructions") is None and x.get("taskClassification") is None
+             for x in day_items),
+         "Original dated Work reader disclosed unapproved instructions/metadata")
+    need(all(x.get("allocationId") and x.get("planId") and
+             x.get("executionDate")==test_day and x.get("exposureDate")==test_day
+             for x in day_items),
+         "Original dated Work lost its exact plan/allocation identity")
+    denied_day=dated_work(api,key,outsider,test_day)
+    need(denied_day[0] in (200,401,403) and
+         (denied_day[0]!=200 or
+          (isinstance(denied_day[1],dict) and
+           all(x.get("workItemId")!=standing.TASK_A
+               for x in denied_day[1].get("items",[]) if isinstance(x,dict)))),
+         "An independently signed outsider read the worker's original dated Work")
+    print("PASS original dated Work positive assignment, plan and field deny")
+
     # Genuine same-JWT deny as soon as the native Seat ends, then restore only
     # the synthetic Seat to isolate session revocation from Seat revocation.
     seat="e5200000-0000-4000-8000-000000000502"
     c1.sql(a.db_url,f"update ledger.seats set ended_at=now() where id='{seat}'::uuid")
     denied(api,key,worker,ledger,"ended native Seat denies retained worker JWT")
+    day_ended=dated_work(api,key,worker,test_day)
+    need(day_ended[0] in (200,401,403) and
+         (day_ended[0]!=200 or
+          (isinstance(day_ended[1],dict) and
+           all(x.get("workItemId")!=standing.TASK_A
+               for x in day_ended[1].get("items",[]) if isinstance(x,dict)))),
+         "Dated original Work exposed assigned Work after Seat termination")
     old_ended=original_today(api,key,worker)
     need(old_ended[0] in (200,401,403) and
          (old_ended[0]!=200 or (
@@ -221,6 +270,12 @@ def main():
              if isinstance(item,dict)},
          "OLDER PERSON TODAY BYPASS: Work still visible after relevance removal")
     print("PASS older Today loses original Work whose Ledger relevance is removed")
+    day_lost=dated_work(api,key,worker,test_day)
+    need(day_lost[0]==200 and isinstance(day_lost[1],dict) and
+         all(x.get("workItemId")!=standing.TASK_A
+             for x in day_lost[1].get("items",[]) if isinstance(x,dict)),
+         "OLDER DATED WORK BYPASS: Work remains exposed after exact relevance deletion")
+    print("PASS original dated Work hides revoked Ledger-relevance items")
 
     sid=tokens["worker"][1]["session_id"]
     c1.sql(a.db_url,f"delete from auth.sessions where id='{sid}'::uuid")
@@ -229,6 +284,11 @@ def main():
     need(old_revoked_status in (401,403) or
          (old_revoked_status==200 and old_revoked_data=={"ok":False,"code":"not_found"}),
          "Old My Work must deny the SAME JWT after its genuine GoTrue session is revoked")
+    day_revoked=dated_work(api,key,worker,test_day)
+    need(day_revoked[0] in (401,403) or
+         (day_revoked[0]==200 and
+          day_revoked[1]=={"ok":False,"code":"not_found"}),
+         "Dated Work must deny a revoked GoTrue session with the same JWT")
     today_revoked=original_today(api,key,worker)
     need(today_revoked[0] in (401,403) or
          (today_revoked[0]==200 and
@@ -239,7 +299,7 @@ def main():
     Path(a.output).write_text(
         "PASS local independent GoTrue owner/worker/outsider/no-seat; "
         "real signed Work scope acceptance and assignment; exact visible Work; "
-        "withheld Work/title/source denied on My Work and Today public routes; "
+        "withheld Work/title/source denied on My Work, Today and dated Work; "
         "relevance-removal bypass closed; wrong-Ledger, ended Seat and "
         "revoked-session denials; no memberships or new Work.\n",
         encoding="utf-8")
