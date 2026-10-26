@@ -64,3 +64,29 @@ The candidate also stages no native Ledger crop custody and no effective field-l
 - Genuine signed GoTrue/PostgREST owner/connected/outsider/revoked casework: **not run for this package**.
 - Vercel production deployed source inspection: performed, but no signed probe of live worker account performed.
 - No production grant, data edit, migration, task decomposition, app release or credential changes authorized by this document.
+
+## Additional signed cutover gate — existing My Work bypass
+
+The existing `public.connected_person_my_work_self_api_v1` is a
+separate authenticated read from the new held exact-Ledger Work API. Its
+live source returns `w.instructions` and Work titles even when
+`workRelevanceVerified=false` on an otherwise eligible allocation.
+`connected_person_my_work_existing_reader_cutover_hold.sql` is a
+**held** replacement, not an applied patch.
+
+| Independent signed case on disposable clone | Required actual result |
+| --- | --- |
+| True responsible allocation + exact verified Ledger relevance | Current My Work still returns the original Work A, its existing schedule and IDs; no invented personal Work |
+| Active allocation but withdrawn exact Work-to-Ledger relevance | Current My Work and strict new reader both hide Work A **completely** (not merely disabling its action or labelling it unverified) |
+| Worker with unassigned Work B under same Ledger | Both routes omit Work B title and source identity |
+| Unapproved source instructions in original institutional Work | My Work does not return them; it preserves a nullable `instructions` slot until an approved Work-details source exists |
+| Authentic active worker, same JWT after native Seat ends | No Work rows through either reader; still test the actual legacy Today/Worker Day alternate APIs |
+| Authentic active worker, same JWT after real GoTrue session deletion | Both routes deny; old JWT signature by itself is insufficient |
+| Governor positively approves exact Work details and instructions | **NOT YET IMPLEMENTED**. Must return usable instruction content through a source-owned field decision and independent worker-browser acceptance BEFORE any cutover |
+| Connected Person opens Index/Today/Event/legacy farm-atlas | **NOT YET PROVEN**. No route may return withheld source, Work or historical data by another path |
+
+The work signed script now includes the original My Work public route,
+synthetic active relevance deletion and GoTrue same-JWT revocation.
+**Execution receipt: NOT RUN**. Clone-only files and scripts are test
+assets, not a claim that live production security changed. Do not
+silently reinterpret a new narrow reader's pass as complete route closure.
