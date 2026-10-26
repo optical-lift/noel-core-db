@@ -8,6 +8,18 @@ INSERT INTO atlas.work_result_contract_policies(
  jsonb_build_object('qualificationEvent','wash_started',
                     'noAutomaticRhythm',true,'physicalStepOnly',true))
 ON CONFLICT (contract_key) DO NOTHING;
+DO $policy$
+BEGIN
+ IF NOT EXISTS(
+   SELECT 1 FROM atlas.work_result_contract_policies p
+   WHERE p.contract_key='household_laundry_begin_cycle_v1'
+    AND p.source_domain='household'
+    AND p.acceptance_mode='domain_adapter' AND p.active
+ ) THEN
+   RAISE EXCEPTION 'Household physical-result contract conflicts with existing policy';
+ END IF;
+END;
+$policy$;
 CREATE UNIQUE INDEX IF NOT EXISTS work_execution_results_household_idempotency_v1
  ON atlas.work_execution_results(household_id,idempotency_key)
  WHERE household_id IS NOT NULL;
@@ -270,7 +282,8 @@ BEGIN
  SELECT id INTO v_result FROM atlas.care_result_events
  WHERE source_key=v_source_key AND scope_id=v_work.household_id
   AND subject_id=v_need.instance_id::text
-  AND result_kind='improved_more_remains' AND condition_after='washing';
+  AND result_kind='improved_more_remains' AND condition_after='washing'
+  AND note IS NOT DISTINCT FROM nullif(btrim(p_note),'');
  IF v_result IS NOT NULL THEN
   v_existing:=true;
   SELECT id INTO v_work_result FROM atlas.work_execution_results
@@ -282,12 +295,19 @@ BEGIN
   END IF;
   SELECT id INTO v_acceptance FROM atlas.work_result_acceptances
    WHERE household_id=v_work.household_id AND execution_result_id=v_work_result;
+  IF v_acceptance IS NULL OR v_need.state<>'satisfied' THEN
+    RAISE EXCEPTION 'No accepted complete physical receipt for replay.'
+     USING ERRCODE='23514';
+  END IF;
+  SELECT id INTO v_satisfaction FROM atlas.rhythm_satisfactions
+  WHERE household_id=v_work.household_id
+    AND satisfaction_key='wash_started:'||v_work.id::text;
   RETURN jsonb_build_object('ok',true,
     'contractVersion','household_laundry_wash_started_v1',
     'householdId',v_work.household_id,'instanceId',v_need.instance_id,
     'workItemId',v_work.id,'needOccurrenceId',v_need.id,
     'careResultId',v_result,'workResultId',v_work_result,
-    'acceptanceId',v_acceptance,'rhythmSatisfactionId',NULL,
+    'acceptanceId',v_acceptance,'rhythmSatisfactionId',v_satisfaction,
     'workCompleted',true,'laundryCompletelyDone',false,'idempotent',true);
  END IF;
  IF v_work.work_state<>'open' OR v_need.state<>'open' THEN
@@ -381,7 +401,63 @@ BEGIN
    AND h.metadata->>'qualifyingEvent'='wash_started'
  ORDER BY h.created_at DESC LIMIT 1 FOR UPDATE;
  IF v_rhythm.id IS NOT NULL THEN
-  v_interval:=NULLIF(v_rhythm.metadata->>'renewAfterSeconds','')::integer;
+  IF coalesce(v_rhythm.metadata->>'renewAfterSeconds','')
+    ~ '^[1-9][0-9]{0,8}
+   INSERT INTO atlas.rhythm_satisfactions(
+     household_id,household_rhythm_id,organization_id,farm_id,
+     rhythm_state_id,rhythm_rule_id,rhythm_binding_id,
+     rhythm_key,subject_kind,subject_id,satisfaction_key,
+     satisfaction_kind,satisfied_at,source_kind,source_id,source_event,
+     policy_match,evidence,created_by_user_id
+   ) VALUES(
+     v_work.household_id,v_rhythm.id,NULL,NULL,NULL,NULL,NULL,
+     v_rhythm.stable_key,'household_kernel_instance',v_need.instance_id,
+     'wash_started:'||v_work.id::text,'conditional',v_at,
+     'household_laundry_physical_actual',v_result,'wash_started',
+     jsonb_build_object('qualifyingEvent','wash_started',
+       'acceptedExplicitRhythm',true,'satisfiesOnly','begin_cycle'),
+     jsonb_build_object('workItemId',v_work.id,'careResultId',v_result),
+     auth.uid()
+   ) RETURNING id INTO v_satisfaction;
+   UPDATE atlas.household_rhythms SET
+     next_window_start=v_at+make_interval(secs=>v_interval),
+     next_window_end=CASE WHEN next_window_start IS NOT NULL
+        AND next_window_end IS NOT NULL
+       THEN v_at+make_interval(secs=>v_interval)+
+           (next_window_end-next_window_start)
+       ELSE NULL END,
+     updated_at=now()
+   WHERE id=v_rhythm.id;
+  END IF;
+ END IF;
+ RETURN jsonb_build_object('ok',true,
+   'contractVersion','household_laundry_wash_started_v1',
+   'householdId',v_work.household_id,'instanceId',v_need.instance_id,
+   'workItemId',v_work.id,'needOccurrenceId',v_need.id,
+   'careResultId',v_result,'careObservationId',v_observation,
+   'workResultId',v_work_result,'acceptanceId',v_acceptance,
+   'rhythmSatisfactionId',v_satisfaction,
+   'workCompleted',true,'laundryCompletelyDone',false,
+   'idempotent',false);
+END;
+$function$;
+REVOKE ALL ON FUNCTION atlas.record_household_laundry_wash_started_self_api_v1(
+ uuid,uuid,text) FROM PUBLIC,anon,authenticated;
+CREATE OR REPLACE FUNCTION public.record_household_laundry_wash_started_self_api_v1(
+ p_work_item_id uuid,p_action_id uuid,p_note text DEFAULT NULL
+) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
+AS $function$
+ SELECT atlas.record_household_laundry_wash_started_self_api_v1(
+   p_work_item_id,p_action_id,p_note);
+$function$;
+REVOKE ALL ON FUNCTION public.record_household_laundry_wash_started_self_api_v1(
+ uuid,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.record_household_laundry_wash_started_self_api_v1(
+ uuid,uuid,text) TO authenticated;
+COMMIT;
+ THEN
+    v_interval:=(v_rhythm.metadata->>'renewAfterSeconds')::integer;
+  END IF;
   IF v_interval IS NOT NULL AND v_interval>0 THEN
    INSERT INTO atlas.rhythm_satisfactions(
      household_id,household_rhythm_id,organization_id,farm_id,
