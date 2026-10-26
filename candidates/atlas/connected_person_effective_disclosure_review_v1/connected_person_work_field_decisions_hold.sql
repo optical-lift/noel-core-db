@@ -94,6 +94,46 @@ REVOKE ALL ON FUNCTION
  atlas.connected_person_work_field_source_eligible_v1(uuid,uuid,uuid)
  FROM PUBLIC,anon,authenticated;
 
+-- Private source predicate used by existing My Work, Today and dated
+-- Work readers. This is not a broad Ledger read or a presentation check.
+CREATE OR REPLACE FUNCTION atlas.connected_person_work_field_currently_approved_v1(
+ p_ledger_id uuid,p_work_item_id uuid,p_person_id uuid,p_field_key text
+) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+AS $approved$
+ SELECT EXISTS (
+  SELECT 1
+  FROM atlas.connected_person_work_field_decision_events_v1 d
+  JOIN atlas.work_items w ON w.id=d.work_item_id
+    AND w.organization_id=d.organization_id
+  WHERE d.ledger_id=p_ledger_id
+    AND d.work_item_id=p_work_item_id
+    AND d.recipient_person_entity_id=p_person_id
+    AND d.field_key=p_field_key
+    AND d.decision='allow'
+    AND (d.valid_until IS NULL OR d.valid_until>statement_timestamp())
+    AND d.id=(
+      SELECT e.id
+      FROM atlas.connected_person_work_field_decision_events_v1 e
+      WHERE e.ledger_id=d.ledger_id AND e.organization_id=d.organization_id
+        AND e.work_item_id=d.work_item_id
+        AND e.recipient_person_entity_id=d.recipient_person_entity_id
+        AND e.field_key=d.field_key
+      ORDER BY e.decided_at DESC,e.id DESC LIMIT 1
+    )
+    AND d.approved_value_sha256=pg_catalog.encode(pg_catalog.sha256(
+      pg_catalog.convert_to(
+        CASE p_field_key
+          WHEN 'title' THEN w.title
+          WHEN 'instructions' THEN w.instructions END,
+        'UTF8')),'hex')
+    AND atlas.connected_person_work_field_source_eligible_v1(
+      p_ledger_id,p_work_item_id,p_person_id)
+ )
+$approved$;
+REVOKE ALL ON FUNCTION
+ atlas.connected_person_work_field_currently_approved_v1(uuid,uuid,uuid,text)
+ FROM PUBLIC,anon,authenticated;
+
 -- Signed native root-governor decision. All approvals are exact-field,
 -- exact-source-hash and exact recipient. Denial appends a revocation
 -- event that takes precedence over an older approval. No text snapshots.
@@ -114,8 +154,8 @@ DECLARE
 BEGIN
  IF auth.uid() IS NULL OR p_ledger_id IS NULL OR p_work_item_id IS NULL
    OR p_person_entity_id IS NULL OR p_request_id IS NULL
-   OR p_field_key NOT IN ('title','instructions')
-   OR p_decision NOT IN ('allow','deny')
+   OR p_field_key IS NULL OR p_field_key NOT IN ('title','instructions')
+   OR p_decision IS NULL OR p_decision NOT IN ('allow','deny')
    OR length(btrim(coalesce(p_reason,''))) NOT BETWEEN 12 AND 1200
    OR (p_decision='deny' AND p_valid_until IS NOT NULL)
    OR (p_decision='allow' AND p_valid_until IS NOT NULL
