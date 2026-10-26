@@ -35,7 +35,7 @@ BEGIN
     OR v_body NOT LIKE '%company_work_native_ledger_relevance%'
     OR v_body NOT LIKE '%company_work_native_ledger_exact_source_v1%'
     OR v_body NOT LIKE '%relevance.has_relevance IS TRUE%'
-    OR v_body NOT LIKE '%NULL::text AS instructions%'
+    OR v_body NOT LIKE '%connected_person_work_field_currently_approved_v1%'
     OR v_body NOT LIKE '%connected_person_my_work_v1%'
     OR v_body NOT LIKE '%scheduleReadAcrossAllDates%'
     OR v_body NOT LIKE '%optionalRequestsExcluded%'
