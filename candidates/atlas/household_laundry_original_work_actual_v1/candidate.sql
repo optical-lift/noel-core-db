@@ -247,7 +247,9 @@ AS $function$
 DECLARE v_work atlas.work_items%rowtype;v_need atlas.household_need_occurrences_v1%rowtype;
  v_person uuid;v_source_key text;v_result uuid;v_observation uuid;v_work_result uuid;
  v_acceptance uuid;v_existing boolean:=false;v_before text;
- v_rhythm atlas.household_rhythms%rowtype;v_satisfaction uuid;v_interval integer;
+ v_rhythm atlas.household_rhythms%rowtype;
+ v_decision atlas.household_rhythm_explicit_decisions_v1%rowtype;
+ v_satisfaction uuid;v_interval integer;
  v_at timestamptz:=clock_timestamp();
 BEGIN
  IF p_work_item_id IS NULL OR p_action_id IS NULL OR
@@ -392,101 +394,68 @@ BEGIN
  SET state='satisfied',satisfied_at=v_at,
    satisfied_by_care_result_id=v_result,updated_at=now()
  WHERE id=v_need.id;
- -- Household Rhythm satisfaction is optional and exists only when separately
- -- explicitly established with a qualifying touch. Pattern/calibration alone
- -- is NOT a rhythm or a recurring task. Wash start is a conditional step.
- SELECT * INTO v_rhythm FROM atlas.household_rhythms h
+ -- Satisfy only a genuinely established, current, signed-governor
+ -- Rhythm. Arbitrary metadata is NOT decision evidence. The latest
+ -- immutable decision controls whether this physical event qualifies.
+ SELECT h.* INTO v_rhythm FROM atlas.household_rhythms h
  WHERE h.household_id=v_work.household_id
    AND h.stable_key='kernel:household.laundry:general'
    AND h.active
-   AND h.metadata->>'establishedByExplicitDecision'='true'
-   AND h.metadata->>'qualifyingEvent'='wash_started'
- ORDER BY h.created_at DESC LIMIT 1 FOR UPDATE;
+   AND EXISTS(
+     SELECT 1 FROM atlas.household_rhythm_explicit_decisions_v1 d
+     WHERE d.household_id=h.household_id AND d.rhythm_id=h.id
+       AND d.instance_id=v_need.instance_id
+       AND d.decision_seq=(
+          SELECT max(latest.decision_seq)
+          FROM atlas.household_rhythm_explicit_decisions_v1 latest
+          WHERE latest.household_id=h.household_id AND latest.rhythm_id=h.id
+       )
+       AND d.decision_kind='establish' AND d.qualifying_event='wash_started'
+       AND d.renew_after_days BETWEEN 1 AND 365
+   )
+ FOR UPDATE OF h;
  IF v_rhythm.id IS NOT NULL THEN
-  IF coalesce(v_rhythm.metadata->>'renewAfterSeconds','')
-    ~ '^[1-9][0-9]{0,8}
+   SELECT * INTO v_decision
+   FROM atlas.household_rhythm_explicit_decisions_v1 d
+   WHERE d.household_id=v_work.household_id
+     AND d.rhythm_id=v_rhythm.id
+   ORDER BY d.decision_seq DESC LIMIT 1;
+   IF v_decision.decision_kind<>'establish'
+      OR v_decision.qualifying_event<>'wash_started'
+      OR v_decision.instance_id IS DISTINCT FROM v_need.instance_id
+      OR v_decision.renew_after_days NOT BETWEEN 1 AND 365 THEN
+     RAISE EXCEPTION 'Latest original Rhythm decision is not admitted.'
+       USING ERRCODE='23514';
+   END IF;
+   v_interval:=v_decision.renew_after_days*86400;
    INSERT INTO atlas.rhythm_satisfactions(
      household_id,household_rhythm_id,organization_id,farm_id,
      rhythm_state_id,rhythm_rule_id,rhythm_binding_id,
      rhythm_key,subject_kind,subject_id,satisfaction_key,
      satisfaction_kind,satisfied_at,source_kind,source_id,source_event,
-     policy_match,evidence,created_by_user_id
+     renewal_interval_seconds,policy_match,evidence,created_by_user_id
    ) VALUES(
      v_work.household_id,v_rhythm.id,NULL,NULL,NULL,NULL,NULL,
      v_rhythm.stable_key,'household_kernel_instance',v_need.instance_id,
      'wash_started:'||v_work.id::text,'conditional',v_at,
      'household_laundry_physical_actual',v_result,'wash_started',
+     v_interval,
      jsonb_build_object('qualifyingEvent','wash_started',
+       'explicitDecisionId',v_decision.decision_id,
        'acceptedExplicitRhythm',true,'satisfiesOnly','begin_cycle'),
-     jsonb_build_object('workItemId',v_work.id,'careResultId',v_result),
+     jsonb_build_object('workItemId',v_work.id,'careResultId',v_result,
+       'governedRhythmDecisionId',v_decision.decision_id),
      auth.uid()
    ) RETURNING id INTO v_satisfaction;
    UPDATE atlas.household_rhythms SET
      next_window_start=v_at+make_interval(secs=>v_interval),
      next_window_end=CASE WHEN next_window_start IS NOT NULL
-        AND next_window_end IS NOT NULL
+       AND next_window_end IS NOT NULL
        THEN v_at+make_interval(secs=>v_interval)+
-           (next_window_end-next_window_start)
+         (next_window_end-next_window_start)
        ELSE NULL END,
      updated_at=now()
    WHERE id=v_rhythm.id;
-  END IF;
- END IF;
- RETURN jsonb_build_object('ok',true,
-   'contractVersion','household_laundry_wash_started_v1',
-   'householdId',v_work.household_id,'instanceId',v_need.instance_id,
-   'workItemId',v_work.id,'needOccurrenceId',v_need.id,
-   'careResultId',v_result,'careObservationId',v_observation,
-   'workResultId',v_work_result,'acceptanceId',v_acceptance,
-   'rhythmSatisfactionId',v_satisfaction,
-   'workCompleted',true,'laundryCompletelyDone',false,
-   'idempotent',false);
-END;
-$function$;
-REVOKE ALL ON FUNCTION atlas.record_household_laundry_wash_started_self_api_v1(
- uuid,uuid,text) FROM PUBLIC,anon,authenticated;
-CREATE OR REPLACE FUNCTION public.record_household_laundry_wash_started_self_api_v1(
- p_work_item_id uuid,p_action_id uuid,p_note text DEFAULT NULL
-) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
-AS $function$
- SELECT atlas.record_household_laundry_wash_started_self_api_v1(
-   p_work_item_id,p_action_id,p_note);
-$function$;
-REVOKE ALL ON FUNCTION public.record_household_laundry_wash_started_self_api_v1(
- uuid,uuid,text) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.record_household_laundry_wash_started_self_api_v1(
- uuid,uuid,text) TO authenticated;
-COMMIT;
- THEN
-    v_interval:=(v_rhythm.metadata->>'renewAfterSeconds')::integer;
-  END IF;
-  IF v_interval IS NOT NULL AND v_interval>0 THEN
-   INSERT INTO atlas.rhythm_satisfactions(
-     household_id,household_rhythm_id,organization_id,farm_id,
-     rhythm_state_id,rhythm_rule_id,rhythm_binding_id,
-     rhythm_key,subject_kind,subject_id,satisfaction_key,
-     satisfaction_kind,satisfied_at,source_kind,source_id,source_event,
-     policy_match,evidence,created_by_user_id
-   ) VALUES(
-     v_work.household_id,v_rhythm.id,NULL,NULL,NULL,NULL,NULL,
-     v_rhythm.stable_key,'household_kernel_instance',v_need.instance_id,
-     'wash_started:'||v_work.id::text,'conditional',v_at,
-     'household_laundry_physical_actual',v_result,'wash_started',
-     jsonb_build_object('qualifyingEvent','wash_started',
-       'acceptedExplicitRhythm',true,'satisfiesOnly','begin_cycle'),
-     jsonb_build_object('workItemId',v_work.id,'careResultId',v_result),
-     auth.uid()
-   ) RETURNING id INTO v_satisfaction;
-   UPDATE atlas.household_rhythms SET
-     next_window_start=v_at+make_interval(secs=>v_interval),
-     next_window_end=CASE WHEN next_window_start IS NOT NULL
-        AND next_window_end IS NOT NULL
-       THEN v_at+make_interval(secs=>v_interval)+
-           (next_window_end-next_window_start)
-       ELSE NULL END,
-     updated_at=now()
-   WHERE id=v_rhythm.id;
-  END IF;
  END IF;
  RETURN jsonb_build_object('ok',true,
    'contractVersion','household_laundry_wash_started_v1',
