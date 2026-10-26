@@ -240,4 +240,96 @@ REVOKE ALL ON FUNCTION public.connected_person_original_work_subject_self_api_v1
  uuid,uuid,uuid,text,text,uuid) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.connected_person_original_work_subject_self_api_v1(
  uuid,uuid,uuid,text,text,uuid) TO authenticated;
+-- Enumerate only the signed Person's admitted original Subject links for one
+-- exact authorized Work; never publish undisclosed subjects or their counts.
+CREATE OR REPLACE FUNCTION atlas.connected_person_work_subject_links_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,
+ p_limit integer DEFAULT 30,p_after_subject_id uuid DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+DECLARE v_person uuid;v_owner boolean:=false;v_rows jsonb:='[]'::jsonb;
+ v_more boolean:=false;v_next uuid;
+BEGIN
+ IF auth.uid() IS NULL OR
+    (atlas.reality_access_self_api_v1()->>'state') IS DISTINCT FROM 'ready'
+    OR p_limit NOT BETWEEN 1 AND 50 OR p_work_item_id IS NULL THEN
+  RAISE EXCEPTION 'Original Work Subjects unavailable.' USING ERRCODE='42501';
+ END IF;
+ v_person:=atlas.current_person_id_v1();
+ IF v_person IS NULL OR NOT atlas.person_has_native_ledger_connection_v1(
+    p_organization_id,p_ledger_id,v_person) THEN
+  RAISE EXCEPTION 'Original Work Subjects unavailable.' USING ERRCODE='42501';
+ END IF;
+ IF NOT EXISTS(
+    SELECT 1 FROM atlas.work_items w
+    JOIN atlas.company_work_native_ledger_relevance r
+     ON r.work_item_id=w.id AND r.organization_id=w.organization_id
+       AND r.ledger_id=p_ledger_id AND r.attribution_state='active'
+    WHERE w.id=p_work_item_id AND w.organization_id=p_organization_id
+ ) THEN
+  RAISE EXCEPTION 'Original Work Subjects unavailable.' USING ERRCODE='42501';
+ END IF;
+ BEGIN
+   PERFORM atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id);
+   v_owner:=true;
+ EXCEPTION WHEN OTHERS THEN v_owner:=false;
+ END;
+ IF NOT v_owner AND NOT EXISTS(
+    SELECT 1 FROM atlas.work_items w
+    JOIN atlas.work_allocations a ON a.work_item_id=w.id
+      AND a.organization_id=w.organization_id
+    WHERE w.id=p_work_item_id AND w.organization_id=p_organization_id
+      AND w.work_state='open'
+      AND a.assignee_canonical_person_id=v_person
+      AND a.allocation_role='responsible' AND a.state='active'
+ ) THEN
+    RAISE EXCEPTION 'Original Work Subjects unavailable.' USING ERRCODE='42501';
+ END IF;
+ WITH allowed AS (
+   SELECT DISTINCT ON(c.subject_id)
+     c.subject_id,c.subject_domain,c.subject_kind,o.label
+   FROM atlas.work_item_context_links c
+   JOIN atlas.growing_objects o ON o.id=c.subject_id
+   JOIN atlas.farms f ON f.id=o.farm_id AND f.organization_id=p_organization_id
+   WHERE c.organization_id=p_organization_id
+      AND c.work_item_id=p_work_item_id
+      AND c.subject_domain='spatial' AND c.subject_kind='growing_object'
+      AND (p_after_subject_id IS NULL OR c.subject_id>p_after_subject_id)
+      AND (v_owner OR atlas.has_current_subject_disclosure_v1(
+         p_ledger_id,v_person,c.subject_domain,c.subject_kind,c.subject_id,'identity'))
+   ORDER BY c.subject_id
+ ), page AS (
+    SELECT *,row_number() OVER(ORDER BY subject_id) rn
+    FROM allowed ORDER BY subject_id LIMIT p_limit+1
+ )
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+     'subjectDomain',q.subject_domain,'subjectKind',q.subject_kind,
+     'subjectId',q.subject_id,'subjectLabel',q.label
+    ) ORDER BY q.subject_id) FILTER(WHERE q.rn<=p_limit),'[]'::jsonb),
+    count(*)>p_limit,max(q.subject_id) FILTER(WHERE q.rn<=p_limit)
+ INTO v_rows,v_more,v_next FROM page q;
+ RETURN jsonb_build_object(
+    'ok',true,'contractVersion','connected_person_work_subject_links_v1',
+    'workItemId',p_work_item_id,'ledgerId',p_ledger_id,
+    'items',v_rows,'hasMore',v_more,
+    'nextAfterSubjectId',CASE WHEN v_more THEN v_next ELSE NULL END,
+    'undisclosedSubjectsOmitted',true
+ );
+END;
+$function$;
+REVOKE ALL ON FUNCTION atlas.connected_person_work_subject_links_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) FROM PUBLIC,anon,authenticated;
+CREATE OR REPLACE FUNCTION public.connected_person_work_subject_links_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,
+ p_limit integer DEFAULT 30,p_after_subject_id uuid DEFAULT NULL
+) RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
+AS $function$
+ SELECT atlas.connected_person_work_subject_links_self_api_v1(
+ p_organization_id,p_ledger_id,p_work_item_id,p_limit,p_after_subject_id);
+$function$;
+REVOKE ALL ON FUNCTION public.connected_person_work_subject_links_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.connected_person_work_subject_links_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) TO authenticated;
+
 COMMIT;
