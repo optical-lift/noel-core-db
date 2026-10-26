@@ -1,5 +1,38 @@
 BEGIN;
 -- Must follow universal_household_canonical_work_custody_v1.
+-- A Need is not a task: it is the original, still-applicable physical
+-- transition. Only an explicit decision creates original canonical Work.
+CREATE TABLE atlas.household_need_occurrences_v1 (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ household_id uuid NOT NULL REFERENCES atlas.households(id) ON DELETE RESTRICT,
+ instance_id uuid NOT NULL REFERENCES atlas.household_kernel_instances(id) ON DELETE RESTRICT,
+ need_key text NOT NULL CHECK(length(btrim(need_key)) BETWEEN 2 AND 100),
+ state text NOT NULL CHECK(state IN ('open','satisfied','withdrawn')),
+ opened_by_observation_id uuid NOT NULL
+   REFERENCES atlas.care_observation_events(id) ON DELETE RESTRICT,
+ source_action_id uuid NOT NULL,
+ current_work_item_id uuid REFERENCES atlas.work_items(id) ON DELETE RESTRICT,
+ satisfied_by_care_result_id uuid
+   REFERENCES atlas.care_result_events(id) ON DELETE RESTRICT,
+ satisfied_at timestamptz,
+ created_at timestamptz NOT NULL DEFAULT now(),
+ updated_at timestamptz NOT NULL DEFAULT now(),
+ CONSTRAINT household_need_action_idempotency_v1 UNIQUE (household_id,source_action_id),
+ CONSTRAINT household_need_state_facts_v1 CHECK(
+  (state='open' AND satisfied_at IS NULL AND satisfied_by_care_result_id IS NULL)
+   OR (state='satisfied' AND satisfied_at IS NOT NULL
+      AND satisfied_by_care_result_id IS NOT NULL)
+   OR (state='withdrawn' AND satisfied_by_care_result_id IS NULL)
+ )
+);
+CREATE UNIQUE INDEX household_need_one_open_real_transition_v1
+ ON atlas.household_need_occurrences_v1(instance_id,need_key)
+ WHERE state='open';
+ALTER TABLE atlas.household_need_occurrences_v1 ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON atlas.household_need_occurrences_v1
+ FROM PUBLIC,anon,authenticated;
+
+
 -- These exact source guards apply ONLY to household-owned original canonical
 -- work rows. Existing Organization/Event source guards remain unchanged.
 CREATE OR REPLACE FUNCTION atlas.household_work_actor_v1(p_household_id uuid)
@@ -57,8 +90,19 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
 AS $function$
 BEGIN
  IF NEW.household_id IS NULL THEN RETURN NEW; END IF;
- PERFORM atlas.require_household_governor_self_v1(NEW.household_id);
+ IF TG_OP='INSERT' OR
+    (TG_OP='UPDATE' AND NEW.work_state IS DISTINCT FROM OLD.work_state
+        AND NEW.work_state<>'completed') THEN
+   PERFORM atlas.require_household_governor_self_v1(NEW.household_id);
+ ELSE
+   PERFORM atlas.household_work_actor_v1(NEW.household_id);
+ END IF;
  IF NEW.organization_id IS NOT NULL OR NEW.organization_unit_id IS NOT NULL
+    OR NOT EXISTS(
+      SELECT 1 FROM atlas.household_need_occurrences_v1 need
+      WHERE need.id=NEW.source_object_id
+        AND need.household_id=NEW.household_id
+    )
     OR NEW.work_definition_id IS NOT NULL
     OR NEW.source_object_type<>'household_need_occurrence'
     OR NEW.source_object_id IS NULL
@@ -117,7 +161,7 @@ BEGIN
    OR NOT EXISTS(
       SELECT 1 FROM atlas.work_items w
       WHERE w.id=NEW.work_item_id AND w.household_id=NEW.household_id
-        AND w.work_state='open'
+        AND w.work_state IN ('open','completed')
    ) THEN
   RAISE EXCEPTION 'Household responsibility lacks exact original and explicit carrier.'
     USING ERRCODE='23514';
@@ -249,6 +293,30 @@ BEGIN
       WHERE w.id=NEW.work_item_id AND w.household_id=NEW.household_id
         AND w.result_contract_key=NEW.result_contract_key
         AND need.state='open'
+        AND (
+          EXISTS(
+             SELECT 1 FROM atlas.households h
+             JOIN atlas.principals p ON p.id=h.principal_id
+             WHERE h.id=w.household_id AND p.status='active'
+               AND p.user_id=auth.uid()
+               AND p.person_id=atlas.current_person_id_v1()
+          )
+          OR EXISTS(
+             SELECT 1 FROM atlas.work_allocations a
+             WHERE a.work_item_id=w.id AND a.household_id=w.household_id
+               AND a.state='active' AND a.allocation_role='responsible'
+               AND (
+                  a.assignee_canonical_person_id=atlas.current_person_id_v1()
+                  OR EXISTS(
+                    SELECT 1 FROM atlas.household_members hm
+                    WHERE hm.id=a.assignee_household_member_id
+                      AND hm.household_id=w.household_id AND hm.active
+                      AND hm.user_id=auth.uid()
+                      AND hm.person_id=atlas.current_person_id_v1()
+                  )
+               )
+          )
+        )
     ) THEN
   RAISE EXCEPTION 'Work Result needs real accepted Laundry step evidence.'
     USING ERRCODE='23514';
