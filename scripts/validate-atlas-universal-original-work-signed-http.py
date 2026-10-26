@@ -71,14 +71,14 @@ def deny_internal_legacy(db,api,key,bearer,name,params):
       "farm_care_zone_v1":f"atlas.farm_care_zone_v1('{FARM}'::uuid,'u-pick'::text,25)",
       "farm_snapshot_for_member_v1":f"atlas.farm_snapshot_for_member_v1('{FARM}'::uuid)",
       "bed_components_state_v1":f"atlas.bed_components_state_v1('{BED3}'::uuid)",
-      "farm_day_task_cards_v1":f"atlas.farm_day_task_cards_v1('{FARM}'::uuid,'2030-10-30'::date),
-      "home_task_cards_v2":f"atlas.home_task_cards_v2('{FARM}'::uuid,NULL::text,NULL::date,NULL::date),
-      "seed_inventory_dashboard_v1":f"atlas.seed_inventory_dashboard_v1('{FARM}'::uuid),
-      "task_cards_v1":f"atlas.task_cards_v1('{FARM}'::uuid,NULL::uuid),
-      "tending_task_context_v1":f"atlas.tending_task_context_v1('{FARM}'::uuid,'{PARENT}'::uuid,NULL::text),
-      "tending_task_context_v2":f"atlas.tending_task_context_v2('{FARM}'::uuid,'{PARENT}'::uuid,'clone-upick-bed-3'::text,NULL::text),
-      "worker_day_state_transition_cards_v1":f"atlas.worker_day_state_transition_cards_v1('{FARM}'::uuid,'{PARENT}'::uuid,'2030-10-30'::date),
-      "worker_future_day_projection_source_v1":f"atlas.worker_future_day_projection_source_v1('{FARM}'::uuid,'{PARENT}'::uuid,'2030-10-30'::date,'2030-11-06'::date),
+      "farm_day_task_cards_v1":f"atlas.farm_day_task_cards_v1('{FARM}'::uuid,'2030-10-30'::date)",
+      "home_task_cards_v2":f"atlas.home_task_cards_v2('{FARM}'::uuid,NULL::text,NULL::date,NULL::date)",
+      "seed_inventory_dashboard_v1":f"atlas.seed_inventory_dashboard_v1('{FARM}'::uuid)",
+      "task_cards_v1":f"atlas.task_cards_v1('{FARM}'::uuid,NULL::uuid)",
+      "tending_task_context_v1":f"atlas.tending_task_context_v1('{FARM}'::uuid,'{PARENT}'::uuid,NULL::text)",
+      "tending_task_context_v2":f"atlas.tending_task_context_v2('{FARM}'::uuid,'{PARENT}'::uuid,'clone-upick-bed-3'::text,NULL::text)",
+      "worker_day_state_transition_cards_v1":f"atlas.worker_day_state_transition_cards_v1('{FARM}'::uuid,'{PARENT}'::uuid,'2030-10-30'::date)",
+      "worker_future_day_projection_source_v1":f"atlas.worker_future_day_projection_source_v1('{FARM}'::uuid,'{PARENT}'::uuid,'2030-10-30'::date,'2030-11-06'::date)",
     }
     check(name in calls,"Unexpected legacy read")
     encoded=json.dumps(claims,separators=(",",":")).replace("'","''")
