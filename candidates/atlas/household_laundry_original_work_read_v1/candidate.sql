@@ -7,6 +7,7 @@ AS $function$
 DECLARE v_household uuid;v_kernel atlas.household_kernel_instances%rowtype;
  v_condition text;v_observation uuid;v_need atlas.household_need_occurrences_v1%rowtype;
  v_work atlas.work_items%rowtype;v_allocation atlas.work_allocations%rowtype;
+ v_last_completed_work_id uuid;v_last_completed_at timestamptz;
 BEGIN
  v_household:=atlas.principal_current_household_id_v1();
  IF v_household IS NULL THEN
@@ -22,9 +23,20 @@ BEGIN
   WHERE scope_kind='household' AND scope_id=v_household
    AND subject_domain='household' AND subject_kind='household_kernel_instance'
    AND subject_id=v_kernel.id::text;
+  -- Only current unsatisfied Need/Work belongs in this slot.
+  -- Completed wash-started Work remains original history but must not
+  -- prevent the next genuine observed Laundry cycle from being established.
   SELECT * INTO v_need FROM atlas.household_need_occurrences_v1
   WHERE household_id=v_household AND instance_id=v_kernel.id
-  ORDER BY (state='open') DESC,created_at DESC,id DESC LIMIT 1;
+    AND state='open'
+  ORDER BY created_at DESC,id DESC LIMIT 1;
+  SELECT w.id,n.satisfied_at INTO v_last_completed_work_id,v_last_completed_at
+  FROM atlas.household_need_occurrences_v1 n
+  JOIN atlas.work_items w ON w.id=n.current_work_item_id
+    AND w.household_id=n.household_id
+  WHERE n.household_id=v_household AND n.instance_id=v_kernel.id
+    AND n.state='satisfied' AND w.work_state='completed'
+  ORDER BY n.satisfied_at DESC,n.id DESC LIMIT 1;
   IF v_need.id IS NOT NULL THEN
     SELECT * INTO v_work FROM atlas.work_items w WHERE w.id=v_need.current_work_item_id
        AND w.household_id=v_household;
@@ -44,6 +56,8 @@ BEGIN
   'needOccurrenceId',v_need.id,
   'needState',v_need.state,
   'workItemId',v_work.id,
+  'lastCompletedWorkItemId',v_last_completed_work_id,
+  'lastCompletedWashStartedAt',v_last_completed_at,
   'workTitle',v_work.title,
   'workState',v_work.work_state,
   'carrierAllocationId',v_allocation.id,
