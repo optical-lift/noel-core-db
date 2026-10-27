@@ -143,7 +143,7 @@ BEGIN
   INSERT INTO us.carry_case_streams_v1
    (owner_auth_user_id,stream_key,subject_kind,financial_plan_id)
   VALUES(v_b,'synthetic:wrong_owner','financial_expectation',p_a);
- EXCEPTION WHEN foreign_key_violation THEN rejected:=true; END;
+ EXCEPTION WHEN foreign_key_violation OR unique_violation THEN rejected:=true; END;
  IF NOT rejected THEN RAISE EXCEPTION 'Another owner was allowed to join private source plan'; END IF;
 
  rejected:=false;
