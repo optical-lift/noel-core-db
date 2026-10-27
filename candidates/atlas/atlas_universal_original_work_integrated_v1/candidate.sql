@@ -10346,19 +10346,23 @@ begin
   end if;
   select * into v_conv from atlas.institutional_conversations where id=p_institutional_conversation_id;
   if v_conv.id is null then
-    raise exception 'Institutional conversation not found.' using errcode='P0002';
+    raise exception 'Source unavailable to this Person.' using errcode='42501';
   end if;
   select communication_endpoint_id into v_endpoint_id
   from atlas.institutional_conversation_endpoints
   where institutional_conversation_id=v_conv.id
   order by case endpoint_role when 'primary' then 0 else 1 end,created_at limit 1;
-  PERFORM atlas.company_work_native_ledger_owner_self_v1(
+  BEGIN
+   PERFORM atlas.company_work_native_ledger_owner_self_v1(
     v_conv.organization_id,
     (SELECT lop.ledger_id FROM atlas.ledger_organization_participations lop
      WHERE lop.organization_id=v_conv.organization_id
        AND lop.participation_kind='governing' AND lop.is_compatibility_primary
        AND lop.status='active' AND lop.ended_at IS NULL
      ORDER BY lop.ledger_id LIMIT 1));
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'Source unavailable to this Person.' USING ERRCODE='42501';
+  END;
   select * into v_member from atlas.organization_memberships
   where organization_id=v_conv.organization_id and user_id=auth.uid() and active
   order by created_at limit 1;
