@@ -509,3 +509,38 @@ BEGIN
  END LOOP;
 END $older_work_proof$;
 
+-- One exact Work, not any other Work in the same operation class.
+-- This is static source custody; the signed GoTrue clone must exercise denial.
+DO $exact_work_scope_guard$
+DECLARE v_sql text;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM information_schema.columns
+   WHERE table_schema='atlas' AND table_name='company_work_standing_assignment_scopes'
+     AND column_name='covered_work_item_id') THEN
+   RAISE EXCEPTION 'Exact Work scope foreign-keyed source column absent'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_constraint
+   WHERE conname='company_work_native_scope_operation_class_required_v1'
+     AND pg_get_constraintdef(oid) LIKE '%exact_work%') THEN
+   RAISE EXCEPTION 'Exact Work cannot be an unbounded prose-only scope'; END IF;
+ SELECT pg_get_functiondef(
+   'atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)'::regprocedure
+ ) INTO v_sql;
+ IF v_sql IS NULL OR position('v_scope.covered_work_item_id IS DISTINCT FROM v_work.id' IN v_sql)=0
+   OR position('company_work_native_ledger_owner_self_v1(' IN v_sql)=0
+   OR position('worker_person_id' IN v_sql)=0
+   OR position('original Subject disclosure' IN v_sql)=0 THEN
+   RAISE EXCEPTION 'Exact Work assignment must be source-enforced'; END IF;
+ SELECT pg_get_functiondef(
+  'atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)'::regprocedure
+ ) INTO v_sql;
+ IF v_sql IS NULL OR position('company_work_native_ledger_owner_self_v1(' IN v_sql)=0
+   OR position('person_has_native_ledger_connection_v1(' IN v_sql)=0
+   OR position('company_work_native_ledger_relevance' IN v_sql)=0 THEN
+   RAISE EXCEPTION 'Original Work proposal cannot use employee/old farm seats'; END IF;
+ IF has_function_privilege('anon',
+    'public.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)','EXECUTE')
+ OR has_function_privilege('authenticated',
+    'atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)','EXECUTE') THEN
+   RAISE EXCEPTION 'Exact Work privileged source must not be exposed directly'; END IF;
+END $exact_work_scope_guard$;
+
