@@ -595,6 +595,53 @@ def main():
           now.get("lastCompletedWorkItemId")==washing,
           "Completed Work lost its history or blocked next Laundry cycle")
     print("PASS signed Laundry Need, Work, separate Rhythm, physical Actual and replay")
+
+    # The historical organization planning browser RPC is an alternate Work
+    # title/Result reader, INCLUDING Work with no subject context links.
+    # Prove the internal source guard, not a 404 or merely absent old membership.
+    # These memberships and the synthetic unlinked Work exist in this disposable
+    # clone ONLY, after all original Bed/Laundry tests finish.
+    secret_work="e5200000-0000-4000-8000-000000000b99"
+    check(sql(args.db_url,f"select count(*) from atlas.work_items "
+          f"where id='{secret_work}'::uuid")=="0",
+          "Synthetic unlinked legacy Work ID already in use")
+    sql(args.db_url,
+      "insert into atlas.work_items(id,organization_id,title,work_state,source_object_type) "
+      f"values('{secret_work}'::uuid,'{ORG}'::uuid,"
+      "'Private synthetic withheld Bed 5 result, never for historical manager','open',"
+      "'legacy_task')")
+    check(sql(args.db_url,f"select count(*) from atlas.work_item_context_links "
+          f"where work_item_id='{secret_work}'::uuid")=="0",
+          "Unlinked alternative-reader probe unexpectedly has a context link")
+    old_member=sql(args.db_url,
+      "select count(*) from atlas.organization_memberships "
+      f"where organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid")
+    if old_member=="0":
+        sql(args.db_url,
+          "insert into atlas.organization_memberships("
+          "id,organization_id,user_id,person_id,role,active) values("
+          "'e5200000-0000-4000-8000-000000000b07'::uuid,"
+          f"'{ORG}'::uuid,'{c1.WORKER}'::uuid,'{PERSON}'::uuid,"
+          "'member',true)")
+    else:
+        sql(args.db_url,"update atlas.organization_memberships set "
+            "active=true,role='member' where "
+            f"organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid")
+    sql(args.db_url,"update atlas.farm_memberships set role='manager' "
+        f"where farm_id='{FARM}'::uuid and user_id='{c1.WORKER}'::uuid "
+        "and active")
+    check(sql(args.db_url,"select count(*) from atlas.organization_memberships "
+          f"where organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid "
+          "and role='member' and active")=="1" and
+          sql(args.db_url,"select count(*) from atlas.farm_memberships "
+          f"where farm_id='{FARM}'::uuid and user_id='{c1.WORKER}'::uuid "
+          "and role='manager' and active")=="1",
+          "Probe must actually carry old organization AND manager access")
+    deny(api,key,worker,"organization_management_company_work_planning_queue_api_v1",
+         {"p_organization_id":ORG,"p_window_start":None,"p_window_end":None},
+         "Signed old organization/farm manager cannot enumerate unlinked Work")
+    print("PASS signed old manager denied historical unlinked Work title/Result read")
+
     Path(args.output).write_text(
         "PASS signed original Bed 3 + Laundry synthetic local source acceptance\n"
         "PENDING independent Event regression and complete alternative-reader sweep\n"
