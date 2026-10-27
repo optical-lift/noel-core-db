@@ -202,7 +202,8 @@ GRANT EXECUTE ON FUNCTION public.person_mail_readable_endpoints_self_v1()
 -- mailbox or ingest writer. No thread-level subject/summary data is read.
 -- Paging/filtering happen AFTER per-event date/source proofs and authorization.
 CREATE FUNCTION atlas.person_mail_events_self_v1(
- p_endpoint_id uuid,p_limit integer DEFAULT 50,p_before_at timestamptz DEFAULT NULL)
+ p_endpoint_id uuid,p_limit integer DEFAULT 50,p_before_at timestamptz DEFAULT NULL,
+ p_before_id uuid DEFAULT NULL)
  RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $f$
 DECLARE v_person uuid;v_cutoff timestamptz;v_items jsonb;
 BEGIN
@@ -235,7 +236,9 @@ BEGIN
    WHERE ep.id=p_endpoint_id AND ep.endpoint_state='active'
      AND e.organization_id=ep.organization_id
      AND e.occurred_at>=v_cutoff
-     AND (p_before_at IS NULL OR e.occurred_at<p_before_at)
+     AND ((p_before_at IS NULL AND p_before_id IS NULL) OR
+       (p_before_at IS NOT NULL AND p_before_id IS NOT NULL
+        AND (e.occurred_at,e.id)<(p_before_at,p_before_id)))
      -- Exclude metadata-backed synthesized timestamps: not defensible
      -- date evidence for any retroactive window.
      AND e.canonical_event->>'captureMode'='live_relay'
@@ -248,17 +251,18 @@ BEGIN
     'attachmentsDisclosed',false,'historicalThreadMetadataDisclosed',false,
     'readOnly',true);
 END $f$;
-REVOKE ALL ON FUNCTION atlas.person_mail_events_self_v1(uuid,integer,timestamptz)
+REVOKE ALL ON FUNCTION atlas.person_mail_events_self_v1(uuid,integer,timestamptz,uuid)
  FROM PUBLIC,anon,authenticated;
 
 CREATE FUNCTION public.person_mail_events_self_v1(
- p_endpoint_id uuid,p_limit integer DEFAULT 50,p_before_at timestamptz DEFAULT NULL)
+ p_endpoint_id uuid,p_limit integer DEFAULT 50,p_before_at timestamptz DEFAULT NULL,
+ p_before_id uuid DEFAULT NULL)
  RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS $f$
- SELECT atlas.person_mail_events_self_v1(p_endpoint_id,p_limit,p_before_at);
+ SELECT atlas.person_mail_events_self_v1(p_endpoint_id,p_limit,p_before_at,p_before_id);
 $f$;
-REVOKE ALL ON FUNCTION public.person_mail_events_self_v1(uuid,integer,timestamptz)
+REVOKE ALL ON FUNCTION public.person_mail_events_self_v1(uuid,integer,timestamptz,uuid)
  FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.person_mail_events_self_v1(uuid,integer,timestamptz)
+GRANT EXECUTE ON FUNCTION public.person_mail_events_self_v1(uuid,integer,timestamptz,uuid)
  TO authenticated;
 -- Root-governor-only picker; no broad People enumeration. Exact native Ledger
 -- and active canonical Person participation remain prerequisites.
