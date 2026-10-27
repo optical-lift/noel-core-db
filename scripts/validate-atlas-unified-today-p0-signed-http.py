@@ -167,20 +167,62 @@ def main():
           "No genuine independently signed Work recipient")
     check(ev.sql(args.db_url,f"select count(*) from auth.sessions where id='{c['session_id']}'::uuid")=="1",
           "Worker signed session not persisted")
-    # The exact allocation is CLONE-ONLY. This is a true established Person duty
-    # for the old Company schedule RPC preconditions, not arbitrary target input.
-    ev.sql(args.db_url,f"""
-      INSERT INTO atlas.work_allocations(
-       organization_id,work_item_id,allocation_role,state,
-       assignee_canonical_person_id,establishment_basis_kind,establishment_basis)
-      VALUES('{WORK_ORG}'::uuid,'{WORK}'::uuid,'responsible','active',
-       '{WORKER_PERSON}'::uuid,'ledger_connection_direct_assignment',
-       '{{"nativeLedgerId":"{WORK_LEDGER}","cloneFixture":true}}'::jsonb)
-    """)
+    # Use real signed native Ledger authority, not a direct allocation insert.
+    owner,claims=base.c1.sign_in(api,key,"owner")
+    check(claims.get("sub")==base.c1.OWNER and bool(claims.get("session_id")),
+          "No genuine independently signed Work governor")
+    check(ev.sql(args.db_url,f"select count(*) from auth.sessions where "
+          f"id='{claims['session_id']}'::uuid and user_id='{base.c1.OWNER}'::uuid")=="1",
+          "Original Work governor signed session not persisted")
+    check(ev.sql(args.db_url,f"select count(*) from atlas.work_items where "
+          f"id='{WORK}'::uuid and source_object_type is null "
+          "and result_contract_key is null")=="1",
+          "Original fixture has an unexpected source contract")
+    original_count=ev.sql(args.db_url,"select count(*) from atlas.work_items")
+    ev.sql(args.db_url,f"update atlas.work_items set source_object_type='legacy_task' "
+          f"where id='{WORK}'::uuid and source_object_type is null")
+    scope=ok(api,key,owner,"propose_native_ledger_exact_work_scope_owner_self_api_v1",
+             dict(p_organization_id=WORK_ORG,p_ledger_id=WORK_LEDGER,
+                  p_worker_person_id=WORKER_PERSON,p_work_item_id=WORK,
+                  p_terms="Synthetic one-work agreement for signed authority validation.",
+                  p_valid_until=None))
+    check(scope.get("coverageMode")=="exact_work" and
+          scope.get("coveredWorkItemId")==WORK and
+          scope.get("workerConsentRecorded") is False and scope.get("scopeId"),
+          "Exact scope not source-bounded")
+    sid=scope["scopeId"]
+    pending=ok(api,key,worker,"native_ledger_standing_scopes_self_api_v1",{})
+    check(any(s.get("scopeId")==sid and s.get("state")=="proposed"
+              and s.get("coveredWorkItemId")==WORK
+              for s in pending.get("incoming",[])),
+          "Worker cannot see the exact proposed scope")
+    acceptance=ok(api,key,worker,"respond_native_ledger_standing_scope_self_api_v1",
+                  dict(p_scope_id=sid,p_decision="accept"))
+    check(acceptance.get("state")=="active" and
+          acceptance.get("assignmentCreated") is False,
+          "Scope acceptance incorrectly created a Work allocation")
+    assigned=ok(api,key,owner,
+                "assign_native_ledger_company_work_under_scope_owner_self_api_v1",
+                dict(p_work_item_id=WORK,p_scope_id=sid,
+                     p_reason="Assign existing synthetic Company Work without a day."))
+    allocation=assigned.get("allocationId")
+    check(assigned.get("workItemId")==WORK and
+          assigned.get("responsiblePersonId")==WORKER_PERSON and
+          assigned.get("coveredWorkItemId")==WORK and
+          assigned.get("newWorkCreated") is False and bool(allocation),
+          "Signed assignment did not preserve original Work")
+    check(ev.sql(args.db_url,"select count(*) from atlas.work_items")==original_count,
+          "Signed assignment created duplicate original Work")
+    check(ev.sql(args.db_url,f"select count(*) from atlas.work_execution_plans "
+          f"where work_item_id='{WORK}'::uuid")=="0",
+          "Signed assignment silently created a schedule")
     mine=ok(api,key,worker,"connected_person_my_work_self_api_v1",
-             {"p_limit":50,"p_after_allocation_id":None})
-    check(any(x["workItemId"]==WORK for x in mine.get("items",[])),
-          "Worker lacks the genuine original Work visibility prerequisite")
+            {"p_limit":50,"p_after_allocation_id":None})
+    current=[x for x in mine.get("items",[]) if x.get("workItemId")==WORK]
+    check(len(current)==1 and current[0].get("allocationId")==allocation and
+          current[0].get("scheduleState")=="unscheduled" and
+          current[0].get("planId") is None,
+          "Signed worker My Work did not show one original unscheduled allocation")
     before=ev.sql(args.db_url,f"select count(*) from atlas.work_execution_plans where work_item_id='{WORK}'::uuid")
     deny(api,key,worker,"connected_person_place_work_self_api_v1",
          dict(p_work_item_id=WORK,p_service_date="2030-10-31",
