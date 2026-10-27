@@ -79,3 +79,16 @@ BEGIN
   END IF;
  END LOOP;
 END $alternate_original_work_proof$;
+
+-- Source proof: old communication picker must not enumerate organization
+-- people, places, zones or original Work on legacy membership authority alone.
+DO $communication_context_gate$
+DECLARE v_sql text;
+BEGIN
+ SELECT pg_get_functiondef('atlas.communication_work_context_candidates_self_v1(uuid,text)'::regprocedure)
+ INTO v_sql;
+ IF position('company_work_native_ledger_owner_self_v1(' in v_sql)=0
+    OR position('is_compatibility_primary' in v_sql)=0 THEN
+  RAISE EXCEPTION 'Communication context original sources missing native governor gate';
+ END IF;
+END $communication_context_gate$;
