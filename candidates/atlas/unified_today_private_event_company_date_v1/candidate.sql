@@ -951,4 +951,235 @@ END
 $function$;
 
 
+-- Exact Event identity admission must not expose everyone's original Work,
+-- participant names or unbounded Event Work history.
+CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_shared_work_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_occurrence_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_actor uuid;
+  v_event local_intel.occurrences%rowtype;
+  v_items jsonb;
+  v_root boolean:=false;
+begin
+  v_actor:=atlas.ledger_occurrence_shared_work_actor_self_v1(
+    p_organization_id,p_ledger_id,p_occurrence_id);
+  v_root:=coalesce(
+    exists(select 1 from atlas.principal_ledger_authorities pa
+      join atlas.principals actor_principal on actor_principal.id=pa.principal_id
+        and actor_principal.status='active' and actor_principal.person_id=v_actor
+      where pa.ledger_id=p_ledger_id
+        and pa.principal_id=atlas.current_principal_id_v1()
+        and pa.authority_kind='root_governing' and pa.status='active')
+    and atlas.principal_has_ledger_authority_v1(
+      atlas.current_principal_id_v1(),p_ledger_id),false);
+  select * into v_event from local_intel.occurrences where id=p_occurrence_id;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'workItemId',q.id,'title',q.title,'state',q.work_state,
+    'createdAt',q.created_at,'completedAt',q.completed_at,
+    'linkedAs',q.relation_kind,'resultContractKey',q.result_contract_key,
+    'canMarkDone',q.can_mark_done,'markedDoneBy',q.marked_done_by
+  ) order by q.created_at,q.id),'[]'::jsonb)
+  into v_items
+  from (
+    select distinct on (w.id) w.id,w.title,w.work_state,w.created_at,
+      w.completed_at,w.result_contract_key,ctx.relation_kind,
+      marker.display_name as marked_done_by,
+      (w.source_object_type='ledger_occurrence_shared_work'
+        and w.source_object_id=p_occurrence_id
+        and w.result_contract_key='ledger_occurrence_shared_confirmation_v1'
+        and w.metadata->>'ledgerId'=p_ledger_id::text
+        and w.work_state='open'
+        and v_root) as can_mark_done
+    from atlas.work_item_context_links ctx
+    join atlas.work_items w on w.id=ctx.work_item_id
+      and w.organization_id=p_organization_id
+    join atlas.company_work_native_ledger_relevance rel
+      on rel.work_item_id=w.id and rel.organization_id=w.organization_id
+        and rel.ledger_id=p_ledger_id and rel.attribution_state='active'
+    left join lateral (
+      select person.display_name
+      from atlas.work_execution_results result
+      join atlas.work_result_acceptances accepted
+        on accepted.execution_result_id=result.id and accepted.decision='accepted'
+      join reality.entities person
+        on person.id=(result.metadata->>'actorPersonId')::uuid
+          and person.entity_kind='person' and person.identity_state='canonical'
+      where result.organization_id=w.organization_id
+        and result.work_item_id=w.id
+        and result.result_kind='completed'
+        and result.result_contract_key='ledger_occurrence_shared_confirmation_v1'
+        and result.metadata->>'source'=
+          'mark_ledger_occurrence_shared_work_done_self_api_v1'
+      order by accepted.accepted_at desc,result.id desc
+      limit 1
+    ) marker on true
+    where ctx.organization_id=p_organization_id
+      and ctx.subject_domain='temporal' and ctx.subject_kind='occurrence'
+      and ctx.subject_id=p_occurrence_id and ctx.relation_kind in ('for','about','supports')
+      and w.work_state in ('open','completed')
+      and (v_root or ((
+       EXISTS (SELECT 1 FROM atlas.work_allocations alloc
+         WHERE alloc.work_item_id=w.id AND alloc.organization_id=w.organization_id
+           AND alloc.state='active' AND alloc.allocation_role='responsible'
+           AND alloc.assignee_canonical_person_id=v_actor)
+       OR EXISTS (SELECT 1 FROM atlas.ledger_occurrence_work_attention_v1 att2
+         WHERE att2.work_item_id=w.id AND att2.ledger_id=p_ledger_id
+           AND att2.occurrence_id=p_occurrence_id
+           AND att2.person_entity_id=v_actor AND att2.attention_state='active')
+     )
+     AND atlas.person_original_work_identity_disclosed_self_v1(
+       p_organization_id,p_ledger_id,w.id,v_actor)))
+    order by w.id,ctx.created_at
+  ) q;
+  return jsonb_build_object(
+    'ok',true,'contractVersion','ledger_occurrence_shared_work_v1',
+    'ledgerId',p_ledger_id,'organizationId',p_organization_id,
+    'occurrence',jsonb_build_object(
+      'id',v_event.id,'title',v_event.title,'status',v_event.status,
+      'startsAt',v_event.start_at,'endsAt',v_event.end_at),
+    'work',v_items,
+    'permissions',jsonb_build_object('ordinaryWorkCreate',v_root,'ordinaryWorkMarkDone',v_root),
+    'truthBoundary',jsonb_build_object('scopedToExactEvent',true,
+      'notGeneralLedgerHistory',true,'noCustomerOrFinanceAccess',true,
+      'notProofOfEmailSending',true,'physicalPerformerNotInferred',true));
+end
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_work_extension_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_occurrence_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE v_actor uuid;v_items jsonb;v_history jsonb;
+ v_root boolean:=false;v_visible_work_ids uuid[]:=ARRAY[]::uuid[];
+BEGIN
+ v_actor:=atlas.ledger_occurrence_shared_work_actor_self_v1(
+  p_organization_id,p_ledger_id,p_occurrence_id);
+ v_root:=coalesce(
+    exists(select 1 from atlas.principal_ledger_authorities pa
+      join atlas.principals actor_principal on actor_principal.id=pa.principal_id
+        and actor_principal.status='active' and actor_principal.person_id=v_actor
+      where pa.ledger_id=p_ledger_id
+        and pa.principal_id=atlas.current_principal_id_v1()
+        and pa.authority_kind='root_governing' and pa.status='active')
+    and atlas.principal_has_ledger_authority_v1(
+      atlas.current_principal_id_v1(),p_ledger_id),false);
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+  'workItemId',z.id,'title',z.title,'state',z.display_state,
+  'workState',z.work_state,'canMarkDone',z.can_mark_done,
+  'directedTo',z.directed_to,'sourceOwned',true,
+  'createdInsideEvent',z.created_inside_event)
+  ORDER BY z.created_at,z.id),'[]'::jsonb) INTO v_items
+ FROM (
+  SELECT w.id,w.title,w.work_state,w.created_at,
+   CASE WHEN w.work_state='open' AND action.action_kind='blocked'
+     THEN 'blocked' ELSE w.work_state END display_state,
+   (w.source_object_type='ledger_occurrence_shared_work'
+      AND w.source_object_id=p_occurrence_id
+      AND w.metadata->>'ledgerId'=p_ledger_id::text) created_inside_event,
+   (w.work_state='open' AND coalesce(action.action_kind,'')<>'blocked'
+     AND w.source_object_type='ledger_occurrence_shared_work'
+     AND w.source_object_id=p_occurrence_id
+     AND w.result_contract_key='ledger_occurrence_shared_confirmation_v1'
+     AND v_root) can_mark_done,
+   (SELECT coalesce(jsonb_agg(jsonb_build_object(
+     'personEntityId',att.person_entity_id,'displayName',e.display_name)
+     ORDER BY e.display_name),'[]'::jsonb)
+    FROM atlas.ledger_occurrence_work_attention_v1 att
+    JOIN reality.entities e ON e.id=att.person_entity_id
+    WHERE att.work_item_id=w.id AND att.ledger_id=p_ledger_id
+     AND att.occurrence_id=p_occurrence_id AND att.attention_state='active'
+     AND (v_root OR att.person_entity_id=v_actor)) directed_to
+  FROM atlas.work_item_context_links ctx
+  JOIN atlas.work_items w ON w.id=ctx.work_item_id
+   AND w.organization_id=p_organization_id
+  JOIN atlas.company_work_native_ledger_relevance rel
+   ON rel.work_item_id=w.id AND rel.organization_id=w.organization_id
+     AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
+  LEFT JOIN LATERAL (
+    SELECT e.action_kind FROM atlas.ledger_occurrence_work_actions_v1 e
+    WHERE e.work_item_id=w.id
+      AND e.action_kind IN ('blocked','reopened')
+    ORDER BY e.action_sequence DESC LIMIT 1
+  ) action ON true
+  WHERE ctx.organization_id=p_organization_id
+    AND ctx.subject_domain='temporal' AND ctx.subject_kind='occurrence'
+    AND ctx.subject_id=p_occurrence_id
+    AND w.work_state IN ('open','completed')
+    AND (v_root OR ((
+       EXISTS (SELECT 1 FROM atlas.work_allocations alloc
+         WHERE alloc.work_item_id=w.id AND alloc.organization_id=w.organization_id
+           AND alloc.state='active' AND alloc.allocation_role='responsible'
+           AND alloc.assignee_canonical_person_id=v_actor)
+       OR EXISTS (SELECT 1 FROM atlas.ledger_occurrence_work_attention_v1 att2
+         WHERE att2.work_item_id=w.id AND att2.ledger_id=p_ledger_id
+           AND att2.occurrence_id=p_occurrence_id
+           AND att2.person_entity_id=v_actor AND att2.attention_state='active')
+     )
+     AND atlas.person_original_work_identity_disclosed_self_v1(
+       p_organization_id,p_ledger_id,w.id,v_actor)))
+    AND NOT EXISTS (
+      SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 removed
+      WHERE removed.work_item_id=w.id AND removed.ledger_id=p_ledger_id
+        AND removed.occurrence_id=p_occurrence_id AND removed.action_kind='removed'
+    )
+ ) z;
+ SELECT coalesce(array_agg((j->>'workItemId')::uuid),ARRAY[]::uuid[])
+ INTO v_visible_work_ids FROM jsonb_array_elements(v_items) j;
+ -- History combines native Work creation and accepted completion evidence
+ -- with append-only Event actions. A completed task is not falsely labelled
+ -- as performed by the checker; actor/performer remains separate.
+ WITH historical_events AS (
+  SELECT a.work_item_id,a.action_kind,a.actor_person_id,
+    a.target_person_id,a.occurred_at,a.explanation,a.id,a.action_sequence
+  FROM atlas.ledger_occurrence_work_actions_v1 a
+  WHERE a.organization_id=p_organization_id AND a.ledger_id=p_ledger_id
+    AND a.occurrence_id=p_occurrence_id
+  UNION ALL
+  SELECT w.id,'created'::text,
+    NULLIF(w.metadata->>'createdByPersonId','')::uuid,NULL::uuid,
+    w.created_at,NULL::text,w.id,NULL::bigint
+  FROM atlas.work_items w
+  WHERE w.organization_id=p_organization_id
+    AND w.source_object_type='ledger_occurrence_shared_work'
+    AND w.source_object_id=p_occurrence_id
+    AND w.metadata->>'ledgerId'=p_ledger_id::text
+  UNION ALL
+  SELECT r.work_item_id,'marked_done'::text,
+    NULLIF(r.metadata->>'actorPersonId','')::uuid,NULL::uuid,
+    r.reported_at,NULL::text,r.id,NULL::bigint
+  FROM atlas.work_execution_results r
+  JOIN atlas.work_result_acceptances accepted
+    ON accepted.execution_result_id=r.id AND accepted.decision='accepted'
+  JOIN atlas.work_items w ON w.id=r.work_item_id
+  WHERE r.organization_id=p_organization_id
+    AND r.result_contract_key='ledger_occurrence_shared_confirmation_v1'
+    AND r.result_kind='completed'
+    AND w.source_object_type='ledger_occurrence_shared_work'
+    AND w.source_object_id=p_occurrence_id
+    AND w.metadata->>'ledgerId'=p_ledger_id::text
+ )
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+  'workItemId',e.work_item_id,'actionKind',e.action_kind,
+  'actorPersonId',e.actor_person_id,'actorName',person.display_name,
+  'targetPersonId',e.target_person_id,'at',e.occurred_at,
+  'explanation',e.explanation,'physicalPerformerNotAsserted',true)
+  ORDER BY e.occurred_at,e.action_sequence NULLS LAST,e.id),'[]'::jsonb) INTO v_history
+ FROM historical_events e
+ LEFT JOIN reality.entities person ON person.id=e.actor_person_id
+ WHERE v_root OR e.work_item_id=ANY(v_visible_work_ids);
+ RETURN jsonb_build_object('ok',true,'ledgerId',p_ledger_id,
+  'organizationId',p_organization_id,'occurrenceId',p_occurrence_id,
+  'work',v_items,'history',v_history,
+  'custody','ledger','attentionDoesNotTransferControl',true);
+END
+$function$
+;
+
 COMMIT;
