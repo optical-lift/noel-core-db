@@ -8215,7 +8215,8 @@ GRANT EXECUTE ON FUNCTION public.household_original_work_focus_self_api_v1(
 -- at 2026-10-26. Re-audit the full diff before applying after split candidate.
 -- One native allocation identity, not a parallel farm task engine.
 -- Internal signed Person's Work-content identity admission. Responsibility is
--- not permission to discover any linked growing-object Subject by name.
+-- not permission to discover linked Subject content. Original Work titles
+-- and instructions are unstructured: both identity and condition must grant.
 CREATE OR REPLACE FUNCTION atlas.person_original_work_identity_disclosed_self_v1(
  p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_person_id uuid
 ) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
@@ -8227,8 +8228,12 @@ AS $function$
     SELECT 1 FROM atlas.work_item_context_links l
     WHERE l.organization_id=p_organization_id AND l.work_item_id=p_work_item_id
       AND l.subject_domain='spatial' AND l.subject_kind='growing_object'
-      AND NOT atlas.has_current_subject_disclosure_v1(
-        p_ledger_id,p_person_id,l.subject_domain,l.subject_kind,l.subject_id,'identity')
+      AND (
+       NOT atlas.has_current_subject_disclosure_v1(
+         p_ledger_id,p_person_id,l.subject_domain,l.subject_kind,l.subject_id,'identity')
+       OR NOT atlas.has_current_subject_disclosure_v1(
+         p_ledger_id,p_person_id,l.subject_domain,l.subject_kind,l.subject_id,'condition')
+      )
   ),false);
 $function$;
 REVOKE ALL ON FUNCTION atlas.person_original_work_identity_disclosed_self_v1(uuid,uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
