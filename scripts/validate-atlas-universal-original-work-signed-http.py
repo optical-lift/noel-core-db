@@ -582,8 +582,20 @@ def main():
     unrelated="e5200000-0000-4000-8000-000000000902"
     wrong_args=dict(p_work_item_id=unrelated,p_scope_id=sid,
       p_reason="This is a different original Work and must be denied despite same Ledger.")
-    deny(api,key,owner,"assign_native_ledger_company_work_under_scope_owner_self_api_v1",
-         wrong_args,"Exact Work agreement cannot assign a different original task")
+    # The real owner may inspect both original Work IDs; an exact accepted
+    # scope mismatch is a source CHECK failure (23514), not a 42501
+    # authorization failure for an unconnected outsider. HTTP 400 is NOT
+    # success: require precisely the invariant violation and no side effect.
+    mismatch_status,mismatch_result=rpc(
+      api,key,owner,"assign_native_ledger_company_work_under_scope_owner_self_api_v1",
+      wrong_args)
+    check(mismatch_status==400 and isinstance(mismatch_result,dict) and
+          mismatch_result.get("code")=="23514" and
+          mismatch_result.get("message")==
+            "Open Work and currently accepted Person/Ledger standing scope required",
+          "Exact Work agreement did not enforce source constraint: "+
+          f"{mismatch_status} {str(mismatch_result)[:200]}")
+    print("PASS exact accepted scope rejects a DIFFERENT original Work by 23514")
     check(sql(args.db_url,"select count(*) from atlas.work_allocations "
       f"where work_item_id='{unrelated}'::uuid and state='active'")=="0",
       "Scope mismatch was only a UI denial; unrelated Work was assigned")
