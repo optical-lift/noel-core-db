@@ -219,6 +219,24 @@ def main():
                 action(BED3,"identity","grant",
                        "e5200000-0000-4000-8000-000000000d03"))
     check(decision.get("currentlyGranted") is True,"Signed identity grant not recorded")
+    # Exact Bed identity may be visible without its physical condition.
+    # Free-text Work instructions can encode condition, so those remain
+    # unavailable until both field classes are granted.
+    identity_card=ok(api,key,worker,"connected_person_original_work_subject_self_api_v1",
+                     subject(bed3,BED3))
+    check(identity_card.get("subjectId")==BED3
+          and identity_card.get("subjectLabel")=="Synthetic U-Pick Bed 3"
+          and identity_card.get("conditionDisclosed") is False
+          and identity_card.get("notesAndMetadataDisclosed") is False
+          and identity_card.get("cropPlacementDetailsDisclosed") is False
+          and identity_card.get("fullFarmReaderAccessGranted") is False,
+          "Identity-only grant leaked Bed condition or private farm details")
+    check_bed3_original_work_surfaces(0)
+    condition=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
+                 action(BED3,"condition","grant",
+                        "e5200000-0000-4000-8000-000000000d22"))
+    check(condition.get("currentlyGranted") is True,
+          "Signed condition grant not recorded")
     mine=ok(api,key,worker,"connected_person_my_work_self_api_v1",
             {"p_limit":50,"p_after_allocation_id":None})
     visible=[x for x in mine.get("items",[]) if x.get("workItemId")==bed3]
@@ -231,11 +249,11 @@ def main():
             subject(bed3,BED3))
     check(card.get("subjectId")==BED3
           and card.get("subjectLabel")=="Synthetic U-Pick Bed 3"
-          and card.get("conditionDisclosed") is False
+          and card.get("conditionDisclosed") is True
           and card.get("notesAndMetadataDisclosed") is False
           and card.get("cropPlacementDetailsDisclosed") is False
           and card.get("fullFarmReaderAccessGranted") is False,
-          "Bed 3 read accidentally included withheld metadata")
+          "Condition grant cannot reopen notes, metadata or crop details")
     deny(api,key,worker,"connected_person_original_work_subject_self_api_v1",
          subject(bed4,BED4),"Bed 4 not disclosed through Bed 3 assignment")
     deny(api,key,outsider,"connected_person_original_work_subject_self_api_v1",
@@ -264,6 +282,25 @@ def main():
                 {"p_limit":50,"p_after_allocation_id":None})
     check(sum(x.get("workItemId")==bed3 for x in restored.get("items",[]))==1,
           "Regrant must restore exactly one existing original Work")
+    check_bed3_original_work_surfaces(1)
+    # Withholding only condition is sufficient to close all free-text
+    # Work readers; Bed identity remains separately admitted in the
+    # bounded Subject detail.
+    condition_withhold=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
+                         action(BED3,"condition","withhold",
+                                "e5200000-0000-4000-8000-000000000d23"))
+    check(condition_withhold.get("currentlyGranted") is False,
+          "Condition withhold was not current")
+    check_bed3_original_work_surfaces(0)
+    masked=ok(api,key,worker,"connected_person_original_work_subject_self_api_v1",
+              subject(bed3,BED3))
+    check(masked.get("conditionDisclosed") is False,
+          "Condition withhold still leaked physical condition")
+    condition_restore=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
+                        action(BED3,"condition","grant",
+                               "e5200000-0000-4000-8000-000000000d24"))
+    check(condition_restore.get("currentlyGranted") is True,
+          "Condition regrant did not restore Work content admission")
     check_bed3_original_work_surfaces(1)
 
     # This worker simultaneously holds a live *inherited* farm_hand membership.
