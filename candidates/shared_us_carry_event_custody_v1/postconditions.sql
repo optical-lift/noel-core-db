@@ -65,7 +65,7 @@ BEGIN
  SELECT event_id,event_sequence,digest,replayed INTO a_second,seq,dig,replay
  FROM us.carry_append_event_v1(stream_a,'synthetic:scenario_1','SCENARIO_CREATED',
  '2027-01-01','PROJECTED','synthetic:source-scenario',
- '{"reason":"Explore alternate assumptions","value":{"scope":"housing"}}'::jsonb,2);
+ '{"reason":"Explore alternate assumptions","value":{"scenario_key":"synthetic:housing","scope":"housing"}}'::jsonb,2);
  IF seq<>2 OR replay THEN RAISE EXCEPTION 'Scenario event append failed'; END IF;
 
  rejected:=false;
