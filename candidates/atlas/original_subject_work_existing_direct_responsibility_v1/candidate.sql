@@ -143,10 +143,11 @@ BEGIN
    IF p_service_date IS NOT NULL THEN
      v_window:=atlas.company_work_execution_plan_window_check_v1(
        p_work_item_id,p_service_date);
-   IF NOT coalesce((v_window->>'allowed')::boolean,false) THEN
-     RAISE EXCEPTION 'Original Work may not be scheduled on requested day.'
-       USING ERRCODE='23514';
-   END IF;
+     IF NOT coalesce((v_window->>'allowed')::boolean,false) THEN
+       RAISE EXCEPTION 'Original Work may not be scheduled on requested day.'
+         USING ERRCODE='23514';
+     END IF;
+   END IF; -- date/window validation does not guard allocation insertion
    INSERT INTO atlas.work_allocations(
      organization_id,work_item_id,assignee_membership_id,
      assignee_canonical_person_id,assigned_by_membership_id,
