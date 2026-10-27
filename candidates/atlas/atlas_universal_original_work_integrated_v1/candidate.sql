@@ -11340,7 +11340,12 @@ BEGIN
   'standingAcceptanceIsNotWorkAcceptance',true);
 END
 $function$;
-REVOKE ALL ON FUNCTION atlas.native_ledger_standing_scopes_self_api_v1() FROM PUBLIC,anon,authenticated;
+-- This is an EXISTING signed Person reader. Its public API is SECURITY INVOKER
+-- and calls this source; preserve authenticated EXECUTE, never anon access.
+REVOKE ALL ON FUNCTION atlas.native_ledger_standing_scopes_self_api_v1()
+ FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION atlas.native_ledger_standing_scopes_self_api_v1()
+ TO authenticated;
 CREATE OR REPLACE FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(p_work_item_id uuid, p_scope_id uuid, p_reason text)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -11476,6 +11481,12 @@ BEGIN
    'workerReadProven',false,'newWorkCreated',false);
 END
 $function$;
-REVOKE ALL ON FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text) FROM PUBLIC,anon,authenticated;
+-- This existing governor-only writer is reached through a SECURITY INVOKER
+-- public wrapper. Signed callers must be able to invoke its SOURCE; internal
+-- native Ledger owner and exact Work authorization still enforce the decision.
+REVOKE ALL ON FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)
+ FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)
+ TO authenticated;
 
 COMMIT;
