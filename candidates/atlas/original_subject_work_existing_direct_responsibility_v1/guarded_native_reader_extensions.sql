@@ -2113,4 +2113,116 @@ begin
       'notAnEmployeeDay',true));
 end
 $function$;
+
+-- Historic organization-wide communication context reader: native governor required.
+CREATE OR REPLACE FUNCTION atlas.communication_work_context_candidates_self_v1(p_institutional_conversation_id uuid, p_query text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare
+  v_conv atlas.institutional_conversations%rowtype;
+  v_endpoint_id uuid;
+  v_member atlas.organization_memberships%rowtype;
+  v_query text := nullif(btrim(coalesce(p_query,'')),'');
+  v_people jsonb;
+  v_places jsonb;
+  v_work jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode='42501';
+  end if;
+  select * into v_conv from atlas.institutional_conversations where id=p_institutional_conversation_id;
+  if v_conv.id is null then
+    raise exception 'Institutional conversation not found.' using errcode='P0002';
+  end if;
+  select communication_endpoint_id into v_endpoint_id
+  from atlas.institutional_conversation_endpoints
+  where institutional_conversation_id=v_conv.id
+  order by case endpoint_role when 'primary' then 0 else 1 end,created_at limit 1;
+  PERFORM atlas.company_work_native_ledger_owner_self_v1(
+    v_conv.organization_id,
+    (SELECT lop.ledger_id FROM atlas.ledger_organization_participations lop
+     WHERE lop.organization_id=v_conv.organization_id
+       AND lop.participation_kind='governing' AND lop.is_compatibility_primary
+       AND lop.status='active' AND lop.ended_at IS NULL
+     ORDER BY lop.ledger_id LIMIT 1));
+  select * into v_member from atlas.organization_memberships
+  where organization_id=v_conv.organization_id and user_id=auth.uid() and active
+  order by created_at limit 1;
+  if v_member.id is null or not atlas.communication_endpoint_membership_has_capability_v1(v_endpoint_id,v_member.id,'view') then
+    raise exception 'Communication endpoint view authority required.' using errcode='42501';
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'subjectDomain','identity',
+    'subjectKind','identity_subject',
+    'subjectId',x.subject_id,
+    'label',x.display_name,
+    'kind',x.subject_kind
+  ) order by x.display_name),'[]'::jsonb)
+  into v_people
+  from (
+    select distinct on (s.subject_id) s.subject_id,s.display_name,s.subject_kind,s.updated_at
+    from atlas.identity_subject_projections s
+    where s.organization_id=v_conv.organization_id
+      and nullif(btrim(coalesce(s.display_name,'')),'') is not null
+      and (v_query is null or s.display_name ilike '%'||v_query||'%')
+    order by s.subject_id,s.updated_at desc
+    limit 40
+  ) x;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'subjectDomain','spatial',
+    'subjectKind',x.subject_kind,
+    'subjectId',x.subject_id,
+    'label',x.label,
+    'kind',x.context_kind
+  ) order by x.label),'[]'::jsonb)
+  into v_places
+  from (
+    select z.id subject_id,'zone'::text subject_kind,z.label,'zone'::text context_kind
+    from atlas.zones z join atlas.farms f on f.id=z.farm_id
+    where f.organization_id=v_conv.organization_id
+      and (v_query is null or z.label ilike '%'||v_query||'%')
+    union all
+    select p.id,'place'::text,p.label,p.place_type
+    from atlas.places p join atlas.farms f on f.id=p.farm_id
+    where f.organization_id=v_conv.organization_id
+      and (v_query is null or p.label ilike '%'||v_query||'%')
+    order by label
+    limit 80
+  ) x;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'workItemId',x.id,
+    'label',x.title,
+    'operationClass',x.operation_class,
+    'workState',x.work_state,
+    'handlingMode',sf.handling_mode,
+    'function',sf.function_phrase,
+    'action',sf.action_phrase
+  ) order by x.updated_at desc,x.title),'[]'::jsonb)
+  into v_work
+  from (
+    select w.* from atlas.work_items w
+    where w.organization_id=v_conv.organization_id
+      and w.work_state='open'
+      and (v_query is null or w.title ilike '%'||v_query||'%')
+    order by w.updated_at desc
+    limit 80
+  ) x
+  left join atlas.work_item_semantic_frames sf on sf.work_item_id=x.id;
+
+  return jsonb_build_object(
+    'contractVersion','communication_work_context_candidates_v1',
+    'conversationId',v_conv.id,
+    'people',v_people,
+    'places',v_places,
+    'relatedWork',v_work
+  );
+end;
+$function$;
+
 COMMIT;
