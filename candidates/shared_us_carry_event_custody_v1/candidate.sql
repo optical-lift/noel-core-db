@@ -18,6 +18,10 @@ CREATE TABLE us.carry_case_streams_v1 (
   CONSTRAINT us_carry_stream_natural UNIQUE(owner_auth_user_id,stream_key)
 );
 COMMENT ON TABLE us.carry_case_streams_v1 IS 'Private Us Carry history identity; not Atlas Event Work or a bank transaction ledger.';
+-- Only one canonical financial-history stream per financial expectation.
+CREATE UNIQUE INDEX carry_one_financial_stream_v1
+ ON us.carry_case_streams_v1(financial_plan_id)
+ WHERE financial_plan_id IS NOT NULL;
 
 CREATE TABLE us.carry_case_events_v1 (
  id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
