@@ -475,6 +475,75 @@ def main():
     print("PASS signed original Work: undated -> dated -> moved -> undated, "
           "same allocation, correct Result authority")
 
+    # Ordinary ORIGINAL Work uses the released standing-responsibility route;
+    # it must NOT go through the decomposition-only writer or mint another
+    # Work identity. A one-time accepted scope is not a per-task question.
+    ordinary="e5200000-0000-4000-8000-000000000901"
+    original_count=sql(args.db_url,"select count(*) from atlas.work_items")
+    scope_args=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+      p_worker_person_id=PERSON,p_organization_unit_id=None,
+      p_coverage_mode="ledger_all_work",p_operation_class=None,
+      p_terms="Fictional one-time accepted responsibility for assigned original Ledger Work, without ongoing disclosure of unrelated subjects.",
+      p_valid_until=None)
+    scope=ok(api,key,owner,
+             "propose_native_ledger_standing_scope_owner_self_api_v1",scope_args)
+    sid=scope.get("scopeId")
+    check(bool(sid) and scope.get("workerConsentRecorded") is False,
+          "Standing-scope proposal incorrectly fabricated Person consent")
+    response=ok(api,key,worker,"respond_native_ledger_standing_scope_self_api_v1",
+                dict(p_scope_id=sid,p_decision="accept"))
+    check(response.get("state")=="active"
+          and response.get("assignmentCreated") is False,
+          "One-time standing acceptance fabricated a new Work assignment")
+    ordinary_args=dict(p_work_item_id=ordinary,p_scope_id=sid,
+      p_reason="Assign the existing source-backed ordinary Ledger Work without imposing a day.")
+    deny(api,key,worker,"assign_native_ledger_company_work_under_scope_owner_self_api_v1",
+         ordinary_args,"Worker cannot self-assign ordinary original Work")
+    ordinary_receipt=ok(api,key,owner,
+           "assign_native_ledger_company_work_under_scope_owner_self_api_v1",
+           ordinary_args)
+    ordinary_allocation=ordinary_receipt.get("allocationId")
+    check(ordinary_receipt.get("workItemId")==ordinary
+          and ordinary_receipt.get("responsiblePersonId")==PERSON
+          and ordinary_receipt.get("newWorkCreated") is False
+          and ordinary_receipt.get("workerAcceptancePerTaskRequired") is False
+          and bool(ordinary_allocation),
+          "Original ordinary Work assignment minted duplicate Work or question")
+    check(sql(args.db_url,"select count(*) from atlas.work_items")==original_count,
+          "Ordinary responsibility created another original Work row")
+    check(sql(args.db_url,
+          f"select count(*) from atlas.work_execution_plans where work_item_id='{ordinary}'::uuid")=="0",
+          "Ordinary direct assignment fabricated an execution plan")
+    ordinary_mine=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+            {"p_limit":100,"p_after_allocation_id":None})
+    ordinary_rows=[item for item in ordinary_mine.get("items",[])
+                   if item.get("workItemId")==ordinary]
+    check(len(ordinary_rows)==1
+          and ordinary_rows[0].get("allocationId")==ordinary_allocation
+          and ordinary_rows[0].get("scheduleState")=="unscheduled"
+          and ordinary_rows[0].get("planId") is None,
+          "Existing ordinary Work did not reach signed My Work unscheduled")
+    ordinary_placed=ok(api,key,worker,"connected_person_place_work_self_api_v1",
+          dict(p_work_item_id=ordinary,p_service_date="2030-11-02",
+               p_reason="Responsible Person independently scheduled existing ordinary Work."))
+    check(ordinary_placed.get("workItemId")==ordinary
+          and ordinary_placed.get("executionDate")=="2030-11-02"
+          and bool(ordinary_placed.get("planId")),
+          "Ordinary Work cannot use the shared Person-native date writer")
+    dated_ordinary=ok(api,key,worker,
+                      "connected_person_company_work_day_self_api_v1",
+                      {"p_date":"2030-11-02"})
+    check(sum(item.get("workItemId")==ordinary for item in
+              dated_ordinary.get("items",[]))==1,
+          "Ordinary original Work was not in selected signed Person Day")
+    still_work=sql(args.db_url,"select count(*) from atlas.work_allocations "
+              f"where work_item_id='{ordinary}'::uuid and id='{ordinary_allocation}'::uuid "
+              "and state='active' and establishment_basis_kind='delegated_under_standing_scope'")
+    check(still_work=="1","Ordinary scheduling invented another responsibility basis")
+    print("PASS signed existing ordinary Ledger Work: accepted standing scope, "
+          "direct unscheduled Person responsibility, later day, one original identity")
+
+
 
 
     initial=ok(api,key,owner,"household_laundry_current_self_api_v1",{})
