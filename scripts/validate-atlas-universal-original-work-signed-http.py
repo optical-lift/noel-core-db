@@ -354,6 +354,59 @@ def main():
           =="open","Bed 3 worker completion also changed Bed 4")
     print("PASS signed Bed 3 direct Work, bounded grant and independent Actual")
 
+    # Gate B: a separately governed original Bed may be assigned without
+    # creating Today placement. The actual signed bearer, not an owner estimate,
+    # must see it in My Work only AFTER both current Subject grants.
+    undated=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+      p_work_item_id=bed4,p_target_person_id=PERSON,p_service_date=None,
+      p_action_id="e5200000-0000-4000-8000-000000000d08",
+      p_reason="Establish Bed 4 responsibility now and schedule the work independently.")
+    deny(api,key,worker,"owner_direct_assign_existing_original_work_self_api_v1",
+         undated,"Worker cannot invent an unscheduled original Work duty")
+    b4=ok(api,key,owner,"owner_direct_assign_existing_original_work_self_api_v1",undated)
+    check(b4.get("workItemId")==bed4 and b4.get("targetPersonId")==PERSON and
+          b4.get("planId") is None and b4.get("plannedServiceDate") is None and
+          b4.get("scheduleState")=="unscheduled" and
+          b4.get("responsibilityEstablished") is True and
+          b4.get("newWorkCreated") is False and
+          b4.get("acceptanceQuestionCreated") is False,
+          "Undated assignment fabricated a Work, plan or acceptance question")
+    check(sql(args.db_url,"select count(*) from atlas.work_execution_plans "+
+          f"where work_item_id='{bed4}'::uuid")=="0",
+          "Undated assignment inserted an execution plan anyway")
+    again_b4=ok(api,key,owner,"owner_direct_assign_existing_original_work_self_api_v1",
+                undated)
+    check(again_b4.get("idempotent") is True and
+          again_b4.get("allocationId")==b4.get("allocationId") and
+          again_b4.get("planId") is None,
+          "Undated assignment retry introduced a competing responsibility or plan")
+    before_b4=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+                 {"p_limit":50,"p_after_allocation_id":None})
+    check(all(row.get("workItemId")!=bed4 for row in before_b4.get("items",[])),
+          "Undated Work title escaped before original Bed 4 Subject grant")
+    for cls,ident in (("identity","e5200000-0000-4000-8000-000000000d09"),
+                      ("condition","e5200000-0000-4000-8000-000000000d0a")):
+        granted=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
+                   action(BED4,cls,"grant",ident))
+        check(granted.get("currentlyGranted") is True,
+              "Native governor could not grant the exact additional Bed")
+    now_b4=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+              {"p_limit":50,"p_after_allocation_id":None})
+    matching=[row for row in now_b4.get("items",[])
+              if row.get("workItemId")==bed4]
+    check(len(matching)==1 and matching[0].get("allocationId")==b4.get("allocationId")
+          and matching[0].get("scheduleState")=="unscheduled"
+          and matching[0].get("planId") is None and
+          matching[0].get("workOn") is None,
+          "Source did not expose exactly one signed unscheduled original Work")
+    absent_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
+                  {"p_date":"2030-10-31"})
+    check(all(row.get("workItemId")!=bed4
+              for row in absent_day.get("items",[])),
+          "Merely assigning a Person fabricated a dated Today obligation")
+    print("PASS signed undated original Work responsibility, disclosure and no plan")
+
+
     initial=ok(api,key,owner,"household_laundry_current_self_api_v1",{})
     check(initial.get("householdId")==HOUSEHOLD and
           initial.get("instanceId")==LAUNDRY and
