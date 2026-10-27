@@ -426,3 +426,22 @@ BEGIN
  END LOOP;
 END $original_subject_work_visibility$;
 
+-- Historical title/offer/calendar/agenda readers cannot bypass a withheld
+-- original growing-object Subject, regardless of legacy membership/role.
+DO $alternate_original_work_proof$
+DECLARE v_name text; v_definition text;
+BEGIN
+ FOR v_name IN SELECT unnest(ARRAY['company_work_initial_offers_self_api_v1','company_work_participation_offers_self_api_v1','company_work_responsibility_transfer_offers_self_api_v1','company_work_self_responsibilities_api_v1','connected_ledger_person_agenda_self_api_v1','connected_person_company_work_offers_self_api_v1','my_ledger_event_work_attention_self_api_v1','self_responsible_company_work_today_self_api_v1']::text[]) LOOP
+  SELECT pg_get_functiondef(p.oid) INTO v_definition
+  FROM pg_proc p JOIN pg_namespace ns ON ns.oid=p.pronamespace
+  WHERE ns.nspname='atlas' AND p.proname=v_name AND p.prosecdef LIMIT 1;
+  IF v_definition IS NULL
+    OR position('work_item_context_links' in v_definition)=0
+    OR position('g0.subject_domain' in v_definition)=0
+    OR position('g0.subject_kind' in v_definition)=0
+    OR position('NOT EXISTS' in v_definition)=0 THEN
+    RAISE EXCEPTION 'Historical alternate Work title reader % lacks bounded exclusion',v_name;
+  END IF;
+ END LOOP;
+END $alternate_original_work_proof$;
+
