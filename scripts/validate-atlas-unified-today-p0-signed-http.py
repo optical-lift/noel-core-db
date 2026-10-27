@@ -135,6 +135,15 @@ def main():
     status,date=evidence(api,key,member)
     check(status==200 and {x["sourceRef"]["id"] for x in date["occurrences"]}=={EVENT_A},
           "Exact Event date reader failed individual grant or leaked other occurrence")
+    governing=ok(api,key,root,"ledger_occurrence_shared_work_self_api_v1",
+                 dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_occurrence_id=EVENT_A))
+    check(len(governing["work"])==1 and
+          governing["work"][0]["title"]=="Hidden synthetic vendor payment review",
+          "Synthetic governor private Work fixture not independently readable")
+    root_history=ok(api,key,root,"ledger_occurrence_work_extension_self_api_v1",
+                    dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_occurrence_id=EVENT_A))
+    check(len(root_history["work"])==1 and len(root_history["history"])>=1,
+          "Governor did not preserve original private Work and history")
     disclosed=ok(api,key,member,"ledger_occurrence_shared_work_self_api_v1",
                  dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_occurrence_id=EVENT_A))
     check(disclosed["work"]==[] and not disclosed["permissions"]["ordinaryWorkCreate"],
