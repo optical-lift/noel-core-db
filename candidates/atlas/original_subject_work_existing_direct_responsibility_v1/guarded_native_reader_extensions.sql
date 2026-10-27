@@ -3,6 +3,25 @@ BEGIN;
 -- Source definitions are based on the signed/current Noel function bodies
 -- at 2026-10-26. Re-audit the full diff before applying after split candidate.
 -- One native allocation identity, not a parallel farm task engine.
+-- Internal signed Person's Work-content identity admission. Responsibility is
+-- not permission to discover any linked growing-object Subject by name.
+CREATE OR REPLACE FUNCTION atlas.person_original_work_identity_disclosed_self_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_person_id uuid
+) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+ SELECT coalesce(auth.uid() IS NOT NULL
+  AND atlas.current_person_id_v1()=p_person_id
+  AND atlas.person_has_native_ledger_connection_v1(p_organization_id,p_ledger_id,p_person_id)
+  AND NOT EXISTS(
+    SELECT 1 FROM atlas.work_item_context_links l
+    WHERE l.organization_id=p_organization_id AND l.work_item_id=p_work_item_id
+      AND l.subject_domain='spatial' AND l.subject_kind='growing_object'
+      AND NOT atlas.has_current_subject_disclosure_v1(
+        p_ledger_id,p_person_id,l.subject_domain,l.subject_kind,l.subject_id,'identity')
+  ),false);
+$function$;
+REVOKE ALL ON FUNCTION atlas.person_original_work_identity_disclosed_self_v1(uuid,uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
+
 CREATE OR REPLACE FUNCTION atlas.connected_person_my_work_self_api_v1(p_limit integer DEFAULT 50, p_after_allocation_id uuid DEFAULT NULL::uuid)
  RETURNS jsonb
  LANGUAGE plpgsql
@@ -78,6 +97,7 @@ BEGIN
         'ledger_connection_direct_assignment','original_subject_direct_assignment_v1'
       )
       AND w.work_state='open'
+      AND atlas.person_original_work_identity_disclosed_self_v1(w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self)
       AND (p_after_allocation_id IS NULL OR a.id>p_after_allocation_id)
       AND atlas.person_has_native_ledger_connection_v1(
         w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,v_self
@@ -167,6 +187,9 @@ begin
      where r.organization_id=v_w.organization_id and r.work_item_id=v_w.id
       and r.ledger_id=v_ledger and r.attribution_state='active')
  then raise exception 'Exact current Ledger connection and Work relevance required' using errcode='42501';end if;
+
+ if not atlas.person_original_work_identity_disclosed_self_v1(v_w.organization_id,v_ledger,v_w.id,v_person)
+ then raise exception 'Undisclosed original Work Subject unavailable' using errcode='42501';end if;
  select * into v_old from atlas.work_execution_plans
    where work_item_id=v_w.id and organization_id=v_w.organization_id
      and plan_state in ('active','needs_replan') for update;
@@ -956,6 +979,9 @@ begin
     if v_allocation.assignee_canonical_person_id<>v_actor then
       raise exception 'Only actual responsible Person can make own-work report' using errcode='42501';
     end if;
+
+    if not atlas.person_original_work_identity_disclosed_self_v1(v_work.organization_id,(v_allocation.establishment_basis->>'nativeLedgerId')::uuid,v_work.id,v_actor)
+    then raise exception 'Undisclosed original Work Subject unavailable' using errcode='42501';end if;
   else
     if v_evidence is null or length(v_evidence) not between 16 and 2000
       or (v_allocation.establishment_basis->>'nativeLedgerId') is distinct from
@@ -1259,7 +1285,8 @@ BEGIN
     AND ((a.state='active' AND w.work_state='open')
       OR (a.state='completed' AND w.work_state='completed'))
     AND atlas.person_has_native_ledger_connection_v1(
-      w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,v_self);
+      w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,v_self)
+    AND atlas.person_original_work_identity_disclosed_self_v1(w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self);
   RETURN jsonb_build_object(
     'ok',true,'contractVersion','connected_person_company_work_day_v1',
     'date',p_date,'personId',v_self,'items',v_items,
@@ -1311,6 +1338,7 @@ begin
       and a.assignee_canonical_person_id=v_self
       and a.establishment_basis_kind in ('person_connection_receiver_uptake','delegated_under_standing_scope','ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
       and w.work_state='open'
+      and atlas.person_original_work_identity_disclosed_self_v1(w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self)
     order by a.allocated_at,a.id
     limit p_limit
   ) row;
@@ -1346,6 +1374,8 @@ begin
       using errcode='42501';
   end if;
 
+  if not atlas.person_original_work_identity_disclosed_self_v1(p_organization_id,p_ledger_id,p_downstream_work_item_id,v_person)
+  then raise exception 'Undisclosed original Work Subject unavailable' using errcode='42501';end if;
   -- The member's Ledger seat alone NEVER grants an institution-wide read.
   -- An original, current responsible allocation to this exact downstream
   -- Work and this exact native Ledger is required. Keep the person-only
@@ -1404,7 +1434,8 @@ begin
     and r.relation_kind='depends_on'
     and r.active
     and atlas.work_prerequisite_ledger_scope_v1(
-      p_organization_id,p_ledger_id,r.to_work_item_id);
+      p_organization_id,p_ledger_id,r.to_work_item_id)
+     and atlas.person_original_work_identity_disclosed_self_v1(p_organization_id,p_ledger_id,r.to_work_item_id,v_person);
 
   return jsonb_build_object(
     'ok',true,
