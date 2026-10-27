@@ -443,3 +443,44 @@ WHERE id='f5210000-0000-4000-8000-000000000101'::uuid;
 
 -- A separate canonical Event on the same date stays a separate identity.
 -- Existing confirmed site hold is 4-8 PM, independent from public schedule.
+
+-- This exact clone-only organization is governed by the same synthetic root,
+-- not merely an operating Ledger seat. Necessary for governor owner APIs.
+UPDATE atlas.ledger_organization_participations
+ SET participation_kind='governing',is_compatibility_primary=true
+ WHERE ledger_id='f5210000-0000-4000-8000-000000000014'::uuid
+   AND organization_id='f5210000-0000-4000-8000-000000000010'::uuid
+   AND status='active';
+
+-- Private original Work intentionally linked to an Event that an ordinary
+-- Person can be granted by identity. The Event identity is NOT a Work grant.
+INSERT INTO atlas.work_items(
+ id,organization_id,title,work_state,source_object_type,source_object_id,
+ stable_key,metadata
+) VALUES (
+ 'f5210000-0000-4000-8000-000000000901'::uuid,
+ 'f5210000-0000-4000-8000-000000000010'::uuid,
+ 'Hidden synthetic vendor payment review','open',
+ 'ledger_occurrence_shared_work',
+ 'f5210000-0000-4000-8000-000000000101'::uuid,
+ 'clone-private-vendor-task-f521',
+ '{"ledgerId":"f5210000-0000-4000-8000-000000000014","cloneFixture":true}'::jsonb
+);
+INSERT INTO atlas.company_work_native_ledger_relevance(
+ organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
+ attestation_source_ref,attestation_reason,established_by_person_id
+) VALUES (
+ 'f5210000-0000-4000-8000-000000000010'::uuid,
+ 'f5210000-0000-4000-8000-000000000901'::uuid,
+ 'f5210000-0000-4000-8000-000000000014'::uuid,
+ 'serves_purpose','owner_attested','clone:private-event-work-f521',
+ 'A governor privately tracks synthetic event vendor preparation.',
+ 'f5210000-0000-4000-8000-000000000004'::uuid
+);
+INSERT INTO atlas.work_item_context_links(
+ organization_id,work_item_id,subject_domain,subject_kind,subject_id,relation_kind
+) VALUES (
+ 'f5210000-0000-4000-8000-000000000010'::uuid,
+ 'f5210000-0000-4000-8000-000000000901'::uuid,
+ 'temporal','occurrence','f5210000-0000-4000-8000-000000000101'::uuid,'for'
+);
