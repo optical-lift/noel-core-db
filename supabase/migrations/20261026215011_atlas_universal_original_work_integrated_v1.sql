@@ -8834,7 +8834,11 @@ begin
         and (s.coverage_mode='ledger_all_work' OR
           (s.coverage_mode='operation_class' AND
            work.organization_unit_id=s.organization_unit_id AND
-           work.operation_class=s.covered_operation_class))
+           work.operation_class=s.covered_operation_class) OR
+          -- Exact-Work is a third source-bound match, never a class/text grant.
+          (s.coverage_mode='exact_work' AND
+           s.covered_work_item_id IS NOT NULL AND
+           s.covered_work_item_id=work.id))
         and work.work_state='open'
         and relevance.attribution_state='active'
         and (relevance.evidence_kind='owner_attested' or
