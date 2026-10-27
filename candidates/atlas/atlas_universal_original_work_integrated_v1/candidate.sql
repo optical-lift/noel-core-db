@@ -8265,13 +8265,21 @@ BEGIN
       a.establishment_basis_kind,a.allocated_at,
       plan.id plan_id,plan.plan_state,
       plan.planned_service_date,plan.exposure_service_date,
+      CASE WHEN plan.plan_state='active'
+        AND plan.first_planned_service_date IS NOT NULL
+        AND plan.first_planned_service_date IS DISTINCT FROM plan.planned_service_date
+        AND last_plan_event.event_kind='rescheduled'
+        AND last_plan_event.to_planned_service_date=plan.planned_service_date
+        THEN plan.first_planned_service_date ELSE NULL
+      END verified_moved_from_date,
       coalesce(plan_counts.current_plan_count,0) current_plan_count,
       coalesce(relevance.has_relevance,false) has_relevance
     FROM atlas.work_allocations a
     JOIN atlas.work_items w ON w.id=a.work_item_id
       AND w.organization_id=a.organization_id
     LEFT JOIN LATERAL (
-      SELECT p.id,p.plan_state,p.planned_service_date,p.exposure_service_date
+      SELECT p.id,p.plan_state,p.planned_service_date,p.exposure_service_date,
+        p.first_planned_service_date
       FROM atlas.work_execution_plans p
       WHERE p.work_item_id=w.id AND p.organization_id=w.organization_id
         AND p.responsible_allocation_id=a.id
@@ -8279,6 +8287,15 @@ BEGIN
       ORDER BY CASE WHEN p.plan_state='active' THEN 0 ELSE 1 END,
         p.updated_at DESC,p.id DESC LIMIT 1
     ) plan ON true
+    -- The last plan event, not a changed creation date or rollover count,
+    -- proves a deliberate reschedule. No plan event => no migration claim.
+    LEFT JOIN LATERAL (
+      SELECT e.event_kind,e.to_planned_service_date
+      FROM atlas.work_execution_plan_events e
+      WHERE e.organization_id=w.organization_id
+        AND e.work_item_id=w.id AND e.plan_id=plan.id
+      ORDER BY e.created_at DESC,e.id DESC LIMIT 1
+    ) last_plan_event ON true
     LEFT JOIN LATERAL (
       SELECT count(*)::integer current_plan_count
       FROM atlas.work_execution_plans p
@@ -8335,6 +8352,7 @@ BEGIN
         'allocatedAt',r.allocated_at,'planId',r.plan_id,
         'planState',r.plan_state,'workOn',r.planned_service_date,
         'exposureDate',r.exposure_service_date,
+        'verifiedMovedFromDate',r.verified_moved_from_date,
         'workRelevanceVerified',r.has_relevance,
         'canPlace',r.has_relevance AND r.current_plan_count<=1,
         'scheduleState',CASE
