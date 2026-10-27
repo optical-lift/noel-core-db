@@ -555,20 +555,38 @@ def main():
         f"where id='{ordinary}'::uuid and source_object_type is null")
     original_count=sql(args.db_url,"select count(*) from atlas.work_items")
     scope_args=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
-      p_worker_person_id=PERSON,p_organization_unit_id=None,
-      p_coverage_mode="ledger_all_work",p_operation_class=None,
-      p_terms="Fictional one-time accepted responsibility for assigned original Ledger Work, without ongoing disclosure of unrelated subjects.",
+      p_worker_person_id=PERSON,p_work_item_id=ordinary,
+      p_terms="Synthetic worker agrees to this one original mowing Work only; nothing about sprayers, pruning, or other Work is admitted.",
       p_valid_until=None)
+    deny(api,key,worker,
+         "propose_native_ledger_exact_work_scope_owner_self_api_v1",scope_args,
+         "Worker cannot pose as original Ledger governor proposing exact scope")
     scope=ok(api,key,owner,
-             "propose_native_ledger_standing_scope_owner_self_api_v1",scope_args)
+             "propose_native_ledger_exact_work_scope_owner_self_api_v1",scope_args)
+    check(scope.get("coverageMode")=="exact_work" and
+          scope.get("coveredWorkItemId")==ordinary,
+          "Exact scope proposal did not source-bind the one original Work")
     sid=scope.get("scopeId")
     check(bool(sid) and scope.get("workerConsentRecorded") is False,
           "Standing-scope proposal incorrectly fabricated Person consent")
+    before_scope=ok(api,key,worker,"native_ledger_standing_scopes_self_api_v1",{})
+    check(any(row.get("scopeId")==sid and row.get("coverageMode")=="exact_work"
+              and row.get("coveredWorkItemId")==ordinary and row.get("state")=="proposed"
+              for row in before_scope.get("incoming",[])),
+          "Worker cannot review exact proposed Work before giving consent")
     response=ok(api,key,worker,"respond_native_ledger_standing_scope_self_api_v1",
                 dict(p_scope_id=sid,p_decision="accept"))
     check(response.get("state")=="active"
           and response.get("assignmentCreated") is False,
           "One-time standing acceptance fabricated a new Work assignment")
+    unrelated="e5200000-0000-4000-8000-000000000902"
+    wrong_args=dict(p_work_item_id=unrelated,p_scope_id=sid,
+      p_reason="This is a different original Work and must be denied despite same Ledger.")
+    deny(api,key,owner,"assign_native_ledger_company_work_under_scope_owner_self_api_v1",
+         wrong_args,"Exact Work agreement cannot assign a different original task")
+    check(sql(args.db_url,"select count(*) from atlas.work_allocations "
+      f"where work_item_id='{unrelated}'::uuid and state='active'")=="0",
+      "Scope mismatch was only a UI denial; unrelated Work was assigned")
     ordinary_args=dict(p_work_item_id=ordinary,p_scope_id=sid,
       p_reason="Assign the existing source-backed ordinary Ledger Work without imposing a day.")
     deny(api,key,worker,"assign_native_ledger_company_work_under_scope_owner_self_api_v1",
@@ -578,6 +596,8 @@ def main():
            ordinary_args)
     ordinary_allocation=ordinary_receipt.get("allocationId")
     check(ordinary_receipt.get("workItemId")==ordinary
+          and ordinary_receipt.get("coverageMode")=="exact_work"
+          and ordinary_receipt.get("coveredWorkItemId")==ordinary
           and ordinary_receipt.get("responsiblePersonId")==PERSON
           and ordinary_receipt.get("newWorkCreated") is False
           and ordinary_receipt.get("workerAcceptancePerTaskRequired") is False
