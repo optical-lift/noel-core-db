@@ -105,7 +105,7 @@ BEGIN
     INSERT INTO us.financial_expectation_actual_links
       (owner_auth_user_id,revision_id,line_id,evidence_id)
     VALUES (owner_b,revision_a,line_a,obs_a);
-  EXCEPTION WHEN foreign_key_violation THEN rejected:=true;
+  EXCEPTION WHEN foreign_key_violation OR insufficient_privilege THEN rejected:=true;
   END;
   IF NOT rejected THEN RAISE EXCEPTION 'Cross-owner actual bound'; END IF;
   INSERT INTO us.financial_expectation_actual_links
