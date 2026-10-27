@@ -93,6 +93,22 @@ BEGIN
  END IF;
 END $communication_context_gate$;
 
+-- The old organization-wide management queue can contain historical Work text
+-- with NO original Subject link. Link-based filtering alone is not sufficient.
+DO $unlinked_historical_management_gate$
+DECLARE v_sql text;
+BEGIN
+ SELECT lower(pg_get_functiondef(
+   'atlas.organization_management_company_work_planning_queue_api_v1(uuid,date,date)'::regprocedure
+ )) INTO v_sql;
+ IF v_sql IS NULL OR
+    position('company_work_native_ledger_owner_self_v1(' IN v_sql)=0 OR
+    position('is_compatibility_primary' IN v_sql)=0 OR
+    position('company_work_native_ledger_owner_self_v1(' IN v_sql)>=position('return query' IN v_sql) THEN
+   RAISE EXCEPTION 'Historical organization planning is not gated before unlinked Work reads';
+ END IF;
+END $unlinked_historical_management_gate$;
+
 -- Five more historic planning, organization-result and correspondence paths
 -- cannot disclose spatial growing-object original Work through older seats.
 DO $older_work_proof$

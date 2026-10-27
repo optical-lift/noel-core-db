@@ -170,6 +170,21 @@ for function_name, missing_check in (
 print("PASS original Bed/Task opaque ID non-discovery")
 
 
+# This legacy organization-wide query returns unlinked Work titles/payloads.
+# A growing-object link exclusion cannot protect older Work without links.
+legacy_source = (BASE / "original_subject_work_existing_direct_responsibility_v1"
+                 / "guarded_native_reader_extensions.sql").read_text()
+legacy_start = legacy_source.index(
+    "CREATE OR REPLACE FUNCTION atlas.organization_management_company_work_planning_queue_api_v1(")
+legacy_end = legacy_source.index("$function$;", legacy_start)
+legacy_section = legacy_source[legacy_start:legacy_end]
+governor_gate = legacy_section.find("company_work_native_ledger_owner_self_v1(")
+require(governor_gate >= 0 and
+        "is_compatibility_primary" in legacy_section and
+        0 < governor_gate < legacy_section.lower().index("return query"),
+        "Unlinked historical Company Work planning needs a pre-read native governor gate")
+print("PASS unlinked legacy organization planning guarded at source")
+
 print("PASS held SQL source-contract preflight ONLY")
 
 # A real signed acceptance runner is staged for disposable local GoTrue/REST.

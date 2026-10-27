@@ -2375,6 +2375,23 @@ CREATE OR REPLACE FUNCTION atlas.organization_management_company_work_planning_q
 AS $function$
 begin
   if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  -- This historical organization-wide planning queue includes unlinked Work
+  -- titles and Result payloads. A legacy manager/farm seat cannot authorize
+  -- them for a connected Person; use the signed bounded native Work readers.
+  -- Interim fail-closed restriction: native primary Ledger governor only.
+  BEGIN
+    PERFORM atlas.company_work_native_ledger_owner_self_v1(
+      p_organization_id,
+      (SELECT lop.ledger_id FROM atlas.ledger_organization_participations lop
+        WHERE lop.organization_id=p_organization_id
+          AND lop.participation_kind='governing'
+          AND lop.is_compatibility_primary
+          AND lop.status='active' AND lop.ended_at IS NULL
+        ORDER BY lop.ledger_id LIMIT 1)
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'Source unavailable to this Person.' USING ERRCODE='42501';
+  END;
   if not exists(
     select 1
     from atlas.organization_memberships om
