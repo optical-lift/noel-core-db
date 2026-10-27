@@ -92,3 +92,21 @@ BEGIN
   RAISE EXCEPTION 'Communication context original sources missing native governor gate';
  END IF;
 END $communication_context_gate$;
+
+-- Five more historic planning, organization-result and correspondence paths
+-- cannot disclose spatial growing-object original Work through older seats.
+DO $older_work_proof$
+DECLARE v_fn text; v_sql text;
+BEGIN
+ FOR v_fn IN SELECT unnest(ARRAY['organization_correspondence_search_self_api_v1','organization_management_company_work_planning_queue_api_v1','organization_owner_company_work_planning_queue_api_v1','organization_owner_company_work_planning_queue_api_v2','organization_work_accountability_self_api_v1']::text[]) LOOP
+  SELECT pg_get_functiondef(p.oid) INTO v_sql
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='atlas' AND p.proname=v_fn AND p.prosecdef LIMIT 1;
+  IF v_sql IS NULL
+     OR position('original_link.subject_domain' IN v_sql)=0
+     OR position('original_link.subject_kind' IN v_sql)=0
+     OR position('original_link.work_item_id' IN v_sql)=0
+     OR position('NOT EXISTS' IN v_sql)=0
+  THEN RAISE EXCEPTION 'Historical Work disclosure exclusion missing from %',v_fn; END IF;
+ END LOOP;
+END $older_work_proof$;
