@@ -556,5 +556,17 @@ BEGIN
       'atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)','EXECUTE') THEN
     RAISE EXCEPTION 'Anonymous access to signed standing scope sources is forbidden';
   END IF;
+  -- A second protected allocation INSERT trigger must enforce this exact
+  -- original ID, independently of the owner assignment RPC guard.
+  SELECT pg_get_functiondef(
+    'atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure
+  ) INTO v_sql;
+  IF v_sql IS NULL
+     OR position('s.coverage_mode=''exact_work''' IN v_sql)=0
+     OR position('s.covered_work_item_id=work.id' IN v_sql)=0
+     OR position('s.accepted_by_person_id=new.assignee_canonical_person_id' IN v_sql)=0
+     OR position('company_work_native_ledger_relevance' IN v_sql)=0 THEN
+    RAISE EXCEPTION 'The allocation provenance trigger must admit only accepted original Work ID';
+  END IF;
 END $exact_work_scope_guard$;
 
