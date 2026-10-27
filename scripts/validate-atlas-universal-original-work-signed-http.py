@@ -133,6 +133,22 @@ def main():
         sessions[name]=bearer
     owner,worker,outsider=sessions["owner"],sessions["worker"],sessions["outsider"]
     print("PASS independently signed local governor, connected Person and outsider")
+    def check_bed3_original_work_surfaces(expected):
+        # Same canonical original Work ID across independently signed Person
+        # My Work, Today and dated Work. No absent grant or revocation may
+        # reveal it in any of these readers.
+        for name,params in (
+          ("connected_person_my_work_self_api_v1",
+            {"p_limit":50,"p_after_allocation_id":None}),
+          ("connected_person_company_work_today_self_api_v1",{"p_limit":100}),
+          ("connected_person_company_work_day_self_api_v1",{"p_date":"2030-10-30"}),
+        ):
+            packet=ok(api,key,worker,name,params)
+            count=sum(x.get("workItemId")==bed3 for x in packet.get("items",[]))
+            check(count==expected,
+                  f"{name} leaked or lost Bed 3 original Work (expected={expected},got={count})")
+
+
 
     parts=[
       dict(subjectDomain="spatial",subjectKind="growing_object",subjectId=BED3,
@@ -196,6 +212,7 @@ def main():
                    {"p_limit":50,"p_after_allocation_id":None})
     check(all(x.get("workItemId")!=bed3 for x in undisclosed.get("items",[])),
           "Source disclosed Bed 3 Work before governor-granted identity")
+    check_bed3_original_work_surfaces(0)
     deny(api,key,worker,"connected_person_original_work_subject_self_api_v1",
          subject(bed3,BED3),"Responsibility alone cannot discover Bed identity")
     decision=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
@@ -209,6 +226,7 @@ def main():
           and visible[0].get("title")=="Measure and stake synthetic U-Pick Bed 3"
           and all(x.get("workItemId")!=bed4 for x in mine.get("items",[])),
           "Signed Person's current identity grant must admit Bed 3, not Bed 4")
+    check_bed3_original_work_surfaces(1)
     card=ok(api,key,worker,"connected_person_original_work_subject_self_api_v1",
             subject(bed3,BED3))
     check(card.get("subjectId")==BED3
@@ -235,6 +253,7 @@ def main():
               {"p_limit":50,"p_after_allocation_id":None})
     check(all(x.get("workItemId")!=bed3 for x in hidden.get("items",[])),
           "Revoked Bed 3 leaked through signed My Work")
+    check_bed3_original_work_surfaces(0)
     deny(api,key,worker,"connected_person_original_work_subject_self_api_v1",
          subject(bed3,BED3),"Revoked Subject identity must not read")
     restore=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
@@ -245,6 +264,7 @@ def main():
                 {"p_limit":50,"p_after_allocation_id":None})
     check(sum(x.get("workItemId")==bed3 for x in restored.get("items",[]))==1,
           "Regrant must restore exactly one existing original Work")
+    check_bed3_original_work_surfaces(1)
 
     # This worker simultaneously holds a live *inherited* farm_hand membership.
     # The new exact Bed 3 Work allocation and governor-granted identity must
