@@ -514,7 +514,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_program_author_notes_probe" = true ] ||
        [ "$signed_program_source_identity_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
-       [ "$signed_unified_today_p0_probe" = true ]; then
+       [ "$signed_unified_today_p0_probe" = true ] ||
+       [ "$signed_person_mail_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
