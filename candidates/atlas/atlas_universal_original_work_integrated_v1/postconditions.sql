@@ -184,6 +184,7 @@ BEGIN
  THEN RAISE EXCEPTION 'Governor field-review source evidence incomplete'; END IF;
 END $subject_review_fields$;
 
+
 -- Original held postcondition: original_subject_choices_for_work_decomposition_v1/postconditions.sql
 DO $proof$ BEGIN
  IF has_function_privilege('anon',
