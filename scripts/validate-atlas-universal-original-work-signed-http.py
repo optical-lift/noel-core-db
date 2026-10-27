@@ -352,7 +352,333 @@ def main():
           =="completed" and
           sql(args.db_url,f"select work_state from atlas.work_items where id='{bed4}'")
           =="open","Bed 3 worker completion also changed Bed 4")
+    # Signed governor readback must see the SAME original Work/Result after
+    # the Person's physical attestation. A successful worker RPC alone is
+    # insufficient, and a result report is not permission to read elsewhere.
+    status,governor_page=rpc(api,key,owner,
+      "company_work_accountability_native_ledger_self_api_v1",
+      dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_scope="native_ledger",
+           p_limit=200,p_after_work_item_id=None))
+    check(status==200 and isinstance(governor_page,dict) and
+          governor_page.get("contractVersion")==
+            "company_work_accountability_native_ledger_v1" and
+          governor_page.get("selectedNativeLedgerId")==LEDGER and
+          governor_page.get("scopeMode")=="native_ledger",
+          f"Native governor could not read source Work ledger {status}: "
+          f"{str(governor_page)[:200]}")
+    governor_original=[row for row in governor_page.get("items",[])
+                       if row.get("workItemId")==bed3]
+    check(len(governor_original)==1,
+          "Governor ledger lost or duplicated same original Bed 3 Work")
+    governor_record=governor_original[0]
+    check(governor_record.get("workState")=="completed" and
+          governor_record.get("nativeLedgerRelevance")==
+            "established_for_selected_ledger" and
+          governor_record.get("latestWorkerReport",{}).get("resultId")==
+            actual.get("resultId") and
+          governor_record.get("latestWorkerReport",{}).get("resultKind")==
+            "completed" and
+          governor_record.get("latestAcceptedResult",{}).get("resultId")==
+            actual.get("resultId") and
+          governor_record.get("latestAcceptedResult",{}).get("decision")==
+            "accepted" and
+          governor_record.get("lastResponsibleAllocation",{}).get("allocationId")==
+            a.get("allocationId") and
+          governor_record.get("lastResponsibleAllocation",{}).get("allocationState")==
+            "completed",
+          "Governor's original Ledger Work did not read back Person's exact "
+          "accepted Result, allocation history and immutable Work ID")
+    check(all(row.get("workItemId")!=bed4 or row.get("workState")=="open"
+              for row in governor_page.get("items",[])),
+          "Bed 3 acceptance also closed independent Bed 4 Work")
+    print("PASS signed Person physical Actual -> exact native governor Ledger "
+          "Result readback; Bed 4 independent")
     print("PASS signed Bed 3 direct Work, bounded grant and independent Actual")
+
+    # Gate B: a separately governed original Bed may be assigned without
+    # creating Today placement. The actual signed bearer, not an owner estimate,
+    # must see it in My Work only AFTER both current Subject grants.
+    undated=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+      p_work_item_id=bed4,p_target_person_id=PERSON,p_service_date=None,
+      p_action_id="e5200000-0000-4000-8000-000000000d08",
+      p_reason="Establish Bed 4 responsibility now and schedule the work independently.")
+    deny(api,key,worker,"owner_direct_assign_existing_original_work_self_api_v1",
+         undated,"Worker cannot invent an unscheduled original Work duty")
+    b4=ok(api,key,owner,"owner_direct_assign_existing_original_work_self_api_v1",undated)
+    check(b4.get("workItemId")==bed4 and b4.get("targetPersonId")==PERSON and
+          b4.get("planId") is None and b4.get("plannedServiceDate") is None and
+          b4.get("scheduleState")=="unscheduled" and
+          b4.get("responsibilityEstablished") is True and
+          b4.get("newWorkCreated") is False and
+          b4.get("acceptanceQuestionCreated") is False,
+          "Undated assignment fabricated a Work, plan or acceptance question")
+    check(sql(args.db_url,"select count(*) from atlas.work_execution_plans "+
+          f"where work_item_id='{bed4}'::uuid")=="0",
+          "Undated assignment inserted an execution plan anyway")
+    again_b4=ok(api,key,owner,"owner_direct_assign_existing_original_work_self_api_v1",
+                undated)
+    check(again_b4.get("idempotent") is True and
+          again_b4.get("allocationId")==b4.get("allocationId") and
+          again_b4.get("planId") is None,
+          "Undated assignment retry introduced a competing responsibility or plan")
+    before_b4=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+                 {"p_limit":50,"p_after_allocation_id":None})
+    check(all(row.get("workItemId")!=bed4 for row in before_b4.get("items",[])),
+          "Undated Work title escaped before original Bed 4 Subject grant")
+    for cls,ident in (("identity","e5200000-0000-4000-8000-000000000d09"),
+                      ("condition","e5200000-0000-4000-8000-000000000d0a")):
+        granted=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
+                   action(BED4,cls,"grant",ident))
+        check(granted.get("currentlyGranted") is True,
+              "Native governor could not grant the exact additional Bed")
+    now_b4=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+              {"p_limit":50,"p_after_allocation_id":None})
+    matching=[row for row in now_b4.get("items",[])
+              if row.get("workItemId")==bed4]
+    check(len(matching)==1 and matching[0].get("allocationId")==b4.get("allocationId")
+          and matching[0].get("scheduleState")=="unscheduled"
+          and matching[0].get("planId") is None and
+          matching[0].get("workOn") is None,
+          "Source did not expose exactly one signed unscheduled original Work")
+    absent_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
+                  {"p_date":"2030-10-31"})
+    check(all(row.get("workItemId")!=bed4
+              for row in absent_day.get("items",[])),
+          "Merely assigning a Person fabricated a dated Today obligation")
+    print("PASS signed undated original Work responsibility, disclosure and no plan")
+
+    # A dated Work obligation is a separately recorded decision over the SAME
+    # existing allocation. No governor-only Work detail is copied or replaced.
+    schedule=dict(p_work_item_id=bed4,p_service_date="2030-10-31",
+                  p_reason="The actual responsible Person now selected a work-on date.")
+    deny(api,key,outsider,"connected_person_place_work_self_api_v1",
+         schedule,"Unconnected Person cannot schedule someone else's Work")
+    placed=ok(api,key,worker,"connected_person_place_work_self_api_v1",schedule)
+    check(placed.get("workItemId")==bed4 and placed.get("state")=="placed"
+          and placed.get("executionDate")=="2030-10-31"
+          and bool(placed.get("planId")) and placed.get("newWorkCreated") is False,
+          "Scheduling did not place the original undated Work")
+    check(sql(args.db_url,f"select count(*) from atlas.work_allocations "
+              f"where work_item_id='{bed4}'::uuid and state='active' "
+              "and allocation_role='responsible'")=="1",
+          "Scheduling duplicated the original active responsibility")
+    signed_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
+                  {"p_date":"2030-10-31"})
+    dated=[item for item in signed_day.get("items",[])
+           if item.get("workItemId")==bed4]
+    check(len(dated)==1 and dated[0].get("allocationId")==b4["allocationId"]
+          and dated[0].get("planId")==placed["planId"]
+          and dated[0].get("executionDate")=="2030-10-31",
+          "Signed Person Day lost exact allocation, plan, or original Work")
+    same_day=ok(api,key,worker,"connected_person_place_work_self_api_v1",schedule)
+    check(same_day.get("idempotent") is True
+          and same_day.get("planId")==placed["planId"],
+          "Same-day placement retried by minting a new plan")
+    shifted=ok(api,key,worker,"connected_person_place_work_self_api_v1",
+               dict(p_work_item_id=bed4,p_service_date="2030-11-01",
+                    p_reason="Actual responsible Person moved work to the next day."))
+    check(shifted.get("workItemId")==bed4
+          and shifted.get("executionDate")=="2030-11-01"
+          and shifted.get("planId")==placed["planId"],
+          "Rescheduling minted an unrelated plan or Work")
+    # The exact signed My Work reader must distinguish an explicit move
+    # from an overdue original plan: only the rescheduled plan event proves
+    # the original date, not an inferred rollover or task creation date.
+    moved_read=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+                  {"p_limit":50,"p_after_allocation_id":None})
+    moved_rows=[row for row in moved_read.get("items",[])
+                if row.get("workItemId")==bed4]
+    check(len(moved_rows)==1 and
+          moved_rows[0].get("workOn")=="2030-11-01" and
+          moved_rows[0].get("verifiedMovedFromDate")=="2030-10-31" and
+          moved_rows[0].get("allocationId")==b4.get("allocationId"),
+          "Signed reader cannot prove true original rescheduling of same Work")
+    check(sql(args.db_url,
+          "select count(*) from atlas.work_execution_plan_events "
+          f"where work_item_id='{bed4}'::uuid and "
+          f"plan_id='{placed['planId']}'::uuid and "
+          "event_kind='rescheduled' and "
+          "from_planned_service_date='2030-10-31'::date and "
+          "to_planned_service_date='2030-11-01'::date")=="1",
+          "Displayed moved date lacks one persisted original plan event")
+    print("PASS signed original Work movement provenance and no phantom migration")
+
+    old_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
+               {"p_date":"2030-10-31"})
+    new_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
+               {"p_date":"2030-11-01"})
+    check(all(item.get("workItemId")!=bed4 for item in old_day.get("items",[]))
+          and sum(item.get("workItemId")==bed4 for item in new_day.get("items",[]))==1,
+          "Rescheduling left a phantom duplicate on the old day")
+    # Bed 4 uses manager acceptance, not worker-attestation completion.
+    status,result=rpc(api,key,worker,"report_connected_person_company_work_self_api_v1",
+                      dict(p_work_item_id=bed4,p_result_kind="completed",
+                           p_idempotency_key="clone-bed4-manager-result-not-automatic",
+                           p_payload={"claim":"physical Bed 4 work finished"}))
+    check(status in (400,403,409,422) and isinstance(result,dict)
+          and result.get("code")=="23514",
+          "Worker attestation improperly accepted manager-governed Bed 4")
+    check(sql(args.db_url,f"select work_state from atlas.work_items "
+              f"where id='{bed4}'::uuid")=="open",
+          "Rejected manager-only Work report closed original Bed 4")
+    cleared=ok(api,key,worker,"connected_person_place_work_self_api_v1",
+               dict(p_work_item_id=bed4,p_service_date=None,
+                    p_reason="Return exact responsibility to unscheduled My Work."))
+    check(cleared.get("state")=="unplanned"
+          and cleared.get("workItemId")==bed4,
+          "Clearing a day erased original Work responsibility")
+    undated_again=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+                     {"p_limit":50,"p_after_allocation_id":None})
+    original_after=[item for item in undated_again.get("items",[])
+                    if item.get("workItemId")==bed4]
+    check(len(original_after)==1
+          and original_after[0].get("allocationId")==b4["allocationId"]
+          and original_after[0].get("scheduleState")=="unscheduled",
+          "Unplanning lost or duplicated the Person's original Work")
+    print("PASS signed original Work: undated -> dated -> moved -> undated, "
+          "same allocation, correct Result authority")
+
+    # Ordinary ORIGINAL Work uses the released standing-responsibility route;
+    # it must NOT go through the decomposition-only writer or mint another
+    # Work identity. A one-time accepted scope is not a per-task question.
+    ordinary="e5200000-0000-4000-8000-000000000901"
+    # This is still the SAME seeded synthetic original Work. Classify its
+    # source as an original legacy task to prove the released accepted-scope
+    # assignment binds the standard ordinary physical Result contract.
+    # No duplicate work item or production task is created.
+    check(sql(args.db_url,
+          f"select count(*) from atlas.work_items where id='{ordinary}'::uuid "
+          "and source_object_type is null and result_contract_key is null")=="1",
+          "Synthetic existing ordinary Work was already re-contracted")
+    sql(args.db_url,
+        f"update atlas.work_items set source_object_type='legacy_task' "
+        f"where id='{ordinary}'::uuid and source_object_type is null")
+    original_count=sql(args.db_url,"select count(*) from atlas.work_items")
+    scope_args=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+      p_worker_person_id=PERSON,p_work_item_id=ordinary,
+      p_terms="Synthetic worker agrees to this one original mowing Work only; nothing about sprayers, pruning, or other Work is admitted.",
+      p_valid_until=None)
+    deny(api,key,worker,
+         "propose_native_ledger_exact_work_scope_owner_self_api_v1",scope_args,
+         "Worker cannot pose as original Ledger governor proposing exact scope")
+    scope=ok(api,key,owner,
+             "propose_native_ledger_exact_work_scope_owner_self_api_v1",scope_args)
+    check(scope.get("coverageMode")=="exact_work" and
+          scope.get("coveredWorkItemId")==ordinary,
+          "Exact scope proposal did not source-bind the one original Work")
+    sid=scope.get("scopeId")
+    check(bool(sid) and scope.get("workerConsentRecorded") is False,
+          "Standing-scope proposal incorrectly fabricated Person consent")
+    before_scope=ok(api,key,worker,"native_ledger_standing_scopes_self_api_v1",{})
+    check(any(row.get("scopeId")==sid and row.get("coverageMode")=="exact_work"
+              and row.get("coveredWorkItemId")==ordinary and row.get("state")=="proposed"
+              for row in before_scope.get("incoming",[])),
+          "Worker cannot review exact proposed Work before giving consent")
+    response=ok(api,key,worker,"respond_native_ledger_standing_scope_self_api_v1",
+                dict(p_scope_id=sid,p_decision="accept"))
+    check(response.get("state")=="active"
+          and response.get("assignmentCreated") is False,
+          "One-time standing acceptance fabricated a new Work assignment")
+    unrelated="e5200000-0000-4000-8000-000000000902"
+    wrong_args=dict(p_work_item_id=unrelated,p_scope_id=sid,
+      p_reason="This is a different original Work and must be denied despite same Ledger.")
+    deny(api,key,owner,"assign_native_ledger_company_work_under_scope_owner_self_api_v1",
+         wrong_args,"Exact Work agreement cannot assign a different original task")
+    check(sql(args.db_url,"select count(*) from atlas.work_allocations "
+      f"where work_item_id='{unrelated}'::uuid and state='active'")=="0",
+      "Scope mismatch was only a UI denial; unrelated Work was assigned")
+    ordinary_args=dict(p_work_item_id=ordinary,p_scope_id=sid,
+      p_reason="Assign the existing source-backed ordinary Ledger Work without imposing a day.")
+    deny(api,key,worker,"assign_native_ledger_company_work_under_scope_owner_self_api_v1",
+         ordinary_args,"Worker cannot self-assign ordinary original Work")
+    ordinary_receipt=ok(api,key,owner,
+           "assign_native_ledger_company_work_under_scope_owner_self_api_v1",
+           ordinary_args)
+    ordinary_allocation=ordinary_receipt.get("allocationId")
+    check(ordinary_receipt.get("workItemId")==ordinary
+          and ordinary_receipt.get("coverageMode")=="exact_work"
+          and ordinary_receipt.get("coveredWorkItemId")==ordinary
+          and ordinary_receipt.get("responsiblePersonId")==PERSON
+          and ordinary_receipt.get("newWorkCreated") is False
+          and ordinary_receipt.get("workerAcceptancePerTaskRequired") is False
+          and bool(ordinary_allocation),
+          "Original ordinary Work assignment minted duplicate Work or question")
+    check(sql(args.db_url,"select count(*) from atlas.work_items")==original_count,
+          "Ordinary responsibility created another original Work row")
+    check(sql(args.db_url,
+          f"select count(*) from atlas.work_execution_plans where work_item_id='{ordinary}'::uuid")=="0",
+          "Ordinary direct assignment fabricated an execution plan")
+    ordinary_mine=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+            {"p_limit":100,"p_after_allocation_id":None})
+    ordinary_rows=[item for item in ordinary_mine.get("items",[])
+                   if item.get("workItemId")==ordinary]
+    check(len(ordinary_rows)==1
+          and ordinary_rows[0].get("allocationId")==ordinary_allocation
+          and ordinary_rows[0].get("scheduleState")=="unscheduled"
+          and ordinary_rows[0].get("planId") is None,
+          "Existing ordinary Work did not reach signed My Work unscheduled")
+    ordinary_placed=ok(api,key,worker,"connected_person_place_work_self_api_v1",
+          dict(p_work_item_id=ordinary,p_service_date="2030-11-02",
+               p_reason="Responsible Person independently scheduled existing ordinary Work."))
+    check(ordinary_placed.get("workItemId")==ordinary
+          and ordinary_placed.get("executionDate")=="2030-11-02"
+          and bool(ordinary_placed.get("planId")),
+          "Ordinary Work cannot use the shared Person-native date writer")
+    dated_ordinary=ok(api,key,worker,
+                      "connected_person_company_work_day_self_api_v1",
+                      {"p_date":"2030-11-02"})
+    check(sum(item.get("workItemId")==ordinary for item in
+              dated_ordinary.get("items",[]))==1,
+          "Ordinary original Work was not in selected signed Person Day")
+    still_work=sql(args.db_url,"select count(*) from atlas.work_allocations "
+              f"where work_item_id='{ordinary}'::uuid and id='{ordinary_allocation}'::uuid "
+              "and state='active' and establishment_basis_kind='delegated_under_standing_scope'")
+    check(still_work=="1","Ordinary scheduling invented another responsibility basis")
+    check(sql(args.db_url,
+          f"select result_contract_key from atlas.work_items where id='{ordinary}'::uuid")
+          =="ordinary_company_work_worker_attestation_v1",
+          "Released under-scope assignment failed to bind eligible original legacy Result")
+    deny(api,key,outsider,"report_connected_person_company_work_self_api_v1",
+         dict(p_work_item_id=ordinary,p_result_kind="completed",
+              p_idempotency_key="clone-unconnected-mow-cannot-complete",
+              p_payload={"physicalActual":"Unconnected outsider falsely claims mowing"}),
+         "Outsider cannot complete assigned original ordinary Work")
+    ordinary_actual=ok(api,key,worker,
+      "report_connected_person_company_work_self_api_v1",
+      dict(p_work_item_id=ordinary,p_result_kind="completed",
+           p_idempotency_key="clone-existing-legacy-mow-actual",
+           p_payload={"physicalActual":"Original synthetic walkways mowed."}))
+    check(ordinary_actual.get("workItemId")==ordinary and
+          ordinary_actual.get("resultKind")=="completed" and
+          ordinary_actual.get("workState")=="completed" and
+          bool(ordinary_actual.get("resultId")),
+          "Signed Person could not report accepted physical Result on original Work")
+    status,ordinary_ledger=rpc(api,key,owner,
+      "company_work_accountability_native_ledger_self_api_v1",
+      dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_scope="native_ledger",
+           p_limit=200,p_after_work_item_id=None))
+    check(status==200 and isinstance(ordinary_ledger,dict) and
+          ordinary_ledger.get("contractVersion")==
+            "company_work_accountability_native_ledger_v1",
+          "Root governor original Ledger read unavailable after physical completion")
+    ordinary_found=[x for x in ordinary_ledger.get("items",[])
+                    if x.get("workItemId")==ordinary]
+    check(len(ordinary_found)==1 and
+          ordinary_found[0].get("workState")=="completed" and
+          ordinary_found[0].get("latestWorkerReport",{}).get("resultId")==
+            ordinary_actual.get("resultId") and
+          ordinary_found[0].get("latestAcceptedResult",{}).get("resultId")==
+            ordinary_actual.get("resultId") and
+          ordinary_found[0].get("latestAcceptedResult",{}).get("decision")=="accepted",
+          "Root Ledger did not read signed legacy Work's exact completed Result")
+    check(sql(args.db_url,"select count(*) from atlas.work_items")==original_count,
+          "Original legacy Work result minted a second task")
+    print("PASS signed existing ordinary Ledger Work: accepted standing scope, "
+          "one original legacy_task, separate date, authorized physical Actual and "
+          "exact governing Ledger Result readback")
+
+
+
 
     initial=ok(api,key,owner,"household_laundry_current_self_api_v1",{})
     check(initial.get("householdId")==HOUSEHOLD and
@@ -403,6 +729,53 @@ def main():
           now.get("lastCompletedWorkItemId")==washing,
           "Completed Work lost its history or blocked next Laundry cycle")
     print("PASS signed Laundry Need, Work, separate Rhythm, physical Actual and replay")
+
+    # The historical organization planning browser RPC is an alternate Work
+    # title/Result reader, INCLUDING Work with no subject context links.
+    # Prove the internal source guard, not a 404 or merely absent old membership.
+    # These memberships and the synthetic unlinked Work exist in this disposable
+    # clone ONLY, after all original Bed/Laundry tests finish.
+    secret_work="e5200000-0000-4000-8000-000000000b99"
+    check(sql(args.db_url,f"select count(*) from atlas.work_items "
+          f"where id='{secret_work}'::uuid")=="0",
+          "Synthetic unlinked legacy Work ID already in use")
+    sql(args.db_url,
+      "insert into atlas.work_items(id,organization_id,title,work_state,source_object_type) "
+      f"values('{secret_work}'::uuid,'{ORG}'::uuid,"
+      "'Private synthetic withheld Bed 5 result, never for historical manager','open',"
+      "'legacy_task')")
+    check(sql(args.db_url,f"select count(*) from atlas.work_item_context_links "
+          f"where work_item_id='{secret_work}'::uuid")=="0",
+          "Unlinked alternative-reader probe unexpectedly has a context link")
+    old_member=sql(args.db_url,
+      "select count(*) from atlas.organization_memberships "
+      f"where organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid")
+    if old_member=="0":
+        sql(args.db_url,
+          "insert into atlas.organization_memberships("
+          "id,organization_id,user_id,person_id,role,active) values("
+          "'e5200000-0000-4000-8000-000000000b07'::uuid,"
+          f"'{ORG}'::uuid,'{c1.WORKER}'::uuid,'{PERSON}'::uuid,"
+          "'member',true)")
+    else:
+        sql(args.db_url,"update atlas.organization_memberships set "
+            "active=true,role='member' where "
+            f"organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid")
+    sql(args.db_url,"update atlas.farm_memberships set role='manager' "
+        f"where farm_id='{FARM}'::uuid and user_id='{c1.WORKER}'::uuid "
+        "and active")
+    check(sql(args.db_url,"select count(*) from atlas.organization_memberships "
+          f"where organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid "
+          "and role='member' and active")=="1" and
+          sql(args.db_url,"select count(*) from atlas.farm_memberships "
+          f"where farm_id='{FARM}'::uuid and user_id='{c1.WORKER}'::uuid "
+          "and role='manager' and active")=="1",
+          "Probe must actually carry old organization AND manager access")
+    deny(api,key,worker,"organization_management_company_work_planning_queue_api_v1",
+         {"p_organization_id":ORG,"p_window_start":None,"p_window_end":None},
+         "Signed old organization/farm manager cannot enumerate unlinked Work")
+    print("PASS signed old manager denied historical unlinked Work title/Result read")
+
     Path(args.output).write_text(
         "PASS signed original Bed 3 + Laundry synthetic local source acceptance\n"
         "PENDING independent Event regression and complete alternative-reader sweep\n"
