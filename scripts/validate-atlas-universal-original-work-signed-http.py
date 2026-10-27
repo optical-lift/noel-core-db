@@ -190,18 +190,25 @@ def main():
     check(retry.get("idempotent") is True and
           retry.get("allocationId")==a.get("allocationId"),
           "Retry minted a different direct allocation")
-    mine=ok(api,key,worker,"connected_person_my_work_self_api_v1",
-            {"p_limit":50,"p_after_allocation_id":None})
-    visible=[x for x in mine.get("items",[]) if x.get("workItemId")==bed3]
-    check(len(visible)==1 and visible[0].get("workOn")=="2030-10-30"
-          and all(x.get("workItemId")!=bed4 for x in mine.get("items",[])),
-          "Signed Person's existing My Work page missed Bed 3 or leaked Bed 4")
+    # Allocation without an identity grant must not leak Bed 3 through
+    # Work titles, instructions, Today or dated Work.
+    undisclosed=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+                   {"p_limit":50,"p_after_allocation_id":None})
+    check(all(x.get("workItemId")!=bed3 for x in undisclosed.get("items",[])),
+          "Source disclosed Bed 3 Work before governor-granted identity")
     deny(api,key,worker,"connected_person_original_work_subject_self_api_v1",
          subject(bed3,BED3),"Responsibility alone cannot discover Bed identity")
     decision=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
                 action(BED3,"identity","grant",
                        "e5200000-0000-4000-8000-000000000d03"))
     check(decision.get("currentlyGranted") is True,"Signed identity grant not recorded")
+    mine=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+            {"p_limit":50,"p_after_allocation_id":None})
+    visible=[x for x in mine.get("items",[]) if x.get("workItemId")==bed3]
+    check(len(visible)==1 and visible[0].get("workOn")=="2030-10-30"
+          and visible[0].get("title")=="Measure and stake synthetic U-Pick Bed 3"
+          and all(x.get("workItemId")!=bed4 for x in mine.get("items",[])),
+          "Signed Person's current identity grant must admit Bed 3, not Bed 4")
     card=ok(api,key,worker,"connected_person_original_work_subject_self_api_v1",
             subject(bed3,BED3))
     check(card.get("subjectId")==BED3
@@ -215,6 +222,29 @@ def main():
          subject(bed4,BED4),"Bed 4 not disclosed through Bed 3 assignment")
     deny(api,key,outsider,"connected_person_original_work_subject_self_api_v1",
          subject(bed3,BED3),"Unconnected Person cannot read Bed 3")
+
+    # Current disclosure controls are dynamic. Withholding immediately
+    # closes ordinary Work/Today and detail reads; new grant opens same original
+    # Work ID without creating a task, plan or fresh allocation.
+    revoke=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
+              action(BED3,"identity","withhold",
+                     "e5200000-0000-4000-8000-000000000d20"))
+    check(revoke.get("currentlyGranted") is False,
+          "Revocation did not become current")
+    hidden=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+              {"p_limit":50,"p_after_allocation_id":None})
+    check(all(x.get("workItemId")!=bed3 for x in hidden.get("items",[])),
+          "Revoked Bed 3 leaked through signed My Work")
+    deny(api,key,worker,"connected_person_original_work_subject_self_api_v1",
+         subject(bed3,BED3),"Revoked Subject identity must not read")
+    restore=ok(api,key,owner,"governor_set_subject_disclosure_self_api_v1",
+               action(BED3,"identity","grant",
+                      "e5200000-0000-4000-8000-000000000d21"))
+    check(restore.get("currentlyGranted") is True,"Regrant not current")
+    restored=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+                {"p_limit":50,"p_after_allocation_id":None})
+    check(sum(x.get("workItemId")==bed3 for x in restored.get("items",[]))==1,
+          "Regrant must restore exactly one existing original Work")
 
     # This worker simultaneously holds a live *inherited* farm_hand membership.
     # The new exact Bed 3 Work allocation and governor-granted identity must
