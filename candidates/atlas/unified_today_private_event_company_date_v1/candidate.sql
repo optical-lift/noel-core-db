@@ -359,4 +359,596 @@ begin
 end$function$
 
 
+-- Protect alternate source readers, including direct signed RPC calls.
+CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_shared_work_actor_self_v1(p_organization_id uuid, p_ledger_id uuid, p_occurrence_id uuid)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_actor uuid; v_access jsonb;
+begin
+  if auth.uid() is null or p_organization_id is null
+     or p_ledger_id is null or p_occurrence_id is null then
+    raise exception 'Authenticated exact Ledger and Occurrence required.' using errcode='42501';
+  end if;
+  v_access:=atlas.reality_access_self_api_v1();
+  if v_access->>'state' is distinct from 'ready'
+     or v_access->>'authenticated' is distinct from 'true' then
+    raise exception 'Current Personal Atlas access required.' using errcode='42501';
+  end if;
+  v_actor:=atlas.current_person_id_v1();
+  if v_actor is null or not atlas.person_has_native_ledger_connection_v1(
+    p_organization_id,p_ledger_id,v_actor
+  ) then
+    raise exception 'Current canonical Person Ledger connection required.' using errcode='42501';
+  end if;
+  if not exists (
+    select 1 from ledger.occurrence_calendar_bindings cb
+    join local_intel.occurrences o on o.id=cb.occurrence_id
+    join atlas.organization_occurrence_bindings ob
+      on ob.occurrence_id=o.id and ob.organization_id=p_organization_id
+        and ob.binding_state='active'
+    where cb.ledger_id=p_ledger_id and cb.occurrence_id=p_occurrence_id
+      and cb.binding_state='active'
+  ) then
+    raise exception 'Exact Event is not an active Occurrence of this Ledger and Organization.'
+      using errcode='42501';
+  end if;
+  -- Exact native connection does not authorize discovering private Event identity.
+  if not (coalesce(
+    exists(select 1 from atlas.principal_ledger_authorities authz
+      join atlas.principals principal on principal.id=authz.principal_id
+        and principal.status='active' and principal.person_id=v_actor
+      where authz.ledger_id=p_ledger_id
+        and authz.principal_id=atlas.current_principal_id_v1()
+        and authz.authority_kind='root_governing' and authz.status='active')
+    and atlas.principal_has_ledger_authority_v1(
+      atlas.current_principal_id_v1(),p_ledger_id),false)
+    or atlas.has_current_subject_disclosure_v1(
+      p_ledger_id,v_actor,'event','occurrence',p_occurrence_id,'identity')) then
+    raise exception 'Exact Event identity is not disclosed to this Person.' using errcode='42501';
+  end if;
+  return v_actor;
+end
+$function$
+
+
+CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_date_evidence_self_api_v1(p_ledger_id uuid, p_start_date date, p_end_date date, p_timezone_name text, p_limit integer DEFAULT 150)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_access jsonb;
+  v_actor uuid;
+  v_is_root boolean:=false;
+  v_timezone text := nullif(btrim(coalesce(p_timezone_name,'')),'');
+  v_limit integer := greatest(1,least(coalesce(p_limit,150),250));
+  v_total integer := 0;
+  v_items jsonb := '[]'::jsonb;
+BEGIN
+  IF auth.uid() IS NULL OR p_ledger_id IS NULL THEN
+    RAISE EXCEPTION 'Authenticated exact Ledger required'
+      USING ERRCODE='42501';
+  END IF;
+  IF p_start_date IS NULL OR p_end_date IS NULL OR p_end_date < p_start_date
+     OR p_end_date - p_start_date > 45 THEN
+    RAISE EXCEPTION 'Bounded valid date interval required'
+      USING ERRCODE='22023';
+  END IF;
+  IF v_timezone IS NULL OR NOT EXISTS(
+    SELECT 1 FROM pg_catalog.pg_timezone_names z WHERE z.name=v_timezone
+  ) THEN
+    RAISE EXCEPTION 'Valid civil timezone required'
+      USING ERRCODE='22023';
+  END IF;
+
+  -- Match the existing Ledger Event Index's authenticated human entry boundary.
+  -- A Ledger connection is NOT generic Organization or private-custody authority.
+  v_access := atlas.reality_access_self_api_v1();
+  IF v_access->>'state' IS DISTINCT FROM 'ready'
+     OR v_access->>'authenticated' IS DISTINCT FROM 'true' THEN
+    RAISE EXCEPTION 'Personal Atlas identity access required'
+      USING ERRCODE='42501';
+  END IF;
+  PERFORM atlas.current_active_ledger_seat_v1(p_ledger_id);
+  IF NOT EXISTS(
+    SELECT 1
+    FROM ledger.ledgers l
+    JOIN atlas.ledgers al ON al.id=l.id AND al.status='active'
+    JOIN atlas.ledger_organization_participations lop
+      ON lop.ledger_id=l.id AND lop.status='active'
+     AND lop.ended_at IS NULL
+     AND lop.participation_kind IN ('governing','operating')
+    WHERE l.id=p_ledger_id AND l.ledger_state='active'
+      AND l.retired_at IS NULL
+  ) THEN
+    RAISE EXCEPTION 'Source-bound active Ledger participation required'
+      USING ERRCODE='42501';
+  END IF;
+
+  v_actor:=atlas.current_person_id_v1();
+  v_is_root:=coalesce(
+    exists(select 1 from atlas.principal_ledger_authorities authz
+      join atlas.principals principal on principal.id=authz.principal_id
+        and principal.status='active' and principal.person_id=v_actor
+      where authz.ledger_id=p_ledger_id
+        and authz.principal_id=atlas.current_principal_id_v1()
+        and authz.authority_kind='root_governing' and authz.status='active')
+    and atlas.principal_has_ledger_authority_v1(
+      atlas.current_principal_id_v1(),p_ledger_id),false);
+
+  -- Ledger-bound canonical Occurrences are the ONLY admission authority here.
+  -- Two linked assertions are two perspectives, never two Occurrence identities.
+  WITH admitted AS (
+    SELECT DISTINCT ON (o.id)
+      o.id, o.title, o.status, o.start_at, o.end_at,
+      o.last_verified_at, o.updated_at,
+      cb.id AS calendar_binding_id
+    FROM ledger.occurrence_calendar_bindings cb
+    JOIN local_intel.occurrences o ON o.id=cb.occurrence_id
+    WHERE cb.ledger_id=p_ledger_id AND cb.binding_state='active'
+      AND (v_is_root OR atlas.has_current_subject_disclosure_v1(
+        p_ledger_id,v_actor,'event','occurrence',o.id,'identity'))
+      AND (
+        (
+          (o.start_at AT TIME ZONE v_timezone)::date <= p_end_date
+          AND (coalesce(o.end_at,o.start_at) AT TIME ZONE v_timezone)::date >= p_start_date
+        )
+        OR EXISTS(
+          SELECT 1
+          FROM atlas.ledger_organization_participations lop
+          JOIN atlas.organization_occurrence_bindings ob
+            ON ob.organization_id=lop.organization_id
+           AND ob.occurrence_id=o.id AND ob.binding_state='active'
+          JOIN atlas.community_events ce
+            ON ce.occurrence_binding_id=ob.id
+           AND ce.visibility_scope='farm_shared'
+          WHERE lop.ledger_id=p_ledger_id
+            AND lop.status='active' AND lop.ended_at IS NULL
+            AND lop.participation_kind IN ('governing','operating')
+            AND ce.event_date BETWEEN p_start_date AND p_end_date
+        )
+      )
+    ORDER BY o.id,cb.updated_at DESC,cb.id
+  ), bounded AS (
+    SELECT a.* FROM admitted a ORDER BY a.start_at,a.id LIMIT v_limit
+  ), scoped AS (
+    SELECT b.*, org.organization_id,org.organization_count
+    FROM bounded b
+    CROSS JOIN LATERAL (
+      SELECT min(lop.organization_id::text)::uuid AS organization_id,
+             count(DISTINCT lop.organization_id)::integer AS organization_count
+      FROM atlas.ledger_organization_participations lop
+      JOIN atlas.organization_occurrence_bindings ob
+        ON ob.organization_id=lop.organization_id
+       AND ob.occurrence_id=b.id AND ob.binding_state='active'
+      WHERE lop.ledger_id=p_ledger_id AND lop.status='active'
+        AND lop.ended_at IS NULL
+        AND lop.participation_kind IN ('governing','operating')
+    ) org
+  ), projected AS (
+    SELECT s.*,
+      coalesce((
+        SELECT jsonb_agg(
+          jsonb_build_object(
+            'sourceRef',jsonb_build_object(
+              'authority','atlas','kind','community_event','id',ce.id),
+            'bindingId',ob.id,
+            'title',ce.title,'sourceStatus',ce.status,
+            'eventDate',ce.event_date,
+            'startLocalTime',ce.start_local_time,
+            'endLocalTime',ce.end_local_time,
+            'timezoneName',ce.timezone_name,
+            'sourceUpdatedAt',ce.updated_at,
+            'timezoneRecognized',EXISTS(
+              SELECT 1 FROM pg_catalog.pg_timezone_names z
+              WHERE z.name=ce.timezone_name),
+            'differenceCandidates',jsonb_build_object(
+              'title',ce.title IS DISTINCT FROM s.title,
+              'sourceStatus',ce.status IS DISTINCT FROM s.status,
+              'date',CASE WHEN EXISTS(
+                SELECT 1 FROM pg_catalog.pg_timezone_names z
+                WHERE z.name=ce.timezone_name)
+                THEN ce.event_date IS DISTINCT FROM
+                  (s.start_at AT TIME ZONE ce.timezone_name)::date
+                ELSE NULL END,
+              'startLocalTime',CASE WHEN EXISTS(
+                SELECT 1 FROM pg_catalog.pg_timezone_names z
+                WHERE z.name=ce.timezone_name)
+                THEN ce.start_local_time IS DISTINCT FROM
+                  (s.start_at AT TIME ZONE ce.timezone_name)::time
+                ELSE NULL END,
+              'endLocalTime',CASE WHEN s.end_at IS NULL THEN NULL
+                WHEN EXISTS(
+                  SELECT 1 FROM pg_catalog.pg_timezone_names z
+                  WHERE z.name=ce.timezone_name)
+                THEN ce.end_local_time IS DISTINCT FROM
+                  (s.end_at AT TIME ZONE ce.timezone_name)::time
+                ELSE NULL END
+            ),
+            'disposition','not_adjudicated'
+          ) ORDER BY ce.id
+        )
+        FROM atlas.organization_occurrence_bindings ob
+        JOIN atlas.community_events ce ON ce.occurrence_binding_id=ob.id
+        WHERE ce.visibility_scope='farm_shared'
+          AND s.organization_count=1
+          AND ob.organization_id=s.organization_id
+          AND ob.occurrence_id=s.id
+          AND ob.binding_state='active'
+      ),'[]'::jsonb) AS community_overlays
+    FROM scoped s
+  )
+  SELECT (SELECT count(*)::integer FROM admitted),
+    coalesce(jsonb_agg(
+      jsonb_build_object(
+        'projectionKey','canonical_occurrence:'||pr.id::text,
+        'sourceRef',jsonb_build_object(
+          'authority','local_intel','kind','occurrence','id',pr.id),
+        'ledgerCalendarBindingId',pr.calendar_binding_id,
+        'canonicalAssertion',jsonb_build_object(
+          'title',pr.title,'sourceStatus',pr.status,
+          'startsAt',pr.start_at,'endsAt',pr.end_at,
+          'civilDate',(pr.start_at AT TIME ZONE v_timezone)::date,
+          'requestedTimezoneName',v_timezone,
+          'sourceLastVerifiedAt',pr.last_verified_at,
+          'sourceUpdatedAt',pr.updated_at
+        ),
+        'communityEventAssertions',pr.community_overlays,
+        'organizationBindingAmbiguous',pr.organization_count>1,
+        'organizationBindingMissing',pr.organization_count=0,
+        'sourceFieldDifferencesNotAutoAdjudicated',true,
+        'subjectEncounter',jsonb_build_object(
+          'kind','canonical_occurrence','id',pr.id)
+      ) ORDER BY pr.start_at,pr.id
+    ),'[]'::jsonb)
+  INTO v_total,v_items
+  FROM projected pr;
+
+  RETURN jsonb_build_object(
+    'contractVersion','ledger_occurrence_date_evidence_v1',
+    'scope',jsonb_build_object('kind','ledger','id',p_ledger_id),
+    'window',jsonb_build_object(
+      'startDate',p_start_date,'endDate',p_end_date,
+      'timezoneName',v_timezone),
+    'occurrences',v_items,
+    'coverage',jsonb_build_object(
+      'sourceFamiliesEvaluated',jsonb_build_array(
+        'active_ledger_bound_canonical_occurrences',
+        'linked_farm_shared_operational_event_assertions'),
+      'returnedOccurrenceCount',jsonb_array_length(v_items),
+      'eligibleOccurrenceCount',v_total,
+      'truncated',v_total>v_limit,
+      'wholeTemporalFieldComplete',false,
+      'nonIntegratedSourceFamiliesNotDeniedOrEmpty',true,
+      'occurrencesWithoutLedgerBindingNotEvaluated',true,
+      'operationalSourceLocalDatesNotUniversalTimezoneCoverage',true,
+      'restrictedOperationalViewsAreNotIncluded',true
+    ),
+    'truthBoundary',jsonb_build_object(
+      'readOnly',true,
+      'oneCanonicalOccurrencePerIdentity',true,
+      'differentAssertionsAreNotIndependentEvents',true,
+      'differencesAreReviewCandidatesNotResolvedContradictions',true,
+      'noneOfTheseRowsProvesMessageSentOrResourceBooked',true,
+      'noSourceStateChanged',true
+    )
+  );
+END
+$function$
+
+
+CREATE OR REPLACE FUNCTION atlas.my_ledger_event_work_attention_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE v_person uuid;v_access jsonb;v_rows jsonb;
+BEGIN
+ v_access:=atlas.reality_access_self_api_v1();
+ IF v_access->>'state' IS DISTINCT FROM 'ready' OR
+    v_access->>'authenticated' IS DISTINCT FROM 'true' THEN
+   RAISE EXCEPTION 'An active personal Atlas session is required' USING ERRCODE='42501';END IF;
+ v_person:=atlas.current_person_id_v1();
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+  'ledgerId',z.ledger_id,'occurrenceId',z.occurrence_id,
+  'workItemId',z.work_item_id,'title',z.title,'workState',z.work_state,
+  'eventState',z.event_state,'eventTitle',z.event_title,'startsAt',z.start_at)
+  ORDER BY z.start_at,z.title,z.work_item_id),'[]'::jsonb) INTO v_rows
+ FROM (
+  SELECT a.ledger_id,a.occurrence_id,a.work_item_id,w.title,w.work_state,
+    CASE WHEN last_action.action_kind='blocked' THEN 'blocked'
+      ELSE w.work_state END AS event_state,
+    o.title event_title,o.start_at
+  FROM atlas.ledger_occurrence_work_attention_v1 a
+  JOIN atlas.work_items w ON w.id=a.work_item_id AND w.organization_id=a.organization_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+  JOIN local_intel.occurrences o ON o.id=a.occurrence_id
+  JOIN ledger.occurrence_calendar_bindings cb
+   ON cb.ledger_id=a.ledger_id AND cb.occurrence_id=a.occurrence_id
+      AND cb.binding_state='active'
+  LEFT JOIN LATERAL (
+    SELECT e.action_kind FROM atlas.ledger_occurrence_work_actions_v1 e
+    WHERE e.work_item_id=a.work_item_id
+      AND e.action_kind IN ('blocked','reopened')
+    ORDER BY e.action_sequence DESC LIMIT 1
+  ) last_action ON true
+  WHERE a.person_entity_id=v_person AND a.attention_state='active'
+    AND w.work_state='open'
+    AND EXISTS (SELECT 1 FROM atlas.ledger_organization_participations lop
+      WHERE lop.ledger_id=a.ledger_id AND lop.organization_id=a.organization_id
+        AND lop.status='active' AND lop.ended_at IS NULL)
+    AND EXISTS (SELECT 1 FROM atlas.organization_occurrence_bindings ob
+      WHERE ob.organization_id=a.organization_id AND ob.occurrence_id=a.occurrence_id
+        AND ob.binding_state='active')
+    AND atlas.person_has_native_ledger_connection_v1(
+     a.organization_id,a.ledger_id,v_person)
+    AND (coalesce(
+    exists(select 1 from atlas.principal_ledger_authorities authz
+      join atlas.principals principal on principal.id=authz.principal_id
+        and principal.status='active' and principal.person_id=v_person
+      where authz.ledger_id=a.ledger_id
+        and authz.principal_id=atlas.current_principal_id_v1()
+        and authz.authority_kind='root_governing' and authz.status='active')
+    and atlas.principal_has_ledger_authority_v1(
+      atlas.current_principal_id_v1(),a.ledger_id),false)
+      OR atlas.has_current_subject_disclosure_v1(
+        a.ledger_id,v_person,'event','occurrence',a.occurrence_id,'identity'))
+    AND NOT EXISTS (SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 e
+      WHERE e.ledger_id=a.ledger_id AND e.occurrence_id=a.occurrence_id
+        AND e.work_item_id=a.work_item_id AND e.action_kind='removed')
+  ORDER BY o.start_at,w.title,w.id LIMIT 150
+ ) z;
+ RETURN jsonb_build_object('ok',true,'contractVersion','my_ledger_event_work_attention_v1',
+  'personEntityId',v_person,'items',v_rows,'sourceOwnedNotPersonalCopies',true);
+END
+$function$
+
+
+CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_schedule_correction_preflight_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_occurrence_id uuid, p_proposed_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_proposed_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_actor uuid;
+  v_principal uuid;
+  v_root boolean := false;
+  v_canonical local_intel.occurrences%rowtype;
+  v_overlay atlas.community_events%rowtype;
+  v_community_count integer;
+  v_zone_ok boolean;
+  v_proposed boolean;
+  v_claim_count integer;
+  v_booking_count integer;
+  v_other_ledger_count integer;
+  v_summary jsonb := '{}'::jsonb;
+  v_claims jsonb := '{}'::jsonb;
+  v_reasons jsonb := '[]'::jsonb;
+BEGIN
+  -- Native Person -> exact Ledger -> Organization -> Occurrence source-bound
+  -- identity (this same guard underlies ordinary Event Work, NOT schedule writes).
+  v_actor := atlas.ledger_occurrence_shared_work_actor_self_v1(
+    p_organization_id,p_ledger_id,p_occurrence_id);
+  -- A bounded Event identity grant is not broad schedule/resource disclosure.
+  PERFORM 1 FROM atlas.capability_root_authority_context_self_v1(p_ledger_id);
+
+  IF (p_proposed_starts_at IS NULL) IS DISTINCT FROM
+     (p_proposed_ends_at IS NULL) THEN
+    RAISE EXCEPTION 'Proposed interval requires both endpoints.'
+      USING ERRCODE='22023';
+  END IF;
+  v_proposed := p_proposed_starts_at IS NOT NULL;
+  IF v_proposed AND (
+      NOT isfinite(p_proposed_starts_at) OR
+      NOT isfinite(p_proposed_ends_at) OR
+      p_proposed_ends_at <= p_proposed_starts_at OR
+      p_proposed_ends_at - p_proposed_starts_at > interval '7 days') THEN
+    RAISE EXCEPTION 'Proposed absolute interval must be finite and ordered.'
+      USING ERRCODE='22023';
+  END IF;
+
+  SELECT * INTO STRICT v_canonical
+  FROM local_intel.occurrences o WHERE o.id=p_occurrence_id;
+
+  -- Preserve the Event Index's no-silent-selection rule when the same
+  -- canonical Occurrence is linked to multiple active Organizations within
+  -- one Ledger. A requested Organization ID is not a tie-break authority.
+  IF (
+    SELECT count(DISTINCT lop.organization_id)
+    FROM atlas.ledger_organization_participations lop
+    JOIN atlas.organization_occurrence_bindings ob
+      ON ob.organization_id=lop.organization_id
+     AND ob.occurrence_id=p_occurrence_id
+     AND ob.binding_state='active'
+    WHERE lop.ledger_id=p_ledger_id
+      AND lop.status='active' AND lop.ended_at IS NULL
+      AND lop.participation_kind IN ('governing','operating')
+  ) <> 1 THEN
+    RAISE EXCEPTION 'Unresolved multi-Organization Occurrence; source adjudication required.'
+      USING ERRCODE='23514';
+  END IF;
+
+  -- A one-to-many overlay is a genuine source ambiguity, never choose the
+  -- newest or first row as the source of authority.
+  SELECT count(*)::integer INTO v_community_count
+  FROM atlas.organization_occurrence_bindings ob
+  JOIN atlas.community_events ce ON ce.occurrence_binding_id=ob.id
+  WHERE ob.occurrence_id=p_occurrence_id
+    AND ob.organization_id=p_organization_id
+    AND ob.binding_state='active'
+    AND ce.visibility_scope='farm_shared';
+
+  IF v_community_count<>1 THEN
+    RAISE EXCEPTION 'Exactly one admitted shared operational assertion is required for this source adapter.'
+      USING ERRCODE='23514';
+  END IF;
+
+  SELECT ce.* INTO STRICT v_overlay
+  FROM atlas.organization_occurrence_bindings ob
+  JOIN atlas.community_events ce ON ce.occurrence_binding_id=ob.id
+  WHERE ob.occurrence_id=p_occurrence_id
+    AND ob.organization_id=p_organization_id
+    AND ob.binding_state='active'
+    AND ce.visibility_scope='farm_shared';
+
+  SELECT EXISTS(
+    SELECT 1 FROM pg_catalog.pg_timezone_names tz
+    WHERE tz.name=v_overlay.timezone_name
+  ) INTO v_zone_ok;
+
+  -- Independent Ledger root governance is only a *candidate* ability to
+  -- request a source-owned correction. It does NOT itself authorize writes
+  -- to Shared Intelligence, resource claims or third-party commitments.
+  v_principal:=atlas.current_principal_id_v1();
+  v_root:=coalesce(
+    v_principal IS NOT NULL AND
+    atlas.principal_has_ledger_authority_v1(v_principal,p_ledger_id),false);
+
+  v_summary:=jsonb_build_object(
+    'title',v_overlay.title IS DISTINCT FROM v_canonical.title,
+    'sourceStatus',v_overlay.status IS DISTINCT FROM v_canonical.status,
+    'startLocalTime',CASE WHEN v_zone_ok THEN
+      v_overlay.start_local_time IS DISTINCT FROM
+        (v_canonical.start_at AT TIME ZONE v_overlay.timezone_name)::time
+      ELSE NULL END,
+    'date',CASE WHEN v_zone_ok THEN
+      v_overlay.event_date IS DISTINCT FROM
+        (v_canonical.start_at AT TIME ZONE v_overlay.timezone_name)::date
+      ELSE NULL END,
+    'endLocalTime',CASE WHEN v_canonical.end_at IS NOT NULL AND v_zone_ok THEN
+      v_overlay.end_local_time IS DISTINCT FROM
+        (v_canonical.end_at AT TIME ZONE v_overlay.timezone_name)::time
+      ELSE NULL END
+  );
+
+  -- Booking/resource counts are not exposed to all ordinary Event viewers.
+  -- A Ledger seat can see an admitted Event; that is NOT a right to inspect
+  -- a venue's booking and resource utilization.
+  IF v_root THEN
+    SELECT count(*)::integer INTO v_claim_count
+      FROM ledger.occurrence_resource_claims c
+      WHERE c.ledger_id=p_ledger_id
+        AND c.occurrence_id=p_occurrence_id
+        AND c.claim_state IN ('confirmed','tentative');
+    SELECT count(*)::integer INTO v_booking_count
+      FROM ledger.bookings b
+      WHERE b.ledger_id=p_ledger_id
+        AND b.occurrence_id=p_occurrence_id
+        AND b.booking_state NOT IN ('cancelled');
+    SELECT count(*)::integer INTO v_other_ledger_count
+      FROM ledger.occurrence_calendar_bindings cb
+      WHERE cb.occurrence_id=p_occurrence_id
+        AND cb.ledger_id<>p_ledger_id
+        AND cb.binding_state='active';
+    v_claims:=jsonb_build_object(
+      'evaluation','root_governing_scoped_summary',
+      'activeResourceClaimCount',v_claim_count,
+      'nonCancelledBookingCount',v_booking_count,
+      'otherActiveLedgerBindingCount',v_other_ledger_count,
+      'actualClaimIntervalsOrAvailabilityNotDisclosed',true);
+    IF v_claim_count>0 THEN
+      v_reasons:=v_reasons||jsonb_build_array(
+        'resource_claims_need_source_owned_retime_review');
+    END IF;
+    IF v_booking_count>0 THEN
+      v_reasons:=v_reasons||jsonb_build_array(
+        'bookings_need_source_owned_commitment_review');
+    END IF;
+    IF v_other_ledger_count>0 THEN
+      v_reasons:=v_reasons||jsonb_build_array(
+        'canonical_occurrence_used_by_other_ledgers');
+    END IF;
+  ELSE
+    v_claims:=jsonb_build_object(
+      'evaluation','not_authorized',
+      'activeResourceClaimCount',null,
+      'nonCancelledBookingCount',null,
+      'otherActiveLedgerBindingCount',null,
+      'notEvaluatedIsNotZero',true);
+    v_reasons:=v_reasons||jsonb_build_array(
+      'governing_source_review_required');
+  END IF;
+  IF NOT v_zone_ok THEN
+    v_reasons:=v_reasons||jsonb_build_array(
+      'operational_timezone_not_recognized');
+  END IF;
+  IF NOT v_proposed THEN
+    v_reasons:=v_reasons||jsonb_build_array(
+      'exact_proposed_interval_not_submitted');
+  END IF;
+
+  -- These are hard non-negotiable unintegrated dependencies at this stage:
+  -- communications/public assertions and independent booking collision
+  -- preflight must be run by their own sources at actual write time.
+  v_reasons:=v_reasons||jsonb_build_array(
+    'source_owned_schedule_writer_not_released',
+    'communication_and_publication_impact_not_evaluated',
+    'resource_capacity_collision_preflight_not_completed');
+
+  RETURN jsonb_build_object(
+    'ok',true,
+    'contractVersion','ledger_occurrence_schedule_preflight_v1',
+    'scope',jsonb_build_object(
+      'ledgerId',p_ledger_id,'organizationId',p_organization_id,
+      'occurrenceId',p_occurrence_id),
+    'actorPersonId',v_actor,
+    'rootGoverningCandidate',v_root,
+    'canonicalSource',jsonb_build_object(
+      'ref',jsonb_build_object(
+        'authority','local_intel','kind','occurrence','id',v_canonical.id),
+      'title',v_canonical.title,'status',v_canonical.status,
+      'startsAt',v_canonical.start_at,'endsAt',v_canonical.end_at,
+      'updatedAt',v_canonical.updated_at),
+    'operationalSource',jsonb_build_object(
+      'ref',jsonb_build_object(
+        'authority','atlas','kind','community_event','id',v_overlay.id),
+      'title',v_overlay.title,'status',v_overlay.status,
+      'eventDate',v_overlay.event_date,
+      'startLocalTime',v_overlay.start_local_time,
+      'endLocalTime',v_overlay.end_local_time,
+      'timezoneName',v_overlay.timezone_name,
+      'updatedAt',v_overlay.updated_at),
+    'sourceComparisons',v_summary,
+    'sourceComparisonIsNotAdjudication',true,
+    'proposedInterval',CASE WHEN v_proposed THEN
+      jsonb_build_object(
+        'startsAt',p_proposed_starts_at,'endsAt',p_proposed_ends_at,
+        'changesCanonicalInterval',
+          (p_proposed_starts_at IS DISTINCT FROM v_canonical.start_at OR
+           p_proposed_ends_at IS DISTINCT FROM v_canonical.end_at),
+        'operationalWallClockComparison',CASE WHEN v_zone_ok THEN
+          jsonb_build_object(
+            'proposedLocalDate',
+              (p_proposed_starts_at AT TIME ZONE v_overlay.timezone_name)::date,
+            'proposedLocalStart',
+              (p_proposed_starts_at AT TIME ZONE v_overlay.timezone_name)::time,
+            'proposedLocalEnd',
+              (p_proposed_ends_at AT TIME ZONE v_overlay.timezone_name)::time)
+          ELSE null END)
+      ELSE null END,
+    'dependentSourceImpact',v_claims,
+    'commitBlockedReasons',v_reasons,
+    'approvedToCommit',false,
+    'readOnly',true,
+    'coverage',jsonb_build_object(
+      'sourceFamiliesEvaluated',jsonb_build_array(
+        'canonical_occurrence','one_farm_shared_community_event',
+        'native_ledger_occurrence_binding'),
+      'sensitiveResourceSummaryEvaluatedOnlyForRoot',v_root,
+      'communicationImpactComplete',false,
+      'crossOrganizationSourceWritersVerified',false,
+      'allBookingsAndResourceCapacityProvedAvailable',false,
+      'personalTemporalFieldComplete',false)
+  );
+END
+$function$
+
+
 COMMIT;
