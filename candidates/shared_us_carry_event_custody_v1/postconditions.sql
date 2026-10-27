@@ -108,27 +108,29 @@ BEGIN
 
  -- Baseline is an honest recorded import of the adopted historic revision, not
  -- a fictional history of changes that preceded event custody.
- INSERT INTO us.carry_case_streams_v1
- (owner_auth_user_id,stream_key,subject_kind,financial_plan_id)
- VALUES(v_a,'synthetic:historic_baseline','financial_expectation',p_a)
- RETURNING id INTO stream_b;
- PERFORM us.carry_append_event_v1(stream_b,'synthetic:baseline_open','CASE_OPENED',
-  '2027-01-01','USER_ASSERTED','synthetic:source-baseline',
-  '{"question":"What was known when this plan was adopted?"}'::jsonb,1);
- PERFORM us.carry_append_event_v1(stream_b,'synthetic:baseline_import','BASELINE_IMPORTED',
+ rejected:=false;
+ BEGIN
+  INSERT INTO us.carry_case_streams_v1
+  (owner_auth_user_id,stream_key,subject_kind,financial_plan_id)
+  VALUES(v_a,'synthetic:duplicate_stream','financial_expectation',p_a);
+ EXCEPTION WHEN unique_violation THEN rejected:=true; END;
+ IF NOT rejected THEN RAISE EXCEPTION 'A plan acquired duplicate financial history streams'; END IF;
+ -- Synthetic import of the now-adopted revision; production cutover imports
+ -- the existing adopted historical revision directly after CASE_OPENED.
+ PERFORM us.carry_append_event_v1(stream_a,'synthetic:baseline_import','BASELINE_IMPORTED',
   '2027-01-01','OBSERVED','synthetic:source-baseline',
-  jsonb_build_object('revision_id',r_a::text),2);
+  jsonb_build_object('revision_id',r_a::text),4);
  SELECT count(*),max(ev.payload->>'snapshot_digest') INTO n,expected_digest
  FROM us.carry_case_events_v1 ev
- WHERE ev.stream_id=stream_b AND ev.event_type='BASELINE_IMPORTED';
+ WHERE ev.stream_id=stream_a AND ev.event_type='BASELINE_IMPORTED';
  IF n<>1 OR length(expected_digest)<>64 THEN
   RAISE EXCEPTION 'Historic baseline digest missing'; END IF;
 
  rejected:=false;
  BEGIN
-  PERFORM us.carry_append_event_v1(stream_b,'synthetic:second_import','BASELINE_IMPORTED',
+  PERFORM us.carry_append_event_v1(stream_a,'synthetic:second_import','BASELINE_IMPORTED',
   '2027-01-01','OBSERVED','synthetic:source-baseline',
-  jsonb_build_object('revision_id',r_a::text),3);
+  jsonb_build_object('revision_id',r_a::text),5);
  EXCEPTION WHEN unique_violation THEN rejected:=true; END;
  IF NOT rejected THEN RAISE EXCEPTION 'Duplicated baseline accepted'; END IF;
 
