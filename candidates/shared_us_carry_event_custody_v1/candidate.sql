@@ -170,6 +170,24 @@ BEGIN
    THEN RAISE EXCEPTION 'Carry v1 proposal payload invalid' USING ERRCODE='22023'; END IF;
  END IF;
 
+ -- A retry after sealing must succeed even though the target revision now
+ -- reads 'adopted'. Resolve an existing action BEFORE evaluating fresh state.
+ SELECT * INTO v_existing FROM us.carry_case_events_v1
+  WHERE stream_id=p_stream_id AND idempotency_key=p_action_key;
+ IF v_existing.id IS NOT NULL THEN
+  IF v_existing.event_type IS DISTINCT FROM p_event_type
+   OR v_existing.effective_on IS DISTINCT FROM p_effective_on
+   OR v_existing.source_ref IS DISTINCT FROM p_source_ref
+   OR v_existing.epistemic_class IS DISTINCT FROM p_epistemic_class
+   OR (CASE WHEN p_event_type IN ('BASELINE_IMPORTED','REVISION_SEALED')
+       THEN jsonb_build_object('revision_id',v_existing.payload->>'revision_id')
+       ELSE v_existing.payload END) IS DISTINCT FROM p_payload
+  THEN RAISE EXCEPTION 'Idempotency key used for different Carry event'
+     USING ERRCODE='23505'; END IF;
+  RETURN QUERY SELECT v_existing.id,v_existing.stream_sequence,v_existing.event_digest,true;
+  RETURN;
+ END IF;
+
  -- Derive the provenance of imported or sealed financial snapshots ourselves.
  IF p_event_type IN ('BASELINE_IMPORTED','REVISION_SEALED') THEN
    BEGIN
@@ -201,15 +219,6 @@ BEGIN
  v_input:=pg_catalog.encode(extensions.digest(pg_catalog.convert_to(
     jsonb_build_array(p_event_type,1,p_effective_on,p_epistemic_class,
       p_source_ref,v_payload)::text,'UTF8'),'sha256'),'hex');
- SELECT * INTO v_existing FROM us.carry_case_events_v1
-    WHERE stream_id=p_stream_id AND idempotency_key=p_action_key;
- IF v_existing.id IS NOT NULL THEN
-   IF v_existing.input_digest<>v_input THEN
-     RAISE EXCEPTION 'Idempotency key used for different Carry event' USING ERRCODE='23505';
-   END IF;
-   RETURN QUERY SELECT v_existing.id,v_existing.stream_sequence,v_existing.event_digest,true;
-   RETURN;
- END IF;
  SELECT * INTO v_last FROM us.carry_case_events_v1
   WHERE stream_id=p_stream_id ORDER BY stream_sequence DESC LIMIT 1;
  v_seq:=coalesce(v_last.stream_sequence,0)+1;
