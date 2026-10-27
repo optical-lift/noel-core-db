@@ -10,6 +10,7 @@ DECLARE
  v_event_grant text;
  v_work_detail text;
  v_work_extension text;
+ v_my_work text;
  v_constraint text;
 BEGIN
  SELECT pg_get_functiondef('atlas.ledger_occurrence_shared_index_self_api_v1(uuid)'::regprocedure)
@@ -28,6 +29,8 @@ BEGIN
    INTO v_work_detail;
  SELECT pg_get_functiondef('atlas.ledger_occurrence_work_extension_self_api_v1(uuid,uuid,uuid)'::regprocedure)
    INTO v_work_extension;
+ SELECT pg_get_functiondef('atlas.connected_person_my_work_self_api_v1(integer,uuid)'::regprocedure)
+   INTO v_my_work;
  SELECT pg_get_constraintdef(c.oid) INTO v_constraint
  FROM pg_constraint c WHERE c.conrelid='atlas.subject_disclosure_decision_events_v1'::regclass
    AND c.conname='subject_disclosure_supported_subject_v1';
@@ -62,6 +65,9 @@ BEGIN
    OR position('v_visible_work_ids' IN v_work_extension)=0
    OR position('att.person_entity_id=v_actor' IN v_work_extension)=0 THEN
    RAISE EXCEPTION 'Event identity grants leaked unrelated Work, colleagues or history';
+ END IF;
+ IF v_my_work IS NULL OR position('''canPlace'',false' IN v_my_work)=0 THEN
+   RAISE EXCEPTION 'Person My Work still falsely advertises Company schedule mutation';
  END IF;
  IF v_constraint IS NULL OR position('event' IN v_constraint)=0
      OR position('occurrence' IN v_constraint)=0 THEN
