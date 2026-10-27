@@ -4,7 +4,7 @@ DO $test$ BEGIN
  AND indexname='communication_mail_person_current_v1')
  THEN RAISE EXCEPTION 'Missing exact endpoint + Person current-decision index'; END IF;
  IF has_table_privilege('authenticated','atlas.communication_person_mail_read_decisions_v1','SELECT')
- OR has_function_privilege('anon','public.person_mail_events_self_v1(uuid,integer,timestamptz)','EXECUTE')
+ OR has_function_privilege('anon','public.person_mail_events_self_v1(uuid,integer,timestamptz,uuid)','EXECUTE')
  OR has_function_privilege('anon','public.set_person_mail_read_self_v1(uuid,uuid,uuid,date,text,boolean,uuid,text)','EXECUTE')
  THEN RAISE EXCEPTION 'Mailbox decision/public reader exposed'; END IF;
  IF EXISTS(SELECT 1 FROM atlas.communication_person_mail_read_decisions_v1)
