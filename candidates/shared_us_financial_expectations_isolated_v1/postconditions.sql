@@ -10,6 +10,9 @@ DECLARE
   line_a uuid;
   obs_a uuid;
   obs_b uuid;
+  snapshot_line uuid;
+  snapshot_old uuid;
+  snapshot_new uuid;
   n integer;
   observed numeric;
   state text;
@@ -140,6 +143,23 @@ BEGIN
   IF observed<>260 OR state<>'partial_observed_coverage' THEN
    RAISE EXCEPTION 'Corrected source not reflected'; END IF;
 
+  INSERT INTO us.financial_expectation_lines
+    (owner_auth_user_id,revision_id,period_month,line_key,economic_scope,money_role,expectation_state,forecast_amount)
+    VALUES(owner_a,revision_a,'2027-01-01','snapshot_check','personal','debt_balance','estimated',500)
+    RETURNING id INTO snapshot_line;
+  INSERT INTO us.financial_observed_evidence
+    (owner_auth_user_id,source_family,source_key,observed_on,economic_scope,money_role,amount,evidence_grade,evidence_ref)
+    VALUES(owner_a,'synthetic','synthetic:balance_early','2027-01-04','personal','debt_balance',400,'self_reported','synthetic-early')
+    RETURNING id INTO snapshot_old;
+  INSERT INTO us.financial_observed_evidence
+    (owner_auth_user_id,source_family,source_key,observed_on,economic_scope,money_role,amount,evidence_grade,evidence_ref)
+    VALUES(owner_a,'synthetic','synthetic:balance_later','2027-01-26','personal','debt_balance',300,'self_reported','synthetic-later')
+    RETURNING id INTO snapshot_new;
+  INSERT INTO us.financial_expectation_actual_links(owner_auth_user_id,revision_id,line_id,evidence_id)
+    VALUES(owner_a,revision_a,snapshot_line,snapshot_old),
+          (owner_a,revision_a,snapshot_line,snapshot_new);
+  SELECT reported_amount INTO observed FROM us.financial_expectation_comparison_v1 WHERE line_id=snapshot_line;
+  IF observed <> 300 THEN RAISE EXCEPTION 'Balance snapshot aggregation wrong'; END IF;
   rejected:=false;
   BEGIN
    UPDATE us.financial_expectation_lines SET forecast_amount=999
