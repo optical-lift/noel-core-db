@@ -8,6 +8,8 @@ DECLARE
  v_attention text;
  v_schedule text;
  v_event_grant text;
+ v_work_detail text;
+ v_work_extension text;
  v_constraint text;
 BEGIN
  SELECT pg_get_functiondef('atlas.ledger_occurrence_shared_index_self_api_v1(uuid)'::regprocedure)
@@ -22,6 +24,10 @@ BEGIN
    INTO v_schedule;
  SELECT pg_get_functiondef('atlas.governor_set_subject_disclosure_self_api_v1(uuid,uuid,uuid,text,text,uuid,text,text,uuid,text)'::regprocedure)
    INTO v_event_grant;
+ SELECT pg_get_functiondef('atlas.ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid)'::regprocedure)
+   INTO v_work_detail;
+ SELECT pg_get_functiondef('atlas.ledger_occurrence_work_extension_self_api_v1(uuid,uuid,uuid)'::regprocedure)
+   INTO v_work_extension;
  SELECT pg_get_constraintdef(c.oid) INTO v_constraint
  FROM pg_constraint c WHERE c.conrelid='atlas.subject_disclosure_decision_events_v1'::regclass
    AND c.conname='subject_disclosure_supported_subject_v1';
@@ -47,6 +53,15 @@ BEGIN
      OR position('occurrence_calendar_bindings' IN v_event_grant)=0
      OR position('company_work_native_ledger_owner_self_v1' IN v_event_grant)=0 THEN
    RAISE EXCEPTION 'Original Event disclosure does not require source-bound governor intent';
+ END IF;
+ IF v_work_detail IS NULL OR v_work_extension IS NULL
+   OR position('person_original_work_identity_disclosed_self_v1' IN v_work_detail)=0
+   OR position('person_original_work_identity_disclosed_self_v1' IN v_work_extension)=0
+   OR position('v_root' IN v_work_detail)=0
+   OR position('v_root' IN v_work_extension)=0
+   OR position('v_visible_work_ids' IN v_work_extension)=0
+   OR position('att.person_entity_id=v_actor' IN v_work_extension)=0 THEN
+   RAISE EXCEPTION 'Event identity grants leaked unrelated Work, colleagues or history';
  END IF;
  IF v_constraint IS NULL OR position('event' IN v_constraint)=0
      OR position('occurrence' IN v_constraint)=0 THEN
