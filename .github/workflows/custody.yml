@@ -32,6 +32,74 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_universal_person_authority.py'
           python3 scripts/check-universal-person-authority.py
 
+      - name: Validate held Atlas original Work source candidates
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/check-atlas-universal-original-work-candidates.py
+
+      - name: Validate ordered Atlas universal Work scratch bundle
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/assemble-atlas-universal-original-work-candidate.py
+
+      - name: Parse Atlas Work PostgreSQL and PLpgSQL grammar
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 scripts/parse-atlas-universal-original-work-candidates.py
+
+      - name: Validate universal Work local signed probe source
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-universal-original-work-signed-http.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("scripts/validate-atlas-universal-original-work-signed-http.py").read_text()
+          for name in (
+            "split_original_canonical_work_owner_self_api_v1",
+            "owner_direct_assign_existing_original_work_self_api_v1",
+            "connected_person_my_work_self_api_v1",
+            "governor_set_subject_disclosure_self_api_v1",
+            "connected_person_original_work_subject_self_api_v1",
+            "report_connected_person_company_work_self_api_v1",
+            "household_laundry_current_self_api_v1",
+            "record_household_laundry_observation_self_api_v1",
+            "establish_household_laundry_original_work_self_api_v1",
+            "household_laundry_explicit_rhythm_decide_self_api_v1",
+            "record_household_laundry_wash_started_self_api_v1",
+          ):
+            assert name in s, name
+          assert "127[.]0[.]0[.]1" in s and "example.invalid" not in s
+          assert "zirqkouammpwxlqfbsvf" not in s
+          print("PASS local-only universal original Work signed source probe; not executed")
+          PY
+
+      - name: Generate governed scratch migration identity
+        if: github.event_name == 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase-cli.tgz" -C "$RUNNER_TEMP" supabase
+          chmod 755 "$RUNNER_TEMP/supabase"
+          test "$("$RUNNER_TEMP/supabase" --version | tail -n1)" = '2.116.0'
+          mkdir -p "$RUNNER_TEMP/universal-original-work-source"
+          cd "$RUNNER_TEMP/universal-original-work-source"
+          "$RUNNER_TEMP/supabase" init --force
+          "$RUNNER_TEMP/supabase" migration new atlas_universal_original_work_integrated_v1
+          mapfile -t migrations < <(find supabase/migrations -maxdepth 1 -name '*_atlas_universal_original_work_integrated_v1.sql' -type f)
+          test "${#migrations[@]}" = 1
+          candidate="$GITHUB_WORKSPACE/candidates/atlas/atlas_universal_original_work_integrated_v1/candidate.sql"
+          cp "$candidate" "${migrations[0]}"
+          version="$(basename "${migrations[0]}")"
+          [[ "$version" =~ ^[0-9]{14}_atlas_universal_original_work_integrated_v1[.]sql$ ]]
+          cd "$GITHUB_WORKSPACE"
+          bash scripts/check-migration-release-lane.sh "${version:0:14}" atlas "$RUNNER_TEMP/universal-original-work-source/supabase/migrations/$version"
+          echo "GOVERNED_CLI_SCRATCH_MIGRATION_NAME=$version"
+          echo "This is an ephemeral CLI-generated test identity only; it is not committed or deployed."
+
       - name: Verify WNPH product schema membrane
         run: bash scripts/check-wnph-membrane.sh
 

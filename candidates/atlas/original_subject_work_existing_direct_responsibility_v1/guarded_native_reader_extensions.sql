@@ -1,0 +1,2760 @@
+BEGIN;
+-- Extension of the installed original canonical Person Work readers/guards.
+-- Source definitions are based on the signed/current Noel function bodies
+-- at 2026-10-26. Re-audit the full diff before applying after split candidate.
+-- One native allocation identity, not a parallel farm task engine.
+-- Internal signed Person's Work-content identity admission. Responsibility is
+-- not permission to discover linked Subject content. Original Work titles
+-- and instructions are unstructured: both identity and condition must grant.
+CREATE OR REPLACE FUNCTION atlas.person_original_work_identity_disclosed_self_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_person_id uuid
+) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+ SELECT coalesce(auth.uid() IS NOT NULL
+  AND atlas.current_person_id_v1()=p_person_id
+  AND atlas.person_has_native_ledger_connection_v1(p_organization_id,p_ledger_id,p_person_id)
+  AND NOT EXISTS(
+    SELECT 1 FROM atlas.work_item_context_links l
+    WHERE l.organization_id=p_organization_id AND l.work_item_id=p_work_item_id
+      AND l.subject_domain='spatial' AND l.subject_kind='growing_object'
+      AND (
+       NOT atlas.has_current_subject_disclosure_v1(
+         p_ledger_id,p_person_id,l.subject_domain,l.subject_kind,l.subject_id,'identity')
+       OR NOT atlas.has_current_subject_disclosure_v1(
+         p_ledger_id,p_person_id,l.subject_domain,l.subject_kind,l.subject_id,'condition')
+      )
+  ),false);
+$function$;
+REVOKE ALL ON FUNCTION atlas.person_original_work_identity_disclosed_self_v1(uuid,uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
+
+CREATE OR REPLACE FUNCTION atlas.connected_person_my_work_self_api_v1(p_limit integer DEFAULT 50, p_after_allocation_id uuid DEFAULT NULL::uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_self uuid := atlas.current_person_id_v1();
+  v_items jsonb := '[]'::jsonb;
+  v_more boolean := false;
+  v_next uuid := NULL;
+BEGIN
+  IF auth.uid() IS NULL OR v_self IS NULL THEN
+    RAISE EXCEPTION 'Signed-in canonical Person required' USING errcode='42501';
+  END IF;
+  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 THEN
+    RAISE EXCEPTION 'Limit must be between 1 and 100' USING errcode='22023';
+  END IF;
+
+  WITH eligible AS MATERIALIZED (
+    SELECT
+      a.id allocation_id,w.id work_id,w.organization_id,
+      (a.establishment_basis->>'nativeLedgerId')::uuid ledger_id,
+      w.title,w.instructions,w.result_contract_key,
+      a.establishment_basis_kind,a.allocated_at,
+      plan.id plan_id,plan.plan_state,
+      plan.planned_service_date,plan.exposure_service_date,
+      CASE WHEN plan.plan_state='active'
+        AND plan.first_planned_service_date IS NOT NULL
+        AND plan.first_planned_service_date IS DISTINCT FROM plan.planned_service_date
+        AND last_plan_event.event_kind='rescheduled'
+        AND last_plan_event.to_planned_service_date=plan.planned_service_date
+        THEN plan.first_planned_service_date ELSE NULL
+      END verified_moved_from_date,
+      coalesce(plan_counts.current_plan_count,0) current_plan_count,
+      coalesce(relevance.has_relevance,false) has_relevance
+    FROM atlas.work_allocations a
+    JOIN atlas.work_items w ON w.id=a.work_item_id
+      AND w.organization_id=a.organization_id
+    LEFT JOIN LATERAL (
+      SELECT p.id,p.plan_state,p.planned_service_date,p.exposure_service_date,
+        p.first_planned_service_date
+      FROM atlas.work_execution_plans p
+      WHERE p.work_item_id=w.id AND p.organization_id=w.organization_id
+        AND p.responsible_allocation_id=a.id
+        AND p.plan_state IN ('active','needs_replan')
+      ORDER BY CASE WHEN p.plan_state='active' THEN 0 ELSE 1 END,
+        p.updated_at DESC,p.id DESC LIMIT 1
+    ) plan ON true
+    -- The last plan event, not a changed creation date or rollover count,
+    -- proves a deliberate reschedule. No plan event => no migration claim.
+    LEFT JOIN LATERAL (
+      SELECT e.event_kind,e.to_planned_service_date
+      FROM atlas.work_execution_plan_events e
+      WHERE e.organization_id=w.organization_id
+        AND e.work_item_id=w.id AND e.plan_id=plan.id
+      ORDER BY e.created_at DESC,e.id DESC LIMIT 1
+    ) last_plan_event ON true
+    LEFT JOIN LATERAL (
+      SELECT count(*)::integer current_plan_count
+      FROM atlas.work_execution_plans p
+      WHERE p.work_item_id=w.id AND p.organization_id=w.organization_id
+        AND p.plan_state IN ('active','needs_replan')
+    ) plan_counts ON true
+    LEFT JOIN LATERAL (
+      SELECT EXISTS (
+        SELECT 1 FROM atlas.company_work_native_ledger_relevance x
+        WHERE x.work_item_id=w.id AND x.organization_id=w.organization_id
+          AND x.ledger_id=(a.establishment_basis->>'nativeLedgerId')::uuid
+          AND x.attribution_state='active'
+          AND (
+            x.evidence_kind IN ('owner_attested','participant_attested')
+            OR (x.evidence_kind='source_verified' AND EXISTS (
+              SELECT 1
+              FROM atlas.company_work_native_ledger_exact_source_v1(
+                x.work_item_id,x.ledger_id
+              ) verified
+              WHERE verified.source_schema=x.source_schema
+                AND verified.source_table=x.source_table
+                AND verified.source_id=x.source_id
+            ))
+          )
+      ) has_relevance
+    ) relevance ON true
+    WHERE a.allocation_role='responsible' AND a.state='active'
+      AND a.assignee_canonical_person_id=v_self
+      AND a.assignee_membership_id IS NULL
+      AND a.establishment_basis_kind IN (
+        'person_connection_receiver_uptake','delegated_under_standing_scope',
+        'ledger_connection_direct_assignment','original_subject_direct_assignment_v1'
+      )
+      AND w.work_state='open'
+      AND atlas.person_original_work_identity_disclosed_self_v1(w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self)
+      AND (p_after_allocation_id IS NULL OR a.id>p_after_allocation_id)
+      AND atlas.person_has_native_ledger_connection_v1(
+        w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,v_self
+      )
+    ORDER BY a.id
+    LIMIT p_limit+1
+  ), numbered AS (
+    SELECT e.*,row_number() OVER (ORDER BY e.allocation_id) rn
+    FROM eligible e
+  )
+  SELECT
+    coalesce(jsonb_agg(
+      jsonb_build_object(
+        'workItemId',r.work_id,'allocationId',r.allocation_id,
+        'organizationId',r.organization_id,'ledgerId',r.ledger_id,
+        'title',r.title,'instructions',r.instructions,
+        'resultContractKey',r.result_contract_key,
+        'establishmentBasisKind',r.establishment_basis_kind,
+        'allocatedAt',r.allocated_at,'planId',r.plan_id,
+        'planState',r.plan_state,'workOn',r.planned_service_date,
+        'exposureDate',r.exposure_service_date,
+        'verifiedMovedFromDate',r.verified_moved_from_date,
+        'workRelevanceVerified',r.has_relevance,
+        'canPlace',r.has_relevance AND r.current_plan_count<=1,
+        'scheduleState',CASE
+          WHEN r.current_plan_count>1 THEN 'conflict'
+          WHEN r.plan_id IS NULL AND r.current_plan_count>0 THEN 'unverified_plan'
+          WHEN r.plan_id IS NULL THEN 'unscheduled'
+          WHEN r.plan_state='needs_replan' THEN 'needs_replan'
+          WHEN r.plan_state='active' AND
+            r.planned_service_date IS NOT NULL AND
+            r.exposure_service_date IS NOT NULL THEN 'scheduled'
+          ELSE 'unverified_plan'
+        END
+      ) ORDER BY r.allocation_id
+    ) FILTER(WHERE r.rn<=p_limit),'[]'::jsonb),
+    count(*)>p_limit,
+    (array_agg(r.allocation_id ORDER BY r.rn) FILTER (WHERE r.rn=p_limit))[1]
+  INTO v_items,v_more,v_next
+  FROM numbered r;
+
+  RETURN jsonb_build_object(
+    'ok',true,'contractVersion','connected_person_my_work_v1',
+    'personId',v_self,'items',v_items,
+    'hasMore',v_more,'nextAllocationId',CASE WHEN v_more THEN v_next ELSE NULL END,
+    'sourceScope','active_responsible_person_native_ledger_work',
+    'scheduleReadAcrossAllDates',true,
+    'optionalRequestsExcluded',true,'noPersonalTaskCreated',true
+  );
+END
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.connected_person_place_work_self_api_v1(p_work_item_id uuid, p_service_date date, p_reason text DEFAULT 'Recipient selected the work day for their accepted Ledger responsibility.'::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_person uuid;v_w atlas.work_items%rowtype;v_a atlas.work_allocations%rowtype;
+ v_ledger uuid;v_old atlas.work_execution_plans%rowtype;
+ v_plan atlas.work_execution_plans%rowtype;v_window jsonb;v_kind text;
+ v_reason text:=nullif(btrim(coalesce(p_reason,'')),'');
+begin
+ if auth.uid() is null or (atlas.reality_access_self_api_v1()->>'state') is distinct from 'ready'
+ then raise exception 'Signed-in canonical Person required' using errcode='42501';end if;
+ v_person:=atlas.current_person_id_v1();
+ if p_work_item_id is null or v_reason is null or length(v_reason) not between 12 and 1200
+ then raise exception 'Exact Work and meaningful placement reason required' using errcode='22023';end if;
+ perform pg_advisory_xact_lock(hashtextextended(
+   'atlas.company_work.responsibility:'||p_work_item_id::text,0));
+ perform pg_advisory_xact_lock(hashtextextended(
+   'atlas.company_work.plan:'||p_work_item_id::text,0));
+ select * into v_w from atlas.work_items where id=p_work_item_id and work_state='open' for update;
+ if v_w.id is null then raise exception 'Open Company Work required' using errcode='23514';end if;
+ select * into v_a from atlas.work_allocations a
+  where a.work_item_id=v_w.id and a.organization_id=v_w.organization_id
+   and a.allocation_role='responsible' and a.state='active'
+   and a.assignee_membership_id is null
+   and a.assignee_canonical_person_id=v_person
+   and a.establishment_basis_kind in ('person_connection_receiver_uptake','delegated_under_standing_scope','ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
+  order by a.allocated_at desc,a.id desc limit 1;
+ if v_a.id is null then raise exception 'Only the active responsible Person may place their accepted Work' using errcode='42501';end if;
+ v_ledger:=(v_a.establishment_basis->>'nativeLedgerId')::uuid;
+ if v_ledger is null
+   or not atlas.person_has_native_ledger_connection_v1(v_w.organization_id,v_ledger,v_person)
+   or not exists(select 1 from atlas.company_work_native_ledger_relevance r
+     where r.organization_id=v_w.organization_id and r.work_item_id=v_w.id
+      and r.ledger_id=v_ledger and r.attribution_state='active')
+ then raise exception 'Exact current Ledger connection and Work relevance required' using errcode='42501';end if;
+
+ if not atlas.person_original_work_identity_disclosed_self_v1(v_w.organization_id,v_ledger,v_w.id,v_person)
+ then raise exception 'Undisclosed original Work Subject unavailable' using errcode='42501';end if;
+ select * into v_old from atlas.work_execution_plans
+   where work_item_id=v_w.id and organization_id=v_w.organization_id
+     and plan_state in ('active','needs_replan') for update;
+ if v_old.id is not null and v_old.responsible_allocation_id<>v_a.id
+ then raise exception 'Existing plan belongs to another responsibility' using errcode='23514';end if;
+ if v_old.id is not null and v_old.plan_state='active'
+  and v_old.planned_service_date is not distinct from p_service_date
+  and v_old.exposure_service_date is not distinct from p_service_date then
+   return jsonb_build_object('ok',true,'contractVersion','connected_person_work_placement_v1',
+    'state','already_placed','workItemId',v_w.id,'ledgerId',v_ledger,
+    'responsiblePersonId',v_person,'planId',v_old.id,'executionDate',p_service_date,
+    'newWorkCreated',false,'idempotent',true);
+ end if;
+ if p_service_date is null then
+   if v_old.id is null then
+    return jsonb_build_object('ok',true,'contractVersion','connected_person_work_placement_v1',
+     'state','already_unplanned','workItemId',v_w.id,'ledgerId',v_ledger,
+     'responsiblePersonId',v_person,'executionDate',null,'newWorkCreated',false);
+   end if;
+   update atlas.work_execution_plans set plan_state='withdrawn',plan_reason=v_reason,
+    metadata=metadata||jsonb_build_object('actorPersonId',v_person,'source','person_self_unplan_v1')
+    where id=v_old.id;
+   insert into atlas.work_execution_plan_events(
+     organization_id,work_item_id,plan_id,event_kind,
+     from_planned_service_date,from_exposure_service_date,actor_membership_id,reason,metadata)
+   values(v_w.organization_id,v_w.id,v_old.id,'withdrawn',
+     v_old.planned_service_date,v_old.exposure_service_date,null,v_reason,
+     jsonb_build_object('actorPersonId',v_person,'source','person_self_unplan_v1'));
+   return jsonb_build_object('ok',true,'contractVersion','connected_person_work_placement_v1',
+    'state','unplanned','workItemId',v_w.id,'ledgerId',v_ledger,
+    'responsiblePersonId',v_person,'planId',v_old.id,'executionDate',null,'newWorkCreated',false);
+ end if;
+ v_window:=atlas.company_work_execution_plan_window_check_v1(v_w.id,p_service_date);
+ if not coalesce((v_window->>'allowed')::boolean,false) then
+  raise exception 'Requested work-on day conflicts with source Work window' using errcode='23514';end if;
+ if v_old.id is null then
+   insert into atlas.work_execution_plans(
+    organization_id,work_item_id,responsible_allocation_id,assignee_membership_id,
+    planned_by_membership_id,plan_state,first_planned_service_date,planned_service_date,
+    exposure_service_date,plan_reason,metadata)
+   values(v_w.organization_id,v_w.id,v_a.id,null,null,'active',
+     p_service_date,p_service_date,p_service_date,v_reason,
+     jsonb_build_object('actorPersonId',v_person,'source','person_self_place_v1',
+      'personNative',true))
+   returning * into v_plan;
+   v_kind:='planned';
+ else
+   update atlas.work_execution_plans set
+    planned_service_date=p_service_date,exposure_service_date=p_service_date,
+    plan_state='active',plan_reason=v_reason,planned_by_membership_id=null,
+    rollover_count=0,
+    metadata=metadata||jsonb_build_object('actorPersonId',v_person,'sourceChange','person_self_place_v1')
+    where id=v_old.id returning * into v_plan;
+   v_kind:=case when v_old.planned_service_date is distinct from p_service_date
+     then 'rescheduled' else 'planned' end;
+ end if;
+ insert into atlas.work_execution_plan_events(
+    organization_id,work_item_id,plan_id,event_kind,
+    from_planned_service_date,to_planned_service_date,
+    from_exposure_service_date,to_exposure_service_date,
+    actor_membership_id,reason,metadata)
+ values(v_w.organization_id,v_w.id,v_plan.id,v_kind,
+    v_old.planned_service_date,v_plan.planned_service_date,
+    v_old.exposure_service_date,v_plan.exposure_service_date,
+    null,v_reason,jsonb_build_object('actorPersonId',v_person,'source','person_self_place_v1'));
+ return jsonb_build_object('ok',true,'contractVersion','connected_person_work_placement_v1',
+   'state','placed','workItemId',v_w.id,'ledgerId',v_ledger,
+   'responsiblePersonId',v_person,'planId',v_plan.id,'executionDate',p_service_date,
+   'newWorkCreated',false,'workerReadProven',false);
+end$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.guard_work_allocation_responsibility_establishment_v2()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas'
+AS $function$
+declare
+  v_source text:=coalesce(new.metadata->>'source','');
+  v_requires_basis boolean:=false;
+  v_kind text:=lower(btrim(coalesce(new.establishment_basis_kind,'')));
+  v_basis jsonb:=new.establishment_basis;
+begin
+  if tg_op='UPDATE' then
+    if new.establishment_basis_kind is distinct from old.establishment_basis_kind
+       or new.establishment_basis is distinct from old.establishment_basis then
+      raise exception 'Exact Work responsibility establishment provenance is immutable once the allocation exists.'
+        using errcode='23514';
+    end if;
+  end if;
+
+  if new.allocation_role<>'responsible' or new.state<>'active' then
+    return new;
+  end if;
+
+  if tg_op='INSERT' then
+    v_requires_basis:=true;
+  elsif old.allocation_role is distinct from new.allocation_role
+        or old.state is distinct from new.state
+        or old.assignee_membership_id is distinct from new.assignee_membership_id then
+    v_requires_basis:=true;
+  end if;
+
+  -- Existing historical active responsibility can be updated/released without
+  -- fabricating a retrospective establishment basis.
+  if not v_requires_basis
+     and new.establishment_basis_kind is null
+     and new.establishment_basis is null then
+    return new;
+  end if;
+
+  -- Two transitional farm adapters remain live. New rows created by exactly
+  -- those named carriers are normalized as governed legacy reconstruction
+  -- without changing the adapters or backfilling historical rows.
+  if new.establishment_basis_kind is null
+     and v_source in (
+       'legacy_weekly_harvest_occurrence_assignment',
+       'explicit_worker_task_company_work_adoption_v2'
+     ) then
+    if v_source='legacy_weekly_harvest_occurrence_assignment'
+       and (
+         nullif(btrim(coalesce(new.metadata->>'plannedOccurrenceId','')),'') is null
+         or not exists(
+           select 1
+           from atlas.work_items work
+           where work.id=new.work_item_id
+             and work.organization_id=new.organization_id
+             and work.source_object_type='planned_work_occurrence'
+             and work.source_object_id::text=(new.metadata->>'plannedOccurrenceId')
+         )
+       ) then
+      raise exception 'Weekly-harvest reconstruction requires the exact planned-occurrence Work source.'
+        using errcode='23514';
+    end if;
+    if v_source='explicit_worker_task_company_work_adoption_v2'
+       and (
+         nullif(btrim(coalesce(new.metadata->>'legacyTaskId','')),'') is null
+         or not exists(
+           select 1
+           from atlas.work_items work
+           where work.id=new.work_item_id
+             and work.organization_id=new.organization_id
+             and work.source_object_type='legacy_task'
+             and work.source_object_id::text=(new.metadata->>'legacyTaskId')
+         )
+       ) then
+      raise exception 'Legacy-task reconstruction requires the exact legacy-task Work source.'
+        using errcode='23514';
+    end if;
+
+    new.establishment_basis_kind:='legacy_governed_reconstruction';
+    new.establishment_basis:=jsonb_strip_nulls(jsonb_build_object(
+      'contractVersion','exact_work_responsibility_establishment_v2',
+      'basisKind','legacy_governed_reconstruction',
+      'organizationId',new.organization_id,
+      'workItemId',new.work_item_id,
+      'assigneeMembershipId',new.assignee_membership_id,
+      'legacySource',v_source,
+      'legacyTaskId',new.metadata->>'legacyTaskId',
+      'plannedOccurrenceId',new.metadata->>'plannedOccurrenceId',
+      'normalizedAt',now()
+    ));
+    v_kind:=new.establishment_basis_kind;
+    v_basis:=new.establishment_basis;
+  end if;
+
+  if new.establishment_basis_kind is null
+     or new.establishment_basis is null
+     or jsonb_typeof(new.establishment_basis)<>'object' then
+    raise exception 'Active exact Work responsibility requires a governed establishment basis.'
+      using errcode='23514';
+  end if;
+
+  v_kind:=lower(btrim(new.establishment_basis_kind));
+  v_basis:=new.establishment_basis;
+
+  if v_kind not in (
+    'self_claim',
+    'self_adoption',
+    'self_initiated_outbound',
+    'delegated_under_standing_scope',
+    'legacy_governed_reconstruction',
+    'person_connection_receiver_uptake',
+    'ledger_connection_direct_assignment',
+    'original_subject_direct_assignment_v1'
+  ) then
+    raise exception 'Unsupported exact Work responsibility establishment basis: %.',v_kind
+      using errcode='23514';
+  end if;
+
+  -- A Person-native receipt uses the same one-responsible-allocation table.
+  -- Its source is an offered exact Work item, with receiver or witnessed
+  -- uptake; no Organization Membership or employee classification is invented.
+
+  -- A rooted native Ledger owner may issue an existing, source-bound Event
+  -- obligation to another actual Person connected to the same Ledger.
+  -- Unlike the legacy Event checklist, this uses the ORIGINAL Company Work ID.
+  -- No employee membership, impersonation or synthetic worker assent.
+  -- This is direct responsibility for an EXISTING original Work ID, not
+  -- ledger_direct_create_work and not a new Company/farm task.
+  if v_kind='original_subject_direct_assignment_v1' then
+    if v_source<>'original_subject_direct_assignment_v1'
+       or new.assignee_membership_id is not null
+       or new.assigned_by_membership_id is not null
+       or new.assignee_canonical_person_id is null
+       or coalesce(v_basis->>'contractVersion','')<>'exact_work_responsibility_establishment_v2'
+       or coalesce(v_basis->>'basisKind','')<>v_kind
+       or coalesce(v_basis->>'organizationId','')<>new.organization_id::text
+       or coalesce(v_basis->>'workItemId','')<>new.work_item_id::text
+       or coalesce(v_basis->>'assigneePersonId','')<>new.assignee_canonical_person_id::text
+       or nullif(v_basis->>'nativeLedgerId','') is null
+       or nullif(v_basis->>'decompositionId','') is null
+       or nullif(v_basis->>'senderPersonId','') is null
+       or nullif(v_basis->>'sourceActionId','') is null
+       or coalesce(v_basis->>'authorizationBasis','')<>'governor_exact_existing_original_work'
+    then
+      raise exception 'Exact original Work direct responsibility source fields missing'
+        using errcode='23514';
+    end if;
+    if atlas.current_person_id_v1() is distinct from (v_basis->>'senderPersonId')::uuid
+       or atlas.company_work_native_ledger_owner_self_v1(
+         new.organization_id,(v_basis->>'nativeLedgerId')::uuid)
+          is distinct from (v_basis->>'senderPersonId')::uuid
+       or not atlas.person_has_native_ledger_connection_v1(
+         new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
+         new.assignee_canonical_person_id)
+       or not exists(
+         select 1 from atlas.work_decomposition_members m
+         join atlas.work_decomposition_groups g on g.id=m.group_id
+         join atlas.work_items w on w.id=m.child_work_item_id
+         join atlas.company_work_native_ledger_relevance r
+           on r.work_item_id=w.id and r.organization_id=w.organization_id
+          and r.ledger_id=g.authorized_ledger_id and r.attribution_state='active'
+         where m.child_work_item_id=new.work_item_id
+           and g.id=(v_basis->>'decompositionId')::uuid
+           and g.authorized_ledger_id=(v_basis->>'nativeLedgerId')::uuid
+           and w.organization_id=new.organization_id
+           and w.work_state='open' and w.source_object_type='work_decomposition'
+           and w.metadata->>'originalParentWorkItemId'=g.parent_work_item_id::text
+       ) then
+       raise exception 'Exact original Work, connection or governing authority unavailable'
+         using errcode='23514';
+    end if;
+    return new;
+  end if;
+
+  if v_kind='ledger_connection_direct_assignment'
+     and v_source='existing_event_work_connected_direct_assignment_v1' then
+    if new.assignee_membership_id is not null
+       or new.assigned_by_membership_id is not null
+       or new.assignee_canonical_person_id is null
+       or coalesce(v_basis->>'contractVersion','')<>'exact_work_responsibility_establishment_v2'
+       or coalesce(v_basis->>'basisKind','')<>v_kind
+       or coalesce(v_basis->>'organizationId','')<>new.organization_id::text
+       or coalesce(v_basis->>'workItemId','')<>new.work_item_id::text
+       or coalesce(v_basis->>'assigneePersonId','')<>new.assignee_canonical_person_id::text
+       or nullif(v_basis->>'nativeLedgerId','') is null
+       or nullif(v_basis->>'occurrenceId','') is null
+       or nullif(v_basis->>'senderPersonId','') is null
+       or coalesce(v_basis->>'authorizationBasis','')<>
+          'governing_principal_and_active_mutual_ledger_connections'
+    then raise exception 'Existing Event obligation lacks exact governing Person, Work, Ledger and Event basis'
+      using errcode='23514';end if;
+    if atlas.current_person_id_v1() is distinct from (v_basis->>'senderPersonId')::uuid
+       or atlas.company_work_native_ledger_owner_self_v1(
+           new.organization_id,(v_basis->>'nativeLedgerId')::uuid)
+           is distinct from (v_basis->>'senderPersonId')::uuid
+       or not atlas.person_has_native_ledger_connection_v1(
+           new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
+           new.assignee_canonical_person_id)
+       or not exists(select 1 from atlas.work_items w
+          join atlas.work_item_context_links ctx on ctx.work_item_id=w.id
+           and ctx.organization_id=w.organization_id
+           and ctx.subject_domain='temporal' and ctx.subject_kind='occurrence'
+           and ctx.subject_id=(v_basis->>'occurrenceId')::uuid
+          join atlas.company_work_native_ledger_relevance rel
+           on rel.work_item_id=w.id and rel.organization_id=w.organization_id
+           and rel.ledger_id=(v_basis->>'nativeLedgerId')::uuid
+           and rel.attribution_state='active'
+          where w.id=new.work_item_id and w.organization_id=new.organization_id
+           and w.work_state='open'
+           and w.result_contract_key='ordinary_company_work_worker_attestation_v1'
+           and not exists(select 1 from atlas.ledger_occurrence_work_actions_v1 a
+            where a.ledger_id=rel.ledger_id
+             and a.occurrence_id=ctx.subject_id
+             and a.work_item_id=w.id and a.action_kind='removed'))
+    then raise exception 'Original Event Work or lawful owner/Person Ledger relationship is unavailable'
+      using errcode='23514';end if;
+    return new;
+  end if;
+
+  if v_kind='ledger_connection_direct_assignment' then
+    if new.assignee_membership_id is not null or new.assigned_by_membership_id is not null
+      or new.assignee_canonical_person_id is null
+      or coalesce(new.metadata->>'source','')<>'ledger_connected_direct_assignment_v1'
+      or coalesce(v_basis->>'contractVersion','')<>'exact_work_responsibility_establishment_v2'
+      or coalesce(v_basis->>'basisKind','')<>v_kind
+      or coalesce(v_basis->>'organizationId','')<>new.organization_id::text
+      or coalesce(v_basis->>'workItemId','')<>new.work_item_id::text
+      or coalesce(v_basis->>'assigneePersonId','')<>new.assignee_canonical_person_id::text
+      or nullif(v_basis->>'nativeLedgerId','') is null
+      or nullif(v_basis->>'senderPersonId','') is null
+      or coalesce(v_basis->>'authorizationBasis','')<>'active_mutual_native_ledger_connections'
+    then raise exception 'Connected direct assignment requires exact original Person and Ledger source' using errcode='23514';end if;
+    if atlas.current_person_id_v1() is distinct from (v_basis->>'senderPersonId')::uuid
+      or not atlas.person_has_native_ledger_connection_v1(
+         new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
+         (v_basis->>'senderPersonId')::uuid)
+      or not atlas.person_has_native_ledger_connection_v1(
+         new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
+         new.assignee_canonical_person_id)
+      or not exists(select 1 from atlas.work_items w
+         join atlas.company_work_native_ledger_relevance rel
+          on rel.work_item_id=w.id and rel.organization_id=w.organization_id
+          and rel.ledger_id=(v_basis->>'nativeLedgerId')::uuid
+          and rel.attribution_state='active' and rel.evidence_kind='participant_attested'
+         where w.id=new.work_item_id and w.organization_id=new.organization_id
+           and w.work_state='open'
+           and w.metadata->>'sourceContract'='ledger_connected_direct_assignment_v1'
+           and w.metadata->>'createdByPersonId'=v_basis->>'senderPersonId'
+           and w.metadata->>'recipientPersonId'=new.assignee_canonical_person_id::text)
+    then raise exception 'Connection-direct responsibility has no verified original Person and Ledger' using errcode='23514';end if;
+    return new;
+  end if;
+
+  if v_kind='person_connection_receiver_uptake' then
+    if new.assignee_membership_id is not null
+       or new.assignee_canonical_person_id is null
+       or coalesce(v_basis->>'contractVersion','')<>'exact_work_responsibility_establishment_v2'
+       or coalesce(v_basis->>'basisKind','')<>v_kind
+       or coalesce(v_basis->>'organizationId','')<>new.organization_id::text
+       or coalesce(v_basis->>'workItemId','')<>new.work_item_id::text
+       or coalesce(v_basis->>'targetPersonId','')<>new.assignee_canonical_person_id::text
+       or coalesce(v_basis->>'nativeLedgerId','')=''
+       or coalesce(v_basis->>'offerId','')=''
+       or coalesce(v_basis->>'uptakeKind','') not in ('recipient_self_accepted','owner_witnessed_acceptance')
+    then raise exception 'Exact Person-native receiver uptake provenance required' using errcode='23514';
+    end if;
+    if not exists(
+      select 1 from atlas.company_work_initial_responsibility_offers o
+      where o.id::text=v_basis->>'offerId'
+        and o.work_item_id=new.work_item_id
+        and o.organization_id=new.organization_id
+        and o.target_person_id=new.assignee_canonical_person_id
+        and o.ledger_id::text=v_basis->>'nativeLedgerId'
+        and o.target_membership_id is null
+        and o.offer_state in ('offered','accepted')
+        and o.offered_by_membership_id is not distinct from new.assigned_by_membership_id
+    ) then raise exception 'Person-native responsibility must trace to the exact accepted offer' using errcode='23514';
+    end if;
+    if not atlas.person_has_native_ledger_connection_v1(
+       new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
+       new.assignee_canonical_person_id) then
+      raise exception 'Responsible Person native Ledger connection no longer present' using errcode='23514';
+    end if;
+    if coalesce(v_basis->>'uptakeKind','')='owner_witnessed_acceptance'
+      and (length(btrim(coalesce(v_basis->>'receiverConsentEvidence','')))<16
+         or coalesce(v_basis->>'witnessPersonId','')='') then
+      raise exception 'Owner-witnessed uptake must preserve specific external consent evidence' using errcode='23514';
+    end if;
+    return new;
+  end if;
+
+  -- Native Ledger standing agreement: canonical Person is the assignee,
+  -- without invented Organization/employee membership. The original
+  -- membership-based delegated branch below remains unchanged.
+  if v_kind='delegated_under_standing_scope'
+     and new.assignee_canonical_person_id is not null then
+    if new.assignee_membership_id is not null
+      or (tg_op='INSERT' and new.assigned_by_membership_id is not null)
+      or coalesce(v_basis->>'contractVersion','')<>'exact_work_responsibility_establishment_v2'
+      or coalesce(v_basis->>'basisKind','')<>v_kind
+      or coalesce(v_basis->>'organizationId','')<>new.organization_id::text
+      or coalesce(v_basis->>'workItemId','')<>new.work_item_id::text
+      or coalesce(v_basis->>'assigneePersonId','')<>new.assignee_canonical_person_id::text
+      or nullif(v_basis->>'scopeId','') is null
+      or nullif(v_basis->>'nativeLedgerId','') is null then
+       raise exception 'Exact canonical Person standing-scope provenance required'
+         using errcode='23514';
+    end if;
+    if not exists(
+      select 1 from atlas.company_work_standing_assignment_scopes s
+      join atlas.work_items work
+        on work.id=new.work_item_id and work.organization_id=s.organization_id
+      -- Native governing authority belongs to the verified Principal,
+      -- not an Organization Membership/role label.
+      join atlas.principals issuer
+        on issuer.person_id=s.proposed_by_person_id
+        and issuer.status='active'
+      join atlas.principal_ledger_authorities grantor
+        on grantor.principal_id=issuer.id and grantor.ledger_id=s.ledger_id
+        and grantor.authority_kind='root_governing'
+        and grantor.status='active'
+      join atlas.company_work_native_ledger_relevance relevance
+        on relevance.work_item_id=work.id
+        and relevance.organization_id=s.organization_id
+        and relevance.ledger_id=s.ledger_id
+      where s.id::text=v_basis->>'scopeId'
+        and s.proposed_by_person_id=atlas.current_person_id_v1()
+        and s.organization_id=new.organization_id
+        and s.ledger_id::text=v_basis->>'nativeLedgerId'
+        and s.worker_person_id=new.assignee_canonical_person_id
+        and s.worker_membership_id is null
+        and s.scope_state='active' and s.accepted_at is not null
+        and s.accepted_by_person_id=new.assignee_canonical_person_id
+        and (s.valid_until is null or s.valid_until>now())
+        and (s.coverage_mode='ledger_all_work' OR
+          (s.coverage_mode='operation_class' AND
+           work.organization_unit_id=s.organization_unit_id AND
+           work.operation_class=s.covered_operation_class) OR
+          -- Exact-Work is a third source-bound match, never a class/text grant.
+          (s.coverage_mode='exact_work' AND
+           s.covered_work_item_id IS NOT NULL AND
+           s.covered_work_item_id=work.id))
+        and work.work_state='open'
+        and relevance.attribution_state='active'
+        and (relevance.evidence_kind='owner_attested' or
+          (relevance.evidence_kind='source_verified' and exists(
+            select 1 from atlas.company_work_native_ledger_exact_source_v1(
+              work.id,s.ledger_id) proof
+            where proof.source_schema=relevance.source_schema
+              and proof.source_table=relevance.source_table
+              and proof.source_id=relevance.source_id)))
+    ) then
+      raise exception 'Accepted canonical Person standing scope is not current for exact Work'
+         using errcode='23514';
+    end if;
+    if not atlas.person_has_native_ledger_connection_v1(
+      new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
+      new.assignee_canonical_person_id) then
+      raise exception 'Canonical responsible Person no longer connected to this Ledger'
+        using errcode='23514';
+    end if;
+    return new;
+  end if;
+
+  if coalesce(v_basis->>'contractVersion','')<>'exact_work_responsibility_establishment_v2'
+     or coalesce(v_basis->>'basisKind','')<>v_kind
+     or coalesce(v_basis->>'organizationId','')<>new.organization_id::text
+     or coalesce(v_basis->>'workItemId','')<>new.work_item_id::text
+     or coalesce(v_basis->>'assigneeMembershipId','')<>new.assignee_membership_id::text then
+    raise exception 'Responsibility establishment basis does not match the exact allocation.'
+      using errcode='23514';
+  end if;
+
+  if v_kind in ('self_claim','self_adoption','self_initiated_outbound') then
+    if new.assigned_by_membership_id is null
+       or new.assigned_by_membership_id is distinct from new.assignee_membership_id then
+      raise exception 'Self-established Work responsibility requires actor and assignee to be the same membership.'
+        using errcode='23514';
+    end if;
+    if coalesce(v_basis->>'actorMembershipId','')<>new.assignee_membership_id::text
+       or coalesce(v_basis->>'assigneeMembershipId','')<>new.assignee_membership_id::text then
+      raise exception 'Self-establishment basis membership provenance does not match the allocation.'
+        using errcode='23514';
+    end if;
+  end if;
+
+  if v_kind='self_claim'
+     and (
+       nullif(btrim(coalesce(v_basis->>'institutionalConversationId','')),'') is null
+       or nullif(btrim(coalesce(v_basis->>'responseCaseId','')),'') is null
+     ) then
+    raise exception 'Self-claim responsibility requires conversation and response-case provenance.'
+      using errcode='23514';
+  end if;
+
+  if v_kind='self_adoption'
+     and (
+       nullif(btrim(coalesce(v_basis->>'sourceKind','')),'') is null
+       or nullif(btrim(coalesce(v_basis->>'sourceId','')),'') is null
+     ) then
+    raise exception 'Self-adopted responsibility requires an exact source kind and source id.'
+      using errcode='23514';
+  end if;
+
+  if v_kind='self_initiated_outbound'
+     and nullif(btrim(coalesce(v_basis->>'outboundOperationId','')),'') is null then
+    raise exception 'Self-initiated outbound responsibility requires outbound-operation provenance.'
+      using errcode='23514';
+  end if;
+
+
+  if v_kind='delegated_under_standing_scope' then
+    if new.assigned_by_membership_id is null
+      or new.assigned_by_membership_id=new.assignee_membership_id
+      or coalesce(v_basis->>'scopeId','')=''
+      or coalesce(v_basis->>'nativeLedgerId','')=''
+      or coalesce(v_basis->>'positionId','')=''
+      or coalesce(v_basis->>'actorMembershipId','')<>new.assigned_by_membership_id::text
+    then
+      raise exception 'Delegated assignment requires exact accepted scope and distinct owner authority'
+        using errcode='23514';
+    end if;
+    -- Never retroactively claim a worker consented. Validate the
+    -- captured source and current authority when creating responsibility.
+    if v_requires_basis and not exists(
+      select 1 from atlas.company_work_standing_assignment_scopes scope
+      join atlas.organization_memberships worker
+        on worker.id=scope.worker_membership_id and worker.organization_id=scope.organization_id
+      join atlas.organization_position_appointments appointment
+        on appointment.id=scope.position_appointment_id and appointment.organization_membership_id=worker.id
+      join atlas.organization_positions pos
+        on pos.id=scope.position_id and pos.organization_id=scope.organization_id
+      join atlas.work_items work
+        on work.id=new.work_item_id and work.organization_id=scope.organization_id
+      join atlas.company_work_native_ledger_relevance relevance
+        on relevance.work_item_id=work.id and relevance.organization_id=scope.organization_id
+      where scope.id::text=v_basis->>'scopeId'
+        and scope.scope_state='active' and scope.accepted_at is not null
+        and scope.revoked_at is null
+        and (scope.valid_until is null or scope.valid_until>now())
+        and scope.organization_id=new.organization_id
+        and scope.worker_membership_id=new.assignee_membership_id
+        and scope.ledger_id::text=v_basis->>'nativeLedgerId'
+        and scope.position_id::text=v_basis->>'positionId'
+        and scope.position_appointment_id=appointment.id
+        and scope.accepted_by_person_id=worker.person_id
+        and worker.active
+        and atlas.organization_membership_present_effective_at_v1(worker.id,worker.organization_id,now())
+        and appointment.status='active' and appointment.ends_at is null
+        and pos.status='active' and pos.organization_unit_id=work.organization_unit_id
+        and pos.organization_unit_id=scope.organization_unit_id
+        and relevance.ledger_id=scope.ledger_id and relevance.attribution_state='active'
+        and (relevance.evidence_kind='owner_attested' or
+          (relevance.evidence_kind='source_verified' and exists(
+            select 1 from atlas.company_work_native_ledger_exact_source_v1(work.id,scope.ledger_id) proof
+             where proof.source_schema=relevance.source_schema
+               and proof.source_table=relevance.source_table and proof.source_id=relevance.source_id
+          )))
+        and exists(select 1 from atlas.organization_memberships manager
+          where manager.id=new.assigned_by_membership_id
+            and manager.organization_id=new.organization_id and manager.active and manager.role='owner')
+    ) then
+      raise exception 'Accepted exact-Ledger connection agreement cannot be proved for this Work'
+        using errcode='23514';
+    end if;
+  end if;
+
+  if v_kind='legacy_governed_reconstruction' then
+    if v_source not in (
+         'legacy_weekly_harvest_occurrence_assignment',
+         'explicit_worker_task_company_work_adoption_v2'
+       )
+       or coalesce(v_basis->>'legacySource','')<>v_source then
+      raise exception 'Legacy reconstruction basis is limited to the two named transitional carriers.'
+        using errcode='23514';
+    end if;
+
+    if v_source='legacy_weekly_harvest_occurrence_assignment'
+       and (
+         coalesce(v_basis->>'plannedOccurrenceId','')<>coalesce(new.metadata->>'plannedOccurrenceId','')
+         or not exists(
+           select 1
+           from atlas.work_items work
+           where work.id=new.work_item_id
+             and work.organization_id=new.organization_id
+             and work.source_object_type='planned_work_occurrence'
+             and work.source_object_id::text=(v_basis->>'plannedOccurrenceId')
+         )
+       ) then
+      raise exception 'Legacy weekly-harvest responsibility basis does not match the exact Work source.'
+        using errcode='23514';
+    end if;
+
+    if v_source='explicit_worker_task_company_work_adoption_v2'
+       and (
+         coalesce(v_basis->>'legacyTaskId','')<>coalesce(new.metadata->>'legacyTaskId','')
+         or not exists(
+           select 1
+           from atlas.work_items work
+           where work.id=new.work_item_id
+             and work.organization_id=new.organization_id
+             and work.source_object_type='legacy_task'
+             and work.source_object_id::text=(v_basis->>'legacyTaskId')
+         )
+       ) then
+      raise exception 'Legacy task responsibility basis does not match the exact Work source.'
+        using errcode='23514';
+    end if;
+  end if;
+
+  new.establishment_basis_kind:=v_kind;
+  return new;
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.owner_set_connected_person_work_day_self_api_v1(p_work_item_id uuid, p_ledger_id uuid, p_service_date date, p_reason text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_work atlas.work_items%rowtype;
+  v_allocation atlas.work_allocations%rowtype;
+  v_plan atlas.work_execution_plans%rowtype;
+  v_old atlas.work_execution_plans%rowtype;
+  v_owner uuid;
+  v_owner_member uuid;
+  v_reason text:=nullif(btrim(coalesce(p_reason,'')),'');
+  v_window jsonb;
+  v_event text;
+begin
+  if auth.uid() is null or p_work_item_id is null or p_ledger_id is null
+    or v_reason is null or length(v_reason) not between 12 and 1200 then
+    raise exception 'Exact owner Work, Ledger and meaningful planning reason required.'
+      using errcode='22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(
+    'atlas.company_work.responsibility:'||p_work_item_id::text,0));
+  perform pg_advisory_xact_lock(hashtextextended(
+    'atlas.company_work.plan:'||p_work_item_id::text,0));
+  select * into v_work from atlas.work_items
+    where id=p_work_item_id and work_state='open' for update;
+  if v_work.id is null then raise exception 'Open Work required for date changes.'
+    using errcode='23514'; end if;
+  v_owner:=atlas.company_work_native_ledger_owner_self_v1(
+    v_work.organization_id,p_ledger_id);
+  v_owner_member:=atlas.current_effective_organization_membership_v1(
+    v_work.organization_id);
+  if not exists (
+    select 1 from atlas.organization_memberships m
+    where m.id=v_owner_member and m.organization_id=v_work.organization_id
+      and m.person_id=v_owner and m.role='owner' and m.active
+  ) then raise exception 'Current authenticated owner membership required.'
+    using errcode='42501'; end if;
+  if not exists (
+    select 1 from atlas.company_work_native_ledger_relevance rel
+    where rel.organization_id=v_work.organization_id
+      and rel.work_item_id=v_work.id
+      and rel.ledger_id=p_ledger_id and rel.attribution_state='active'
+      and (rel.evidence_kind in ('owner_attested','participant_attested') or
+        (rel.evidence_kind='source_verified' and exists (
+          select 1 from atlas.company_work_native_ledger_exact_source_v1(
+            v_work.id,p_ledger_id) proof
+          where proof.source_schema=rel.source_schema
+            and proof.source_table=rel.source_table
+            and proof.source_id=rel.source_id
+        )))
+  ) then raise exception 'Exact Ledger relevance required.' using errcode='42501'; end if;
+  select * into v_allocation from atlas.work_allocations a
+    where a.work_item_id=v_work.id and a.organization_id=v_work.organization_id
+      and a.allocation_role='responsible' and a.state='active'
+      and a.assignee_membership_id is null
+      and a.assignee_canonical_person_id is not null
+      and a.establishment_basis_kind in (
+        'delegated_under_standing_scope','person_connection_receiver_uptake','original_subject_direct_assignment_v1')
+      and a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text
+    limit 1;
+  if v_allocation.id is null or not atlas.person_has_native_ledger_connection_v1(
+    v_work.organization_id,p_ledger_id,v_allocation.assignee_canonical_person_id) then
+    raise exception 'Active connected Person responsibility required.'
+      using errcode='23514';
+  end if;
+  select * into v_old from atlas.work_execution_plans
+    where work_item_id=v_work.id and plan_state in ('active','needs_replan')
+    for update;
+  if v_old.id is not null and
+    v_old.responsible_allocation_id<>v_allocation.id then
+    raise exception 'Current plan belongs to different responsibility.'
+      using errcode='23514';
+  end if;
+
+  if p_service_date is null then
+    if v_old.id is null then
+      return jsonb_build_object('ok',true,
+        'contractVersion','native_person_work_plan_v1',
+        'state','already_unplanned','workItemId',v_work.id,
+        'ledgerId',p_ledger_id,'responsiblePersonId',
+        v_allocation.assignee_canonical_person_id,'newWorkCreated',false);
+    end if;
+    update atlas.work_execution_plans
+      set plan_state='withdrawn',plan_reason=v_reason,
+      metadata=metadata||jsonb_build_object(
+        'sourceChange','native_person_owner_unplan_v1',
+        'withdrawalReason',v_reason)
+    where id=v_old.id and plan_state in ('active','needs_replan');
+    insert into atlas.work_execution_plan_events(
+      organization_id,work_item_id,plan_id,event_kind,
+      from_planned_service_date,from_exposure_service_date,
+      actor_membership_id,reason,metadata)
+    values (v_work.organization_id,v_work.id,v_old.id,'withdrawn',
+      v_old.planned_service_date,v_old.exposure_service_date,
+      v_owner_member,v_reason,
+      jsonb_build_object('source','native_person_owner_unplan_v1'));
+    return jsonb_build_object('ok',true,
+      'contractVersion','native_person_work_plan_v1',
+      'state','unplanned','workItemId',v_work.id,'ledgerId',p_ledger_id,
+      'planId',v_old.id,'responsiblePersonId',
+      v_allocation.assignee_canonical_person_id,'newWorkCreated',false);
+  end if;
+  v_window:=atlas.company_work_execution_plan_window_check_v1(
+    v_work.id,p_service_date);
+  if not coalesce((v_window->>'allowed')::boolean,false) then
+    raise exception 'Selected date conflicts with source-owned Work window (%).',
+      v_window->>'state' using errcode='23514';
+  end if;
+  if v_old.id is null then
+    insert into atlas.work_execution_plans(
+      organization_id,work_item_id,responsible_allocation_id,
+      assignee_membership_id,planned_by_membership_id,
+      plan_state,first_planned_service_date,planned_service_date,
+      exposure_service_date,plan_reason,metadata)
+    values (v_work.organization_id,v_work.id,v_allocation.id,null,
+      v_owner_member,'active',p_service_date,p_service_date,
+      p_service_date,v_reason,
+      jsonb_build_object('source','native_person_owner_plan_v1'))
+    returning * into v_plan;
+    v_event:='planned';
+  else
+    update atlas.work_execution_plans
+      set planned_service_date=p_service_date,exposure_service_date=p_service_date,
+        plan_state='active',plan_reason=v_reason,
+        planned_by_membership_id=v_owner_member,
+        metadata=metadata||jsonb_build_object(
+          'sourceChange','native_person_owner_plan_v1'),
+        rollover_count=0
+      where id=v_old.id returning * into v_plan;
+    v_event:=case when v_old.planned_service_date is distinct from p_service_date
+      then 'rescheduled' else 'planned' end;
+  end if;
+  insert into atlas.work_execution_plan_events(
+    organization_id,work_item_id,plan_id,event_kind,
+    from_planned_service_date,to_planned_service_date,
+    from_exposure_service_date,to_exposure_service_date,
+    actor_membership_id,reason,metadata)
+  values (v_work.organization_id,v_work.id,v_plan.id,v_event,
+    v_old.planned_service_date,v_plan.planned_service_date,
+    v_old.exposure_service_date,v_plan.exposure_service_date,
+    v_owner_member,v_reason,
+    jsonb_build_object('source','native_person_owner_plan_v1'));
+  return jsonb_build_object('ok',true,
+    'contractVersion','native_person_work_plan_v1',
+    'state','planned','workItemId',v_work.id,
+    'ledgerId',p_ledger_id,'planId',v_plan.id,
+    'plannedServiceDate',v_plan.planned_service_date,
+    'responsiblePersonId',v_allocation.assignee_canonical_person_id,
+    'newWorkCreated',false,'workerReadProven',false);
+end
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.report_connected_person_company_work_internal_v1(p_work_item_id uuid, p_result_kind text, p_idempotency_key text, p_payload jsonb, p_mode text, p_owner_ledger_id uuid, p_witness_evidence text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_uid uuid:=auth.uid();
+  v_actor uuid:=atlas.current_person_id_v1();
+  v_kind text:=lower(btrim(coalesce(p_result_kind,'')));
+  v_mode text:=lower(btrim(coalesce(p_mode,'')));
+  v_key text:=nullif(btrim(coalesce(p_idempotency_key,'')),'');
+  v_evidence text:=nullif(btrim(coalesce(p_witness_evidence,'')),'');
+  v_work atlas.work_items%rowtype;
+  v_allocation atlas.work_allocations%rowtype;
+  v_existing atlas.work_execution_results%rowtype;
+  v_result atlas.work_execution_results%rowtype;
+  v_acceptance atlas.work_result_acceptances%rowtype;
+  v_reporter_ipr uuid;
+begin
+  if v_uid is null or v_actor is null then
+    raise exception 'Signed-in canonical reporting Person required' using errcode='42501';
+  end if;
+  if p_work_item_id is null or v_kind not in ('completed','partial','blocked','unable')
+    or v_mode not in ('own_work','owner_witness')
+    or v_key is null or length(v_key)>160
+    or p_payload is null or jsonb_typeof(p_payload)<>'object' then
+    raise exception 'Exact Work, result, mode, idempotency and object payload required'
+      using errcode='22023';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(
+    'atlas.company_work.responsibility:'||p_work_item_id,0));
+  select * into v_work from atlas.work_items
+    where id=p_work_item_id for update;
+  if v_work.id is null then raise exception 'Company Work not found' using errcode='P0002'; end if;
+  select * into v_allocation from atlas.work_allocations a
+    where a.work_item_id=v_work.id and a.organization_id=v_work.organization_id
+      and a.allocation_role='responsible'
+      and a.establishment_basis_kind in ('person_connection_receiver_uptake','delegated_under_standing_scope','ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
+      and a.state in ('active','completed')
+    order by a.allocated_at desc limit 1;
+  if v_allocation.id is null then
+    raise exception 'Exact Person-native responsible allocation not found' using errcode='23514';
+  end if;
+  if v_mode='own_work' then
+    if v_allocation.assignee_canonical_person_id<>v_actor then
+      raise exception 'Only actual responsible Person can make own-work report' using errcode='42501';
+    end if;
+
+    if not atlas.person_original_work_identity_disclosed_self_v1(v_work.organization_id,(v_allocation.establishment_basis->>'nativeLedgerId')::uuid,v_work.id,v_actor)
+    then raise exception 'Undisclosed original Work Subject unavailable' using errcode='42501';end if;
+  else
+    if v_evidence is null or length(v_evidence) not between 16 and 2000
+      or (v_allocation.establishment_basis->>'nativeLedgerId') is distinct from
+        p_owner_ledger_id::text
+      or atlas.company_work_native_ledger_owner_self_v1(
+        v_work.organization_id,p_owner_ledger_id)<>v_actor then
+      raise exception 'Owner report requires exact Ledger and detailed external evidence'
+        using errcode='42501';
+    end if;
+  end if;
+  select * into v_existing from atlas.work_execution_results r
+    where r.organization_id=v_work.organization_id and r.idempotency_key=v_key;
+  if v_existing.id is not null then
+    if v_existing.work_item_id<>v_work.id or v_existing.result_kind<>v_kind
+      or v_existing.responsible_allocation_id<>v_allocation.id
+      or v_existing.metadata->>'reportMode' is distinct from v_mode
+      or v_existing.metadata->>'authenticatedReporterPersonId'
+           is distinct from v_actor::text
+      or (v_mode='owner_witness' and
+          v_existing.payload->>'ownerWitnessEvidence' is distinct from v_evidence)
+      or (v_mode='own_work' and
+          (v_existing.payload-'claimedPerformerPersonId'-'ownerWitnessEvidence')
+            is distinct from p_payload) then
+      raise exception 'Result idempotency collision' using errcode='23505';
+    end if;
+    return jsonb_build_object('ok',true,'idempotent',true,
+      'resultId',v_existing.id,'workItemId',v_work.id,
+      'workState',v_work.work_state);
+  end if;
+  if v_work.work_state<>'open' or v_allocation.state<>'active' then
+    raise exception 'Terminal Work cannot receive another result' using errcode='23514';
+  end if;
+  if v_work.result_contract_key<>'ordinary_company_work_worker_attestation_v1'
+    or not exists(select 1 from atlas.work_result_contract_policies p
+      where p.contract_key=v_work.result_contract_key and p.active
+        and p.acceptance_mode='worker_attestation'
+        and p.source_domain='organization') then
+    raise exception 'Source-specific Work requires its authorized result channel'
+      using errcode='23514';
+  end if;
+  select ipr.id into v_reporter_ipr
+    from atlas.institutional_person_records ipr
+    where ipr.organization_id=v_work.organization_id
+      and ipr.person_id=v_actor and ipr.status='active'
+    order by ipr.created_at limit 1;
+  insert into atlas.work_execution_results(
+    organization_id,work_item_id,responsible_allocation_id,
+    reported_by_user_id,reported_by_organization_membership_id,
+    reported_by_institutional_person_record_id,
+    result_kind,result_contract_key,idempotency_key,payload,metadata
+  ) values(
+    v_work.organization_id,v_work.id,v_allocation.id,
+    v_uid,null,v_reporter_ipr,
+    v_kind,v_work.result_contract_key,v_key,
+    p_payload||jsonb_strip_nulls(jsonb_build_object(
+      'claimedPerformerPersonId',v_allocation.assignee_canonical_person_id,
+      'ownerWitnessEvidence',case when v_mode='owner_witness'
+        then v_evidence else null end)),
+    jsonb_build_object('source','report_connected_person_company_work_internal_v1',
+      'reportMode',v_mode,'authenticatedReporterPersonId',v_actor,
+      'canonicalResponsiblePersonId',v_allocation.assignee_canonical_person_id,
+      'performanceIsWitnessedClaim',v_mode='owner_witness',
+      'employeeSeatRequired',false)
+  ) returning * into v_result;
+  if v_kind='completed' then
+    insert into atlas.work_result_acceptances(
+      organization_id,work_item_id,execution_result_id,
+      decision,acceptance_kind,accepted_by_domain,evidence,metadata
+    ) values (
+      v_work.organization_id,v_work.id,v_result.id,'accepted',
+      case when v_mode='own_work' then 'self_responsible_person_attestation'
+        else 'owner_witnessed_person_result' end,
+      'organization',
+      jsonb_strip_nulls(jsonb_build_object(
+        'responsibleAllocationId',v_allocation.id,
+        'canonicalResponsiblePersonId',v_allocation.assignee_canonical_person_id,
+        'authenticatedReporterPersonId',v_actor,
+        'ownerWitnessEvidence',case when v_mode='owner_witness'
+          then v_evidence else null end)),
+      jsonb_build_object('source','report_connected_person_company_work_internal_v1',
+        'reportMode',v_mode,'notAnEmployeeWorkerDayReport',true)
+    ) returning * into v_acceptance;
+    update atlas.work_items
+      set work_state='completed',completed_at=coalesce(completed_at,now()),
+        updated_at=now()
+      where id=v_work.id and work_state='open';
+    update atlas.work_allocations
+      set state='completed',completed_at=coalesce(completed_at,now()),
+        updated_at=now()
+      where id=v_allocation.id and state='active';
+  end if;
+  return jsonb_build_object('ok',true,'idempotent',false,
+    'contractVersion','connected_person_company_work_result_v1',
+    'workItemId',v_work.id,'resultId',v_result.id,
+    'resultKind',v_kind,'workState',
+      case when v_kind='completed' then 'completed' else 'open' end,
+    'acceptanceDecision',v_acceptance.decision,
+    'reportMode',v_mode,'responsiblePersonId',
+      v_allocation.assignee_canonical_person_id,
+    'reporterPersonId',v_actor,'sourceHistoryPreserved',true);
+end
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.validate_active_work_allocation_membership_v1()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas'
+AS $function$
+begin
+  if new.state='active' then
+    if new.allocation_role='responsible'
+      and new.establishment_basis_kind in ('person_connection_receiver_uptake','delegated_under_standing_scope','ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
+      and new.assignee_canonical_person_id is not null then
+      if new.assignee_membership_id is not null
+        or new.assignee_canonical_person_id is null
+        or not atlas.person_has_native_ledger_connection_v1(
+          new.organization_id,(new.establishment_basis->>'nativeLedgerId')::uuid,
+          new.assignee_canonical_person_id) then
+        raise exception 'Person-native responsibility requires an exact active Ledger connection'
+          using errcode='23514';
+      end if;
+    elsif not exists (
+      select 1 from atlas.organization_memberships om
+      where om.id=new.assignee_membership_id
+        and om.organization_id=new.organization_id and om.active
+    ) then
+      raise exception 'Legacy active Work allocation requires active Organization Membership'
+        using errcode='23514';
+    end if;
+    if new.assigned_by_membership_id is not null
+      and (tg_op='INSERT'
+        or old.assigned_by_membership_id is distinct from new.assigned_by_membership_id
+        or old.state is distinct from new.state
+        or old.organization_id is distinct from new.organization_id)
+      and not exists (
+        select 1 from atlas.organization_memberships om
+        where om.id=new.assigned_by_membership_id
+          and om.organization_id=new.organization_id and om.active
+      ) then
+      raise exception 'Active Work allocation cannot name an inactive assigning membership'
+        using errcode='23514';
+    end if;
+  end if;
+  return new;
+end
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.validate_work_execution_plan_v1()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas'
+AS $function$
+declare
+  v_work atlas.work_items%rowtype;
+  v_allocation atlas.work_allocations%rowtype;
+  v_delivery jsonb;
+  v_ledger_id uuid;
+begin
+  select * into v_work from atlas.work_items where id=new.work_item_id;
+  if v_work.id is null or v_work.organization_id<>new.organization_id then
+    raise exception 'Execution plan must belong to its Company Work organization.'
+      using errcode='23514';
+  end if;
+  select * into v_allocation from atlas.work_allocations
+    where id=new.responsible_allocation_id;
+  if v_allocation.id is null
+    or v_allocation.organization_id<>new.organization_id
+    or v_allocation.work_item_id<>new.work_item_id
+    or v_allocation.assignee_membership_id is distinct from new.assignee_membership_id
+    or v_allocation.allocation_role<>'responsible' then
+    raise exception 'Execution plan must point to the exact responsible allocation.'
+      using errcode='23514';
+  end if;
+  if new.plan_state='active' then
+    -- The date-only deadline is independent of this service date, but a
+    -- later plan cannot silently ignore the established deadline.
+    if exists (
+      select 1 from atlas.work_time_contracts t
+      where t.work_item_id=new.work_item_id and t.contract_state='active'
+        and t.due_on_date is not null
+        and (new.planned_service_date>t.due_on_date
+          or new.exposure_service_date>t.due_on_date)
+    ) then
+      raise exception 'Plan is beyond the governing date-only deadline.'
+        using errcode='23514';
+    end if;
+    if v_work.work_state<>'open' or v_allocation.state<>'active' then
+      raise exception 'Active plan requires open Work and active responsibility.'
+        using errcode='23514';
+    end if;
+    if new.assignee_membership_id is not null then
+      v_delivery:=atlas.company_work_execution_membership_check_v1(
+        new.work_item_id,new.assignee_membership_id,new.planned_service_date);
+      if not coalesce((v_delivery->>'allowed')::boolean,false) then
+        raise exception 'Responsible membership is not eligible on planned day (%).',
+          v_delivery->>'state' using errcode='23514';
+      end if;
+      v_delivery:=atlas.company_work_execution_membership_check_v1(
+        new.work_item_id,new.assignee_membership_id,new.exposure_service_date);
+      if not coalesce((v_delivery->>'allowed')::boolean,false) then
+        raise exception 'Responsible membership is not eligible on exposure day (%).',
+          v_delivery->>'state' using errcode='23514';
+      end if;
+    else
+      -- A Person plan never creates a farm/employee execution credential.
+      if v_allocation.assignee_canonical_person_id is null
+        or v_allocation.establishment_basis_kind not in (
+          'delegated_under_standing_scope','person_connection_receiver_uptake','ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
+        or coalesce(v_allocation.establishment_basis->>'nativeLedgerId','')
+             !~ '^[0-9a-fA-F-]{36}$' then
+        raise exception 'Person plan requires accepted canonical Person responsibility.'
+          using errcode='23514';
+      end if;
+      v_ledger_id:=(v_allocation.establishment_basis->>'nativeLedgerId')::uuid;
+      if not atlas.person_has_native_ledger_connection_v1(
+          v_work.organization_id,v_ledger_id,v_allocation.assignee_canonical_person_id)
+        or not exists (
+          select 1 from atlas.company_work_native_ledger_relevance rel
+          where rel.organization_id=v_work.organization_id and rel.work_item_id=v_work.id
+            and rel.ledger_id=v_ledger_id and rel.attribution_state='active'
+        ) then
+        raise exception 'Person plan requires currently valid exact Ledger connection.'
+          using errcode='23514';
+      end if;
+    end if;
+  end if;
+  new.updated_at:=now();
+  return new;
+end
+$function$
+;
+
+
+-- Existing signed all-date Person Today, day, prerequisite and governor
+-- activity readers admit the same directly assigned original Work identity.
+CREATE OR REPLACE FUNCTION atlas.connected_person_company_work_day_self_api_v1(p_date date)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_self uuid:=atlas.current_person_id_v1();
+  v_items jsonb;
+BEGIN
+  IF auth.uid() IS NULL OR v_self IS NULL OR p_date IS NULL THEN
+    RAISE EXCEPTION 'Signed-in canonical Person and exact day required.' USING errcode='42501';
+  END IF;
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'workItemId',w.id,'allocationId',a.id,'planId',p.id,
+    'organizationId',w.organization_id,
+    'ledgerId',(a.establishment_basis->>'nativeLedgerId')::uuid,
+    'title',w.title,'instructions',w.instructions,
+    'executionDate',p.planned_service_date,'exposureDate',p.exposure_service_date,
+    'dueDate',t.due_on_date,'taskClassification',
+      coalesce(w.metadata->>'taskClassification','ordinary'),
+    'workState',w.work_state,'allocationState',a.state,
+    'completedAt',w.completed_at,
+    'latestResultId',res.id,'latestResultKind',res.result_kind,
+    'latestResultAt',res.reported_at,'latestAcceptanceDecision',res.acceptance_decision,
+    'canReportOrdinaryCompletion',
+      w.work_state='open' AND a.state='active'
+      AND w.result_contract_key='ordinary_company_work_worker_attestation_v1'
+  ) ORDER BY p.created_at,w.id),'[]'::jsonb) INTO v_items
+  FROM atlas.work_allocations a
+  JOIN atlas.work_items w ON w.id=a.work_item_id AND w.organization_id=a.organization_id
+  JOIN atlas.work_execution_plans p ON p.work_item_id=w.id
+    AND p.organization_id=w.organization_id
+    AND p.responsible_allocation_id=a.id
+    AND (
+      (p.plan_state='active' AND w.work_state='open' AND a.state='active')
+      OR
+      (p.plan_state='completed' AND w.work_state='completed' AND a.state='completed')
+    )
+    AND p.exposure_service_date=p_date
+    AND p.assignee_membership_id IS NULL
+  LEFT JOIN LATERAL (
+    SELECT due_on_date FROM atlas.work_time_contracts t
+    WHERE t.work_item_id=w.id AND t.contract_state='active'
+    ORDER BY t.created_at DESC LIMIT 1
+  ) t ON true
+  LEFT JOIN LATERAL (
+    SELECT r.id,r.result_kind,r.reported_at,
+      (SELECT ra.decision FROM atlas.work_result_acceptances ra
+       WHERE ra.execution_result_id=r.id
+       ORDER BY ra.accepted_at DESC,ra.id DESC LIMIT 1) AS acceptance_decision
+    FROM atlas.work_execution_results r
+    WHERE r.work_item_id=w.id AND r.responsible_allocation_id=a.id
+    ORDER BY r.reported_at DESC,r.id DESC LIMIT 1
+  ) res ON true
+  WHERE a.assignee_canonical_person_id=v_self
+    AND a.assignee_membership_id IS NULL
+    AND a.allocation_role='responsible'
+    AND a.establishment_basis_kind IN
+      ('person_connection_receiver_uptake','delegated_under_standing_scope',
+       'ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
+    AND ((a.state='active' AND w.work_state='open')
+      OR (a.state='completed' AND w.work_state='completed'))
+    AND atlas.person_has_native_ledger_connection_v1(
+      w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,v_self)
+    AND atlas.person_original_work_identity_disclosed_self_v1(w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self);
+  RETURN jsonb_build_object(
+    'ok',true,'contractVersion','connected_person_company_work_day_v1',
+    'date',p_date,'personId',v_self,'items',v_items,
+    'oneCanonicalWorkIdentity',true,'deliveryReadProven',false);
+END
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.connected_person_company_work_today_self_api_v1(p_limit integer DEFAULT 100)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_self uuid:=atlas.current_person_id_v1();
+  v_items jsonb:='[]'::jsonb;
+begin
+  if auth.uid() is null or v_self is null then
+    raise exception 'Signed-in canonical Person required' using errcode='42501';
+  end if;
+  if p_limit not between 1 and 100 then
+    raise exception 'Page size must be between 1 and 100' using errcode='22023';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'workItemId',row.work_id,'allocationId',row.allocation_id,
+    'organizationId',row.organization_id,'ledgerId',row.ledger_id,
+    'title',row.title,'instructions',row.instructions,
+    'sourceType',row.source_type,'sourceId',row.source_id,
+    'sourceDate',row.source_date,'sourceDateIsNotScheduledDay',true,
+    'resultContractKey',row.result_contract,
+    'canReportOrdinaryCompletion',row.result_contract=
+      'ordinary_company_work_worker_attestation_v1',
+    'uptakeKind',row.uptake_kind,'establishmentBasisKind',row.basis_kind,'employeeSeatRequired',false)
+    order by row.allocated_at,row.work_id),'[]'::jsonb) into v_items
+  from (
+    select w.id work_id,a.id allocation_id,w.organization_id,
+      (a.establishment_basis->>'nativeLedgerId')::uuid ledger_id,
+      w.title,w.instructions,w.source_object_type source_type,
+      w.source_object_id source_id,
+      case when w.metadata->>'originalServiceDate' ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+        then w.metadata->>'originalServiceDate' else null end source_date,
+      w.result_contract_key result_contract,
+      a.establishment_basis->>'uptakeKind' uptake_kind,a.establishment_basis_kind basis_kind,a.allocated_at
+    from atlas.work_allocations a
+    join atlas.work_items w on w.id=a.work_item_id
+      and w.organization_id=a.organization_id
+    where a.allocation_role='responsible' and a.state='active'
+      and a.assignee_canonical_person_id=v_self
+      and a.establishment_basis_kind in ('person_connection_receiver_uptake','delegated_under_standing_scope','ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
+      and w.work_state='open'
+      and atlas.person_original_work_identity_disclosed_self_v1(w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self)
+    order by a.allocated_at,a.id
+    limit p_limit
+  ) row;
+  return jsonb_build_object('ok',true,
+    'contractVersion','connected_person_company_work_today_v1',
+    'personId',v_self,'items',v_items,
+    'sourceDateIsNotAWorkSchedule',true,'employeeSeatRequired',false);
+end
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.connected_person_work_prerequisites_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_downstream_work_item_id uuid)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_person uuid;
+  v_items jsonb := '[]'::jsonb;
+begin
+  -- auth.uid() alone is insufficient: require a live, genuine Auth session
+  -- and ready canonical Personal Atlas, not a forged or expired JWT.
+  if auth.uid() is null
+     or (atlas.reality_access_self_api_v1()->>'state') is distinct from 'ready' then
+    raise exception 'Current signed-in Atlas Person required.'
+      using errcode='42501';
+  end if;
+  v_person:=atlas.current_person_id_v1();
+  if v_person is null or p_organization_id is null or p_ledger_id is null
+     or p_downstream_work_item_id is null then
+    raise exception 'Exact connected Person and original Work source required.'
+      using errcode='42501';
+  end if;
+
+  if not atlas.person_original_work_identity_disclosed_self_v1(p_organization_id,p_ledger_id,p_downstream_work_item_id,v_person)
+  then raise exception 'Undisclosed original Work Subject unavailable' using errcode='42501';end if;
+  -- The member's Ledger seat alone NEVER grants an institution-wide read.
+  -- An original, current responsible allocation to this exact downstream
+  -- Work and this exact native Ledger is required. Keep the person-only
+  -- carrier, no employee seats and no optional proposed work requests.
+  if not atlas.person_has_native_ledger_connection_v1(
+      p_organization_id,p_ledger_id,v_person)
+     or not atlas.work_prerequisite_ledger_scope_v1(
+      p_organization_id,p_ledger_id,p_downstream_work_item_id)
+     or not exists (
+       select 1
+       from atlas.work_allocations a
+       join atlas.work_items w
+         on w.id=a.work_item_id and w.organization_id=a.organization_id
+       where a.organization_id=p_organization_id
+         and a.work_item_id=p_downstream_work_item_id
+         and a.assignee_canonical_person_id=v_person
+         and a.assignee_membership_id is null
+         and a.allocation_role='responsible'
+         and a.establishment_basis_kind in (
+           'person_connection_receiver_uptake',
+           'delegated_under_standing_scope',
+           'ledger_connection_direct_assignment','original_subject_direct_assignment_v1'
+         )
+         and a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text
+         and (
+           (a.state='active' and w.work_state='open')
+           or (a.state='completed' and w.work_state='completed')
+         )
+     ) then
+    raise exception 'Current responsibility for this exact Ledger Work required.'
+      using errcode='42501';
+  end if;
+
+  -- Only original active depends_on edges for the Work the person actually
+  -- owns responsibility for. A prerequisite's title is included strictly
+  -- because this original edge, authorized downstream allocation and
+  -- independently evidenced relevance to the SAME native Ledger all exist.
+  -- No unrelated Work listing, assignment/person identity, source metadata,
+  -- private action-history, or institutional owner privileges are exposed.
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'relationId',r.id,
+    'relationKind','depends_on',
+    'downstreamWorkItemId',r.from_work_item_id,
+    'prerequisiteWorkItemId',r.to_work_item_id,
+    'title',p.title,
+    'prerequisiteWorkState',p.work_state,
+    'active',r.active,
+    'recordedSatisfiedAt',r.satisfied_at
+  ) order by r.id),'[]'::jsonb)
+  into v_items
+  from atlas.work_item_relations r
+  join atlas.work_items p
+    on p.id=r.to_work_item_id and p.organization_id=r.organization_id
+  where r.organization_id=p_organization_id
+    and r.from_work_item_id=p_downstream_work_item_id
+    and r.relation_kind='depends_on'
+    and r.active
+    and atlas.work_prerequisite_ledger_scope_v1(
+      p_organization_id,p_ledger_id,r.to_work_item_id)
+     and atlas.person_original_work_identity_disclosed_self_v1(p_organization_id,p_ledger_id,r.to_work_item_id,v_person);
+
+  return jsonb_build_object(
+    'ok',true,
+    'contractVersion','connected_person_work_prerequisites_v1',
+    'organizationId',p_organization_id,
+    'ledgerId',p_ledger_id,
+    'downstreamWorkItemId',p_downstream_work_item_id,
+    'personId',v_person,
+    'relations',v_items,
+    'sourceScope','original_responsible_person_downstream_work',
+    'onlyCurrentLedgerEvidence',true,
+    'activeRelationsOnly',true,
+    'doesNotAuthorizeRelationChanges',true,
+    'doesNotInferCompletionOrSatisfaction',true
+  );
+end;
+$function$
+;
+
+CREATE OR REPLACE FUNCTION atlas.today_work_assignment_activity_self_api_v1(p_date date, p_timezone text DEFAULT 'UTC'::text, p_limit integer DEFAULT 100)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_person uuid;v_rows jsonb;v_count int;
+begin
+ if auth.uid() is null or p_date is null or p_limit not between 1 and 200
+   or p_timezone is null or not exists(select 1 from pg_catalog.pg_timezone_names tz where tz.name=p_timezone)
+   or (atlas.reality_access_self_api_v1()->>'state') is distinct from 'ready' then
+   raise exception 'Signed-in Person, real day and valid timezone required' using errcode='42501';
+ end if;
+ v_person:=atlas.current_person_id_v1();
+ with eligible as(
+  select w.id,w.title,w.created_at,a.allocated_at,a.state allocation_state,
+    a.assignee_canonical_person_id recipient_id,e.display_name recipient_name,
+    l.id ledger_id,l.name ledger_name,
+    ep.exposure_service_date,ep.id plan_id,
+    a.establishment_basis_kind as activity_kind
+  from atlas.work_items w
+  join atlas.work_allocations a on a.work_item_id=w.id and a.organization_id=w.organization_id
+    and a.allocation_role='responsible'
+    and a.establishment_basis_kind in ('ledger_connection_direct_assignment','original_subject_direct_assignment_v1','delegated_under_standing_scope')
+  join reality.entities e on e.id=a.assignee_canonical_person_id
+    and e.entity_kind='person' and e.identity_state='canonical'
+  join ledger.ledgers l on l.id=(a.establishment_basis->>'nativeLedgerId')::uuid
+  left join lateral (
+    select p.id,p.exposure_service_date from atlas.work_execution_plans p
+    where p.work_item_id=w.id and p.organization_id=w.organization_id
+      and p.responsible_allocation_id=a.id
+    order by p.created_at desc,p.id desc limit 1
+  ) ep on true
+  where w.created_by_user_id=auth.uid()
+    and a.establishment_basis->>'senderPersonId'=v_person::text
+    and (a.allocated_at at time zone p_timezone)::date=p_date
+    and exists(select 1 from ledger.seats s where s.ledger_id=l.id and s.person_entity_id=v_person
+      and s.seat_state='active' and s.ended_at is null)
+  order by a.allocated_at,w.id
+  limit p_limit+1
+ ), counted as(select count(*) n from eligible)
+ select coalesce(jsonb_agg(jsonb_build_object(
+  'workItemId',id,'title',title,'allocatedAt',allocated_at,'createdAt',created_at,
+  'allocationState',allocation_state,'recipientPersonId',recipient_id,
+  'recipientName',recipient_name,'ledgerId',ledger_id,'ledgerName',ledger_name,
+  'workOn',exposure_service_date,'planId',plan_id,'kind',activity_kind)
+  order by allocated_at,id) filter(where rn<=p_limit),'[]'::jsonb),(select n from counted)
+ into v_rows,v_count
+ from (select *,row_number() over(order by allocated_at,id) rn from eligible) ranked;
+ return jsonb_build_object('ok',true,'contractVersion','today_work_assignment_activity_v1',
+  'date',p_date,'timezone',p_timezone,'items',v_rows,'hasMore',v_count>p_limit,
+  'actorPersonId',v_person,'source','work_allocations_original',
+  'noNewJournalTestimony',true);
+end $function$
+;
+-- Gate 0: legacy alternative signed title readers. Original sources retained
+-- except these readers never expose a governed growing-object Work via old paths.
+-- Only the explicitly permissioned native Person Work pathway may carry those
+-- Titles and instructions. Subject-free original Event/ordinary Work unchanged.
+
+-- Governed legacy alternate Source: company_work_initial_offers_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.company_work_initial_offers_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+ v_person uuid:=atlas.current_person_id_v1();
+ v_incoming jsonb;
+ v_outgoing jsonb;
+BEGIN
+ IF auth.uid() IS NULL THEN
+   RAISE EXCEPTION 'Sign in required' USING ERRCODE='42501';
+ END IF;
+ IF v_person IS NULL THEN
+   RETURN jsonb_build_object('ok',true,'contractVersion','company_work_initial_offers_self_v1',
+      'state','person_binding_required','incoming','[]'::jsonb,'outgoing','[]'::jsonb);
+ END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+   'offerId',o.id,'workItemId',o.work_item_id,'workTitle',w.title,
+   'organizationId',o.organization_id,'ledgerId',o.ledger_id,
+   'offeredByPersonId',o.offered_by_person_id,'offeredAt',o.offered_at,'reason',o.reason
+ ) ORDER BY o.offered_at,o.id),'[]'::jsonb) INTO v_incoming
+ FROM atlas.company_work_initial_responsibility_offers o
+ JOIN atlas.work_items w ON w.id=o.work_item_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+ WHERE o.target_person_id=v_person AND o.offer_state='offered'
+  AND EXISTS(SELECT 1 FROM atlas.organization_memberships m
+    WHERE m.id=o.target_membership_id AND m.person_id=v_person
+      AND atlas.organization_membership_present_effective_at_v1(m.id,m.organization_id,now()))
+;
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+   'offerId',o.id,'workItemId',o.work_item_id,'workTitle',w.title,
+   'organizationId',o.organization_id,'ledgerId',o.ledger_id,
+   'targetPersonId',o.target_person_id,
+   'offerKind',case when o.target_membership_id is null then 'person_connection' else 'membership_connection' end,
+   'offeredAt',o.offered_at,'reason',o.reason
+ ) ORDER BY o.offered_at,o.id),'[]'::jsonb) INTO v_outgoing
+ FROM atlas.company_work_initial_responsibility_offers o
+ JOIN atlas.work_items w ON w.id=o.work_item_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+ WHERE o.offered_by_person_id=v_person AND o.offer_state='offered'
+   AND atlas.is_organization_owner(o.organization_id);
+ RETURN jsonb_build_object('ok',true,
+   'contractVersion','company_work_initial_offers_self_v1',
+   'state','ready','incoming',v_incoming,'outgoing',v_outgoing,
+   'offerIsNotAssignment',true,'workerViewedOrDeliveredNotProven',true);
+END
+$function$;
+
+-- Governed legacy alternate Source: company_work_participation_offers_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.company_work_participation_offers_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_person_id uuid;
+  v_incoming jsonb;
+  v_outgoing jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode='42501';
+  end if;
+
+  v_person_id:=atlas.current_person_id_v1();
+
+  if v_person_id is null then
+    return jsonb_build_object(
+      'contractVersion','company_work_participation_offers_self_v1',
+      'state','person_binding_required',
+      'incoming','[]'::jsonb,
+      'outgoing','[]'::jsonb
+    );
+  end if;
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'offerId',o.id,
+      'workItemId',o.work_item_id,
+      'workTitle',w.title,
+      'organizationId',o.organization_id,
+      'offeredByPersonEntityId',o.offered_by_person_entity_id,
+      'offeredByDisplayName',offerer.display_name,
+      'targetPersonEntityId',o.target_person_entity_id,
+      'allocationRole',o.allocation_role,
+      'offeredAt',o.offered_at,
+      'reason',o.reason
+    )
+    order by o.offered_at,o.id
+  ),'[]'::jsonb)
+  into v_incoming
+  from atlas.company_work_participation_offers o
+  join atlas.work_items w on w.id=o.work_item_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+  join reality.entities offerer on offerer.id=o.offered_by_person_entity_id
+  where o.target_person_entity_id=v_person_id
+    and o.offer_state='offered';
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'offerId',o.id,
+      'workItemId',o.work_item_id,
+      'workTitle',w.title,
+      'organizationId',o.organization_id,
+      'targetPersonEntityId',o.target_person_entity_id,
+      'targetDisplayName',target.display_name,
+      'allocationRole',o.allocation_role,
+      'offeredAt',o.offered_at,
+      'reason',o.reason
+    )
+    order by o.offered_at,o.id
+  ),'[]'::jsonb)
+  into v_outgoing
+  from atlas.company_work_participation_offers o
+  join atlas.work_items w on w.id=o.work_item_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+  join reality.entities target on target.id=o.target_person_entity_id
+  where o.offered_by_person_entity_id=v_person_id
+    and o.offer_state='offered';
+
+  return jsonb_build_object(
+    'contractVersion','company_work_participation_offers_self_v1',
+    'state','ready',
+    'personEntityId',v_person_id,
+    'incoming',v_incoming,
+    'outgoing',v_outgoing,
+    'truthBoundary',jsonb_build_object(
+      'offerIsNotParticipation',true,
+      'acceptanceEstablishesReceiverParticipation',true,
+      'responsibilityRemainsSeparate',true
+    )
+  );
+end
+$function$;
+
+-- Governed legacy alternate Source: company_work_responsibility_transfer_offers_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.company_work_responsibility_transfer_offers_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_person_id uuid;
+  v_incoming jsonb;
+  v_outgoing jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode='42501';
+  end if;
+
+  v_person_id:=atlas.current_person_id_v1();
+
+  if v_person_id is null then
+    return jsonb_build_object(
+      'contractVersion','company_work_responsibility_transfer_offers_self_v1',
+      'state','person_binding_required',
+      'incoming','[]'::jsonb,
+      'outgoing','[]'::jsonb
+    );
+  end if;
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'offerId',o.id,
+      'workItemId',o.work_item_id,
+      'workTitle',w.title,
+      'organizationId',o.organization_id,
+      'fromAllocationId',o.from_allocation_id,
+      'offeredByPersonEntityId',o.offered_by_person_entity_id,
+      'offeredByDisplayName',offerer.display_name,
+      'targetPersonEntityId',o.target_person_entity_id,
+      'offeredAt',o.offered_at,
+      'reason',o.reason
+    )
+    order by o.offered_at,o.id
+  ),'[]'::jsonb)
+  into v_incoming
+  from atlas.company_work_responsibility_transfer_offers o
+  join atlas.work_items w on w.id=o.work_item_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+  join reality.entities offerer on offerer.id=o.offered_by_person_entity_id
+  where o.target_person_entity_id=v_person_id
+    and o.offer_state='offered';
+
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'offerId',o.id,
+      'workItemId',o.work_item_id,
+      'workTitle',w.title,
+      'organizationId',o.organization_id,
+      'fromAllocationId',o.from_allocation_id,
+      'targetPersonEntityId',o.target_person_entity_id,
+      'targetDisplayName',target.display_name,
+      'offeredAt',o.offered_at,
+      'reason',o.reason
+    )
+    order by o.offered_at,o.id
+  ),'[]'::jsonb)
+  into v_outgoing
+  from atlas.company_work_responsibility_transfer_offers o
+  join atlas.work_items w on w.id=o.work_item_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+  join reality.entities target on target.id=o.target_person_entity_id
+  where o.offered_by_person_entity_id=v_person_id
+    and o.offer_state='offered';
+
+  return jsonb_build_object(
+    'contractVersion','company_work_responsibility_transfer_offers_self_v1',
+    'state','ready',
+    'personEntityId',v_person_id,
+    'incoming',v_incoming,
+    'outgoing',v_outgoing,
+    'truthBoundary',jsonb_build_object(
+      'offerIsNotAssignment',true,
+      'acceptanceEstablishesReceiverSelfAdoption',true
+    )
+  );
+end
+$function$;
+
+-- Governed legacy alternate Source: company_work_self_responsibilities_api_v1
+CREATE OR REPLACE FUNCTION atlas.company_work_self_responsibilities_api_v1()
+ RETURNS TABLE(organization_id uuid, organization_name text, organization_unit_id uuid, organization_unit_key text, organization_unit_name text, work_item_id uuid, allocation_id uuid, title text, instructions text, work_state text, operation_class text, allocation_role text, allocated_at timestamp with time zone, requirements jsonb, next_target_at timestamp with time zone, execution_state text, execution_reason text, legacy_task_id uuid, legacy_task_status text, legacy_task_due_date date, attention_lease_id uuid, attention_lease_state text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RAISE EXCEPTION 'Sign in required.' USING errcode='42501';
+  END IF;
+
+  RETURN QUERY
+  WITH memberships AS MATERIALIZED(
+    SELECT om.id,om.organization_id
+    FROM atlas.organization_memberships om
+    WHERE om.user_id=auth.uid()
+      AND om.active
+  ), base AS MATERIALIZED(
+    SELECT
+      wi.organization_id,
+      o.name organization_name,
+      wi.organization_unit_id,
+      ou.stable_key organization_unit_key,
+      ou.name organization_unit_name,
+      wi.id work_item_id,
+      wa.id allocation_id,
+      wi.title,
+      wi.instructions,
+      wi.work_state,
+      wi.operation_class,
+      wa.allocation_role,
+      wa.allocated_at,
+      a.task_id legacy_task_id,
+      t.status legacy_task_status,
+      t.due_date legacy_task_due_date,
+      t.blocker_text,
+      CASE WHEN t.id IS NULL THEN NULL ELSE atlas.task_execution_readiness_v1(t.id) END readiness,
+      CASE WHEN t.id IS NULL THEN NULL ELSE atlas.task_operation_fit_warrant_v1(t.id) END operation_fit
+    FROM memberships m
+    JOIN atlas.work_allocations wa
+      ON wa.organization_id=m.organization_id
+     AND wa.assignee_membership_id=m.id
+     AND wa.state='active'
+     AND wa.allocation_role='responsible'
+    JOIN atlas.work_items wi
+      ON wi.organization_id=wa.organization_id
+     AND wi.id=wa.work_item_id
+     AND wi.work_state='open' AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=wi.organization_id AND g0.work_item_id=wi.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+    JOIN atlas.organizations o ON o.id=wi.organization_id
+    LEFT JOIN atlas.organization_units ou
+      ON ou.organization_id=wi.organization_id
+     AND ou.id=wi.organization_unit_id
+    LEFT JOIN LATERAL(
+      SELECT wea.task_id
+      FROM atlas.work_execution_adapters wea
+      WHERE wea.organization_id=wi.organization_id
+        AND wea.work_item_id=wi.id
+        AND wea.state='active'
+        AND wea.task_id IS NOT NULL
+      ORDER BY wea.created_at DESC
+      LIMIT 1
+    ) a ON true
+    LEFT JOIN atlas.tasks t ON t.id=a.task_id
+  )
+  SELECT
+    b.organization_id,b.organization_name,b.organization_unit_id,b.organization_unit_key,
+    b.organization_unit_name,b.work_item_id,b.allocation_id,b.title,b.instructions,b.work_state,
+    b.operation_class,b.allocation_role,b.allocated_at,
+    coalesce(req.requirements,'[]'::jsonb),
+    req.next_target_at,
+    CASE
+      WHEN b.legacy_task_id IS NULL THEN 'unassessed'
+      WHEN b.legacy_task_status='blocked' THEN 'waiting'
+      WHEN NOT coalesce((b.readiness->>'executionReady')::boolean,false) THEN 'waiting'
+      WHEN NOT coalesce((b.operation_fit->>'exactIdentitySupported')::boolean,false) THEN 'needs_resolution'
+      ELSE 'ready'
+    END,
+    CASE
+      WHEN b.legacy_task_id IS NULL THEN NULL
+      WHEN b.legacy_task_status='blocked' THEN coalesce(nullif(btrim(b.blocker_text),''),'task_blocked')
+      WHEN NOT coalesce((b.readiness->>'executionReady')::boolean,false) THEN 'execution_requirements_not_ready'
+      WHEN NOT coalesce((b.operation_fit->>'exactIdentitySupported')::boolean,false) THEN 'operation_identity_unresolved'
+      ELSE NULL
+    END,
+    b.legacy_task_id,b.legacy_task_status,b.legacy_task_due_date,
+    focus.lease_id,focus.lease_state
+  FROM base b
+  LEFT JOIN LATERAL(
+    SELECT
+      jsonb_agg(jsonb_build_object(
+        'requirementId',r.id,
+        'summary',r.summary,
+        'state',r.state,
+        'earliestRelevantAt',r.earliest_relevant_at,
+        'latestSatisfactoryAt',r.latest_satisfactory_at,
+        'consequenceOfDelay',r.consequence_of_delay
+      ) ORDER BY r.latest_satisfactory_at NULLS LAST,r.created_at,r.id) requirements,
+      min(r.latest_satisfactory_at) next_target_at
+    FROM atlas.work_requirement_links l
+    JOIN atlas.work_requirements r
+      ON r.organization_id=l.organization_id
+     AND r.id=l.requirement_id
+    WHERE l.organization_id=b.organization_id
+      AND l.work_item_id=b.work_item_id
+      AND l.active
+      AND r.state='active'
+  ) req ON true
+  LEFT JOIN LATERAL(
+    SELECT el.id lease_id,
+           (atlas.execution_lease_current_state_v1(el.id)->>'state')::text lease_state
+    FROM atlas.execution_leases el
+    WHERE el.organization_id=b.organization_id
+      AND NOT el.shadow_only
+      AND el.execution_kind='task'
+      AND el.execution_id=b.legacy_task_id
+      AND (atlas.execution_lease_current_state_v1(el.id)->>'state') IN ('leased','started','interrupted')
+    ORDER BY el.created_at DESC
+    LIMIT 1
+  ) focus ON true
+  ORDER BY
+    CASE
+      WHEN focus.lease_id IS NOT NULL THEN 0
+      WHEN b.legacy_task_status='blocked' THEN 3
+      WHEN b.legacy_task_id IS NOT NULL
+       AND coalesce((b.readiness->>'executionReady')::boolean,false)
+       AND coalesce((b.operation_fit->>'exactIdentitySupported')::boolean,false) THEN 1
+      ELSE 2
+    END,
+    req.next_target_at NULLS LAST,
+    b.allocated_at,
+    b.work_item_id;
+END;
+$function$;
+
+-- Governed legacy alternate Source: connected_ledger_person_agenda_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.connected_ledger_person_agenda_self_api_v1(p_ledger_id uuid, p_person_id uuid, p_date date, p_limit integer DEFAULT 150)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_self uuid; v_rows jsonb; v_count int;
+begin
+ if auth.uid() is null or p_ledger_id is null or p_person_id is null or p_date is null
+    or p_limit not between 1 and 200 or
+    (atlas.reality_access_self_api_v1()->>'state') is distinct from 'ready' then
+   raise exception 'Active, bounded Ledger day and Person required' using errcode='42501';
+ end if;
+ v_self:=atlas.current_person_id_v1();
+ perform atlas.current_active_ledger_seat_v1(p_ledger_id);
+ if not exists(select 1 from ledger.seats s join reality.entities e on e.id=s.person_entity_id
+     where s.ledger_id=p_ledger_id and s.person_entity_id=p_person_id
+       and s.seat_state='active' and s.ended_at is null
+       and e.entity_kind='person' and e.identity_state='canonical') then
+   raise exception 'Recipient is not an active canonical Ledger Person' using errcode='42501';
+ end if;
+ with eligible as (
+  select w.id,w.title,w.work_state,w.organization_id,a.id allocation_id,
+   p.id plan_id,p.plan_state,p.exposure_service_date,p.planned_service_date,
+   case when p.id is null then 'unscheduled'
+        when p.plan_state='needs_replan' then 'needs_replan'
+        when p.exposure_service_date < p_date then 'overdue'
+        when p.exposure_service_date=p_date then 'scheduled_today'
+        else 'future' end as date_state,
+   w.created_at
+  from atlas.work_items w
+  join atlas.work_allocations a on a.work_item_id=w.id
+      and a.organization_id=w.organization_id
+      and a.assignee_canonical_person_id=p_person_id
+      and a.allocation_role='responsible' and a.state='active'
+  left join lateral (
+    select ep.id,ep.plan_state,ep.exposure_service_date,ep.planned_service_date
+    from atlas.work_execution_plans ep
+    where ep.organization_id=w.organization_id and ep.work_item_id=w.id
+      and ep.plan_state in ('active','needs_replan')
+    order by ep.updated_at desc,ep.id desc limit 1
+  ) p on true
+  where w.work_state='open' AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+    and (w.created_by_user_id=auth.uid() or atlas.is_effective_organization_owner_v1(w.organization_id))
+    and exists (
+      select 1 from atlas.company_work_native_ledger_relevance rel
+      where rel.work_item_id=w.id and rel.organization_id=w.organization_id
+        and rel.ledger_id=p_ledger_id and rel.attribution_state='active'
+        and (rel.evidence_kind in ('owner_attested','participant_attested')
+         or (rel.evidence_kind='source_verified' and exists(
+           select 1 from atlas.company_work_native_ledger_exact_source_v1(w.id,p_ledger_id) proof
+           where proof.source_schema=rel.source_schema and proof.source_table=rel.source_table
+             and proof.source_id=rel.source_id
+         )))
+    )
+    and (p.id is null or p.exposure_service_date<=p_date or p.plan_state='needs_replan')
+  order by p.exposure_service_date nulls last,w.created_at,w.id
+  limit p_limit+1
+ ), counted as(select count(*) n from eligible)
+ select coalesce(jsonb_agg(jsonb_build_object(
+  'workItemId',id,'title',title,'workState',work_state,'organizationId',organization_id,
+  'allocationId',allocation_id,'planId',plan_id,'planState',plan_state,
+  'exposureDate',exposure_service_date,'scheduledDate',planned_service_date,
+  'dateState',date_state,'recipientPersonId',p_person_id,'ledgerId',p_ledger_id
+ ) order by exposure_service_date nulls last,created_at,id)
+ filter (where rn<=p_limit),'[]'::jsonb), (select n from counted)
+ into v_rows,v_count
+ from (select *,row_number() over(order by exposure_service_date nulls last,created_at,id) rn from eligible) ranked;
+ return jsonb_build_object('ok',true,'contractVersion','connected_ledger_person_agenda_v1',
+  'date',p_date,'ledgerId',p_ledger_id,'personId',p_person_id,
+  'items',v_rows,'hasMore',v_count>p_limit,
+  'scopeRule','same_Ledger_active_seats_and_creator_or_effective_organization_owner',
+  'sourceStatesPreserved',true);
+end $function$;
+
+-- Governed legacy alternate Source: connected_person_company_work_offers_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.connected_person_company_work_offers_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare
+  v_self uuid:=atlas.current_person_id_v1();
+  v_items jsonb:='[]'::jsonb;
+begin
+  if auth.uid() is null or v_self is null then
+    raise exception 'Signed-in canonical Person required' using errcode='42501';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'offerId',o.id,'workItemId',o.work_item_id,'workTitle',w.title,
+    'organizationId',o.organization_id,'ledgerId',o.ledger_id,
+    'offeredByPersonId',o.offered_by_person_id,'offeredAt',o.offered_at,
+    'reason',o.reason,'state','offered','notAssignedYet',true)
+    order by o.offered_at,o.id),'[]'::jsonb) into v_items
+  from atlas.company_work_initial_responsibility_offers o
+  join atlas.work_items w on w.id=o.work_item_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+    and w.organization_id=o.organization_id
+  where o.target_person_id=v_self and o.target_membership_id is null
+    and o.offer_state='offered';
+  return jsonb_build_object('ok',true,
+    'contractVersion','connected_person_company_work_offers_v1',
+    'items',v_items,'acceptanceRequired',true,
+    'accountlessPersonsCanHoldPendingOffer',true);
+end
+$function$;
+
+-- Governed legacy alternate Source: my_ledger_event_work_attention_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.my_ledger_event_work_attention_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE v_person uuid;v_access jsonb;v_rows jsonb;
+BEGIN
+ v_access:=atlas.reality_access_self_api_v1();
+ IF v_access->>'state' IS DISTINCT FROM 'ready' OR
+    v_access->>'authenticated' IS DISTINCT FROM 'true' THEN
+   RAISE EXCEPTION 'An active personal Atlas session is required' USING ERRCODE='42501';END IF;
+ v_person:=atlas.current_person_id_v1();
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+  'ledgerId',z.ledger_id,'occurrenceId',z.occurrence_id,
+  'workItemId',z.work_item_id,'title',z.title,'workState',z.work_state,
+  'eventState',z.event_state,'eventTitle',z.event_title,'startsAt',z.start_at)
+  ORDER BY z.start_at,z.title,z.work_item_id),'[]'::jsonb) INTO v_rows
+ FROM (
+  SELECT a.ledger_id,a.occurrence_id,a.work_item_id,w.title,w.work_state,
+    CASE WHEN last_action.action_kind='blocked' THEN 'blocked'
+      ELSE w.work_state END AS event_state,
+    o.title event_title,o.start_at
+  FROM atlas.ledger_occurrence_work_attention_v1 a
+  JOIN atlas.work_items w ON w.id=a.work_item_id AND w.organization_id=a.organization_id AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+  JOIN local_intel.occurrences o ON o.id=a.occurrence_id
+  JOIN ledger.occurrence_calendar_bindings cb
+   ON cb.ledger_id=a.ledger_id AND cb.occurrence_id=a.occurrence_id
+      AND cb.binding_state='active'
+  LEFT JOIN LATERAL (
+    SELECT e.action_kind FROM atlas.ledger_occurrence_work_actions_v1 e
+    WHERE e.work_item_id=a.work_item_id
+      AND e.action_kind IN ('blocked','reopened')
+    ORDER BY e.action_sequence DESC LIMIT 1
+  ) last_action ON true
+  WHERE a.person_entity_id=v_person AND a.attention_state='active'
+    AND w.work_state='open'
+    AND EXISTS (SELECT 1 FROM atlas.ledger_organization_participations lop
+      WHERE lop.ledger_id=a.ledger_id AND lop.organization_id=a.organization_id
+        AND lop.status='active' AND lop.ended_at IS NULL)
+    AND EXISTS (SELECT 1 FROM atlas.organization_occurrence_bindings ob
+      WHERE ob.organization_id=a.organization_id AND ob.occurrence_id=a.occurrence_id
+        AND ob.binding_state='active')
+    AND atlas.person_has_native_ledger_connection_v1(
+     a.organization_id,a.ledger_id,v_person)
+    AND NOT EXISTS (SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 e
+      WHERE e.ledger_id=a.ledger_id AND e.occurrence_id=a.occurrence_id
+        AND e.work_item_id=a.work_item_id AND e.action_kind='removed')
+  ORDER BY o.start_at,w.title,w.id LIMIT 150
+ ) z;
+ RETURN jsonb_build_object('ok',true,'contractVersion','my_ledger_event_work_attention_v1',
+  'personEntityId',v_person,'items',v_rows,'sourceOwnedNotPersonalCopies',true);
+END
+$function$;
+
+-- Governed legacy alternate Source: self_responsible_company_work_today_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.self_responsible_company_work_today_self_api_v1(p_limit integer DEFAULT 100)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare v_person uuid:=atlas.current_person_id_v1(); v_items jsonb;
+begin
+  if auth.uid() is null or v_person is null then
+    raise exception 'Signed-in canonical Person required' using errcode='42501';
+  end if;
+  if p_limit<1 or p_limit>100 then
+    raise exception 'Limit must be between 1 and 100' using errcode='22023';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'workItemId',w.id,'organizationId',w.organization_id,
+    'organizationName',org.name,'title',w.title,'instructions',w.instructions,
+    'workState',w.work_state,'allocationId',a.id,
+    'allocationRole','responsible',
+    'sourceObjectType',w.source_object_type,
+    'sourceObjectId',w.source_object_id,
+    'sourceDate',w.metadata->>'sourceTaskDate',
+    'sourceDateIsNotInstitutionalSchedule',true,
+    'resultContractKey',w.result_contract_key,
+    'establishmentBasisKind',a.establishment_basis_kind,
+    'assigneePersonId',v_person,
+    'completionEnabled',w.result_contract_key=
+      'ordinary_company_work_worker_attestation_v1'
+  ) order by a.allocated_at desc,w.id),'[]'::jsonb) into v_items
+  from (
+    select a.* from atlas.work_allocations a
+    join atlas.organization_memberships m
+      on m.id=a.assignee_membership_id and m.organization_id=a.organization_id
+      and m.person_id=v_person and m.active
+    where a.state='active' and a.allocation_role='responsible'
+      and a.establishment_basis_kind='self_adoption'
+      and a.establishment_basis->>'sourceKind'=
+        'owner_self_adoption_existing_company_work'
+    order by a.allocated_at desc,a.id limit p_limit
+  ) a
+  join atlas.work_items w on w.id=a.work_item_id
+    and w.organization_id=a.organization_id and w.work_state='open' AND NOT EXISTS (SELECT 1 FROM atlas.work_item_context_links g0
+   WHERE g0.organization_id=w.organization_id AND g0.work_item_id=w.id
+    AND g0.subject_domain='spatial' AND g0.subject_kind='growing_object')
+  join atlas.organizations org on org.id=w.organization_id;
+  return jsonb_build_object('ok',true,
+    'contractVersion','self_responsible_company_work_today_v1',
+    'personId',v_person,'items',v_items,
+    'truthBoundary',jsonb_build_object(
+      'workSourceNotDuplicated',true,
+      'sourceDateNotManagerSchedule',true,
+      'onlyMyActiveSelfAdoptedResponsibility',true,
+      'notAnEmployeeDay',true));
+end
+$function$;
+
+-- Historic organization-wide communication context reader: native governor required.
+CREATE OR REPLACE FUNCTION atlas.communication_work_context_candidates_self_v1(p_institutional_conversation_id uuid, p_query text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare
+  v_conv atlas.institutional_conversations%rowtype;
+  v_endpoint_id uuid;
+  v_member atlas.organization_memberships%rowtype;
+  v_query text := nullif(btrim(coalesce(p_query,'')),'');
+  v_people jsonb;
+  v_places jsonb;
+  v_work jsonb;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in required.' using errcode='42501';
+  end if;
+  select * into v_conv from atlas.institutional_conversations where id=p_institutional_conversation_id;
+  if v_conv.id is null then
+    raise exception 'Source unavailable to this Person.' using errcode='42501';
+  end if;
+  select communication_endpoint_id into v_endpoint_id
+  from atlas.institutional_conversation_endpoints
+  where institutional_conversation_id=v_conv.id
+  order by case endpoint_role when 'primary' then 0 else 1 end,created_at limit 1;
+  BEGIN
+   PERFORM atlas.company_work_native_ledger_owner_self_v1(
+    v_conv.organization_id,
+    (SELECT lop.ledger_id FROM atlas.ledger_organization_participations lop
+     WHERE lop.organization_id=v_conv.organization_id
+       AND lop.participation_kind='governing' AND lop.is_compatibility_primary
+       AND lop.status='active' AND lop.ended_at IS NULL
+     ORDER BY lop.ledger_id LIMIT 1));
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'Source unavailable to this Person.' USING ERRCODE='42501';
+  END;
+  select * into v_member from atlas.organization_memberships
+  where organization_id=v_conv.organization_id and user_id=auth.uid() and active
+  order by created_at limit 1;
+  if v_member.id is null or not atlas.communication_endpoint_membership_has_capability_v1(v_endpoint_id,v_member.id,'view') then
+    raise exception 'Communication endpoint view authority required.' using errcode='42501';
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'subjectDomain','identity',
+    'subjectKind','identity_subject',
+    'subjectId',x.subject_id,
+    'label',x.display_name,
+    'kind',x.subject_kind
+  ) order by x.display_name),'[]'::jsonb)
+  into v_people
+  from (
+    select distinct on (s.subject_id) s.subject_id,s.display_name,s.subject_kind,s.updated_at
+    from atlas.identity_subject_projections s
+    where s.organization_id=v_conv.organization_id
+      and nullif(btrim(coalesce(s.display_name,'')),'') is not null
+      and (v_query is null or s.display_name ilike '%'||v_query||'%')
+    order by s.subject_id,s.updated_at desc
+    limit 40
+  ) x;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'subjectDomain','spatial',
+    'subjectKind',x.subject_kind,
+    'subjectId',x.subject_id,
+    'label',x.label,
+    'kind',x.context_kind
+  ) order by x.label),'[]'::jsonb)
+  into v_places
+  from (
+    select z.id subject_id,'zone'::text subject_kind,z.label,'zone'::text context_kind
+    from atlas.zones z join atlas.farms f on f.id=z.farm_id
+    where f.organization_id=v_conv.organization_id
+      and (v_query is null or z.label ilike '%'||v_query||'%')
+    union all
+    select p.id,'place'::text,p.label,p.place_type
+    from atlas.places p join atlas.farms f on f.id=p.farm_id
+    where f.organization_id=v_conv.organization_id
+      and (v_query is null or p.label ilike '%'||v_query||'%')
+    order by label
+    limit 80
+  ) x;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'workItemId',x.id,
+    'label',x.title,
+    'operationClass',x.operation_class,
+    'workState',x.work_state,
+    'handlingMode',sf.handling_mode,
+    'function',sf.function_phrase,
+    'action',sf.action_phrase
+  ) order by x.updated_at desc,x.title),'[]'::jsonb)
+  into v_work
+  from (
+    select w.* from atlas.work_items w
+    where w.organization_id=v_conv.organization_id
+      and w.work_state='open'
+      and (v_query is null or w.title ilike '%'||v_query||'%')
+    order by w.updated_at desc
+    limit 80
+  ) x
+  left join atlas.work_item_semantic_frames sf on sf.work_item_id=x.id;
+
+  return jsonb_build_object(
+    'contractVersion','communication_work_context_candidates_v1',
+    'conversationId',v_conv.id,
+    'people',v_people,
+    'places',v_places,
+    'relatedWork',v_work
+  );
+end;
+$function$;
+
+
+-- Gate 0 additional historical alternate Work/correspondence source readers.
+-- Reject linked original growing-object Work from these broad legacy surfaces.
+
+-- Historical governed alternate: organization_correspondence_search_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.organization_correspondence_search_self_api_v1(p_query text, p_organization_id uuid DEFAULT NULL::uuid, p_communication_endpoint_id uuid DEFAULT NULL::uuid, p_filters jsonb DEFAULT '{}'::jsonb, p_limit integer DEFAULT 100)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare
+  v_query text:=btrim(coalesce(p_query,''));
+  v_filters jsonb:=coalesce(p_filters,'{}'::jsonb);
+  v_items jsonb;
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if p_limit<1 or p_limit>500 then raise exception 'Search limit must be between 1 and 500.' using errcode='22023'; end if;
+  if jsonb_typeof(v_filters)<>'object' then raise exception 'Search filters must be an object.' using errcode='22023'; end if;
+  if p_communication_endpoint_id is not null
+     and not atlas.communication_endpoint_authorized_self_v1(p_communication_endpoint_id,'view') then
+    raise exception 'Communication endpoint view authority required.' using errcode='42501';
+  end if;
+
+  with candidates as (
+    select cc.id as communication_conversation_id,
+           cc.subject,
+           cc.last_activity_at,
+           atlas.organization_correspondence_effective_organization_v1(cc.id) as effective_organization_id,
+           endpoint_context.endpoint_id,
+           endpoint_context.endpoint_kind,
+           endpoint_context.endpoint_name,
+           institutional_context.institutional_conversation_id,
+           coalesce(institutional_context.disposition,'inbox') as disposition,
+           coalesce(event_text.participant_text,'') as participant_text,
+           coalesce(event_text.body_text,'') as body_text,
+           coalesce(event_text.attachment_text,'') as attachment_text,
+           coalesce(institutional_context.work_text,'') as work_text,
+           coalesce(event_text.has_attachment,false) as has_attachment
+    from atlas.communication_conversations cc
+    left join lateral (
+      select ep.id as endpoint_id,ep.endpoint_kind,ep.display_name as endpoint_name
+      from atlas.communication_conversation_endpoints cce
+      join atlas.communication_endpoints ep on ep.id=cce.communication_endpoint_id
+      where cce.communication_conversation_id=cc.id
+        and (p_communication_endpoint_id is null or ep.id=p_communication_endpoint_id)
+      order by ep.id
+      limit 1
+    ) endpoint_context on true
+    left join lateral (
+      select string_agg(coalesce((
+               select string_agg(coalesce(p.metadata->>'displayName','')||' '||p.address,' ')
+               from atlas.communication_event_participants p
+               where p.communication_event_id=e.id
+             ),''),' ') as participant_text,
+             string_agg(coalesce(e.body,''),' ') as body_text,
+             string_agg(coalesce((
+               select string_agg(coalesce(a.transfer_name,''),' ')
+               from atlas.communication_attachments a
+               where a.event_id=e.id
+             ),''),' ') as attachment_text,
+             bool_or(exists(
+               select 1 from atlas.communication_attachments a where a.event_id=e.id
+             )) as has_attachment
+      from atlas.communication_conversation_events cce
+      join atlas.communication_events e on e.id=cce.communication_event_id
+      where cce.communication_conversation_id=cc.id
+    ) event_text on true
+    left join lateral (
+      with roots as (
+        select r.institutional_conversation_id
+        from atlas.institutional_conversation_roots r
+        where r.communication_conversation_id=cc.id
+      )
+      select (select institutional_conversation_id from roots order by institutional_conversation_id limit 1) as institutional_conversation_id,
+             (select de.disposition
+              from atlas.institutional_conversation_disposition_events de
+              join roots r on r.institutional_conversation_id=de.institutional_conversation_id
+              order by de.created_at desc,de.id desc limit 1) as disposition,
+             (select string_agg(coalesce(w.title,'')||' '||coalesce(w.instructions,''),' ')
+              from atlas.communication_derived_work_links l
+              join roots r on r.institutional_conversation_id=l.institutional_conversation_id
+              join atlas.work_items w on w.id=l.work_item_id
+                AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=w.organization_id
+        AND original_link.work_item_id=w.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )) as work_text
+    ) institutional_context on true
+    where cc.organization_id is not null
+      and cc.principal_id is null
+      and atlas.organization_correspondence_read_authorized_self_v1(cc.id)
+      and (p_organization_id is null or atlas.organization_correspondence_effective_organization_v1(cc.id)=p_organization_id)
+      and (p_communication_endpoint_id is null or endpoint_context.endpoint_id is not null)
+  ), ranked as (
+    select *,case when v_query='' then 0::real else ts_rank_cd(
+      to_tsvector('simple',coalesce(subject,'')||' '||participant_text||' '||body_text||' '||attachment_text||' '||work_text),
+      websearch_to_tsquery('simple',v_query)
+    ) end as rank
+    from candidates
+    where (v_query='' or to_tsvector('simple',coalesce(subject,'')||' '||participant_text||' '||body_text||' '||attachment_text||' '||work_text)
+             @@ websearch_to_tsquery('simple',v_query))
+      and (not(v_filters ? 'disposition') or disposition=v_filters->>'disposition')
+      and (coalesce((v_filters->>'hasAttachment')::boolean,false)=false or has_attachment)
+      and (not(v_filters ? 'dateFrom') or last_activity_at >= (v_filters->>'dateFrom')::timestamptz)
+      and (not(v_filters ? 'dateTo') or last_activity_at <= (v_filters->>'dateTo')::timestamptz)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'communicationConversationId',communication_conversation_id,
+           'institutionalConversationId',institutional_conversation_id,
+           'effectiveOrganizationId',effective_organization_id,
+           'endpointId',endpoint_id,
+           'endpointKind',endpoint_kind,
+           'endpointName',endpoint_name,
+           'subject',subject,
+           'lastActivityAt',last_activity_at,
+           'disposition',disposition,
+           'hasAttachment',has_attachment,
+           'rank',rank
+         ) order by rank desc,last_activity_at desc,communication_conversation_id),'[]'::jsonb)
+  into v_items
+  from (select * from ranked order by rank desc,last_activity_at desc,communication_conversation_id limit p_limit) q;
+
+  return jsonb_build_object(
+    'ok',true,
+    'contractVersion','organization_correspondence_search_v1',
+    'identityRoot','communication_conversation',
+    'query',v_query,
+    'organizationId',p_organization_id,
+    'communicationEndpointFilterId',p_communication_endpoint_id,
+    'items',v_items
+  );
+end;
+$function$;
+
+-- Historical governed alternate: organization_management_company_work_planning_queue_api_v1
+CREATE OR REPLACE FUNCTION atlas.organization_management_company_work_planning_queue_api_v1(p_organization_id uuid, p_window_start date DEFAULT NULL::date, p_window_end date DEFAULT NULL::date)
+ RETURNS TABLE(work_item_id uuid, title text, operation_class text, work_state text, responsibility_state text, responsible_membership_id uuid, responsible_user_id uuid, allocation_id uuid, planning_state text, planned_service_date date, exposure_service_date date, first_planned_service_date date, rollover_count integer, next_target_at timestamp with time zone, hard_finish_at timestamp with time zone, result_contract_key text, open_conflicts bigint, latest_result_kind text, latest_result_at timestamp with time zone, latest_result_payload jsonb, attention_state text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  -- This historical organization-wide planning queue includes unlinked Work
+  -- titles and Result payloads. A legacy manager/farm seat cannot authorize
+  -- them for a connected Person; use the signed bounded native Work readers.
+  -- Interim fail-closed restriction: native primary Ledger governor only.
+  BEGIN
+    PERFORM atlas.company_work_native_ledger_owner_self_v1(
+      p_organization_id,
+      (SELECT lop.ledger_id FROM atlas.ledger_organization_participations lop
+        WHERE lop.organization_id=p_organization_id
+          AND lop.participation_kind='governing'
+          AND lop.is_compatibility_primary
+          AND lop.status='active' AND lop.ended_at IS NULL
+        ORDER BY lop.ledger_id LIMIT 1)
+    );
+  EXCEPTION WHEN OTHERS THEN
+    RAISE EXCEPTION 'Source unavailable to this Person.' USING ERRCODE='42501';
+  END;
+  if not exists(
+    select 1
+    from atlas.organization_memberships om
+    where om.organization_id=p_organization_id
+      and om.user_id=auth.uid()
+      and om.active
+  ) then
+    raise exception 'Active organization membership required.' using errcode='42501';
+  end if;
+  if not atlas.is_organization_owner(p_organization_id)
+     and not exists(
+       select 1
+       from atlas.farms f
+       join atlas.farm_memberships fm on fm.farm_id=f.id
+       where f.organization_id=p_organization_id
+         and fm.user_id=auth.uid()
+         and fm.active
+         and fm.role in ('owner','manager')
+     ) then
+    raise exception 'Company Work scheduling authority required.' using errcode='42501';
+  end if;
+
+  return query
+  select wi.id,wi.title,wi.operation_class,wi.work_state,
+    case when wa.id is null then 'unassigned' else 'assigned' end,
+    wa.assignee_membership_id,om.user_id,wa.id,
+    case when wa.id is null then 'unassigned' when ep.id is null then 'assigned_unscheduled' when ep.plan_state='needs_replan' then 'needs_replan' else 'scheduled' end,
+    ep.planned_service_date,ep.exposure_service_date,ep.first_planned_service_date,coalesce(ep.rollover_count,0),
+    tc.preferred_end_at,coalesce(tc.hard_finish_at,tc.latest_lawful_at),wi.result_contract_key,coalesce(pc.open_conflicts,0),
+    lr.result_kind,lr.reported_at,lr.payload,
+    case
+      when lr.result_kind in ('blocked','unable') then 'worker_exception'
+      when ep.plan_state='needs_replan' then 'needs_replan'
+      when wa.id is null then 'needs_responsibility'
+      when ep.id is null then 'needs_schedule'
+      else 'none'
+    end
+  from atlas.work_items wi
+  left join atlas.work_allocations wa on wa.organization_id=wi.organization_id and wa.work_item_id=wi.id and wa.state='active' and wa.allocation_role='responsible'
+  left join atlas.organization_memberships om on om.id=wa.assignee_membership_id
+  left join atlas.work_execution_plans ep on ep.organization_id=wi.organization_id and ep.work_item_id=wi.id and ep.plan_state in ('active','needs_replan')
+  left join lateral(
+    select x.preferred_end_at as preferred_end_at,x.hard_finish_at as hard_finish_at,x.latest_lawful_at as latest_lawful_at
+    from atlas.work_time_contracts x
+    where x.organization_id=wi.organization_id and x.work_item_id=wi.id and x.contract_state='active'
+    order by x.created_at desc limit 1
+  ) tc on true
+  left join lateral(
+    select count(*) as open_conflicts from atlas.work_planning_conflicts c
+    where c.organization_id=wi.organization_id and c.work_item_id=wi.id and c.state='open'
+  ) pc on true
+  left join lateral(
+    select r.result_kind as result_kind,r.reported_at as reported_at,r.payload as payload
+    from atlas.work_execution_results r
+    where r.organization_id=wi.organization_id and r.work_item_id=wi.id
+    order by r.reported_at desc,r.id desc limit 1
+  ) lr on true
+  where wi.organization_id=p_organization_id
+    and wi.work_state='open'
+     AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=wi.organization_id
+        AND original_link.work_item_id=wi.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+    and (
+      atlas.is_organization_owner(p_organization_id)
+      or atlas.can_schedule_company_work_v1(wi.id)
+    )
+    and (p_window_start is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)>=p_window_start)
+    and (p_window_end is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)<=p_window_end)
+  order by case
+      when lr.result_kind in ('blocked','unable') then 0
+      when wa.id is null then 1
+      when ep.id is null then 2
+      when ep.plan_state='needs_replan' then 3
+      else 4
+    end,
+    coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date) nulls last,
+    wi.created_at,wi.id;
+end;
+$function$;
+
+-- Historical governed alternate: organization_owner_company_work_planning_queue_api_v1
+CREATE OR REPLACE FUNCTION atlas.organization_owner_company_work_planning_queue_api_v1(p_organization_id uuid, p_window_start date DEFAULT NULL::date, p_window_end date DEFAULT NULL::date)
+ RETURNS TABLE(work_item_id uuid, title text, operation_class text, work_state text, responsibility_state text, responsible_membership_id uuid, responsible_user_id uuid, allocation_id uuid, planning_state text, planned_service_date date, exposure_service_date date, first_planned_service_date date, rollover_count integer, next_target_at timestamp with time zone, hard_finish_at timestamp with time zone, result_contract_key text, open_conflicts bigint)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if not atlas.is_organization_owner(p_organization_id) then raise exception 'Organization owner authority required.' using errcode='42501'; end if;
+  return query
+  select wi.id,wi.title,wi.operation_class,wi.work_state,
+    case when wa.id is null then 'unassigned' else 'assigned' end,
+    wa.assignee_membership_id,om.user_id,wa.id,
+    case
+      when wa.id is null then 'unassigned'
+      when ep.id is null then 'assigned_unscheduled'
+      when ep.plan_state='needs_replan' then 'needs_replan'
+      else 'scheduled'
+    end,
+    ep.planned_service_date,ep.exposure_service_date,ep.first_planned_service_date,coalesce(ep.rollover_count,0),
+    tc.preferred_end_at,coalesce(tc.hard_finish_at,tc.latest_lawful_at),wi.result_contract_key,
+    coalesce(pc.open_conflicts,0)
+  from atlas.work_items wi
+  left join atlas.work_allocations wa on wa.organization_id=wi.organization_id and wa.work_item_id=wi.id and wa.state='active' and wa.allocation_role='responsible'
+  left join atlas.organization_memberships om on om.id=wa.assignee_membership_id
+  left join atlas.work_execution_plans ep on ep.organization_id=wi.organization_id and ep.work_item_id=wi.id and ep.plan_state in ('active','needs_replan')
+  left join lateral(
+    select x.preferred_end_at as preferred_end_at,x.hard_finish_at as hard_finish_at,x.latest_lawful_at as latest_lawful_at
+    from atlas.work_time_contracts x
+    where x.organization_id=wi.organization_id and x.work_item_id=wi.id and x.contract_state='active'
+    order by x.created_at desc limit 1
+  ) tc on true
+  left join lateral(
+    select count(*) as open_conflicts from atlas.work_planning_conflicts c
+    where c.organization_id=wi.organization_id and c.work_item_id=wi.id and c.state='open'
+  ) pc on true
+  where wi.organization_id=p_organization_id and wi.work_state='open'
+  AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=wi.organization_id
+        AND original_link.work_item_id=wi.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+    and (p_window_start is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)>=p_window_start)
+    and (p_window_end is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)<=p_window_end)
+  order by case when wa.id is null then 0 when ep.id is null then 1 when ep.plan_state='needs_replan' then 2 else 3 end,
+           coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date) nulls last,
+           wi.created_at,wi.id;
+end;
+$function$;
+
+-- Historical governed alternate: organization_owner_company_work_planning_queue_api_v2
+CREATE OR REPLACE FUNCTION atlas.organization_owner_company_work_planning_queue_api_v2(p_organization_id uuid, p_window_start date DEFAULT NULL::date, p_window_end date DEFAULT NULL::date)
+ RETURNS TABLE(work_item_id uuid, title text, operation_class text, work_state text, responsibility_state text, responsible_membership_id uuid, responsible_user_id uuid, allocation_id uuid, planning_state text, planned_service_date date, exposure_service_date date, first_planned_service_date date, rollover_count integer, next_target_at timestamp with time zone, hard_finish_at timestamp with time zone, result_contract_key text, open_conflicts bigint, latest_result_kind text, latest_result_at timestamp with time zone, latest_result_payload jsonb, attention_state text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if not atlas.is_organization_owner(p_organization_id) then raise exception 'Organization owner authority required.' using errcode='42501'; end if;
+  return query
+  select wi.id,wi.title,wi.operation_class,wi.work_state,
+    case when wa.id is null then 'unassigned' else 'assigned' end,
+    wa.assignee_membership_id,om.user_id,wa.id,
+    case when wa.id is null then 'unassigned' when ep.id is null then 'assigned_unscheduled' when ep.plan_state='needs_replan' then 'needs_replan' else 'scheduled' end,
+    ep.planned_service_date,ep.exposure_service_date,ep.first_planned_service_date,coalesce(ep.rollover_count,0),
+    tc.preferred_end_at,coalesce(tc.hard_finish_at,tc.latest_lawful_at),wi.result_contract_key,coalesce(pc.open_conflicts,0),
+    lr.result_kind,lr.reported_at,lr.payload,
+    case
+      when lr.result_kind in ('blocked','unable') then 'worker_exception'
+      when ep.plan_state='needs_replan' then 'needs_replan'
+      when wa.id is null then 'needs_responsibility'
+      when ep.id is null then 'needs_schedule'
+      else 'none'
+    end
+  from atlas.work_items wi
+  left join atlas.work_allocations wa on wa.organization_id=wi.organization_id and wa.work_item_id=wi.id and wa.state='active' and wa.allocation_role='responsible'
+  left join atlas.organization_memberships om on om.id=wa.assignee_membership_id
+  left join atlas.work_execution_plans ep on ep.organization_id=wi.organization_id and ep.work_item_id=wi.id and ep.plan_state in ('active','needs_replan')
+  left join lateral(
+    select x.preferred_end_at as preferred_end_at,x.hard_finish_at as hard_finish_at,x.latest_lawful_at as latest_lawful_at
+    from atlas.work_time_contracts x
+    where x.organization_id=wi.organization_id and x.work_item_id=wi.id and x.contract_state='active'
+    order by x.created_at desc limit 1
+  ) tc on true
+  left join lateral(
+    select count(*) as open_conflicts from atlas.work_planning_conflicts c
+    where c.organization_id=wi.organization_id and c.work_item_id=wi.id and c.state='open'
+  ) pc on true
+  left join lateral(
+    select r.result_kind as result_kind,r.reported_at as reported_at,r.payload as payload
+    from atlas.work_execution_results r
+    where r.organization_id=wi.organization_id and r.work_item_id=wi.id
+    order by r.reported_at desc,r.id desc limit 1
+  ) lr on true
+  where wi.organization_id=p_organization_id and wi.work_state='open'
+  AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=wi.organization_id
+        AND original_link.work_item_id=wi.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+    and (p_window_start is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)>=p_window_start)
+    and (p_window_end is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)<=p_window_end)
+  order by case
+      when lr.result_kind in ('blocked','unable') then 0
+      when wa.id is null then 1
+      when ep.id is null then 2
+      when ep.plan_state='needs_replan' then 3
+      else 4
+    end,
+    coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date) nulls last,
+    wi.created_at,wi.id;
+end;
+$function$;
+
+-- Historical governed alternate: organization_work_accountability_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.organization_work_accountability_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare
+  v_uid uuid:=auth.uid();
+  v_organizations jsonb;
+  v_pending jsonb;
+  v_recent jsonb;
+begin
+  if v_uid is null then
+    return jsonb_build_object('ok',false,'authenticated',false,'organizations','[]'::jsonb,'pending','[]'::jsonb,'recentCompletions','[]'::jsonb);
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'organizationId',o.id,'organizationName',o.name
+  ) order by o.name,o.id),'[]'::jsonb)
+  into v_organizations
+  from atlas.organizations o
+  where o.status='active' and atlas.is_effective_organization_owner_v1(o.id);
+
+  select coalesce(jsonb_agg(item order by reported_at desc,result_id desc),'[]'::jsonb)
+  into v_pending
+  from (
+    select r.reported_at,r.id as result_id,
+      jsonb_strip_nulls(jsonb_build_object(
+        'resultId',r.id,
+        'workItemId',w.id,
+        'organizationId',effective_org.id,
+        'organizationName',effective_org.name,
+        'physicalOrganizationId',w.organization_id,
+        'title',w.title,
+        'resultKind',r.result_kind,
+        'reportedAt',r.reported_at,
+        'reportedByOrganizationMembershipId',r.reported_by_organization_membership_id,
+        'reportedByName',isp.display_name,
+        'positionTitle',position_row.display_title,
+        'resultContractKey',r.result_contract_key,
+        'companyWorkState',w.work_state
+      )) as item
+    from atlas.work_execution_results r
+    join atlas.work_items w on w.id=r.work_item_id and w.organization_id=r.organization_id
+     AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=w.organization_id
+        AND original_link.work_item_id=w.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+    join atlas.organizations effective_org
+      on effective_org.id=atlas.effective_work_item_organization_v1(w.id)
+     and effective_org.status='active'
+    join atlas.work_result_contract_policies p
+      on p.contract_key=r.result_contract_key and p.active and p.acceptance_mode='manager_acceptance'
+    left join atlas.organization_memberships reported_membership
+      on reported_membership.id=r.reported_by_organization_membership_id
+     and reported_membership.organization_id=r.organization_id
+    left join atlas.identity_subject_projections isp
+      on isp.organization_id=r.organization_id
+     and isp.subject_id=reported_membership.identity_subject_id
+    left join lateral (
+      select pos.display_title
+      from atlas.organization_position_appointments opa
+      join atlas.organization_positions pos
+        on pos.id=opa.position_id and pos.organization_id=opa.organization_id and pos.status='active'
+      where opa.organization_id=r.organization_id
+        and opa.organization_membership_id=r.reported_by_organization_membership_id
+        and opa.status='active'
+        and opa.begins_at<=r.reported_at
+        and (opa.ends_at is null or opa.ends_at>r.reported_at)
+      order by case when opa.appointment_kind='primary' then 0 else 1 end,opa.begins_at desc,opa.id
+      limit 1
+    ) position_row on true
+    where atlas.is_effective_organization_owner_v1(effective_org.id)
+      and not exists (select 1 from atlas.work_result_acceptances a where a.execution_result_id=r.id)
+    order by r.reported_at desc,r.id desc
+    limit 50
+  ) pending_rows;
+
+  select coalesce(jsonb_agg(item order by established_at desc,entry_id desc),'[]'::jsonb)
+  into v_recent
+  from (
+    select le.established_at,le.id as entry_id,
+      jsonb_strip_nulls(jsonb_build_object(
+        'ledgerEntryId',le.id,
+        'organizationId',effective_org.id,
+        'organizationName',effective_org.name,
+        'physicalOrganizationId',le.organization_id,
+        'physicalLedgerId',le.ledger_id,
+        'workItemId',le.payload->>'workItemId',
+        'title',le.title,
+        'occurredAt',le.occurred_at,
+        'establishedAt',le.established_at,
+        'completedAt',le.payload->>'completedAt',
+        'resultKind',le.payload->>'resultKind',
+        'acceptanceKind',le.payload->>'acceptanceKind',
+        'reportedByOrganizationMembershipId',le.payload->>'reportedByOrganizationMembershipId',
+        'positionTitle',le.payload->>'positionTitle',
+        'truthStatus',le.truth_status
+      )) as item
+    from atlas.organization_ledger_entries le
+    left join atlas.work_items work_source on work_source.id::text=le.payload->>'workItemId'
+    join atlas.organizations effective_org on effective_org.id=coalesce(
+      atlas.effective_work_item_organization_v1(work_source.id),
+      (select ec.effective_organization_id
+       from atlas.effective_institutional_custody_v1('atlas','organization_ledger_entries',le.id::text,le.organization_id,le.ledger_id) ec
+       where ec.disposition in ('physical','reassigned'))
+    ) and effective_org.status='active'
+    where le.semantic_type='company_work_completed'
+       AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=work_source.organization_id
+        AND original_link.work_item_id=work_source.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+      and le.truth_status='established'
+      and coalesce((le.provenance->>'institutionalOnly')::boolean,false)
+      and coalesce((le.provenance->>'personalAtlasCausalityIncluded')::boolean,false)=false
+      and atlas.is_effective_organization_owner_v1(effective_org.id)
+    order by le.established_at desc,le.id desc
+    limit 50
+  ) recent_rows;
+
+  return jsonb_build_object(
+    'ok',true,'authenticated',true,
+    'contractVersion','organization_work_accountability_v2',
+    'organizations',v_organizations,
+    'pending',v_pending,
+    'recentCompletions',v_recent,
+    'institutionalCustodyMode','effective',
+    'privacyBoundary',jsonb_build_object('institutionalOnly',true,'personalAtlasCausalityIncluded',false)
+  );
+end;
+$function$;
+
+COMMIT;

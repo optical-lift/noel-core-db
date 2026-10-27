@@ -1,0 +1,207 @@
+-- Schema-clone assertions after the reviewed source candidates are applied.
+DO $proof$
+BEGIN
+ IF has_function_privilege('anon',
+  'public.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)',
+  'EXECUTE') THEN
+   RAISE EXCEPTION 'Anonymous original Work assignment exposed';
+ END IF;
+ IF has_function_privilege('authenticated',
+  'atlas.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)',
+  'EXECUTE') THEN
+   RAISE EXCEPTION 'Internal direct assignment helper exposed';
+ END IF;
+ IF NOT EXISTS (
+  SELECT 1 FROM pg_constraint c
+  WHERE c.conrelid='atlas.work_allocations'::regclass
+    AND c.conname='work_allocations_exact_assignee_carrier_v1'
+    AND pg_get_constraintdef(c.oid) LIKE '%original_subject_direct_assignment_v1%'
+ ) THEN RAISE EXCEPTION 'Original Work direct Person carrier rejected by table source';END IF;
+ IF NOT EXISTS (
+  SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='atlas' AND p.proname='owner_original_split_work_part_self_api_v1'
+    AND p.prosecdef
+ ) THEN RAISE EXCEPTION 'Missing governor source proof of original Work part';END IF;
+END $proof$;
+
+-- Sign-in integration cases REQUIRED before any release:
+-- Governor reads exact original split Bed 3 and Bed 4 IDs;
+-- independent result policy review (worker attestation vs manager acceptance);
+-- issue one direct allocation + plan for Anna without new Work/task/offer;
+-- retry with same action returns same allocation & plan;
+-- changed Person/date/action or another active responsible Person is denied;
+-- Anna signed in sees exact original Bed 3 through my_work/day/Today,
+-- confirms her own physical work with source-specific accepted result;
+-- recipient cannot discover other Beds, owner private information or all crops;
+-- unconnected Person, unrelated Ledger governor, anon all denied;
+-- Event original Work and other preexisting Person assignment flows unchanged.
+
+-- Responsibility may be assigned with NO work-on date. Legacy dated calls
+-- remain permitted, but no plan or Today admission may be fabricated for NULL.
+DO $original_work_unscheduled_assignment$
+DECLARE v_src text;
+BEGIN
+ SELECT pg_get_functiondef(
+   'atlas.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)'::regprocedure)
+ INTO v_src;
+ IF v_src IS NULL OR
+    position('IF p_service_date IS NOT NULL THEN' IN v_src)=0 OR
+    position('requestedServiceDate' IN v_src)=0 OR
+    position('scheduleState' IN v_src)=0 OR
+    position('v_created:=true' IN v_src)=0 OR
+    position('p_service_date IS NULL OR p_action_id IS NULL' IN v_src)>0
+ THEN RAISE EXCEPTION 'Direct original Work still couples responsibility to a required date'; END IF;
+END $original_work_unscheduled_assignment$;
+
+-- Neither native assignment nor old Work text is an identity disclosure
+-- authorization; all signed Person Work surfaces must enforce current
+-- original Subject identity decisions, including post-assignment revocation.
+DO $original_subject_work_visibility$
+DECLARE v_reader text;v_sql text;
+BEGIN
+ IF has_function_privilege('authenticated',
+    'atlas.person_original_work_identity_disclosed_self_v1(uuid,uuid,uuid,uuid)','EXECUTE')
+ THEN RAISE EXCEPTION 'Original Work identity helper exposed to authenticated'; END IF;
+ FOR v_reader IN SELECT unnest(ARRAY[
+  'connected_person_my_work_self_api_v1',
+  'connected_person_place_work_self_api_v1',
+  'report_connected_person_company_work_internal_v1',
+  'connected_person_company_work_day_self_api_v1',
+  'connected_person_company_work_today_self_api_v1',
+  'connected_person_work_prerequisites_self_api_v1'
+ ]::text[]) LOOP
+   SELECT pg_get_functiondef(p.oid) INTO v_sql
+   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='atlas' AND p.proname=v_reader LIMIT 1;
+   IF v_sql IS NULL OR position('person_original_work_identity_disclosed_self_v1(' in v_sql)=0
+   THEN RAISE EXCEPTION 'Original Subject Work identity source admission missing from %',v_reader; END IF;
+ END LOOP;
+END $original_subject_work_visibility$;
+
+-- Historical title/offer/calendar/agenda readers cannot bypass a withheld
+-- original growing-object Subject, regardless of legacy membership/role.
+DO $alternate_original_work_proof$
+DECLARE v_name text; v_definition text;
+BEGIN
+ FOR v_name IN SELECT unnest(ARRAY['company_work_initial_offers_self_api_v1','company_work_participation_offers_self_api_v1','company_work_responsibility_transfer_offers_self_api_v1','company_work_self_responsibilities_api_v1','connected_ledger_person_agenda_self_api_v1','connected_person_company_work_offers_self_api_v1','my_ledger_event_work_attention_self_api_v1','self_responsible_company_work_today_self_api_v1']::text[]) LOOP
+  SELECT pg_get_functiondef(p.oid) INTO v_definition
+  FROM pg_proc p JOIN pg_namespace ns ON ns.oid=p.pronamespace
+  WHERE ns.nspname='atlas' AND p.proname=v_name AND p.prosecdef LIMIT 1;
+  IF v_definition IS NULL
+    OR position('work_item_context_links' in v_definition)=0
+    OR position('g0.subject_domain' in v_definition)=0
+    OR position('g0.subject_kind' in v_definition)=0
+    OR position('NOT EXISTS' in v_definition)=0 THEN
+    RAISE EXCEPTION 'Historical alternate Work title reader % lacks bounded exclusion',v_name;
+  END IF;
+ END LOOP;
+END $alternate_original_work_proof$;
+
+-- Source proof: old communication picker must not enumerate organization
+-- people, places, zones or original Work on legacy membership authority alone.
+DO $communication_context_gate$
+DECLARE v_sql text;
+BEGIN
+ SELECT pg_get_functiondef('atlas.communication_work_context_candidates_self_v1(uuid,text)'::regprocedure)
+ INTO v_sql;
+ IF position('company_work_native_ledger_owner_self_v1(' in v_sql)=0
+    OR position('is_compatibility_primary' in v_sql)=0 THEN
+  RAISE EXCEPTION 'Communication context original sources missing native governor gate';
+ END IF;
+END $communication_context_gate$;
+
+-- The old organization-wide management queue can contain historical Work text
+-- with NO original Subject link. Link-based filtering alone is not sufficient.
+DO $unlinked_historical_management_gate$
+DECLARE v_sql text;
+BEGIN
+ SELECT lower(pg_get_functiondef(
+   'atlas.organization_management_company_work_planning_queue_api_v1(uuid,date,date)'::regprocedure
+ )) INTO v_sql;
+ IF v_sql IS NULL OR
+    position('company_work_native_ledger_owner_self_v1(' IN v_sql)=0 OR
+    position('is_compatibility_primary' IN v_sql)=0 OR
+    position('company_work_native_ledger_owner_self_v1(' IN v_sql)>=position('return query' IN v_sql) THEN
+   RAISE EXCEPTION 'Historical organization planning is not gated before unlinked Work reads';
+ END IF;
+END $unlinked_historical_management_gate$;
+
+-- Five more historic planning, organization-result and correspondence paths
+-- cannot disclose spatial growing-object original Work through older seats.
+DO $older_work_proof$
+DECLARE v_fn text; v_sql text;
+BEGIN
+ FOR v_fn IN SELECT unnest(ARRAY['organization_correspondence_search_self_api_v1','organization_management_company_work_planning_queue_api_v1','organization_owner_company_work_planning_queue_api_v1','organization_owner_company_work_planning_queue_api_v2','organization_work_accountability_self_api_v1']::text[]) LOOP
+  SELECT pg_get_functiondef(p.oid) INTO v_sql
+  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='atlas' AND p.proname=v_fn AND p.prosecdef LIMIT 1;
+  IF v_sql IS NULL
+     OR position('original_link.subject_domain' IN v_sql)=0
+     OR position('original_link.subject_kind' IN v_sql)=0
+     OR position('original_link.work_item_id' IN v_sql)=0
+     OR position('NOT EXISTS' IN v_sql)=0
+  THEN RAISE EXCEPTION 'Historical Work disclosure exclusion missing from %',v_fn; END IF;
+ END LOOP;
+END $older_work_proof$;
+
+-- One exact Work, not any other Work in the same operation class.
+-- This is static source custody; the signed GoTrue clone must exercise denial.
+DO $exact_work_scope_guard$
+DECLARE v_sql text;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM information_schema.columns
+   WHERE table_schema='atlas' AND table_name='company_work_standing_assignment_scopes'
+     AND column_name='covered_work_item_id') THEN
+   RAISE EXCEPTION 'Exact Work scope foreign-keyed source column absent'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_constraint
+   WHERE conname='company_work_native_scope_operation_class_required_v1'
+     AND pg_get_constraintdef(oid) LIKE '%exact_work%') THEN
+   RAISE EXCEPTION 'Exact Work cannot be an unbounded prose-only scope'; END IF;
+ SELECT pg_get_functiondef(
+   'atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)'::regprocedure
+ ) INTO v_sql;
+ IF v_sql IS NULL OR position('v_scope.covered_work_item_id IS DISTINCT FROM v_work.id' IN v_sql)=0
+   OR position('company_work_native_ledger_owner_self_v1(' IN v_sql)=0
+   OR position('worker_person_id' IN v_sql)=0
+   OR position('original Subject disclosure' IN v_sql)=0 THEN
+   RAISE EXCEPTION 'Exact Work assignment must be source-enforced'; END IF;
+ SELECT pg_get_functiondef(
+  'atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)'::regprocedure
+ ) INTO v_sql;
+ IF v_sql IS NULL OR position('company_work_native_ledger_owner_self_v1(' IN v_sql)=0
+   OR position('person_has_native_ledger_connection_v1(' IN v_sql)=0
+   OR position('company_work_native_ledger_relevance' IN v_sql)=0 THEN
+   RAISE EXCEPTION 'Original Work proposal cannot use employee/old farm seats'; END IF;
+ IF has_function_privilege('anon',
+    'public.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)','EXECUTE')
+ OR has_function_privilege('authenticated',
+    'atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)','EXECUTE') THEN
+   RAISE EXCEPTION 'Exact Work privileged source must not be exposed directly'; END IF;
+  -- Existing public signed endpoints are SECURITY INVOKER wrappers. Their
+  -- authenticated roles MUST retain EXECUTE on the true atlas source.
+  IF NOT has_function_privilege('authenticated',
+      'atlas.native_ledger_standing_scopes_self_api_v1()','EXECUTE')
+    OR NOT has_function_privilege('authenticated',
+      'atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Standing reader or assignment writer lost signed source execute';
+  END IF;
+  IF has_function_privilege('anon',
+      'atlas.native_ledger_standing_scopes_self_api_v1()','EXECUTE')
+    OR has_function_privilege('anon',
+      'atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Anonymous access to signed standing scope sources is forbidden';
+  END IF;
+  -- A second protected allocation INSERT trigger must enforce this exact
+  -- original ID, independently of the owner assignment RPC guard.
+  SELECT pg_get_functiondef(
+    'atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure
+  ) INTO v_sql;
+  IF v_sql IS NULL
+     OR position('s.coverage_mode=''exact_work''' IN v_sql)=0
+     OR position('s.covered_work_item_id=work.id' IN v_sql)=0
+     OR position('s.accepted_by_person_id=new.assignee_canonical_person_id' IN v_sql)=0
+     OR position('company_work_native_ledger_relevance' IN v_sql)=0 THEN
+    RAISE EXCEPTION 'The allocation provenance trigger must admit only accepted original Work ID';
+  END IF;
+END $exact_work_scope_guard$;
+
