@@ -352,6 +352,47 @@ def main():
           =="completed" and
           sql(args.db_url,f"select work_state from atlas.work_items where id='{bed4}'")
           =="open","Bed 3 worker completion also changed Bed 4")
+    # Signed governor readback must see the SAME original Work/Result after
+    # the Person's physical attestation. A successful worker RPC alone is
+    # insufficient, and a result report is not permission to read elsewhere.
+    status,governor_page=rpc(api,key,owner,
+      "company_work_accountability_native_ledger_self_api_v1",
+      dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_scope="native_ledger",
+           p_limit=200,p_after_work_item_id=None))
+    check(status==200 and isinstance(governor_page,dict) and
+          governor_page.get("contractVersion")==
+            "company_work_accountability_native_ledger_v1" and
+          governor_page.get("selectedNativeLedgerId")==LEDGER and
+          governor_page.get("scopeMode")=="native_ledger",
+          f"Native governor could not read source Work ledger {status}: "
+          f"{str(governor_page)[:200]}")
+    governor_original=[row for row in governor_page.get("items",[])
+                       if row.get("workItemId")==bed3]
+    check(len(governor_original)==1,
+          "Governor ledger lost or duplicated same original Bed 3 Work")
+    governor_record=governor_original[0]
+    check(governor_record.get("workState")=="completed" and
+          governor_record.get("nativeLedgerRelevance")==
+            "established_for_selected_ledger" and
+          governor_record.get("latestWorkerReport",{}).get("resultId")==
+            actual.get("resultId") and
+          governor_record.get("latestWorkerReport",{}).get("resultKind")==
+            "completed" and
+          governor_record.get("latestAcceptedResult",{}).get("resultId")==
+            actual.get("resultId") and
+          governor_record.get("latestAcceptedResult",{}).get("decision")==
+            "accepted" and
+          governor_record.get("lastResponsibleAllocation",{}).get("allocationId")==
+            a.get("allocationId") and
+          governor_record.get("lastResponsibleAllocation",{}).get("allocationState")==
+            "completed",
+          "Governor's original Ledger Work did not read back Person's exact "
+          "accepted Result, allocation history and immutable Work ID")
+    check(all(row.get("workItemId")!=bed4 or row.get("workState")=="open"
+              for row in governor_page.get("items",[])),
+          "Bed 3 acceptance also closed independent Bed 4 Work")
+    print("PASS signed Person physical Actual -> exact native governor Ledger "
+          "Result readback; Bed 4 independent")
     print("PASS signed Bed 3 direct Work, bounded grant and independent Actual")
 
     # Gate B: a separately governed original Bed may be assigned without
@@ -595,6 +636,53 @@ def main():
           now.get("lastCompletedWorkItemId")==washing,
           "Completed Work lost its history or blocked next Laundry cycle")
     print("PASS signed Laundry Need, Work, separate Rhythm, physical Actual and replay")
+
+    # The historical organization planning browser RPC is an alternate Work
+    # title/Result reader, INCLUDING Work with no subject context links.
+    # Prove the internal source guard, not a 404 or merely absent old membership.
+    # These memberships and the synthetic unlinked Work exist in this disposable
+    # clone ONLY, after all original Bed/Laundry tests finish.
+    secret_work="e5200000-0000-4000-8000-000000000b99"
+    check(sql(args.db_url,f"select count(*) from atlas.work_items "
+          f"where id='{secret_work}'::uuid")=="0",
+          "Synthetic unlinked legacy Work ID already in use")
+    sql(args.db_url,
+      "insert into atlas.work_items(id,organization_id,title,work_state,source_object_type) "
+      f"values('{secret_work}'::uuid,'{ORG}'::uuid,"
+      "'Private synthetic withheld Bed 5 result, never for historical manager','open',"
+      "'legacy_task')")
+    check(sql(args.db_url,f"select count(*) from atlas.work_item_context_links "
+          f"where work_item_id='{secret_work}'::uuid")=="0",
+          "Unlinked alternative-reader probe unexpectedly has a context link")
+    old_member=sql(args.db_url,
+      "select count(*) from atlas.organization_memberships "
+      f"where organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid")
+    if old_member=="0":
+        sql(args.db_url,
+          "insert into atlas.organization_memberships("
+          "id,organization_id,user_id,person_id,role,active) values("
+          "'e5200000-0000-4000-8000-000000000b07'::uuid,"
+          f"'{ORG}'::uuid,'{c1.WORKER}'::uuid,'{PERSON}'::uuid,"
+          "'member',true)")
+    else:
+        sql(args.db_url,"update atlas.organization_memberships set "
+            "active=true,role='member' where "
+            f"organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid")
+    sql(args.db_url,"update atlas.farm_memberships set role='manager' "
+        f"where farm_id='{FARM}'::uuid and user_id='{c1.WORKER}'::uuid "
+        "and active")
+    check(sql(args.db_url,"select count(*) from atlas.organization_memberships "
+          f"where organization_id='{ORG}'::uuid and user_id='{c1.WORKER}'::uuid "
+          "and role='member' and active")=="1" and
+          sql(args.db_url,"select count(*) from atlas.farm_memberships "
+          f"where farm_id='{FARM}'::uuid and user_id='{c1.WORKER}'::uuid "
+          "and role='manager' and active")=="1",
+          "Probe must actually carry old organization AND manager access")
+    deny(api,key,worker,"organization_management_company_work_planning_queue_api_v1",
+         {"p_organization_id":ORG,"p_window_start":None,"p_window_end":None},
+         "Signed old organization/farm manager cannot enumerate unlinked Work")
+    print("PASS signed old manager denied historical unlinked Work title/Result read")
+
     Path(args.output).write_text(
         "PASS signed original Bed 3 + Laundry synthetic local source acceptance\n"
         "PENDING independent Event regression and complete alternative-reader sweep\n"
