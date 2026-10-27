@@ -54,7 +54,6 @@ BEGIN
 
  IF NEW.event_type='FORECAST_LINE_RELEASED' THEN
   IF (v-'period_month'-'line_key')<>'{}'::jsonb
-    OR jsonb_object_length(v)<>2
   THEN RAISE EXCEPTION 'Released line requires only month and key'
       USING ERRCODE='22023'; END IF;
   RETURN NEW;
@@ -67,7 +66,6 @@ BEGIN
     OR (v-'period_month'-'line_key'-'economic_scope'-'subject_key'
            -'money_role'-'expectation_state'-'forecast_amount'
            -'currency'-'explanation')<>'{}'::jsonb
-    OR jsonb_object_length(v)<>9
  THEN RAISE EXCEPTION 'Forecast line requires complete fields'
    USING ERRCODE='22023'; END IF;
 
