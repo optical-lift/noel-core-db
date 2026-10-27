@@ -400,3 +400,28 @@ END $proof$;
 -- unconnected Person, unrelated Ledger governor, anon all denied;
 -- Event original Work and other preexisting Person assignment flows unchanged.
 
+-- Neither native assignment nor old Work text is an identity disclosure
+-- authorization; all signed Person Work surfaces must enforce current
+-- original Subject identity decisions, including post-assignment revocation.
+DO $original_subject_work_visibility$
+DECLARE v_reader text;v_sql text;
+BEGIN
+ IF has_function_privilege('authenticated',
+    'atlas.person_original_work_identity_disclosed_self_v1(uuid,uuid,uuid,uuid)','EXECUTE')
+ THEN RAISE EXCEPTION 'Original Work identity helper exposed to authenticated'; END IF;
+ FOR v_reader IN SELECT unnest(ARRAY[
+  'connected_person_my_work_self_api_v1',
+  'connected_person_place_work_self_api_v1',
+  'report_connected_person_company_work_internal_v1',
+  'connected_person_company_work_day_self_api_v1',
+  'connected_person_company_work_today_self_api_v1',
+  'connected_person_work_prerequisites_self_api_v1'
+ ]::text[]) LOOP
+   SELECT pg_get_functiondef(p.oid) INTO v_sql
+   FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='atlas' AND p.proname=v_reader LIMIT 1;
+   IF v_sql IS NULL OR position('person_original_work_identity_disclosed_self_v1(' in v_sql)=0
+   THEN RAISE EXCEPTION 'Original Subject Work identity source admission missing from %',v_reader; END IF;
+ END LOOP;
+END $original_subject_work_visibility$;
+
