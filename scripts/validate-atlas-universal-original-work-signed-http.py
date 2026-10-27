@@ -352,6 +352,47 @@ def main():
           =="completed" and
           sql(args.db_url,f"select work_state from atlas.work_items where id='{bed4}'")
           =="open","Bed 3 worker completion also changed Bed 4")
+    # Signed governor readback must see the SAME original Work/Result after
+    # the Person's physical attestation. A successful worker RPC alone is
+    # insufficient, and a result report is not permission to read elsewhere.
+    status,governor_page=rpc(api,key,owner,
+      "company_work_accountability_native_ledger_self_api_v1",
+      dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_scope="native_ledger",
+           p_limit=200,p_after_work_item_id=None))
+    check(status==200 and isinstance(governor_page,dict) and
+          governor_page.get("contractVersion")==
+            "company_work_accountability_native_ledger_v1" and
+          governor_page.get("selectedNativeLedgerId")==LEDGER and
+          governor_page.get("scopeMode")=="native_ledger",
+          f"Native governor could not read source Work ledger {status}: "
+          f"{str(governor_page)[:200]}")
+    governor_original=[row for row in governor_page.get("items",[])
+                       if row.get("workItemId")==bed3]
+    check(len(governor_original)==1,
+          "Governor ledger lost or duplicated same original Bed 3 Work")
+    governor_record=governor_original[0]
+    check(governor_record.get("workState")=="completed" and
+          governor_record.get("nativeLedgerRelevance")==
+            "established_for_selected_ledger" and
+          governor_record.get("latestWorkerReport",{}).get("resultId")==
+            actual.get("resultId") and
+          governor_record.get("latestWorkerReport",{}).get("resultKind")==
+            "completed" and
+          governor_record.get("latestAcceptedResult",{}).get("resultId")==
+            actual.get("resultId") and
+          governor_record.get("latestAcceptedResult",{}).get("decision")==
+            "accepted" and
+          governor_record.get("lastResponsibleAllocation",{}).get("allocationId")==
+            a.get("allocationId") and
+          governor_record.get("lastResponsibleAllocation",{}).get("allocationState")==
+            "completed",
+          "Governor's original Ledger Work did not read back Person's exact "
+          "accepted Result, allocation history and immutable Work ID")
+    check(all(row.get("workItemId")!=bed4 or row.get("workState")=="open"
+              for row in governor_page.get("items",[])),
+          "Bed 3 acceptance also closed independent Bed 4 Work")
+    print("PASS signed Person physical Actual -> exact native governor Ledger "
+          "Result readback; Bed 4 independent")
     print("PASS signed Bed 3 direct Work, bounded grant and independent Actual")
 
     # Gate B: a separately governed original Bed may be assigned without
