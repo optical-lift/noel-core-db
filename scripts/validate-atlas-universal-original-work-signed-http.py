@@ -303,6 +303,18 @@ def main():
           "Condition regrant did not restore Work content admission")
     check_bed3_original_work_surfaces(1)
 
+    # A historical creator/governor agenda is a separate title reader.
+    # Even where the owner can lawfully see all Work in the native review,
+    # the legacy agenda cannot be used as a new route to discover governed
+    # growing-object Work. Ordinary non-Subject Work remains untouched.
+    agenda=ok(api,key,owner,"connected_ledger_person_agenda_self_api_v1",
+              {"p_ledger_id":LEDGER,"p_person_id":PERSON,
+               "p_date":"2030-10-30","p_limit":150})
+    check(all(x.get("workItemId") not in (bed3,bed4)
+              for x in agenda.get("items",[])),
+          "Legacy Person agenda reopened original growing-object Work titles")
+    print("PASS signed original Bed exclusion from legacy Person agenda")
+
     # This worker simultaneously holds a live *inherited* farm_hand membership.
     # The new exact Bed 3 Work allocation and governor-granted identity must
     # NEVER reopen whole-farm historic readers. A missing ID must not turn
