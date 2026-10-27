@@ -113,6 +113,18 @@ signed_universal_program_probe=false
 signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
 signed_universal_original_work_probe=false
+signed_unified_today_p0_probe=false
+# A distinct disposable Person/Event/Company Work source proof.
+# Never substitute SQL-only role claims or an absent HTTP endpoint for 42501.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_unified_today_event_disclosure_work_authority_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Unified Today privacy and scheduling require disposable fixture/postconditions." >&2
+    exit 2
+  fi
+  signed_unified_today_p0_probe=true
+fi
+
 # Only the exact Atlas original Work candidate may trigger this signed local
 # GoTrue/REST probe. It requires an admitted DML-only synthetic fixture and
 # original source postconditions on the disposable production-shaped clone.
@@ -491,7 +503,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_universal_program_probe" = true ] ||
        [ "$signed_program_author_notes_probe" = true ] ||
        [ "$signed_program_source_identity_probe" = true ] ||
-       [ "$signed_universal_original_work_probe" = true ]; then
+       [ "$signed_universal_original_work_probe" = true ] ||
+       [ "$signed_unified_today_p0_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
     # Both probes stay on a disposable clone and refuse remote API endpoints.
     supabase start >"$startup_log" 2>&1
@@ -614,6 +627,16 @@ if [ "$signed_work_prerequisite_probe" = true ]; then
     --db-url "$database_url" \
     --output "$artifacts_dir/signed-work-prerequisite-summary.txt" \
     >"$artifacts_dir/signed-work-prerequisite.log" 2>&1
+fi
+
+if [ "$signed_unified_today_p0_probe" = true ]; then
+  phase="signed local Event privacy and Company date authority matrix"
+  python3 "$repo_root/scripts/validate-atlas-unified-today-p0-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-unified-today-p0-summary.txt" \
+    >"$artifacts_dir/signed-unified-today-p0.log" 2>&1
+  test -s "$artifacts_dir/signed-unified-today-p0-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-unified-today-p0-summary.txt"
 fi
 
 if [ "$signed_universal_original_work_probe" = true ]; then
@@ -777,6 +800,9 @@ printf '\nMigration postconditions and local database advisors also completed su
 if [ "$signed_http_probe" = true ]; then
   printf '\nDisposable signed GoTrue + PostgREST HTTP authorization matrix also passed.\n' \
     >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_unified_today_p0_probe" = true ]; then
+  printf '\nSIGNED unified Today P0: private Event title/detail/count isolation, exact governor grant/withhold, unrelated Work history denial, and signed worker Company date denial passed.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_calendar_reader_probe" = true ]; then
   printf '\nSIGNED ONE Calendar read: governor, member, outsider, anonymous and revoked-permission checks passed locally.\n' \
