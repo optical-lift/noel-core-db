@@ -114,6 +114,16 @@ signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
 signed_universal_original_work_probe=false
 signed_unified_today_p0_probe=false
+signed_person_mail_probe=false
+# One exact generated mail permission candidate needs true signed Auth+REST.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_communication_person_mail_read_window_v2[.]sql$ ]]; then
+  if [ -z "$candidate_validation" ]; then
+    echo "Mail source requires postconditions plus genuine signed acceptance." >&2
+    exit 2
+  fi
+  signed_person_mail_probe=true
+fi
 # A distinct disposable Person/Event/Company Work source proof.
 # Never substitute SQL-only role claims or an absent HTTP endpoint for 42501.
 if [ "$lane" = "atlas" ] &&
@@ -629,6 +639,16 @@ if [ "$signed_work_prerequisite_probe" = true ]; then
     >"$artifacts_dir/signed-work-prerequisite.log" 2>&1
 fi
 
+if [ "$signed_person_mail_probe" = true ]; then
+  phase="genuine signed local Person mailbox read, cutoff and revoke matrix"
+  python3 "$repo_root/scripts/validate-atlas-person-mail-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-person-mail-summary.txt" \
+    >"$artifacts_dir/signed-person-mail.log" 2>&1
+  test -s "$artifacts_dir/signed-person-mail-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-person-mail-summary.txt"
+fi
+
 if [ "$signed_unified_today_p0_probe" = true ]; then
   phase="signed local Event privacy and Company date authority matrix"
   python3 "$repo_root/scripts/validate-atlas-unified-today-p0-signed-http.py" \
@@ -800,6 +820,9 @@ printf '\nMigration postconditions and local database advisors also completed su
 if [ "$signed_http_probe" = true ]; then
   printf '\nDisposable signed GoTrue + PostgREST HTTP authorization matrix also passed.\n' \
     >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_person_mail_probe" = true ]; then
+  printf '\nSIGNED Person shared mail: true separate signed governor, recipient, outsider, cutoff, fallback, legacy-route and revocation tests.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_unified_today_p0_probe" = true ]; then
   printf '\nSIGNED unified Today P0: private Event title/detail/count isolation, exact governor grant/withhold, unrelated Work history denial, and signed worker Company date denial passed.\n' >> "$artifacts_dir/summary.md"
