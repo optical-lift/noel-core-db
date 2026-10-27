@@ -173,6 +173,27 @@ BEGIN
      OR (v_payload-'reason'-'value')<>'{}'::jsonb
    THEN RAISE EXCEPTION 'Carry v1 proposal payload invalid' USING ERRCODE='22023'; END IF;
  END IF;
+ -- Keep the stored v1 event contract aligned with the portable reducer.
+ IF p_event_type IN ('SCENARIO_CREATED','SCENARIO_OVERRIDE_RECORDED',
+    'FORECAST_LINE_PROPOSED','FORECAST_LINE_REPLACED','FORECAST_LINE_RELEASED') THEN
+   IF jsonb_typeof(v_payload->'value')<>'object' THEN
+    RAISE EXCEPTION 'Carry event value must be an object' USING ERRCODE='22023'; END IF;
+ END IF;
+ IF p_event_type IN ('SCENARIO_CREATED','SCENARIO_OVERRIDE_RECORDED') THEN
+  IF jsonb_typeof(v_payload->'value'->'scenario_key')<>'string'
+   OR length(btrim(v_payload->'value'->>'scenario_key')) NOT BETWEEN 3 AND 160
+  THEN RAISE EXCEPTION 'Carry scenario key missing' USING ERRCODE='22023'; END IF;
+ END IF;
+ IF p_event_type='SCENARIO_OVERRIDE_RECORDED' THEN
+  IF jsonb_typeof(v_payload->'value'->'field_key')<>'string'
+   OR length(btrim(v_payload->'value'->>'field_key')) NOT BETWEEN 3 AND 160
+  THEN RAISE EXCEPTION 'Scenario override field key missing' USING ERRCODE='22023'; END IF;
+ END IF;
+ IF p_event_type IN ('FORECAST_LINE_PROPOSED','FORECAST_LINE_REPLACED','FORECAST_LINE_RELEASED') THEN
+  IF jsonb_typeof(v_payload->'value'->'line_key')<>'string'
+   OR length(btrim(v_payload->'value'->>'line_key')) NOT BETWEEN 4 AND 160
+  THEN RAISE EXCEPTION 'Carry proposed forecast line key missing' USING ERRCODE='22023'; END IF;
+ END IF;
 
  -- A retry after sealing must succeed even though the target revision now
  -- reads 'adopted'. Resolve an existing action BEFORE evaluating fresh state.
