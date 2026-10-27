@@ -406,6 +406,76 @@ def main():
           "Merely assigning a Person fabricated a dated Today obligation")
     print("PASS signed undated original Work responsibility, disclosure and no plan")
 
+    # A dated Work obligation is a separately recorded decision over the SAME
+    # existing allocation. No governor-only Work detail is copied or replaced.
+    schedule=dict(p_work_item_id=bed4,p_service_date="2030-10-31",
+                  p_reason="The actual responsible Person now selected a work-on date.")
+    deny(api,key,outsider,"connected_person_place_work_self_api_v1",
+         schedule,"Unconnected Person cannot schedule someone else's Work")
+    placed=ok(api,key,worker,"connected_person_place_work_self_api_v1",schedule)
+    check(placed.get("workItemId")==bed4 and placed.get("state")=="placed"
+          and placed.get("executionDate")=="2030-10-31"
+          and bool(placed.get("planId")) and placed.get("newWorkCreated") is False,
+          "Scheduling did not place the original undated Work")
+    check(sql(args.db_url,f"select count(*) from atlas.work_allocations "
+              f"where work_item_id='{bed4}'::uuid and state='active' "
+              "and allocation_role='responsible'")=="1",
+          "Scheduling duplicated the original active responsibility")
+    signed_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
+                  {"p_date":"2030-10-31"})
+    dated=[item for item in signed_day.get("items",[])
+           if item.get("workItemId")==bed4]
+    check(len(dated)==1 and dated[0].get("allocationId")==b4["allocationId"]
+          and dated[0].get("planId")==placed["planId"]
+          and dated[0].get("executionDate")=="2030-10-31",
+          "Signed Person Day lost exact allocation, plan, or original Work")
+    same_day=ok(api,key,worker,"connected_person_place_work_self_api_v1",schedule)
+    check(same_day.get("idempotent") is True
+          and same_day.get("planId")==placed["planId"],
+          "Same-day placement retried by minting a new plan")
+    shifted=ok(api,key,worker,"connected_person_place_work_self_api_v1",
+               dict(p_work_item_id=bed4,p_service_date="2030-11-01",
+                    p_reason="Actual responsible Person moved work to the next day."))
+    check(shifted.get("workItemId")==bed4
+          and shifted.get("executionDate")=="2030-11-01"
+          and shifted.get("planId")==placed["planId"],
+          "Rescheduling minted an unrelated plan or Work")
+    old_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
+               {"p_date":"2030-10-31"})
+    new_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
+               {"p_date":"2030-11-01"})
+    check(all(item.get("workItemId")!=bed4 for item in old_day.get("items",[]))
+          and sum(item.get("workItemId")==bed4 for item in new_day.get("items",[]))==1,
+          "Rescheduling left a phantom duplicate on the old day")
+    # Bed 4 uses manager acceptance, not worker-attestation completion.
+    status,result=rpc(api,key,worker,"report_connected_person_company_work_self_api_v1",
+                      dict(p_work_item_id=bed4,p_result_kind="completed",
+                           p_idempotency_key="clone-bed4-manager-result-not-automatic",
+                           p_payload={"claim":"physical Bed 4 work finished"}))
+    check(status in (400,403,409,422) and isinstance(result,dict)
+          and result.get("code")=="23514",
+          "Worker attestation improperly accepted manager-governed Bed 4")
+    check(sql(args.db_url,f"select work_state from atlas.work_items "
+              f"where id='{bed4}'::uuid")=="open",
+          "Rejected manager-only Work report closed original Bed 4")
+    cleared=ok(api,key,worker,"connected_person_place_work_self_api_v1",
+               dict(p_work_item_id=bed4,p_service_date=None,
+                    p_reason="Return exact responsibility to unscheduled My Work."))
+    check(cleared.get("state")=="unplanned"
+          and cleared.get("workItemId")==bed4,
+          "Clearing a day erased original Work responsibility")
+    undated_again=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+                     {"p_limit":50,"p_after_allocation_id":None})
+    original_after=[item for item in undated_again.get("items",[])
+                    if item.get("workItemId")==bed4]
+    check(len(original_after)==1
+          and original_after[0].get("allocationId")==b4["allocationId"]
+          and original_after[0].get("scheduleState")=="unscheduled",
+          "Unplanning lost or duplicated the Person's original Work")
+    print("PASS signed original Work: undated -> dated -> moved -> undated, "
+          "same allocation, correct Result authority")
+
+
 
     initial=ok(api,key,owner,"household_laundry_current_self_api_v1",{})
     check(initial.get("householdId")==HOUSEHOLD and
