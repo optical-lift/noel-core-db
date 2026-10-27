@@ -542,5 +542,19 @@ BEGIN
  OR has_function_privilege('authenticated',
     'atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)','EXECUTE') THEN
    RAISE EXCEPTION 'Exact Work privileged source must not be exposed directly'; END IF;
+  -- Existing public signed endpoints are SECURITY INVOKER wrappers. Their
+  -- authenticated roles MUST retain EXECUTE on the true atlas source.
+  IF NOT has_function_privilege('authenticated',
+      'atlas.native_ledger_standing_scopes_self_api_v1()','EXECUTE')
+    OR NOT has_function_privilege('authenticated',
+      'atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Standing reader or assignment writer lost signed source execute';
+  END IF;
+  IF has_function_privilege('anon',
+      'atlas.native_ledger_standing_scopes_self_api_v1()','EXECUTE')
+    OR has_function_privilege('anon',
+      'atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)','EXECUTE') THEN
+    RAISE EXCEPTION 'Anonymous access to signed standing scope sources is forbidden';
+  END IF;
 END $exact_work_scope_guard$;
 
