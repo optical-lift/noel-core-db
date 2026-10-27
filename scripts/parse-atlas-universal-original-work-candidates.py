@@ -40,8 +40,30 @@ for path in paths:
         try:
             parse_plpgsql(function_sql)
         except Exception as e:
-            first = function_sql.splitlines()[0]
-            raise SystemExit(f"PL/pgSQL grammar error in {path.relative_to(root)}: {first}: {e}")
+            # pglast's isolated PL/pgSQL grammar lacks a catalog that knows
+            # Atlas/Noel schemas. This *specific* namespace-resolution
+            # limitation is not a PostgreSQL syntax error. Normalize only
+            # known schema qualifiers for a second syntax-only parse.
+            # The unmodified SQL is still parsed above and compiled by the
+            # protected disposable real-Postgres schema-clone runner.
+            if "LookupExplicitNamespace only supports pg_catalog and public" not in str(e):
+                first = function_sql.splitlines()[0]
+                raise SystemExit(f"PL/pgSQL grammar error in {path.relative_to(root)}: {first}: {e}")
+            normalized = re.sub(
+                r"\\b(?:atlas|auth|ledger|reality|local_intel|household)\\.",
+                "public.", function_sql, flags=re.IGNORECASE)
+            if normalized == function_sql:
+                first = function_sql.splitlines()[0]
+                raise SystemExit(f"Unresolved parser namespace in {path.relative_to(root)}: {first}: {e}")
+            try:
+                parse_plpgsql(normalized)
+            except Exception as retry_error:
+                first = function_sql.splitlines()[0]
+                raise SystemExit(
+                    f"PL/pgSQL syntax still unparsed after schema-only normalization "
+                    f"in {path.relative_to(root)}: {first}: {retry_error}")
+            print(f"NOTE parser-only namespace normalization {path.relative_to(root)}: "
+                  f"{function_sql.splitlines()[0]}; original SQL still requires real clone compile")
         parsed += 1
         functions += 1
     print(f"PASS PostgreSQL grammar {path.relative_to(root)}: "
