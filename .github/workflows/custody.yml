@@ -100,6 +100,28 @@ jobs:
           echo "GOVERNED_CLI_SCRATCH_MIGRATION_NAME=$version"
           echo "This is an ephemeral CLI-generated test identity only; it is not committed or deployed."
 
+      - name: Validate signed unified Today local proof source
+        run: |
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-unified-today-p0-signed-http.py
+          python3 - <<'PY'
+          from pathlib import Path
+          validator=Path("scripts/validate-production-schema-clone.sh").read_text()
+          proof=Path("scripts/validate-atlas-unified-today-p0-signed-http.py").read_text()
+          assert "signed_unified_today_p0_probe=true" in validator
+          assert "validate-atlas-unified-today-p0-signed-http.py" in validator
+          assert "--db-url" in validator and "signed-unified-today-p0-summary.txt" in validator
+          assert "127[.]0[.]0[.]1" in proof and "GoTrue" in proof
+          for fn in ("ledger_occurrence_shared_index_self_api_v1",
+                     "ledger_occurrence_date_evidence_self_api_v1",
+                     "ledger_occurrence_shared_work_self_api_v1",
+                     "ledger_occurrence_work_extension_self_api_v1",
+                     "governor_set_subject_disclosure_self_api_v1",
+                     "connected_person_place_work_self_api_v1"):
+            assert fn in proof,fn
+          print("PASS signed clone-only privacy/schedule probe source")
+          PY
+
       - name: Verify WNPH product schema membrane
         run: bash scripts/check-wnph-membrane.sh
 
