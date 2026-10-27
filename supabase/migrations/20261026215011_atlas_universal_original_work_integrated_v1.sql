@@ -11019,9 +11019,9 @@ DECLARE
 BEGIN
  IF p_organization_id IS NULL OR p_ledger_id IS NULL
     OR p_work_item_id IS NULL OR p_target_person_id IS NULL
-    OR p_service_date IS NULL OR p_action_id IS NULL
+    OR p_action_id IS NULL
     OR v_reason IS NULL OR length(v_reason) NOT BETWEEN 12 AND 1200 THEN
-    RAISE EXCEPTION 'Exact existing Work, Person, date, action and reason required'
+    RAISE EXCEPTION 'Exact existing Work, Person, action and reason required'
       USING ERRCODE='22023';
  END IF;
  v_owner:=atlas.company_work_native_ledger_owner_self_v1(
@@ -11077,14 +11077,20 @@ BEGIN
    ORDER BY p.created_at LIMIT 1;
    IF v_allocation.assignee_canonical_person_id IS DISTINCT FROM p_target_person_id
        OR v_allocation.establishment_basis->>'sourceActionId' IS DISTINCT FROM p_action_id::text
-       OR v_plan.id IS NULL OR v_plan.planned_service_date IS DISTINCT FROM p_service_date
+       OR v_allocation.establishment_basis->>'requestedServiceDate' IS DISTINCT FROM p_service_date::text
+       OR (p_service_date IS NOT NULL AND
+           (v_plan.id IS NULL OR v_plan.planned_service_date IS DISTINCT FROM p_service_date))
        OR v_allocation.establishment_basis->>'decisionReason' IS DISTINCT FROM v_reason THEN
       RAISE EXCEPTION 'Exact original direct assignment retry differs from stored decision.'
         USING ERRCODE='23505';
    END IF;
  ELSE
-   v_window:=atlas.company_work_execution_plan_window_check_v1(
-     p_work_item_id,p_service_date);
+   -- Responsibility is established independently of a work-on date. A caller
+   -- may supply a date for prior signed-client compatibility; no date means
+   -- no execution plan, no implied Today obligation, and no plan event.
+   IF p_service_date IS NOT NULL THEN
+     v_window:=atlas.company_work_execution_plan_window_check_v1(
+       p_work_item_id,p_service_date);
    IF NOT coalesce((v_window->>'allowed')::boolean,false) THEN
      RAISE EXCEPTION 'Original Work may not be scheduled on requested day.'
        USING ERRCODE='23514';
@@ -11104,11 +11110,13 @@ BEGIN
        'workItemId',p_work_item_id,'decompositionId',v_group.id,
        'assigneePersonId',p_target_person_id,'senderPersonId',v_owner,
        'sourceActionId',p_action_id,'decisionReason',v_reason,
+       'requestedServiceDate',p_service_date,
        'authorizationBasis','governor_exact_existing_original_work'),
      jsonb_build_object('source','original_subject_direct_assignment_v1',
        'sameOriginalCanonicalWork',true,'newTaskCreated',false,
        'employeeSeatRequired',false,'workerAttestedAsSelf',false)
    ) RETURNING * INTO v_allocation;
+   IF p_service_date IS NOT NULL THEN
    INSERT INTO atlas.work_execution_plans(
      organization_id,work_item_id,responsible_allocation_id,
      assignee_membership_id,planned_by_membership_id,plan_state,
@@ -11130,6 +11138,7 @@ BEGIN
      jsonb_build_object('source','original_subject_direct_assignment_v1',
        'governorPersonId',v_owner,'sourceActionId',p_action_id)
    );
+   END IF; -- optional execution plan (responsibility itself remains active)
    v_created:=true;
  END IF;
  RETURN jsonb_build_object(
@@ -11138,6 +11147,8 @@ BEGIN
    'workItemId',v_work.id,'subjectDecompositionId',v_group.id,
    'targetPersonId',p_target_person_id,'allocationId',v_allocation.id,
    'planId',v_plan.id,'plannedServiceDate',v_plan.planned_service_date,
+   'scheduleState',CASE WHEN v_plan.id IS NULL THEN 'unscheduled' ELSE 'scheduled' END,
+   'responsibilityEstablished',true,
    'newWorkCreated',false,'newTaskCreated',false,
    'acceptanceQuestionCreated',false,
    'workerAttestedAsSelf',false,'employeeSeatRequired',false,

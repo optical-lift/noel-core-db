@@ -401,6 +401,23 @@ END $proof$;
 -- unconnected Person, unrelated Ledger governor, anon all denied;
 -- Event original Work and other preexisting Person assignment flows unchanged.
 
+-- Responsibility may be assigned with NO work-on date. Legacy dated calls
+-- remain permitted, but no plan or Today admission may be fabricated for NULL.
+DO $original_work_unscheduled_assignment$
+DECLARE v_src text;
+BEGIN
+ SELECT pg_get_functiondef(
+   'atlas.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)'::regprocedure)
+ INTO v_src;
+ IF v_src IS NULL OR
+    position('IF p_service_date IS NOT NULL THEN' IN v_src)=0 OR
+    position('requestedServiceDate' IN v_src)=0 OR
+    position('scheduleState' IN v_src)=0 OR
+    position('v_created:=true' IN v_src)=0 OR
+    position('p_service_date IS NULL OR p_action_id IS NULL' IN v_src)>0
+ THEN RAISE EXCEPTION 'Direct original Work still couples responsibility to a required date'; END IF;
+END $original_work_unscheduled_assignment$;
+
 -- Neither native assignment nor old Work text is an identity disclosure
 -- authorization; all signed Person Work surfaces must enforce current
 -- original Subject identity decisions, including post-assignment revocation.

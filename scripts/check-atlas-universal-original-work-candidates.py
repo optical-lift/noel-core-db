@@ -185,6 +185,20 @@ require(governor_gate >= 0 and
         "Unlinked historical Company Work planning needs a pre-read native governor gate")
 print("PASS unlinked legacy organization planning guarded at source")
 
+# The signed original split-Work writer must admit a durable responsibility
+# without implicitly creating a plan. The legacy dated invocation remains
+# executable for existing signed regression scenarios.
+direct_candidate = texts["original_subject_work_existing_direct_responsibility_v1"]
+direct_source = direct_candidate[
+    direct_candidate.index("CREATE OR REPLACE FUNCTION atlas.owner_direct_assign_existing_original_work_self_api_v1("):
+    direct_candidate.index("REVOKE ALL ON FUNCTION atlas.owner_direct_assign_existing_original_work_self_api_v1(")]
+require("IF p_service_date IS NOT NULL THEN" in direct_source and
+        "'requestedServiceDate',p_service_date" in direct_source and
+        "'scheduleState',CASE WHEN v_plan.id IS NULL THEN 'unscheduled'" in direct_source and
+        "OR p_service_date IS NULL OR p_action_id IS NULL" not in direct_source,
+        "Original Work direct assignment still requires or invents a work-on day")
+print("PASS original Work direct responsibility independent from day placement")
+
 print("PASS held SQL source-contract preflight ONLY")
 
 # A real signed acceptance runner is staged for disposable local GoTrue/REST.
