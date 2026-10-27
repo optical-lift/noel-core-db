@@ -260,4 +260,60 @@ REVOKE ALL ON FUNCTION public.person_mail_events_self_v1(uuid,integer,timestampt
  FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.person_mail_events_self_v1(uuid,integer,timestamptz)
  TO authenticated;
+-- Root-governor-only picker; no broad People enumeration. Exact native Ledger
+-- and active canonical Person participation remain prerequisites.
+CREATE FUNCTION atlas.person_mail_governor_choices_self_v1()
+ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO '' AS $f$
+DECLARE v_options jsonb:='[]'::jsonb; v_rows jsonb;
+ v_rec record;
+BEGIN
+ IF auth.uid() IS NULL OR (atlas.reality_access_self_api_v1()->>'state') IS DISTINCT FROM 'ready'
+ THEN RAISE EXCEPTION 'Canonical signed governor required' USING ERRCODE='42501'; END IF;
+ FOR v_rec IN
+   SELECT ep.id endpoint_id,ep.address,ep.organization_id,
+          lop.ledger_id,nl.name ledger_name
+   FROM atlas.communication_endpoints ep
+   JOIN atlas.ledger_organization_participations lop
+      ON lop.organization_id=ep.organization_id AND lop.status='active'
+      AND lop.ended_at IS NULL AND lop.participation_kind IN ('governing','operating')
+   JOIN ledger.ledgers nl ON nl.id=lop.ledger_id
+       AND nl.ledger_state='active' AND nl.retired_at IS NULL
+   WHERE ep.endpoint_kind='email' AND ep.endpoint_state='active'
+   ORDER BY ep.address,nl.name
+ LOOP
+   BEGIN
+     PERFORM atlas.company_work_native_ledger_owner_self_v1(v_rec.organization_id,v_rec.ledger_id);
+   EXCEPTION WHEN insufficient_privilege THEN CONTINUE;
+   END;
+   SELECT coalesce(jsonb_agg(jsonb_build_object(
+      'personId',person.id,'personName',person.display_name,
+      'startAt',atlas.communication_person_mail_read_cutoff_v1(v_rec.endpoint_id,person.id),
+      'startLocalDate',(SELECT d.start_local_date
+        FROM atlas.communication_person_mail_read_decisions_v1 d
+        WHERE d.communication_endpoint_id=v_rec.endpoint_id AND d.target_person_id=person.id
+        ORDER BY d.decided_at DESC,d.id DESC LIMIT 1)
+   ) ORDER BY person.display_name),'[]'::jsonb) INTO v_rows
+   FROM (SELECT DISTINCT e.id,e.display_name
+     FROM ledger.seats s JOIN reality.entities e ON e.id=s.person_entity_id
+     WHERE s.ledger_id=v_rec.ledger_id AND s.seat_state='active' AND s.ended_at IS NULL
+       AND e.entity_kind='person' AND e.identity_state='canonical') person;
+   v_options:=v_options||jsonb_build_array(jsonb_build_object(
+      'endpointId',v_rec.endpoint_id,'address',v_rec.address,
+      'organizationId',v_rec.organization_id,
+      'ledgerId',v_rec.ledger_id,'ledgerName',v_rec.ledger_name,
+      'people',v_rows));
+ END LOOP;
+ RETURN jsonb_build_object('ok',true,'contractVersion','mail_governor_choices_v1',
+    'items',v_options);
+END $f$;
+REVOKE ALL ON FUNCTION atlas.person_mail_governor_choices_self_v1()
+ FROM PUBLIC,anon,authenticated;
+
+CREATE FUNCTION public.person_mail_governor_choices_self_v1()
+ RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS $f$
+ SELECT atlas.person_mail_governor_choices_self_v1();
+$f$;
+REVOKE ALL ON FUNCTION public.person_mail_governor_choices_self_v1()
+ FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.person_mail_governor_choices_self_v1() TO authenticated;
 COMMIT;
