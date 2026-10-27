@@ -10440,6 +10440,495 @@ begin
 end;
 $function$;
 
+
+-- Gate 0 additional historical alternate Work/correspondence source readers.
+-- Reject linked original growing-object Work from these broad legacy surfaces.
+
+-- Historical governed alternate: organization_correspondence_search_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.organization_correspondence_search_self_api_v1(p_query text, p_organization_id uuid DEFAULT NULL::uuid, p_communication_endpoint_id uuid DEFAULT NULL::uuid, p_filters jsonb DEFAULT '{}'::jsonb, p_limit integer DEFAULT 100)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare
+  v_query text:=btrim(coalesce(p_query,''));
+  v_filters jsonb:=coalesce(p_filters,'{}'::jsonb);
+  v_items jsonb;
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if p_limit<1 or p_limit>500 then raise exception 'Search limit must be between 1 and 500.' using errcode='22023'; end if;
+  if jsonb_typeof(v_filters)<>'object' then raise exception 'Search filters must be an object.' using errcode='22023'; end if;
+  if p_communication_endpoint_id is not null
+     and not atlas.communication_endpoint_authorized_self_v1(p_communication_endpoint_id,'view') then
+    raise exception 'Communication endpoint view authority required.' using errcode='42501';
+  end if;
+
+  with candidates as (
+    select cc.id as communication_conversation_id,
+           cc.subject,
+           cc.last_activity_at,
+           atlas.organization_correspondence_effective_organization_v1(cc.id) as effective_organization_id,
+           endpoint_context.endpoint_id,
+           endpoint_context.endpoint_kind,
+           endpoint_context.endpoint_name,
+           institutional_context.institutional_conversation_id,
+           coalesce(institutional_context.disposition,'inbox') as disposition,
+           coalesce(event_text.participant_text,'') as participant_text,
+           coalesce(event_text.body_text,'') as body_text,
+           coalesce(event_text.attachment_text,'') as attachment_text,
+           coalesce(institutional_context.work_text,'') as work_text,
+           coalesce(event_text.has_attachment,false) as has_attachment
+    from atlas.communication_conversations cc
+    left join lateral (
+      select ep.id as endpoint_id,ep.endpoint_kind,ep.display_name as endpoint_name
+      from atlas.communication_conversation_endpoints cce
+      join atlas.communication_endpoints ep on ep.id=cce.communication_endpoint_id
+      where cce.communication_conversation_id=cc.id
+        and (p_communication_endpoint_id is null or ep.id=p_communication_endpoint_id)
+      order by ep.id
+      limit 1
+    ) endpoint_context on true
+    left join lateral (
+      select string_agg(coalesce((
+               select string_agg(coalesce(p.metadata->>'displayName','')||' '||p.address,' ')
+               from atlas.communication_event_participants p
+               where p.communication_event_id=e.id
+             ),''),' ') as participant_text,
+             string_agg(coalesce(e.body,''),' ') as body_text,
+             string_agg(coalesce((
+               select string_agg(coalesce(a.transfer_name,''),' ')
+               from atlas.communication_attachments a
+               where a.event_id=e.id
+             ),''),' ') as attachment_text,
+             bool_or(exists(
+               select 1 from atlas.communication_attachments a where a.event_id=e.id
+             )) as has_attachment
+      from atlas.communication_conversation_events cce
+      join atlas.communication_events e on e.id=cce.communication_event_id
+      where cce.communication_conversation_id=cc.id
+    ) event_text on true
+    left join lateral (
+      with roots as (
+        select r.institutional_conversation_id
+        from atlas.institutional_conversation_roots r
+        where r.communication_conversation_id=cc.id
+      )
+      select (select institutional_conversation_id from roots order by institutional_conversation_id limit 1) as institutional_conversation_id,
+             (select de.disposition
+              from atlas.institutional_conversation_disposition_events de
+              join roots r on r.institutional_conversation_id=de.institutional_conversation_id
+              order by de.created_at desc,de.id desc limit 1) as disposition,
+             (select string_agg(coalesce(w.title,'')||' '||coalesce(w.instructions,''),' ')
+              from atlas.communication_derived_work_links l
+              join roots r on r.institutional_conversation_id=l.institutional_conversation_id
+              join atlas.work_items w on w.id=l.work_item_id
+                AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=w.organization_id
+        AND original_link.work_item_id=w.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )) as work_text
+    ) institutional_context on true
+    where cc.organization_id is not null
+      and cc.principal_id is null
+      and atlas.organization_correspondence_read_authorized_self_v1(cc.id)
+      and (p_organization_id is null or atlas.organization_correspondence_effective_organization_v1(cc.id)=p_organization_id)
+      and (p_communication_endpoint_id is null or endpoint_context.endpoint_id is not null)
+  ), ranked as (
+    select *,case when v_query='' then 0::real else ts_rank_cd(
+      to_tsvector('simple',coalesce(subject,'')||' '||participant_text||' '||body_text||' '||attachment_text||' '||work_text),
+      websearch_to_tsquery('simple',v_query)
+    ) end as rank
+    from candidates
+    where (v_query='' or to_tsvector('simple',coalesce(subject,'')||' '||participant_text||' '||body_text||' '||attachment_text||' '||work_text)
+             @@ websearch_to_tsquery('simple',v_query))
+      and (not(v_filters ? 'disposition') or disposition=v_filters->>'disposition')
+      and (coalesce((v_filters->>'hasAttachment')::boolean,false)=false or has_attachment)
+      and (not(v_filters ? 'dateFrom') or last_activity_at >= (v_filters->>'dateFrom')::timestamptz)
+      and (not(v_filters ? 'dateTo') or last_activity_at <= (v_filters->>'dateTo')::timestamptz)
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+           'communicationConversationId',communication_conversation_id,
+           'institutionalConversationId',institutional_conversation_id,
+           'effectiveOrganizationId',effective_organization_id,
+           'endpointId',endpoint_id,
+           'endpointKind',endpoint_kind,
+           'endpointName',endpoint_name,
+           'subject',subject,
+           'lastActivityAt',last_activity_at,
+           'disposition',disposition,
+           'hasAttachment',has_attachment,
+           'rank',rank
+         ) order by rank desc,last_activity_at desc,communication_conversation_id),'[]'::jsonb)
+  into v_items
+  from (select * from ranked order by rank desc,last_activity_at desc,communication_conversation_id limit p_limit) q;
+
+  return jsonb_build_object(
+    'ok',true,
+    'contractVersion','organization_correspondence_search_v1',
+    'identityRoot','communication_conversation',
+    'query',v_query,
+    'organizationId',p_organization_id,
+    'communicationEndpointFilterId',p_communication_endpoint_id,
+    'items',v_items
+  );
+end;
+$function$;
+
+-- Historical governed alternate: organization_management_company_work_planning_queue_api_v1
+CREATE OR REPLACE FUNCTION atlas.organization_management_company_work_planning_queue_api_v1(p_organization_id uuid, p_window_start date DEFAULT NULL::date, p_window_end date DEFAULT NULL::date)
+ RETURNS TABLE(work_item_id uuid, title text, operation_class text, work_state text, responsibility_state text, responsible_membership_id uuid, responsible_user_id uuid, allocation_id uuid, planning_state text, planned_service_date date, exposure_service_date date, first_planned_service_date date, rollover_count integer, next_target_at timestamp with time zone, hard_finish_at timestamp with time zone, result_contract_key text, open_conflicts bigint, latest_result_kind text, latest_result_at timestamp with time zone, latest_result_payload jsonb, attention_state text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if not exists(
+    select 1
+    from atlas.organization_memberships om
+    where om.organization_id=p_organization_id
+      and om.user_id=auth.uid()
+      and om.active
+  ) then
+    raise exception 'Active organization membership required.' using errcode='42501';
+  end if;
+  if not atlas.is_organization_owner(p_organization_id)
+     and not exists(
+       select 1
+       from atlas.farms f
+       join atlas.farm_memberships fm on fm.farm_id=f.id
+       where f.organization_id=p_organization_id
+         and fm.user_id=auth.uid()
+         and fm.active
+         and fm.role in ('owner','manager')
+     ) then
+    raise exception 'Company Work scheduling authority required.' using errcode='42501';
+  end if;
+
+  return query
+  select wi.id,wi.title,wi.operation_class,wi.work_state,
+    case when wa.id is null then 'unassigned' else 'assigned' end,
+    wa.assignee_membership_id,om.user_id,wa.id,
+    case when wa.id is null then 'unassigned' when ep.id is null then 'assigned_unscheduled' when ep.plan_state='needs_replan' then 'needs_replan' else 'scheduled' end,
+    ep.planned_service_date,ep.exposure_service_date,ep.first_planned_service_date,coalesce(ep.rollover_count,0),
+    tc.preferred_end_at,coalesce(tc.hard_finish_at,tc.latest_lawful_at),wi.result_contract_key,coalesce(pc.open_conflicts,0),
+    lr.result_kind,lr.reported_at,lr.payload,
+    case
+      when lr.result_kind in ('blocked','unable') then 'worker_exception'
+      when ep.plan_state='needs_replan' then 'needs_replan'
+      when wa.id is null then 'needs_responsibility'
+      when ep.id is null then 'needs_schedule'
+      else 'none'
+    end
+  from atlas.work_items wi
+  left join atlas.work_allocations wa on wa.organization_id=wi.organization_id and wa.work_item_id=wi.id and wa.state='active' and wa.allocation_role='responsible'
+  left join atlas.organization_memberships om on om.id=wa.assignee_membership_id
+  left join atlas.work_execution_plans ep on ep.organization_id=wi.organization_id and ep.work_item_id=wi.id and ep.plan_state in ('active','needs_replan')
+  left join lateral(
+    select x.preferred_end_at as preferred_end_at,x.hard_finish_at as hard_finish_at,x.latest_lawful_at as latest_lawful_at
+    from atlas.work_time_contracts x
+    where x.organization_id=wi.organization_id and x.work_item_id=wi.id and x.contract_state='active'
+    order by x.created_at desc limit 1
+  ) tc on true
+  left join lateral(
+    select count(*) as open_conflicts from atlas.work_planning_conflicts c
+    where c.organization_id=wi.organization_id and c.work_item_id=wi.id and c.state='open'
+  ) pc on true
+  left join lateral(
+    select r.result_kind as result_kind,r.reported_at as reported_at,r.payload as payload
+    from atlas.work_execution_results r
+    where r.organization_id=wi.organization_id and r.work_item_id=wi.id
+    order by r.reported_at desc,r.id desc limit 1
+  ) lr on true
+  where wi.organization_id=p_organization_id
+    and wi.work_state='open'
+     AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=wi.organization_id
+        AND original_link.work_item_id=wi.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+    and (
+      atlas.is_organization_owner(p_organization_id)
+      or atlas.can_schedule_company_work_v1(wi.id)
+    )
+    and (p_window_start is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)>=p_window_start)
+    and (p_window_end is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)<=p_window_end)
+  order by case
+      when lr.result_kind in ('blocked','unable') then 0
+      when wa.id is null then 1
+      when ep.id is null then 2
+      when ep.plan_state='needs_replan' then 3
+      else 4
+    end,
+    coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date) nulls last,
+    wi.created_at,wi.id;
+end;
+$function$;
+
+-- Historical governed alternate: organization_owner_company_work_planning_queue_api_v1
+CREATE OR REPLACE FUNCTION atlas.organization_owner_company_work_planning_queue_api_v1(p_organization_id uuid, p_window_start date DEFAULT NULL::date, p_window_end date DEFAULT NULL::date)
+ RETURNS TABLE(work_item_id uuid, title text, operation_class text, work_state text, responsibility_state text, responsible_membership_id uuid, responsible_user_id uuid, allocation_id uuid, planning_state text, planned_service_date date, exposure_service_date date, first_planned_service_date date, rollover_count integer, next_target_at timestamp with time zone, hard_finish_at timestamp with time zone, result_contract_key text, open_conflicts bigint)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if not atlas.is_organization_owner(p_organization_id) then raise exception 'Organization owner authority required.' using errcode='42501'; end if;
+  return query
+  select wi.id,wi.title,wi.operation_class,wi.work_state,
+    case when wa.id is null then 'unassigned' else 'assigned' end,
+    wa.assignee_membership_id,om.user_id,wa.id,
+    case
+      when wa.id is null then 'unassigned'
+      when ep.id is null then 'assigned_unscheduled'
+      when ep.plan_state='needs_replan' then 'needs_replan'
+      else 'scheduled'
+    end,
+    ep.planned_service_date,ep.exposure_service_date,ep.first_planned_service_date,coalesce(ep.rollover_count,0),
+    tc.preferred_end_at,coalesce(tc.hard_finish_at,tc.latest_lawful_at),wi.result_contract_key,
+    coalesce(pc.open_conflicts,0)
+  from atlas.work_items wi
+  left join atlas.work_allocations wa on wa.organization_id=wi.organization_id and wa.work_item_id=wi.id and wa.state='active' and wa.allocation_role='responsible'
+  left join atlas.organization_memberships om on om.id=wa.assignee_membership_id
+  left join atlas.work_execution_plans ep on ep.organization_id=wi.organization_id and ep.work_item_id=wi.id and ep.plan_state in ('active','needs_replan')
+  left join lateral(
+    select x.preferred_end_at as preferred_end_at,x.hard_finish_at as hard_finish_at,x.latest_lawful_at as latest_lawful_at
+    from atlas.work_time_contracts x
+    where x.organization_id=wi.organization_id and x.work_item_id=wi.id and x.contract_state='active'
+    order by x.created_at desc limit 1
+  ) tc on true
+  left join lateral(
+    select count(*) as open_conflicts from atlas.work_planning_conflicts c
+    where c.organization_id=wi.organization_id and c.work_item_id=wi.id and c.state='open'
+  ) pc on true
+  where wi.organization_id=p_organization_id and wi.work_state='open'
+  AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=wi.organization_id
+        AND original_link.work_item_id=wi.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+    and (p_window_start is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)>=p_window_start)
+    and (p_window_end is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)<=p_window_end)
+  order by case when wa.id is null then 0 when ep.id is null then 1 when ep.plan_state='needs_replan' then 2 else 3 end,
+           coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date) nulls last,
+           wi.created_at,wi.id;
+end;
+$function$;
+
+-- Historical governed alternate: organization_owner_company_work_planning_queue_api_v2
+CREATE OR REPLACE FUNCTION atlas.organization_owner_company_work_planning_queue_api_v2(p_organization_id uuid, p_window_start date DEFAULT NULL::date, p_window_end date DEFAULT NULL::date)
+ RETURNS TABLE(work_item_id uuid, title text, operation_class text, work_state text, responsibility_state text, responsible_membership_id uuid, responsible_user_id uuid, allocation_id uuid, planning_state text, planned_service_date date, exposure_service_date date, first_planned_service_date date, rollover_count integer, next_target_at timestamp with time zone, hard_finish_at timestamp with time zone, result_contract_key text, open_conflicts bigint, latest_result_kind text, latest_result_at timestamp with time zone, latest_result_payload jsonb, attention_state text)
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+begin
+  if auth.uid() is null then raise exception 'Sign in required.' using errcode='42501'; end if;
+  if not atlas.is_organization_owner(p_organization_id) then raise exception 'Organization owner authority required.' using errcode='42501'; end if;
+  return query
+  select wi.id,wi.title,wi.operation_class,wi.work_state,
+    case when wa.id is null then 'unassigned' else 'assigned' end,
+    wa.assignee_membership_id,om.user_id,wa.id,
+    case when wa.id is null then 'unassigned' when ep.id is null then 'assigned_unscheduled' when ep.plan_state='needs_replan' then 'needs_replan' else 'scheduled' end,
+    ep.planned_service_date,ep.exposure_service_date,ep.first_planned_service_date,coalesce(ep.rollover_count,0),
+    tc.preferred_end_at,coalesce(tc.hard_finish_at,tc.latest_lawful_at),wi.result_contract_key,coalesce(pc.open_conflicts,0),
+    lr.result_kind,lr.reported_at,lr.payload,
+    case
+      when lr.result_kind in ('blocked','unable') then 'worker_exception'
+      when ep.plan_state='needs_replan' then 'needs_replan'
+      when wa.id is null then 'needs_responsibility'
+      when ep.id is null then 'needs_schedule'
+      else 'none'
+    end
+  from atlas.work_items wi
+  left join atlas.work_allocations wa on wa.organization_id=wi.organization_id and wa.work_item_id=wi.id and wa.state='active' and wa.allocation_role='responsible'
+  left join atlas.organization_memberships om on om.id=wa.assignee_membership_id
+  left join atlas.work_execution_plans ep on ep.organization_id=wi.organization_id and ep.work_item_id=wi.id and ep.plan_state in ('active','needs_replan')
+  left join lateral(
+    select x.preferred_end_at as preferred_end_at,x.hard_finish_at as hard_finish_at,x.latest_lawful_at as latest_lawful_at
+    from atlas.work_time_contracts x
+    where x.organization_id=wi.organization_id and x.work_item_id=wi.id and x.contract_state='active'
+    order by x.created_at desc limit 1
+  ) tc on true
+  left join lateral(
+    select count(*) as open_conflicts from atlas.work_planning_conflicts c
+    where c.organization_id=wi.organization_id and c.work_item_id=wi.id and c.state='open'
+  ) pc on true
+  left join lateral(
+    select r.result_kind as result_kind,r.reported_at as reported_at,r.payload as payload
+    from atlas.work_execution_results r
+    where r.organization_id=wi.organization_id and r.work_item_id=wi.id
+    order by r.reported_at desc,r.id desc limit 1
+  ) lr on true
+  where wi.organization_id=p_organization_id and wi.work_state='open'
+  AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=wi.organization_id
+        AND original_link.work_item_id=wi.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+    and (p_window_start is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)>=p_window_start)
+    and (p_window_end is null or coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date)<=p_window_end)
+  order by case
+      when lr.result_kind in ('blocked','unable') then 0
+      when wa.id is null then 1
+      when ep.id is null then 2
+      when ep.plan_state='needs_replan' then 3
+      else 4
+    end,
+    coalesce(ep.exposure_service_date,(tc.preferred_end_at at time zone 'UTC')::date,(tc.hard_finish_at at time zone 'UTC')::date) nulls last,
+    wi.created_at,wi.id;
+end;
+$function$;
+
+-- Historical governed alternate: organization_work_accountability_self_api_v1
+CREATE OR REPLACE FUNCTION atlas.organization_work_accountability_self_api_v1()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $function$
+declare
+  v_uid uuid:=auth.uid();
+  v_organizations jsonb;
+  v_pending jsonb;
+  v_recent jsonb;
+begin
+  if v_uid is null then
+    return jsonb_build_object('ok',false,'authenticated',false,'organizations','[]'::jsonb,'pending','[]'::jsonb,'recentCompletions','[]'::jsonb);
+  end if;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'organizationId',o.id,'organizationName',o.name
+  ) order by o.name,o.id),'[]'::jsonb)
+  into v_organizations
+  from atlas.organizations o
+  where o.status='active' and atlas.is_effective_organization_owner_v1(o.id);
+
+  select coalesce(jsonb_agg(item order by reported_at desc,result_id desc),'[]'::jsonb)
+  into v_pending
+  from (
+    select r.reported_at,r.id as result_id,
+      jsonb_strip_nulls(jsonb_build_object(
+        'resultId',r.id,
+        'workItemId',w.id,
+        'organizationId',effective_org.id,
+        'organizationName',effective_org.name,
+        'physicalOrganizationId',w.organization_id,
+        'title',w.title,
+        'resultKind',r.result_kind,
+        'reportedAt',r.reported_at,
+        'reportedByOrganizationMembershipId',r.reported_by_organization_membership_id,
+        'reportedByName',isp.display_name,
+        'positionTitle',position_row.display_title,
+        'resultContractKey',r.result_contract_key,
+        'companyWorkState',w.work_state
+      )) as item
+    from atlas.work_execution_results r
+    join atlas.work_items w on w.id=r.work_item_id and w.organization_id=r.organization_id
+     AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=w.organization_id
+        AND original_link.work_item_id=w.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+    join atlas.organizations effective_org
+      on effective_org.id=atlas.effective_work_item_organization_v1(w.id)
+     and effective_org.status='active'
+    join atlas.work_result_contract_policies p
+      on p.contract_key=r.result_contract_key and p.active and p.acceptance_mode='manager_acceptance'
+    left join atlas.organization_memberships reported_membership
+      on reported_membership.id=r.reported_by_organization_membership_id
+     and reported_membership.organization_id=r.organization_id
+    left join atlas.identity_subject_projections isp
+      on isp.organization_id=r.organization_id
+     and isp.subject_id=reported_membership.identity_subject_id
+    left join lateral (
+      select pos.display_title
+      from atlas.organization_position_appointments opa
+      join atlas.organization_positions pos
+        on pos.id=opa.position_id and pos.organization_id=opa.organization_id and pos.status='active'
+      where opa.organization_id=r.organization_id
+        and opa.organization_membership_id=r.reported_by_organization_membership_id
+        and opa.status='active'
+        and opa.begins_at<=r.reported_at
+        and (opa.ends_at is null or opa.ends_at>r.reported_at)
+      order by case when opa.appointment_kind='primary' then 0 else 1 end,opa.begins_at desc,opa.id
+      limit 1
+    ) position_row on true
+    where atlas.is_effective_organization_owner_v1(effective_org.id)
+      and not exists (select 1 from atlas.work_result_acceptances a where a.execution_result_id=r.id)
+    order by r.reported_at desc,r.id desc
+    limit 50
+  ) pending_rows;
+
+  select coalesce(jsonb_agg(item order by established_at desc,entry_id desc),'[]'::jsonb)
+  into v_recent
+  from (
+    select le.established_at,le.id as entry_id,
+      jsonb_strip_nulls(jsonb_build_object(
+        'ledgerEntryId',le.id,
+        'organizationId',effective_org.id,
+        'organizationName',effective_org.name,
+        'physicalOrganizationId',le.organization_id,
+        'physicalLedgerId',le.ledger_id,
+        'workItemId',le.payload->>'workItemId',
+        'title',le.title,
+        'occurredAt',le.occurred_at,
+        'establishedAt',le.established_at,
+        'completedAt',le.payload->>'completedAt',
+        'resultKind',le.payload->>'resultKind',
+        'acceptanceKind',le.payload->>'acceptanceKind',
+        'reportedByOrganizationMembershipId',le.payload->>'reportedByOrganizationMembershipId',
+        'positionTitle',le.payload->>'positionTitle',
+        'truthStatus',le.truth_status
+      )) as item
+    from atlas.organization_ledger_entries le
+    left join atlas.work_items work_source on work_source.id::text=le.payload->>'workItemId'
+    join atlas.organizations effective_org on effective_org.id=coalesce(
+      atlas.effective_work_item_organization_v1(work_source.id),
+      (select ec.effective_organization_id
+       from atlas.effective_institutional_custody_v1('atlas','organization_ledger_entries',le.id::text,le.organization_id,le.ledger_id) ec
+       where ec.disposition in ('physical','reassigned'))
+    ) and effective_org.status='active'
+    where le.semantic_type='company_work_completed'
+       AND NOT EXISTS (
+      SELECT 1 FROM atlas.work_item_context_links original_link
+      WHERE original_link.organization_id=work_source.organization_id
+        AND original_link.work_item_id=work_source.id
+        AND original_link.subject_domain='spatial'
+        AND original_link.subject_kind='growing_object'
+    )
+      and le.truth_status='established'
+      and coalesce((le.provenance->>'institutionalOnly')::boolean,false)
+      and coalesce((le.provenance->>'personalAtlasCausalityIncluded')::boolean,false)=false
+      and atlas.is_effective_organization_owner_v1(effective_org.id)
+    order by le.established_at desc,le.id desc
+    limit 50
+  ) recent_rows;
+
+  return jsonb_build_object(
+    'ok',true,'authenticated',true,
+    'contractVersion','organization_work_accountability_v2',
+    'organizations',v_organizations,
+    'pending',v_pending,
+    'recentCompletions',v_recent,
+    'institutionalCustodyMode','effective',
+    'privacyBoundary',jsonb_build_object('institutionalOnly',true,'personalAtlasCausalityIncluded',false)
+  );
+end;
+$function$;
+
 -- Original held candidate: original_subject_work_existing_direct_responsibility_v1/candidate.sql
 -- Requires original_work_decomposition + native guarded reader extensions.
 -- Assigns ONE EXISTING canonical Work ID; never creates or imports another.
