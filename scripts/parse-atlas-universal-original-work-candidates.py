@@ -50,7 +50,7 @@ for path in paths:
                 first = function_sql.splitlines()[0]
                 raise SystemExit(f"PL/pgSQL grammar error in {path.relative_to(root)}: {first}: {e}")
             normalized = re.sub(
-                r"\\b(?:atlas|auth|ledger|reality|local_intel|household)\\.",
+                r"\b(?:atlas|auth|ledger|reality|local_intel|household)\.",
                 "public.", function_sql, flags=re.IGNORECASE)
             if normalized == function_sql:
                 first = function_sql.splitlines()[0]
