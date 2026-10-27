@@ -74,7 +74,7 @@ CREATE FUNCTION atlas.set_person_mail_read_self_v1(
 DECLARE v_endpoint atlas.communication_endpoints%rowtype;
  v_owner uuid;v_prior atlas.communication_person_mail_read_decisions_v1%rowtype;
  v_new atlas.communication_person_mail_read_decisions_v1%rowtype;
- v_cutoff timestamptz;
+ v_cutoff timestamptz; v_expected_decision text;
 BEGIN
  IF auth.uid() IS NULL OR p_endpoint_id IS NULL OR p_ledger_id IS NULL
     OR p_target_person_id IS NULL OR p_action_id IS NULL
@@ -100,6 +100,7 @@ BEGIN
      AND lop.participation_kind IN ('governing','operating')
  ) THEN RAISE EXCEPTION 'Target must be an active canonical connected Person on this exact Ledger'
    USING ERRCODE='42501'; END IF;
+ v_expected_decision:=CASE WHEN p_enabled THEN 'grant' ELSE 'revoke' END;
  IF p_enabled THEN
    IF p_start_date IS NULL OR p_timezone IS NULL OR
      NOT EXISTS(SELECT 1 FROM pg_catalog.pg_timezone_names WHERE name=p_timezone)
@@ -119,7 +120,7 @@ BEGIN
    IF v_prior.communication_endpoint_id IS DISTINCT FROM p_endpoint_id
     OR v_prior.authorizing_ledger_id IS DISTINCT FROM p_ledger_id
     OR v_prior.target_person_id IS DISTINCT FROM p_target_person_id
-    OR v_prior.decision IS DISTINCT FROM CASE WHEN p_enabled THEN 'grant' ELSE 'revoke' END
+    OR v_prior.decision IS DISTINCT FROM v_expected_decision
     OR v_prior.earliest_event_at IS DISTINCT FROM v_cutoff
     OR v_prior.reason IS DISTINCT FROM btrim(p_reason) THEN
      RAISE EXCEPTION 'Idempotency key already used for another decision'
