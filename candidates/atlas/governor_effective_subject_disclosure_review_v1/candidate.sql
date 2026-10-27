@@ -82,12 +82,36 @@ BEGIN
  )
  SELECT coalesce(jsonb_agg(jsonb_build_object(
      'workItemId',b.id,'title',b.title,'workState',b.work_state,
-     'allocationId',b.allocation_id
+     'allocationId',b.allocation_id,
+     'linkedSubjectDisclosure',b.linked_subject_disclosure
    ) ORDER BY b.id) FILTER(WHERE b.rn<=p_limit),'[]'::jsonb),
    count(*)>p_limit,
    (array_agg(b.id ORDER BY b.rn) FILTER(WHERE b.rn=p_limit))[1]
  INTO v_work,v_more,v_next
- FROM (SELECT selected.*,row_number() over (order by id) rn FROM selected) b;
+ FROM (
+ SELECT selected.*,row_number() OVER(ORDER BY id) rn,
+ (SELECT jsonb_build_object(
+   'items',coalesce(jsonb_agg(jsonb_build_object(
+     'subjectId',s.subject_id,'subjectLabel',s.label,
+     'subjectDomain','spatial','subjectKind','growing_object',
+     'identityDecision',coalesce((SELECT e.decision_kind FROM atlas.subject_disclosure_decision_events_v1 e WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id AND e.target_person_id=p_target_person_id AND e.subject_domain='spatial' AND e.subject_kind='growing_object' AND e.subject_id=s.subject_id AND e.disclosure_class='identity' ORDER BY e.recorded_at DESC,e.id DESC LIMIT 1),'not_decided'),
+     'conditionDecision',coalesce((SELECT e.decision_kind FROM atlas.subject_disclosure_decision_events_v1 e WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id AND e.target_person_id=p_target_person_id AND e.subject_domain='spatial' AND e.subject_kind='growing_object' AND e.subject_id=s.subject_id AND e.disclosure_class='condition' ORDER BY e.recorded_at DESC,e.id DESC LIMIT 1),'not_decided'),
+     'identityDecisionCurrentlyGrants',atlas.has_current_subject_disclosure_v1(p_ledger_id,p_target_person_id,'spatial','growing_object',s.subject_id,'identity'),
+     'conditionDecisionCurrentlyGrants',atlas.has_current_subject_disclosure_v1(p_ledger_id,p_target_person_id,'spatial','growing_object',s.subject_id,'condition')
+   ) ORDER BY s.subject_id) FILTER(WHERE s.rn<=20),'[]'::jsonb),
+   'hasMore',count(*)>20,'independentlySignedTargetProof',false)
+  FROM (SELECT q.*,row_number() OVER(ORDER BY q.subject_id) rn
+    FROM (SELECT DISTINCT ON(l.subject_id) l.subject_id,o.label
+      FROM atlas.work_item_context_links l
+      JOIN atlas.growing_objects o ON o.id=l.subject_id
+      JOIN atlas.farms f ON f.id=o.farm_id AND f.organization_id=p_organization_id
+      WHERE l.organization_id=p_organization_id AND l.work_item_id=selected.id
+        AND l.subject_domain='spatial' AND l.subject_kind='growing_object'
+      ORDER BY l.subject_id LIMIT 21) q
+   ) s
+ ) AS linked_subject_disclosure
+ FROM selected
+ ) b;
  RETURN jsonb_build_object(
    'ok',true,'contractVersion','governor_effective_subject_disclosure_review_v1',
    'organizationId',p_organization_id,'ledgerId',p_ledger_id,
