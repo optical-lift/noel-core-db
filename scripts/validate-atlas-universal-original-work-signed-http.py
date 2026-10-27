@@ -481,6 +481,28 @@ def main():
           and shifted.get("executionDate")=="2030-11-01"
           and shifted.get("planId")==placed["planId"],
           "Rescheduling minted an unrelated plan or Work")
+    # The exact signed My Work reader must distinguish an explicit move
+    # from an overdue original plan: only the rescheduled plan event proves
+    # the original date, not an inferred rollover or task creation date.
+    moved_read=ok(api,key,worker,"connected_person_my_work_self_api_v1",
+                  {"p_limit":50,"p_after_allocation_id":None})
+    moved_rows=[row for row in moved_read.get("items",[])
+                if row.get("workItemId")==bed4]
+    check(len(moved_rows)==1 and
+          moved_rows[0].get("workOn")=="2030-11-01" and
+          moved_rows[0].get("verifiedMovedFromDate")=="2030-10-31" and
+          moved_rows[0].get("allocationId")==b4.get("allocationId"),
+          "Signed reader cannot prove true original rescheduling of same Work")
+    check(sql(args.db_url,
+          "select count(*) from atlas.work_execution_plan_events "
+          f"where work_item_id='{bed4}'::uuid and "
+          f"plan_id='{placed['planId']}'::uuid and "
+          "event_kind='rescheduled' and "
+          "from_planned_service_date='2030-10-31'::date and "
+          "to_planned_service_date='2030-11-01'::date")=="1",
+          "Displayed moved date lacks one persisted original plan event")
+    print("PASS signed original Work movement provenance and no phantom migration")
+
     old_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
                {"p_date":"2030-10-31"})
     new_day=ok(api,key,worker,"connected_person_company_work_day_self_api_v1",
