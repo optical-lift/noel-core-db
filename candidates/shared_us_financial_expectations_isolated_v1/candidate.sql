@@ -243,9 +243,18 @@ JOIN us.financial_expectation_revisions r
 JOIN us.financial_expectation_plans p
  ON p.id=r.plan_id AND p.owner_auth_user_id=r.owner_auth_user_id
 LEFT JOIN LATERAL (
- SELECT sum(e.amount)::numeric(18,2) AS reported_amount,
-        sum(e.amount) FILTER (WHERE e.evidence_grade<>'self_reported')::numeric(18,2)
-         AS correlated_amount,
+ -- Debt balances and capital budgets are stocks, not additive cash flows.
+ -- Latest observed snapshot wins; tie-break on custody time and immutable id.
+ SELECT (CASE WHEN l.money_role IN ('debt_balance','capital_budget')
+              THEN (array_agg(e.amount ORDER BY e.observed_on DESC,
+                  e.recorded_at DESC,e.id DESC))[1]
+              ELSE sum(e.amount) END)::numeric(18,2) AS reported_amount,
+        (CASE WHEN l.money_role IN ('debt_balance','capital_budget')
+              THEN (array_agg(e.amount ORDER BY e.observed_on DESC,
+                  e.recorded_at DESC,e.id DESC)
+                  FILTER (WHERE e.evidence_grade<>'self_reported'))[1]
+              ELSE sum(e.amount) FILTER (WHERE e.evidence_grade<>'self_reported')
+         END)::numeric(18,2) AS correlated_amount,
         count(e.id)::int AS source_count,
         count(e.id) FILTER (WHERE e.evidence_grade<>'self_reported')::int
          AS correlated_count
