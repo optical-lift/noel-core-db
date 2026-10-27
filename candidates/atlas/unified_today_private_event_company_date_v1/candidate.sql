@@ -131,7 +131,7 @@ BEGIN
    'historicalDecisionPreserved',true
  );
 END;
-$function$
+$function$;
 
 
 -- No Ledger-seat-only Event names, ambiguous-org counts or suggestion titles.
@@ -239,7 +239,7 @@ begin
       'noCustomerData',true,'noGeneralLedgerHistory',true,
       'notGrantingWorkExecution',true));
 end
-$function$
+$function$;
 
 
 -- Do not let being a responsible connected Person confer execution-date edits.
@@ -356,7 +356,7 @@ begin
    'state','placed','workItemId',v_w.id,'ledgerId',v_ledger,
    'responsiblePersonId',v_person,'planId',v_plan.id,'executionDate',p_service_date,
    'newWorkCreated',false,'workerReadProven',false);
-end$function$
+end$function$;
 
 
 -- Protect alternate source readers, including direct signed RPC calls.
@@ -411,7 +411,7 @@ begin
   end if;
   return v_actor;
 end
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_date_evidence_self_api_v1(p_ledger_id uuid, p_start_date date, p_end_date date, p_timezone_name text, p_limit integer DEFAULT 150)
@@ -638,7 +638,7 @@ BEGIN
     )
   );
 END
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.my_ledger_event_work_attention_self_api_v1()
@@ -707,7 +707,7 @@ BEGIN
  RETURN jsonb_build_object('ok',true,'contractVersion','my_ledger_event_work_attention_v1',
   'personEntityId',v_person,'items',v_rows,'sourceOwnedNotPersonalCopies',true);
 END
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.ledger_occurrence_schedule_correction_preflight_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_occurrence_id uuid, p_proposed_starts_at timestamp with time zone DEFAULT NULL::timestamp with time zone, p_proposed_ends_at timestamp with time zone DEFAULT NULL::timestamp with time zone)
@@ -948,7 +948,7 @@ BEGIN
       'personalTemporalFieldComplete',false)
   );
 END
-$function$
+$function$;
 
 
 COMMIT;
