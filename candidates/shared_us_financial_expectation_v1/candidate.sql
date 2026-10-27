@@ -125,8 +125,31 @@ BEGIN
  IF v_line.id IS NULL OR v_line.economic_scope<>'organization' THEN
   RAISE EXCEPTION 'Unscoped financial binding' USING ERRCODE='42501';
  END IF;
+ -- A service-role process cannot infer owner access from a supplied org UUID.
+ -- Require active owner membership or active root-governing authority over a
+ -- Ledger belonging to that organization before any canonical receipt binds.
+ IF NOT EXISTS (
+  SELECT 1 FROM us.financial_expectation_revisions r
+  JOIN us.financial_expectation_plans plan ON plan.id=r.plan_id
+  JOIN atlas.organization_memberships om ON om.organization_id=v_line.organization_id
+     AND om.user_id=plan.owner_auth_user_id
+     AND om.active=true AND om.role='owner'
+  WHERE r.id=NEW.revision_id
+ ) AND NOT EXISTS (
+  SELECT 1 FROM us.financial_expectation_revisions r
+  JOIN us.financial_expectation_plans plan ON plan.id=r.plan_id
+  JOIN atlas.principals principal ON principal.user_id=plan.owner_auth_user_id
+  JOIN atlas.principal_ledger_authorities a ON a.principal_id=principal.id
+   AND a.status='active' AND a.authority_kind='root_governing'
+  JOIN atlas.ledgers ledger ON ledger.id=a.ledger_id
+   AND ledger.organization_id=v_line.organization_id
+  WHERE r.id=NEW.revision_id
+ ) THEN
+  RAISE EXCEPTION 'No verified owner financial scope for organization'
+   USING ERRCODE='42501';
+ END IF;
  IF NEW.source_kind='atlas_commercial_payment' THEN
-  IF v_line.money_role NOT IN ('gross_inflow','net_inflow') OR NOT EXISTS (
+  IF v_line.money_role<>'gross_inflow' OR NOT EXISTS (
    SELECT 1 FROM atlas.commercial_payments p WHERE p.id=NEW.source_id
     AND p.organization_id=v_line.organization_id
     AND p.currency=v_line.currency AND p.observed_state='succeeded'
@@ -200,7 +223,7 @@ LEFT JOIN LATERAL (
    AND pay.organization_id=l.organization_id
    AND pay.currency=l.currency AND pay.observed_state='succeeded'
   WHERE link.line_id=l.id AND link.source_kind='atlas_commercial_payment'
-   AND l.economic_scope='organization' AND l.money_role IN ('gross_inflow','net_inflow')
+   AND l.economic_scope='organization' AND l.money_role='gross_inflow'
    AND date_trunc('month',pay.paid_at AT TIME ZONE 'UTC')::date=l.period_month
   UNION ALL
   SELECT spend.gross_amount AS actual_amount
