@@ -542,6 +542,17 @@ def main():
     # it must NOT go through the decomposition-only writer or mint another
     # Work identity. A one-time accepted scope is not a per-task question.
     ordinary="e5200000-0000-4000-8000-000000000901"
+    # This is still the SAME seeded synthetic original Work. Classify its
+    # source as an original legacy task to prove the released accepted-scope
+    # assignment binds the standard ordinary physical Result contract.
+    # No duplicate work item or production task is created.
+    check(sql(args.db_url,
+          f"select count(*) from atlas.work_items where id='{ordinary}'::uuid "
+          "and source_object_type is null and result_contract_key is null")=="1",
+          "Synthetic existing ordinary Work was already re-contracted")
+    sql(args.db_url,
+        f"update atlas.work_items set source_object_type='legacy_task' "
+        f"where id='{ordinary}'::uuid and source_object_type is null")
     original_count=sql(args.db_url,"select count(*) from atlas.work_items")
     scope_args=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
       p_worker_person_id=PERSON,p_organization_unit_id=None,
@@ -603,8 +614,48 @@ def main():
               f"where work_item_id='{ordinary}'::uuid and id='{ordinary_allocation}'::uuid "
               "and state='active' and establishment_basis_kind='delegated_under_standing_scope'")
     check(still_work=="1","Ordinary scheduling invented another responsibility basis")
+    check(sql(args.db_url,
+          f"select result_contract_key from atlas.work_items where id='{ordinary}'::uuid")
+          =="ordinary_company_work_worker_attestation_v1",
+          "Released under-scope assignment failed to bind eligible original legacy Result")
+    deny(api,key,outsider,"report_connected_person_company_work_self_api_v1",
+         dict(p_work_item_id=ordinary,p_result_kind="completed",
+              p_idempotency_key="clone-unconnected-mow-cannot-complete",
+              p_payload={"physicalActual":"Unconnected outsider falsely claims mowing"}),
+         "Outsider cannot complete assigned original ordinary Work")
+    ordinary_actual=ok(api,key,worker,
+      "report_connected_person_company_work_self_api_v1",
+      dict(p_work_item_id=ordinary,p_result_kind="completed",
+           p_idempotency_key="clone-existing-legacy-mow-actual",
+           p_payload={"physicalActual":"Original synthetic walkways mowed."}))
+    check(ordinary_actual.get("workItemId")==ordinary and
+          ordinary_actual.get("resultKind")=="completed" and
+          ordinary_actual.get("workState")=="completed" and
+          bool(ordinary_actual.get("resultId")),
+          "Signed Person could not report accepted physical Result on original Work")
+    status,ordinary_ledger=rpc(api,key,owner,
+      "company_work_accountability_native_ledger_self_api_v1",
+      dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_scope="native_ledger",
+           p_limit=200,p_after_work_item_id=None))
+    check(status==200 and isinstance(ordinary_ledger,dict) and
+          ordinary_ledger.get("contractVersion")==
+            "company_work_accountability_native_ledger_v1",
+          "Root governor original Ledger read unavailable after physical completion")
+    ordinary_found=[x for x in ordinary_ledger.get("items",[])
+                    if x.get("workItemId")==ordinary]
+    check(len(ordinary_found)==1 and
+          ordinary_found[0].get("workState")=="completed" and
+          ordinary_found[0].get("latestWorkerReport",{}).get("resultId")==
+            ordinary_actual.get("resultId") and
+          ordinary_found[0].get("latestAcceptedResult",{}).get("resultId")==
+            ordinary_actual.get("resultId") and
+          ordinary_found[0].get("latestAcceptedResult",{}).get("decision")=="accepted",
+          "Root Ledger did not read signed legacy Work's exact completed Result")
+    check(sql(args.db_url,"select count(*) from atlas.work_items")==original_count,
+          "Original legacy Work result minted a second task")
     print("PASS signed existing ordinary Ledger Work: accepted standing scope, "
-          "direct unscheduled Person responsibility, later day, one original identity")
+          "one original legacy_task, separate date, authorized physical Actual and "
+          "exact governing Ledger Result readback")
 
 
 
