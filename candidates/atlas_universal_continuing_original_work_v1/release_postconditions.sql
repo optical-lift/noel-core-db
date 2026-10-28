@@ -372,3 +372,31 @@ $post$;
 -- 5. for a non-adopted state, previous legacy task release is unaffected.
 -- 6. scheduled tick does not loop on exceptions or issue alternate tasks.
 -- Failure on any is a BLOCK on cutover deployment, not a green check.
+
+-- POSTCONDITION SECTION: 09_rhythm_state_raw_worker_disclosure_cutover.sql
+-- Protected clone AFTER applying bundle; NOT sufficient for signed positive.
+DO $privacy$
+DECLARE v_definition text;
+BEGIN
+ IF to_regprocedure('atlas.can_read_rhythm_state_v1(uuid)') IS NULL THEN
+   RAISE EXCEPTION 'Rhythm state direct-read membrane missing';
+ END IF;
+ SELECT pg_catalog.pg_get_functiondef(
+   'atlas.can_read_rhythm_state_v1(uuid)'::regprocedure)
+ INTO v_definition;
+ IF v_definition NOT LIKE '%WHEN ''assigned_worker'' THEN atlas.is_farm_manager_or_owner(s.farm_id)%'
+    OR v_definition NOT LIKE '%ELSE atlas.is_farm_manager_or_owner(s.farm_id)%'
+    OR v_definition LIKE '%s.assigned_user_id = auth.uid()%'
+ THEN RAISE EXCEPTION 'Legacy worker direct raw Rhythm read path still admitted';
+ END IF;
+ IF NOT EXISTS(
+   SELECT 1 FROM pg_policy pol
+   WHERE pol.polrelid='atlas.rhythm_state'::regclass
+     AND pol.polcmd='r'
+     AND pg_catalog.pg_get_expr(pol.polqual,pol.polrelid)
+       LIKE '%can_read_rhythm_state_v1%'
+ ) THEN RAISE EXCEPTION 'Real Rhythm state RLS policy not wired to source gate';
+ END IF;
+ RAISE NOTICE 'Raw Rhythm worker read guard source present; actual signed RLS probes still REQUIRED';
+END;
+$privacy$;
