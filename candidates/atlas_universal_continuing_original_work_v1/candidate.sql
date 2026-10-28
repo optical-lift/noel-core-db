@@ -32,7 +32,10 @@ BEGIN
   -- EXECUTE is revoked below. The only authorized caller is a governed
   -- source-owned writer that already proved the exact present Need and
   -- compatible Result, not a planner or a legacy task/clock reader.
-  IF auth.uid() IS NULL OR p_custody_kind NOT IN ('household','organization')
+  IF auth.uid() IS NULL OR p_custody_kind IS NULL
+    OR p_custody_kind NOT IN ('household','organization')
+    OR p_need_kind IS NULL OR p_subject_domain IS NULL
+    OR p_subject_kind IS NULL
     OR p_custody_id IS NULL OR p_need_id IS NULL
     OR p_subject_id IS NULL OR p_result_contract_key IS NULL
     OR nullif(btrim(coalesce(p_title,'')),'') IS NULL
