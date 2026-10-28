@@ -76,3 +76,31 @@ BEGIN
   RAISE NOTICE 'Private one-serving and Result-to-Need review contracts protected; signed actual-to-next Work not yet proven';
 END;
 $check$;
+
+
+-- Signed-shaped negative in a DISPOSABLE clone only. This is a negative test,
+-- not an impersonation of any real person and never authorizes a positive
+-- Owner/Worker result. The candidate function cannot disclose or create
+-- original Work from a fabricated source Result ID.
+DO $negative$
+DECLARE
+  v_unknown_result uuid := '00000000-0000-4000-8000-000000000091';
+  v_rejected boolean := false;
+  v_session_sub text;
+BEGIN
+  v_session_sub:=current_setting('request.jwt.claim.sub', true);
+  PERFORM set_config('request.jwt.claim.sub',
+    '00000000-0000-4000-8000-000000000092',true);
+  BEGIN
+    PERFORM atlas.continuing_original_work_result_continuation_internal_v1(
+      v_unknown_result);
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    v_rejected:=true;
+  END;
+  PERFORM set_config('request.jwt.claim.sub',coalesce(v_session_sub,''),true);
+  IF NOT v_rejected THEN
+    RAISE EXCEPTION 'Unknown original Work Result did not fail closed';
+  END IF;
+  RAISE NOTICE 'Synthetic unknown signed Result denied; no positive signed proof claimed';
+END;
+$negative$;
