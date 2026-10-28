@@ -71,6 +71,14 @@ BEGIN
         USING ERRCODE='23514';
     END IF;
     IF NOT EXISTS (
+      SELECT 1 FROM atlas.household_kernel_instances inst
+      WHERE inst.id=p_subject_id AND inst.household_id=p_custody_id
+        AND inst.kernel_key='household.laundry' AND inst.state='active'
+    ) THEN
+      RAISE EXCEPTION 'Exact established Household kernel and Need are required'
+        USING ERRCODE='23514';
+    END IF;
+    IF NOT EXISTS (
       SELECT 1 FROM atlas.care_current_state c
       WHERE c.scope_kind='household' AND c.scope_id=p_custody_id
         AND c.subject_domain='household' AND c.subject_kind='household_kernel_instance'
@@ -107,6 +115,8 @@ BEGIN
     -- This primitive cannot adjudicate weed pressure, mower safety, a
     -- seasonal Resting state, or stale observations. No caller is released
     -- until its domain adapter enforces those independent physical gates.
+    -- A special source-qualified physical-Actual policy is also required;
+    -- generic worker attestation cannot assert care state/satisfaction.
     -- It is never called by farm_rhythm_tick or by legacy task release.
   END IF;
 
@@ -114,6 +124,11 @@ BEGIN
     SELECT 1 FROM atlas.work_result_contract_policies policy
     WHERE policy.contract_key=p_result_contract_key AND policy.active
       AND policy.source_domain=v_source_domain
+      AND policy.acceptance_mode='domain_adapter'
+      AND (
+        v_source_domain='household'
+        OR policy.metadata->>'continuingActualQualification'='source_proven_v1'
+      )
   ) THEN
     RAISE EXCEPTION 'No active Result contract in exact native custody'
       USING ERRCODE='23514';
