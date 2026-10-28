@@ -162,7 +162,7 @@ insert into atlas.company_work_standing_assignment_scopes(
  'e5200000-0000-4000-8000-000000000402',
  'e5200000-0000-4000-8000-000000000103',null,
  'e5200000-0000-4000-8000-000000000101',
- 'Clone-only active scope for a different Ledger; cannot authorize Work in Ledger A.',
+ 'Clone-only active scope for a different Ledger and cannot authorize Work in Ledger A.',
  'active',now(),'e5200000-0000-4000-8000-000000000103','ledger_all_work'
 );
 
