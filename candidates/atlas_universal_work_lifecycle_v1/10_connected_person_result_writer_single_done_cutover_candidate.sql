@@ -194,5 +194,4 @@ begin
       v_allocation.assignee_canonical_person_id,
     'reporterPersonId',v_actor,'sourceHistoryPreserved',true);
 end
-$function$
-
+$function$;
