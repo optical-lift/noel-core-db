@@ -216,6 +216,8 @@ BEGIN
       'sourceStandingCampaignMode','seasonal_closeout',
       'sourceAdmissionMode','owner_standing_visit_v1',
       'sourceRuleId',v_rule.id,
+      'sourceSubjectId',v_state.subject_id,
+      'sourceRhythmIntervalSeconds',v_rule.validity_interval_seconds,
       'sourceVisitReasonDigest',md5(v_reason)),
     updated_at=now()
   WHERE id=v_work AND organization_id=p_organization_id;
