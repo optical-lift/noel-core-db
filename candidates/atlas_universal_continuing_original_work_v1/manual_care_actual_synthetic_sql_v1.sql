@@ -911,7 +911,7 @@ DECLARE
  worker uuid:='72000000-0000-4000-8000-000000000003';
  outsider uuid:='72000000-0000-4000-8000-000000000012';
  work uuid:='72000000-0000-4000-8000-000000000009';
- state uuid:='72000000-0000-4000-8000-000000000006';
+ v_rhythm_state_id uuid:='72000000-0000-4000-8000-000000000006';
  partial_action uuid:='72000000-0000-4000-8000-000000000021';
  full_action uuid:='72000000-0000-4000-8000-000000000022';
  part jsonb; complete jsonb; replay jsonb;
@@ -953,7 +953,7 @@ BEGIN
     OR (SELECT count(*) FROM atlas.rhythm_satisfactions)<>0
     OR (SELECT condition_state FROM atlas.care_current_state LIMIT 1)<>'row_readable'
     OR (SELECT current_condition FROM atlas.weed_cards LIMIT 1)<>'row_readable'
-    OR (SELECT state FROM atlas.rhythm_state WHERE id=state)<>'recovering'
+    OR (SELECT rs.state FROM atlas.rhythm_state rs WHERE rs.id=v_rhythm_state_id)<>'recovering'
  THEN RAISE EXCEPTION 'FAIL partial Result changed wrong source/Work or invented satisfaction'; END IF;
  RAISE NOTICE 'PASS partial Actual records residue; Work remains open, no Rhythm renewal';
 
@@ -995,7 +995,7 @@ BEGIN
     OR (complete->>'rhythmSatisfactionId') IS NULL
     OR (SELECT work_state FROM atlas.work_items WHERE id=work)<>'completed'
     OR (SELECT state FROM atlas.work_allocations LIMIT 1)<>'completed'
-    OR (SELECT state FROM atlas.rhythm_state WHERE id=state)<>'resting'
+    OR (SELECT rs.state FROM atlas.rhythm_state rs WHERE rs.id=v_rhythm_state_id)<>'resting'
     OR (SELECT current_condition FROM atlas.weed_cards LIMIT 1)<>'clear'
     OR (SELECT condition_state FROM atlas.care_current_state LIMIT 1)<>'clear'
     OR (SELECT count(*) FROM atlas.rhythm_satisfactions WHERE satisfaction_kind='full')<>1
