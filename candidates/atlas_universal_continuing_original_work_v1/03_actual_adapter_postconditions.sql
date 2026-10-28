@@ -1,5 +1,5 @@
 -- Disposable protected schema-clone postconditions after candidate.sql
--- and 02_farm_care_actual_adapter.sql. No production test mutations.
+-- 02_farm_care_actual_adapter.sql, and 04_care_actual_source_guards.sql. No production test mutations.
 -- Signed positive tests MUST still be run with a real connected Person session.
 DO $checks$
 DECLARE
@@ -58,6 +58,33 @@ BEGIN
     RAISE EXCEPTION 'Original Work Actual lacks native custody constraint';
   END IF;
 
+  IF NOT EXISTS(
+    SELECT 1 FROM pg_trigger t
+    WHERE t.tgrelid='atlas.work_execution_results'::regclass
+      AND t.tgname='z_guard_continuing_care_actual_result_v1'
+      AND t.tgenabled IN ('O','A')
+  ) OR NOT EXISTS(
+    SELECT 1 FROM pg_trigger t
+    WHERE t.tgrelid='atlas.work_result_acceptances'::regclass
+      AND t.tgname='z_guard_continuing_care_actual_acceptance_v1'
+      AND t.tgenabled IN ('O','A')
+  ) OR NOT EXISTS(
+    SELECT 1 FROM pg_trigger t
+    WHERE t.tgrelid='atlas.work_items'::regclass
+      AND t.tgname='z_guard_continuing_care_work_completion_v1'
+      AND t.tgenabled IN ('O','A')
+  ) THEN
+    RAISE EXCEPTION 'Physical Actual, acceptance, or satisfaction completion guard missing';
+  END IF;
+  IF has_function_privilege('authenticated',
+      'atlas.guard_continuing_care_actual_result_v1()','EXECUTE')
+     OR has_function_privilege('authenticated',
+      'atlas.guard_continuing_care_actual_acceptance_v1()','EXECUTE')
+     OR has_function_privilege('authenticated',
+      'atlas.guard_continuing_care_work_completion_v1()','EXECUTE')
+  THEN
+    RAISE EXCEPTION 'Source Actual trigger guard has callable client privilege';
+  END IF;
   RAISE NOTICE 'Source Result adapter shape, private grants and core custody checks passed. Signed positive/negative validation remains mandatory.';
 END;
 $checks$;
