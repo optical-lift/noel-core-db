@@ -1,6 +1,6 @@
-# Atlas Proper — one event-sourced Work lifecycle, Gates 0–1
+# Atlas Proper — one event-sourced Work lifecycle, Gates 0–2
 
-**Authority:** User selected Option E (one immutable Work lifecycle, one eventual universal Done transition/receipt). This candidate is an **additive shadow source**. It does **not** introduce another Done API, change existing Result contracts, modify user permissions, mark Work complete, publish a browser reader, or deploy schema.
+**Authority:** User selected Option E (one immutable Work lifecycle, one eventual universal Done transition/receipt). This candidate is an **additive shadow source plus one private first-slice transition authority**. It does **not** expose a Done API, change existing Result contracts, modify user permissions, mark Work complete, publish a browser reader, or deploy schema.
 
 ## Existing custody, verified read-only on 2026-10-28
 
@@ -31,6 +31,20 @@ Using the **live Noel table shape** and exact candidate, with the final COMMIT r
 - A second baseline import preserved the projections without duplicate history.
 - Source row change/delete was refused, browser/API roles had no shadow stream privileges.
 - The final count within the transaction was 231 Work and 554 events (**includes exactly one artificial Work and two artificial events**). After rollback, neither artificial nor imported rows remained.
+
+## Gate 2: ONE private terminal transition authority (new)
+
+- `06_single_transition_authority_private.sql` extends the **same** immutable lifecycle event stream with `work_transition_applied` and a unique, per-original-Work action identity. It defines **one private** `apply_work_lifecycle_transition_internal_v1(work, transition, acceptedResult, actionKey)` with **no authenticated, anonymous, service-role or public API EXECUTE**. This is neither a competing Done path nor a released Work API.
+- First admission slice is intentionally narrow: only a current native responsible Person (or exact same-Person self adoption) who reported an original `ordinary_company_work_worker_attestation_v1` Result that has already been accepted; exact original Work, Organization, allocation, reporter, Result, Acceptance, contract, idempotency key, current Subject disclosure and work state are checked. It **fails closed** for household, owner witness, manager adjudication, Event, farm, pot-up, communications and other domain evidence. These will all enter the *same* service later after their proofs.
+- The Result/Acceptance remain original evidence; one transition event supplies the universal `universal_work_lifecycle_transition_v1` receipt. Repeating its action ID replays the same event and timestamp, not a second Done.
+- The original mutable `work_items` state and responsible allocation state are updated only as backward-compatible projections of this event. The existing shadow observer was corrected to avoid recording a duplicate terminal state event for that very same event; the state reducer now includes `work_transition_applied`.
+- `07_single_transition_rollback_postconditions.sql` checks API privacy, unsigned/wrong action/missing evidence failures, exact accepted source identity, real original Work projection, one lifecycle event, zero duplicate terminal observations, exact idempotent replay, source evidence preservation and zero parity mismatches. Its SQL uses `request.jwt.claim.sub` emulation to exercise a known existing accepted source; this **is not** a signed GoTrue browser acceptance test.
+- The Gate 2 test passed 2026-10-28 in a single transaction on the live database **with final ROLLBACK**. Neither the event stream nor the transition function was installed.
+- No domain physical consequences are invoked from this bounded ordinary-Work test. Domain-specific physical and financial effects must remain source-qualified and idempotent in the final authority cutover.
+
+### Exact candidate test order
+
+Run `04_shadow_release_candidate.sql` **with its terminal COMMIT omitted**, then `06_single_transition_authority_private.sql`, then `05_rollback_postconditions.sql`, then `07_single_transition_rollback_postconditions.sql`, and **ROLLBACK**. Do not merge these files as a production migration merely because this structure and simulated-identity proof pass. A live signed worker/owner/outsider/withdrawn access test and protected clone with real cross-domain outcomes are still required.
 
 ## Not Done / exact next protected gates
 
