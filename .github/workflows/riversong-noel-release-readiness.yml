@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   environment:
-    runs-on: [self-hosted, macOS, X64, atlas-verifier]
+    runs-on: [self-hosted, macOS, X64]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
