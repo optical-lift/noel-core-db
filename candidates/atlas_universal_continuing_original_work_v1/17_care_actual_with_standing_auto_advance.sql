@@ -177,10 +177,30 @@ BEGIN
       RAISE EXCEPTION 'Existing physical Actual does not match original signed action'
         USING ERRCODE='23505';
     END IF;
+    -- The original Result is immutable and accepted. A prior attempted
+    -- successor may have failed independently (for example, a withheld
+    -- Subject or subsequently corrected source scope). A replay must
+    -- safely retry ONLY the exact approved campaign continuation, never
+    -- another care Actual, Work completion or duplicate serving.
+    IF v_result.result_kind='completed'
+      AND v_work.metadata->>'sourceStandingCampaignId' IS NOT NULL THEN
+      BEGIN
+        v_campaign_continuation:=
+          atlas.advance_owner_standing_campaign_after_actual_internal_v1(v_result.id);
+      EXCEPTION WHEN OTHERS THEN
+        v_campaign_continuation:=jsonb_build_object(
+          'ok',false,'nextWorkCreated',false,
+          'reason','source_continuation_needs_review',
+          'errorCode',SQLSTATE);
+      END;
+    END IF;
     RETURN jsonb_build_object('ok',true,'idempotent',true,
       'contractVersion','continuing_care_actual_v1',
       'workItemId',v_work.id,'workResultId',v_result.id,'workState',v_work.work_state,
-      'noNewWorkCreated',true,'clockAdmitted',false);
+      'campaignContinuation',v_campaign_continuation,
+      'noNewWorkCreated',coalesce(
+        (v_campaign_continuation->>'nextWorkCreated')::boolean,false)=false,
+      'clockAdmitted',false);
   END IF;
 
 
