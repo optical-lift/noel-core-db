@@ -75,7 +75,6 @@ DECLARE
   v_source_event text;
   v_touch jsonb;
   v_touch_index integer;
-  v_touch_found boolean := false;
   v_renew_seconds integer;
   v_warning_at timestamptz;
   v_due_at timestamptz;
@@ -83,7 +82,6 @@ DECLARE
   v_tz text;
   v_boundary text;
   v_at timestamptz:=clock_timestamp();
-  v_restored boolean;
 BEGIN
   v_actor:=atlas.current_person_id_v1();
   IF auth.uid() IS NULL OR v_actor IS NULL OR p_work_item_id IS NULL
@@ -443,8 +441,11 @@ BEGIN
       next_check_date=COALESCE(p_recheck_on,
         CASE WHEN v_effect IN ('full','conditional') THEN v_due_at::date
              ELSE next_check_date END),
-      source_event_id=v_care,
-      note=v_note,updated_at=now()
+      -- source_event_id references legacy mowing_events, NOT care_result_events.
+      -- Preserve legacy source_event_id; the canonical Actual is in care history.
+      note=v_note,metadata=coalesce(metadata,'{}'::jsonb)||
+        jsonb_build_object('lastCanonicalCareResultId',v_care,
+          'lastCanonicalWorkResultId',v_result.id),updated_at=now()
     WHERE object_id=v_state.subject_id AND organization_id=v_work.organization_id;
   ELSIF v_effect IN ('full','partial','conditional') THEN
     UPDATE atlas.weed_cards SET
