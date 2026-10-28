@@ -46,7 +46,9 @@ BEGIN
       r.id rule_id,r.rule_key,r.validity_interval_seconds,
       s.due_at,
       coalesce(
-        extract(epoch FROM (p_on_date::timestamp AT TIME ZONE 'America/Chicago'-s.due_at))
+        extract(epoch FROM ((p_on_date::timestamp AT TIME ZONE
+          coalesce(nullif(r.metadata->>'timezoneName',''),
+            nullif(f.metadata->>'timezoneName',''),'UTC'))-s.due_at))
           /greatest(r.validity_interval_seconds,86400),
         0
       ) overdue_cycles,
@@ -64,6 +66,8 @@ BEGIN
       AND r.id=s.rhythm_rule_id AND r.status='active'
     JOIN atlas.growing_objects g ON g.id=s.subject_id
       AND g.farm_id=p_farm_id
+    JOIN atlas.farms f ON f.id=s.farm_id
+      AND f.organization_id=p_organization_id AND f.status='active'
     WHERE s.organization_id=p_organization_id AND s.farm_id=p_farm_id
       AND s.subject_kind='growing_object'
       AND s.rhythm_key=p_rhythm_key AND s.state<>'paused'
