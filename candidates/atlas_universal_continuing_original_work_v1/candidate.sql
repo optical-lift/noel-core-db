@@ -238,3 +238,232 @@ $function$;
 REVOKE ALL ON FUNCTION atlas.establish_continuing_original_work_internal_v1(
   text,uuid,uuid,text,uuid,text,text,text,uuid,text,text,text
 ) FROM PUBLIC, anon, authenticated, service_role;
+
+
+-- Reuse Atlas's existing reality_continuation_v1 contract. This private
+-- post-Result review is READ ONLY. A domain's signed Actual writer remains
+-- responsible for accepting and recording physical truth; this function
+-- cannot mark an area clear, close Work or pre-create another occurrence.
+CREATE OR REPLACE FUNCTION atlas.continuing_original_work_result_continuation_internal_v1(
+  p_execution_result_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $continuation$
+DECLARE
+  v_result atlas.work_execution_results%ROWTYPE;
+  v_work atlas.work_items%ROWTYPE;
+  v_acceptance atlas.work_result_acceptances%ROWTYPE;
+  v_care atlas.care_result_events%ROWTYPE;
+  v_need atlas.household_need_occurrences_v1%ROWTYPE;
+  v_rhythm atlas.rhythm_state%ROWTYPE;
+  v_satisfaction atlas.rhythm_satisfactions%ROWTYPE;
+  v_domain text;
+  v_scope_id uuid;
+  v_source_kind text;
+  v_source_id uuid;
+  v_decision text := 'blocked';
+  v_reason text := 'source_result_not_accepted';
+  v_blockers jsonb := '[]'::jsonb;
+  v_current jsonb := '{}'::jsonb;
+  v_refs jsonb := '[]'::jsonb;
+  v_care_ref text;
+  v_target jsonb;
+BEGIN
+  IF auth.uid() IS NULL OR p_execution_result_id IS NULL THEN
+    RAISE EXCEPTION 'An exact signed Result is required'
+      USING ERRCODE='42501';
+  END IF;
+  SELECT * INTO v_result FROM atlas.work_execution_results
+    WHERE id=p_execution_result_id;
+  IF v_result.id IS NULL THEN
+    RAISE EXCEPTION 'Exact original Work Result unavailable'
+      USING ERRCODE='42501';
+  END IF;
+  SELECT * INTO v_work FROM atlas.work_items
+    WHERE id=v_result.work_item_id
+      AND organization_id IS NOT DISTINCT FROM v_result.organization_id
+      AND household_id IS NOT DISTINCT FROM v_result.household_id;
+  IF v_work.id IS NULL OR
+     ((v_work.organization_id IS NULL) = (v_work.household_id IS NULL)) OR
+     v_work.result_contract_key IS DISTINCT FROM v_result.result_contract_key OR
+     v_work.source_object_id IS NULL OR
+     v_work.source_object_type NOT IN ('household_need_occurrence','rhythm_state')
+  THEN
+    RAISE EXCEPTION 'Result has no supported original Need-bound Work'
+      USING ERRCODE='23514';
+  END IF;
+  v_domain := CASE WHEN v_work.household_id IS NOT NULL
+    THEN 'household' ELSE 'organization' END;
+  v_scope_id := COALESCE(v_work.household_id,v_work.organization_id);
+  v_source_kind:=v_work.source_object_type;
+  v_source_id:=v_work.source_object_id;
+  -- This is not a public reader. No raw result content or cross-scope data
+  -- can leave this function through an authenticated or service-role grant.
+  IF NOT EXISTS(
+    SELECT 1 FROM atlas.work_result_contract_policies p
+    WHERE p.contract_key=v_result.result_contract_key
+      AND p.active AND p.source_domain=v_domain
+      AND p.acceptance_mode='domain_adapter'
+      AND (v_domain='household'
+        OR p.metadata->>'continuingActualQualification'='source_proven_v1')
+  ) THEN
+    RAISE EXCEPTION 'Result is not qualified for source-owned continuation'
+      USING ERRCODE='23514';
+  END IF;
+
+  SELECT * INTO v_acceptance FROM atlas.work_result_acceptances a
+    WHERE a.execution_result_id=v_result.id
+      AND a.work_item_id=v_work.id
+      AND a.organization_id IS NOT DISTINCT FROM v_work.organization_id
+      AND a.household_id IS NOT DISTINCT FROM v_work.household_id;
+  v_refs:=jsonb_build_array(jsonb_build_object(
+    'kind','work_execution_result','ref',v_result.id));
+  IF v_acceptance.id IS NOT NULL THEN
+    v_refs:=v_refs||jsonb_build_array(jsonb_build_object(
+      'kind','work_result_acceptance','ref',v_acceptance.id));
+  END IF;
+
+  IF v_domain='household' THEN
+    SELECT * INTO v_need FROM atlas.household_need_occurrences_v1 n
+      WHERE n.id=v_source_id AND n.household_id=v_scope_id
+        AND n.current_work_item_id=v_work.id;
+    IF v_need.id IS NULL OR v_result.result_contract_key IS DISTINCT FROM
+        'household_laundry_begin_cycle_v1' THEN
+      RAISE EXCEPTION 'Household Result has no original confirmed Need'
+        USING ERRCODE='23514';
+    END IF;
+  ELSE
+    SELECT * INTO v_rhythm FROM atlas.rhythm_state s
+      WHERE s.id=v_source_id AND s.organization_id=v_scope_id
+        AND s.subject_kind='growing_object';
+    IF v_rhythm.id IS NULL THEN
+      RAISE EXCEPTION 'Organization Result has no original governed Rhythm Need'
+        USING ERRCODE='23514';
+    END IF;
+  END IF;
+
+  v_current:=jsonb_build_object(
+    'workState',v_work.work_state,
+    'resultKind',v_result.result_kind,
+    'acceptanceDecision',v_acceptance.decision);
+  IF v_acceptance.id IS NULL OR v_acceptance.decision<>'accepted'
+     OR v_acceptance.acceptance_kind IS DISTINCT FROM
+        'source_qualified_physical_actual' THEN
+    v_blockers:=jsonb_build_array('qualifying_original_result_acceptance_required');
+  ELSE
+    v_care_ref:=v_result.payload->>'careResultId';
+    IF v_care_ref IS NULL OR v_care_ref !~
+      '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN
+      v_blockers:=jsonb_build_array('source_physical_actual_reference_required');
+    ELSE
+      SELECT * INTO v_care FROM atlas.care_result_events c
+      WHERE c.id=v_care_ref::uuid
+        AND c.scope_id=CASE WHEN v_domain='household'
+          THEN v_scope_id ELSE v_rhythm.farm_id END
+        AND c.scope_kind=CASE WHEN v_domain='household'
+          THEN 'household' ELSE 'farm' END
+        AND c.subject_kind=CASE WHEN v_domain='household'
+          THEN 'household_kernel_instance' ELSE 'growing_object' END
+        AND c.subject_id=CASE WHEN v_domain='household'
+          THEN v_need.instance_id::text ELSE v_rhythm.subject_id::text END
+        AND c.actor_user_id=v_result.reported_by_user_id;
+      IF v_care.id IS NULL THEN
+        v_blockers:=jsonb_build_array('matching_first_party_physical_actual_required');
+      ELSE
+        v_refs:=v_refs||jsonb_build_array(jsonb_build_object(
+          'kind','care_result_event','ref',v_care.id));
+        v_current:=v_current||jsonb_build_object(
+          'actualResultKind',v_care.result_kind,
+          'conditionAfter',v_care.condition_after);
+        IF v_domain='household' THEN
+          IF v_need.state='satisfied'
+             AND v_need.satisfied_by_care_result_id=v_care.id
+             AND v_work.work_state='completed'
+             AND v_result.result_kind='completed'
+          THEN
+            v_decision:='settled';
+            v_reason:='original_need_satisfied_by_accepted_actual';
+            -- The wash-started result ends begin_cycle ONLY. It does not
+            -- establish another wash Need, or complete later Laundry stages.
+          ELSE
+            v_decision:='reconsider';
+            v_reason:='household_need_state_requires_reconciliation';
+            v_blockers:=jsonb_build_array('household_need_satisfaction_not_confirmed');
+          END IF;
+          v_current:=v_current||jsonb_build_object('needState',v_need.state);
+        ELSE
+          -- Farm satisfaction is not inferred from generic Done or a
+          -- possibly-stale deadline. Require exact qualified source evidence.
+          SELECT * INTO v_satisfaction FROM atlas.rhythm_satisfactions s
+          WHERE s.organization_id=v_scope_id
+            AND s.rhythm_state_id=v_rhythm.id
+            AND s.source_id=v_care.id
+            AND s.evidence->>'workItemId'=v_work.id::text
+          ORDER BY s.satisfied_at DESC,s.id DESC LIMIT 1;
+          IF v_satisfaction.id IS NOT NULL THEN
+            v_refs:=v_refs||jsonb_build_array(jsonb_build_object(
+              'kind','rhythm_satisfaction','ref',v_satisfaction.id));
+            v_current:=v_current||jsonb_build_object(
+              'rhythmState',v_rhythm.state,
+              'satisfactionKind',v_satisfaction.satisfaction_kind,
+              'nextEligibleAt',v_rhythm.due_at);
+            IF v_work.work_state='completed'
+               AND v_result.result_kind='completed'
+               AND v_satisfaction.satisfaction_kind IN ('full','conditional')
+            THEN
+              v_decision:='settled';
+              v_reason:='qualified_source_rhythm_satisfaction_recorded';
+              -- The next window is only source eligibility, not a Work,
+              -- assignment, work-on date, Today admission, or observation.
+            ELSE
+              v_decision:='reconsider';
+              v_reason:='partial_actual_requires_original_need_review';
+            END IF;
+          ELSE
+            v_decision:='reconsider';
+            v_reason:='farm_source_satisfaction_not_established';
+            v_blockers:=jsonb_build_array(
+              'domain_owned_rhythm_satisfaction_required');
+            v_current:=v_current||jsonb_build_object(
+              'rhythmState',v_rhythm.state);
+          END IF;
+        END IF;
+      END IF;
+    END IF;
+  END IF;
+
+  v_target:=jsonb_build_object(
+    'target',jsonb_build_object(
+      'domain',v_domain,'kind',v_source_kind,'ref',v_source_id,
+      'scope',jsonb_build_object(
+        CASE WHEN v_domain='household' THEN 'householdId'
+          ELSE 'organizationId' END,v_scope_id)),
+    'resolver',jsonb_build_object(
+      'key','continuing_original_need_source_qualification','version','v1'),
+    'reason',jsonb_build_object('kind',v_reason,'basisRefs',v_refs),
+    'disposition',v_decision,'current',v_current,'blockers',v_blockers
+  );
+  RETURN atlas.reality_continuation_normalize_v1(
+    jsonb_build_object(
+      'contractVersion','reality_continuation_v1',
+      'source',jsonb_build_object(
+        'domain',v_domain,'kind','work_execution_result',
+        'ref',v_result.id,'changedAt',v_result.reported_at,
+        'state',v_decision),
+      'targets',jsonb_build_array(v_target),
+      'provenance',jsonb_build_object(
+        'adapter','continuing_original_work_result_continuation_internal_v1',
+        'existingCanonicalWork',true,'readOnly',true,
+        'doesNotCreateWork',true,'doesNotAdvanceRhythm',true,
+        'doesNotGrantAuthority',true)
+    )
+  );
+END;
+$continuation$;
+
+-- Internal-only. Never turn cross-scope result inspection into a client
+-- reader, even for service-role transport. The eventual signed domain
+-- Result writer is a separate source-enforced authorization boundary.
+REVOKE ALL ON FUNCTION atlas.continuing_original_work_result_continuation_internal_v1(
+  uuid
+) FROM PUBLIC, anon, authenticated, service_role;
