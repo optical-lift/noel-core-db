@@ -1,0 +1,37 @@
+name: RiverSong Noel release readiness
+
+on:
+  push:
+    branches:
+      - ops/riversong-noel-release-readiness-20261027
+    paths:
+      - .github/workflows/riversong-noel-release-readiness.yml
+
+permissions:
+  contents: read
+
+jobs:
+  environment:
+    runs-on: [self-hosted, macOS, X64, atlas-verifier]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check macOS release prerequisites without secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'Runner: %s\n' "${RUNNER_NAME:-unknown}"
+          test "$(uname -s)" = "Darwin"
+          for tool in bash git python3 curl gh psql; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              printf 'READY %s\n' "$tool"
+            else
+              printf 'MISSING %s\n' "$tool"
+              exit 1
+            fi
+          done
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-migration-release-lane.sh 20261027233134 atlas              "$(find supabase/migrations -type f -name '20261027233134_*' -print -quit)" || true
+          echo 'RiverSong Noel release preflight reached.'
