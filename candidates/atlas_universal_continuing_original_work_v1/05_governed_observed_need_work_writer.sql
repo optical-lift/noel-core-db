@@ -177,6 +177,22 @@ BEGIN
       'noNewObservationCreated',true,'clockAdmitted',false);
   END IF;
 
+  -- Do not promote the same Need while an unresolved legacy obligation
+  -- still exists. Keep that older task and its history unchanged; exact
+  -- legacy disposition/transfer is a separate governed owner decision.
+  IF EXISTS (
+    SELECT 1 FROM atlas.tasks t
+    LEFT JOIN atlas.planned_work_occurrences o ON o.id=t.planned_occurrence_id
+    WHERE t.farm_id=v_state.farm_id AND t.status IN ('open','blocked')
+      AND (
+        t.metadata->>'rhythm_state_id'=v_state.id::text
+        OR (o.source_kind='rhythm_state' AND o.source_id=v_state.id)
+      )
+  ) THEN
+    RAISE EXCEPTION 'An older active task still serves this exact Need; resolve its custody before creating another original Work'
+      USING ERRCODE='23514';
+  END IF;
+
   SELECT * INTO v_current FROM atlas.care_current_state c
   WHERE c.scope_kind='farm' AND c.scope_id=v_state.farm_id
     AND c.subject_domain='farm' AND c.subject_kind='growing_object'
