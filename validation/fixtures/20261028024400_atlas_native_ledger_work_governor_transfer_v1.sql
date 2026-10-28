@@ -130,11 +130,15 @@ values('e5200000-0000-4000-8000-000000000504',
 'e5200000-0000-4000-8000-000000000104','active','{"cloneFixture":true}');
 
 insert into personal.atlases(person_entity_id,atlas_state,native)
-values
-('e5200000-0000-4000-8000-000000000101','active',true),
-('e5200000-0000-4000-8000-000000000102','active',true),
-('e5200000-0000-4000-8000-000000000103','active',true),
-('e5200000-0000-4000-8000-000000000104','active',true);
+select persons.person_id,'active',true
+from (values
+('e5200000-0000-4000-8000-000000000101'::uuid),
+('e5200000-0000-4000-8000-000000000102'::uuid),
+('e5200000-0000-4000-8000-000000000103'::uuid),
+('e5200000-0000-4000-8000-000000000104'::uuid)
+) persons(person_id)
+where not exists (select 1 from personal.atlases existing
+where existing.person_entity_id=persons.person_id);
 
 insert into atlas.company_work_standing_assignment_scopes(
  id,organization_id,ledger_id,worker_person_id,worker_membership_id,
