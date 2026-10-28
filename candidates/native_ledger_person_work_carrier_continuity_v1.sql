@@ -25,7 +25,7 @@ BEGIN
   IF auth.uid() IS NULL
     OR p_work_item_id IS NULL OR p_scope_id IS NULL
     OR p_expected_allocation_id IS NULL
-    OR v_reason IS NULL OR length(v_reason) NOT BETWEEN 12 AND 1200
+    OR v_reason IS NULL OR length(v_reason) NOT BETWEEN 12 AND 1000
   THEN
     RAISE EXCEPTION 'Signed governor, exact original Work, allocation, scope and reason required'
       USING ERRCODE='22023';
