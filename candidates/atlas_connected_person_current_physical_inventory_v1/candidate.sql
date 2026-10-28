@@ -261,3 +261,49 @@ END;
 $inventory$;
 REVOKE ALL ON FUNCTION atlas.connected_person_farm_current_inventory_self_api_v1(
  uuid,uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+
+-- Native Ledger entrypoint: expose ONLY the farms for which this exact
+-- connected Person has a current, explicit farm-inventory grant.
+CREATE OR REPLACE FUNCTION atlas.connected_person_current_farm_inventory_sources_self_api_v1(
+  p_ledger_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $sources$
+DECLARE
+  v_person uuid:=atlas.current_person_id_v1();
+  v_farms jsonb;
+BEGIN
+  IF auth.uid() IS NULL OR v_person IS NULL OR p_ledger_id IS NULL
+    OR NOT EXISTS(SELECT 1 FROM atlas.ledger_organization_participations part
+      JOIN atlas.ledgers l ON l.id=part.ledger_id AND l.status='active'
+      WHERE part.ledger_id=p_ledger_id
+        AND part.status='active' AND part.ended_at IS NULL
+        AND part.participation_kind IN ('governing','operating')
+        AND atlas.person_has_native_ledger_connection_v1(
+          part.organization_id,part.ledger_id,v_person))
+  THEN RAISE EXCEPTION 'Current native Ledger connection required'
+    USING ERRCODE='42501'; END IF;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'farmId',f.id,'organizationId',f.organization_id,'label',f.name
+  ) ORDER BY f.name,f.id),'[]'::jsonb)
+    INTO v_farms
+  FROM atlas.farms f
+  JOIN atlas.ledger_organization_participations part
+    ON part.organization_id=f.organization_id
+   AND part.ledger_id=p_ledger_id
+   AND part.status='active' AND part.ended_at IS NULL
+   AND part.participation_kind IN ('governing','operating')
+  WHERE f.status='active'
+    AND atlas.person_has_native_ledger_connection_v1(
+      part.organization_id,p_ledger_id,v_person)
+    AND atlas.has_current_subject_disclosure_v1(
+      p_ledger_id,v_person,'spatial','farm',f.id,'current_inventory');
+
+  RETURN jsonb_build_object('ok',true,
+    'contractVersion','connected_person_current_inventory_sources_v1',
+    'ledgerId',p_ledger_id,'farms',v_farms,'readOnly',true);
+END;
+$sources$;
+REVOKE ALL ON FUNCTION atlas.connected_person_current_farm_inventory_sources_self_api_v1(
+ uuid) FROM PUBLIC,anon,authenticated,service_role;
