@@ -552,4 +552,4 @@ begin
   new.establishment_basis_kind:=v_kind;
   return new;
 end;
-$function$
+$function$;
