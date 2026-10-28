@@ -324,7 +324,7 @@ begin
        or not atlas.standing_care_auto_successor_authorized_v1(
          new.work_item_id,new.assignee_canonical_person_id,v_basis)
     then
-      raise exception 'Standing care successor requires verified owner's campaign and accepted worker Actual'
+      raise exception 'Standing care successor requires approved campaign and accepted worker Actual'
         using errcode='42501';
     end if;
     return new;
