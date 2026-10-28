@@ -44,7 +44,7 @@ Using the **live Noel table shape** and exact candidate, with the final COMMIT r
 
 ### Exact candidate test order
 
-Run `04_shadow_release_candidate.sql` **with its terminal COMMIT omitted**, then `06_single_transition_authority_private.sql`, then `05_rollback_postconditions.sql`, then `07_single_transition_rollback_postconditions.sql`, and **ROLLBACK**. Do not merge these files as a production migration merely because this structure and simulated-identity proof pass. A live signed worker/owner/outsider/withdrawn access test and protected clone with real cross-domain outcomes are still required.
+Run `04_shadow_release_candidate.sql` **with its terminal COMMIT omitted**, then `06_single_transition_authority_private.sql`, then `05_rollback_postconditions.sql`, then `07_single_transition_rollback_postconditions.sql`, `08_owner_witness_source_negatives_rollback.sql`, `09_self_adoption_person_rollback.sql`, and **ROLLBACK**. Do not merge these files as a production migration merely because this structure and simulated-identity proof pass. A live signed worker/owner/outsider/withdrawn access test and protected clone with real cross-domain outcomes are still required.
 
 ## Gate 2A: native Ledger governor witness — SAME transition authority
 
@@ -52,7 +52,13 @@ Run `04_shadow_release_candidate.sql` **with its terminal COMMIT omitted**, then
 - The reporter (the governor clicking Done) and the accountable performer (the worker) remain separate in the universal receipt and immutable event. `performanceIsWitnessedClaim=true` does not falsely claim the governor performed physical work. Owner witness does **not** borrow the worker's login, employee seat or a task-specific grant.
 - `08_owner_witness_source_negatives_rollback.sql` reuses one genuine historical accepted owner-witnessed Result without changing that evidence. It confirms wrong Person and unsigned attempts are denied, and a synthetic `request.jwt.claim.sub` does **not** substitute for a real root-authorized Atlas session. All Work/event counts remain unchanged after rejected attempts.
 - **Signed positive witness acceptance remains outstanding.** The root validator correctly rejects the SQL-emulated owner with `Current authenticated Atlas session required`. Do not weaken the validator, call this a passing signed test, or deploy the witness branch without a real authenticated governor and a reversible test Work.
-- The original private ordinary completion and idempotent replay tests still pass with zero lifecycle state mismatches, and `04 + 06 + 05 + 07 + 08 + ROLLBACK` passes as one transaction.
+- The original private ordinary completion and idempotent replay tests still pass with zero lifecycle state mismatches, and `04 + 06 + 05 + 07 + 08 + 09 + ROLLBACK` passes as one transaction.
+
+### Canonical performer identity for self-adopted Work
+
+The same receipt distinguishes all three admitted source modes: signed responsible-Person Work, signed self-adopted Work, and a separate governor-witnessed claim. Self-adopted allocations legitimately have `assignee_canonical_person_id=NULL`, so the signer **must be recovered from the original active Organization membership** after exact membership/user validation. The responsible Person cannot be silently recorded as null just because the connection-assignee field is null.
+
+`09_self_adoption_person_rollback.sql` uses a real original self-adopted Work/Result/Acceptance as fixture, reopens it only inside ROLLBACK, and verifies the canonical responsible Person, reporter Person, non-witness claim, one event and exact same-action replay. This and rollback tests 05, 07 and 08 pass in one transaction.
 
 ### Management and approval — explicit gating, not legacy authority revival
 
