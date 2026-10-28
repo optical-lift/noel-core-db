@@ -158,6 +158,9 @@ BEGIN
           AND m.person_id=v_actor AND m.user_id=v_uid AND m.active))
    THEN RAISE EXCEPTION 'Caller is not the responsible Person'
      USING ERRCODE='42501'; END IF;
+   -- Self-adopted Work holds the responsible Person through the original
+   -- organization membership, not the connection-assignee field.
+   v_claimed_performer:=v_actor;
  ELSIF v_allocation.establishment_basis_kind IN (
     'person_connection_receiver_uptake','delegated_under_standing_scope',
     'ledger_connection_direct_assignment','original_subject_direct_assignment_v1') THEN
