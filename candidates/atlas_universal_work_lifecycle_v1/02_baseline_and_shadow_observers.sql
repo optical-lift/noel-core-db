@@ -58,7 +58,7 @@ BEGIN
     'atlas.work_execution_results',v_result.id,
     NULL,NULL,v_result.reported_by_user_id,
     CASE WHEN v_result.reported_by_user_id IS NULL THEN 'unattributed'
-      ELSE 'source_signed_user' END,
+      ELSE 'source_reporter_field' END,
     'linked_original_evidence',v_result.reported_at,
     v_result.idempotency_key,
     jsonb_build_object('resultId',v_result.id,
@@ -164,7 +164,7 @@ BEGIN
  ELSIF TG_TABLE_NAME='work_execution_results' AND TG_OP='INSERT' THEN
    v_work_id:=NEW.work_item_id;v_event_kind:='result_reported';
    v_actor:=NEW.reported_by_user_id;
-   IF v_actor IS NOT NULL THEN v_actor_basis:='source_signed_user'; END IF;
+   IF v_actor IS NOT NULL THEN v_actor_basis:='source_reporter_field'; END IF;
    v_occurred:=NEW.reported_at;v_action_key:=NEW.idempotency_key;
    v_evidence:=jsonb_build_object('resultId',NEW.id,
      'resultKind',NEW.result_kind,
