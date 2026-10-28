@@ -122,6 +122,20 @@ values
 ('e5200000-0000-4000-8000-000000000801','e5200000-0000-4000-8000-000000000903','e5200000-0000-4000-8000-000000000401',
  'serves_purpose','owner_attested','clone:original-work-903','Disposable source of Work C from exact Ledger','e5200000-0000-4000-8000-000000000101');
 
+-- A second synthetic Ledger must have a real Atlas routing counterpart so its
+-- wrong-Ledger standing scope can satisfy ordinary foreign keys without
+-- accidentally providing authorization over Ledger A's original Work.
+insert into atlas.ledgers(id,stable_key,name,ledger_kind,status,organization_id)
+values('e5200000-0000-4000-8000-000000000402',
+'c1-validation-legacy-b','Validation Ledger B','governed_reality','active',
+'e5200000-0000-4000-8000-000000000801');
+
+insert into atlas.ledger_organization_participations(
+ ledger_id,organization_id,participation_kind,is_compatibility_primary,basis
+) values('e5200000-0000-4000-8000-000000000402',
+'e5200000-0000-4000-8000-000000000801','operating',false,
+'{"cloneFixture":true}');
+
 -- Two independent accepted native Person scopes: a genuine target and a prior
 -- receiver. A different native Ledger's Person has no right to transfer A.
 insert into ledger.seats(id,ledger_id,person_entity_id,seat_state,seat_basis)
