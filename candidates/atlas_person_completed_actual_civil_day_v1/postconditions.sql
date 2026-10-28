@@ -21,7 +21,11 @@ BEGIN
   THEN RAISE EXCEPTION 'Missing accepted-result/day/authority invariant';
   END IF;
   IF has_function_privilege('anon',v_oid,'EXECUTE')
-    OR has_function_privilege('PUBLIC',v_oid,'EXECUTE')
+    OR EXISTS (
+      SELECT 1 FROM pg_proc x,
+        LATERAL aclexplode(coalesce(x.proacl,acldefault('f',x.proowner))) acl
+      WHERE x.oid=v_oid AND acl.grantee=0 AND acl.privilege_type='EXECUTE'
+    )
   THEN RAISE EXCEPTION 'Private canonical day reader exposed to anon/PUBLIC';
   END IF;
 END
