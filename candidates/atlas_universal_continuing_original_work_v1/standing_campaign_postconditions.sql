@@ -25,7 +25,7 @@ BEGIN
   END IF;
   IF NOT EXISTS (
     SELECT 1 FROM pg_proc p WHERE p.oid=v_fn AND p.prosecdef
-      AND 'search_path='=ANY(p.proconfig)
+      AND ('search_path=""'=ANY(p.proconfig) OR 'search_path='=ANY(p.proconfig))
   ) THEN
     RAISE EXCEPTION 'Internal Work writer is missing constrained function context';
   END IF;
@@ -69,7 +69,7 @@ BEGIN
     SELECT 1 FROM pg_proc p
     WHERE p.oid='atlas.continuing_original_work_result_continuation_internal_v1(uuid)'::regprocedure
       AND p.prosecdef AND p.provolatile='s'
-      AND 'search_path='=ANY(p.proconfig)
+      AND ('search_path=""'=ANY(p.proconfig) OR 'search_path='=ANY(p.proconfig))
   ) THEN
     RAISE EXCEPTION 'Result-to-Need review is not read-only or source-constrained';
   END IF;
@@ -139,7 +139,7 @@ BEGIN
   IF NOT EXISTS(
     SELECT 1 FROM pg_proc p
     WHERE p.oid=v_reporter AND p.prosecdef AND p.provolatile='v'
-      AND 'search_path='=ANY(p.proconfig)
+      AND ('search_path=""'=ANY(p.proconfig) OR 'search_path='=ANY(p.proconfig))
   ) THEN
     RAISE EXCEPTION 'Care Actual must be source-constrained and volatile';
   END IF;
@@ -259,7 +259,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_proc p WHERE p.oid=v_writer
       AND p.prosecdef AND p.provolatile='v'
-      AND 'search_path='=ANY(p.proconfig)
+      AND ('search_path=""'=ANY(p.proconfig) OR 'search_path='=ANY(p.proconfig))
   ) THEN
     RAISE EXCEPTION 'Original Work writer lacks constrained signed source context';
   END IF;
