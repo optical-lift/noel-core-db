@@ -151,6 +151,38 @@ BEGIN
     RAISE EXCEPTION 'Original Work is not linked to this exact physical Subject'
       USING ERRCODE='23514';
   END IF;
+  -- Replays must survive a later rule retirement/physical state change;
+  -- first confirm the same signed Person, original Subject and exact receipt.
+  -- Authorize before replay, so a different Person cannot use the idempotency
+  -- key to read someone else's Work Result.
+  SELECT * INTO v_result FROM atlas.work_execution_results er
+    WHERE er.organization_id=v_work.organization_id
+      AND er.idempotency_key=v_source_key;
+  IF v_result.id IS NOT NULL THEN
+    IF v_result.work_item_id<>v_work.id
+      OR v_result.reported_by_user_id IS DISTINCT FROM auth.uid()
+      OR v_result.metadata->>'actualKind' IS DISTINCT FROM v_kind
+      OR v_result.payload->>'conditionAfter' IS DISTINCT FROM v_after
+      OR v_result.payload->>'note' IS DISTINCT FROM v_note
+      OR v_result.payload->>'minutes' IS DISTINCT FROM p_minutes::text
+      OR v_result.payload->>'recheckOn' IS DISTINCT FROM p_recheck_on::text
+      OR NOT EXISTS(
+        SELECT 1 FROM atlas.work_result_acceptances a
+        WHERE a.organization_id=v_work.organization_id
+          AND a.work_item_id=v_work.id AND a.execution_result_id=v_result.id
+          AND a.decision='accepted' AND a.acceptance_kind='source_qualified_physical_actual'
+      )
+    THEN
+      RAISE EXCEPTION 'Existing physical Actual does not match original signed action'
+        USING ERRCODE='23505';
+    END IF;
+    RETURN jsonb_build_object('ok',true,'idempotent',true,
+      'contractVersion','continuing_care_actual_v1',
+      'workItemId',v_work.id,'workResultId',v_result.id,'workState',v_work.work_state,
+      'noNewWorkCreated',true,'clockAdmitted',false);
+  END IF;
+
+
   SELECT * INTO v_rule FROM atlas.rhythm_rules r
     JOIN atlas.rhythm_bindings b ON b.rhythm_rule_id=r.id
     WHERE b.id=v_state.rhythm_binding_id AND r.id=v_state.rhythm_rule_id
@@ -262,35 +294,6 @@ BEGIN
       RAISE EXCEPTION 'Result does not match original governed Rhythm rule'
         USING ERRCODE='23514';
     END IF;
-  END IF;
-
-  -- Authorize before replay, so a different Person cannot use the idempotency
-  -- key to read someone else's Work Result.
-  SELECT * INTO v_result FROM atlas.work_execution_results er
-    WHERE er.organization_id=v_work.organization_id
-      AND er.idempotency_key=v_source_key;
-  IF v_result.id IS NOT NULL THEN
-    IF v_result.work_item_id<>v_work.id
-      OR v_result.reported_by_user_id IS DISTINCT FROM auth.uid()
-      OR v_result.metadata->>'actualKind' IS DISTINCT FROM v_kind
-      OR v_result.payload->>'conditionAfter' IS DISTINCT FROM v_after
-      OR v_result.payload->>'note' IS DISTINCT FROM v_note
-      OR v_result.payload->>'minutes' IS DISTINCT FROM p_minutes::text
-      OR v_result.payload->>'recheckOn' IS DISTINCT FROM p_recheck_on::text
-      OR NOT EXISTS(
-        SELECT 1 FROM atlas.work_result_acceptances a
-        WHERE a.organization_id=v_work.organization_id
-          AND a.work_item_id=v_work.id AND a.execution_result_id=v_result.id
-          AND a.decision='accepted' AND a.acceptance_kind='source_qualified_physical_actual'
-      )
-    THEN
-      RAISE EXCEPTION 'Existing physical Actual does not match original signed action'
-        USING ERRCODE='23505';
-    END IF;
-    RETURN jsonb_build_object('ok',true,'idempotent',true,
-      'contractVersion','continuing_care_actual_v1',
-      'workItemId',v_work.id,'workResultId',v_result.id,'workState',v_work.work_state,
-      'noNewWorkCreated',true,'clockAdmitted',false);
   END IF;
 
   IF v_work.work_state<>'open' OR v_allocation.state<>'active'
