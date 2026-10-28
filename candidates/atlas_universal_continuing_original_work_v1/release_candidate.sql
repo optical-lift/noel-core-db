@@ -1275,6 +1275,15 @@ BEGIN
     AND w.metadata->>'servingKey'=p_action_id::text
   ORDER BY w.created_at LIMIT 1 FOR UPDATE;
   IF v_existing.id IS NOT NULL THEN
+    IF v_existing.metadata->>'sourceScopeId' IS DISTINCT FROM p_scope_id::text
+      OR v_existing.metadata->>'sourceServiceDate' IS DISTINCT FROM p_service_date::text
+      OR v_existing.metadata->>'sourceObservedCondition' IS DISTINCT FROM v_condition
+      OR v_existing.metadata->>'sourceObservedAt' IS DISTINCT FROM p_observed_at::text
+      OR v_existing.metadata->>'sourceObservationNoteDigest' IS DISTINCT FROM md5(v_note)
+    THEN
+      RAISE EXCEPTION 'Source action replay cannot change original Person, date or observed condition'
+        USING ERRCODE='23505';
+    END IF;
     IF NOT EXISTS(
       SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
       WHERE rel.organization_id=p_organization_id AND rel.work_item_id=v_existing.id
@@ -1295,6 +1304,17 @@ BEGIN
     AND w.source_object_id=v_state.id AND w.work_state='open'
   LIMIT 1 FOR UPDATE;
   IF v_existing.id IS NOT NULL THEN
+    -- Never reveal or reassign an existing original that belongs to another
+    -- native Ledger, even when the same underlying spatial Subject is known.
+    IF NOT EXISTS(
+      SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+      WHERE rel.organization_id=p_organization_id
+        AND rel.work_item_id=v_existing.id
+        AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
+    ) THEN
+      RAISE EXCEPTION 'Another governing Ledger already has the open original Work'
+        USING ERRCODE='23514';
+    END IF;
     -- Never overwrite another person's task/plan with a later observation.
     RETURN jsonb_build_object('ok',true,
       'contractVersion','observed_continuing_care_work_v1',
@@ -1366,6 +1386,18 @@ BEGIN
     RAISE EXCEPTION 'Original Work serving was not newly established'
       USING ERRCODE='23514';
   END IF;
+
+  -- Freeze the original signed source action: replay must be an exact
+  -- repeat, never a second assignment, observation or service date.
+  UPDATE atlas.work_items SET
+    metadata=metadata||jsonb_build_object(
+      'sourceScopeId',p_scope_id,
+      'sourceServiceDate',p_service_date,
+      'sourceObservedCondition',v_condition,
+      'sourceObservedAt',p_observed_at::text,
+      'sourceObservationNoteDigest',md5(v_note)),
+    updated_at=now()
+  WHERE id=v_work AND organization_id=p_organization_id;
 
   INSERT INTO atlas.company_work_native_ledger_relevance(
     organization_id,work_item_id,ledger_id,evidence_kind,
