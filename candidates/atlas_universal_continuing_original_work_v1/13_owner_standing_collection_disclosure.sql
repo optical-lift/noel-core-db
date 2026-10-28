@@ -26,7 +26,7 @@ BEGIN
   IF auth.uid() IS NULL OR p_organization_id IS NULL OR p_ledger_id IS NULL
     OR p_scope_id IS NULL OR p_farm_id IS NULL OR p_action_id IS NULL
     OR p_rhythm_key NOT IN ('weed_stewardship','mowing')
-    OR length(v_reason) NOT BETWEEN 12 AND 900 THEN
+    OR v_reason IS NULL OR length(v_reason) NOT BETWEEN 12 AND 900 THEN
     RAISE EXCEPTION 'Exact signed collection and reason required' USING ERRCODE='22023';
   END IF;
   v_owner:=atlas.company_work_native_ledger_owner_self_v1(
@@ -79,6 +79,13 @@ BEGIN
     ORDER BY s.subject_id
   LOOP
     FOREACH v_class IN ARRAY ARRAY['identity','condition']::text[] LOOP
+      -- The same lock used by the exact single-Subject governor writer
+      -- prevents a concurrent WITHHOLD being silently overridden.
+      PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+        'atlas.subject_disclosure:'||p_ledger_id::text||':'||
+        v_scope.worker_person_id::text||':spatial:growing_object:'||
+        v_row.subject_id::text||':'||v_class,0));
+      v_current:=NULL;
       SELECT d.decision_kind INTO v_current
       FROM atlas.subject_disclosure_decision_events_v1 d
       WHERE d.ledger_id=p_ledger_id
