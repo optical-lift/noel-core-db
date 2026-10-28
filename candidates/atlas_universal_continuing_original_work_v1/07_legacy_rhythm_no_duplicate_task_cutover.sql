@@ -83,15 +83,20 @@ BEGIN
     IF NEW.source_kind IS DISTINCT FROM 'rhythm_state' THEN RETURN NEW; END IF;
     v_state:=NEW.source_id;
   ELSIF TG_TABLE_NAME='tasks' THEN
-    IF NEW.generated_from IS DISTINCT FROM 'rhythm_clock'
-      AND NEW.metadata->>'rhythm_state_id' IS NULL
-    THEN RETURN NEW; END IF;
-    v_state:=COALESCE(NEW.generated_from_id,
-      atlas.rhythm_safe_uuid_v1(NEW.metadata->>'rhythm_state_id'));
+    -- Live legacy carriers often have generated_from NULL and use only
+    -- metadata.rhythm_state_id plus an occurrence; do NOT rely on the
+    -- generated_from value or an unrelated generated_from_id.
+    v_state:=atlas.rhythm_safe_uuid_v1(
+      NEW.metadata->>'rhythm_state_id');
     IF v_state IS NULL AND NEW.planned_occurrence_id IS NOT NULL THEN
-      SELECT source_id INTO v_state FROM atlas.planned_work_occurrences o
+      SELECT o.source_id INTO v_state
+      FROM atlas.planned_work_occurrences o
       WHERE o.id=NEW.planned_occurrence_id
         AND o.source_kind='rhythm_state';
+    END IF;
+    IF v_state IS NULL AND NEW.generated_from='rhythm_clock' THEN
+      SELECT s.id INTO v_state FROM atlas.rhythm_state s
+      WHERE s.id=NEW.generated_from_id;
     END IF;
   ELSE RETURN NEW;
   END IF;
