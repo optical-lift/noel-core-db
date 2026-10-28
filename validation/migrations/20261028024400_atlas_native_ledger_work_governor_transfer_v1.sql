@@ -148,6 +148,9 @@ BEGIN
     OR (SELECT count(*) FROM atlas.work_allocations
       WHERE work_item_id=v_work AND allocation_role='responsible' AND state='released')<>1
     OR NOT EXISTS(SELECT 1 FROM atlas.work_allocations a
+      WHERE a.work_item_id=v_work AND a.state='released'
+        AND a.released_at IS NOT NULL)
+    OR NOT EXISTS(SELECT 1 FROM atlas.work_allocations a
       WHERE a.work_item_id=v_work AND a.state='active'
         AND a.assignee_canonical_person_id='e5200000-0000-4000-8000-000000000102')
     OR NOT EXISTS(SELECT 1 FROM atlas.work_items w
