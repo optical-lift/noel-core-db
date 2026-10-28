@@ -115,6 +115,7 @@ BEGIN
 
   UPDATE atlas.work_allocations
     SET state='released',
+        released_at=now(),
         metadata=coalesce(metadata,'{}'::jsonb)||jsonb_build_object(
           'transferBasis','rooted_native_ledger_governor_and_accepted_person_scope',
           'transferredToPersonId',v_scope.worker_person_id,
