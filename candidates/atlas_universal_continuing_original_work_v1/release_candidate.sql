@@ -1,7 +1,6 @@
 BEGIN;
--- Governed ATLAS original continuing Work source candidate.
--- Exact ordered source includes: candidate.sql, 02_farm_care_actual_adapter.sql, 04_care_actual_source_guards.sql, 05_governed_observed_need_work_writer.sql.
--- DRAFT ONLY. No production release without clone and signed end-to-end PASS.
+-- Governed ATLAS continuing original Work candidate. DRAFT ONLY.
+-- No production release without full production-schema clone + signed tests.
 
 -- SOURCE SECTION: candidate.sql
 -- CANDIDATE ONLY. Do not apply to production or call from a client.
@@ -1302,6 +1301,22 @@ BEGIN
       'workItemId',v_existing.id,'existingOpenServing',true,
       'noNewWorkCreated',true,'assignmentUnchanged',true,
       'noNewObservationCreated',true,'clockAdmitted',false);
+  END IF;
+
+  -- Do not promote the same Need while an unresolved legacy obligation
+  -- still exists. Keep that older task and its history unchanged; exact
+  -- legacy disposition/transfer is a separate governed owner decision.
+  IF EXISTS (
+    SELECT 1 FROM atlas.tasks t
+    LEFT JOIN atlas.planned_work_occurrences o ON o.id=t.planned_occurrence_id
+    WHERE t.farm_id=v_state.farm_id AND t.status IN ('open','blocked')
+      AND (
+        t.metadata->>'rhythm_state_id'=v_state.id::text
+        OR (o.source_kind='rhythm_state' AND o.source_id=v_state.id)
+      )
+  ) THEN
+    RAISE EXCEPTION 'An older active task still serves this exact Need; resolve its custody before creating another original Work'
+      USING ERRCODE='23514';
   END IF;
 
   SELECT * INTO v_current FROM atlas.care_current_state c
