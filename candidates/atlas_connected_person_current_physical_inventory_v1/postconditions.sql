@@ -17,7 +17,7 @@ BEGIN
    AND p.proname IN (
      'governor_set_farm_current_inventory_self_api_v1',
      'connected_person_farm_current_inventory_self_api_v1',
-     'connected_person_current_farm_inventory_sources_self_api_v1') LOOP
+     'connected_person_current_farm_inventory_sources_self_api_v1','governor_farm_current_inventory_options_self_api_v1') LOOP
    IF NOT v_d.prosecdef OR
      NOT('search_path=""'=ANY(v_d.proconfig) OR
        'search_path='=ANY(v_d.proconfig)) OR
@@ -29,8 +29,8 @@ BEGIN
    WHERE n.nspname='atlas' AND p.proname IN (
      'governor_set_farm_current_inventory_self_api_v1',
      'connected_person_farm_current_inventory_self_api_v1',
-     'connected_person_current_farm_inventory_sources_self_api_v1'))<>3 THEN
-   RAISE EXCEPTION 'Missing exact three inventory contracts'; END IF;
+     'connected_person_current_farm_inventory_sources_self_api_v1','governor_farm_current_inventory_options_self_api_v1'))<>4 THEN
+   RAISE EXCEPTION 'Missing exact four inventory contracts'; END IF;
  SELECT pg_get_functiondef(p.oid) INTO v_def FROM pg_proc p
  JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='atlas'
    AND p.proname='governor_set_farm_current_inventory_self_api_v1';
