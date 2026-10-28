@@ -438,20 +438,27 @@ BEGIN
     UPDATE atlas.mowing_area_state SET
       status=v_after,last_observed_at=v_at,
       last_mowed_at=CASE WHEN v_kind='mowed_full' THEN v_at ELSE last_mowed_at END,
-      next_check_date=COALESCE(p_recheck_on,
-        CASE WHEN v_effect IN ('full','conditional') THEN v_due_at::date
-             ELSE next_check_date END),
+      next_check_date=CASE WHEN v_effect IN ('full','conditional')
+        THEN v_due_at::date ELSE next_check_date END,
       -- source_event_id references legacy mowing_events, NOT care_result_events.
       -- Preserve legacy source_event_id; the canonical Actual is in care history.
       note=v_note,metadata=coalesce(metadata,'{}'::jsonb)||
-        jsonb_build_object('lastCanonicalCareResultId',v_care,
-          'lastCanonicalWorkResultId',v_result.id),updated_at=now()
+        jsonb_strip_nulls(jsonb_build_object(
+          'lastCanonicalCareResultId',v_care,
+          'lastCanonicalWorkResultId',v_result.id,
+          'workerSuggestedRecheckDate',p_recheck_on)),
+        updated_at=now()
     WHERE object_id=v_state.subject_id AND organization_id=v_work.organization_id;
   ELSIF v_effect IN ('full','partial','conditional') THEN
     UPDATE atlas.weed_cards SET
       current_condition=v_after,
       next_review_on=CASE WHEN v_effect IN ('full','conditional')
-        THEN v_due_at::date ELSE COALESCE(p_recheck_on,next_review_on) END,
+        THEN v_due_at::date ELSE next_review_on END,
+      metadata=coalesce(metadata,'{}'::jsonb)||
+        jsonb_strip_nulls(jsonb_build_object(
+          'lastCanonicalCareResultId',v_care,
+          'lastCanonicalWorkResultId',v_result.id,
+          'workerSuggestedRecheckDate',p_recheck_on)),
       last_session_at=v_at,updated_at=now()
     WHERE id=v_weed.id;
   END IF;
