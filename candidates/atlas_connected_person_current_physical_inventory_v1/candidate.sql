@@ -307,3 +307,53 @@ END;
 $sources$;
 REVOKE ALL ON FUNCTION atlas.connected_person_current_farm_inventory_sources_self_api_v1(
  uuid) FROM PUBLIC,anon,authenticated,service_role;
+
+-- Root-admin setup choices, scoped to one actually governed native Ledger.
+-- This is configuration of the existing disclosure contract, not farm Work.
+CREATE OR REPLACE FUNCTION atlas.governor_farm_current_inventory_options_self_api_v1(
+  p_ledger_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $options$
+DECLARE
+  v_owner uuid:=atlas.current_person_id_v1();
+  v_org record;
+  v_farms jsonb;
+BEGIN
+  IF auth.uid() IS NULL OR v_owner IS NULL OR p_ledger_id IS NULL THEN
+    RAISE EXCEPTION 'Signed native Ledger governor required'
+      USING ERRCODE='42501';
+  END IF;
+  IF NOT EXISTS(
+    SELECT 1 FROM atlas.ledger_organization_participations p
+    WHERE p.ledger_id=p_ledger_id AND p.status='active'
+      AND p.ended_at IS NULL AND p.participation_kind IN ('governing','operating')
+  ) THEN RAISE EXCEPTION 'No current native governed farm Ledger'
+    USING ERRCODE='42501'; END IF;
+  FOR v_org IN
+    SELECT DISTINCT p.organization_id FROM atlas.ledger_organization_participations p
+    WHERE p.ledger_id=p_ledger_id AND p.status='active'
+      AND p.ended_at IS NULL AND p.participation_kind IN ('governing','operating')
+  LOOP
+    IF atlas.company_work_native_ledger_owner_self_v1(
+        v_org.organization_id,p_ledger_id) IS DISTINCT FROM v_owner THEN
+      RAISE EXCEPTION 'Exact root-admin authority unavailable'
+        USING ERRCODE='42501';
+    END IF;
+  END LOOP;
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'farmId',f.id,'organizationId',f.organization_id,'label',f.name
+  ) ORDER BY f.name,f.id),'[]'::jsonb) INTO v_farms
+  FROM atlas.farms f JOIN atlas.ledger_organization_participations p
+    ON p.organization_id=f.organization_id
+    AND p.ledger_id=p_ledger_id AND p.status='active'
+    AND p.ended_at IS NULL
+    AND p.participation_kind IN ('governing','operating')
+  WHERE f.status='active';
+  RETURN jsonb_build_object('ok',true,
+    'contractVersion','governor_farm_current_inventory_options_v1',
+    'ledgerId',p_ledger_id,'farms',v_farms,'sourceOwned',true);
+END;
+$options$;
+REVOKE ALL ON FUNCTION atlas.governor_farm_current_inventory_options_self_api_v1(uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
