@@ -27,7 +27,10 @@ BEGIN
  END IF;
  -- Release assembly locks originals before this call and trigger creation,
  -- so no live Work can change between snapshot and starting shadow capture.
- FOR v_work IN SELECT * FROM atlas.work_items ORDER BY id LOOP
+ FOR v_work IN SELECT w.* FROM atlas.work_items w
+  WHERE NOT EXISTS(SELECT 1 FROM atlas.work_lifecycle_events_v1 e
+    WHERE e.work_item_id=w.id)
+  ORDER BY w.id LOOP
   PERFORM atlas.append_work_lifecycle_observation_internal_v1(
     v_work.id,'historical_state_snapshot','atlas.work_items',v_work.id,
     NULL,v_work.work_state,NULL,'unattributed','historical_snapshot',NULL,NULL,
