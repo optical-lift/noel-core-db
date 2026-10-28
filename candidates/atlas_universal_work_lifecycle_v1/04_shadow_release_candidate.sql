@@ -1,5 +1,5 @@
 BEGIN;
--- Gate 0 preservation + Gate 1 private SHADOW ONLY. No Done API.
+-- Gate 0 historical preservation + Gate 1 private SHADOW ONLY. No Done API.
 SET LOCAL statement_timeout='75s';
 -- GATE 1: one eventual-authoritative Work lifecycle stream, installed SHADOW
 -- ONLY. It never marks Work Done and grants no browser/API authority.
@@ -312,6 +312,24 @@ BEGIN
  IF TG_TABLE_NAME='work_items' THEN
    IF TG_OP='UPDATE' AND NEW.work_state IS NOT DISTINCT FROM OLD.work_state
    THEN RETURN NEW; END IF;
+   -- When the one authoritative transition has already been appended in
+   -- this same locked transaction, the subsequent mutable Work projection
+   -- MUST NOT be mistaken for a second lifecycle transition event.
+   IF TG_OP='UPDATE' AND EXISTS(
+     SELECT 1 FROM atlas.work_lifecycle_events_v1 e
+     WHERE e.id=(
+       SELECT last.id FROM atlas.work_lifecycle_events_v1 last
+       WHERE last.work_item_id=NEW.id
+       ORDER BY last.sequence_no DESC LIMIT 1)
+       AND e.event_kind='work_transition_applied'
+       AND e.provenance_kind='authoritative_transition'
+       AND e.from_state=OLD.work_state
+       AND e.to_state=NEW.work_state
+       AND e.occurred_at IS NOT DISTINCT FROM
+         CASE WHEN NEW.work_state='completed' THEN NEW.completed_at
+          WHEN NEW.work_state='cancelled' THEN NEW.cancelled_at
+          ELSE NULL END
+   ) THEN RETURN NEW; END IF;
    v_work_id:=NEW.id;
    v_event_kind:=CASE WHEN TG_OP='INSERT' THEN 'work_established'
      ELSE 'work_state_observed' END;
