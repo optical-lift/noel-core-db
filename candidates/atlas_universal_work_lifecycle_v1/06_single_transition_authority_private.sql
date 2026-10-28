@@ -1,9 +1,10 @@
 -- GATE 2 PREVIEW ONLY. Not an independent Done API. This is the
 -- eventual single lifecycle transition authority. No client EXECUTE, no
 -- production release, and no old writer delegation until signed acceptance.
--- The only admitted first slice is a CURRENT, signed responsible Person's
--- already ACCEPTED ordinary Work attestation, not manager, farm, household,
--- communication, Event or other physical outcome.
+-- Admits signed responsible-Person attestation and evidence-grounded
+-- governor witness for ordinary Work through THIS SAME authority. Witness
+-- is an owner's recorded CLAIM about someone else's performance.
+-- Management, farm, household, communications and Event remain closed.
 
 ALTER TABLE atlas.work_lifecycle_events_v1
  DROP CONSTRAINT work_lifecycle_events_v1_event_kind_check;
@@ -48,6 +49,9 @@ DECLARE
  v_actor uuid:=atlas.current_person_id_v1();
  v_uid uuid:=auth.uid();
  v_native_ledger uuid;
+ v_report_mode text;
+ v_witnessed boolean:=false;
+ v_claimed_performer uuid;
  v_key text:=nullif(btrim(coalesce(p_idempotency_key,'')),'');
  v_completed_at timestamptz;
  v_sequence bigint;
@@ -89,6 +93,24 @@ BEGIN
    RAISE EXCEPTION 'Existing accepted source evidence required'
     USING ERRCODE='42501';
  END IF;
+ v_report_mode:=coalesce(v_result.metadata->>'reportMode','own_work');
+ v_witnessed:=v_report_mode='owner_witness';
+ IF (v_witnessed AND (
+       v_accept.acceptance_kind IS DISTINCT FROM 'owner_witnessed_person_result'
+       OR v_result.metadata->>'performanceIsWitnessedClaim' IS DISTINCT FROM 'true'
+       OR v_result.metadata->>'authenticatedReporterPersonId' IS DISTINCT FROM v_actor::text
+       OR length(btrim(coalesce(v_result.payload->>'ownerWitnessEvidence',''))) NOT BETWEEN 16 AND 2000
+       OR v_accept.evidence->>'ownerWitnessEvidence' IS DISTINCT FROM
+         v_result.payload->>'ownerWitnessEvidence'))
+   OR (NOT v_witnessed AND (
+       v_report_mode<>'own_work'
+       OR v_accept.acceptance_kind NOT IN (
+         'self_responsible_person_attestation','delegated_worker_attestation')
+       OR (v_result.metadata ? 'authenticatedReporterPersonId'
+         AND v_result.metadata->>'authenticatedReporterPersonId'
+              IS DISTINCT FROM v_actor::text)))
+ THEN RAISE EXCEPTION 'Accepted evidence mode or reporter attribution mismatch'
+   USING ERRCODE='42501'; END IF;
  SELECT * INTO v_allocation FROM atlas.work_allocations a
  WHERE a.id=v_result.responsible_allocation_id
    AND a.work_item_id=v_work.id
@@ -99,7 +121,35 @@ BEGIN
  IF v_allocation.id IS NULL THEN
    RAISE EXCEPTION 'Current original responsibility unavailable'
      USING ERRCODE='42501'; END IF;
- IF v_allocation.assignee_canonical_person_id IS DISTINCT FROM v_actor THEN
+ v_claimed_performer:=v_allocation.assignee_canonical_person_id;
+ IF v_witnessed THEN
+   -- Original accountable person is NOT the one clicking Done.
+   -- The owner's evidence must point to that SAME responsible Person.
+   IF v_claimed_performer IS NULL OR v_claimed_performer=v_actor
+     OR v_result.metadata->>'source' IS DISTINCT FROM
+       'report_connected_person_company_work_internal_v1'
+     OR v_result.metadata->>'canonicalResponsiblePersonId'
+       IS DISTINCT FROM v_claimed_performer::text
+     OR v_accept.evidence->>'canonicalResponsiblePersonId'
+       IS DISTINCT FROM v_claimed_performer::text
+     OR v_accept.evidence->>'responsibleAllocationId'
+       IS DISTINCT FROM v_allocation.id::text
+     OR v_accept.evidence->>'authenticatedReporterPersonId'
+       IS DISTINCT FROM v_actor::text
+     OR v_allocation.establishment_basis_kind NOT IN(
+       'person_connection_receiver_uptake','delegated_under_standing_scope',
+       'ledger_connection_direct_assignment','original_subject_direct_assignment_v1'
+     )
+   THEN RAISE EXCEPTION 'Witness claim does not match responsible Person provenance'
+       USING ERRCODE='42501'; END IF;
+   v_native_ledger:=atlas.rhythm_safe_uuid_v1(
+     v_allocation.establishment_basis->>'nativeLedgerId');
+   IF v_native_ledger IS NULL OR
+     atlas.company_work_native_ledger_owner_self_v1(
+       v_work.organization_id,v_native_ledger) IS DISTINCT FROM v_actor
+   THEN RAISE EXCEPTION 'Present native Ledger root authority required for witness'
+       USING ERRCODE='42501'; END IF;
+ ELSIF v_allocation.assignee_canonical_person_id IS DISTINCT FROM v_actor THEN
    -- Existing self-adopted original Work is membership-backed.
    IF NOT (v_allocation.establishment_basis_kind='self_adoption'
       AND EXISTS(SELECT 1 FROM atlas.organization_memberships m
@@ -140,6 +190,8 @@ BEGIN
      'idempotent',true,'eventId',v_event.id,
      'workItemId',v_work.id,'workState','completed',
      'originalResultId',v_result.id,'acceptedEvidenceId',v_accept.id,
+     'reporterPersonId',v_actor,'responsiblePersonId',v_claimed_performer,
+     'performanceIsWitnessedClaim',v_witnessed,
      'recordedAt',v_event.recorded_at,'effectiveAt',v_event.occurred_at);
  END IF;
  IF v_work.work_state<>'open' OR v_work.completed_at IS NOT NULL THEN
@@ -168,7 +220,12 @@ BEGIN
    v_key,'authoritative_transition',v_completed_at,
    jsonb_build_object('transitionKind','complete',
      'originalResultId',v_result.id,'acceptanceId',v_accept.id,
-     'responsibleAllocationId',v_allocation.id))
+     'responsibleAllocationId',v_allocation.id,
+     'reporterPersonId',v_actor,
+     'responsiblePersonId',v_claimed_performer,
+     'performanceIsWitnessedClaim',v_witnessed,
+     'authorityMode',case when v_witnessed then 'ledger_governor_witness'
+         else 'responsible_person_attestation' end))
  RETURNING * INTO v_event;
  -- Existing mutable state is a backward-compatible *projection* only.
  -- Old trigger chains remain present during the protected transition.
@@ -188,6 +245,8 @@ BEGIN
    'idempotent',false,'eventId',v_event.id,
    'workItemId',v_work.id,'workState','completed',
    'originalResultId',v_result.id,'acceptedEvidenceId',v_accept.id,
+   'reporterPersonId',v_actor,'responsiblePersonId',v_claimed_performer,
+   'performanceIsWitnessedClaim',v_witnessed,
    'recordedAt',v_event.recorded_at,'effectiveAt',v_event.occurred_at);
 END;
 $transition$;
