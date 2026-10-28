@@ -1,5 +1,5 @@
 BEGIN;
--- Gate 0 historical preservation + Gate 1 private SHADOW ONLY. No Done API.
+-- Gate 0 preservation and Gate 1 private SHADOW ONLY.
 SET LOCAL statement_timeout='75s';
 -- GATE 1: one eventual-authoritative Work lifecycle stream, installed SHADOW
 -- ONLY. It never marks Work Done and grants no browser/API authority.
@@ -411,13 +411,15 @@ SELECT
  (SELECT e.to_state FROM atlas.work_lifecycle_events_v1 e
    WHERE e.work_item_id=w.id
      AND e.event_kind IN (
-       'historical_state_snapshot','work_established','work_state_observed')
+       'historical_state_snapshot','work_established','work_state_observed',
+       'work_transition_applied')
    ORDER BY e.sequence_no DESC LIMIT 1) AS shadow_state,
  w.work_state IS NOT DISTINCT FROM
  (SELECT e.to_state FROM atlas.work_lifecycle_events_v1 e
    WHERE e.work_item_id=w.id
      AND e.event_kind IN (
-       'historical_state_snapshot','work_established','work_state_observed')
+       'historical_state_snapshot','work_established','work_state_observed',
+       'work_transition_applied')
    ORDER BY e.sequence_no DESC LIMIT 1) AS state_matches,
  (SELECT count(*) FROM atlas.work_execution_results r
     WHERE r.work_item_id=w.id) AS original_result_count,
