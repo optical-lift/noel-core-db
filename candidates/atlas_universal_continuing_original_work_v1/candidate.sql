@@ -103,6 +103,10 @@ BEGIN
       AND s.subject_kind='growing_object' AND s.subject_id=p_subject_id
       AND s.state IN ('due','fallen_out_of_rhythm','recovering')
       AND EXISTS (
+        SELECT 1 FROM atlas.growing_objects go
+        WHERE go.id=s.subject_id AND go.farm_id=s.farm_id
+      )
+      AND EXISTS (
         SELECT 1 FROM atlas.rhythm_bindings b
         JOIN atlas.rhythm_rules r ON r.id=b.rhythm_rule_id
         WHERE b.id=s.rhythm_binding_id AND b.active AND r.status='active'
@@ -215,22 +219,17 @@ BEGIN
       RAISE EXCEPTION 'Household Need already owns another original Work'
         USING ERRCODE='23514';
     END IF;
-  ELSE
-    INSERT INTO atlas.company_work_native_ledger_relevance(
-      organization_id,work_item_id,ledger_id,evidence_kind,
-      attestation_source_ref,attestation_reason,established_by_person_id
-    ) VALUES (
-      p_custody_id,v_work.id,p_ledger_id,'owner_attested',
-      'atlas.rhythm_state:'||p_need_id::text,
-      'Governor-established original Work from an independently reviewed current Need.',
-      v_person
-    );
   END IF;
+  -- Native Ledger relevance is NOT inferred or automatically attested here.
+  -- The domain writer must establish exact source-governed Ledger relevance
+  -- and original Person responsibility in the same authorized transaction,
+  -- otherwise the entire source transaction must fail/roll back.
 
   RETURN jsonb_build_object('ok',true,'contractVersion',
     'continuing_original_work_v1','workItemId',v_work.id,
     'sourceKind',p_need_kind,'sourceId',p_need_id,
     'existingOpenServing',false,'noNewWorkCreated',false,
+    'ledgerRelevanceEstablished',false,
     'responsibilityEstablished',false,'clockAdmitted',false);
 END;
 $function$;
