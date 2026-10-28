@@ -173,14 +173,16 @@ BEGIN
   INTO v_objects FROM visible v;
 
   -- Active ACTUAL cycles only. A "planned" cycle may be mislabeled active:
-  -- require an actual planted/sown/established state AND dated physical
-  -- establishment. No expected harvest, germination, stems, quantities,
+  -- accept recorded planted/living states even if the historical migration
+  -- omitted the establishment date. Flag that uncertainty explicitly.
+  -- No expected harvest, germination, stems, quantities,
   -- financial fields, future cycle, private notes or opaque metadata.
   SELECT coalesce(jsonb_agg(jsonb_build_object(
     'cropCycleId',c.id,'objectId',c.object_id,'cropLabel',c.crop_label,
     'variety',c.variety,'recordedStage',c.cycle_state,
     'sownDate',c.sown_date,'plantedDate',c.planted_date,
     'germinationCheckedDate',c.germination_checked_date,
+    'establishmentDateKnown',(c.sown_date IS NOT NULL OR c.planted_date IS NOT NULL),
     'lastRecordedAt',c.updated_at,'source','recorded_crop_cycle'
   ) ORDER BY c.object_id,c.crop_label,c.id),'[]'::jsonb)
   INTO v_crops
@@ -188,8 +190,13 @@ BEGIN
     ON o.id=c.object_id AND o.farm_id=p_farm_id
   WHERE c.farm_id=p_farm_id AND c.lifecycle_status='active'
     AND c.cycle_state NOT IN ('planned','cancelled','failed','superseded')
-    AND ((c.sown_date IS NOT NULL AND c.sown_date<=current_date)
-      OR (c.planted_date IS NOT NULL AND c.planted_date<=current_date))
+    AND (
+      (c.sown_date IS NOT NULL AND c.sown_date<=current_date
+        AND (c.planted_date IS NULL OR c.planted_date<=current_date))
+      OR (c.planted_date IS NOT NULL AND c.planted_date<=current_date
+        AND (c.sown_date IS NULL OR c.sown_date<=current_date))
+      OR (c.sown_date IS NULL AND c.planted_date IS NULL)
+    )
     AND coalesce((
       SELECT d.decision_kind FROM atlas.subject_disclosure_decision_events_v1 d
       WHERE d.ledger_id=p_ledger_id AND d.target_person_id=v_person
@@ -211,7 +218,9 @@ BEGIN
   SELECT coalesce(jsonb_agg(jsonb_build_object(
     'contentId',oc.id,'objectId',oc.object_id,'cropLabel',oc.content_label,
     'variety',oc.variety,'recordedStage',oc.status,
-    'plantedDate',oc.planted_date,'lastRecordedAt',oc.updated_at,
+    'plantedDate',oc.planted_date,
+    'establishmentDateKnown',(oc.planted_date IS NOT NULL),
+    'lastRecordedAt',oc.updated_at,
     'source','recorded_legacy_content'
   ) ORDER BY oc.object_id,oc.content_label,oc.id),'[]'::jsonb)
   INTO v_legacy_contents
@@ -221,7 +230,7 @@ BEGIN
     AND oc.status IN ('sown','planted','establishing','established',
       'growing','living','observed','germinated','seedling','flowering',
       'blooming','budding','fruiting','browsed_alive','cut_back','stressed')
-    AND oc.planted_date IS NOT NULL AND oc.planted_date<=current_date
+    AND (oc.planted_date IS NULL OR oc.planted_date<=current_date)
     AND NOT EXISTS(SELECT 1 FROM atlas.crop_cycles cc
       WHERE cc.object_id=oc.object_id AND cc.farm_id=p_farm_id
         AND cc.lifecycle_status='active'
