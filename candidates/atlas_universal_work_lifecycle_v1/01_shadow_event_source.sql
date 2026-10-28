@@ -131,7 +131,8 @@ BEGIN
     (v_work.organization_id IS NULL)=(v_work.household_id IS NULL)
  THEN RAISE EXCEPTION 'Existing single-custody original Work required'
    USING ERRCODE='23514'; END IF;
- IF p_event_kind IN ('historical_state_snapshot','result_reported',
+ IF p_provenance_kind='historical_snapshot' OR
+    p_event_kind IN ('historical_state_snapshot','result_reported',
     'result_accepted','plan_event_observed') THEN
    SELECT id INTO v_id FROM atlas.work_lifecycle_events_v1 e
    WHERE e.source_table=p_source_table
