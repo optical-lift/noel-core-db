@@ -35,13 +35,12 @@ DECLARE
   v_condition text:=nullif(btrim(coalesce(p_observed_condition,'')),'');
   v_note text:=nullif(btrim(coalesce(p_observation_note,'')),'');
   v_key text;
-  v_today date:=(now() at time zone 'America/Chicago')::date;
+  v_today date;
 BEGIN
   IF auth.uid() IS NULL OR p_organization_id IS NULL OR p_ledger_id IS NULL
      OR p_rhythm_state_id IS NULL OR p_scope_id IS NULL
      OR p_action_id IS NULL OR p_observed_at IS NULL
-     OR p_service_date IS NULL OR p_service_date<v_today-1
-     OR p_service_date>v_today+14 OR v_condition IS NULL
+     OR p_service_date IS NULL OR v_condition IS NULL
      OR v_note IS NULL OR length(v_note)<10 OR length(v_note)>1500
      OR p_observed_at<now()-interval '3 days'
      OR p_observed_at>now()+interval '5 minutes' THEN
@@ -84,6 +83,12 @@ BEGIN
       AND b.active AND r.status='active';
   SELECT * INTO v_object FROM atlas.growing_objects g
     WHERE g.id=v_state.subject_id AND g.farm_id=v_state.farm_id;
+  v_today:=(now() at time zone
+    coalesce(nullif(v_rule.metadata->>'timezoneName',''),'UTC'))::date;
+  IF p_service_date<v_today-1 OR p_service_date>v_today+14 THEN
+    RAISE EXCEPTION 'Person-day placement must be an explicit bounded civil date'
+      USING ERRCODE='22023';
+  END IF;
   IF v_rule.id IS NULL OR v_object.id IS NULL
     OR v_state.rhythm_key NOT IN ('weed_stewardship','mowing')
     OR NOT EXISTS(
