@@ -45,6 +45,34 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'One of two real Need source owners is unavailable';
   END IF;
-  RAISE NOTICE 'Internal source-only primitive protected; no end-to-end acceptance asserted';
+  IF to_regprocedure(
+      'atlas.continuing_original_work_result_continuation_internal_v1(uuid)'
+     ) IS NULL THEN
+    RAISE EXCEPTION 'Missing original Work Result-to-Need continuation review';
+  END IF;
+  IF has_function_privilege('anon',
+       'atlas.continuing_original_work_result_continuation_internal_v1(uuid)',
+       'EXECUTE')
+     OR has_function_privilege('authenticated',
+       'atlas.continuing_original_work_result_continuation_internal_v1(uuid)',
+       'EXECUTE')
+     OR has_function_privilege('service_role',
+       'atlas.continuing_original_work_result_continuation_internal_v1(uuid)',
+       'EXECUTE') THEN
+    RAISE EXCEPTION 'Cross-scope continuing-Result review is exposed to client credentials';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc p
+    WHERE p.oid='atlas.continuing_original_work_result_continuation_internal_v1(uuid)'::regprocedure
+      AND p.prosecdef AND p.provolatile='s'
+      AND 'search_path='=ANY(p.proconfig)
+  ) THEN
+    RAISE EXCEPTION 'Result-to-Need review is not read-only or source-constrained';
+  END IF;
+  IF to_regprocedure('atlas.reality_continuation_normalize_v1(jsonb)') IS NULL
+     OR to_regprocedure('atlas.household_laundry_current_self_api_v1()') IS NULL THEN
+    RAISE EXCEPTION 'Existing universal continuation or Laundry source is missing';
+  END IF;
+  RAISE NOTICE 'Private one-serving and Result-to-Need review contracts protected; signed actual-to-next Work not yet proven';
 END;
 $check$;
