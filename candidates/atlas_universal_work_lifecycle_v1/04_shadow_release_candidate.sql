@@ -1,5 +1,5 @@
 BEGIN;
--- Gate 0 historical preservation + Gate 1 private SHADOW ONLY. NO Done API.
+-- Gate 0 preservation + Gate 1 private SHADOW ONLY. No Done API.
 SET LOCAL statement_timeout='75s';
 -- GATE 1: one eventual-authoritative Work lifecycle stream, installed SHADOW
 -- ONLY. It never marks Work Done and grants no browser/API authority.
@@ -20,7 +20,7 @@ CREATE TABLE atlas.work_lifecycle_events_v1 (
  to_state text,
  actor_user_id uuid,
  actor_attribution text NOT NULL CHECK(actor_attribution IN (
-   'source_signed_user','session_claim_only','unattributed'
+   'source_reporter_field','session_claim_only','unattributed'
  )),
  source_table text NOT NULL CHECK(source_table IN (
    'atlas.work_items','atlas.work_execution_results',
@@ -114,7 +114,7 @@ BEGIN
    'atlas.work_result_acceptances','atlas.work_allocations',
    'atlas.work_execution_plan_events')
   OR p_actor_attribution NOT IN (
-   'source_signed_user','session_claim_only','unattributed')
+   'source_reporter_field','session_claim_only','unattributed')
   OR p_provenance_kind NOT IN (
    'historical_snapshot','observed_original_change',
    'linked_original_evidence')
@@ -224,7 +224,7 @@ BEGIN
     'atlas.work_execution_results',v_result.id,
     NULL,NULL,v_result.reported_by_user_id,
     CASE WHEN v_result.reported_by_user_id IS NULL THEN 'unattributed'
-      ELSE 'source_signed_user' END,
+      ELSE 'source_reporter_field' END,
     'linked_original_evidence',v_result.reported_at,
     v_result.idempotency_key,
     jsonb_build_object('resultId',v_result.id,
@@ -330,7 +330,7 @@ BEGIN
  ELSIF TG_TABLE_NAME='work_execution_results' AND TG_OP='INSERT' THEN
    v_work_id:=NEW.work_item_id;v_event_kind:='result_reported';
    v_actor:=NEW.reported_by_user_id;
-   IF v_actor IS NOT NULL THEN v_actor_basis:='source_signed_user'; END IF;
+   IF v_actor IS NOT NULL THEN v_actor_basis:='source_reporter_field'; END IF;
    v_occurred:=NEW.reported_at;v_action_key:=NEW.idempotency_key;
    v_evidence:=jsonb_build_object('resultId',NEW.id,
      'resultKind',NEW.result_kind,
