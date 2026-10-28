@@ -214,6 +214,7 @@ BEGIN
       'sourceStandingCampaignId',p_action_id,
       'sourceStandingCampaignEndsOn',p_campaign_end_date,
       'sourceStandingCampaignMode','seasonal_closeout',
+      'sourceStandingVisitReason',v_reason,
       'sourceApprovedByPersonId',v_owner,
       'sourceAdmissionMode','owner_standing_visit_v1',
       'sourceRuleId',v_rule.id,
