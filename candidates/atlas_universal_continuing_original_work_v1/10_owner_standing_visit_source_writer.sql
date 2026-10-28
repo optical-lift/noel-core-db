@@ -9,6 +9,7 @@ CREATE OR REPLACE FUNCTION atlas.owner_establish_standing_continuing_care_work_s
   p_scope_id uuid,
   p_visit_reason text,
   p_service_date date,
+  p_campaign_end_date date,
   p_action_id uuid
 ) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
@@ -34,6 +35,8 @@ BEGIN
   IF auth.uid() IS NULL OR p_organization_id IS NULL OR p_ledger_id IS NULL
      OR p_rhythm_state_id IS NULL OR p_scope_id IS NULL
      OR p_action_id IS NULL OR p_service_date IS NULL
+     OR p_campaign_end_date IS NULL
+     OR p_campaign_end_date<p_service_date OR p_campaign_end_date>p_service_date+120
      OR v_reason IS NULL OR length(v_reason)<10 OR length(v_reason)>1500 THEN
     RAISE EXCEPTION 'Exact signed owner standing visit and workday required'
       USING ERRCODE='22023';
@@ -80,16 +83,6 @@ BEGIN
     RAISE EXCEPTION 'Person-day placement must be an explicit bounded civil date'
       USING ERRCODE='22023';
   END IF;
-  IF v_rule.id IS NULL OR v_object.id IS NULL
-    OR v_state.rhythm_key NOT IN ('weed_stewardship','mowing')
-    OR NOT EXISTS(
-      SELECT 1 FROM atlas.farms f WHERE f.id=v_state.farm_id
-      AND f.organization_id=p_organization_id AND f.status='active'
-    ) THEN
-    RAISE EXCEPTION 'Care Need is not sourced from an active governed place'
-      USING ERRCODE='23514';
-  END IF;
-
   IF v_rule.id IS NULL OR v_object.id IS NULL OR
     v_state.rhythm_key NOT IN ('weed_stewardship','mowing') OR
     NOT EXISTS(SELECT 1 FROM atlas.farms f WHERE f.id=v_state.farm_id
@@ -137,6 +130,7 @@ BEGIN
   IF v_existing.id IS NOT NULL THEN
     IF v_existing.metadata->>'sourceScopeId' IS DISTINCT FROM p_scope_id::text
       OR v_existing.metadata->>'sourceServiceDate' IS DISTINCT FROM p_service_date::text
+      OR v_existing.metadata->>'sourceStandingCampaignEndsOn' IS DISTINCT FROM p_campaign_end_date::text
       OR v_existing.metadata->>'sourceAdmissionMode' IS DISTINCT FROM 'owner_standing_visit_v1'
       OR v_existing.metadata->>'sourceRuleId' IS DISTINCT FROM v_rule.id::text
       OR v_existing.metadata->>'sourceVisitReasonDigest' IS DISTINCT FROM md5(v_reason)
@@ -217,6 +211,9 @@ BEGIN
     metadata=metadata||jsonb_build_object(
       'sourceScopeId',p_scope_id,
       'sourceServiceDate',p_service_date,
+      'sourceStandingCampaignId',p_action_id,
+      'sourceStandingCampaignEndsOn',p_campaign_end_date,
+      'sourceStandingCampaignMode','seasonal_closeout',
       'sourceAdmissionMode','owner_standing_visit_v1',
       'sourceRuleId',v_rule.id,
       'sourceVisitReasonDigest',md5(v_reason)),
@@ -257,6 +254,7 @@ BEGIN
     'Owner deliberately selected the standing visit service date.',
     jsonb_build_object('source','owner_standing_visit_v1',
       'ownerPersonId',v_owner,'sourceRuleId',v_rule.id,
+      'sourceStandingCampaignEndsOn',p_campaign_end_date,
       'connectedPersonDay',true,'principalClockAdmitted',false)
   ) RETURNING id INTO v_plan;
   INSERT INTO atlas.work_execution_plan_events(
@@ -278,6 +276,7 @@ BEGIN
     'responsiblePersonId',v_scope.worker_person_id,
     'allocationId',v_allocation,'planId',v_plan,
     'serviceDate',p_service_date,
+    'campaignEndDate',p_campaign_end_date,
     'newOriginalWorkCreated',true,
     'ownerStandingVisitApproved',true,
     'clockAdmitted',false,'noNextWorkPrecreated',true);
@@ -287,5 +286,5 @@ $writer$;
 -- Denied until protected-clone signed authority/privacy tests pass. This
 -- function is a source-governor operation, not a generic task creation RPC.
 REVOKE ALL ON FUNCTION atlas.owner_establish_standing_continuing_care_work_self_api_v1(
-  uuid,uuid,uuid,uuid,text,date,uuid
+  uuid,uuid,uuid,uuid,text,date,date,uuid
 ) FROM PUBLIC,anon,authenticated,service_role;
