@@ -1,6 +1,5 @@
 BEGIN;
--- CANDIDATE: Gate 0 historical preservation + Gate 1 private SHADOW ONLY.
--- Requires protected release review; current production is unchanged.
+-- Gate 0 historical preservation + Gate 1 private SHADOW ONLY. NO Done API.
 SET LOCAL statement_timeout='75s';
 -- GATE 1: one eventual-authoritative Work lifecycle stream, installed SHADOW
 -- ONLY. It never marks Work Done and grants no browser/API authority.
@@ -135,7 +134,8 @@ BEGIN
     (v_work.organization_id IS NULL)=(v_work.household_id IS NULL)
  THEN RAISE EXCEPTION 'Existing single-custody original Work required'
    USING ERRCODE='23514'; END IF;
- IF p_event_kind IN ('historical_state_snapshot','result_reported',
+ IF p_provenance_kind='historical_snapshot' OR
+    p_event_kind IN ('historical_state_snapshot','result_reported',
     'result_accepted','plan_event_observed') THEN
    SELECT id INTO v_id FROM atlas.work_lifecycle_events_v1 e
    WHERE e.source_table=p_source_table
@@ -377,7 +377,6 @@ $capture$;
 REVOKE ALL ON FUNCTION atlas.observe_original_work_lifecycle_shadow_v1()
  FROM PUBLIC,anon,authenticated,service_role;
 
--- Install one atomic baseline with no gap in original-source observation.
 LOCK TABLE atlas.work_items,atlas.work_allocations,
  atlas.work_execution_results,atlas.work_result_acceptances,
  atlas.work_execution_plan_events IN SHARE ROW EXCLUSIVE MODE;
