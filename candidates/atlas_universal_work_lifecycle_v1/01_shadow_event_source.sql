@@ -17,7 +17,7 @@ CREATE TABLE atlas.work_lifecycle_events_v1 (
  to_state text,
  actor_user_id uuid,
  actor_attribution text NOT NULL CHECK(actor_attribution IN (
-   'source_signed_user','session_claim_only','unattributed'
+   'source_reporter_field','session_claim_only','unattributed'
  )),
  source_table text NOT NULL CHECK(source_table IN (
    'atlas.work_items','atlas.work_execution_results',
@@ -111,7 +111,7 @@ BEGIN
    'atlas.work_result_acceptances','atlas.work_allocations',
    'atlas.work_execution_plan_events')
   OR p_actor_attribution NOT IN (
-   'source_signed_user','session_claim_only','unattributed')
+   'source_reporter_field','session_claim_only','unattributed')
   OR p_provenance_kind NOT IN (
    'historical_snapshot','observed_original_change',
    'linked_original_evidence')
