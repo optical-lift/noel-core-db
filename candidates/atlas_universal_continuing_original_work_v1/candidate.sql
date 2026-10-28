@@ -101,7 +101,7 @@ BEGIN
     SELECT * INTO v_rhythm FROM atlas.rhythm_state s
     WHERE s.id=p_need_id AND s.organization_id=p_custody_id
       AND s.subject_kind='growing_object' AND s.subject_id=p_subject_id
-      AND s.state IN ('due','fallen_out_of_rhythm','recovering')
+      AND s.state<>'paused'
       AND EXISTS (
         SELECT 1 FROM atlas.growing_objects go
         WHERE go.id=s.subject_id AND go.farm_id=s.farm_id
@@ -116,6 +116,7 @@ BEGIN
       RAISE EXCEPTION 'Absent, paused or non-actionable original Need'
         USING ERRCODE='23514';
     END IF;
+    -- The domain writer, not an elapsed clock, proves immediate condition.
     -- This primitive cannot adjudicate weed pressure, mower safety, a
     -- seasonal Resting state, or stale observations. No caller is released
     -- until its domain adapter enforces those independent physical gates.
