@@ -102,7 +102,7 @@ BEGIN
     OR v_work.household_id IS NOT NULL
     OR v_work.source_object_type<>'rhythm_state'
     OR v_work.result_contract_key<>'continuing_care_actual_v1'
-    OR v_work.metadata->>'sourceContract'<>'continuing_original_work_v1'
+    OR v_work.metadata->>'sourceContract' IS DISTINCT FROM 'continuing_original_work_v1'
   THEN
     RAISE EXCEPTION 'Original governed continuing Work is not available'
       USING ERRCODE='42501';
