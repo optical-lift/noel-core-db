@@ -295,7 +295,9 @@ BEGIN
       'ready_for_mowing','This observation is synthetic, never a real physical assertion.',
       now(),current_date,
       '00000000-0000-4000-8000-000000000005'::uuid);
-  EXCEPTION WHEN SQLSTATE '42501' THEN
+  -- This synthetic unsigned request can fail either the exact-input guard
+  -- (22023) or the governor authority guard (42501), both fail closed.
+  EXCEPTION WHEN SQLSTATE '42501' OR SQLSTATE '22023' THEN
     v_rejected:=true;
   END;
   IF NOT v_rejected THEN
