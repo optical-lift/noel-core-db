@@ -279,18 +279,15 @@ BEGIN
        v_work.organization_id,v_native_ledger) IS DISTINCT FROM v_actor
    THEN RAISE EXCEPTION 'Present native Ledger root authority required for witness'
        USING ERRCODE='42501'; END IF;
+ ELSIF v_allocation.establishment_basis_kind='self_adoption' THEN
+   -- Decision #2392: legacy membership remains history, not a signed authority.
+   -- Never re-open or auto-convert a historical original Work here.
+   RAISE EXCEPTION 'Historical self-adopted responsibility requires native reconciliation'
+     USING ERRCODE='42501';
  ELSIF v_allocation.assignee_canonical_person_id IS DISTINCT FROM v_actor THEN
-   -- Existing self-adopted original Work is membership-backed.
-   IF NOT (v_allocation.establishment_basis_kind='self_adoption'
-      AND EXISTS(SELECT 1 FROM atlas.organization_memberships m
-        WHERE m.id=v_allocation.assignee_membership_id
-          AND m.organization_id=v_work.organization_id
-          AND m.person_id=v_actor AND m.user_id=v_uid AND m.active))
-   THEN RAISE EXCEPTION 'Caller is not the responsible Person'
-     USING ERRCODE='42501'; END IF;
-   -- Self-adopted Work holds the responsible Person through the original
-   -- organization membership, not the connection-assignee field.
-   v_claimed_performer:=v_actor;
+   -- Every accepted new ordinary Done requires the native responsible Person.
+   RAISE EXCEPTION 'Current native responsible Person required'
+     USING ERRCODE='42501';
  ELSIF v_allocation.establishment_basis_kind IN (
     'person_connection_receiver_uptake','delegated_under_standing_scope',
     'ledger_connection_direct_assignment','original_subject_direct_assignment_v1') THEN
