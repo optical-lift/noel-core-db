@@ -30,6 +30,17 @@ BEGIN
     RAISE EXCEPTION 'Legacy membership reintroduced in historical API' USING ERRCODE='42501';
   END IF;
  END LOOP;
+ FOR v_oid IN SELECT unnest(ARRAY[
+  to_regprocedure('public.governor_link_historical_self_adoption_self_api_v1(uuid,uuid,uuid,uuid,uuid,uuid)'),
+  to_regprocedure('public.report_historical_self_adoption_pending_self_api_v1(uuid,uuid,uuid,text,uuid)'),
+  to_regprocedure('public.governor_review_historical_self_adoption_self_api_v1(uuid,uuid,uuid,text,uuid,uuid)'),
+  to_regprocedure('public.governor_historical_self_adoption_history_self_api_v1(uuid,uuid,uuid)')
+ ]::regprocedure[])::oid LOOP
+  IF v_oid IS NULL THEN RAISE EXCEPTION 'Missing historical public REST wrapper'; END IF;
+  IF has_function_privilege('anon',v_oid,'EXECUTE')
+    OR NOT has_function_privilege('authenticated',v_oid,'EXECUTE')
+  THEN RAISE EXCEPTION 'Historical REST wrapper wrong call authority' USING ERRCODE='42501'; END IF;
+ END LOOP;
  IF to_regprocedure('atlas.reject_historical_review_mutation_v1()') IS NULL
    OR NOT EXISTS(SELECT 1 FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
       WHERE c.oid='atlas.historical_self_adoption_review_events_v1'::regclass
