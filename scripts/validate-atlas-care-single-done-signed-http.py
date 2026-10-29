@@ -127,6 +127,25 @@ def refused_care(api,key,token,payload,label,expected="42501",code=403):
           f"got {status} / {str(obj)[:350]}")
     print("PASS",label)
 
+def source_policy(scope,method,governor="full_eligibility",worker="assigned_work_only",action="021"):
+    return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+      p_rhythm_state_id=STATE,p_scope_id=scope,
+      p_authorization_method=method,p_governor_visibility=governor,
+      p_worker_visibility=worker,p_eligibility_window="due",
+      p_observation_max_age_seconds=259200,
+      p_reason="Fictional exact Bed 3 steward rhythm and current physical source only.",
+      p_action_id="ec300000-0000-4000-8000-000000000"+action)
+
+def eligibility_args():
+    return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+                p_rhythm_state_id=STATE)
+
+def physical_observation(action,condition):
+    return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+                p_rhythm_state_id=STATE,p_condition=condition,
+                p_note="Fictional on-site signed physical observation in Bed 3.",
+                p_action_id="ec300000-0000-4000-8000-000000000"+action)
+
 def work_reader(work,bed):
     return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
        p_work_item_id=work,p_subject_domain="spatial",
@@ -211,6 +230,21 @@ def main():
     allow(api,key,worker,"respond_native_ledger_standing_scope_self_api_v1",
        {"p_scope_id":scope,"p_decision":"accept"})
 
+    # A current accepted connection by itself does not expose governing
+    # source eligibility. Every policy/method/visibility is owner-chosen.
+    deny(api,key,worker,"owner_decide_continuing_source_governance_self_api_v1",
+         source_policy(scope,"owner_each_cycle"),"Worker cannot establish its own standing authority")
+    allow(api,key,owner,"owner_decide_continuing_source_governance_self_api_v1",
+          source_policy(scope,"owner_each_cycle"))
+    deny(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
+         eligibility_args(),"Assigned-only visibility cannot enumerate eligible sources")
+    # The test fixture's civil due boundaries are made past ONLY on the
+    # disposable synthetic clone; no manual Work or actual is created.
+    sql(args.db_url,
+        "update atlas.rhythm_state set warning_at=now()-interval '2 hours',"
+        "due_at=now()-interval '1 hour' where id="+literal(STATE)+"::uuid")
+    print("PASS governor's per-cycle authority and worker assigned-only source privacy")
+
     create=("atlas.owner_establish_observed_continuing_care_work_self_api_v1("
        f"{literal(ORG)}::uuid,{literal(LEDGER)}::uuid,"
        f"{literal(STATE)}::uuid,{literal(scope)}::uuid,'heavy'::text,"
@@ -227,6 +261,55 @@ def main():
           p_source_action_id="ec300000-0000-4000-8000-000000000"+suffix,
           p_reason="Exact fictional Bed 3 information is necessary for assigned care.")
         allow(api,key,owner,"governor_set_subject_disclosure_self_api_v1",disclosure)
+    # The governor may later establish standing approval by an append-only
+    # change of authority. Worker eligibility still needs exact field grants
+    # AND fresh physical evidence after any qualifying satisfaction.
+    allow(api,key,owner,"owner_decide_continuing_source_governance_self_api_v1",
+        source_policy(scope,"standing_source_observed",worker="eligible_disclosed",action="022"))
+    no_evidence=allow(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
+                      eligibility_args())
+    check(no_evidence.get("eligible") is False and
+          no_evidence.get("reasonCode")=="fresh_physical_observation_required",
+          "A due clock was promoted without fresh physical evidence")
+    refused_care(api,key,outsider,
+       care_args("00000000-0000-4000-8000-000000000090",FULL,"weeded_full","clear"),
+       "Unknown outsider cannot report care",expected="42501")
+    deny(api,key,outsider,"continuing_work_source_eligibility_self_api_v1",
+         eligibility_args(),"Outsider cannot enumerate eligible Bed 3")
+    seen=allow(api,key,worker,"record_standing_care_observation_self_api_v1",
+               physical_observation("023","clear"))
+    check(seen.get("noWorkCreated") is True,"Observation invented Work")
+    not_needed=allow(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
+                     eligibility_args())
+    check(not_needed.get("eligible") is False
+          and not_needed.get("reasonCode")=="physical_condition_or_strategy_not_eligible",
+          "A clear physical observation was misread as Work demand")
+    fresh=allow(api,key,worker,"record_standing_care_observation_self_api_v1",
+                physical_observation("024","heavy"))
+    check(fresh.get("noWorkCreated") is True,"Standing approval secretly created Work")
+    retry=allow(api,key,worker,"record_standing_care_observation_self_api_v1",
+                physical_observation("024","heavy"))
+    check(retry.get("idempotent") is True and
+          retry.get("sourceObservationId")==fresh.get("sourceObservationId"),
+          "Signed observation replay was not idempotent")
+    eligible=allow(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
+                   eligibility_args())
+    check(eligible.get("eligible") is True
+          and eligible.get("notOnToday") is True
+          and eligible.get("noWorkCreated") is True,
+          "Fresh physical source must be eligible but must not silently schedule Work")
+    check(sql(args.db_url,"select count(*) from atlas.work_items where source_object_id="
+              +literal(STATE)+"::uuid")=="0",
+          "Policy or observation silently minted an original Work")
+    allow(api,key,owner,"owner_decide_continuing_source_governance_self_api_v1",
+        source_policy(scope,"standing_source_observed",governor="exceptions_only",
+                      worker="eligible_disclosed",action="025"))
+    owner_projection=allow(api,key,owner,"continuing_work_source_eligibility_self_api_v1",
+                           eligibility_args())
+    check(owner_projection.get("visible") is False,
+          "Governor exception-only visibility ignored")
+    print("PASS owner-selected standing method, real signed worker observations and source-enforced views")
+
     made=signed_source(args.db_url,owner,create)
     check(made.get("ok") is True and made.get("newOriginalWorkCreated") is True,
           "Governor failed to establish governed original care Work")
@@ -296,11 +379,30 @@ def main():
        "to_regprocedure('atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)'),"
        "'EXECUTE')")=="f","Private care writer leaked direct EXECUTE")
     print("PASS authenticated-only public care RPC and private writer membrane")
+    # A completed physical cycle resets rhythm timing. The next observation
+    # cannot be eligible merely because the previous one reported need.
+    after_full=allow(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
+                     eligibility_args())
+    check(after_full.get("eligible") is False and
+          after_full.get("reasonCode")=="rhythm_window_not_reached",
+          "Completed care incorrectly admitted immediate next Work")
+    allow(api,key,owner,"owner_decide_continuing_source_governance_self_api_v1",
+          source_policy(scope,"hold",governor="full_eligibility",
+                        worker="assigned_work_only",action="026"))
+    deny(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
+         eligibility_args(),"Governor hold immediately revokes upcoming source visibility")
+    deny(api,key,worker,"record_standing_care_observation_self_api_v1",
+         physical_observation("027","heavy"),
+         "Governor hold revokes worker new observation authority")
+    print("PASS complete->resting no early successor; owner hold immediately revokes")
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
       "PASS local GoTrue independent sessions, disclosure, private governor "
       "source, real signed bearer HTTP physical Actual partial/full/invalid/denied, "
       "one lifecycle Done, replay and rhythm satisfaction.\n"
+      "PASS immutable owner-selected source methods, exact worker visibility, "
+      "clock plus physical evidence, genuine signed observation, hold/revoke, "
+      "no automatic original Work or Today.\n"
       "NOT PROVEN: production rollout, standing care release, next-bed Today.\n",
       encoding="utf-8")
 
