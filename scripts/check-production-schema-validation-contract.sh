@@ -370,6 +370,21 @@ else:
                  "has_function_privilege('authenticated'"):
         if part not in care:
             errors.append('Real signed HTTP care proof missing: '+part)
+    # The chosen standing method, projected eligibility, and physical
+    # observation must use real independent signed HTTP identity, not local
+    # privileged SQL or a second Work/Clock generator.
+    for part in ('owner_decide_continuing_source_governance_self_api_v1',
+                 'continuing_work_source_eligibility_self_api_v1',
+                 'record_standing_care_observation_self_api_v1',
+                 'assigned_work_only', 'eligible_disclosed',
+                 'standing_source_observed',
+                 'fresh_physical_observation_required',
+                 'physical_condition_or_strategy_not_eligible',
+                 'rhythm_window_not_reached',
+                 'Governor hold immediately revokes',
+                 'sourceObservationId', 'noWorkCreated'):
+        if part not in care:
+            errors.append('Signed standing source proof missing '+part)
     if 'zirqkouammpwxlqfbsvf' in care:
         errors.append('Signed care proof must not refer to production project')
 for part in ('signed_care_single_done_probe=true',
