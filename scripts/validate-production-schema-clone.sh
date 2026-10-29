@@ -453,14 +453,23 @@ supabase init --force
 # own the CLI default port 54322. No production URL is used beyond the prior
 # schema-only snapshot step.
 local_database_port="$(python3 - <<'PY'
+import secrets
 import socket
-for port in range(55322, 55922):
+# A successful connect_ex is not a reliable host-port reservation: another
+# Docker bridge can bind 0.0.0.0 while no local listener answers 127.0.0.1.
+# Randomized candidates reduce cross-job races; try a real wildcard bind.
+ports=list(range(38000, 61000))
+secrets.SystemRandom().shuffle(ports)
+for port in ports[:256]:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        if sock.connect_ex(("127.0.0.1", port)) != 0:
-            print(port)
-            break
+        try:
+            sock.bind(("0.0.0.0", port))
+        except OSError:
+            continue
+        print(port)
+        break
 else:
-    raise SystemExit("No available local database validation port")
+    raise SystemExit("No bindable disposable database port found")
 PY
 )"
 python3 - "$project_dir/supabase/config.toml" "$local_database_port" "$version" <<'PY'
