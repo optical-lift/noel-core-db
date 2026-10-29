@@ -146,6 +146,20 @@ def physical_observation(action,condition):
                 p_note="Fictional on-site signed physical observation in Bed 3.",
                 p_action_id="ec300000-0000-4000-8000-000000000"+action)
 
+def standing_admission(action,service_day):
+    return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+       p_rhythm_state_id=STATE,
+       p_action_id="ec300000-0000-4000-8000-000000000"+action,
+       p_service_date=service_day)
+
+def reject_admission(api,key,token,payload,label,sqlstate="42501"):
+    status,obj=rpc(api,key,token,"admit_standing_continuing_source_work_self_api_v1",payload)
+    check(status in (400,403) and isinstance(obj,dict) and
+          obj.get("code")==sqlstate,
+          f"{label}: expected source SQLSTATE {sqlstate}, not missing RPC: "
+          f"{status} {str(obj)[:400]}")
+    print("PASS",label)
+
 def work_reader(work,bed):
     return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
        p_work_item_id=work,p_subject_domain="spatial",
@@ -386,6 +400,76 @@ def main():
     check(after_full.get("eligible") is False and
           after_full.get("reasonCode")=="rhythm_window_not_reached",
           "Completed care incorrectly admitted immediate next Work")
+    # The next cycle may be admitted ONLY after its own fresh observation
+    # and a new due window. The worker deliberately selects the service day;
+    # the clock alone cannot create Work or a Today item.
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    day=datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
+    reject_admission(api,key,worker,standing_admission("030",day),
+      "New Work is not admitted before the next rhythm window",
+      sqlstate="23514")
+    sql(args.db_url,
+      "update atlas.rhythm_state set warning_at=now()-interval '2 hours',"
+      "due_at=now()-interval '1 hour' where id="+literal(STATE)+"::uuid")
+    still_missing=allow(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
+                      eligibility_args())
+    check(still_missing.get("eligible") is False and
+       still_missing.get("reasonCode")=="fresh_physical_observation_required",
+       "Next due window without new physical observation created eligibility")
+    latest=allow(api,key,worker,"record_standing_care_observation_self_api_v1",
+            physical_observation("028","heavy"))
+    check(latest.get("noWorkCreated") is True,
+          "Renewed worker physical observation manufactured a Work")
+    next_eligible=allow(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
+                   eligibility_args())
+    check(next_eligible.get("eligible") is True,
+          "Signed fresh physical observation did not qualify due Need")
+    reject_admission(api,key,outsider,standing_admission("030",day),
+       "Outsider cannot admit standing Work")
+    reject_admission(api,key,owner,standing_admission("030",day),
+       "Unassigned governor cannot impersonate delegated standing worker")
+    admitted=allow(api,key,worker,"admit_standing_continuing_source_work_self_api_v1",
+                 standing_admission("030",day))
+    nextwork=admitted.get("workItemId")
+    check(admitted.get("newOriginalWorkCreated") is True and nextwork
+          and nextwork!=work and admitted.get("serviceDate")==day,
+       "Exact native successor Work and deliberate worker day not created")
+    repeat=allow(api,key,worker,"admit_standing_continuing_source_work_self_api_v1",
+                 standing_admission("030",day))
+    check(repeat.get("idempotent") is True
+          and repeat.get("workItemId")==nextwork,
+          "Standing source action replay duplicated the original Work")
+    reject_admission(api,key,worker,standing_admission("031",day),
+       "Another action cannot duplicate open standing Need",sqlstate="23514")
+    check(sql(args.db_url,
+      "select count(*) from atlas.work_items where source_object_id="
+      +literal(STATE)+"::uuid")=="2",
+      "Completed original plus one new open serving must be exactly two")
+    check(sql(args.db_url,
+      "select count(*) from atlas.company_work_native_ledger_relevance "
+      "where work_item_id="+literal(nextwork)+"::uuid "
+      "and source_schema='atlas' "
+      "and source_table='continuing_work_source_governance_events_v1' "
+      "and evidence_kind='source_verified'")=="1",
+      "Standing worker falsely claimed a new owner attestation instead of source verified")
+    my_work=allow(api,key,worker,"connected_person_my_work_self_api_v1",
+          {"p_limit":50,"p_after_allocation_id":None})
+    displayed=[item for item in my_work.get("items",[])
+              if item.get("workItemId")==nextwork]
+    check(len(displayed)==1
+          and displayed[0].get("workOn")==day
+          and displayed[0].get("scheduleState")=="scheduled"
+          and displayed[0].get("workRelevanceVerified") is True,
+          "Native Person My Work failed to show one disclosure-verified scheduled Work")
+    invisible=allow(api,key,outsider,"connected_person_my_work_self_api_v1",
+          {"p_limit":50,"p_after_allocation_id":None})
+    check(all(item.get("workItemId")!=nextwork for item in invisible.get("items",[])),
+      "New original Work leaked into outsider's My Work")
+    deny(api,key,worker,"connected_person_original_work_subject_self_api_v1",
+         work_reader(nextwork,BED4),
+         "New standing Bed 3 Work cannot disclose the withheld Bed 4")
+    print("PASS owner-standing source -> one native Work + verified Person-day Today, no duplicate")
     allow(api,key,owner,"owner_decide_continuing_source_governance_self_api_v1",
           source_policy(scope,"hold",governor="full_eligibility",
                         worker="assigned_work_only",action="026"))
@@ -394,7 +478,9 @@ def main():
     deny(api,key,worker,"record_standing_care_observation_self_api_v1",
          physical_observation("027","heavy"),
          "Governor hold revokes worker new observation authority")
-    print("PASS complete->resting no early successor; owner hold immediately revokes")
+    reject_admission(api,key,worker,standing_admission("032",day),
+      "Owner hold also revokes further standing Work admission")
+    print("PASS complete->resting; new source-qualified Work/Today; owner hold immediately revokes")
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
       "PASS local GoTrue independent sessions, disclosure, private governor "
@@ -402,7 +488,9 @@ def main():
       "one lifecycle Done, replay and rhythm satisfaction.\n"
       "PASS immutable owner-selected source methods, exact worker visibility, "
       "clock plus physical evidence, genuine signed observation, hold/revoke, "
-      "no automatic original Work or Today.\n"
+      "no Work or Today without explicit source-qualified admission.\n"
+      "PASS delegated native Work admission via real signed worker and explicit date, "
+      "one scheduled Today row, replay, outsider denial, and no second open serving.\n"
       "NOT PROVEN: production rollout, standing care release, next-bed Today.\n",
       encoding="utf-8")
 
