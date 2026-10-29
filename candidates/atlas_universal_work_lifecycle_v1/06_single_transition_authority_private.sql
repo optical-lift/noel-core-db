@@ -54,6 +54,7 @@ DECLARE
  v_report_mode text;
  v_witnessed boolean:=false;
  v_shared_event boolean:=false;
+ v_physical_care boolean:=false;
  v_occurrence_id uuid;
  v_claimed_performer uuid;
  v_key text:=nullif(btrim(coalesce(p_idempotency_key,'')),'');
@@ -79,6 +80,8 @@ BEGIN
  END IF;
  v_shared_event:=(v_work.source_object_type='ledger_occurrence_shared_work'
    AND v_work.result_contract_key='ledger_occurrence_shared_confirmation_v1');
+ v_physical_care:=(v_work.source_object_type='rhythm_state'
+   AND v_work.result_contract_key='continuing_care_actual_v1');
  SELECT * INTO v_result FROM atlas.work_execution_results r
  WHERE r.id=p_result_id AND r.work_item_id=v_work.id
    AND r.organization_id=v_work.organization_id
@@ -86,13 +89,16 @@ BEGIN
    AND r.result_kind='completed'
    AND r.result_contract_key IN (
      'ordinary_company_work_worker_attestation_v1',
-     'ledger_occurrence_shared_confirmation_v1')
+     'ledger_occurrence_shared_confirmation_v1',
+     'continuing_care_actual_v1')
    AND r.reported_by_user_id=v_uid
    AND r.idempotency_key=v_key;
  IF v_result.id IS NULL
    OR v_work.result_contract_key IS DISTINCT FROM v_result.result_contract_key
    OR (v_shared_event IS DISTINCT FROM
        (v_result.result_contract_key='ledger_occurrence_shared_confirmation_v1'))
+   OR (v_physical_care IS DISTINCT FROM
+       (v_result.result_contract_key='continuing_care_actual_v1'))
  THEN RAISE EXCEPTION 'Original signed Work Result missing or mismatched'
     USING ERRCODE='42501'; END IF;
  SELECT * INTO v_accept FROM atlas.work_result_acceptances a
@@ -154,6 +160,67 @@ BEGIN
    v_claimed_performer:=NULL;
    v_witnessed:=false;
  ELSE
+
+  -- Care can finish original Work only with an exact first-party physical
+  -- Actual, observation, accepted result, and qualifying rhythm satisfaction.
+  -- A checkbox or elapsed interval never manufactures this evidence.
+  IF v_physical_care AND (
+    v_accept.acceptance_kind IS DISTINCT FROM 'source_qualified_physical_actual'
+    OR v_accept.accepted_by_domain IS DISTINCT FROM 'continuing_care_actual'
+    OR v_result.metadata->>'authenticatedReporterPersonId' IS DISTINCT FROM v_actor::text
+    OR NOT EXISTS(
+      SELECT 1 FROM atlas.rhythm_state s
+      JOIN atlas.care_result_events c
+        ON c.id=atlas.rhythm_safe_uuid_v1(v_result.payload->>'careResultId')
+        AND c.scope_kind='farm' AND c.scope_id=s.farm_id
+        AND c.subject_domain='farm' AND c.subject_kind='growing_object'
+        AND c.subject_id=s.subject_id::text
+      JOIN atlas.care_observation_events o
+        ON o.id=atlas.rhythm_safe_uuid_v1(v_result.payload->>'careObservationId')
+        AND o.scope_kind=c.scope_kind AND o.scope_id=c.scope_id
+        AND o.subject_domain=c.subject_domain AND o.subject_kind=c.subject_kind
+        AND o.subject_id=c.subject_id
+      JOIN atlas.rhythm_satisfactions sat
+        ON sat.rhythm_state_id=s.id AND sat.organization_id=s.organization_id
+        AND sat.farm_id=s.farm_id AND sat.source_kind='continuing_care_actual'
+        AND sat.source_id=c.id AND sat.satisfaction_kind IN ('full','conditional')
+      JOIN atlas.work_item_context_links ctx
+        ON ctx.organization_id=v_work.organization_id AND ctx.work_item_id=v_work.id
+        AND ctx.subject_domain='spatial' AND ctx.subject_kind='growing_object'
+        AND ctx.subject_id=s.subject_id AND ctx.relation_kind='acts_on'
+      WHERE s.id=v_work.source_object_id
+        AND s.organization_id=v_work.organization_id
+        AND s.subject_kind='growing_object'
+        AND s.rhythm_key IN ('weed_stewardship','mowing')
+        AND v_result.metadata->>'rhythmStateId'=s.id::text
+        AND c.source_kind='continuing_care_actual'
+        AND c.source_key=v_key AND c.actor_user_id=v_uid
+        AND c.metadata->>'workItemId'=v_work.id::text
+        AND c.metadata->>'rhythmStateId'=s.id::text
+        AND c.metadata->>'physicalActualKind'=v_result.metadata->>'actualKind'
+        AND o.source_kind='continuing_care_actual_observation'
+        AND o.source_key='continuing-care-observation:'||c.id::text
+        AND o.observed_by_user_id=v_uid
+        AND o.metadata->>'workItemId'=v_work.id::text
+        AND o.metadata->>'careResultId'=c.id::text
+        AND c.condition_after=o.condition_state
+        AND v_result.payload->>'conditionAfter'=c.condition_after
+        AND v_result.payload->>'actualKind'=v_result.metadata->>'actualKind'
+        AND v_accept.evidence->>'careResultId'=c.id::text
+        AND v_accept.evidence->>'careObservationId'=o.id::text
+        AND v_accept.evidence->>'actualKind'=v_result.metadata->>'actualKind'
+        AND v_accept.evidence->>'sourceRuleId'=sat.rhythm_rule_id::text
+        AND v_accept.evidence->>'actualReporter'=v_actor::text
+        AND sat.source_event=v_result.metadata->>'actualKind'
+        AND sat.created_by_user_id=v_uid
+        AND sat.evidence->>'workItemId'=v_work.id::text
+        AND sat.evidence->>'careResultId'=c.id::text
+        AND sat.evidence->>'workResultId'=v_result.id::text
+    )
+  ) THEN
+    RAISE EXCEPTION 'Exact qualifying physical Actual and rhythm satisfaction required'
+      USING ERRCODE='42501';
+  END IF;
  v_report_mode:=coalesce(v_result.metadata->>'reportMode','own_work');
  v_witnessed:=v_report_mode='owner_witness';
  IF (v_witnessed AND (
@@ -165,8 +232,10 @@ BEGIN
          v_result.payload->>'ownerWitnessEvidence'))
    OR (NOT v_witnessed AND (
        v_report_mode<>'own_work'
-       OR v_accept.acceptance_kind NOT IN (
-         'self_responsible_person_attestation','delegated_worker_attestation')
+       OR (v_physical_care AND v_accept.acceptance_kind IS DISTINCT FROM
+             'source_qualified_physical_actual')
+       OR (NOT v_physical_care AND v_accept.acceptance_kind NOT IN (
+         'self_responsible_person_attestation','delegated_worker_attestation'))
        OR (v_result.metadata ? 'authenticatedReporterPersonId'
          AND v_result.metadata->>'authenticatedReporterPersonId'
               IS DISTINCT FROM v_actor::text)))
@@ -292,6 +361,7 @@ BEGIN
      'responsiblePersonId',v_claimed_performer,
      'performanceIsWitnessedClaim',v_witnessed,
      'authorityMode',case when v_shared_event then 'event_shared_state_confirmation'
+          when v_physical_care then 'source_qualified_physical_actual'
          when v_witnessed then 'ledger_governor_witness'
          else 'responsible_person_attestation' end))
  RETURNING * INTO v_event;
