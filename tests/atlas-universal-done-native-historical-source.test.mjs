@@ -32,3 +32,32 @@ test("historical Result denial is asserted with record counts, not a reopened Wo
  for(const name of ["09_self_adoption_person_rollback.sql","13_self_adopted_original_writer_rollback.sql"])
    assert.ok(runner.includes(name),"missing "+name);
 });
+
+
+const historical=read("16_historical_self_adoption_review_candidate.sql");
+test("historical decisions use native Ledger governor or exact signed worker, never legacy authority",()=>{
+ for(const name of [
+ "governor_link_historical_self_adoption_self_api_v1",
+ "report_historical_self_adoption_pending_self_api_v1",
+ "governor_review_historical_self_adoption_self_api_v1",
+ "historical_self_adoption_review_events_v1",
+ "company_work_native_ledger_owner_self_v1",
+ "person_has_native_ledger_connection_v1",
+ "current_active_ledger_seat_v1",
+ "person_original_work_identity_disclosed_self_v1",
+ "reality_access_self_api_v1",
+ "legacyAuthorityGranted",
+ "newWorkCreated",
+ "noAcceptedActualFabricated",
+ "Historical performance requires actual evidence"
+ ])assert.ok(historical.includes(name),"missing "+name);
+ assert.doesNotMatch(historical,/atlas\.organization_memberships|atlas\.farm_memberships|employee_seats/i);
+ assert.doesNotMatch(historical,/\b(UPDATE|DELETE FROM|TRUNCATE)\s+atlas\.work_(items|execution_results|allocations|result_acceptances)/i);
+ assert.match(historical,/ENABLE ROW LEVEL SECURITY/);
+ assert.match(historical,/FORCE ROW LEVEL SECURITY/);
+ assert.match(historical,/REVOKE ALL ON atlas\.historical_self_adoption_review_events_v1/);
+ assert.match(historical,/Historical review is immutable/);
+ assert.match(historical,/state','pending','acceptedDone',false/);
+ assert.match(historical,/currentAssignmentCreated',false/);
+ assert.match(historical,/event_kind='governor_reviewed'/);
+});
