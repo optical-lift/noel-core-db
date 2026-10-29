@@ -4116,7 +4116,7 @@ AS $function$
     and w.result_contract_key='continuing_care_actual_v1'
     and w.metadata->>'sourceContract'='continuing_original_work_v1'
     and w.metadata->>'sourceScopeId'=authority.worker_scope_id::text;
-$function$
+$function$;
 
 -- Native Person responsibility under signed accepted owner authority.
 CREATE OR REPLACE FUNCTION atlas.guard_work_allocation_responsibility_establishment_v2()
@@ -4662,7 +4662,7 @@ begin
   new.establishment_basis_kind:=v_kind;
   return new;
 end;
-$function$
+$function$;
 
 
 -- SOURCE QUALIFIED ONE WORK ADMISSION
