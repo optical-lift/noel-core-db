@@ -94,3 +94,11 @@ test("public history transport is exact signed-only while raw table is absent",(
  assert.match(historicalPostconditions,/has_function_privilege\('anon'/);
  assert.match(historicalPostconditions,/Historical review immutability not enforced/);
 });
+
+test("contradictory historical outcomes and post-review worker evidence are forbidden",()=>{
+ assert.match(historical,/Accepted historical performance cannot be reclassified as obsolete/);
+ assert.match(historical,/Historical performance requires actual evidence/);
+ assert.match(historical,/Historical review already finalized; new evidence needs a governed reopen/);
+ assert.match(historical,/Historical decision already reviewed; correction requires adjudication/);
+ assert.match(historical,/Conflicting historical (link|evidence|review) replay/);
+});
