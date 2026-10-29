@@ -56,6 +56,7 @@ def proof(db,api,key,tokens,h):
     h.c1.sql(db,seed)
     base_count=sql(db,"select count(*) from atlas.work_items")
     original=lambda expr:sql(db,expr+" where work_item_id="+literal(WORK)+"::uuid")
+    lifecycle_count_before=original("select count(*) from atlas.work_lifecycle_events_v1")
     link=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
        p_work_item_id=WORK,p_allocation_id=ALLOC,p_related_person_id=PERSON,
        p_action_id=a(401))
@@ -132,7 +133,7 @@ def proof(db,api,key,tokens,h):
           "Historical assessment silently closed original Work")
     check(original("select count(*) from atlas.work_execution_results")=="0"
       and original("select count(*) from atlas.work_result_acceptances")=="0"
-      and original("select count(*) from atlas.work_lifecycle_events_v1")=="0",
+      and original("select count(*) from atlas.work_lifecycle_events_v1")==lifecycle_count_before,
       "Historical report forged an accepted Result, Actual or lifecycle Done")
     print("PASS signed native historical Person link, pending evidence, owner disposition, "
           "old membership denial, current Seat revocation and immutable Work/Result history")
