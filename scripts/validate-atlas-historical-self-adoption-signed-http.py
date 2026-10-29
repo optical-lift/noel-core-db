@@ -29,7 +29,7 @@ def proof(db,api,key,tokens,h):
      id,organization_id,user_id,role,active,person_id)
     VALUES ('{LEGACY}'::uuid,'{ORG}'::uuid,
      'e5200000-0000-4000-8000-000000000002'::uuid,
-     'worker',true,'{PERSON}'::uuid);
+     'member',true,'{PERSON}'::uuid);
     INSERT INTO atlas.work_items(
      id,organization_id,title,work_state,source_object_type,source_object_id,stable_key)
     VALUES ('{WORK}'::uuid,'{ORG}'::uuid,
