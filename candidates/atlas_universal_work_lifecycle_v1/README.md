@@ -1,5 +1,18 @@
 # Atlas Proper — one event-sourced Work lifecycle, Gates 0–3C (draft)
 
+## Owner's 2026-10-29 legacy-evidence ruling — supersedes historical self-adoption execution design
+
+**Governing choices 1C / 2D / 3D**, documented and acceptance-scoped in [Noel issue #2392](https://github.com/optical-lift/noel-core-db/issues/2392). This draft is **NOT releasable in its current Gate 3B form**. All earlier positive self-adopted-Work tests and guidance below are records of *previous draft behavior*, not current release acceptance.
+
+- A current native Ledger governor may explicitly reconcile old memberships, Persons, Work, and Results to canonical native identities and historical evidence. This does **not** admit old membership as authority or grant worker disclosure, active responsibility, or Done permission. An appropriately bounded owner-approved batch may preserve many original references with one governed decision, while recording exceptions; it may never blanket-grant active Work.
+- Historical unfinished Work remains as history. If a current Need truly persists, create **one new** native original Work linked to that source under present authority (not reopen/reactivate the old Work and not an automatic recurrence).
+- Currently authenticated workers may provide pending, attributable historical evidence without marking Work complete. A current governor can inspect that evidence and accept substantiated historic completion or retire obsolete Work, explicitly distinguishing performed from cancelled/not-required. Historical evidence must not impersonate a modern physical Result.
+- **Source blockers:** `06_single_transition_authority_private.sql` still authorizes a null-canonical-assignee self-adopted allocation through `atlas.organization_memberships`; `12_self_adopted_original_writer_single_done_cutover_candidate.sql` still joins that same legacy authority, and tests `09`/`13` claim old positive semantics. Those paths must be replaced/retired with native-only guards, rewritten denial+preservation tests, and real signed source checks **before any generated migration**. Do not circumvent `check-universal-person-authority.py` or fake a passing migration by copying composite SQL into canonical migrations.
+- The single lifecycle/Result/Acceptance/event stream remains the target, and original legacy data is preserved under authorized historical access. Deleting old rows to clear authorization failures is **not** approved.
+
+**Status:** owner decision recorded; code correction and genuine signed acceptance pending. No production mutation.
+
+
 **Authority:** User selected Option E (one immutable Work lifecycle, one eventual universal Done transition/receipt). This candidate is an **additive shadow source plus one private first-slice transition authority**. It does **not** expose a Done API, change existing Result contracts, modify user permissions, mark Work complete, publish a browser reader, or deploy schema.
 
 ## Existing custody, verified read-only on 2026-10-28
