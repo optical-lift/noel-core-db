@@ -331,6 +331,38 @@ startup = startup.split('supabase start >"$startup_log" 2>&1',1)[0]
 if '[ "$signed_universal_original_work_probe" = true ]' not in startup:
     errors.append('Universal signed probe accidentally starts PostgreSQL-only')
 
+# Signed care proof must reuse local native Work/Person infrastructure and
+# must never become an arbitrary candidate-triggered or production call.
+care_script=Path('scripts/validate-atlas-care-single-done-signed-http.py')
+if not care_script.is_file():
+    errors.append('Canonical signed care proof script missing')
+else:
+    import ast
+    care=care_script.read_text()
+    try: ast.parse(care,filename=str(care_script))
+    except SyntaxError as exc:
+        errors.append(f'Signed care proof invalid Python: {exc}')
+    for part in ('c1.sign_in(', 'auth.sessions',
+                 'owner_establish_observed_continuing_care_work_self_api_v1',
+                 'record_continuing_care_actual_self_api_v1',
+                 'work_transition_applied', 'rhythm_satisfactions',
+                 'connected_person_original_work_subject_self_api_v1',
+                 'weeded_partial','weeded_full'):
+        if part not in care: errors.append('Signed care proof missing '+part)
+    if 'zirqkouammpwxlqfbsvf' in care:
+        errors.append('Signed care proof must not refer to production project')
+for part in ('signed_care_single_done_probe=true',
+             'atlas_care_single_done_signed_proof_v1',
+             'validate-atlas-care-single-done-signed-http.py',
+             'signed-care-single-done.log',
+             'signed-care-single-done-summary.txt'):
+    if part not in harness:
+        errors.append('Canonical clone care proof admission missing: '+part)
+startup=harness.split('if [ "$signed_http_probe" = true ] ||',1)[-1]
+startup=startup.split('supabase start >"$startup_log" 2>&1',1)[0]
+if '[ "$signed_care_single_done_probe" = true ]' not in startup:
+    errors.append('Signed care probe accidentally starts PostgreSQL-only')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
