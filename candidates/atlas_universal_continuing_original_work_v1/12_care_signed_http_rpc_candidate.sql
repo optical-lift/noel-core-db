@@ -33,6 +33,9 @@ REVOKE ALL ON FUNCTION public.record_continuing_care_actual_self_api_v1(
 GRANT EXECUTE ON FUNCTION public.record_continuing_care_actual_self_api_v1(
   uuid,uuid,text,text,integer,text,date
 ) TO authenticated;
+-- Invalidate PostgREST's function-signature cache inside this disposable
+-- clone when the new public RPC becomes available.
+SELECT pg_catalog.pg_notify('pgrst','reload schema');
 -- The private writer must remain unreached even by signed or service clients.
 REVOKE ALL ON FUNCTION atlas.record_continuing_care_actual_self_api_v1(
   uuid,uuid,text,text,integer,text,date
