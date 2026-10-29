@@ -140,6 +140,22 @@ def eligibility_args():
     return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
                 p_rhythm_state_id=STATE)
 
+def disclosed_rhythms(api,key,token,limit=30,after=None):
+    obj=allow(api,key,token,"connected_person_disclosed_standing_rhythms_self_api_v1",
+      dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_limit=limit,
+           p_after_state_id=after))
+    check(obj.get("contractVersion")=="connected_person_disclosed_standing_rhythms_v1"
+          and obj.get("organizationId")==ORG and obj.get("ledgerId")==LEDGER
+          and obj.get("coverage")=="admitted_person_only"
+          and obj.get("noWorkCreated") is True
+          and obj.get("notAnExecutionPlan") is True
+          and obj.get("notAnAutomaticOverdueBacklog") is True
+          and obj.get("noUndisclosedCounts") is True
+          and isinstance(obj.get("items"),list)
+          and isinstance(obj.get("hasMore"),bool),
+          "Signed care list lacks bounded admission contract")
+    return obj
+
 def physical_observation(action,condition):
     return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
                 p_rhythm_state_id=STATE,p_condition=condition,
@@ -244,6 +260,15 @@ def main():
     allow(api,key,worker,"respond_native_ledger_standing_scope_self_api_v1",
        {"p_scope_id":scope,"p_decision":"accept"})
 
+    check(disclosed_rhythms(api,key,worker)["items"]==[],
+          "Native standing scope alone leaked undisclosed care")
+    deny(api,key,outsider,"connected_person_disclosed_standing_rhythms_self_api_v1",
+         dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_limit=30,p_after_state_id=None),
+         "Outsider cannot enumerate standing care")
+    deny(api,key,worker,"connected_person_disclosed_standing_rhythms_self_api_v1",
+         dict(p_organization_id=ORG,p_ledger_id=LEDGER,p_limit=0,p_after_state_id=None),
+         "Zero limit is rejected by signed source")
+
     # A current accepted connection by itself does not expose governing
     # source eligibility. Every policy/method/visibility is owner-chosen.
     deny(api,key,worker,"owner_decide_continuing_source_governance_self_api_v1",
@@ -280,6 +305,19 @@ def main():
     # AND fresh physical evidence after any qualifying satisfaction.
     allow(api,key,owner,"owner_decide_continuing_source_governance_self_api_v1",
         source_policy(scope,"standing_source_observed",worker="eligible_disclosed",action="022"))
+    listed=disclosed_rhythms(api,key,worker,limit=1)
+    check(len(listed["items"])==1
+          and listed["items"][0].get("rhythmStateId")==STATE
+          and listed["items"][0].get("rhythmKind")=="weed_stewardship"
+          and listed["items"][0].get("isWork") is False
+          and listed["items"][0].get("isAssignment") is False
+          and listed.get("hasMore") is False,
+          "Exact authorized Bed 3 source was not exposed once")
+    check(disclosed_rhythms(api,key,worker,limit=1,after=STATE)["items"]==[],
+          "Pagination repeated or leaked an undisclosed care item")
+    check(sql(args.db_url,"select count(*) from atlas.work_items where source_object_id="
+          +literal(STATE)+"::uuid")=="0",
+          "Read-only standing list created original Work")
     no_evidence=allow(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
                       eligibility_args())
     check(no_evidence.get("eligible") is False and
@@ -475,6 +513,8 @@ def main():
                         worker="assigned_work_only",action="026"))
     deny(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
          eligibility_args(),"Governor hold immediately revokes upcoming source visibility")
+    check(disclosed_rhythms(api,key,worker)["items"]==[],
+          "Governor hold failed to remove standing rhythm source")
     deny(api,key,worker,"record_standing_care_observation_self_api_v1",
          physical_observation("027","heavy"),
          "Governor hold revokes worker new observation authority")
