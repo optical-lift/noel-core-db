@@ -51,7 +51,7 @@ begin
  'ledgerId',p_ledger_id,'items',v_items,'hasMore',v_more,
  'nextPersonId',case when v_more then v_next else null end,
  'rootAuthorityNotRequired',true);
-end$function$
+end$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.owner_direct_assign_existing_original_work_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_work_item_id uuid, p_target_person_id uuid, p_service_date date, p_action_id uuid, p_reason text)
@@ -208,6 +208,6 @@ BEGIN
    'workerAttestedAsSelf',false,'employeeSeatRequired',false,
    'assignmentNew',v_created,'idempotent',NOT v_created);
 END;
-$function$
+$function$;
 
 COMMIT;
