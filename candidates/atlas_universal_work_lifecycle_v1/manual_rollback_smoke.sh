@@ -31,10 +31,9 @@ fi
   cat "$base/07_single_transition_rollback_postconditions.sql"
   cat "$base/08_owner_witness_source_negatives_rollback.sql"
   cat "$base/11_connected_person_original_writer_rollback.sql"
-  # Isolate the tests that depend on previously completed self-adopted Work.
-  printf '\nSAVEPOINT gate2_self_original_fixture;\n'
+  # Historical self-adoption tests are now DENY-only and never reopen old
+  # Work; no SAVEPOINT/reset of completed Work is needed.
   cat "$base/09_self_adoption_person_rollback.sql"
-  printf '\nROLLBACK TO SAVEPOINT gate2_self_original_fixture;\n'
   cat "$base/13_self_adopted_original_writer_rollback.sql"
   cat "$base/15_event_shared_source_negative_rollback.sql"
   printf '\nROLLBACK;\n'
