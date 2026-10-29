@@ -106,7 +106,7 @@ def main():
 
     original_count=sql(opt.db_url,
         f"select count(*) from atlas.work_items where organization_id='{ORG}'::uuid")
-    check(original_count=="5","Fictional original+split Work fixture must be exact")
+    check(original_count=="6","Fictional original+split Work fixture must be exact")
     owner_action="e5200000-0000-4000-8000-000000000981"
     direct=args(SELF_WORK,SELF_PERSON,owner_action)
     for token,label in ((worker,"worker"),(outsider,"outsider"),(no_seat,"no-seat"),(None,"anonymous")):
@@ -156,7 +156,7 @@ def main():
           other.get("workItemId")==OTHER_WORK and other.get("newWorkCreated") is False,
           "Original Work assignment to other Person regressed")
     check(sql(opt.db_url,
-          f"select count(*) from atlas.work_items where organization_id='{ORG}'::uuid")=="5",
+          f"select count(*) from atlas.work_items where organization_id='{ORG}'::uuid")=="6",
           "An assignment/replay generated or destroyed original Work")
     check(sql(opt.db_url,
           f"select count(*) from atlas.work_allocations where work_item_id in ('{SELF_WORK}'::uuid,'{OTHER_WORK}'::uuid) and state='active'")=="2",
