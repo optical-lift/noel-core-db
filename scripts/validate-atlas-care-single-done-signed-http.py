@@ -4,10 +4,11 @@
 Prerequisites: full native schema, canonical held original Work migration and
 fictional fixture, both held Done/care draft sources, and the companion
 signed_care_single_done_fictional_fixture_v1.sql. Local GoTrue+PostgREST must
-be running. This does not grant the unreleased care writer to a browser:
-private source methods are exercised via privileged clone SQL with claims
-from real, verified, separately signed GoTrue sessions. Public My Work and
-disclosure are tested via bearer HTTP. This is NOT an end-user API release test.
+be running. The owner-only observed-Need source remains a private privileged test
+invocation using claims from a verified GoTrue session. The *physical Actual*
+must run through the real authenticated public PostgREST RPC with the
+worker's actual bearer token; no fabricated claims or elevated SQL substitute
+for this end-user reporting test. This is a protected clone, NOT a release.
 
 This script creates fictional data only on the validator's disposable clone.
 """
@@ -35,6 +36,8 @@ STATE="ec300000-0000-4000-8000-000000000003"
 ACTION="ec300000-0000-4000-8000-000000000010"
 PARTIAL="ec300000-0000-4000-8000-000000000011"
 FULL="ec300000-0000-4000-8000-000000000012"
+CARE_RPC="record_continuing_care_actual_self_api_v1"
+CARE_SIG="public.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)"
 
 def check(test,message):
     if not test: raise AssertionError(message)
@@ -109,6 +112,21 @@ def care_call(work,action,kind,condition):
             "12::integer,'Fictional physically observed care in Bed 3'::text,"
             "NULL::date)")
 
+def care_args(work,action,kind,condition):
+    return dict(p_work_item_id=work,p_action_id=action,
+                p_actual_kind=kind,p_condition_after=condition,
+                p_minutes=12,
+                p_note="Fictional physically observed care in Bed 3",
+                p_recheck_on=None)
+
+def refused_care(api,key,token,payload,label,expected="42501",code=403):
+    status,obj=rpc(api,key,token,CARE_RPC,payload)
+    check(status==code and isinstance(obj,dict)
+          and obj.get("code")==expected,
+          f"{label}: expected real signed source denial {code}/{expected}, "
+          f"got {status} / {str(obj)[:350]}")
+    print("PASS",label)
+
 def work_reader(work,bed):
     return dict(p_organization_id=ORG,p_ledger_id=LEDGER,
        p_work_item_id=work,p_subject_domain="spatial",
@@ -144,7 +162,20 @@ def main():
             "select has_function_privilege('authenticated',"
             "to_regprocedure("+literal(signature)+"),'EXECUTE')")=="f",
             "Unreleased private source was exposed to authenticated")
-
+    check(sql(args.db_url,
+       "select has_function_privilege('authenticated',"
+       "to_regprocedure("+literal(CARE_SIG)+"),'EXECUTE')")=="t",
+       "Signed care reporting RPC must be allowed for authenticated")
+    check(sql(args.db_url,
+       "select has_function_privilege('anon',"
+       "to_regprocedure("+literal(CARE_SIG)+"),'EXECUTE')")=="f",
+       "Anonymous browser was given executable care reporting RPC")
+    check(sql(args.db_url,
+       "select count(*) from pg_proc where oid=to_regprocedure("
+       +literal(CARE_SIG)+") and prosecdef and "
+       "'search_path=\"\"'=any(proconfig)")=="1",
+       "Bounded signed care RPC must use a fixed empty search_path")
+    print("PASS private writers denied, public care reporter authenticated-only")
     api,key=c1.local_status()
     tokens={}
     for name,uid in base.setup_auth(args.db_url):
@@ -210,14 +241,17 @@ def main():
     deny(api,key,outsider,"connected_person_original_work_subject_self_api_v1",
           work_reader(work,BED3),
           "Outsider cannot find Bed 3 physical Work subject")
-    signed_source(args.db_url,outsider,care_call(work,FULL,"weeded_full","clear"),
-                  "42501")
-    signed_source(args.db_url,owner,care_call(work,FULL,"weeded_full","clear"),
-                  "42501")
-    signed_source(args.db_url,worker,care_call(work,FULL,"weeded_full","heavy"),
-                  "22023")
-    partial=signed_source(args.db_url,worker,
-       care_call(work,PARTIAL,"weeded_partial","row_readable"))
+    refused_care(api,key,outsider,
+      care_args(work,FULL,"weeded_full","clear"),
+      "Outsider signed browser cannot report Bed 3 physical care")
+    refused_care(api,key,owner,
+      care_args(work,FULL,"weeded_full","clear"),
+      "Governor signed browser cannot report unassigned worker care")
+    refused_care(api,key,worker,
+      care_args(work,FULL,"weeded_full","heavy"),
+      "Invalid full-care condition is source-rejected",expected="22023",code=400)
+    partial=allow(api,key,worker,CARE_RPC,
+       care_args(work,PARTIAL,"weeded_partial","row_readable"))
     check(partial.get("workState")=="open" and
           partial.get("noNewWorkCreated") is True,
           "Partial care manufactured a Done or next Work")
@@ -226,14 +260,14 @@ def main():
        f"work_item_id={literal(work)}::uuid and event_kind='work_transition_applied'")=="0",
        "Partial care illegally completed universal Work")
     print("PASS signed partial Actual retains original open Work")
-    full=signed_source(args.db_url,worker,
-       care_call(work,FULL,"weeded_full","clear"))
+    full=allow(api,key,worker,CARE_RPC,
+       care_args(work,FULL,"weeded_full","clear"))
     check(full.get("workState")=="completed" and
           full.get("contractVersion")=="universal_work_lifecycle_transition_v1"
           and full.get("physicalActualContractVersion")=="continuing_care_actual_v1",
           "Signed physical care did not use common Done")
-    replay=signed_source(args.db_url,worker,
-       care_call(work,FULL,"weeded_full","clear"))
+    replay=allow(api,key,worker,CARE_RPC,
+       care_args(work,FULL,"weeded_full","clear"))
     check(replay.get("idempotent") is True and
           replay.get("eventId")==full.get("eventId"),
           "Signed replay changed the immutable Work transition")
@@ -249,13 +283,26 @@ def main():
        "select count(*) from atlas.work_items where "
        f"source_object_id={literal(STATE)}::uuid")=="1",
        "Physical completion manufactured another original Work")
-    print("PASS physical Result -> exactly one immutable Done -> rhythm satisfaction")
+    print("PASS real bearer HTTP: physical Result -> single Done -> rhythm satisfaction")
+    # An unrelated Person cannot retrieve the completed Work receipt by
+    # replaying the worker's known action ID.
+    refused_care(api,key,outsider,
+      care_args(work,FULL,"weeded_full","clear"),
+      "Outsider HTTP retry of another Person's completed action denied")
+    # Direct private function privilege remains denied, not merely a missing
+    # PostgREST cache entry masquerading as a 404 success.
+    check(sql(args.db_url,
+       "select has_function_privilege('authenticated',"
+       "to_regprocedure('atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)'),"
+       "'EXECUTE')")=="f","Private care writer leaked direct EXECUTE")
+    print("PASS authenticated-only public care RPC and private writer membrane")
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
-      "PASS local GoTrue independent sessions, disclosure, signed-claim private "
-      "source invocation, partial/full Actual, single lifecycle Done and replay.\n"
-      "NOT PROVEN: browser HTTP access to private functions; standing "
-      "care release; successor Work/Today.\n",encoding="utf-8")
+      "PASS local GoTrue independent sessions, disclosure, private governor "
+      "source, real signed bearer HTTP physical Actual partial/full/invalid/denied, "
+      "one lifecycle Done, replay and rhythm satisfaction.\n"
+      "NOT PROVEN: production rollout, standing care release, next-bed Today.\n",
+      encoding="utf-8")
 
 if __name__=="__main__":
     main()
