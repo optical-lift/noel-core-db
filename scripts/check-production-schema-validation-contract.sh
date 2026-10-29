@@ -357,6 +357,19 @@ else:
                  'connected_person_original_work_subject_self_api_v1',
                  'weeded_partial','weeded_full'):
         if part not in care: errors.append('Signed care proof missing '+part)
+    # This gate must use REAL bearer HTTP through the public reporter,
+    # never only privileged SQL with copied JWT claims as previous private
+    # source coverage did.
+    for part in ("CARE_RPC=\"record_continuing_care_actual_self_api_v1\"",
+                 "partial=allow(api,key,worker,CARE_RPC",
+                 "full=allow(api,key,worker,CARE_RPC",
+                 "replay=allow(api,key,worker,CARE_RPC",
+                 "refused_care(api,key,outsider",
+                 "refused_care(api,key,owner",
+                 "has_function_privilege('anon'",
+                 "has_function_privilege('authenticated'"):
+        if part not in care:
+            errors.append('Real signed HTTP care proof missing: '+part)
     if 'zirqkouammpwxlqfbsvf' in care:
         errors.append('Signed care proof must not refer to production project')
 for part in ('signed_care_single_done_probe=true',
