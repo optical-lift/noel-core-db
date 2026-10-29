@@ -118,6 +118,19 @@ def proof(db,api,key,tokens,h):
     deny(api,key,worker,"report_historical_self_adoption_pending_self_api_v1",
       dict(pending,p_action_id=a(404)),
       "Old membership cannot bypass revoked native Person Seat")
+    # Restore native Seat, then expire the ORIGINAL actual GoTrue session.
+    # This isolates session revocation from the earlier revoked Seat denial.
+    sql(db,"update ledger.seats set seat_state='active',ended_at=null "
+        "where ledger_id="+literal(LEDGER)+"::uuid "
+        "and person_entity_id="+literal(PERSON)+"::uuid")
+    sid=h.c1.jwt_payload(worker).get("session_id")
+    check(bool(sid),"Signed worker session id missing")
+    sql(db,"update auth.sessions set not_after=now()-interval '1 minute' "
+        "where id="+literal(sid)+"::uuid")
+    deny(api,key,worker,"report_historical_self_adoption_pending_self_api_v1",
+      dict(pending,p_action_id=a(405)),
+      "Same-JWT expired session cannot report even when Seat restored")
+
     # Owner can still adjudicate existing historic evidence, without a
     # second Work, a Work state change, or a fabricated accepted Result.
     outcome=allow(api,key,owner,"governor_review_historical_self_adoption_self_api_v1",wrong)
@@ -138,4 +151,4 @@ def proof(db,api,key,tokens,h):
     print("PASS signed native historical Person link, pending evidence, owner disposition, "
           "old membership denial, current Seat revocation and immutable Work/Result history")
     return ("PASS signed historical review: governor / worker / outsider / no-seat, replay, "
-            "old membership deny, revoked Seat, original Work/Result preserved.\n")
+            "old membership denied, revoked Seat and session, original Work/Result preserved.\n")
