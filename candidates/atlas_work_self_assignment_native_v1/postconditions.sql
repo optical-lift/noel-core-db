@@ -18,7 +18,7 @@ BEGIN
  END IF;
  IF strpos(v_choices,'atlas.current_active_ledger_seat_v1')=0
     OR strpos(v_choices,'s.seat_state=''active''')=0
-    OR strpos(v_choice::text,'connected_ledger_person_choices_self_api_v1')=0
+    OR strpos(v_choices,'connected_ledger_person_choices_self_api_v1')=0
     OR strpos(v_assignment,'atlas.company_work_native_ledger_owner_self_v1')=0
     OR strpos(v_assignment,'atlas.person_has_native_ledger_connection_v1')=0
     OR strpos(v_assignment,'v_work.source_object_type<>''work_decomposition''')=0
