@@ -136,5 +136,5 @@ def proof(db,api,key,tokens,h):
       "Historical report forged an accepted Result, Actual or lifecycle Done")
     print("PASS signed native historical Person link, pending evidence, owner disposition, "
           "old membership denial, current Seat revocation and immutable Work/Result history")
-    return "PASS signed historical review: governor / worker / outsider / no-seat, replay, "
-           "old membership deny, revoked Seat, original Work/Result preserved.\n"
+    return ("PASS signed historical review: governor / worker / outsider / no-seat, replay, "
+            "old membership deny, revoked Seat, original Work/Result preserved.\n")
