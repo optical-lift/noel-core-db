@@ -35,6 +35,7 @@ test("historical Result denial is asserted with record counts, not a reopened Wo
 
 
 const historical=read("16_historical_self_adoption_review_candidate.sql");
+const historicalReadback=read("17_historical_self_adoption_review_readback_candidate.sql");
 test("historical decisions use native Ledger governor or exact signed worker, never legacy authority",()=>{
  for(const name of [
  "governor_link_historical_self_adoption_self_api_v1",
@@ -60,4 +61,15 @@ test("historical decisions use native Ledger governor or exact signed worker, ne
  assert.match(historical,/state','pending','acceptedDone',false/);
  assert.match(historical,/currentAssignmentCreated',false/);
  assert.match(historical,/event_kind='governor_reviewed'/);
+});
+
+test("governor historical readback is bounded and retains source privacy",()=>{
+ assert.match(historicalReadback,/governor_historical_self_adoption_history_self_api_v1/);
+ assert.match(historicalReadback,/company_work_native_ledger_owner_self_v1/);
+ assert.match(historicalReadback,/company_work_native_ledger_relevance/);
+ assert.match(historicalReadback,/LIMIT 51/);
+ assert.match(historicalReadback,/FILTER\(WHERE seq<=50\)/);
+ assert.match(historicalReadback,/hasMore/);
+ assert.match(historicalReadback,/REVOKE ALL ON FUNCTION/);
+ assert.doesNotMatch(historicalReadback,/organization_memberships|employee_seats/);
 });
