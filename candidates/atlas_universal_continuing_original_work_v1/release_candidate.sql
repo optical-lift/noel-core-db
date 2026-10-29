@@ -1,4 +1,12 @@
 BEGIN;
+-- CROSS-PR SINGLE-DONE RELEASE HOLD (2026-10-28):
+-- This assembled source still installs 02_farm_care_actual_adapter.sql,
+-- whose terminal physical Work path directly updates work_items/allocations.
+-- NEVER release this standalone package. The held
+-- 10_care_actual_single_done_cutover_candidate.sql must be applied AFTER
+-- Noel PR #2368 one-lifecycle source in protected clone, with signed actor
+-- acceptance and an exact combined release/postcondition review.
+-- Neither draft is authorized for production.
 -- Governed ATLAS continuing original Work candidate. DRAFT ONLY.
 -- No production release without full production-schema clone + signed tests.
 
