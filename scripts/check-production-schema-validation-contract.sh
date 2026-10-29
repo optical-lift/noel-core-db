@@ -385,6 +385,18 @@ else:
                  'sourceObservationId', 'noWorkCreated'):
         if part not in care:
             errors.append('Signed standing source proof missing '+part)
+    # The final Work gate must be the SAME native canonical Person/Today
+    # source, with real signed HTTP and source_verified governor authority.
+    for part in ('standing_admission(', 'reject_admission(',
+                 'admit_standing_continuing_source_work_self_api_v1',
+                 'company_work_native_ledger_relevance',
+                 'source_verified','connected_person_my_work_self_api_v1',
+                 'workRelevanceVerified', 'scheduleState',
+                 'newOriginalWorkCreated',
+                 'Another action cannot duplicate open standing Need',
+                 'Owner hold also revokes further standing Work admission'):
+        if part not in care:
+            errors.append('Native signed standing admission proof missing '+part)
     if 'zirqkouammpwxlqfbsvf' in care:
         errors.append('Signed care proof must not refer to production project')
 for part in ('signed_care_single_done_probe=true',
