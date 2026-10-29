@@ -4,7 +4,9 @@
 -- Admits signed responsible-Person attestation and evidence-grounded
 -- governor witness for ordinary Work through THIS SAME authority. Witness
 -- is an owner's recorded CLAIM about someone else's performance.
--- Management, farm, household, communications and Event remain closed.
+-- Management, farm, household, communications and production remain closed.
+-- Event shared-checklist state confirmation is admitted ONLY with existing
+-- signed Ledger/Occurrence identity and explicit non-performance evidence.
 
 ALTER TABLE atlas.work_lifecycle_events_v1
  DROP CONSTRAINT work_lifecycle_events_v1_event_kind_check;
@@ -51,6 +53,8 @@ DECLARE
  v_native_ledger uuid;
  v_report_mode text;
  v_witnessed boolean:=false;
+ v_shared_event boolean:=false;
+ v_occurrence_id uuid;
  v_claimed_performer uuid;
  v_key text:=nullif(btrim(coalesce(p_idempotency_key,'')),'');
  v_completed_at timestamptz;
@@ -73,17 +77,23 @@ BEGIN
    RAISE EXCEPTION 'This authority slice requires original Organization Work'
     USING ERRCODE='42501';
  END IF;
+ v_shared_event:=(v_work.source_object_type='ledger_occurrence_shared_work'
+   AND v_work.result_contract_key='ledger_occurrence_shared_confirmation_v1');
  SELECT * INTO v_result FROM atlas.work_execution_results r
  WHERE r.id=p_result_id AND r.work_item_id=v_work.id
    AND r.organization_id=v_work.organization_id
    AND r.household_id IS NULL
    AND r.result_kind='completed'
-   AND r.result_contract_key='ordinary_company_work_worker_attestation_v1'
+   AND r.result_contract_key IN (
+     'ordinary_company_work_worker_attestation_v1',
+     'ledger_occurrence_shared_confirmation_v1')
    AND r.reported_by_user_id=v_uid
    AND r.idempotency_key=v_key;
  IF v_result.id IS NULL
    OR v_work.result_contract_key IS DISTINCT FROM v_result.result_contract_key
- THEN RAISE EXCEPTION 'Original signed ordinary Work Result missing or mismatched'
+   OR (v_shared_event IS DISTINCT FROM
+       (v_result.result_contract_key='ledger_occurrence_shared_confirmation_v1'))
+ THEN RAISE EXCEPTION 'Original signed Work Result missing or mismatched'
     USING ERRCODE='42501'; END IF;
  SELECT * INTO v_accept FROM atlas.work_result_acceptances a
  WHERE a.execution_result_id=v_result.id AND a.work_item_id=v_work.id
@@ -93,6 +103,57 @@ BEGIN
    RAISE EXCEPTION 'Existing accepted source evidence required'
     USING ERRCODE='42501';
  END IF;
+ IF v_shared_event THEN
+   -- Shared checklist Done asserts a state, not who physically performed it.
+   -- Its original result has NO responsible allocation by design.
+   v_native_ledger:=atlas.rhythm_safe_uuid_v1(
+      v_result.metadata->>'ledgerId');
+   v_occurrence_id:=atlas.rhythm_safe_uuid_v1(
+      v_result.metadata->>'occurrenceId');
+   IF v_native_ledger IS NULL OR v_occurrence_id IS NULL
+     OR v_work.source_object_id IS DISTINCT FROM v_occurrence_id
+     OR v_work.metadata->>'ledgerId' IS DISTINCT FROM v_native_ledger::text
+     OR v_work.metadata->>'sourceContract' IS DISTINCT FROM
+       'ledger_occurrence_shared_work_v1'
+     OR v_result.responsible_allocation_id IS NOT NULL
+     OR v_result.metadata->>'source' IS DISTINCT FROM
+       'mark_ledger_occurrence_shared_work_done_self_api_v1'
+     OR v_result.metadata->>'actorPersonId' IS DISTINCT FROM v_actor::text
+     OR v_result.metadata->>'notWorkerResult' IS DISTINCT FROM 'true'
+     OR v_result.metadata->>'allocationNotRequired' IS DISTINCT FROM 'true'
+     OR v_result.payload->>'stateAssertion' IS DISTINCT FROM
+       'ordinary_shared_work_marked_done'
+     OR v_result.payload->>'markedByPersonId' IS DISTINCT FROM v_actor::text
+     OR v_result.payload->>'personalPerformanceNotClaimed' IS DISTINCT FROM 'true'
+     OR v_result.payload->'performedByPersonId' IS DISTINCT FROM 'null'::jsonb
+     OR v_accept.acceptance_kind IS DISTINCT FROM
+       'shared_checklist_state_confirmation'
+     OR v_accept.evidence->>'markedByPersonId' IS DISTINCT FROM v_actor::text
+     OR v_accept.evidence->>'sourceActionId' IS DISTINCT FROM
+       v_result.payload->>'sourceActionId'
+     OR v_accept.evidence->>'physicalPerformerAsserted' IS DISTINCT FROM 'false'
+     OR atlas.ledger_occurrence_shared_work_actor_self_v1(
+       v_work.organization_id,v_native_ledger,v_occurrence_id)
+         IS DISTINCT FROM v_actor
+     OR NOT EXISTS (
+       SELECT 1 FROM atlas.work_item_context_links ctx
+       JOIN atlas.company_work_native_ledger_relevance rel
+         ON rel.organization_id=ctx.organization_id
+          AND rel.work_item_id=ctx.work_item_id
+          AND rel.ledger_id=v_native_ledger
+          AND rel.attribution_state='active'
+       WHERE ctx.organization_id=v_work.organization_id
+         AND ctx.work_item_id=v_work.id
+         AND ctx.subject_domain='temporal'
+         AND ctx.subject_kind='occurrence'
+         AND ctx.subject_id=v_occurrence_id
+         AND ctx.relation_kind='for'
+     )
+   THEN RAISE EXCEPTION 'Exact shared Event evidence or current Person disclosure unavailable'
+      USING ERRCODE='42501'; END IF;
+   v_claimed_performer:=NULL;
+   v_witnessed:=false;
+ ELSE
  v_report_mode:=coalesce(v_result.metadata->>'reportMode','own_work');
  v_witnessed:=v_report_mode='owner_witness';
  IF (v_witnessed AND (
@@ -175,6 +236,7 @@ BEGIN
    RAISE EXCEPTION 'Responsible source establishment not yet admitted'
      USING ERRCODE='42501';
  END IF;
+ END IF;
  SELECT * INTO v_event FROM atlas.work_lifecycle_events_v1 e
  WHERE e.work_item_id=v_work.id
    AND e.event_kind='work_transition_applied'
@@ -195,6 +257,7 @@ BEGIN
      'originalResultId',v_result.id,'acceptedEvidenceId',v_accept.id,
      'reporterPersonId',v_actor,'responsiblePersonId',v_claimed_performer,
      'performanceIsWitnessedClaim',v_witnessed,
+     'personalPerformanceNotClaimed',v_shared_event,
      'recordedAt',v_event.recorded_at,'effectiveAt',v_event.occurred_at);
  END IF;
  IF v_work.work_state<>'open' OR v_work.completed_at IS NOT NULL THEN
@@ -224,10 +287,12 @@ BEGIN
    jsonb_build_object('transitionKind','complete',
      'originalResultId',v_result.id,'acceptanceId',v_accept.id,
      'responsibleAllocationId',v_allocation.id,
+     'personalPerformanceNotClaimed',v_shared_event,
      'reporterPersonId',v_actor,
      'responsiblePersonId',v_claimed_performer,
      'performanceIsWitnessedClaim',v_witnessed,
-     'authorityMode',case when v_witnessed then 'ledger_governor_witness'
+     'authorityMode',case when v_shared_event then 'event_shared_state_confirmation'
+         when v_witnessed then 'ledger_governor_witness'
          else 'responsible_person_attestation' end))
  RETURNING * INTO v_event;
  -- Existing mutable state is a backward-compatible *projection* only.
@@ -238,7 +303,7 @@ BEGIN
  WHERE id=v_work.id AND work_state='open';
  IF NOT FOUND THEN RAISE EXCEPTION 'Original Work projection drifted'
    USING ERRCODE='23514'; END IF;
- IF v_allocation.state='active' THEN
+ IF NOT v_shared_event AND v_allocation.state='active' THEN
    UPDATE atlas.work_allocations
      SET state='completed',completed_at=v_completed_at,updated_at=v_completed_at
    WHERE id=v_allocation.id AND state='active';
@@ -250,6 +315,7 @@ BEGIN
    'originalResultId',v_result.id,'acceptedEvidenceId',v_accept.id,
    'reporterPersonId',v_actor,'responsiblePersonId',v_claimed_performer,
    'performanceIsWitnessedClaim',v_witnessed,
+   'personalPerformanceNotClaimed',v_shared_event,
    'recordedAt',v_event.recorded_at,'effectiveAt',v_event.occurred_at);
 END;
 $transition$;
