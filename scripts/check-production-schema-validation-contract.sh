@@ -84,6 +84,14 @@ for fragment in harness_required:
     if fragment not in harness:
         errors.append(f'Missing canonical local-harness requirement: {fragment}')
 
+# Disposable Docker host-port isolation must test wildcard bindability,
+# not infer availability from a failed localhost connect() or a fixed port.
+for fragment in ('secrets.SystemRandom().shuffle(ports)',
+                 'sock.bind(("0.0.0.0", port))',
+                 'No bindable disposable database port found'):
+    if fragment not in harness:
+        errors.append('Disposable clone host-port guard missing: '+fragment)
+
 comparator_required = [
     'candidate_by_key.keys() - baseline_by_key.keys()',
     'schema-lint-delta.json',
