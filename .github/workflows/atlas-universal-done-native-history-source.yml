@@ -1,0 +1,40 @@
+name: Atlas unified Done native historical-source checks
+
+on:
+  pull_request:
+    paths:
+      - "candidates/atlas_universal_work_lifecycle_v1/**"
+      - "tests/atlas-universal-done-native-historical-source.test.mjs"
+      - ".github/workflows/atlas-universal-done-native-history-source.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  native-history-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Refuse legacy authority and historic mutation in unified Done
+        run: node --test tests/atlas-universal-done-native-historical-source.test.mjs
+      - name: Check rollback harness syntax and PostgreSQL SQL grammar
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n candidates/atlas_universal_work_lifecycle_v1/manual_rollback_smoke.sh
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          root=Path('candidates/atlas_universal_work_lifecycle_v1')
+          for name in (
+            '06_single_transition_authority_private.sql',
+            '12_self_adopted_original_writer_single_done_cutover_candidate.sql',
+            '09_self_adoption_person_rollback.sql',
+            '13_self_adopted_original_writer_rollback.sql',
+          ):
+            parse_sql((root/name).read_text())
+            print('PASS SQL grammar:',name)
+          PY
