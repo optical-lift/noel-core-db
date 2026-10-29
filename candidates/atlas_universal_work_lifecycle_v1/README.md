@@ -1,4 +1,4 @@
-# Atlas Proper — one event-sourced Work lifecycle, Gates 0–2
+# Atlas Proper — one event-sourced Work lifecycle, Gates 0–3C (draft)
 
 **Authority:** User selected Option E (one immutable Work lifecycle, one eventual universal Done transition/receipt). This candidate is an **additive shadow source plus one private first-slice transition authority**. It does **not** expose a Done API, change existing Result contracts, modify user permissions, mark Work complete, publish a browser reader, or deploy schema.
 
@@ -84,6 +84,16 @@ The next controlled migration must create a genuine accepted-management test Wor
 - **Fixture isolation is essential**: the older `09_self_adoption_person_rollback.sql` temporarily reopens one historical Work to test the private transition. That creates a temporary authoritative event; subsequent fixture selection would be contaminated. `manual_rollback_smoke.sh` wraps that test in an explicit SAVEPOINT and rolls it back before testing the new synthetic source writer.
 - Verified with the production-shaped database: 04 + 06 + 10 + 12 + 05 + 07 + 08 + 11 + SAVEPOINT + 09 + ROLLBACK TO SAVEPOINT + 13 + final ROLLBACK **passes**. The fixture proves code behavior through SQL-auth claim emulation, **not** a genuine GoTrue signed user session.
 - All files remain candidates in this draft PR; **no production Work, Results, permissions or schema was changed**.
+
+## Gate 3C — one Done for original shared Event checklist Work
+
+- `14_event_shared_original_writer_single_done_cutover_candidate.sql` modifies the **existing** `mark_ledger_occurrence_shared_work_done_self_api_v1` implementation, not its signature or source Ledger/Occurrence permission checks. It preserves original Result and Acceptance with `shared_checklist_state_confirmation` and **removes its direct Work completion UPDATE**. The existing writer delegates to the SAME private `apply_work_lifecycle_transition_internal_v1` and returns the SAME `universal_work_lifecycle_transition_v1` receipt.
+- The common transition now accepts this **one additional evidence mode** after validating exact organization, original Work/Occurrence/active native Ledger association, the exact existing Result/Acceptance, current signed Ledger Person/Event identity, source metadata, idempotency key and explicit statement that the checklist actor **does not assert personal physical performance**. There is no responsible worker allocation for shared checklist state; the event and receipt preserve `responsiblePersonId=null`, `personalPerformanceNotClaimed=true`, and `authorityMode=event_shared_state_confirmation`. The signed actor is the marker, NOT an invented physical performer.
+- Older accepted Event checklist completions are still preserved as historical state with their original result IDs, not re-signed lifecycle events. Same-key replay after a new lifecycle transition must recover the same event and timestamp; already-completed Work cannot create another Done.
+- `15_event_shared_source_negative_rollback.sql` uses one of the three original Event checklist histories. It verifies original Result/Acceptance *did not* claim physical performance, rejects a different Person, rejects a missing GoTrue session and rejects a forged synthetic reporter claim through the existing `ledger_occurrence_shared_work_actor_self_v1` reality-access guard. It checks **zero changes to original Work, Result, Acceptance or lifecycle events**.
+- The complete rollback suite including original connected-Person writer, self-adopted writer, owner witness negatives and Event negatives passes in a **single BEGIN/ROLLBACK transaction**. `manual_rollback_smoke.sh` now includes the Event candidate and negative source test, with the self-adoption test isolated by SAVEPOINT.
+- **Positive signed Event acceptance is NOT proven.** SQL claim emulation cannot pass `reality_access_self_api_v1`; only a real authenticated Ledger-connected Person with exact Event disclosure can validate the happy path. Keep this cutover closed until that signed test, same-key replay and absence of duplicate physical outcomes pass on the protected runner.
+- Management legacy overrides, approved domain actuals, communications and household still need the same-source migration. This addition has **not** been deployed or used to mark any real Event Work Done.
 
 ## Not Done / exact next protected gates
 
