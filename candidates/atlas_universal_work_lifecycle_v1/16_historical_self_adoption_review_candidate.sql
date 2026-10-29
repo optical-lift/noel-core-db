@@ -123,6 +123,10 @@ BEGIN
    OR NOT atlas.person_original_work_identity_disclosed_self_v1(
      p_organization_id,p_ledger_id,l.work_item_id,a)
  THEN RAISE EXCEPTION 'Historical source not disclosed to current Person' USING ERRCODE='42501'; END IF;
+ IF EXISTS(SELECT 1 FROM atlas.historical_self_adoption_review_events_v1 d
+   WHERE d.parent_event_id=l.id AND d.event_kind='governor_reviewed')
+ THEN RAISE EXCEPTION 'Historical review already finalized; new evidence needs a governed reopen'
+ USING ERRCODE='42501'; END IF;
  PERFORM pg_advisory_xact_lock(hashtextextended('historical-evidence:'||p_action_id::text,0));
  SELECT * INTO e FROM atlas.historical_self_adoption_review_events_v1
  WHERE ledger_id=p_ledger_id AND action_id=p_action_id;
@@ -170,6 +174,13 @@ BEGIN
    WHERE p.id=p_evidence_id AND p.parent_event_id=l.id
    AND p.event_kind='worker_pending' AND p.ledger_id=p_ledger_id)
  THEN RAISE EXCEPTION 'Wrong historical evidence reference' USING ERRCODE='42501'; END IF;
+ IF p_outcome='obsolete_cancelled' AND EXISTS (
+   SELECT 1 FROM atlas.work_execution_results r
+   JOIN atlas.work_result_acceptances c ON c.execution_result_id=r.id
+   WHERE r.work_item_id=l.work_item_id AND r.responsible_allocation_id=l.allocation_id
+   AND c.decision='accepted' AND c.work_item_id=r.work_item_id
+ ) THEN RAISE EXCEPTION 'Accepted historical performance cannot be reclassified as obsolete'
+ USING ERRCODE='23514'; END IF;
  IF p_outcome='historically_performed' AND p_evidence_id IS NULL
  AND NOT EXISTS(SELECT 1 FROM atlas.work_execution_results r
    JOIN atlas.work_result_acceptances c ON c.execution_result_id=r.id
