@@ -1,0 +1,41 @@
+name: Atlas historical review signed harness source
+on:
+  pull_request:
+    paths:
+      - "scripts/validate-atlas-care-single-done-signed-http.py"
+      - "scripts/validate-atlas-historical-self-adoption-signed-http.py"
+      - ".github/workflows/atlas-historical-review-signed-harness-source.yml"
+permissions:
+  contents: read
+jobs:
+  historical-signed-harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile signed test entrypoints
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-care-single-done-signed-http.py
+          python3 -m py_compile scripts/validate-atlas-historical-self-adoption-signed-http.py
+      - name: Preserve signed actor, historical denial and no forged Done contract
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("scripts/validate-atlas-care-single-done-signed-http.py").read_text()
+          t=Path("scripts/validate-atlas-historical-self-adoption-signed-http.py").read_text()
+          for k in ("hist.proof(", "history_sig", "NOT TESTED: historical review source not present"):
+              assert k in s,k
+          for k in ("tokens[\"owner\"]","tokens[\"worker\"]","tokens[\"outsider\"]",
+                    "tokens[\"no-seat\"]","report_self_responsible_company_work_self_api_v1",
+                    "governor_link_historical_self_adoption_self_api_v1",
+                    "report_historical_self_adoption_pending_self_api_v1",
+                    "governor_review_historical_self_adoption_self_api_v1",
+                    "governor_historical_self_adoption_history_self_api_v1",
+                    "seat_state='ended'", "select current_database()"):
+              assert k in t,k
+          assert "acceptedDone" in t and "workStateChanged" in t
+          print("PASS signed historical source harness contract")
+          PY
