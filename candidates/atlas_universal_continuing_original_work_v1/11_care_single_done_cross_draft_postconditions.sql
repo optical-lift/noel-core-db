@@ -24,11 +24,17 @@ BEGIN
      OR has_function_privilege('service_role',v_actual,'EXECUTE') THEN
     RAISE EXCEPTION 'Pre-release source writer unexpectedly executable from client';
   END IF;
+  -- PostgreSQL records SET search_path TO '' in pg_proc.proconfig
+  -- as the exact text search_path="" (not search_path=).
+  -- Require the empty pinned path AND SECURITY DEFINER for BOTH functions;
+  -- this is not a relaxation to accept any schema or mutable caller path.
   IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid=v_done
-       AND p.prosecdef AND 'search_path='=ANY(p.proconfig))
-     OR NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid=v_actual
-       AND p.prosecdef AND 'search_path='=ANY(p.proconfig)) THEN
-    RAISE EXCEPTION 'Private source functions lack constrained authority';
+       AND p.prosecdef AND 'search_path=""'=ANY(p.proconfig)) THEN
+    RAISE EXCEPTION 'Universal lifecycle authority lacks SECURITY DEFINER with empty pinned search_path';
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid=v_actual
+       AND p.prosecdef AND 'search_path=""'=ANY(p.proconfig)) THEN
+    RAISE EXCEPTION 'Physical care writer lacks SECURITY DEFINER with empty pinned search_path';
   END IF;
   v_done_sql:=pg_get_functiondef(v_done);
   v_actual_sql:=pg_get_functiondef(v_actual);
