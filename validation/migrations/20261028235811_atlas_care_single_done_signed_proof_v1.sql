@@ -516,3 +516,38 @@ BEGIN
  END LOOP;
 END $older_work_proof$;
 
+-- Held additional HTTP membrane postconditions. Existing source and exact
+-- privacy checks above remain mandatory, not replaced or relaxed.
+DO $signed_care_http$
+DECLARE
+ v_public regprocedure := to_regprocedure(
+ 'public.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)');
+ v_private regprocedure := to_regprocedure(
+ 'atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)');
+ v_sql text;
+BEGIN
+ IF v_public IS NULL OR v_private IS NULL THEN
+   RAISE EXCEPTION 'Signed public care RPC and private domain writer must coexist';
+ END IF;
+ IF has_function_privilege('anon',v_public,'EXECUTE') OR
+    has_function_privilege('service_role',v_public,'EXECUTE') OR
+    NOT has_function_privilege('authenticated',v_public,'EXECUTE') OR
+    has_function_privilege('anon',v_private,'EXECUTE') OR
+    has_function_privilege('authenticated',v_private,'EXECUTE') OR
+    has_function_privilege('service_role',v_private,'EXECUTE') THEN
+   RAISE EXCEPTION 'Care HTTP boundary violates signed-only public/private separation';
+ END IF;
+ IF NOT EXISTS(
+    SELECT 1 FROM pg_proc p WHERE p.oid=v_public
+    AND p.prosecdef AND 'search_path=""'=ANY(p.proconfig)
+ ) THEN
+    RAISE EXCEPTION 'Public signed care RPC lacks pinned empty search path';
+ END IF;
+ v_sql:=pg_get_functiondef(v_public);
+ IF position('atlas.current_person_id_v1' in v_sql)=0 OR
+    position('atlas.record_continuing_care_actual_self_api_v1' in v_sql)=0
+ THEN
+   RAISE EXCEPTION 'Care HTTP RPC does not enforce native Person and delegate to private source';
+ END IF;
+END;
+$signed_care_http$;
