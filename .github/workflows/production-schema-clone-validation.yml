@@ -153,12 +153,23 @@ jobs:
           RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
         run: |
           set -euo pipefail
-          mapfile -t matches < <(find candidate/supabase/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print)
-          if [[ "${#matches[@]}" -ne 1 ]]; then
-            echo "::error::Expected exactly one candidate migration for ${MIGRATION_VERSION}; found ${#matches[@]}."
-            exit 1
+          # One exact non-releasable TEST SOURCE path; never accepted by the
+          # production release migration directory or arbitrary candidate.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261028235811" ]]; then
+            candidate_migration="candidate/candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql"
+            if [[ ! -s "$candidate_migration" ]] ||
+               [[ -e "candidate/supabase/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql" ]]; then
+              echo "::error::Care proof must be a held source candidate, NEVER a releasable migration."
+              exit 1
+            fi
+          else
+            mapfile -t matches < <(find candidate/supabase/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print)
+            if [[ "${#matches[@]}" -ne 1 ]]; then
+              echo "::error::Expected exactly one candidate migration for ${MIGRATION_VERSION}; found ${#matches[@]}."
+              exit 1
+            fi
+            candidate_migration="${matches[0]}"
           fi
-          candidate_migration="${matches[0]}"
 
           mapfile -t canonical_matches < <(find supabase/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print)
           if [[ "${#canonical_matches[@]}" -gt 1 ]]; then

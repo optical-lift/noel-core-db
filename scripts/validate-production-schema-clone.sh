@@ -113,6 +113,7 @@ signed_universal_program_probe=false
 signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
 signed_universal_original_work_probe=false
+signed_care_single_done_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
 # One exact generated mail permission candidate needs true signed Auth+REST.
@@ -133,6 +134,16 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_unified_today_p0_probe=true
+fi
+
+# An exact named source-only physical care validation, not a release.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_care_single_done_signed_proof_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Signed care Done proof requires DML-only fictional fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_care_single_done_probe=true
 fi
 
 # Only the exact Atlas original Work candidate may trigger this signed local
@@ -514,6 +525,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_program_author_notes_probe" = true ] ||
        [ "$signed_program_source_identity_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
+       [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
        [ "$signed_person_mail_probe" = true ]; then
     # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
@@ -678,6 +690,16 @@ if [ "$signed_universal_original_work_probe" = true ]; then
     >"$artifacts_dir/signed-universal-original-work-event-regression.log" 2>&1
   test -s "$artifacts_dir/signed-universal-original-work-event-regression.txt"
   grep -q '^PASS' "$artifacts_dir/signed-universal-original-work-event-regression.txt"
+fi
+
+if [ "$signed_care_single_done_probe" = true ]; then
+  phase="signed care physical Actual, source permission and universal Done"
+  python3 "$repo_root/scripts/validate-atlas-care-single-done-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-care-single-done-summary.txt" \
+    >"$artifacts_dir/signed-care-single-done.log" 2>&1
+  test -s "$artifacts_dir/signed-care-single-done-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-care-single-done-summary.txt"
 fi
 
 if [ "$signed_connected_work_prerequisite_probe" = true ]; then
