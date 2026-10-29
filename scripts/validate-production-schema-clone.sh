@@ -113,6 +113,7 @@ signed_universal_program_probe=false
 signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
 signed_universal_original_work_probe=false
+signed_work_self_assignment_probe=false
 signed_care_single_done_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
@@ -134,6 +135,17 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_unified_today_p0_probe=true
+fi
+
+# Signed local governor self-assignment of existing original decomposed Work.
+# Only its exact generated migration can invoke this candidate-specific proof.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_work_self_assignment_native_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Native Work self-assignment requires fictional fixture/postconditions." >&2
+    exit 2
+  fi
+  signed_work_self_assignment_probe=true
 fi
 
 # An exact named source-only physical care validation, not a release.
@@ -534,6 +546,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_program_author_notes_probe" = true ] ||
        [ "$signed_program_source_identity_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
+       [ "$signed_work_self_assignment_probe" = true ] ||
        [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
        [ "$signed_person_mail_probe" = true ]; then
@@ -679,6 +692,16 @@ if [ "$signed_unified_today_p0_probe" = true ]; then
     >"$artifacts_dir/signed-unified-today-p0.log" 2>&1
   test -s "$artifacts_dir/signed-unified-today-p0-summary.txt"
   grep -q '^PASS' "$artifacts_dir/signed-unified-today-p0-summary.txt"
+fi
+
+if [ "$signed_work_self_assignment_probe" = true ]; then
+  phase="signed native Ledger governor self-assignment and revocation matrix"
+  python3 "$repo_root/scripts/validate-atlas-work-self-assignment-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-work-self-assignment-summary.txt" \
+    >"$artifacts_dir/signed-work-self-assignment.log" 2>&1
+  test -s "$artifacts_dir/signed-work-self-assignment-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-work-self-assignment-summary.txt"
 fi
 
 if [ "$signed_universal_original_work_probe" = true ]; then
@@ -855,6 +878,9 @@ if [ "$signed_http_probe" = true ]; then
 fi
 if [ "$signed_person_mail_probe" = true ]; then
   printf '\nSIGNED Person shared mail: true separate signed governor, recipient, outsider, cutoff, fallback, legacy-route and revocation tests.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_work_self_assignment_probe" = true ]; then
+  printf '\\nSIGNED original Work: own-Person and other Person responsibility, exact idempotent replay, no forced plan/new Work, cross-Ledger denials and root/seat/session revocation passed on local clone.\\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_unified_today_p0_probe" = true ]; then
   printf '\nSIGNED unified Today P0: private Event title/detail/count isolation, exact governor grant/withhold, unrelated Work history denial, and signed worker Company date denial passed.\n' >> "$artifacts_dir/summary.md"

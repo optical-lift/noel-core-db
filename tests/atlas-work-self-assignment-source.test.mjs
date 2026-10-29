@@ -37,3 +37,13 @@ test("disposable fixture and genuine signed test are present and bound locally",
  assert.match(signed,/status!=404/);
  assert.match(signed,/idempotent/);
 });
+
+test("clone runner admits signed self-assignment only for the exact governed migration",()=>{
+ const runner=readFileSync(new URL("../scripts/validate-production-schema-clone.sh",import.meta.url),"utf8");
+ assert.match(runner,/signed_work_self_assignment_probe=false/);
+ assert.match(runner,/atlas_work_self_assignment_native_v1\[/);
+ assert.match(runner,/signed_work_self_assignment_probe=true/);
+ assert.match(runner,/validate-atlas-work-self-assignment-signed-http\.py/);
+ assert.match(runner,/signed-work-self-assignment-summary\.txt/);
+ assert.match(runner,/\[ "\$signed_work_self_assignment_probe" = true \]/);
+});

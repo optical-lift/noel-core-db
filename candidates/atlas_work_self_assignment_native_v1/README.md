@@ -51,3 +51,7 @@ Only after those gates pass: owner source review, merge exact candidate, governe
   `fixture.sql`, run `postconditions.sql`, and execute this signed probe
   before accepting self-assignment for release. The source must be wired into
   that governed runner; merely adding this test file is not signed validation.
+
+## Protected clone carrier
+
+The existing `scripts/validate-production-schema-clone.sh` now has one exact migration-name gate for `atlas_work_self_assignment_native_v1`, requires the fixture and postconditions, starts local Auth/REST, executes the candidate-specific genuine signed HTTP probe, and records its proof artifact. It remains unreachable for unrelated migrations and does not contact production except the governing workflow's separate **read-only** snapshot phase.
