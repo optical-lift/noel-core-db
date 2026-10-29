@@ -33,3 +33,21 @@ These two replacement definitions were taken from the current read-only producti
 7. Confirm no extra data through Event, Subject, older farm readers or counts, and unaffected Household and Event regressions.
 
 Only after those gates pass: owner source review, merge exact candidate, governed migration generation, protected clone of **generated** bytes, explicit production release, signed browser acceptance. This change cannot be used as an excuse to deploy outstanding unrelated drafts.
+
+
+## Candidate signed-test materials
+
+- `fixture.sql` reuses the repository's established fictional C1 Person/Ledger
+  + original Work data and adds two fictional decomposed original Work parts.
+- `scripts/validate-atlas-work-self-assignment-signed-http.py` performs genuine,
+  distinct local GoTrue sign-ins and HTTP calls through the existing public RPC,
+  with one-row cursor paging, proper same-Ledger self/other choice inclusion,
+  actor/target denials, exact same-key replay, no duplicate Work or false plan,
+  and root/seat/session revocation. A 404 cannot count as denial.
+- The runner requires `--db-url` for a `127.0.0.1` disposable clone; its
+  outputs are explicit and never deployed or run against Production.
+- **Not executed yet:** static custody CI is not a local Supabase GoTrue proof.
+  The selected production clone carrier must apply `candidate.sql`, load
+  `fixture.sql`, run `postconditions.sql`, and execute this signed probe
+  before accepting self-assignment for release. The source must be wired into
+  that governed runner; merely adding this test file is not signed validation.
