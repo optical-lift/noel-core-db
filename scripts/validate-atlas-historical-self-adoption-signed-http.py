@@ -17,7 +17,7 @@ def a(n): return f"ec400000-0000-4000-8000-{n:012x}"
 def proof(db,api,key,tokens,h):
     check,sql,literal,allow,deny,rpc=h.check,h.sql,h.literal,h.allow,h.deny,h.rpc
     owner=tokens["owner"];worker=tokens["worker"]
-    outsider=tokens["outsider"];no_seat=tokens["no_seat"]
+    outsider=tokens["outsider"];no_seat=tokens["no-seat"]
     sig=("public.governor_link_historical_self_adoption_self_api_v1"
          "(uuid,uuid,uuid,uuid,uuid,uuid)")
     check(sql(db,"select to_regprocedure("+literal(sig)+") is not null")=="t",
