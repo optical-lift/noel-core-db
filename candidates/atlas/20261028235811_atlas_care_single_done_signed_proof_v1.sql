@@ -16,6 +16,133 @@ $only_disposable$;
 
 -- EXISTING CANONICAL ORIGINAL WORK is provided by production-schema clone.
 -- Never replay older original Work DDL into a production-shaped test.
+-- CLONE ACL PARITY ONLY. The protected Supabase schema-only dump loses
+-- some explicit GRANT/REVOKE custody from the already-released original Work
+-- schema, causing the disposable clone to grant anonymous EXECUTE by default.
+-- Restore *exactly* the 61 canonical original Work ACL statements extracted
+-- unchanged from supabase/migrations/20261026215011_atlas_universal_original_work_integrated_v1.sql.
+-- This is test-only, requires the fictional-canary guard above, and DOES NOT
+-- re-create schema, change production privileges, or relax privacy assertions.
+REVOKE ALL ON FUNCTION atlas.require_governed_farm_full_disclosure_self_v1(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION atlas.block_subject_disclosure_mutation_v1()
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON atlas.subject_disclosure_decision_events_v1 FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.has_current_subject_disclosure_v1(
+ uuid,uuid,text,text,uuid,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.governor_set_subject_disclosure_self_api_v1(
+ uuid,uuid,uuid,text,text,uuid,text,text,uuid,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.governor_set_subject_disclosure_self_api_v1(
+ uuid,uuid,uuid,text,text,uuid,text,text,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.governor_set_subject_disclosure_self_api_v1(
+ uuid,uuid,uuid,text,text,uuid,text,text,uuid,text) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.connected_person_original_work_subject_self_api_v1(
+ uuid,uuid,uuid,text,text,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.connected_person_original_work_subject_self_api_v1(
+ uuid,uuid,uuid,text,text,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.connected_person_original_work_subject_self_api_v1(
+ uuid,uuid,uuid,text,text,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.connected_person_work_subject_links_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.connected_person_work_subject_links_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.connected_person_work_subject_links_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.owner_effective_subject_disclosure_review_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.owner_effective_subject_disclosure_review_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.owner_effective_subject_disclosure_review_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.owner_original_subject_choices_for_work_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) FROM PUBLIC,authenticated,anon;
+REVOKE ALL ON FUNCTION public.owner_original_subject_choices_for_work_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.owner_original_subject_choices_for_work_self_api_v1(
+ uuid,uuid,uuid,integer,uuid) TO authenticated;
+REVOKE ALL ON atlas.work_decomposition_groups,atlas.work_decomposition_members
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.split_original_canonical_work_owner_self_api_v1(
+ uuid,uuid,uuid,jsonb,uuid,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.split_original_canonical_work_owner_self_api_v1(
+ uuid,uuid,uuid,jsonb,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.split_original_canonical_work_owner_self_api_v1(
+ uuid,uuid,uuid,jsonb,uuid,text) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.guard_canonical_work_custody_immutability_v1()
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON atlas.household_need_occurrences_v1
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.household_work_actor_v1(uuid)
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.require_household_governor_self_v1(uuid)
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON atlas.household_rhythm_explicit_decisions_v1
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.guard_household_rhythm_decision_immutable_v1()
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.household_laundry_explicit_rhythm_decide_self_api_v1(
+ uuid,uuid,text,integer,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.household_laundry_explicit_rhythm_decide_self_api_v1(
+ uuid,uuid,text,integer,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.household_laundry_explicit_rhythm_decide_self_api_v1(
+ uuid,uuid,text,integer,text) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.record_household_laundry_observation_self_api_v1(
+ uuid,uuid,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.record_household_laundry_observation_self_api_v1(
+ uuid,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.record_household_laundry_observation_self_api_v1(
+ uuid,uuid,text) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.establish_household_laundry_original_work_self_api_v1(
+ uuid,uuid,uuid,boolean,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.establish_household_laundry_original_work_self_api_v1(
+ uuid,uuid,uuid,boolean,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.establish_household_laundry_original_work_self_api_v1(
+ uuid,uuid,uuid,boolean,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.record_household_laundry_wash_started_self_api_v1(
+ uuid,uuid,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.record_household_laundry_wash_started_self_api_v1(
+ uuid,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.record_household_laundry_wash_started_self_api_v1(
+ uuid,uuid,text) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.household_laundry_current_self_api_v1()
+ FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.household_laundry_current_self_api_v1()
+ FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.household_laundry_current_self_api_v1()
+ TO authenticated;
+REVOKE ALL ON FUNCTION atlas.household_original_work_focus_self_api_v1(
+ uuid,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.household_original_work_focus_self_api_v1(
+ uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.household_original_work_focus_self_api_v1(
+ uuid,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.person_original_work_identity_disclosed_self_v1(uuid,uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION atlas.owner_original_split_work_part_self_api_v1(
+ uuid,uuid,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.owner_original_split_work_part_self_api_v1(
+ uuid,uuid,uuid) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.owner_original_split_work_part_self_api_v1(
+ uuid,uuid,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.owner_direct_assign_existing_original_work_self_api_v1(
+ uuid,uuid,uuid,uuid,date,uuid,text) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.owner_direct_assign_existing_original_work_self_api_v1(
+ uuid,uuid,uuid,uuid,date,uuid,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.owner_direct_assign_existing_original_work_self_api_v1(
+ uuid,uuid,uuid,uuid,date,uuid,text) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(
+ uuid,uuid,uuid,uuid,text,timestamptz) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.propose_native_ledger_exact_work_scope_owner_self_api_v1(
+ uuid,uuid,uuid,uuid,text,timestamptz) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.propose_native_ledger_exact_work_scope_owner_self_api_v1(
+ uuid,uuid,uuid,uuid,text,timestamptz) TO authenticated;
+REVOKE ALL ON FUNCTION atlas.native_ledger_standing_scopes_self_api_v1()
+ FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION atlas.native_ledger_standing_scopes_self_api_v1()
+ TO authenticated;
+REVOKE ALL ON FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)
+ FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)
+ TO authenticated;
+
 -- EXACT ONE LIFECYCLE SHADOW
 -- Gate 0 preservation and Gate 1 private SHADOW ONLY.
 SET LOCAL statement_timeout='75s';
