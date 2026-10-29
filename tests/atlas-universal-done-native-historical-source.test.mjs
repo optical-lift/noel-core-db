@@ -36,6 +36,8 @@ test("historical Result denial is asserted with record counts, not a reopened Wo
 
 const historical=read("16_historical_self_adoption_review_candidate.sql");
 const historicalReadback=read("17_historical_self_adoption_review_readback_candidate.sql");
+const historicalTransport=read("19_historical_self_adoption_public_transport_candidate.sql");
+const historicalPostconditions=read("18_historical_self_adoption_review_postconditions.sql");
 test("historical decisions use native Ledger governor or exact signed worker, never legacy authority",()=>{
  for(const name of [
  "governor_link_historical_self_adoption_self_api_v1",
@@ -72,4 +74,23 @@ test("governor historical readback is bounded and retains source privacy",()=>{
  assert.match(historicalReadback,/hasMore/);
  assert.match(historicalReadback,/REVOKE ALL ON FUNCTION/);
  assert.doesNotMatch(historicalReadback,/organization_memberships|employee_seats/);
+});
+
+test("public history transport is exact signed-only while raw table is absent",()=>{
+ for(const rpc of [
+  "governor_link_historical_self_adoption_self_api_v1",
+  "report_historical_self_adoption_pending_self_api_v1",
+  "governor_review_historical_self_adoption_self_api_v1",
+  "governor_historical_self_adoption_history_self_api_v1"
+ ]) {
+  assert.match(historicalTransport,new RegExp("public\\."+rpc));
+  assert.match(historicalTransport,new RegExp("atlas\\."+rpc));
+  assert.ok(historicalPostconditions.includes("'public."+rpc));
+ }
+ assert.match(historicalTransport,/REVOKE ALL ON FUNCTION/);
+ assert.match(historicalTransport,/TO authenticated/);
+ assert.doesNotMatch(historicalTransport,/GRANT\s+(SELECT|INSERT|UPDATE|DELETE)\s+ON\s+atlas\./);
+ assert.match(historicalPostconditions,/has_table_privilege\('authenticated'/);
+ assert.match(historicalPostconditions,/has_function_privilege\('anon'/);
+ assert.match(historicalPostconditions,/Historical review immutability not enforced/);
 });
