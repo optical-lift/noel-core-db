@@ -26,6 +26,7 @@ fi
   cat "$base/06_single_transition_authority_private.sql"
   cat "$base/10_connected_person_result_writer_single_done_cutover_candidate.sql"
   cat "$base/12_self_adopted_original_writer_single_done_cutover_candidate.sql"
+  cat "$base/14_event_shared_original_writer_single_done_cutover_candidate.sql"
   cat "$base/05_rollback_postconditions.sql"
   cat "$base/07_single_transition_rollback_postconditions.sql"
   cat "$base/08_owner_witness_source_negatives_rollback.sql"
@@ -35,6 +36,7 @@ fi
   cat "$base/09_self_adoption_person_rollback.sql"
   printf '\nROLLBACK TO SAVEPOINT gate2_self_original_fixture;\n'
   cat "$base/13_self_adopted_original_writer_rollback.sql"
+  cat "$base/15_event_shared_source_negative_rollback.sql"
   printf '\nROLLBACK;\n'
 } | psql "$ATLAS_LIFECYCLE_ROLLBACK_DATABASE_URL" \
       -X -v ON_ERROR_STOP=1 -v VERBOSITY=terse --quiet
