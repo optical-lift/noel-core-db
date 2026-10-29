@@ -1,5 +1,43 @@
 # Atlas Proper — one event-sourced Work lifecycle, Gates 0–3C (draft)
 
+## October 29 source addition — native historical review, HELD
+
+Owner decisions #2392 (1C / 2D / 3D) now have a separate
+**append-only evidence-only review slice**, files `16`–`19`:
+- `16_historical_self_adoption_review_candidate.sql`: immutable historical
+  Person-link review events; exact current root-governor confirmation for
+  historical `self_adoption` allocation + native Ledger relevance, current
+  signed Person+Seat and disclosed-Work guard for pending historical report;
+  governor choice `historically_performed / obsolete_cancelled /
+  still_unresolved`, requiring a real pending report or old accepted Result
+  for a historical-performed finding. Actions are idempotent or deny conflicts.
+- `17_historical_self_adoption_review_readback_candidate.sql`: bounded,
+  source-authorized governor-only history read, with explicit `hasMore`.
+- `18_historical_self_adoption_review_postconditions.sql`: disposable-only
+  structural RLS, ACL, immutable trigger, no membership grant and REST facade
+  check.
+- `19_historical_self_adoption_public_transport_candidate.sql`: narrow
+  authenticated-only PostgREST forwarding wrappers; original functions
+  enforce current native Person/Ledger/field security, not the web client.
+
+**Important scope:** This review appends *evidence and dispositions*, NOT
+canonical Result acceptance or authoritative Work closure. It cannot make
+the old Beds 3+4 Work disappear from active Work or create new Work. The
+governor's final physical closure of still-open historical Work must be
+expressed in a reviewed native lifecycle/retirement transition; it is
+**not yet implemented**. Current Need must pass existing separate native
+original Work admission and historical-source-link/idempotency review.
+Historical Person confirmation does not grant a current seat, read access,
+responsibility, or schedule. Do NOT deploy or configure real Elm data from
+this source-only candidate until signed owner/worker/outsider/seat/session
+denials, old-Result preservation and physical Work state tests pass.
+
+**Live source status:** the old self-adopted writer is still installed in
+production and uses historical organization membership, so this new source
+and the file 12 fail-closed cutover MUST be released together under the
+governed versioned migration only after genuine signed proof. A source
+test or SQL grammar green result alone cannot establish live safety.
+
 ## Native-only authority correction status (2026-10-29)
 
 **Source modified, not deployed:** `06_single_transition_authority_private.sql` now
