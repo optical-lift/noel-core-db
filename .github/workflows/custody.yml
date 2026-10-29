@@ -82,6 +82,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile candidates/atlas_universal_continuing_original_work_v1/validate_signed_care_single_done_clone_v1.py
+          python3 -m py_compile candidates/atlas_universal_continuing_original_work_v1/run_signed_care_on_fresh_protected_clone_v1.py
           python3 - <<'PY'
           from pathlib import Path
           root=Path("candidates/atlas_universal_continuing_original_work_v1")
