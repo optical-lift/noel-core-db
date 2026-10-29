@@ -143,11 +143,18 @@ DO $test$ BEGIN
  IF NOT EXISTS(SELECT 1 FROM pg_indexes WHERE schemaname='atlas'
       AND indexname='subject_disclosure_current_lookup_v1') THEN
   RAISE EXCEPTION 'Missing bounded exact-subject lookup index'; END IF;
- IF has_table_privilege('authenticated','atlas.subject_disclosure_decision_events_v1','SELECT')
-  OR has_function_privilege('anon',
+ -- Report only these two permission booleans: no private data or row values.
+ RAISE NOTICE 'Clone ACL: authenticated raw disclosure SELECT=%, anonymous public original Subject RPC EXECUTE=%',
+   has_table_privilege('authenticated','atlas.subject_disclosure_decision_events_v1','SELECT'),
+   has_function_privilege('anon',
+    'public.connected_person_original_work_subject_self_api_v1(uuid,uuid,uuid,text,text,uuid)',
+    'EXECUTE');
+ IF has_table_privilege('authenticated','atlas.subject_disclosure_decision_events_v1','SELECT') THEN
+   RAISE EXCEPTION 'Clone raw disclosure decision table SELECT is exposed to authenticated'; END IF;
+ IF has_function_privilege('anon',
    'public.connected_person_original_work_subject_self_api_v1(uuid,uuid,uuid,text,text,uuid)',
    'EXECUTE') THEN
-   RAISE EXCEPTION 'Unrestricted original Subject access'; END IF;
+   RAISE EXCEPTION 'Clone public original Subject reader EXECUTE is exposed to anonymous'; END IF;
 END $test$;
 -- Mandatory signed tests: governor decides identity only, worker sees label
 -- but not condition, condition separately granted/withheld, outsider and anon
