@@ -141,15 +141,21 @@ def main():
     check(replay.get("allocationId")==allocation and replay.get("idempotent") is True,
           "Same action replay must return original allocation")
 
-    for changed,label in (
-        (dict(direct,p_reason="Changed reason cannot reuse a previous source action."),"changed exact action"),
-        (args(SELF_WORK,OTHER_PERSON,"e5200000-0000-4000-8000-000000000984"),"conflicting active recipient"),
+    # A non-decomposed Work ID is an authorization/provenance denial (42501).
+    # The changed-action and conflicting-recipient paths remain separately
+    # constrained to their existing integrity-violation SQLSTATEs.
+    for changed,label,expected_codes in (
+        (dict(direct,p_reason="Changed reason cannot reuse a previous source action."),
+         "changed exact action",("23514","23505")),
+        (args(SELF_WORK,OTHER_PERSON,"e5200000-0000-4000-8000-000000000984"),
+         "conflicting active recipient",("23514","23505")),
         (args("e5200000-0000-4000-8000-000000000901",SELF_PERSON,
-              "e5200000-0000-4000-8000-000000000985"),"non-decomposed original")):
+              "e5200000-0000-4000-8000-000000000985"),
+         "non-decomposed original",("42501",))):
         status,body=rpc(api,key,root,ASSIGN,changed)
         check(status>=400 and status!=404 and isinstance(body,dict) and
-             body.get("code") in ("23514","23505"),
-              f"{label}: rejected source action required: {status} {str(body)[:170]}")
+             body.get("code") in expected_codes,
+              f"{label}: expected exact source denial {expected_codes}: {status} {str(body)[:170]}")
     other=accepted(api,key,root,ASSIGN,args(OTHER_WORK,OTHER_PERSON,
            "e5200000-0000-4000-8000-000000000986"))
     check(other.get("targetPersonId")==OTHER_PERSON and
