@@ -565,8 +565,8 @@ def main():
       "clock plus physical evidence, genuine signed observation, hold/revoke, "
       "no Work or Today without explicit source-qualified admission.\n"
       "PASS delegated native Work admission via real signed worker and explicit date, "
-      "one scheduled Today row, replay, outsider denial, and no second open serving.\n"
-      historical_summary+
+      "one scheduled Today row, replay, outsider denial, and no second open serving.\n" +
+      historical_summary +
       "NOT PROVEN: production rollout, standing care release, next-bed Today.\n",
       encoding="utf-8")
 
