@@ -5007,7 +5007,7 @@ BEGIN
  IF position('source_qualified_and_timing_eligible' IN v_sql)=0
  OR position('has_current_subject_disclosure_v1' IN v_sql)=0
  OR position('continuing-work:organization:' IN v_sql)=0
- OR position('existing original or legacy Work' IN lower(v_sql))=0
+ OR position('existing original or legacy work' IN lower(v_sql))=0
  OR position('care_current_state' IN v_sql)=0
  OR position('source_verified' IN v_sql)=0
  OR position('work_execution_plans' IN v_sql)=0
