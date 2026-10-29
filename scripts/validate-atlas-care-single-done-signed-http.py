@@ -539,6 +539,23 @@ def main():
     reject_admission(api,key,worker,standing_admission("032",day),
       "Owner hold also revokes further standing Work admission")
     print("PASS complete->resting; new source-qualified Work/Today; owner hold immediately revokes")
+    # The original care source also runs against older held candidates.
+    # Require this *additional* signed matrix when an exact historical
+    # review API exists; otherwise explicitly log the omitted scope.
+    historical_summary=""
+    history_sig=("public.governor_link_historical_self_adoption_self_api_v1"
+                 "(uuid,uuid,uuid,uuid,uuid,uuid)")
+    if sql(args.db_url,"select to_regprocedure("+literal(history_sig)+") is not null")=="t":
+        import sys
+        hist_spec=importlib.util.spec_from_file_location(
+          "signed_historical_source",ROOT/"validate-atlas-historical-self-adoption-signed-http.py")
+        check(hist_spec is not None and hist_spec.loader is not None,
+              "Historical signed proof module unavailable")
+        hist=importlib.util.module_from_spec(hist_spec)
+        hist_spec.loader.exec_module(hist)
+        historical_summary=hist.proof(args.db_url,api,key,tokens,sys.modules[__name__])
+    else:
+        historical_summary="NOT TESTED: historical review source not present in this candidate.\n"
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
       "PASS local GoTrue independent sessions, disclosure, private governor "
@@ -549,6 +566,7 @@ def main():
       "no Work or Today without explicit source-qualified admission.\n"
       "PASS delegated native Work admission via real signed worker and explicit date, "
       "one scheduled Today row, replay, outsider denial, and no second open serving.\n"
+      historical_summary+
       "NOT PROVEN: production rollout, standing care release, next-bed Today.\n",
       encoding="utf-8")
 
