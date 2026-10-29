@@ -1,5 +1,54 @@
 # Atlas Proper — one event-sourced Work lifecycle, Gates 0–3C (draft)
 
+## Native-only authority correction status (2026-10-29)
+
+**Source modified, not deployed:** `06_single_transition_authority_private.sql` now
+rejects `self_adoption` as a new Done authority (even when a historical
+membership is still active). `12_self_adopted_original_writer_single_done_cutover_candidate.sql`
+is now a signed, fail-closed compatibility entrypoint: it does not write any
+Result, Acceptance, lifecycle event, allocation or Work state. Historical
+Results remain in their original tables and their immutable shadow lineage;
+the old writer does not create a fictitious fresh lifecycle receipt on replay.
+
+Rollback tests `09` and `13` are now **negative/preservation** tests:
+they no longer reopen a completed historical Work, they require a denial and
+unchanged original Work/Result/Acceptance/event counts. The rollback runner
+no longer needs its historical-Work SAVEPOINT. A new standalone source
+regression test and CI check enforce the absence of legacy membership admission.
+**Source checks/SQL grammar passing are NOT genuine signed GoTrue proofs.**
+
+**Reuse existing native bridge for historical `atlas.tasks`:**
+`atlas.decide_company_work_legacy_backlog_owner_self_api_v1` already has a
+current native Ledger-governor gate and can record `not_current`,
+`matched_existing_work` or `recovered_new_work` into
+`atlas.company_work_legacy_task_reviews_v1`. That source leaves old task
+history in place, records source identity, avoids duplicate active Work,
+and deliberately creates **no allocation or plan**. It is the preferred
+existing mechanism for those legacy tasks; do not build a rival converter.
+Its old assignee lookup is **historical attribution only**, never an
+independent present-day grant. A historical Task is not itself proof of
+a current physical Need; owner must verify the need before recovery.
+The existing mandatory `p_reason`/owner_reason UI burden needs a separate
+user-friendly bounded provenance solution, not a fake explanatory essay.
+
+**Still outstanding:** for self-adopted original `work_items`, add
+governor-confirmed native Person/Work lineage via current Ledger authority
+using the existing identity reconciliation and source-link substrate; do
+not reassign or reopen the old item. A signed worker's historical report
+must remain **pending evidence** until a native governor reviews it. A
+governor must distinguish `historically_performed` from
+`obsolete_cancelled` and `still_unresolved`, without manufacturing
+fresh physical Actuals. The action source and genuine signed tests do not
+yet exist; neither the old writer nor the universal Done transition may
+stand in for them. Current physical need proceeds through the existing
+native original Work admission with explicit source lineage and idempotency.
+
+**Release blockers:** source-state and current-main reconciliation;
+disposable full-schema compile/rollback; genuine signed owner, worker,
+outsider, revoked connection, seat and session tests; historical
+provenance/duplicate negative tests; native UI acceptance. Do NOT merge
+this draft or generate a production migration until those gates pass.
+
 ## Owner's 2026-10-29 legacy-evidence ruling — supersedes historical self-adoption execution design
 
 **Governing choices 1C / 2D / 3D**, documented and acceptance-scoped in [Noel issue #2392](https://github.com/optical-lift/noel-core-db/issues/2392). This draft is **NOT releasable in its current Gate 3B form**. All earlier positive self-adopted-Work tests and guidance below are records of *previous draft behavior*, not current release acceptance.
