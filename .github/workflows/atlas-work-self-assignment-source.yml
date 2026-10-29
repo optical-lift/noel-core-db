@@ -1,0 +1,27 @@
+name: Atlas original Work self-assignment candidate source proof
+on:
+  pull_request:
+    paths:
+      - "candidates/atlas_work_self_assignment_native_v1/**"
+      - "scripts/validate-atlas-work-self-assignment-signed-http.py"
+      - "tests/atlas-work-self-assignment-source.test.mjs"
+      - ".github/workflows/atlas-work-self-assignment-source.yml"
+permissions:
+  contents: read
+jobs:
+  source-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact PR source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Syntax and source-contract checks without database credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/atlas-work-self-assignment-source.test.mjs
+          python3 -m py_compile scripts/validate-atlas-work-self-assignment-signed-http.py
+          # No unsigned source simulation counts as a signed acceptance.
+          echo "PASS source shape only; actual local GoTrue/PostgREST clone test remains mandatory"
