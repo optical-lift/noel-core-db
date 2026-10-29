@@ -15,6 +15,38 @@ BEGIN
 END;
 $native_guard_baseline$;
 
+-- Extend only source_verified evidence options. The original owner and
+-- participant attestation branch, required source identity and timestamp
+-- remain exact. Without this check, a verified native governance event could
+-- never be the lawful source of an original Work Ledger relationship.
+DO $relevance_baseline$
+BEGIN
+ IF (SELECT pg_get_constraintdef(c.oid)
+   FROM pg_constraint c
+   WHERE c.conrelid='atlas.company_work_native_ledger_relevance'::regclass
+   AND c.conname='company_work_relevance_evidence_separation_v1')
+   NOT LIKE '%source_schema = ''ledger''%'
+ THEN RAISE EXCEPTION 'Native Ledger relevance evidence contract changed'; END IF;
+END;
+$relevance_baseline$;
+ALTER TABLE atlas.company_work_native_ledger_relevance
+ DROP CONSTRAINT company_work_relevance_evidence_separation_v1;
+ALTER TABLE atlas.company_work_native_ledger_relevance
+ ADD CONSTRAINT company_work_relevance_evidence_separation_v1 CHECK (
+  ((evidence_kind IN ('owner_attested','participant_attested'))
+    AND nullif(btrim(attestation_source_ref),'') IS NOT NULL
+    AND nullif(btrim(attestation_reason),'') IS NOT NULL
+    AND source_schema IS NULL AND source_table IS NULL
+    AND source_id IS NULL AND verified_at IS NULL)
+  OR (evidence_kind='source_verified'
+    AND attestation_source_ref IS NULL AND attestation_reason IS NULL
+    AND source_id IS NOT NULL AND verified_at IS NOT NULL
+    AND ((source_schema='ledger'
+      AND source_table IN ('booking_requests','booking_offerings'))
+      OR (source_schema='atlas'
+        AND source_table='continuing_work_source_governance_events_v1')))
+ );
+
 -- Exact source verified Ledger relevance for owner-approved standing Work.
 CREATE OR REPLACE FUNCTION atlas.company_work_native_ledger_exact_source_v1(p_work_item_id uuid, p_ledger_id uuid)
  RETURNS TABLE(source_schema text, source_table text, source_id uuid)
