@@ -9,7 +9,7 @@ permissions:
   contents: read
   packages: read
 concurrency:
-  group: atlas-program-author-note-premerge-proof
+  group: atlas-work-self-assignment-premerge-proof
   cancel-in-progress: false
 jobs:
   source-contract:
@@ -146,7 +146,7 @@ jobs:
           fixture=re.sub(r'/\*.*?\*/',' ',fixture,flags=re.S)
           fixture=re.sub(r'--[^\n]*',' ',fixture)
           statements=[s.strip() for s in fixture.split(';') if s.strip()]
-          assert statements and all(re.match(r'(?i)^(INSERT|UPDATE)\\s+',statement) for statement in statements)
+          assert statements and all(re.match(r'(?i)^(INSERT|UPDATE)\s+',statement) for statement in statements)
           harness=Path('candidate/scripts/validate-production-schema-clone.sh').read_text()
           for s in ('signed_work_self_assignment_probe=true',
                     'validate-atlas-work-self-assignment-signed-http.py',
