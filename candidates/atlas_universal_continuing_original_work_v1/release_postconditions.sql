@@ -400,3 +400,40 @@ BEGIN
  RAISE NOTICE 'Raw Rhythm worker read guard source present; actual signed RLS probes still REQUIRED';
 END;
 $privacy$;
+
+
+-- SLICE 19, disposable schema postcondition only. This check cannot prove
+-- genuine signed Subject or Person denial; protected HTTP tests remain required.
+DO $disclosed_standing$
+DECLARE
+ v_internal oid:=to_regprocedure(
+  'atlas.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)');
+ v_public oid:=to_regprocedure(
+  'public.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)');
+ v_source text;
+BEGIN
+ IF v_internal IS NULL OR v_public IS NULL THEN
+   RAISE EXCEPTION 'Missing exact signed native disclosed care list';
+ END IF;
+ IF has_function_privilege('anon',v_public,'EXECUTE')
+    OR NOT has_function_privilege('authenticated',v_public,'EXECUTE')
+    OR has_function_privilege('authenticated',v_internal,'EXECUTE')
+ THEN
+   RAISE EXCEPTION 'Standing care reader exposed through wrong authority';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid=v_internal
+    AND p.prosecdef AND p.provolatile='s'
+    AND 'search_path='=ANY(p.proconfig))
+ THEN RAISE EXCEPTION 'Standing care read must be constrained and stable'; END IF;
+ v_source:=pg_get_functiondef(v_internal);
+ IF v_source NOT LIKE '%current_active_ledger_seat_v1%'
+    OR v_source NOT LIKE '%person_has_native_ledger_connection_v1%'
+    OR v_source NOT LIKE '%has_current_subject_disclosure_v1%'
+    OR v_source NOT LIKE '%continuing_work_source_governance_events_v1%'
+    OR v_source NOT LIKE '%worker_visibility%'
+    OR v_source NOT LIKE '%accepted_by_person_id%'
+    OR v_source NOT LIKE '%LIMIT (p_limit+1)%'
+ THEN RAISE EXCEPTION 'Standing care per-Person source proof missing'; END IF;
+ RAISE NOTICE 'Disclosed standing care structural source accepted; signed denial still required.';
+END;
+$disclosed_standing$;
