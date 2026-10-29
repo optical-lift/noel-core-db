@@ -27,3 +27,14 @@ test("public seam is auth-only and internal function is not exposed",()=>{
  assert.match(source,/GRANT EXECUTE ON FUNCTION public.connected_person_disclosed_standing_rhythms_self_api_v1/);
  assert.match(source,/TO authenticated;/);
 });
+
+test("assembled candidate remains held and includes the exact source plus clone postcondition",()=>{
+ const assembled=readFileSync(new URL("../candidates/atlas_universal_continuing_original_work_v1/release_candidate.sql",import.meta.url),"utf8");
+ const post=readFileSync(new URL("../candidates/atlas_universal_continuing_original_work_v1/release_postconditions.sql",import.meta.url),"utf8");
+ assert.match(assembled,/^BEGIN;/);
+ assert.match(assembled,/COMMIT;\\s*$/);
+ assert.ok(assembled.includes(source),"The new exact reader was not assembled");
+ assert.ok(assembled.includes("NEVER release this standalone package"));
+ assert.match(post,/\$disclosed_standing\$/);
+ assert.match(post,/has_function_privilege\('anon',v_public,'EXECUTE'\)/);
+});
