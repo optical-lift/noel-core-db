@@ -37,6 +37,7 @@ jobs:
             '16_historical_self_adoption_review_candidate.sql',
             '17_historical_self_adoption_review_readback_candidate.sql',
             '18_historical_self_adoption_review_postconditions.sql',
+            '19_historical_self_adoption_public_transport_candidate.sql',
           ):
             parse_sql((root/name).read_text())
             print('PASS SQL grammar:',name)
