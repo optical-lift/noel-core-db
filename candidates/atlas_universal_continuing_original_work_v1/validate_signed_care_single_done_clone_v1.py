@@ -74,7 +74,7 @@ def signed_source(db,token,func_sql,expected_error=None):
       capture_output=True,text=True,check=False)
     if expected_error is not None:
         check(result.returncode!=0 and
-              re.search(r"\\b"+re.escape(expected_error)+r"\\b",result.stderr),
+              re.search(r"\b"+re.escape(expected_error)+r"\b",result.stderr),
               f"Expected source SQLSTATE {expected_error}, got: "
               +result.stderr[-500:])
         return None
