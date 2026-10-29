@@ -1,3 +1,71 @@
+## Continuation gate: historical retirement + new Need (2026-10-29; HELD)
+
+**No release approval.** Protected signed historical clone
+[#40974684744](https://github.com/optical-lift/noel-core-db/actions/runs/40974684744)
+failed in the disposable-clone runner while pulling Supabase container images from
+`public.ecr.aws/supabase/postgres:17.6.1.165` (`Data limit exceeded`).
+Earlier source/custody steps passed. This is **not a positive or negative
+historical authorization result**. The signed historical matrix remains unproved;
+the earlier green [#40973367714](https://github.com/optical-lift/noel-core-db/actions/runs/40973367714)
+did not exercise the newly merged signed historic test harness. Keep this draft
+and the validation carrier #2393 unreleased; do not modify protected CI, image
+sources or hosting merely to clear this failure.
+
+**Live-schema read-only findings (not changes):**
+- `atlas.work_items.work_state` permits `open/completed/cancelled/superseded`;
+  `cancelled_at` is valid only for `cancelled`. Existing accepted-result
+  completion guard requires an accepted source Result before ordinary
+  `completed` where its result contract is active. Historical governor review
+  is **not** an accepted source Result.
+- The live `guard_company_work_cancel_dependencies_v1` trigger rejects
+  cancellation when requirements, relations, pending offers, worker-week
+  projections, execution Results, or active time contracts remain. Do not
+  directly UPDATE a Work state to evade these safeguards.
+- Reuse the existing owner preflight
+  `company_work_retirement_preflight_self_api_v1` and bounded
+  `retire_company_work_with_reconciliation_self_api_v1` source behavior.
+  The latter currently covers specifically reconciled legacy task/slice
+  dependencies, calls the institutional `not_relevant` adjudicator and
+  causes a mutable `cancelled` state. It has **not** yet been wired as a
+  unique `work_transition_applied` in this held lifecycle. It must not be
+  invoked in production as though it were the unified lifecycle.
+- The historical reviewer (files 16–19) handles prior self-adopted original
+  `atlas.work_items`, whereas existing
+  `decide_company_work_legacy_backlog_owner_self_api_v1` is restricted to
+  archived `atlas.tasks`. This converter cannot be called with an old
+  original Work ID or used to bypass the new-Need admission gate.
+- Current `owner_create_native_ledger_today_work_self_api_v1` is a genuine
+  original-Work writer under an accepted standing assignment scope, with
+  source-action idempotency; it does **not** yet establish exact old
+  self-adopted-Work historical lineage or prove single current Need. Never
+  turn a historical link itself into an assignment, plan or fresh Work.
+
+**Next source-only implementation order within #2368 / issue #2392:**
+1. Repair or re-execute the *same trusted signed historical matrix* within
+   authorized runner/registry custody; inspect diagnostics. Do not count a
+   404, infrastructure stop or absence of the installed source as denial.
+2. Integrate a governor-reviewed `obsolete_cancelled` source decision with
+   the **single** canonical lifecycle retirement transition, using existing
+   dependency preflight/reconciliation and strict replay/source/actor identity.
+   An unresolved decision must leave original Work open. Historical
+   `historically_performed` requires a distinct truthful terminal
+   representation review; neither a fabricated modern Done nor an
+   unexplained `cancelled` relabel is acceptable.
+3. Admit any genuine still-current Need through present native Ledger/Person/
+   source governance into **one** newly sourced original, with immutable
+   old-original lineage and concurrency/idempotency proof. No reassignment
+   or resurrection of old historical allocations.
+4. Prove the combined exact historical provenance, no accepted Result
+   fabrication, no duplicate Work/Done, dependency preservation,
+   signed owner/worker/outsider/revoked session and seat, hidden-field read
+   denials, and full historical/modern lifecycle replay on a fresh
+   production-shaped disposable clone.
+5. Only then produce a separately governed release migration and UI
+   acceptance. Real Anna Beds 3+4 Work stays unchanged.
+
+This is a **release blocker and integration record**, not a second Work engine,
+a permission expansion, a generated migration, or an implementation claim.
+
 # Atlas Proper — one event-sourced Work lifecycle, Gates 0–3C (draft)
 
 ## October 29 source addition — native historical review, HELD
