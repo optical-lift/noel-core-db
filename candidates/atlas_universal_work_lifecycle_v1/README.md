@@ -1,3 +1,143 @@
+## Convergence Gate 1–2 — installed-source map and shared lifecycle contract (2026-10-29)
+
+**Status: SOURCE AUDIT + INTERFACE DECISION, NOT PRODUCT CODE OR A RELEASE.**
+This is the compact dependency reconciliation requested across the latest
+Dropbox /Lex/Atlas handoffs (October 26–28), checked against live Noel
+catalog/function definitions and exact held PR heads on October 29.
+Keep all existing branches; no new data model, migration or release approval.
+The 2026-10-28 Foundry operating-rhythm handoff is the controlling **Anna
+operating acceptance**; the October 26 canonical Work stabilization handoff
+controls the **first original-Work source seam**. They are not separate task
+engines and neither supersedes the other's security rules.
+
+### A. Exact source → governed operation → consuming surface
+
+| Capability | Installed authority / source | Held draft and dependency | Convergence / verification |
+| --- | --- | --- | --- |
+| Original Work | `atlas.work_items`, original Organization/Household custody, typed `work_item_context_links`; source and Subject guards from merged #2265 | #2368 lifecycle shadow; #2362 care originals; Atlas #462 Today already merged | One original ID from Ledger/Subject/Program/Event/Today. No new copy table or farm-specific task engine. Verify historical + current states and alternate readers. |
+| Native Person + disclosure | Canonical Person, native Ledger relevance and per-original disclosure; bounded legacy farm readers (merged #2265) | #2385 source-authorized rhythm discovery; Atlas #477 reader; historic #2368 files 16–19 | Re-evaluate at every read/action, per actual Subject/field; legacy membership never makes authority. Signed worker/outsider/revoked read matrix; no counts/titles/side channels. |
+| Need + governed policy | `atlas.rhythm_rules/bindings/state/satisfactions` and source Subjects; old farm conditions are evidence, not necessarily current | #2362 observed-need + standing-source candidates; governed Rulebook version/binding tables **not installed** | Two eligibility modes share one Need evaluator: **owner-approved standing stewardship** needs no alleged fresh defect; **corrective intervention** needs source-qualified observed condition. Different evidence policies, same original Work, not two generators. |
+| Current Work establishment | Existing native Ledger Work, offer/uptake, scoped responsibility and direct-original writers, with their own narrower provenance limits | #2362 observed writer (05), standing-source admission (17); #2368 historic current-Need lineage **missing** | Atomic original Work + true Ledger/Subject/source links, one active serving per Need/Subject/window, stable source/idempotency and explicit current governor/source approval. No blanket historical reactivation. |
+| Assignment | `atlas.work_allocations`, current native establishment basis, transfer/offer scope; original direct assignment RPC currently includes a service-date parameter | Atlas #471 governor transfer UI; other held source work | Responsibility independent of scheduling; current Person and exact Ledger checks, no invented employee seat or duplicate active carrier. Direct existing-original obligation and offered acceptance remain distinct lawful entry methods. |
+| Work-on plan / Today | `atlas.work_execution_plans` + immutable plan events; live `connected_person_place_work_self_api_v1` now includes root-Ledger check *after* requiring actor=current assignee; Atlas #462 merged Today lens | Atlas #477 care Today consumer | Governor scheduling must be independently usable for someone else's Work; worker responsibility is not scheduling grant. Distinguish planned day, due date, Clock admission, carry-forward, overdue and unscheduled. Source inspected; genuine signed actor matrix/browser proof **not yet recorded here**. |
+| Original Result / Acceptance | `atlas.work_execution_results` + `atlas.work_result_acceptances`; multiple installed source-specific writers | #2362 care signed physical Actual (10); #2368 single transition (06); #2368 old-Result preservation | Partial/blocked/attended/acceptable/winter-ready are typed reports with source qualification, not generic Done. Only accepted and qualifying result can drive a modern `completed` transition. One Result/Acceptance identity; source receipts, no fabricated history. |
+| Complete / Done | Live `work_items.work_state`, existing disparate completion writers and triggers; **no** live `work_lifecycle_events_v1` | #2368 private `apply_work_lifecycle_transition_internal_v1` supports **complete only**, creates one event + mutable projection | ONE authoritative completion transition after adapter cutover, per original + stable action/evidence; no second Done from shadow observer. Include Event shared state confirmation without claiming physical performer, household and Program regression before universal claim. |
+| Cancel / retire | Live `company_work_retirement_preflight_self_api_v1`, `retire_company_work_with_reconciliation_self_api_v1`, dependency guard and institutional `not_relevant` adjudication. These are old Company/legacy-source contracts | #2368 does **not** yet provide canonical cancellation transition | Historic `obsolete_cancelled` review is evidence, not itself cancellation. Current native governor+exact Ledger authorization, dependency snapshot/token reconciliation, old Results retained, then exactly one native lifecycle retirement event and projection. The older legacy Task/slice reconciliation writer cannot be reused as-is for self-adopted originals. |
+| Supersede | Live `work_state='superseded'` permitted, `superseded_by_work_item_id` column | No admitted general single transition in #2368 | Do not use to imply completion, automatically create a replacement or erase unresolved evidence. Require explicit original successor linkage and own admitted lifecycle gate before activation. |
+| Historical review | Existing accepted Results and legacy tasks/memberships remain old evidence. Live historic review table/function **absent** | #2368 16–19 append-only `person_confirmed`, `worker_pending`, `governor_reviewed`; `historically_performed/obsolete_cancelled/still_unresolved` | Governor disposition has no effect on original state today. Source decisions must not grant responsibility/seat/Done. Truthful terminal representation of historical performance still an **open semantic/code gate**, not permission to create a retroactive accepted Result. |
+| Shared client displays | Atlas #462 unified Today source and existing Work Focus, Index/Ledger/Event consumers | Atlas #477 care lens, #471 owner transfer; Atlas usability #487 | The same source ID/receipt and lawful actions in every surface. Event identity filter now exists in live `ledger_occurrence_shared_index_self_api_v1`; cross-surface signed negatives still required. Notebook draft loss #479 independently stop-ships affected UI. |
+
+**Live catalog checkpoint, not an approved mutation target:** 232 original
+`work_items` (139 open, 73 completed, 20 cancelled, 0 superseded);
+38 execution Results, 33 Acceptances, 214 allocations, 35 plans,
+47 plan events. Of the 73 completed original Work rows, **40 have no
+linked accepted Result**. These are historical state claims that cannot
+be upgraded to a fabricated signed/accepted performance through backfill.
+Do not equate the count with undone tasks. The catalog-based writer
+census in file 00 finds numerous source-specific functions; it is
+non-exhaustive for dynamic SQL and trigger-mediated mutations.
+
+### B. Shared lifecycle interface: accepted invariant versus open gate
+
+1. **Identity/custody (accepted):** Source owns one stable original
+   `work_item_id`; events are append-only and sequence-ordered per Work.
+   The current signed actor, native Ledger/Household authority, source
+   evidence, idempotency/action identity and original custody are
+   independently verified. Current disclosure is not granted by a legacy
+   assignment, historical Person link, associated Subject ID or mere
+   possession of a Ledger seat.
+2. **State vocabulary (accepted):** `open`, `completed`, `cancelled`,
+   `superseded` are distinct original Work states. A modern
+   `completed` means accepted **qualifying** Result or an explicitly
+   defined non-performance shared-state contract—not a historical
+   opinion, elapsed interval, title change or checklist coincidence.
+   `cancelled` means no longer a current obligation, **not** physically
+   performed. `superseded` requires exact successor provenance.
+   `still_unresolved` is a review verdict; it is NOT a new Work state.
+3. **Single transition custody (accepted design; held implementation):**
+   Every admitted *new* terminal action must append exactly one
+   authoritative `work_transition_applied` event and project the same
+   original mutable state atomically, after source authorization and
+   source-specific invariants pass. Historical snapshot/observer events
+   are observations, never substituted for an authoritative transition.
+   The #2368 function currently implements only `complete`; adding
+   cancel/supersede must extend **this lifecycle**, not mint parallel
+   completion/cancellation streams.
+4. **Result truth (accepted):** Distinguish reported, accepted and
+   genuinely terminal. Original Results/Acceptances are immutable
+   references; worker progress/partial/blocked and qualified physical
+   Actual may drive different Need outcomes. Historic evidence-only
+   review never inserts a signed contemporary Result or fabricates a
+   backdated actor/acceptance.
+5. **Retirement preconditions (accepted; integration open):** Native
+   current governor must review exact historical link/outcome, original
+   current state, dependency snapshot, required reconciliations, preserved
+   accepted evidence and stable action identity. Do not bypass existing
+   `guard_company_work_cancel_dependencies_v1`. Current old retirement
+   function uses Organization-owner/legacy-task assumptions and
+   `organization_management_adjudicate_company_work_api_v1` uses
+   membership-era adjudication; neither alone proves a present
+   *native Ledger governor* authorization or the unique new transition.
+   New cancellation is **not ready**.
+6. **New Need → new original (accepted design; source open):** A
+   separately established *present* Need/eligibility can mint one
+   distinct new original Work with immutable linkage to old history,
+   not revive or repurpose the original allocation. Authority, serving
+   boundary and concurrency uniqueness derive from current Subject,
+   Ledger, approved policy, Need, service window and source action—not
+   similarity of titles, refreshes or old unreviewed farm tasks.
+   Reconcile a still-current original before admission.
+7. **Two policy eligibility modes (accepted from latest handoff;
+   code gap):** Owner-approved **standing rotation** can warrant a
+   bounded Subject visit without observed physical deterioration;
+   qualifying Actual then supplies condition. **Observed corrective**
+   intervention must prove fresh source-specific condition. #2362's
+   current `standing_source_observed` candidate is a *condition-qualified
+   delegated admission*, NOT yet the condition-free owner-approved
+   rotation in the October 28 Foundry handoff. Its own gate document
+   explicitly disclaims an automatic next-workday generator.
+8. **Temporal truth (accepted):** Need eligibility, work-on service day,
+   due date, worker scheduling proposal, committed source plan,
+   Clock/Today exposure and actual completion time are distinct records.
+   No `old overdue → today` silent conversion; no automatic next day
+   without established governor release/time policy.
+9. **Read/replay and release gate (open):** Under genuine signed worker,
+   governor, unrelated connected Person, revoked account/seat and
+   anonymous sessions, prove permitted fields and exact denials across
+   original and legacy readers, original Work/Result/Event/Household
+   parity, idempotent replay, concurrent admission/terminal actions,
+   complete→next Need, pending historic review, cancellation dependency
+   blockers and rollback. A missing RPC/404 or container-registry failure
+   cannot count as signed denial. Exact SHA/production-shaped disposable
+   clone, RiverSong and browser acceptance precede any proposed release.
+
+### C. Immediate, bounded implementation order after this interface gate
+
+- **#2368:** Preserve this source interface; implement single canonical
+  governed retirement and resolve historical-performed truthful closure
+  semantics; do not broaden the old self-adoption Done authority. Finish
+  the genuine signed historic fixture after environment failure.
+- **#2362 + #2385:** Rebase source expectations on the same terminal event
+  contract. Separate routine stewardship from observation-triggered
+  intervention; no automatic Next Work or periodic clock generation claim
+  until the source policy, deterministic release and signed actor proof
+  exist.
+- **Atlas #462/#477/#487:** Reuse the single Work Focus and Today source;
+  verify Event-disclosure and date authority with signed actors. Do not
+  ship the affected notebook while draft-loss/updates and action parity
+  are unproved.
+- **Anna acceptance:** First genuine connected-Person Work→Result→Ledger
+  readback, then full Foundry policy→bounded Work→signed Actual→next
+  rightful Work using live disclosed Subject context. Another Ledger
+  must configure the same mechanism. No real Elm Work/permissions are
+  modified during held validation.
+
+**Gate exit:** Source mapping and interface boundaries recorded,
+but **implementation, signed tests, and release remain OPEN**. Existing
+GoTrue, old Task, Event, Program and Household adapters are not
+declared cut over merely by this record. Source-authority and exact
+release audits must be refreshed before a migration is assembled.
+
 ## Continuation gate: historical retirement + new Need (2026-10-29; HELD)
 
 **No release approval.** Protected signed historical clone
