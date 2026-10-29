@@ -318,6 +318,24 @@ def main():
     check(sql(args.db_url,"select count(*) from atlas.work_items where source_object_id="
           +literal(STATE)+"::uuid")=="0",
           "Read-only standing list created original Work")
+    disclosure_change=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
+      p_target_person_id="e5200000-0000-4000-8000-000000000102",
+      p_subject_domain="spatial",p_subject_kind="growing_object",
+      p_subject_id=BED3,p_disclosure_class="condition",
+      p_decision_kind="withhold",
+      p_source_action_id="ec300000-0000-4000-8000-000000000028",
+      p_reason="Fictional owner pauses the physical Bed 3 condition disclosure.")
+    allow(api,key,owner,"governor_set_subject_disclosure_self_api_v1",disclosure_change)
+    check(disclosed_rhythms(api,key,worker)["items"]==[],
+          "Withheld Subject condition remained discoverable")
+    disclosure_change["p_decision_kind"]="grant"
+    disclosure_change["p_source_action_id"]="ec300000-0000-4000-8000-000000000029"
+    disclosure_change["p_reason"]="Fictional owner restores exact Bed 3 condition disclosure."
+    allow(api,key,owner,"governor_set_subject_disclosure_self_api_v1",disclosure_change)
+    check(len(disclosed_rhythms(api,key,worker)["items"])==1,
+          "Restored Subject grant did not restore exact standing row")
+    print("PASS signed worker identity, field withhold, pagination and no-clock Work")
+
     no_evidence=allow(api,key,worker,"continuing_work_source_eligibility_self_api_v1",
                       eligibility_args())
     check(no_evidence.get("eligible") is False and
