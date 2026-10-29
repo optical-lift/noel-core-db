@@ -445,12 +445,14 @@ WHERE id='f5210000-0000-4000-8000-000000000101'::uuid;
 -- Candidate-specific original decomposition is composed onto the existing
 -- DISPOSABLE synthetic original Work fixture. No live data, people or email.
 INSERT INTO atlas.work_items(
- id,organization_id,title,work_state,source_object_type,source_object_id,result_contract_key
+ id,organization_id,title,work_state,source_object_type,source_object_id,result_contract_key,metadata
 ) VALUES
  ('e5200000-0000-4000-8000-000000000971','e5200000-0000-4000-8000-000000000801','Synthetic original split Work — owner','open',
-  'work_decomposition','e5200000-0000-4000-8000-000000000901','ordinary_company_work_worker_attestation_v1'),
+  'work_decomposition','e5200000-0000-4000-8000-000000000901','ordinary_company_work_worker_attestation_v1',
+  '{"originalParentWorkItemId":"e5200000-0000-4000-8000-000000000901","cloneFixture":true}'::jsonb),
  ('e5200000-0000-4000-8000-000000000972','e5200000-0000-4000-8000-000000000801','Synthetic original split Work — worker','open',
-  'work_decomposition','e5200000-0000-4000-8000-000000000901','ordinary_company_work_worker_attestation_v1');
+  'work_decomposition','e5200000-0000-4000-8000-000000000901','ordinary_company_work_worker_attestation_v1',
+  '{"originalParentWorkItemId":"e5200000-0000-4000-8000-000000000901","cloneFixture":true}'::jsonb);
 INSERT INTO atlas.work_decomposition_groups(
  id,parent_work_item_id,authorized_ledger_id,action_id,source_fingerprint,
  decision_reason,decided_by_person_id
