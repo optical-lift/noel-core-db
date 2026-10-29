@@ -571,7 +571,7 @@ BEGIN
  END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_proc p WHERE p.oid=v_internal
     AND p.prosecdef AND p.provolatile='s'
-    AND 'search_path='=ANY(p.proconfig))
+    AND 'search_path=""'=ANY(p.proconfig))
  THEN RAISE EXCEPTION 'Standing care read must be constrained and stable'; END IF;
  v_source:=pg_get_functiondef(v_internal);
  IF v_source NOT LIKE '%current_active_ledger_seat_v1%'
