@@ -155,4 +155,4 @@ BEGIN
     'optionalRequestsExcluded',true,'noPersonalTaskCreated',true
   );
 END
-$function$
+$function$;
