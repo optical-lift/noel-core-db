@@ -198,3 +198,32 @@ jobs:
           path: ${{ runner.temp }}/native-work-clone-artifacts
           if-no-files-found: ignore
           retention-days: 14
+
+  report:
+    name: Report protected signed-clone result to request issue
+    needs: [validate]
+    if: >-
+      always() &&
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas native Work editing and scheduling: protected premerge signed clone gate'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Report exact run and bounded result only
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RESULT: ${{ needs.validate.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$RESULT" in success|failure|cancelled|skipped) ;; *) exit 2 ;; esac
+          gh issue comment "$ISSUE_NUMBER" --body \
+            "Atlas native Work owner editing, scheduling, status and Result-isolation signed clone: **$RESULT**. [View exact run]($RUN_URL). This is a disposable local test, not a database migration or production deployment."
