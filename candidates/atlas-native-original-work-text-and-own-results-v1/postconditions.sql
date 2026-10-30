@@ -44,7 +44,9 @@ BEGIN
 END $check$;
 
 -- Fail-closed signed role with NO actor JWT. This proves 42501, not a 404.
-SET LOCAL ROLE authenticated;
+-- SET ROLE (not SET LOCAL ROLE outside a transaction) ensures the denial
+-- tests really run as authenticated, not as the clone superuser.
+SET ROLE authenticated;
 DO $check$
 DECLARE
   v_denied boolean:=false;
