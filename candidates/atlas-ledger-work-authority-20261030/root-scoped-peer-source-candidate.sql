@@ -42,10 +42,15 @@ BEGIN
   -- The integrity trigger is also an authority boundary. Guard the specific
   -- establishment basis, never historical allocations by role/general status.
   s:=pg_get_functiondef('atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure);
-  before_anchor:='if atlas.current_person_id_v1() is distinct from (v_basis->>''senderPersonId'')::uuid';
-  after_anchor:=before_anchor||E'\n      or NOT EXISTS (SELECT 1 FROM atlas.capability_root_authority_context_self_v1((v_basis->>''nativeLedgerId'')::uuid))';
+  -- The trigger has three independent sender-Person checks: original Work,
+  -- existing Event, and legacy connection-direct. The only source to
+  -- restrict here is the legacy connection-direct responsibility path.
+  -- Anchor its unique exact-source rejection AFTER structural basis checks;
+  -- fail closed if it has changed rather than rewriting other paths.
+  before_anchor:='then raise exception ''Connected direct assignment requires exact original Person and Ledger source'' using errcode=''23514'';end if;';
+  after_anchor:=before_anchor||E'\n    IF NOT EXISTS (SELECT 1 FROM atlas.capability_root_authority_context_self_v1((v_basis->>''nativeLedgerId'')::uuid))\n    THEN RAISE EXCEPTION ''Exact Ledger root required for connection-direct responsibility'' USING errcode=''42501'';END IF;';
   IF length(s)-length(replace(s,before_anchor,''))<>length(before_anchor)
-  THEN RAISE EXCEPTION 'STOP allocation-establishment guard source drift';END IF;
+  THEN RAISE EXCEPTION 'STOP connection-direct allocation-establishment guard source drift';END IF;
   EXECUTE replace(s,before_anchor,after_anchor);
 END;
 $patch$;
