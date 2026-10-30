@@ -14,6 +14,7 @@ ANNA_ROOT="e5200000-0000-4000-8000-000000000602"
 OWNER_PERSON="e5200000-0000-4000-8000-000000000101"
 ANNA_PERSON="e5200000-0000-4000-8000-000000000102"
 PERSON_CHOICES="connected_ledger_person_choices_self_api_v1"
+AGENDA="connected_ledger_person_agenda_self_api_v1"
 DIRECT="connected_ledger_direct_assign_self_api_v1"
 SEND="connected_ledger_send_dated_self_api_v1"
 SUBMIT="submit_ledger_work_self_api_v1"
@@ -89,6 +90,22 @@ def main():
          "p_after_person_id":None},"Unbound Person cannot read roster")
     deny(api,key,None,INBOX,{"p_ledger_id":ELM,"p_limit":50},
          "Anonymous cannot read private root inbox")
+    # Negative read oracle: a connected employee must not even be able to
+    # test another Person's Ledger seat by requesting an empty date agenda.
+    # Self and current exact-root reads are separately admitted.
+    today=datetime.date.today().isoformat()
+    deny(api,key,anna,AGENDA,{"p_ledger_id":ELM,"p_person_id":OWNER_PERSON,
+         "p_date":today,"p_limit":25},
+         "Anna worker cannot probe a colleague's Elm agenda or seat")
+    deny(api,key,lex,AGENDA,{"p_ledger_id":ANNA_LEDGER,"p_person_id":ANNA_PERSON,
+         "p_date":today,"p_limit":25},
+         "Lex Elm root cannot probe Anna's separate Ledger agenda")
+    allow(api,key,anna,AGENDA,{"p_ledger_id":ELM,"p_person_id":ANNA_PERSON,
+         "p_date":today,"p_limit":25})
+    allow(api,key,lex,AGENDA,{"p_ledger_id":ELM,"p_person_id":ANNA_PERSON,
+         "p_date":today,"p_limit":25})
+    allow(api,key,anna,AGENDA,{"p_ledger_id":ANNA_LEDGER,"p_person_id":OWNER_PERSON,
+         "p_date":today,"p_limit":25})
     # Prove positive root authority on each Ledger.
     a_roster=allow(api,key,lex,PERSON_CHOICES,{"p_ledger_id":ELM,"p_limit":50,
          "p_after_person_id":None})
@@ -154,6 +171,9 @@ def main():
          "Revoked Anna root retained access with existing signed JWT")
     deny(api,key,anna,PERSON_CHOICES,{"p_ledger_id":ANNA_LEDGER,"p_limit":100,
          "p_after_person_id":None},"Revoked Anna root retained directory access")
+    deny(api,key,anna,AGENDA,{"p_ledger_id":ANNA_LEDGER,"p_person_id":OWNER_PERSON,
+         "p_date":today,"p_limit":25},
+         "Revoked Anna root cannot see another Person agenda")
     must(sql(a.db_url,"select count(*) from reality.entities where entity_kind='person'")
          ==original_people and
          sql(a.db_url,"select count(*) from atlas.principals")==original_principals,
