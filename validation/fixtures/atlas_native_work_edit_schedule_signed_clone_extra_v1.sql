@@ -17,14 +17,38 @@ VALUES
   'e5200000-0000-4000-8000-000000000801'::uuid,
   'e5200000-0000-4000-8000-000000000002'::uuid,
   'e5200000-0000-4000-8000-000000000102'::uuid,'member',true);
+-- Source-backed offer to the original fictional Work and exact native Ledger.
+-- The fixture seeds an offered relationship, then records one accepted uptake.
+-- No real Person, consent, membership, or production Work is touched.
+INSERT INTO atlas.company_work_initial_responsibility_offers
+  (id,organization_id,work_item_id,ledger_id,offered_by_person_id,
+   target_person_id,reason,offer_state)
+VALUES
+ ('e5200000-0000-4000-8000-000000000985'::uuid,
+  'e5200000-0000-4000-8000-000000000801'::uuid,
+  'e5200000-0000-4000-8000-000000000902'::uuid,
+  'e5200000-0000-4000-8000-000000000401'::uuid,
+  'e5200000-0000-4000-8000-000000000101'::uuid,
+  'e5200000-0000-4000-8000-000000000102'::uuid,
+  'Synthetic offered Work uptake in disposable clone','offered');
 INSERT INTO atlas.work_allocations
- (id,organization_id,work_item_id,assignee_canonical_person_id,assigned_by_membership_id,
+ (id,organization_id,work_item_id,assignee_canonical_person_id,
   allocation_role,state,establishment_basis_kind,establishment_basis)
 VALUES
  ('e5200000-0000-4000-8000-000000000983'::uuid,
   'e5200000-0000-4000-8000-000000000801'::uuid,
   'e5200000-0000-4000-8000-000000000902'::uuid,
   'e5200000-0000-4000-8000-000000000102'::uuid,
-  'e5200000-0000-4000-8000-000000000981'::uuid,
-  'responsible','active','ledger_connection_direct_assignment',
-  '{"nativeLedgerId":"e5200000-0000-4000-8000-000000000401","cloneFixture":true}'::jsonb);
+  'responsible','active','person_connection_receiver_uptake',
+  '{"contractVersion":"exact_work_responsibility_establishment_v2",
+    "basisKind":"person_connection_receiver_uptake",
+    "organizationId":"e5200000-0000-4000-8000-000000000801",
+    "workItemId":"e5200000-0000-4000-8000-000000000902",
+    "targetPersonId":"e5200000-0000-4000-8000-000000000102",
+    "nativeLedgerId":"e5200000-0000-4000-8000-000000000401",
+    "offerId":"e5200000-0000-4000-8000-000000000985",
+    "uptakeKind":"recipient_self_accepted"}'::jsonb);
+UPDATE atlas.company_work_initial_responsibility_offers
+  SET offer_state='accepted', resolved_at=now(),
+      accepted_allocation_id='e5200000-0000-4000-8000-000000000983'::uuid
+WHERE id='e5200000-0000-4000-8000-000000000985'::uuid;
