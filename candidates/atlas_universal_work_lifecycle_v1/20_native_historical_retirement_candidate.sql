@@ -1,5 +1,17 @@
 -- HELD: source-only signed bridge to the single private lifecycle authority.
 -- Exact historical review and current native Ledger governor only.
+-- The immutable shadow base (04) predates historical review. Preserve its
+-- existing allowed evidence sources and admit exactly this additional source.
+ALTER TABLE atlas.work_lifecycle_events_v1
+ DROP CONSTRAINT work_lifecycle_events_v1_source_table_check;
+ALTER TABLE atlas.work_lifecycle_events_v1
+ ADD CONSTRAINT work_lifecycle_events_v1_source_table_check
+ CHECK(source_table IN (
+   'atlas.work_items','atlas.work_execution_results',
+   'atlas.work_result_acceptances','atlas.work_allocations',
+   'atlas.work_execution_plan_events',
+   'atlas.historical_self_adoption_review_events_v1'
+ ));
 CREATE OR REPLACE FUNCTION atlas.governor_retire_historical_work_self_api_v1(
  p_organization_id uuid,p_ledger_id uuid,p_review_id uuid,
  p_impact_token text,p_action_id uuid
