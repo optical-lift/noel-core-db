@@ -19,7 +19,23 @@ VALUES
 ('e5200000-0000-4000-8000-000000000505',
  'e5200000-0000-4000-8000-000000000402',
  'e5200000-0000-4000-8000-000000000101','active','{"cloneFixture":true}');
--- C1 base fixture already creates exactly one Principal for worker.
+-- C1 base seeds the canonical worker Person, Auth binding, legacy credential,
+-- and active Elm Ledger seat, but only explicitly seeds the OWNER Principal.
+-- Establish the worker's ONE matching Principal for the reciprocal root test.
+-- This creates no Person, credential, alternate identity or production record.
+INSERT INTO atlas.principals(
+ id,user_id,person_id,stable_key,name,status)
+SELECT
+ 'e5200000-0000-4000-8000-000000000112',
+ 'e5200000-0000-4000-8000-000000000002',
+ 'e5200000-0000-4000-8000-000000000102',
+ 'clone-reciprocal-existing-worker-principal','Validation Worker','active'
+WHERE NOT EXISTS (
+ SELECT 1 FROM atlas.principals p
+ WHERE p.person_id='e5200000-0000-4000-8000-000000000102'::uuid
+);
+-- Root authority binds to that same existing canonical Person/Principal.
+
 INSERT INTO atlas.principal_ledger_authorities(id,principal_id,ledger_id,
  authority_kind,status,basis)
 SELECT 'e5200000-0000-4000-8000-000000000602',
