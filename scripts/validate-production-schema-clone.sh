@@ -116,6 +116,7 @@ signed_universal_original_work_probe=false
 signed_work_self_assignment_probe=false
 signed_care_single_done_probe=false
 signed_native_work_release_probe=false
+signed_ledger_reciprocal_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
 # One exact generated mail permission candidate needs true signed Auth+REST.
@@ -158,6 +159,17 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_native_work_release_probe=true
+fi
+
+# Exact owner-initiated source-only Ledger security/reciprocal Person proof.
+# No SQL reaches production; new candidate file exists only in local scratch.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_ledger_reciprocal_signed_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Reciprocal Ledger root proof requires fictional fixture/postconditions." >&2
+    exit 2
+  fi
+  signed_ledger_reciprocal_probe=true
 fi
 
 # An exact named source-only physical care validation, not a release.
@@ -745,6 +757,16 @@ if [ "$signed_universal_original_work_probe" = true ]; then
   grep -q '^PASS' "$artifacts_dir/signed-universal-original-work-event-regression.txt"
 fi
 
+if [ "$signed_ledger_reciprocal_probe" = true ]; then
+  phase="signed reciprocal Ledger roots, private intake and Person identity"
+  python3 "$repo_root/scripts/validate-atlas-ledger-reciprocal-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-ledger-reciprocal-summary.txt" \
+    >"$artifacts_dir/signed-ledger-reciprocal.log" 2>&1
+  test -s "$artifacts_dir/signed-ledger-reciprocal-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-ledger-reciprocal-summary.txt"
+fi
+
 if [ "$signed_native_work_release_probe" = true ]; then
   phase="signed native original Work edit, date, own Results and revocation"
   python3 "$repo_root/scripts/validate-atlas-native-work-release-signed-http.py" \
@@ -909,6 +931,9 @@ if [ "$signed_http_probe" = true ]; then
 fi
 if [ "$signed_person_mail_probe" = true ]; then
   printf '\nSIGNED Person shared mail: true separate signed governor, recipient, outsider, cutoff, fallback, legacy-route and revocation tests.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_ledger_reciprocal_probe" = true ]; then
+  printf '\nSIGNED reciprocal native Ledger Work: independent GoTrue owner/worker/outsider, root scoping, non-disclosure, unassigned original, revocation, no shadow People/Principals passed.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_native_work_release_probe" = true ]; then
   printf '\nSIGNED native Work editing/date/status: local independent GoTrue actors, original identity, stale edit, Result privacy, current plan and revoked seat all passed.\n' >> "$artifacts_dir/summary.md"
