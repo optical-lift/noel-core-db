@@ -1,0 +1,21 @@
+-- Source-only postconditions for the protected disposable clone.
+-- THESE ARE STRUCTURAL checks; separately prove signed worker/root/revoked denies.
+DO $check$
+DECLARE s text;
+BEGIN
+  s:=pg_get_functiondef('atlas.connected_ledger_person_choices_self_api_v1(uuid,integer,uuid)'::regprocedure);
+  IF position('capability_root_authority_context_self_v1(p_ledger_id)' IN s)=0
+    OR position('rootAuthorityNotRequired' IN s)=0
+    OR position('''rootAuthorityNotRequired'',false' IN s)=0
+  THEN RAISE EXCEPTION 'Personnel disclosure source gate missing';END IF;
+  s:=pg_get_functiondef('atlas.connected_ledger_direct_assign_self_api_v1(uuid,uuid,text,date,text)'::regprocedure);
+  IF position('capability_root_authority_context_self_v1(p_ledger_id)' IN s)=0
+  THEN RAISE EXCEPTION 'Peer direct assignment gate missing';END IF;
+  s:=pg_get_functiondef('atlas.connected_ledger_send_self_api_v1(uuid,uuid,text,text,text)'::regprocedure);
+  IF position('capability_root_authority_context_self_v1(p_ledger_id)' IN s)=0
+  THEN RAISE EXCEPTION 'Person-targeted notice gate missing';END IF;
+  s:=pg_get_functiondef('atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure);
+  IF position('capability_root_authority_context_self_v1((v_basis->>''nativeLedgerId'')::uuid)' IN s)=0
+  THEN RAISE EXCEPTION 'Connected responsibility source guard missing';END IF;
+END;
+$check$;
