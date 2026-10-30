@@ -18,6 +18,17 @@ BEGIN
   THEN RAISE EXCEPTION 'STOP personnel receipt drift';END IF;
   EXECUTE replace(s,before_anchor,after_anchor);
 
+  -- A person's day is not a seat-enumeration endpoint. A connected
+  -- non-governor can read only their own active Ledger agenda; querying
+  -- another Person requires the exact Ledger's current governing root.
+  -- This preserves self work while closing guessed-Person membership probes.
+  s:=pg_get_functiondef('atlas.connected_ledger_person_agenda_self_api_v1(uuid,uuid,date,integer)'::regprocedure);
+  before_anchor:='v_self:=atlas.current_person_id_v1();'||E'\n perform atlas.current_active_ledger_seat_v1(p_ledger_id);';
+  after_anchor:='v_self:=atlas.current_person_id_v1();'||E'\n IF p_person_id IS DISTINCT FROM v_self THEN\n  PERFORM 1 FROM atlas.capability_root_authority_context_self_v1(p_ledger_id);\n  IF NOT FOUND THEN RAISE EXCEPTION ''Exact Ledger root required to read another Person agenda'' USING errcode=''42501'';END IF;\n ELSE\n  PERFORM atlas.current_active_ledger_seat_v1(p_ledger_id);\n END IF;';
+  IF length(s)-length(replace(s,before_anchor,''))<>length(before_anchor)
+  THEN RAISE EXCEPTION 'STOP Person agenda peer-read source drift';END IF;
+  EXECUTE replace(s,before_anchor,after_anchor);
+
   -- No compulsory Work assignment on mere mutually active connections.
   s:=pg_get_functiondef('atlas.connected_ledger_direct_assign_self_api_v1(uuid,uuid,text,date,text)'::regprocedure);
   before_anchor:='perform atlas.current_active_ledger_seat_v1(p_ledger_id);';
