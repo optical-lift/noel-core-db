@@ -550,9 +550,17 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
        [ "$signed_person_mail_probe" = true ]; then
-    # Full LOCAL Auth + REST + Postgres only when a signed-token proof is active.
-    # Both probes stay on a disposable clone and refuse remote API endpoints.
-    supabase start >"$startup_log" 2>&1
+    # The source-governed signed care/Done test requires only PostgreSQL,
+    # local GoTrue, PostgREST and the Kong API gateway. Pulling Studio,
+    # analytics, Realtime, storage and auxiliary containers consumed the
+    # public ECR quota before signed tests could start (two protected runs).
+    # Limit this to the existing care probe; no change to other clone lanes,
+    # image registries, pinned CLI, health checks, JWT verification or SQL.
+    if [ "$signed_care_single_done_probe" = true ]; then
+      supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+    else
+      supabase start >"$startup_log" 2>&1
+    fi
   else
     supabase db start >"$startup_log" 2>&1
   fi
