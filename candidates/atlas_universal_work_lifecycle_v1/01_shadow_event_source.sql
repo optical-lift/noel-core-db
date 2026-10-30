@@ -22,7 +22,8 @@ CREATE TABLE atlas.work_lifecycle_events_v1 (
  source_table text NOT NULL CHECK(source_table IN (
    'atlas.work_items','atlas.work_execution_results',
    'atlas.work_result_acceptances','atlas.work_allocations',
-   'atlas.work_execution_plan_events'
+   'atlas.work_execution_plan_events',
+   'atlas.historical_self_adoption_review_events_v1'
  )),
  source_row_id uuid NOT NULL,
  source_idempotency_key text,
