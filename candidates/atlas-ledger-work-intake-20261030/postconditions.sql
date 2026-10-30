@@ -11,6 +11,26 @@ BEGIN
  ('submit_ledger_work_self_api_v1','ledger_work_inbox_root_self_api_v1',
   'ledger_work_submission_status_self_api_v1','decide_ledger_work_intake_root_self_api_v1');
  IF total<>4 THEN RAISE EXCEPTION 'Native Ledger intake public facades missing';END IF;
+ -- PostgREST named-argument routing must match the actual signed caller
+ -- payload. A function present in pg_proc but with unnamed arguments yields
+ -- PGRST202 instead of executing the source permission gate (not 42501).
+ IF NOT EXISTS (
+   SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='public' AND p.proname='submit_ledger_work_self_api_v1'
+     AND p.proargnames=ARRAY['p_ledger_id','p_title','p_attention_date_proposal','p_source_action_id']::text[]
+ ) OR NOT EXISTS (
+   SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='public' AND p.proname='ledger_work_inbox_root_self_api_v1'
+     AND p.proargnames=ARRAY['p_ledger_id','p_limit']::text[]
+ ) OR NOT EXISTS (
+   SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='public' AND p.proname='ledger_work_submission_status_self_api_v1'
+     AND p.proargnames=ARRAY['p_intake_id']::text[]
+ ) OR NOT EXISTS (
+   SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+   WHERE n.nspname='public' AND p.proname='decide_ledger_work_intake_root_self_api_v1'
+     AND p.proargnames=ARRAY['p_intake_id','p_decision','p_expected_revision','p_reason']::text[]
+ ) THEN RAISE EXCEPTION 'Native Ledger intake named RPC arguments mismatch REST caller';END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
    WHERE n.nspname='atlas' AND c.relname='ledger_work_intakes' AND c.relrowsecurity)
  THEN RAISE EXCEPTION 'Private intake must be RLS-enabled';END IF;
