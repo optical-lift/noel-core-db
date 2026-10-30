@@ -169,6 +169,16 @@ def main():
           "Owner clearing work day failed")
     final,_=inspect_work(api,key,worker)
     check(final.get("workOn") is None,"Clearing a plan must restore undated Work")
+    sql(args.db_url,"insert into atlas.work_execution_results "
+        "(organization_id,work_item_id,responsible_allocation_id,"
+        "reported_by_user_id,result_kind,result_contract_key,idempotency_key,payload) "
+        f"values ('{ORG}'::uuid,'{WORK_DIRECT}'::uuid,'{ALLOCATION}'::uuid,"
+        f"'{c1.WORKER}'::uuid,'blocked','ordinary_company_work_worker_attestation_v1',"
+        "'clone-native-blocked','{\"note\":\"SYNTH_BLOCKED_BODY_PRIVATE\"}'::jsonb)")
+    source_status,packet=inspect_work(api,key,worker)
+    check(source_status.get("latestResultKind")=="blocked" and
+          "SYNTH_BLOCKED_BODY_PRIVATE" not in json.dumps(packet),
+          "My Work must disclose only latest Result kind, never a narrative")
     check(sql(args.db_url,"select count(*) from atlas.work_execution_plans "
           f"where work_item_id='{WORK_DIRECT}'::uuid")=="1" and
           sql(args.db_url,"select count(*) from atlas.work_items where "
