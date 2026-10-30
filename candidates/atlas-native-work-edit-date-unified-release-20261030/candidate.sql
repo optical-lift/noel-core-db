@@ -1,6 +1,6 @@
 -- Source-only combined release package, NOT a live migration.
 -- Exact editor SHA: 915ca04d99ed38c54194cce3de2afd58e1b65cda
--- Exact scheduling/status SHA: b04c02bbb7c129df0237837bfd0a6c4e58541516
+-- Exact scheduling/status SHA: bff45f66086c2d6457455fba855efbe149ee67b8
 -- Protected test fixture HEAD after offer repair: 94df8b5fe492eaaaa64c6483794534d9aff8937a
 -- Same single original Work + real signed source guards; no production DML.
 BEGIN;
@@ -454,7 +454,7 @@ begin
     'responsiblePersonId',v_allocation.assignee_canonical_person_id,
     'newWorkCreated',false,'workerReadProven',false);
 end
-$function$
+$function$;
 
 -- DRAFT SOURCE-ONLY. Requires protected clone and real signed proof.
 -- Add an assigned person's latest Result KIND to the existing all-date native
@@ -613,6 +613,6 @@ BEGIN
     'optionalRequestsExcluded',true,'noPersonalTaskCreated',true
   );
 END
-$function$
+$function$;
 
 COMMIT;
