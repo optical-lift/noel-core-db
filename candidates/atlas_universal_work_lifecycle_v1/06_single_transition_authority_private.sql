@@ -63,7 +63,7 @@ DECLARE
 BEGIN
  IF v_uid IS NULL OR v_actor IS NULL OR p_work_item_id IS NULL
    OR p_result_id IS NULL OR v_key IS NULL OR length(v_key)>160
-   OR p_transition_kind IS DISTINCT FROM 'complete' THEN
+   OR p_transition_kind NOT IN ('complete','cancel') THEN
    RAISE EXCEPTION 'Exact signed original Work transition, evidence and action required'
     USING ERRCODE='42501';
  END IF;
@@ -77,6 +77,192 @@ BEGIN
     OR v_work.household_id IS NOT NULL THEN
    RAISE EXCEPTION 'This authority slice requires original Organization Work'
     USING ERRCODE='42501';
+ END IF;
+ -- The only cancellation admitted in this draft is a *reviewed historical*
+ -- self-adopted original.  This is not a general cancel API.  The
+ -- p_result_id slot carries the immutable historical review event ONLY for
+ -- transition_kind='cancel'; no physical Result or Acceptance is created.
+ IF p_transition_kind='cancel' THEN
+   DECLARE
+     v_review atlas.historical_self_adoption_review_events_v1%ROWTYPE;
+     v_link atlas.historical_self_adoption_review_events_v1%ROWTYPE;
+     v_impact jsonb;
+     v_at timestamptz;
+     v_plan atlas.work_execution_plans%ROWTYPE;
+   BEGIN
+     SELECT * INTO v_review
+     FROM atlas.historical_self_adoption_review_events_v1 h
+     WHERE h.id=p_result_id AND h.work_item_id=v_work.id
+       AND h.organization_id=v_work.organization_id
+       AND h.event_kind='governor_reviewed'
+       AND h.outcome='obsolete_cancelled';
+     IF v_review.id IS NULL THEN
+       RAISE EXCEPTION 'Exact obsolete historical review required for retirement'
+         USING ERRCODE='42501';
+     END IF;
+     SELECT * INTO v_link
+     FROM atlas.historical_self_adoption_review_events_v1 h
+     WHERE h.id=v_review.parent_event_id
+       AND h.event_kind='person_confirmed'
+       AND h.ledger_id=v_review.ledger_id
+       AND h.work_item_id=v_work.id
+       AND h.organization_id=v_work.organization_id
+       AND h.allocation_id=v_review.allocation_id;
+     IF v_link.id IS NULL
+       OR NOT EXISTS(
+         SELECT 1 FROM atlas.company_work_native_ledger_relevance r
+         WHERE r.organization_id=v_work.organization_id
+           AND r.ledger_id=v_review.ledger_id
+           AND r.work_item_id=v_work.id AND r.attribution_state='active')
+       OR atlas.company_work_native_ledger_owner_self_v1(
+           v_work.organization_id,v_review.ledger_id) IS DISTINCT FROM v_actor
+       OR NOT EXISTS(
+         SELECT 1 FROM atlas.work_allocations a
+         WHERE a.id=v_review.allocation_id
+           AND a.work_item_id=v_work.id
+           AND a.organization_id=v_work.organization_id
+           AND a.establishment_basis_kind='self_adoption')
+     THEN RAISE EXCEPTION 'Present native Ledger governor and reviewed source required'
+       USING ERRCODE='42501'; END IF;
+     -- Replay retains the exact original review/actor/action and terminal
+     -- projection.  A same-key completion or different reviewer conflicts.
+     SELECT * INTO v_event
+     FROM atlas.work_lifecycle_events_v1 e
+     WHERE e.work_item_id=v_work.id
+       AND e.event_kind='work_transition_applied'
+       AND e.source_idempotency_key=v_key
+     ORDER BY e.sequence_no DESC LIMIT 1;
+     IF v_event.id IS NOT NULL THEN
+       IF v_event.source_table IS DISTINCT FROM
+             'atlas.historical_self_adoption_review_events_v1'
+         OR v_event.source_row_id IS DISTINCT FROM v_review.id
+         OR v_event.actor_user_id IS DISTINCT FROM v_uid
+         OR v_event.from_state IS DISTINCT FROM 'open'
+         OR v_event.to_state IS DISTINCT FROM 'cancelled'
+         OR v_work.work_state IS DISTINCT FROM 'cancelled'
+       THEN RAISE EXCEPTION 'Conflicting historical retirement replay'
+          USING ERRCODE='23505'; END IF;
+       RETURN jsonb_build_object(
+         'ok',true,'contractVersion','universal_work_lifecycle_transition_v1',
+         'idempotent',true,'eventId',v_event.id,'workItemId',v_work.id,
+         'workState','cancelled','historicalReviewId',v_review.id,
+         'originalResultId',null,'acceptedEvidenceId',null,
+         'personalPerformanceClaimed',false);
+     END IF;
+     IF v_work.work_state<>'open'
+        OR v_work.completed_at IS NOT NULL
+        OR v_work.cancelled_at IS NOT NULL
+     THEN RAISE EXCEPTION 'Only an original open historical Work may be retired'
+       USING ERRCODE='23514'; END IF;
+     -- Use the *installed* retirement dependency snapshot AND the existing
+     -- cancellation guard. No bypass for requirements/relations/offers,
+     -- worker projections, any prior Result or active time contracts.
+     v_impact:=atlas.company_work_retirement_dependency_snapshot_v1(v_work.id);
+     IF v_impact IS NULL
+       OR v_impact->>'workState' IS DISTINCT FROM 'open'
+       OR jsonb_array_length(v_impact->'requirements')<>0
+       OR jsonb_array_length(v_impact->'relations')<>0
+       OR jsonb_array_length(v_impact->'pendingOfferIds')<>0
+       OR jsonb_array_length(v_impact->'projectionIds')<>0
+       OR jsonb_array_length(v_impact->'executionResultIds')<>0
+       OR jsonb_array_length(v_impact->'activeTimeContractIds')<>0
+       OR jsonb_array_length(v_impact->'automaticUnwind'->'activeAdapterIds')<>0
+       OR EXISTS(SELECT 1 FROM atlas.work_allocations a
+         WHERE a.work_item_id=v_work.id AND a.state='active'
+           AND a.id IS DISTINCT FROM v_review.allocation_id)
+       OR EXISTS(SELECT 1 FROM atlas.work_execution_plans p
+         WHERE p.work_item_id=v_work.id
+           AND p.plan_state IN ('active','needs_replan')
+           AND p.responsible_allocation_id IS DISTINCT FROM v_review.allocation_id)
+     THEN RAISE EXCEPTION 'Historical Work has dependencies needing separate governor reconciliation'
+       USING ERRCODE='23514'; END IF;
+     v_at:=clock_timestamp();
+     -- Existing referenced responsibility and plan history survives; only
+     -- the explicitly reviewed active legacy allocation/its plans unwind.
+     FOR v_plan IN
+       SELECT * FROM atlas.work_execution_plans p
+       WHERE p.work_item_id=v_work.id
+         AND p.plan_state IN ('active','needs_replan')
+         AND p.responsible_allocation_id=v_review.allocation_id
+       FOR UPDATE
+     LOOP
+       UPDATE atlas.work_execution_plans
+       SET plan_state='withdrawn',updated_at=v_at,
+         plan_reason='Historical obligation retired after native governor review',
+         metadata=coalesce(metadata,'{}'::jsonb) ||
+           jsonb_build_object('historicalRetirementReviewId',v_review.id,
+                              'actorPersonId',v_actor)
+       WHERE id=v_plan.id;
+       INSERT INTO atlas.work_execution_plan_events(
+         organization_id,work_item_id,plan_id,event_kind,
+         from_planned_service_date,from_exposure_service_date,
+         actor_membership_id,reason,metadata)
+       VALUES(v_work.organization_id,v_work.id,v_plan.id,'withdrawn',
+         v_plan.planned_service_date,v_plan.exposure_service_date,NULL,
+         'Historical obligation retired after native governor review',
+         jsonb_build_object('historicalRetirementReviewId',v_review.id,
+                            'actorPersonId',v_actor,
+                            'modernPerformanceClaimed',false));
+     END LOOP;
+     UPDATE atlas.work_allocations
+       SET state='released',released_at=coalesce(released_at,v_at),
+         updated_at=v_at,
+         metadata=coalesce(metadata,'{}'::jsonb) ||
+           jsonb_build_object('historicalRetirementReviewId',v_review.id,
+                              'actorPersonId',v_actor,
+                              'newPersonAssignmentCreated',false)
+     WHERE id=v_review.allocation_id AND work_item_id=v_work.id
+       AND state='active' AND establishment_basis_kind='self_adoption';
+     -- Recheck with the same installed dependency helper after the unwind;
+     -- the existing Work cancellation trigger independently enforces this.
+     v_impact:=atlas.company_work_retirement_dependency_snapshot_v1(v_work.id);
+     IF jsonb_array_length(v_impact->'requirements')<>0
+       OR jsonb_array_length(v_impact->'relations')<>0
+       OR jsonb_array_length(v_impact->'pendingOfferIds')<>0
+       OR jsonb_array_length(v_impact->'projectionIds')<>0
+       OR jsonb_array_length(v_impact->'executionResultIds')<>0
+       OR jsonb_array_length(v_impact->'activeTimeContractIds')<>0
+       OR jsonb_array_length(v_impact->'automaticUnwind'->'activeAllocationIds')<>0
+       OR jsonb_array_length(v_impact->'automaticUnwind'->'activePlanIds')<>0
+       OR jsonb_array_length(v_impact->'automaticUnwind'->'activeAdapterIds')<>0
+     THEN RAISE EXCEPTION 'Original dependencies changed during governed retirement'
+       USING ERRCODE='40001'; END IF;
+     SELECT coalesce(max(e.sequence_no),0)+1 INTO v_sequence
+       FROM atlas.work_lifecycle_events_v1 e WHERE e.work_item_id=v_work.id;
+     INSERT INTO atlas.work_lifecycle_events_v1(
+       work_item_id,organization_id,household_id,sequence_no,
+       event_kind,from_state,to_state,actor_user_id,actor_attribution,
+       source_table,source_row_id,source_idempotency_key,provenance_kind,
+       occurred_at,evidence_refs)
+     VALUES(v_work.id,v_work.organization_id,NULL,v_sequence,
+       'work_transition_applied','open','cancelled',v_uid,
+       'verified_signed_transition',
+       'atlas.historical_self_adoption_review_events_v1',
+       v_review.id,v_key,'authoritative_transition',v_at,
+       jsonb_build_object(
+         'transitionKind','cancel','authorityMode','native_governor_historical_retirement',
+         'historicalReviewId',v_review.id,'historicalPersonLinkId',v_link.id,
+         'historicalAllocationId',v_review.allocation_id,
+         'ledgerId',v_review.ledger_id,'reviewOutcome','obsolete_cancelled',
+         'workerPerformanceClaimed',false,'newActualRecorded',false,
+         'newResultAccepted',false))
+     RETURNING * INTO v_event;
+     UPDATE atlas.work_items
+       SET work_state='cancelled',cancelled_at=v_at,
+         completed_at=NULL,updated_at=v_at
+     WHERE id=v_work.id AND work_state='open';
+     IF NOT FOUND OR
+       (SELECT work_state FROM atlas.work_items WHERE id=v_work.id)
+         IS DISTINCT FROM 'cancelled'
+     THEN RAISE EXCEPTION 'Original historical Work retirement projection drifted'
+       USING ERRCODE='23514'; END IF;
+     RETURN jsonb_build_object(
+       'ok',true,'contractVersion','universal_work_lifecycle_transition_v1',
+       'idempotent',false,'eventId',v_event.id,'workItemId',v_work.id,
+       'workState','cancelled','historicalReviewId',v_review.id,
+       'originalResultId',null,'acceptedEvidenceId',null,
+       'personalPerformanceClaimed',false);
+   END;
  END IF;
  v_shared_event:=(v_work.source_object_type='ledger_occurrence_shared_work'
    AND v_work.result_contract_key='ledger_occurrence_shared_confirmation_v1');
