@@ -24,6 +24,7 @@ jobs:
         run: |
           set -euo pipefail
           bash -n candidates/atlas_universal_work_lifecycle_v1/manual_rollback_smoke.sh
+          bash -n candidates/atlas_universal_work_lifecycle_v1/manual_historical_retirement_rollback.sh
           python3 -m pip install --disable-pip-version-check pglast==8.7
           python3 - <<'PY'
           from pathlib import Path
@@ -38,6 +39,9 @@ jobs:
             '17_historical_self_adoption_review_readback_candidate.sql',
             '18_historical_self_adoption_review_postconditions.sql',
             '19_historical_self_adoption_public_transport_candidate.sql',
+            '20_native_historical_retirement_candidate.sql',
+            '21_native_historical_retirement_preflight_transport_candidate.sql',
+            '22_native_historical_retirement_rollback_postconditions.sql',
           ):
             parse_sql((root/name).read_text())
             print('PASS SQL grammar:',name)
