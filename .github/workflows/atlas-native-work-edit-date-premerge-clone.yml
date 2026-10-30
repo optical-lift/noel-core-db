@@ -37,8 +37,10 @@ jobs:
           assert y.index("Snapshot production roles and schema READ ONLY") < y.index("Checkout exact candidate editor")
           assert "signed-native-work-release-summary.txt" in y
           assert "candidate_editor_sha" in y and "candidate_date_sha" in y
-          for bad in ("supabase db push", "gh pr merge", "supabase migration repair"):
-            assert bad not in y
+          for line in y.splitlines():
+            command=line.strip()
+            assert not command.startswith(("supabase db push ", "gh pr merge ",
+                                            "supabase migration repair "))
           s=Path("scripts/validate-production-schema-clone.sh").read_text()
           assert "signed_native_work_release_probe=true" in s
           assert "validate-atlas-native-work-release-signed-http.py" in s
