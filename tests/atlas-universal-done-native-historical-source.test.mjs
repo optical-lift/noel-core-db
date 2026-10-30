@@ -102,3 +102,57 @@ test("contradictory historical outcomes and post-review worker evidence are forb
  assert.match(historical,/Historical decision already reviewed; correction requires adjudication/);
  assert.match(historical,/Conflicting historical (link|evidence|review) replay/);
 });
+
+const lifecycleSource=read("01_shadow_event_source.sql");
+const nativeRetire=read("20_native_historical_retirement_candidate.sql");
+const retireTransport=read("21_native_historical_retirement_preflight_transport_candidate.sql");
+const retireChecks=read("22_native_historical_retirement_rollback_postconditions.sql");
+const retireRunner=read("manual_historical_retirement_rollback.sh");
+
+test("historical retirement shares the private terminal authority without claiming Done",()=>{
+ for(const source of [lifecycleSource,nativeRetire,transition]) {
+   assert.match(source,/historical_self_adoption_review_events_v1/);
+ }
+ for(const word of [
+  "p_transition_kind='cancel'","outcome='obsolete_cancelled'",
+  "company_work_native_ledger_owner_self_v1",
+  "company_work_retirement_dependency_snapshot_v1",
+  "source_row_id","work_transition_applied",
+  "work_state='cancelled'","originalResultId',null",
+  "acceptedEvidenceId',null"
+ ])assert.ok(transition.includes(word),"missing cancel gate "+word);
+ assert.match(transition,/v_work\.work_state<>'open'/);
+ assert.match(transition,/activeAdapterIds/);
+ assert.match(transition,/activeTimeContractIds/);
+ assert.match(transition,/state='released'/);
+ assert.match(transition,/plan_state='withdrawn'/);
+ assert.doesNotMatch(transition,/organization_memberships|farm_memberships|employee_seats/i);
+ assert.doesNotMatch(nativeRetire,/\b(INSERT INTO|UPDATE)\s+atlas\.work_(items|execution_results|result_acceptances)/i);
+ assert.doesNotMatch(nativeRetire,/organization_memberships|farm_memberships/i);
+ assert.match(nativeRetire,/apply_work_lifecycle_transition_internal_v1/);
+});
+test("governor preflight token and transport cannot become a second Done writer",()=>{
+ for(const word of [
+  "company_work_native_ledger_owner_self_v1",
+  "company_work_retirement_dependency_snapshot_v1",
+  "impactToken","blockingDependencyCount","retirable",
+  "public.governor_retire_historical_work_self_api_v1",
+  "public.governor_historical_retirement_preflight_self_api_v1",
+  "TO authenticated"
+ ]) assert.ok(retireTransport.includes(word),"missing transport "+word);
+ assert.match(nativeRetire,/p_impact_token/);
+ assert.match(nativeRetire,/md5\(v_impact::text\)/);
+ assert.match(nativeRetire,/FOR UPDATE/);
+ assert.match(nativeRetire,/p_action_id::text/);
+ assert.match(retireChecks,/has_function_privilege\('anon'/);
+ assert.match(retireChecks,/has_function_privilege\('authenticated'/);
+ for(const f of [
+  "16_historical_self_adoption_review_candidate.sql",
+  "19_historical_self_adoption_public_transport_candidate.sql",
+  "20_native_historical_retirement_candidate.sql",
+  "21_native_historical_retirement_preflight_transport_candidate.sql",
+  "22_native_historical_retirement_rollback_postconditions.sql"
+ ]) assert.ok(retireRunner.includes(f),"missing rollback assembly "+f);
+ assert.match(retireRunner,/ROLLBACK;/);
+ assert.doesNotMatch(retireRunner,/supabase db reset|supabase db push|apply_migration/i);
+});
