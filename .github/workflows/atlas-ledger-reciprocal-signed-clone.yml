@@ -37,6 +37,11 @@ jobs:
           assert y.index("Snapshot production roles and schema READ ONLY") < y.index("Checkout immutable candidates")
           assert "atlas_ledger_reciprocal_signed_clone_only_v1" in s
           assert "validate-atlas-ledger-reciprocal-signed-http.py" in s
+          # Never satisfy the signed test with a DB-only local instance.
+          startup=s[s.index("while [ \"$startup_attempt\""):s.index("  if [ \"$startup_status\" -eq 0 ]; then")]
+          assert startup.count('[ "$signed_ledger_reciprocal_probe" = true ]') >= 2
+          assert "supabase start -x realtime,storage-api,imgproxy" in startup
+          assert "supabase db start" in startup  # non-signed lanes remain DB-only
           print("PASS protected signed reciprocal Ledger clone contract")
           PY
   validate:

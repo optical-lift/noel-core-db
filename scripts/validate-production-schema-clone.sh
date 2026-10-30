@@ -573,6 +573,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_work_self_assignment_probe" = true ] ||
        [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
+       [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
        [ "$signed_person_mail_probe" = true ]; then
     # The source-governed signed care/Done test requires only PostgreSQL,
@@ -581,7 +582,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
     # public ECR quota before signed tests could start (two protected runs).
     # Limit this to the existing care probe; no change to other clone lanes,
     # image registries, pinned CLI, health checks, JWT verification or SQL.
-    if [ "$signed_care_single_done_probe" = true ] || [ "$signed_native_work_release_probe" = true ]; then
+    if [ "$signed_care_single_done_probe" = true ] ||
+       [ "$signed_native_work_release_probe" = true ] ||
+       [ "$signed_ledger_reciprocal_probe" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
     else
       supabase start >"$startup_log" 2>&1
