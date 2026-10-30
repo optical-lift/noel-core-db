@@ -82,7 +82,8 @@ BEGIN
   END IF;
   -- Only Work natively authored into Ledger/Event Work by Atlas, not
   -- derived production/medical/legacy sources with their own edit laws.
-  IF v_work.source_object_type NOT IN
+  IF v_work.source_object_type IS NULL OR
+     v_work.source_object_type NOT IN
      ('ledger_occurrence_shared_work','ledger_connected_direct_task') THEN
     RAISE EXCEPTION 'This source-managed Work requires its own edit authority'
       USING ERRCODE='42501';
