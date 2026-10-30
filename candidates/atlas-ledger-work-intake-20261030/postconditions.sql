@@ -1,6 +1,6 @@
 -- STRUCTURAL postconditions only. Signed clone required for authority/privacy.
 DO $check$
-DECLARE total integer;
+DECLARE total integer; submit_source text;
 BEGIN
  SELECT count(*) INTO total FROM information_schema.tables
  WHERE table_schema='atlas' AND table_name IN
@@ -18,5 +18,13 @@ BEGIN
    WHERE n.nspname='atlas' AND c.relname IN ('ledger_work_intakes','ledger_work_intake_decisions')
      AND has_table_privilege('authenticated',c.oid,'SELECT'))
  THEN RAISE EXCEPTION 'No direct employee table access';END IF;
+ -- General original Work must not duplicate the submitter's Person identifier,
+ -- raw action key, or Ledger identity in freeform metadata. Restricted intake
+ -- and exact native Ledger relevance remain the only identity-bearing custody.
+ submit_source:=pg_get_functiondef('atlas.submit_ledger_work_self_api_v1(uuid,text,date,text)'::regprocedure);
+ IF position('''submittedByPersonId''' IN submit_source)>0
+    OR position('''sourceActionId''' IN submit_source)>0
+    OR position('''nativeLedgerId''' IN submit_source)>0
+ THEN RAISE EXCEPTION 'Sensitive identity copied into original Work metadata';END IF;
 END;
 $check$;
