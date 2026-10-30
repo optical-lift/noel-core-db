@@ -85,8 +85,8 @@ BEGIN
  -- transition_kind='cancel'; no physical Result or Acceptance is created.
  IF p_transition_kind='cancel' THEN
    DECLARE
-     v_review atlas.historical_self_adoption_review_events_v1%ROWTYPE;
-     v_link atlas.historical_self_adoption_review_events_v1%ROWTYPE;
+     v_review record;
+     v_link record;
      v_impact jsonb;
      v_at timestamptz;
      v_plan atlas.work_execution_plans%ROWTYPE;
