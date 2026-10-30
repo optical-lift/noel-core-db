@@ -58,7 +58,7 @@ jobs:
       - name: Bind exact candidate heads supplied by repository owner
         id: candidate
         env:
-          ISSUE_BODY: ${{ github.event.issue.body }
+          ISSUE_BODY: ${{ github.event.issue.body }}
         shell: bash
         run: |
           set -euo pipefail
@@ -95,15 +95,15 @@ jobs:
           test "$(supabase --version | tail -n1)" = "2.116.0"
       - name: Authenticate local image registry
         env:
-          GHCR_USERNAME: ${{ github.actor }
-          GHCR_TOKEN: ${{ github.token }
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
       - name: Snapshot production roles and schema READ ONLY
         env:
-          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
         shell: bash
         run: |
           set -euo pipefail
@@ -115,21 +115,21 @@ jobs:
       - name: Checkout exact candidate editor
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.candidate.outputs.candidate_editor_sha }
+          ref: ${{ steps.candidate.outputs.candidate_editor_sha }}
           path: edit-candidate
           persist-credentials: false
       - name: Checkout exact candidate scheduler and status
         uses: actions/checkout@v4
         with:
-          ref: ${{ steps.candidate.outputs.candidate_date_sha }
+          ref: ${{ steps.candidate.outputs.candidate_date_sha }}
           path: date-candidate
           persist-credentials: false
       - name: Assemble temporary combined SQL and fictional fixture
         id: scratch
         shell: bash
         env:
-          EDIT_SHA: ${{ steps.candidate.outputs.candidate_editor_sha }
-          DATE_SHA: ${{ steps.candidate.outputs.candidate_date_sha }
+          EDIT_SHA: ${{ steps.candidate.outputs.candidate_editor_sha }}
+          DATE_SHA: ${{ steps.candidate.outputs.candidate_date_sha }}
         run: |
           set -euo pipefail
           test "$(git -C edit-candidate rev-parse HEAD)" = "$EDIT_SHA"
@@ -144,7 +144,7 @@ jobs:
           ( cd "$scratch"; supabase init --force; supabase migration new atlas_native_work_edit_schedule_signed_clone_only_v1 )
           mapfile -t migrations < <(find "$scratch/supabase/migrations" -maxdepth 1 -name '*_atlas_native_work_edit_schedule_signed_clone_only_v1.sql')
           test "${#migrations[@]}" = 1
-          out="${#migrations[0]}"
+          out="${migrations[0]}"
           python3 - "$e/candidate.sql" "$d/candidate.sql" "$d/my-work-status-candidate.sql" "$out" <<'PY'
           import pathlib,re,sys
           edit,date,status=[pathlib.Path(x).read_text() for x in sys.argv[1:4]]
@@ -169,11 +169,11 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/validate-production-schema-clone.sh \
-            --migration-version "${{ steps.scratch.outputs.version }" \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
             --release-lane atlas \
-            --candidate-migration "${{ steps.scratch.outputs.migration }" \
-            --candidate-fixture "${{ steps.scratch.outputs.fixture }" \
-            --candidate-validation "${{ steps.scratch.outputs.postconditions }" \
+            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+            --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+            --candidate-validation "${{ steps.scratch.outputs.postconditions }}" \
             --roles-dump "$RUNNER_TEMP/native-work-roles.sql" \
             --schema-dump "$RUNNER_TEMP/native-work-schema.sql" \
             --artifacts-dir "$RUNNER_TEMP/native-work-clone-artifacts"
@@ -193,6 +193,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: atlas-native-work-clone-diagnostics
-          path: ${{ runner.temp }/native-work-clone-artifacts
+          path: ${{ runner.temp }}/native-work-clone-artifacts
           if-no-files-found: ignore
           retention-days: 14
