@@ -65,10 +65,10 @@ BEGIN
   EXECUTE replace(s,before_anchor,after_anchor);
 END;
 $patch$;
-COMMIT;
+-- One governed transaction for P0 root guards and P1 intake; receipt
+-- must be attached before the only terminal COMMIT.
 -- SOURCE-ONLY candidate. Disposable-clone and genuine signed-person validation first.
 -- No new Person, Principal, membership, root grant, individual assignment or Work date.
-BEGIN;
 CREATE TABLE atlas.ledger_work_intakes (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  organization_id uuid NOT NULL REFERENCES atlas.organizations(id),
