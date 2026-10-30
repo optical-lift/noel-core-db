@@ -80,13 +80,12 @@ BEGIN
    WHERE submitted_by_person_id=who AND source_action_id=action FOR UPDATE;
  IF intake.id IS NULL THEN
    new_now:=true;
-   stable:='ledger-intake:'||who::text||':'||md5(action);
+   stable:='ledger-intake:'||md5(who::text||':'||action);
    intake.id:=gen_random_uuid();
    INSERT INTO atlas.work_items(organization_id,title,work_state,source_object_type,
      source_object_id,created_by_user_id,stable_key,metadata,result_contract_key)
    VALUES(organization,t,'open','ledger_work_intake',intake.id,auth.uid(),stable,
-     jsonb_build_object('sourceContract','ledger_work_intake_v1','sourceActionId',action,
-       'submittedByPersonId',who,'nativeLedgerId',p_ledger_id,'custody','institutional',
+     jsonb_build_object('sourceContract','ledger_work_intake_v1','custody','institutional',
        'unassignedAtIntake',true,'attentionDateIsProposalOnly',true),
      'ordinary_company_work_worker_attestation_v1') RETURNING * INTO work;
    INSERT INTO atlas.company_work_native_ledger_relevance(
@@ -132,7 +131,8 @@ BEGIN
    FROM atlas.capability_root_authority_context_self_v1(p_ledger_id);
  IF root_principal IS NULL
  THEN RAISE EXCEPTION 'Exact Ledger root required' USING errcode='42501';END IF;
- IF p_limit NOT BETWEEN 1 AND 100 THEN RAISE EXCEPTION 'Page size invalid' USING errcode='22023';END IF;
+ IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100
+ THEN RAISE EXCEPTION 'Page size invalid' USING errcode='22023';END IF;
  SELECT count(*) INTO total FROM atlas.ledger_work_intakes i
  JOIN atlas.work_items w ON w.id=i.work_item_id AND w.work_state='open'
  WHERE i.ledger_id=p_ledger_id AND i.review_state='submitted';
