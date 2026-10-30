@@ -156,4 +156,4 @@ begin
     'responsiblePersonId',v_allocation.assignee_canonical_person_id,
     'newWorkCreated',false,'workerReadProven',false);
 end
-$function$
+$function$;
