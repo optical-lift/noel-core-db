@@ -203,19 +203,19 @@ BEGIN
 END;
 $fn$;
 
-CREATE OR REPLACE FUNCTION public.submit_ledger_work_self_api_v1(uuid,text,date,text)
+CREATE OR REPLACE FUNCTION public.submit_ledger_work_self_api_v1(p_ledger_id uuid,p_title text,p_attention_date_proposal date,p_source_action_id text)
 RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path='pg_catalog' AS $fn$
  SELECT atlas.submit_ledger_work_self_api_v1($1,$2,$3,$4);
 $fn$;
-CREATE OR REPLACE FUNCTION public.ledger_work_inbox_root_self_api_v1(uuid,integer)
+CREATE OR REPLACE FUNCTION public.ledger_work_inbox_root_self_api_v1(p_ledger_id uuid,p_limit integer)
 RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path='pg_catalog' AS $fn$
  SELECT atlas.ledger_work_inbox_root_self_api_v1($1,$2);
 $fn$;
-CREATE OR REPLACE FUNCTION public.ledger_work_submission_status_self_api_v1(uuid)
+CREATE OR REPLACE FUNCTION public.ledger_work_submission_status_self_api_v1(p_intake_id uuid)
 RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path='pg_catalog' AS $fn$
  SELECT atlas.ledger_work_submission_status_self_api_v1($1);
 $fn$;
-CREATE OR REPLACE FUNCTION public.decide_ledger_work_intake_root_self_api_v1(uuid,text,integer,text)
+CREATE OR REPLACE FUNCTION public.decide_ledger_work_intake_root_self_api_v1(p_intake_id uuid,p_decision text,p_expected_revision integer,p_reason text)
 RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path='pg_catalog' AS $fn$
  SELECT atlas.decide_ledger_work_intake_root_self_api_v1($1,$2,$3,$4);
 $fn$;
