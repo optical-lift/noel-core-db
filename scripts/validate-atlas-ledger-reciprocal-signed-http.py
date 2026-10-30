@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """DISPOSABLE local GoTrue/PostgREST only. Cannot connect to production."""
-import argparse,datetime,importlib.util,json,re
+import argparse,datetime,importlib.util,json,re,subprocess
 from pathlib import Path
 HERE=Path(__file__).resolve().parent
 spec=importlib.util.spec_from_file_location("signed_base",
@@ -25,7 +25,10 @@ DECIDE="decide_ledger_work_intake_root_self_api_v1"
 def must(condition,message):
     base.check(condition,message)
 def sql(db,statement):
-    return base.sql(db,statement)
+    try:
+        return base.sql(db,statement)
+    except subprocess.CalledProcessError as exc:
+        raise AssertionError('Disposable SQL assertion failed: '+(exc.stderr or '').strip()[-1800:]) from exc
 def rpc(api,key,token,name,args):
     return base.rpc(api,key,token,name,args)
 def allow(api,key,token,name,args):
