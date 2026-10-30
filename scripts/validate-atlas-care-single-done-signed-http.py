@@ -542,6 +542,20 @@ def main():
     # The original care source also runs against older held candidates.
     # Require this *additional* signed matrix when an exact historical
     # review API exists; otherwise explicitly log the omitted scope.
+    retirement_summary=""
+    retirement_sig=("public.governor_retire_historical_work_self_api_v1"
+                    "(uuid,uuid,uuid,text,uuid)")
+    if sql(args.db_url,"select to_regprocedure("+literal(retirement_sig)+") is not null")=="t":
+        import sys
+        retirement_spec=importlib.util.spec_from_file_location(
+          "signed_retirement_source",ROOT/"validate-atlas-native-historical-retirement-signed-http.py")
+        check(retirement_spec is not None and retirement_spec.loader is not None,
+              "Protected signed historical retirement module unavailable")
+        retirement=importlib.util.module_from_spec(retirement_spec)
+        retirement_spec.loader.exec_module(retirement)
+        retirement_summary=retirement.proof(args.db_url,api,key,tokens,sys.modules[__name__])
+    else:
+        retirement_summary="NOT TESTED: native historical retirement not present.\\n"
     historical_summary=""
     history_sig=("public.governor_link_historical_self_adoption_self_api_v1"
                  "(uuid,uuid,uuid,uuid,uuid,uuid)")
@@ -567,6 +581,7 @@ def main():
       "PASS delegated native Work admission via real signed worker and explicit date, "
       "one scheduled Today row, replay, outsider denial, and no second open serving.\n" +
       historical_summary +
+      retirement_summary +
       "NOT PROVEN: production rollout, standing care release, next-bed Today.\n",
       encoding="utf-8")
 
