@@ -1,3 +1,66 @@
+## Historical cancellation implementation checkpoint (2026-10-29; HELD)
+
+**Only in existing draft PR #2368, not applied or released.** One narrowly
+authorized historical `cancel` path now exists in the same
+`atlas.apply_work_lifecycle_transition_internal_v1(uuid,text,uuid,text)`
+authority as `complete` (file 06), sharing the immutable
+`work_transition_applied` event family and original Work projection.
+For `cancel` only, the existing `p_result_id` position is an **immutable
+historical governor-review event ID**, not an execution Result ID. There is
+no source Result, Acceptance, alleged physical completion or backdated
+performance in this transition.
+
+- `01_shadow_event_source.sql` and the supplemental assembled-candidate
+  check in file 20 admit `atlas.historical_self_adoption_review_events_v1`
+  as a specific authoritative terminal evidence source. Existing result,
+  plan and Work snapshot source types are retained; no raw table grant.
+- `06_single_transition_authority_private.sql`: accepts `complete` and
+  `cancel` only; disallows null and unknown kinds; binds `cancel` to
+  the current signed native Ledger governor, exact current original/Ledger
+  relevance, existing verified historical `self_adoption` allocation,
+  immutable `governor_reviewed/obsolete_cancelled` decision, original
+  action identity and append-only event replay.
+- Before cancellation it checks the **installed**
+  `company_work_retirement_dependency_snapshot_v1` for requirements,
+  Work relations, pending offers, worker projections, ANY execution
+  Results, active time contracts and active execution adapters. It
+  refuses other active allocations/plans. Only the specifically reviewed
+  old allocation and its plans may be withdrawn/released, preserving
+  their rows and source plan event history. A second dependency check
+  runs after this limited unwind; the existing cancellation dependency
+  trigger remains active. All updates and the single terminal event
+  are in one database transaction.
+- `20_native_historical_retirement_candidate.sql`: one source-governed
+  native owner writer, immutable review + action id and an exact snapshot
+  impact token; concurrency holds the same per-Work lifecycle advisory
+  lock and original Work row lock. It does **not** delegate to the older
+  Organization-membership adjudicator or write a second terminal stream.
+- `21_native_historical_retirement_preflight_transport_candidate.sql`:
+  owner-only preflight exposing exact impact/token plus authenticated-only
+  public forwarding functions. `22` postconditions, source tests and
+  `manual_historical_retirement_rollback.sh` require a disposable
+  source-backed rollback assembly. The ordinary existing smoke runner
+  remains unchanged. Do not run any manual smoke against live production.
+
+**Explicit non-scope:** The supported cancellation is only for an open,
+historically self-adopted original with an accepted `obsolete_cancelled`
+review and no other outstanding blockers. Other live Company cancellations,
+historically-performed terminal representation, active adapters, linked
+requirements/time contracts and current-Need successor admission still
+need separate reviewed source integration. `still_unresolved` cannot
+become terminal. No bulk old-work retirement, no permission expansion.
+
+**Proof line:** Existing source-only GitHub native-history tests and
+Database Custody syntax/guard checks may pass; this is not evidence that
+the new cancel function ran under a genuine signed governor in a fresh
+GoTrue/PostgREST PostgreSQL clone. The previous container pull error
+(Data limit exceeded) remains an outstanding infrastructure/validation
+gate until a new successful signed run explicitly proves this revision.
+The complete rollback assembly, positive retirement, blocker denial,
+replay/conflict, revoked governor/worker/outsider and original
+Work/Result/Acceptance nonmutation still require protected database
+runtime evidence. Do not merge, migrate, deploy or alter real Elm Work.
+
 ## Convergence Gate 1–2 — installed-source map and shared lifecycle contract (2026-10-29)
 
 **Status: SOURCE AUDIT + INTERFACE DECISION, NOT PRODUCT CODE OR A RELEASE.**
