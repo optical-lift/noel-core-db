@@ -1,0 +1,200 @@
+name: Atlas native Work signed clone release gate
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/atlas-native-work-edit-date-premerge-clone.yml"
+      - "scripts/validate-production-schema-clone.sh"
+      - "scripts/validate-atlas-native-work-release-signed-http.py"
+      - "validation/fixtures/atlas_native_work_edit_schedule_signed_clone_extra_v1.sql"
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: atlas-native-work-signed-clone
+  cancel-in-progress: false
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate signed probe and protected workflow contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-native-work-release-signed-http.py
+          python3 - <<'PY'
+          from pathlib import Path
+          y=Path(".github/workflows/atlas-native-work-edit-date-premerge-clone.yml").read_text()
+          assert "github.event.issue.author_association == 'OWNER'" in y
+          assert "github.actor == github.repository_owner" in y
+          assert "environment: production" in y
+          assert y.index("Snapshot production roles and schema READ ONLY") < y.index("Checkout exact candidate editor")
+          assert "signed-native-work-release-summary.txt" in y
+          assert "candidate_editor_sha" in y and "candidate_date_sha" in y
+          for line in y.splitlines():
+            command=line.strip()
+            assert not command.startswith(("supabase db push ", "gh pr merge ",
+                                            "supabase migration repair "))
+          s=Path("scripts/validate-production-schema-clone.sh").read_text()
+          assert "signed_native_work_release_probe=true" in s
+          assert "validate-atlas-native-work-release-signed-http.py" in s
+          print("PASS source contract for local-only genuine signed Auth/REST")
+          PY
+  validate:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas native Work editing and scheduling: protected premerge signed clone gate'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    steps:
+      - name: Bind exact candidate heads supplied by repository owner
+        id: candidate
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          body=os.environ.get("ISSUE_BODY","")
+          for name in ("candidate_editor_sha","candidate_date_sha"):
+            found=re.findall(r"^"+name+r":\s*([0-9a-f]{40})\s*$",body,re.M)
+            if len(found)!=1: raise SystemExit("Expected one immutable "+name)
+            with open(os.environ["GITHUB_OUTPUT"],"a") as out:
+              out.write(name+"="+found[0]+"\n")
+          PY
+      - name: Checkout trusted validator from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Validate main custody controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-native-work-release-signed-http.py
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase-native-work.tgz
+          tar -xzf /tmp/supabase-native-work.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = "2.116.0"
+      - name: Authenticate local image registry
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Snapshot production roles and schema READ ONLY
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/native-work-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/native-work-schema.sql"
+          test -s "$RUNNER_TEMP/native-work-roles.sql"
+          test -s "$RUNNER_TEMP/native-work-schema.sql"
+      - name: Checkout exact candidate editor
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.candidate.outputs.candidate_editor_sha }}
+          path: edit-candidate
+          persist-credentials: false
+      - name: Checkout exact candidate scheduler and status
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.candidate.outputs.candidate_date_sha }}
+          path: date-candidate
+          persist-credentials: false
+      - name: Assemble temporary combined SQL and fictional fixture
+        id: scratch
+        shell: bash
+        env:
+          EDIT_SHA: ${{ steps.candidate.outputs.candidate_editor_sha }}
+          DATE_SHA: ${{ steps.candidate.outputs.candidate_date_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C edit-candidate rev-parse HEAD)" = "$EDIT_SHA"
+          test "$(git -C date-candidate rev-parse HEAD)" = "$DATE_SHA"
+          e=edit-candidate/candidates/atlas-native-original-work-text-and-own-results-v1
+          d=date-candidate/candidates/atlas-connected-direct-owner-work-day-20261030
+          for f in "$e/candidate.sql" "$e/postconditions.sql" "$d/candidate.sql" "$d/postconditions.sql" "$d/my-work-status-candidate.sql" "$d/my-work-status-postconditions.sql" candidates/atlas_work_self_assignment_native_v1/fixture.sql validation/fixtures/atlas_native_work_edit_schedule_signed_clone_extra_v1.sql; do
+            test -s "$f"
+          done
+          scratch="$RUNNER_TEMP/atlas-native-work-scratch"
+          mkdir -p "$scratch"
+          ( cd "$scratch"; supabase init --force; supabase migration new atlas_native_work_edit_schedule_signed_clone_only_v1 )
+          mapfile -t migrations < <(find "$scratch/supabase/migrations" -maxdepth 1 -name '*_atlas_native_work_edit_schedule_signed_clone_only_v1.sql')
+          test "${#migrations[@]}" = 1
+          out="${migrations[0]}"
+          python3 - "$e/candidate.sql" "$d/candidate.sql" "$d/my-work-status-candidate.sql" "$out" <<'PY'
+          import pathlib,re,sys
+          edit,date,status=[pathlib.Path(x).read_text() for x in sys.argv[1:4]]
+          assert re.search(r"(?im)^BEGIN;\s*$",edit)
+          assert re.search(r"(?im)^COMMIT;\s*$",edit)
+          edit=re.sub(r"(?im)^BEGIN;\s*$","",edit)
+          edit=re.sub(r"(?im)^COMMIT;\s*$","",edit)
+          for x in (edit,date,status):
+            assert "FUNCTION" in x.upper() and "atlas." in x
+          pathlib.Path(sys.argv[4]).write_text("BEGIN;\n"+edit+"\n"+date+"\n"+status+"\nCOMMIT;\n")
+          PY
+          cat "$e/postconditions.sql" "$d/postconditions.sql" "$d/my-work-status-postconditions.sql" >"$scratch/postconditions.sql"
+          cat candidates/atlas_work_self_assignment_native_v1/fixture.sql validation/fixtures/atlas_native_work_edit_schedule_signed_clone_extra_v1.sql >"$scratch/fixture.sql"
+          base="$(basename "$out")"
+          echo "version=${base%%_*}" >> "$GITHUB_OUTPUT"
+          echo "migration=$out" >> "$GITHUB_OUTPUT"
+          echo "fixture=$scratch/fixture.sql" >> "$GITHUB_OUTPUT"
+          echo "postconditions=$scratch/postconditions.sql" >> "$GITHUB_OUTPUT"
+          sha256sum "$out" "$scratch/fixture.sql" "$scratch/postconditions.sql"
+      - name: Protected disposable clone and signed authorization tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+            --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+            --candidate-validation "${{ steps.scratch.outputs.postconditions }}" \
+            --roles-dump "$RUNNER_TEMP/native-work-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/native-work-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/native-work-clone-artifacts"
+          test -s "$RUNNER_TEMP/native-work-clone-artifacts/signed-native-work-release-summary.txt"
+          grep -q '^PASS' "$RUNNER_TEMP/native-work-clone-artifacts/signed-native-work-release-summary.txt"
+      - name: Non-sensitive verdict
+        if: always()
+        shell: bash
+        run: |
+          if test -s "$RUNNER_TEMP/native-work-clone-artifacts/summary.md"; then
+            cat "$RUNNER_TEMP/native-work-clone-artifacts/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Signed clone did not reach a PASS verdict." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload local-only clone diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-native-work-clone-diagnostics
+          path: ${{ runner.temp }}/native-work-clone-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
