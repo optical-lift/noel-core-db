@@ -27,14 +27,5 @@ SELECT 'e5200000-0000-4000-8000-000000000602',
        'root_governing','active','clone_reciprocal_anna_owned'
 FROM atlas.principals p
 WHERE p.person_id='e5200000-0000-4000-8000-000000000102' AND p.status='active';
-DO $ensure$
-BEGIN
- IF (SELECT count(*) FROM atlas.principals WHERE person_id=
-    'e5200000-0000-4000-8000-000000000102'::uuid AND status='active') <> 1
- THEN RAISE EXCEPTION 'No single existing Anna Principal';END IF;
- IF (SELECT count(*) FROM atlas.principal_ledger_authorities WHERE ledger_id=
-    'e5200000-0000-4000-8000-000000000402'::uuid AND authority_kind='root_governing'
-    AND status='active') <> 1
- THEN RAISE EXCEPTION 'No unique reciprocal root grant';END IF;
-END;
-$ensure$;
+-- The existing signed HTTP validator asserts one current Anna Principal and
+-- one active root on her Ledger after the DML fixture is admitted.
