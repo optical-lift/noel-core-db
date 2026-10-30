@@ -63,7 +63,19 @@ def proof(db, api, key, tokens, h):
        'serves_purpose','owner_attested','clone:obsolete-review',
        'Fictional original Work context for retirement review','{OWNER}'::uuid);
     """
-    h.c1.sql(db,seed)
+    # Preserve PostgreSQL's original error (not the SQL command or DB URL)
+    # when the strictly fictional fixture is rejected by real source guards.
+    # The shared C1 helper captures stderr but CalledProcessError.__str__
+    # otherwise suppresses it, making a signed proof failure uninterpretable.
+    try:
+        h.c1.sql(db,seed)
+    except Exception as exc:
+        import subprocess
+        if not isinstance(exc,subprocess.CalledProcessError):
+            raise
+        detail=(exc.stderr or "").strip()[-1200:]
+        raise AssertionError("Fictional retirement seed rejected by PostgreSQL: "+
+                             detail) from None
     original=lambda table:sql(db,(
       "select count(*) from "+table+" where work_item_id="+literal(WORK)+"::uuid"))
     result_before=original("atlas.work_execution_results")
