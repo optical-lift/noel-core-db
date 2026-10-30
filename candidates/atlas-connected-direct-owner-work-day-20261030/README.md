@@ -25,3 +25,11 @@ Read-only production verification confirmed native direct responsibility, the co
 - Atlas draft PR #491, usability train #487, date issue #480, one-action Work #483.
 - Noel native title/edit and own Result history PR #2398 is separate and must pass its own signed gate.
 - Retirement UI uses the **already installed** company Work retirement preflight and reconciliation writer; it does not depend on this scheduling repair.
+
+## Same-release My Work urgency source (also draft)
+
+`my-work-status-candidate.sql` makes a minimal additive change to the **existing** authenticated `connected_person_my_work_self_api_v1` contract: it returns `latestResultKind` from the latest result attached to the caller's own currently active responsible allocation. It does **not** return result notes, other actors' private history, or an inferred waiting status. Every existing native Person, Ledger, exact Work identity, disclosure, and allocation constraint remains intact.
+
+Only a source-reported `blocked` may appear in the My Work **Blocked** group. A future source-defined `waiting` result may populate **Waiting**; no current writer/status supports declaring waiting solely because a date passed or a worker recorded partial progress. Needs attention, planned and undated groups continue to use already signed schedule state. No new Work storage, duplicate task, grant or exposed personal task is introduced.
+
+**Extra gate:** Apply both candidates to a rollback-only clone, prove the source contract with and without existing Results, assert zero content of `payload.note` or other private freeform Result text is exposed, exercise recipient/current/withdrawn/outsider read and source revocation, and check all-date pagination. Do not append the status candidate alone to production; both candidates remain withheld until independently approved.
