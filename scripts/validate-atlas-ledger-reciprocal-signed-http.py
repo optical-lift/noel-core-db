@@ -168,8 +168,16 @@ def main():
     must(any(x.get("workItemId")==again.get("workItemId") for x in anna_inbox.get("items",[])),
          "Anna root cannot read her own Ledger intake")
     # Revoking Anna's root does not revoke her ordinary Elm worker seat.
-    sql(a.db_url,f"update atlas.principal_ledger_authorities set status='revoked' "
-         f"where id='{ANNA_ROOT}'::uuid")
+    # Native root-custody constraint permits 'active' or 'ended' with
+    # ended_at. 'revoked' is not a valid authority status, and an invalid
+    # fixture update cannot count as a tested revocation.
+    sql(a.db_url,f"update atlas.principal_ledger_authorities "
+         f"set status='ended', ended_at=now() "
+         f"where id='{ANNA_ROOT}'::uuid and status='active'")
+    must(sql(a.db_url,f"select count(*) from atlas.principal_ledger_authorities "
+         f"where id='{ANNA_ROOT}'::uuid and status='ended' "
+         f"and ended_at is not null")=="1",
+         "One original Anna root must have ended before testing revocation")
     deny(api,key,anna,INBOX,{"p_ledger_id":ANNA_LEDGER,"p_limit":100},
          "Revoked Anna root retained access with existing signed JWT")
     deny(api,key,anna,PERSON_CHOICES,{"p_ledger_id":ANNA_LEDGER,"p_limit":100,
@@ -177,6 +185,10 @@ def main():
     deny(api,key,anna,AGENDA,{"p_ledger_id":ANNA_LEDGER,"p_person_id":OWNER_PERSON,
          "p_date":today,"p_limit":25},
          "Revoked Anna root cannot see another Person agenda")
+    # Ending root authority on Anna's separate Ledger must not silently
+    # remove an independently active worker seat on the Elm Ledger.
+    allow(api,key,anna,AGENDA,{"p_ledger_id":ELM,"p_person_id":ANNA_PERSON,
+         "p_date":today,"p_limit":25})
     must(sql(a.db_url,"select count(*) from reality.entities where entity_kind='person'")
          ==original_people and
          sql(a.db_url,"select count(*) from atlas.principals")==original_principals,
