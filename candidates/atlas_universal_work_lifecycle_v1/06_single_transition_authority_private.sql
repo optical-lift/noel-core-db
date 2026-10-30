@@ -63,6 +63,7 @@ DECLARE
 BEGIN
  IF v_uid IS NULL OR v_actor IS NULL OR p_work_item_id IS NULL
    OR p_result_id IS NULL OR v_key IS NULL OR length(v_key)>160
+   OR p_transition_kind IS NULL
    OR p_transition_kind NOT IN ('complete','cancel') THEN
    RAISE EXCEPTION 'Exact signed original Work transition, evidence and action required'
     USING ERRCODE='42501';
