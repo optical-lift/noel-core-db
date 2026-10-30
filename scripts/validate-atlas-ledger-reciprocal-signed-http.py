@@ -62,6 +62,9 @@ def main():
         "select count(*) from reality.entities where entity_kind='person'")
     original_principals=sql(a.db_url,
         "select count(*) from atlas.principals")
+    must(sql(a.db_url,f"select count(*) from atlas.principals "
+         f"where person_id='{ANNA_PERSON}'::uuid and status='active'")=="1",
+         "Fixture must bind exactly one Principal to the existing canonical Anna Person")
     must(sql(a.db_url,f"select count(*) from atlas.principal_ledger_authorities "
         f"where ledger_id='{ANNA_LEDGER}'::uuid and status='active' "
         f"and authority_kind='root_governing'")=="1","Anna root not established")
