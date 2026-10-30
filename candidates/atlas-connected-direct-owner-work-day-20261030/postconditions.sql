@@ -16,6 +16,25 @@ BEGIN
   IF to_regprocedure('public.owner_set_connected_person_work_day_self_api_v1(uuid,uuid,date,text)') IS NULL THEN
     RAISE EXCEPTION 'Existing public authenticated RPC membrane missing';
   END IF;
+  -- These real source uniqueness constraints prevent two active allocations
+  -- or competing current plans from making a one-row writer nondeterministic.
+  -- A clone missing them must not be approved even if the function compiles.
+  IF NOT EXISTS(
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='atlas' AND tablename='work_allocations'
+      AND indexname='work_allocations_one_active_responsible_idx'
+      AND indexdef LIKE 'CREATE UNIQUE INDEX%'
+      AND indexdef LIKE '%(work_item_id)%'
+      AND indexdef LIKE '%state = ''active''%'
+  ) THEN RAISE EXCEPTION 'One active responsible allocation source constraint missing'; END IF;
+  IF NOT EXISTS(
+    SELECT 1 FROM pg_indexes
+    WHERE schemaname='atlas' AND tablename='work_execution_plans'
+      AND indexname='work_execution_plans_one_current_idx'
+      AND indexdef LIKE 'CREATE UNIQUE INDEX%'
+      AND indexdef LIKE '%(work_item_id)%'
+      AND indexdef LIKE '%needs_replan%'
+  ) THEN RAISE EXCEPTION 'One current plan source constraint missing'; END IF;
   RAISE NOTICE 'PASS source-only function/guard presence; signed behavior NOT TESTED';
 END
 $check$;
