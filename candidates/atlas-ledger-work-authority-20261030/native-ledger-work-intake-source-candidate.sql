@@ -135,7 +135,7 @@ BEGIN
         AND s.seat_state='active' AND s.ended_at IS NULL)
   THEN RAISE EXCEPTION 'Exact current Ledger participation required'
     USING ERRCODE='42501'; END IF;
-  v_key:='ledger-work-intake:'||v_sender::text||':'||md5(v_action);
+  v_key:='ledger-work-intake:'||md5(v_sender::text||':'||v_action);
   PERFORM pg_advisory_xact_lock(hashtextextended(v_key,0));
   SELECT * INTO v_prior FROM atlas.ledger_work_intakes_v1 i
   WHERE i.submitted_by_person_id=v_sender AND i.source_action_id=v_action
@@ -158,8 +158,7 @@ BEGIN
       v_work,v_org,v_title,'open','ledger_work_submission_v1',
       v_intake,auth.uid(),v_key,
       jsonb_build_object('sourceContract','ledger_work_intake_v1',
-        'custody','institutional','submittedByPersonId',v_sender,
-        'nativeLedgerId',p_ledger_id,'individualAssigned',false,
+        'custody','institutional','individualAssigned',false,
         'personDayPlacementEstablished',false,
         'attentionDateIsProposalOnly',true)
     );
