@@ -1,0 +1,199 @@
+name: Atlas Ledger reciprocal root signed clone
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/atlas-ledger-reciprocal-signed-clone.yml"
+      - "scripts/validate-atlas-ledger-reciprocal-signed-http.py"
+      - "scripts/validate-production-schema-clone.sh"
+      - "validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql"
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: atlas-ledger-reciprocal-${{ github.event_name }}
+  cancel-in-progress: false
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate source-only security workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-ledger-reciprocal-signed-http.py
+          python3 - <<'PY'
+          from pathlib import Path
+          y=Path(".github/workflows/atlas-ledger-reciprocal-signed-clone.yml").read_text()
+          s=Path("scripts/validate-production-schema-clone.sh").read_text()
+          for required in ("github.event.issue.author_association == 'OWNER'", "github.actor == github.repository_owner", "environment: production", "signed-ledger-reciprocal-summary.txt"):
+            assert required in y
+          assert y.index("Snapshot production roles and schema READ ONLY") < y.index("Checkout immutable candidates")
+          assert "atlas_ledger_reciprocal_signed_clone_only_v1" in s
+          assert "validate-atlas-ledger-reciprocal-signed-http.py" in s
+          print("PASS protected signed reciprocal Ledger clone contract")
+          PY
+  validate:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Ledger reciprocal root: protected signed clone gate'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    steps:
+      - name: Bind exact source SHA values
+        id: src
+        env:
+          BODY: ${{ github.event.issue.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          for name in ("security_sha","intake_sha"):
+            matches=re.findall(r"^"+name+r":\s*([0-9a-f]{40})\s*$",os.environ.get("BODY",""),re.M)
+            if len(matches)!=1: raise SystemExit("Missing immutable "+name)
+            with open(os.environ["GITHUB_OUTPUT"],"a") as f:f.write(name+"="+matches[0]+"\n")
+          PY
+      - name: Checkout trusted test infrastructure from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify trust contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-ledger-reciprocal-signed-http.py
+      - name: Install pinned CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = "2.116.0"
+      - name: Registry authentication
+        env:
+          TOKEN: ${{ github.token }}
+          USER: ${{ github.actor }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$TOKEN" | docker login ghcr.io --username "$USER" --password-stdin
+      - name: Snapshot production roles and schema READ ONLY
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/ledger-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/ledger-schema.sql"
+          test -s "$RUNNER_TEMP/ledger-roles.sql"
+          test -s "$RUNNER_TEMP/ledger-schema.sql"
+      - name: Checkout immutable candidates
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.src.outputs.security_sha }}
+          path: source-security
+          persist-credentials: false
+      - name: Checkout immutable intake
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.src.outputs.intake_sha }}
+          path: source-intake
+          persist-credentials: false
+      - name: Assemble disposable scratch package
+        id: scratch
+        env:
+          SECURITY_SHA: ${{ steps.src.outputs.security_sha }}
+          INTAKE_SHA: ${{ steps.src.outputs.intake_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C source-security rev-parse HEAD)" = "$SECURITY_SHA"
+          test "$(git -C source-intake rev-parse HEAD)" = "$INTAKE_SHA"
+          security=source-security/candidates/atlas-ledger-work-authority-20261030
+          intake=source-intake/candidates/atlas-ledger-work-intake-20261030
+          base=candidates/atlas_work_self_assignment_native_v1/fixture.sql
+          extra=validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql
+          for f in "$security/root-scoped-peer-source-candidate.sql" "$security/postconditions.sql" "$intake/candidate.sql" "$intake/postconditions.sql" "$base" "$extra"; do test -s "$f"; done
+          mkdir -p "$RUNNER_TEMP/ledger-scratch"
+          ( cd "$RUNNER_TEMP/ledger-scratch" && supabase init --force && supabase migration new atlas_ledger_reciprocal_signed_clone_only_v1 )
+          migration="$(find "$RUNNER_TEMP/ledger-scratch/supabase/migrations" -name '*_atlas_ledger_reciprocal_signed_clone_only_v1.sql' | head -n1)"
+          test -n "$migration"
+          cat "$security/root-scoped-peer-source-candidate.sql" "$intake/candidate.sql" >"$migration"
+          cat "$security/postconditions.sql" "$intake/postconditions.sql" >"$RUNNER_TEMP/ledger-scratch/postconditions.sql"
+          cat "$base" "$extra" >"$RUNNER_TEMP/ledger-scratch/fixture.sql"
+          name="$(basename "$migration")"
+          echo "version=$(echo "$name" | cut -d_ -f1)" >>"$GITHUB_OUTPUT"
+          echo "migration=$migration" >>"$GITHUB_OUTPUT"
+          sha256sum "$migration" "$RUNNER_TEMP/ledger-scratch/fixture.sql"
+      - name: Protected disposable signed Auth and REST clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+            --candidate-fixture "$RUNNER_TEMP/ledger-scratch/fixture.sql" \
+            --candidate-validation "$RUNNER_TEMP/ledger-scratch/postconditions.sql" \
+            --roles-dump "$RUNNER_TEMP/ledger-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/ledger-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/ledger-clone-artifacts"
+          test -s "$RUNNER_TEMP/ledger-clone-artifacts/signed-ledger-reciprocal-summary.txt"
+          grep -q '^PASS' "$RUNNER_TEMP/ledger-clone-artifacts/signed-ledger-reciprocal-summary.txt"
+      - name: Bounded summary
+        if: always()
+        run: |
+          if test -s "$RUNNER_TEMP/ledger-clone-artifacts/summary.md"; then
+            cat "$RUNNER_TEMP/ledger-clone-artifacts/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Signed clone did not pass. No production effects." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-ledger-reciprocal-clone-diagnostics
+          path: ${{ runner.temp }}/ledger-clone-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+  report:
+    needs: [validate]
+    if: >-
+      always() &&
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Ledger reciprocal root: protected signed clone gate'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+    steps:
+      - name: Report bounded verdict
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          RESULT: ${{ needs.validate.result }}
+          URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$RESULT" in success|failure|cancelled|skipped) ;; *) exit 2 ;; esac
+          gh issue comment "$ISSUE" --body "Atlas reciprocal native Ledger Work signed clone: **$RESULT**. [Exact run]($URL). Local disposable database only."
