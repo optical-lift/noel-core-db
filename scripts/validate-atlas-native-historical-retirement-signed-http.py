@@ -14,7 +14,7 @@ OWNER="e5200000-0000-4000-8000-000000000101"
 PERSON="e5200000-0000-4000-8000-000000000102"
 WORK="ec410000-0000-4000-8000-000000000901"
 ALLOC="ec410000-0000-4000-8000-000000000301"
-LEGACY="ec410000-0000-4000-8000-000000000201"
+LEGACY="ec400000-0000-4000-8000-000000000201"
 
 def action(n):
     return f"ec410000-0000-4000-8000-{n:012x}"
@@ -53,9 +53,17 @@ def proof(db, api, key, tokens, h):
        'clone:historical-retirement-proof');
       INSERT INTO atlas.work_allocations(
        id,organization_id,work_item_id,assignee_membership_id,
-       allocation_role,state,establishment_basis_kind,establishment_basis)
+       assigned_by_membership_id,allocation_role,state,
+       establishment_basis_kind,establishment_basis)
       VALUES('{ALLOC}'::uuid,'{ORG}'::uuid,'{WORK}'::uuid,'{LEGACY}'::uuid,
-       'responsible','active','self_adoption','{{"historical":true}}'::jsonb);
+       '{LEGACY}'::uuid,'responsible','active','self_adoption',
+       jsonb_build_object(
+        'contractVersion','exact_work_responsibility_establishment_v2',
+        'basisKind','self_adoption','organizationId','{ORG}',
+        'workItemId','{WORK}','actorMembershipId','{LEGACY}',
+        'assigneeMembershipId','{LEGACY}',
+        'sourceKind','legacy_task_slice',
+        'sourceId','ec410000-0000-4000-8000-000000000902'));
       INSERT INTO atlas.company_work_native_ledger_relevance(
        organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
        attestation_source_ref,attestation_reason,established_by_person_id)
@@ -63,7 +71,19 @@ def proof(db, api, key, tokens, h):
        'serves_purpose','owner_attested','clone:obsolete-review',
        'Fictional original Work context for retirement review','{OWNER}'::uuid);
     """
-    h.c1.sql(db,seed)
+    # Preserve PostgreSQL's original error (not the SQL command or DB URL)
+    # when the strictly fictional fixture is rejected by real source guards.
+    # The shared C1 helper captures stderr but CalledProcessError.__str__
+    # otherwise suppresses it, making a signed proof failure uninterpretable.
+    try:
+        h.c1.sql(db,seed)
+    except Exception as exc:
+        import subprocess
+        if not isinstance(exc,subprocess.CalledProcessError):
+            raise
+        detail=(exc.stderr or "").strip()[-1200:]
+        raise AssertionError("Fictional retirement seed rejected by PostgreSQL: "+
+                             detail) from None
     original=lambda table:sql(db,(
       "select count(*) from "+table+" where work_item_id="+literal(WORK)+"::uuid"))
     result_before=original("atlas.work_execution_results")

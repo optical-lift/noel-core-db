@@ -29,7 +29,8 @@ def proof(db,api,key,tokens,h):
      id,organization_id,user_id,role,active,person_id)
     VALUES ('{LEGACY}'::uuid,'{ORG}'::uuid,
      'e5200000-0000-4000-8000-000000000002'::uuid,
-     'member',true,'{PERSON}'::uuid);
+     'member',true,'{PERSON}'::uuid)
+    ON CONFLICT (organization_id,user_id) DO NOTHING;
     INSERT INTO atlas.work_items(
      id,organization_id,title,work_state,source_object_type,source_object_id,stable_key)
     VALUES ('{WORK}'::uuid,'{ORG}'::uuid,
@@ -38,9 +39,17 @@ def proof(db,api,key,tokens,h):
      'clone:historic-self-adoption');
     INSERT INTO atlas.work_allocations(
      id,organization_id,work_item_id,assignee_membership_id,
-     allocation_role,state,establishment_basis_kind,establishment_basis)
+     assigned_by_membership_id,allocation_role,state,
+     establishment_basis_kind,establishment_basis)
     VALUES('{ALLOC}'::uuid,'{ORG}'::uuid,'{WORK}'::uuid,'{LEGACY}'::uuid,
-     'responsible','active','self_adoption','{{"historical":true}}'::jsonb);
+     '{LEGACY}'::uuid,'responsible','active','self_adoption',
+     jsonb_build_object(
+      'contractVersion','exact_work_responsibility_establishment_v2',
+      'basisKind','self_adoption','organizationId','{ORG}',
+      'workItemId','{WORK}','actorMembershipId','{LEGACY}',
+      'assigneeMembershipId','{LEGACY}',
+      'sourceKind','legacy_task_slice',
+      'sourceId','ec400000-0000-4000-8000-000000000902'));
     INSERT INTO atlas.company_work_native_ledger_relevance(
      organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
      attestation_source_ref,attestation_reason,established_by_person_id)
