@@ -288,6 +288,13 @@ REVOKE ALL ON FUNCTION public.ledger_work_submission_status_self_api_v1(uuid)
   FROM PUBLIC,anon;
 REVOKE ALL ON FUNCTION public.ledger_work_root_inbox_self_api_v1(uuid,integer,uuid)
   FROM PUBLIC,anon;
+-- Public invoker facades must be able to call the gated atlas writers.
+GRANT EXECUTE ON FUNCTION atlas.submit_ledger_work_self_api_v1(uuid,text,date,text)
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION atlas.ledger_work_submission_status_self_api_v1(uuid)
+  TO authenticated;
+GRANT EXECUTE ON FUNCTION atlas.ledger_work_root_inbox_self_api_v1(uuid,integer,uuid)
+  TO authenticated;
 GRANT EXECUTE ON FUNCTION public.submit_ledger_work_self_api_v1(uuid,text,date,text)
   TO authenticated;
 GRANT EXECUTE ON FUNCTION public.ledger_work_submission_status_self_api_v1(uuid)
