@@ -115,6 +115,7 @@ signed_program_source_identity_probe=false
 signed_universal_original_work_probe=false
 signed_work_self_assignment_probe=false
 signed_care_single_done_probe=false
+signed_native_work_release_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
 # One exact generated mail permission candidate needs true signed Auth+REST.
@@ -146,6 +147,17 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_work_self_assignment_probe=true
+fi
+
+# Owner-gated source-only editor/date/Result status proof. This is
+# disposable scratch source, not a releasable migration or a permission grant.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_native_work_edit_schedule_signed_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Native Work clone requires fictional fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_native_work_release_probe=true
 fi
 
 # An exact named source-only physical care validation, not a release.
@@ -548,6 +560,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_universal_original_work_probe" = true ] ||
        [ "$signed_work_self_assignment_probe" = true ] ||
        [ "$signed_care_single_done_probe" = true ] ||
+       [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
        [ "$signed_person_mail_probe" = true ]; then
     # The source-governed signed care/Done test requires only PostgreSQL,
@@ -556,7 +569,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
     # public ECR quota before signed tests could start (two protected runs).
     # Limit this to the existing care probe; no change to other clone lanes,
     # image registries, pinned CLI, health checks, JWT verification or SQL.
-    if [ "$signed_care_single_done_probe" = true ]; then
+    if [ "$signed_care_single_done_probe" = true ] || [ "$signed_native_work_release_probe" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
     else
       supabase start >"$startup_log" 2>&1
@@ -732,6 +745,16 @@ if [ "$signed_universal_original_work_probe" = true ]; then
   grep -q '^PASS' "$artifacts_dir/signed-universal-original-work-event-regression.txt"
 fi
 
+if [ "$signed_native_work_release_probe" = true ]; then
+  phase="signed native original Work edit, date, own Results and revocation"
+  python3 "$repo_root/scripts/validate-atlas-native-work-release-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-native-work-release-summary.txt" \
+    >"$artifacts_dir/signed-native-work-release.log" 2>&1
+  test -s "$artifacts_dir/signed-native-work-release-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-native-work-release-summary.txt"
+fi
+
 if [ "$signed_care_single_done_probe" = true ]; then
   phase="signed care physical Actual, source permission and universal Done"
   python3 "$repo_root/scripts/validate-atlas-care-single-done-signed-http.py" \
@@ -886,6 +909,9 @@ if [ "$signed_http_probe" = true ]; then
 fi
 if [ "$signed_person_mail_probe" = true ]; then
   printf '\nSIGNED Person shared mail: true separate signed governor, recipient, outsider, cutoff, fallback, legacy-route and revocation tests.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_native_work_release_probe" = true ]; then
+  printf '\nSIGNED native Work editing/date/status: local independent GoTrue actors, original identity, stale edit, Result privacy, current plan and revoked seat all passed.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_work_self_assignment_probe" = true ]; then
   printf '\\nSIGNED original Work: own-Person and other Person responsibility, exact idempotent replay, no forced plan/new Work, cross-Ledger denials and root/seat/session revocation passed on local clone.\\n' >> "$artifacts_dir/summary.md"
