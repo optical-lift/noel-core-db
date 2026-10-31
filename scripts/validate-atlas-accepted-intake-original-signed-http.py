@@ -26,6 +26,7 @@ SUBMIT="submit_ledger_work_self_api_v1"
 OWNER_WORK="company_work_accountability_native_ledger_self_api_v1"
 DIRECT="owner_direct_assign_existing_original_work_self_api_v1"
 ELIGIBLE="accepted_ledger_intake_owner_assignment_source_self_api_v1"
+NEEDS="ledger_accepted_original_needs_assignment_root_self_api_v1"
 STATUS="ledger_work_submission_status_self_api_v1"
 PROPOSE="propose_native_ledger_exact_work_scope_owner_self_api_v1"
 RESPOND="respond_native_ledger_standing_scope_self_api_v1"
@@ -145,6 +146,15 @@ def main():
     deny(api,key,None,ELIGIBLE,{
         "p_organization_id":ORG,"p_ledger_id":ELM,"p_work_item_id":a["workItemId"]},
         "anonymous cannot discover exact Work")
+    needsargs={"p_ledger_id":ELM,"p_limit":1,"p_after_work_item_id":None}
+    initial=allow(api,key,root,NEEDS,needsargs)
+    check(initial.get("contractVersion")=="ledger_accepted_original_needs_assignment_v1"
+          and initial.get("totalNeedsAssignment")==0 and initial.get("items")==[]
+          and initial.get("hasMore") is False,
+          "Pending originals, including alternate-attested pending original, must be excluded")
+    for actor,label in ((worker,"worker"),(outsider,"outsider"),
+                        (no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,actor,NEEDS,needsargs,label+" cannot discover Needs Assignment")
     accepted(api,key,root,a,"Fictional direct accepted original")
     accepted(api,key,root,b,"Fictional consent accepted original")
     rows=work_page(api,key,root)
@@ -153,6 +163,27 @@ def main():
         check(len(selected)==1 and
               selected[0].get("responsibility",{}).get("allocationId") is None,
               "Accepted original should appear as ONE unassigned normal Ledger Work")
+    first=allow(api,key,root,NEEDS,needsargs)
+    check(first.get("totalNeedsAssignment")==2
+          and first.get("returnedCount")==1
+          and first.get("hasMore") is True
+          and len(first.get("items",[]))==1
+          and first["items"][0].get("assignedToPerson") is False,
+          "Exact root Needs Assignment must return one paged accepted original")
+    cursor=first.get("nextWorkItemId")
+    check(UUID.fullmatch(cursor or "") is not None
+          and first["items"][0].get("workItemId")==cursor,
+          "Needs Assignment cursor must identify the exact original")
+    second=allow(api,key,root,NEEDS,{**needsargs,"p_after_work_item_id":cursor})
+    found=first["items"]+second.get("items",[])
+    check(second.get("totalNeedsAssignment")==2
+          and second.get("returnedCount")==1
+          and second.get("hasMore") is False
+          and {x.get("workItemId") for x in found}==
+              {a["workItemId"],b["workItemId"]}
+          and all(x.get("intakeId") in {a["intakeId"],b["intakeId"]}
+                  and x.get("workState")=="open" for x in found),
+          "Exact Needs Assignment collection must paginate without pending or duplicate Work")
     current=allow(api,key,worker,STATUS,{"p_ledger_id":ELM,"p_limit":50,
         "p_after_created_at":None,"p_after_intake_id":None})
     check(current.get("contractVersion")=="ledger_work_submitter_status_v1"
@@ -180,6 +211,11 @@ def main():
     check(idem.get("idempotent") is True
           and idem.get("allocationId")==d.get("allocationId"),
           "Exact replay must preserve original allocation")
+    direct_needs=allow(api,key,root,NEEDS,{**needsargs,"p_limit":50})
+    check(direct_needs.get("totalNeedsAssignment")==1
+          and [x.get("workItemId") for x in direct_needs.get("items",[])]==
+              [b["workItemId"]],
+          "Direct responsibility must remove only its original from Needs Assignment")
     mine(api,key,worker,a["workItemId"])
     deny(api,key,worker,PLACE,{"p_work_item_id":a["workItemId"],
          "p_service_date":"2026-11-06","p_reason":"Unauthorized worker date change"},
@@ -225,6 +261,11 @@ def main():
     check(scoped.get("workItemId")==b["workItemId"]
           and scoped.get("newWorkCreated") is False,
           "Consent path replaced original or created new Work")
+    final_needs=allow(api,key,root,NEEDS,{**needsargs,"p_limit":50})
+    check(final_needs.get("totalNeedsAssignment")==0
+          and final_needs.get("items")==[]
+          and final_needs.get("hasMore") is False,
+          "Exact consent assignment must remove its original, not create a shadow task")
     mine(api,key,worker,b["workItemId"])
     check(sql(args.db_url,"SELECT count(*) FROM atlas.work_items")==
           str(int(before)+3),"Submission/assignment created shadow Work")
