@@ -1787,5 +1787,306 @@ GRANT EXECUTE ON FUNCTION
  public.accepted_intake_author_work_focus_self_api_v1(uuid,uuid,uuid)
  TO authenticated;
 
+
+-- R02D2A: independently administered information permission. NOT the
+-- Ledger-scoped assignment grant, an accepted Work item, or a title reader.
+CREATE TABLE atlas.ledger_original_work_title_disclosure_events_v1 (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ organization_id uuid NOT NULL REFERENCES atlas.organizations(id),
+ ledger_id uuid NOT NULL REFERENCES ledger.ledgers(id),
+ work_item_id uuid NOT NULL REFERENCES atlas.work_items(id),
+ recipient_person_id uuid NOT NULL REFERENCES reality.entities(id),
+ revision integer NOT NULL CHECK(revision>0),
+ expected_revision integer NOT NULL CHECK(expected_revision>=0 AND revision=expected_revision+1),
+ decision text NOT NULL CHECK(decision IN ('grant','revoke')),
+ valid_until timestamptz,
+ actor_person_id uuid NOT NULL REFERENCES reality.entities(id),
+ actor_principal_id uuid NOT NULL REFERENCES atlas.principals(id),
+ native_root_authority_id uuid NOT NULL REFERENCES atlas.principal_ledger_authorities(id),
+ institutional_root_authority_id uuid NOT NULL REFERENCES atlas.principal_ledger_authorities(id),
+ action_id uuid NOT NULL,
+ reason text NOT NULL CHECK(length(btrim(reason)) BETWEEN 12 AND 1200),
+ recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ CONSTRAINT work_title_disclosure_revision_uq_v1
+   UNIQUE(organization_id,ledger_id,work_item_id,recipient_person_id,revision),
+ CONSTRAINT work_title_disclosure_action_uq_v1 UNIQUE(actor_person_id,action_id),
+ CHECK(decision='grant' OR valid_until IS NULL),
+ CHECK(valid_until IS NULL OR valid_until>recorded_at)
+);
+COMMENT ON TABLE atlas.ledger_original_work_title_disclosure_events_v1 IS
+ 'Append-only per-original, per-Person permission decisions for disclosure of title only. No title data, assignment, roster or operational authority is stored or granted by this source.';
+ALTER TABLE atlas.ledger_original_work_title_disclosure_events_v1 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE atlas.ledger_original_work_title_disclosure_events_v1 FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON atlas.ledger_original_work_title_disclosure_events_v1
+ FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE OR REPLACE FUNCTION atlas.guard_work_title_disclosure_history_v1()
+RETURNS trigger LANGUAGE plpgsql SET search_path='' AS $fn$
+BEGIN
+ RAISE EXCEPTION 'Work title disclosure history is append-only' USING ERRCODE='42501';
+END;
+$fn$;
+REVOKE ALL ON FUNCTION atlas.guard_work_title_disclosure_history_v1()
+ FROM PUBLIC,anon,authenticated,service_role;
+CREATE TRIGGER work_title_disclosure_history_rows_v1
+ BEFORE UPDATE OR DELETE ON atlas.ledger_original_work_title_disclosure_events_v1
+ FOR EACH ROW EXECUTE FUNCTION atlas.guard_work_title_disclosure_history_v1();
+CREATE TRIGGER work_title_disclosure_history_truncate_v1
+ BEFORE TRUNCATE ON atlas.ledger_original_work_title_disclosure_events_v1
+ FOR EACH STATEMENT EXECUTE FUNCTION atlas.guard_work_title_disclosure_history_v1();
+
+-- Internal evaluator only; the self reader below cannot disclose a title.
+CREATE OR REPLACE FUNCTION atlas.work_title_disclosure_event_effective_v1(p_event_id uuid)
+RETURNS boolean LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
+ SELECT EXISTS (
+   SELECT 1 FROM atlas.ledger_original_work_title_disclosure_events_v1 e
+   JOIN atlas.principals p ON p.id=e.actor_principal_id
+     AND p.person_id=e.actor_person_id AND p.status='active'
+   JOIN reality.entities issuer ON issuer.id=e.actor_person_id
+     AND issuer.entity_kind='person' AND issuer.identity_state='canonical'
+   JOIN reality.entities recipient ON recipient.id=e.recipient_person_id
+     AND recipient.entity_kind='person' AND recipient.identity_state='canonical'
+   JOIN atlas.principal_ledger_authorities nr ON nr.id=e.native_root_authority_id
+     AND nr.principal_id=p.id AND nr.ledger_id=e.ledger_id
+     AND nr.authority_kind='root_governing' AND nr.status='active' AND nr.ended_at IS NULL
+   JOIN atlas.principal_ledger_authorities ir ON ir.id=e.institutional_root_authority_id
+     AND ir.principal_id=p.id AND ir.authority_kind='root_governing'
+     AND ir.status='active' AND ir.ended_at IS NULL
+   WHERE e.id=p_event_id AND e.decision='grant'
+     AND (e.valid_until IS NULL OR e.valid_until>clock_timestamp())
+     AND NOT EXISTS (
+       SELECT 1 FROM atlas.ledger_original_work_title_disclosure_events_v1 newer
+       WHERE newer.organization_id=e.organization_id AND newer.ledger_id=e.ledger_id
+         AND newer.work_item_id=e.work_item_id
+         AND newer.recipient_person_id=e.recipient_person_id
+         AND newer.revision>e.revision)
+     AND atlas.person_has_native_ledger_connection_v1(
+       e.organization_id,e.ledger_id,e.recipient_person_id)
+     AND atlas.person_has_native_ledger_connection_v1(
+       e.organization_id,e.ledger_id,e.actor_person_id)
+     AND atlas.accepted_ledger_intake_original_evidence_v1(
+       e.organization_id,e.ledger_id,e.work_item_id)
+     AND EXISTS(SELECT 1 FROM atlas.work_items w
+       WHERE w.id=e.work_item_id AND w.organization_id=e.organization_id
+         AND w.work_state='open')
+     AND EXISTS (
+       SELECT 1 FROM atlas.ledger_organization_participations lop
+       JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
+       JOIN ledger.ledgers nl ON nl.id=lop.ledger_id
+         AND nl.ledger_state='active' AND nl.retired_at IS NULL
+       WHERE lop.organization_id=e.organization_id AND lop.ledger_id=e.ledger_id
+         AND lop.participation_kind IN ('governing','operating')
+         AND lop.status='active' AND lop.ended_at IS NULL)
+     AND 1=(SELECT count(*) FROM atlas.ledger_organization_participations primary_lop
+       JOIN atlas.ledgers al ON al.id=primary_lop.ledger_id AND al.status='active'
+       WHERE primary_lop.organization_id=e.organization_id
+         AND primary_lop.participation_kind='governing' AND primary_lop.is_compatibility_primary
+         AND primary_lop.status='active' AND primary_lop.ended_at IS NULL)
+     AND EXISTS (SELECT 1 FROM atlas.ledger_organization_participations primary_lop
+       JOIN atlas.ledgers al ON al.id=primary_lop.ledger_id AND al.status='active'
+       WHERE primary_lop.organization_id=e.organization_id
+         AND primary_lop.ledger_id=ir.ledger_id AND primary_lop.is_compatibility_primary
+         AND primary_lop.participation_kind='governing'
+         AND primary_lop.status='active' AND primary_lop.ended_at IS NULL)
+ );
+$fn$;
+REVOKE ALL ON FUNCTION atlas.work_title_disclosure_event_effective_v1(uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE OR REPLACE FUNCTION atlas.decide_work_title_disclosure_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_recipient_person_id uuid,
+ p_decision text,p_expected_revision integer,p_valid_until timestamptz,
+ p_action_id uuid,p_reason text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE
+ who uuid; principal uuid; native_root uuid; institutional_root uuid; primary_ledger uuid;
+ current_revision integer; replay boolean:=false;
+ choice text:=lower(btrim(coalesce(p_decision,'')));
+ why text:=nullif(btrim(coalesce(p_reason,'')),'');
+ e atlas.ledger_original_work_title_disclosure_events_v1%rowtype;
+BEGIN
+ who:=atlas.require_work_assignment_delegation_session_v1();
+ IF p_organization_id IS NULL OR p_ledger_id IS NULL OR p_work_item_id IS NULL
+    OR p_recipient_person_id IS NULL OR p_action_id IS NULL
+    OR p_expected_revision IS NULL OR p_expected_revision<0
+    OR p_expected_revision>=2147483647
+    OR choice NOT IN ('grant','revoke')
+    OR why IS NULL OR length(why) NOT BETWEEN 12 AND 1200
+    OR (choice='revoke' AND p_valid_until IS NOT NULL) THEN
+   RAISE EXCEPTION 'Exact original title permission decision fields required' USING ERRCODE='22023';
+ END IF;
+ IF who IS DISTINCT FROM atlas.company_work_native_ledger_owner_self_v1(
+   p_organization_id,p_ledger_id) THEN
+   RAISE EXCEPTION 'Exact current governing authority required' USING ERRCODE='42501';
+ END IF;
+ principal:=atlas.current_principal_id_v1();
+ PERFORM 1 FROM atlas.principals p
+   WHERE p.id=principal AND p.person_id=who AND p.status='active' FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Current issuer principal required' USING ERRCODE='42501'; END IF;
+ SELECT a.id INTO native_root FROM atlas.principal_ledger_authorities a
+   WHERE a.principal_id=principal AND a.ledger_id=p_ledger_id
+     AND a.authority_kind='root_governing' AND a.status='active' AND a.ended_at IS NULL
+     FOR SHARE;
+ SELECT lop.ledger_id INTO primary_ledger
+   FROM atlas.ledger_organization_participations lop
+   JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
+   WHERE lop.organization_id=p_organization_id AND lop.status='active'
+     AND lop.ended_at IS NULL AND lop.is_compatibility_primary
+     AND lop.participation_kind='governing' FOR SHARE OF lop,al;
+ SELECT a.id INTO institutional_root FROM atlas.principal_ledger_authorities a
+   WHERE a.principal_id=principal AND a.ledger_id=primary_ledger
+     AND a.authority_kind='root_governing' AND a.status='active' AND a.ended_at IS NULL
+     FOR SHARE;
+ IF native_root IS NULL OR institutional_root IS NULL THEN
+   RAISE EXCEPTION 'Current issuing roots required' USING ERRCODE='42501';
+ END IF;
+ PERFORM 1 FROM atlas.ledger_organization_participations lop
+   JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
+   JOIN ledger.ledgers nl ON nl.id=al.id AND nl.ledger_state='active' AND nl.retired_at IS NULL
+   WHERE lop.organization_id=p_organization_id AND lop.ledger_id=p_ledger_id
+     AND lop.participation_kind IN ('governing','operating')
+     AND lop.status='active' AND lop.ended_at IS NULL FOR SHARE OF lop,al,nl;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Current native Ledger required' USING ERRCODE='42501'; END IF;
+ PERFORM 1 FROM ledger.seats s WHERE s.ledger_id=p_ledger_id
+   AND s.person_entity_id=who AND s.seat_state='active' AND s.ended_at IS NULL FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Issuer native connection required' USING ERRCODE='42501'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM reality.entities person
+   WHERE person.id=p_recipient_person_id AND person.entity_kind='person'
+     AND person.identity_state='canonical') THEN
+   RAISE EXCEPTION 'Canonical recipient required' USING ERRCODE='42501';
+ END IF;
+ IF choice='grant' THEN
+   IF NOT atlas.accepted_ledger_intake_original_evidence_v1(
+     p_organization_id,p_ledger_id,p_work_item_id)
+     OR NOT EXISTS(SELECT 1 FROM atlas.work_items w
+       WHERE w.id=p_work_item_id AND w.organization_id=p_organization_id
+         AND w.work_state='open') THEN
+     RAISE EXCEPTION 'Accepted open original required' USING ERRCODE='42501';
+   END IF;
+   IF NOT atlas.person_has_native_ledger_connection_v1(
+     p_organization_id,p_ledger_id,p_recipient_person_id) THEN
+     RAISE EXCEPTION 'Current connected canonical recipient required' USING ERRCODE='42501';
+   END IF;
+   PERFORM 1 FROM ledger.seats s JOIN reality.entities person ON person.id=s.person_entity_id
+     AND person.entity_kind='person' AND person.identity_state='canonical'
+     WHERE s.ledger_id=p_ledger_id AND s.person_entity_id=p_recipient_person_id
+       AND s.seat_state='active' AND s.ended_at IS NULL FOR SHARE OF s,person;
+   IF NOT FOUND THEN RAISE EXCEPTION 'Current connected recipient required' USING ERRCODE='42501'; END IF;
+ END IF;
+ PERFORM pg_advisory_xact_lock(hashtextextended(
+   'atlas.work_title_disclosure.action:'||who::text||':'||p_action_id::text,0));
+ PERFORM pg_advisory_xact_lock(hashtextextended(
+   'atlas.work_title_disclosure.scope:'||p_organization_id::text||':'||
+    p_ledger_id::text||':'||p_work_item_id::text||':'||p_recipient_person_id::text,0));
+ IF who IS DISTINCT FROM atlas.require_work_assignment_delegation_session_v1()
+   OR who IS DISTINCT FROM atlas.company_work_native_ledger_owner_self_v1(
+     p_organization_id,p_ledger_id) THEN
+   RAISE EXCEPTION 'Current exact issuer authority required' USING ERRCODE='42501';
+ END IF;
+ SELECT * INTO e FROM atlas.ledger_original_work_title_disclosure_events_v1 history
+   WHERE history.actor_person_id=who AND history.action_id=p_action_id;
+ IF FOUND THEN
+   IF e.organization_id IS DISTINCT FROM p_organization_id
+      OR e.ledger_id IS DISTINCT FROM p_ledger_id
+      OR e.work_item_id IS DISTINCT FROM p_work_item_id
+      OR e.recipient_person_id IS DISTINCT FROM p_recipient_person_id
+      OR e.decision IS DISTINCT FROM choice
+      OR e.expected_revision IS DISTINCT FROM p_expected_revision
+      OR e.valid_until IS DISTINCT FROM p_valid_until
+      OR e.reason IS DISTINCT FROM why THEN
+     RAISE EXCEPTION 'Disclosure action differs from immutable retry' USING ERRCODE='23505';
+   END IF;
+   replay:=true;
+ ELSE
+   IF choice='grant' AND p_valid_until IS NOT NULL AND p_valid_until<=clock_timestamp() THEN
+     RAISE EXCEPTION 'New disclosure grant must expire in future or be explicitly revoked'
+       USING ERRCODE='22023';
+   END IF;
+   SELECT coalesce(max(history.revision),0) INTO current_revision
+     FROM atlas.ledger_original_work_title_disclosure_events_v1 history
+     WHERE history.organization_id=p_organization_id AND history.ledger_id=p_ledger_id
+       AND history.work_item_id=p_work_item_id
+       AND history.recipient_person_id=p_recipient_person_id;
+   IF current_revision<>p_expected_revision THEN
+     RAISE EXCEPTION 'Title permission revision changed; reread before deciding'
+       USING ERRCODE='40001';
+   END IF;
+   INSERT INTO atlas.ledger_original_work_title_disclosure_events_v1(
+     organization_id,ledger_id,work_item_id,recipient_person_id,revision,expected_revision,
+     decision,valid_until,actor_person_id,actor_principal_id,
+     native_root_authority_id,institutional_root_authority_id,action_id,reason)
+   VALUES(p_organization_id,p_ledger_id,p_work_item_id,p_recipient_person_id,
+     p_expected_revision+1,p_expected_revision,choice,p_valid_until,
+     who,principal,native_root,institutional_root,p_action_id,why) RETURNING * INTO e;
+ END IF;
+ RETURN jsonb_build_object(
+   'ok',true,'contractVersion','work_title_disclosure_decision_v1',
+   'eventId',e.id,'organizationId',e.organization_id,'ledgerId',e.ledger_id,
+   'workItemId',e.work_item_id,'recipientPersonId',e.recipient_person_id,
+   'revision',e.revision,'decision',e.decision,'validUntil',e.valid_until,
+   'disclosureScope','accepted_original_title_only',
+   'grantEffective',atlas.work_title_disclosure_event_effective_v1(e.id),
+   'idempotent',replay,'workTitleDisclosed',false,'instructionsDisclosed',false,
+   'assignmentAuthorityGranted',false,'workCreated',false,'allocationCreated',false,
+   'planCreated',false);
+END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION atlas.work_title_disclosure_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE who uuid; e atlas.ledger_original_work_title_disclosure_events_v1%rowtype;
+BEGIN
+ who:=atlas.require_work_assignment_delegation_session_v1();
+ IF p_organization_id IS NULL OR p_ledger_id IS NULL OR p_work_item_id IS NULL
+    OR NOT atlas.person_has_native_ledger_connection_v1(
+      p_organization_id,p_ledger_id,who) THEN
+   RAISE EXCEPTION 'Current exact Person and Ledger connection required' USING ERRCODE='42501';
+ END IF;
+ SELECT * INTO e FROM atlas.ledger_original_work_title_disclosure_events_v1 history
+ WHERE history.organization_id=p_organization_id AND history.ledger_id=p_ledger_id
+   AND history.work_item_id=p_work_item_id AND history.recipient_person_id=who
+ ORDER BY history.revision DESC LIMIT 1;
+ RETURN jsonb_build_object(
+   'ok',true,'contractVersion','work_title_disclosure_self_v1',
+   'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+   'workItemId',p_work_item_id,'personId',who,
+   'eventId',e.id,'revision',coalesce(e.revision,0),'decision',e.decision,
+   'validUntil',e.valid_until,'disclosureScope','accepted_original_title_only',
+   'grantEffective',coalesce(atlas.work_title_disclosure_event_effective_v1(e.id),false),
+   'workTitleDisclosed',false,'instructionsDisclosed',false,
+   'workCreated',false,'allocationCreated',false,'planCreated',false);
+END;
+$fn$;
+
+CREATE OR REPLACE FUNCTION public.decide_work_title_disclosure_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_recipient_person_id uuid,
+ p_decision text,p_expected_revision integer,p_valid_until timestamptz,
+ p_action_id uuid,p_reason text)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path='' AS $fn$
+ SELECT atlas.decide_work_title_disclosure_self_api_v1($1,$2,$3,$4,$5,$6,$7,$8,$9);
+$fn$;
+CREATE OR REPLACE FUNCTION public.work_title_disclosure_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path='' AS $fn$
+ SELECT atlas.work_title_disclosure_self_api_v1($1,$2,$3);
+$fn$;
+REVOKE ALL ON FUNCTION
+ atlas.decide_work_title_disclosure_self_api_v1(uuid,uuid,uuid,uuid,text,integer,timestamptz,uuid,text),
+ public.decide_work_title_disclosure_self_api_v1(uuid,uuid,uuid,uuid,text,integer,timestamptz,uuid,text),
+ atlas.work_title_disclosure_self_api_v1(uuid,uuid,uuid),
+ public.work_title_disclosure_self_api_v1(uuid,uuid,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION
+ atlas.decide_work_title_disclosure_self_api_v1(uuid,uuid,uuid,uuid,text,integer,timestamptz,uuid,text),
+ public.decide_work_title_disclosure_self_api_v1(uuid,uuid,uuid,uuid,text,integer,timestamptz,uuid,text),
+ atlas.work_title_disclosure_self_api_v1(uuid,uuid,uuid),
+ public.work_title_disclosure_self_api_v1(uuid,uuid,uuid)
+ TO authenticated;
+REVOKE ALL ON FUNCTION
+ atlas.guard_work_title_disclosure_history_v1(),
+ atlas.work_title_disclosure_event_effective_v1(uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+
 NOTIFY pgrst,'reload schema';
 COMMIT;
