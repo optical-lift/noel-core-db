@@ -754,7 +754,7 @@ def recipient_choices_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pen
                  "JOIN reality.entities p ON p.id=seat.person_entity_id "
                  f"WHERE p.id='{item['personId']}'::uuid AND seat.ledger_id='{ELM}'::uuid "
                  "AND seat.seat_state='active' AND seat.ended_at IS NULL "
-                 "AND p.entity_kind='person' AND p.identity_state='canonical')")!="0",
+                 "AND p.entity_kind='person' AND p.identity_state='canonical'")!="0",
                  "Choice must remain a currently connected canonical native Person")
         check(assignment_snapshot(db,work)==snapshot,
               "Reading recipient names changed Work, Person, allocation or plan")
