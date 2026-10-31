@@ -221,10 +221,9 @@ def title_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending):
        "p_reason":"Fictional changed replay must never override title grant"})
     check(code in (400,409) and isinstance(out,dict) and out.get("code")=="23505",
           "Changed action-id replay must be rejected")
-    code,out=base.rpc(api,key,root,TITLE_DECIDE,{**grant,
-       "p_action_id":"e5200000-0000-4000-8000-000000000d02"})
-    check(code in (400,409) and isinstance(out,dict) and out.get("code")=="40001",
-          "Stale title disclosure revision must fail CAS")
+    v2.stale(api,key,root,TITLE_DECIDE,{**grant,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d02"},
+        "stale exact-title disclosure revision cannot overwrite history")
     revoke={**grant,"p_decision":"revoke","p_expected_revision":1,
         "p_action_id":"e5200000-0000-4000-8000-000000000d03"}
     ended=title_decision(db,api,key,root,revoke,2,False)
