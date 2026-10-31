@@ -106,7 +106,7 @@ BEGIN
   END IF;
   RETURN v_work;
 END
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.offer_unallocated_company_work_self_api_v1(p_work_item_id uuid, p_ledger_id uuid, p_target_person_id uuid, p_reason text)
@@ -209,7 +209,7 @@ BEGIN
    'workItemId',v_work.id,'ledgerId',p_ledger_id,'targetPersonId',p_target_person_id,
    'responsibilityChanged',false,'workerViewed',false,'scheduled',false);
 END
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(p_work_item_id uuid, p_scope_id uuid, p_reason text)
@@ -349,7 +349,7 @@ BEGIN
    'workerAcceptancePerTaskRequired',false,'workerDayPlacementProven',false,
    'workerReadProven',false,'newWorkCreated',false);
 END
-$function$
+$function$;
 
 
 -- Signed submitter *own* status. This is not the root queue, a roster or a
