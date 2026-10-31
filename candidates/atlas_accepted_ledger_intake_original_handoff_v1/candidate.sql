@@ -109,6 +109,82 @@ END
 $function$;
 
 
+CREATE OR REPLACE FUNCTION atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_worker_person_id uuid, p_work_item_id uuid, p_terms text, p_valid_until timestamp with time zone DEFAULT NULL::timestamp with time zone)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+DECLARE
+ v_owner uuid;v_work atlas.work_items%rowtype;
+ v_scope atlas.company_work_standing_assignment_scopes%rowtype;
+ v_terms text:=nullif(btrim(coalesce(p_terms,'')),'');
+BEGIN
+ IF auth.uid() IS NULL OR p_worker_person_id IS NULL OR p_work_item_id IS NULL
+   OR v_terms IS NULL OR length(v_terms) NOT BETWEEN 30 AND 3000
+   OR (p_valid_until IS NOT NULL AND p_valid_until<=now()) THEN
+   RAISE EXCEPTION 'Exact Work, Person and bounded terms required' USING ERRCODE='22023';
+ END IF;
+ v_owner:=atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id);
+ IF v_owner=p_worker_person_id OR NOT atlas.person_has_native_ledger_connection_v1(
+   p_organization_id,p_ledger_id,p_worker_person_id) THEN
+   RAISE EXCEPTION 'Another connected Person and native Ledger owner required'
+    USING ERRCODE='42501'; END IF;
+ SELECT * INTO v_work FROM atlas.work_items
+ WHERE id=p_work_item_id AND organization_id=p_organization_id FOR SHARE;
+ IF v_work.id IS NULL OR v_work.work_state<>'open' OR
+   (v_work.result_contract_key IS NULL
+    AND coalesce(v_work.source_object_type,'') NOT IN ('legacy_task','personal_dated_task')) THEN
+   RAISE EXCEPTION 'Open original Work with lawful Result contract required'
+    USING ERRCODE='23514'; END IF;
+ IF EXISTS(SELECT 1 FROM atlas.work_item_context_links l
+    WHERE l.organization_id=v_work.organization_id AND l.work_item_id=v_work.id
+    AND l.subject_domain='spatial' AND l.subject_kind='growing_object') THEN
+   RAISE EXCEPTION 'Protected spatial Work requires separate original Subject authority'
+    USING ERRCODE='42501'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+   WHERE rel.organization_id=p_organization_id AND rel.ledger_id=p_ledger_id
+     AND rel.work_item_id=v_work.id AND rel.attribution_state='active'
+     AND (rel.evidence_kind='owner_attested' OR
+       (rel.evidence_kind='participant_attested'
+         AND atlas.accepted_ledger_intake_original_evidence_v1(
+           p_organization_id,p_ledger_id,v_work.id)) OR
+       (rel.evidence_kind='source_verified' AND EXISTS(
+        SELECT 1 FROM atlas.company_work_native_ledger_exact_source_v1(
+          rel.work_item_id,rel.ledger_id) proof
+        WHERE proof.source_schema=rel.source_schema
+          AND proof.source_table=rel.source_table
+          AND proof.source_id=rel.source_id)))) THEN
+   RAISE EXCEPTION 'Exact established native Ledger Work relevance required'
+    USING ERRCODE='23514'; END IF;
+ IF EXISTS(SELECT 1 FROM atlas.work_allocations a
+   WHERE a.work_item_id=v_work.id AND a.organization_id=p_organization_id
+     AND a.state='active' AND a.allocation_role='responsible') THEN
+   RAISE EXCEPTION 'Current responsible allocation needs governed transfer'
+    USING ERRCODE='23514'; END IF;
+ IF EXISTS(SELECT 1 FROM atlas.company_work_standing_assignment_scopes s
+   WHERE s.organization_id=p_organization_id AND s.ledger_id=p_ledger_id
+     AND s.worker_person_id=p_worker_person_id AND s.coverage_mode='exact_work'
+     AND s.covered_work_item_id=v_work.id AND s.scope_state IN ('proposed','active')
+     AND (s.valid_until IS NULL OR s.valid_until>now())) THEN
+   RAISE EXCEPTION 'Exact Work scope already exists' USING ERRCODE='23505'; END IF;
+ INSERT INTO atlas.company_work_standing_assignment_scopes(
+   organization_id,ledger_id,worker_membership_id,worker_person_id,
+   position_id,position_appointment_id,organization_unit_id,
+   covered_operation_class,covered_work_item_id,coverage_mode,
+   proposed_by_person_id,proposed_by_membership_id,proposal_terms,valid_until
+ ) VALUES (p_organization_id,p_ledger_id,NULL,p_worker_person_id,
+   NULL,NULL,NULL,NULL,v_work.id,'exact_work',v_owner,NULL,v_terms,p_valid_until)
+ RETURNING * INTO v_scope;
+ RETURN jsonb_build_object('ok',true,'contractVersion','native_ledger_standing_scope_v1',
+   'scopeId',v_scope.id,'state','proposed','organizationId',p_organization_id,
+   'ledgerId',p_ledger_id,'workerPersonId',p_worker_person_id,
+   'coverageMode','exact_work','coveredWorkItemId',v_work.id,
+   'workerConsentRecorded',false,'workAssigned',false,
+   'newWorkCreated',false,'employeeSeatRequired',false);
+END
+$function$;
+
 CREATE OR REPLACE FUNCTION atlas.offer_unallocated_company_work_self_api_v1(p_work_item_id uuid, p_ledger_id uuid, p_target_person_id uuid, p_reason text)
  RETURNS jsonb
  LANGUAGE plpgsql
