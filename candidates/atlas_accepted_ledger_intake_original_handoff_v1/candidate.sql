@@ -1730,7 +1730,7 @@ GRANT EXECUTE ON FUNCTION
 -- independently by CURRENT assignment authority and original authorship.
 -- This does not delegate disclosure of another submitter's Work. A future
 -- explicit non-author information grant must be independently authorized.
-CREATE OR REPLACE FUNCTION atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(
+CREATE OR REPLACE FUNCTION atlas.accepted_intake_author_work_focus_self_api_v1(
  p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
 DECLARE authority jsonb; who uuid; permitted_title text;
@@ -1773,18 +1773,18 @@ BEGIN
    'assignmentMustRevalidate',true);
 END;
 $fn$;
-CREATE OR REPLACE FUNCTION public.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(
+CREATE OR REPLACE FUNCTION public.accepted_intake_author_work_focus_self_api_v1(
  p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
 RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path='' AS $fn$
- SELECT atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1($1,$2,$3);
+ SELECT atlas.accepted_intake_author_work_focus_self_api_v1($1,$2,$3);
 $fn$;
 REVOKE ALL ON FUNCTION
- atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid),
- public.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid)
+ atlas.accepted_intake_author_work_focus_self_api_v1(uuid,uuid,uuid),
+ public.accepted_intake_author_work_focus_self_api_v1(uuid,uuid,uuid)
  FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION
- atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid),
- public.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid)
+ atlas.accepted_intake_author_work_focus_self_api_v1(uuid,uuid,uuid),
+ public.accepted_intake_author_work_focus_self_api_v1(uuid,uuid,uuid)
  TO authenticated;
 
 NOTIFY pgrst,'reload schema';
