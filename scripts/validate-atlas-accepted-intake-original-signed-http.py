@@ -29,6 +29,7 @@ OWNER_WORK="company_work_accountability_native_ledger_self_api_v1"
 DIRECT="owner_direct_assign_existing_original_work_self_api_v1"
 ELIGIBLE="accepted_ledger_intake_owner_assignment_source_self_api_v1"
 PREFLIGHT="accepted_ledger_intake_assignment_preflight_self_api_v1"
+FOCUS_ENTRY="accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1"
 NEEDS="ledger_accepted_original_needs_assignment_root_self_api_v1"
 STATUS="ledger_work_submission_status_self_api_v1"
 PROPOSE="propose_native_ledger_exact_work_scope_owner_self_api_v1"
@@ -113,6 +114,38 @@ def assignment_preflight(db,api,key,actor,work,target,available):
               "workPayloadDisclosed","subjectContextDisclosed")),
           "Preflight must disclose only bounded current capability, with unchecked recipient explicit")
     check(preflight_snapshot(db,work)==before,"Preflight changed Work or grant state")
+    return out
+def focus_args(work,ledger=ELM):
+    return {"p_organization_id":ORG,"p_ledger_id":ledger,"p_work_item_id":work}
+def deny_focus(db,api,key,actor,work,label,ledger=ELM):
+    before=preflight_snapshot(db,work)
+    deny(api,key,actor,FOCUS_ENTRY,focus_args(work,ledger),label)
+    check(preflight_snapshot(db,work)==before,
+          "Denied author-title Focus entry changed durable state: "+label)
+def author_focus(db,api,key,actor,work,title):
+    before=preflight_snapshot(db,work)
+    out=allow(api,key,actor,FOCUS_ENTRY,focus_args(work))
+    fields={"ok","contractVersion","organizationId","ledgerId","workItemId",
+        "title","workState","focusMode","disclosureBasis","actorPersonId",
+        "authorizationBasis","delegationEventId","delegationRevision",
+        "sourceAccepted","instructionsAvailable","recipientRosterDisclosed",
+        "reviewContextDisclosed","subjectContextDisclosed","otherWorkDisclosed",
+        "workCreated","allocationCreated","planCreated","assignmentMustRevalidate"}
+    check(set(out)==fields and out.get("ok") is True
+          and out.get("contractVersion")=="accepted_ledger_intake_author_delegate_focus_entry_v1"
+          and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+          and out.get("workItemId")==work and out.get("title")==title
+          and out.get("workState")=="open" and out.get("focusMode")=="assignment_title_only"
+          and out.get("disclosureBasis")=="original_submitter_title_only_v1"
+          and out.get("actorPersonId")==WORKER_PERSON
+          and out.get("sourceAccepted") is True
+          and out.get("assignmentMustRevalidate") is True
+          and all(out.get(field) is False for field in
+              ("instructionsAvailable","recipientRosterDisclosed","reviewContextDisclosed",
+               "subjectContextDisclosed","otherWorkDisclosed",
+               "workCreated","allocationCreated","planCreated")),
+          "Authored focus entry must disclose only the signed author's title")
+    check(preflight_snapshot(db,work)==before,"Authored focus entry changed durable state")
     return out
 def delegation_state(api,key,worker):
     out=allow(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM})
@@ -278,6 +311,19 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
         "p_work_item_id":first["workItemId"],"p_target_person_id":OWNER_PERSON,
         "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000c01",
         "p_reason":"Fictional delegated accepted-original direct obligation"}
+    entry=author_focus(db,api,key,worker,first["workItemId"],"Fictional delegated original")
+    check(entry.get("delegationEventId")==grant.get("eventId")
+          and entry.get("delegationRevision")==6
+          and entry.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1",
+          "Own title access must require current assignment grant and author identity")
+    deny_focus(db,api,key,root,first["workItemId"],
+        "root assignment authority is not another Person's title disclosure")
+    deny_focus(db,api,key,worker,pending["workItemId"],
+        "current grant cannot read a still-pending original")
+    deny_focus(db,api,key,worker,first["workItemId"],
+        "wrong Ledger cannot open authored Work",OTHER)
+    deny_focus(db,api,key,worker,"e5200000-0000-4000-8000-000000000fff",
+        "unknown original cannot be read")
     ready=assignment_preflight(db,api,key,worker,first["workItemId"],OWNER_PERSON,True)
     check(ready.get("actorPersonId")==WORKER_PERSON
           and ready.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1"
@@ -377,6 +423,8 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
             "disconnection denies replay of the delegate's own successful action")
         deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
             "ended connection denies preflight with the same JWT")
+        deny_focus(db,api,key,worker,first["workItemId"],
+            "ended connection denies previously authorized author's title")
     finally:sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
         f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
     session=claims["session_id"]
@@ -388,6 +436,8 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
             "expired session denies own assignment replay while grant and issuer remain active")
         deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
             "expired session denies capability while grant and issuer remain active")
+        deny_focus(db,api,key,worker,first["workItemId"],
+            "expired session denies previously authorized author's title")
     finally:sql(db,f"UPDATE auth.sessions SET not_after={old_expiry} WHERE id='{session}'::uuid")
     control={"p_organization_id":ORG,"p_ledger_id":ELM,"p_delegate_person_id":WORKER_PERSON,
         "p_decision":"revoke","p_expected_revision":6,"p_valid_until":None,
@@ -398,10 +448,16 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
         "signed revocation denies retry of a previously successful delegated assignment")
     deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
         "signed revocation withdraws the earlier preflight capability")
+    deny_focus(db,api,key,worker,first["workItemId"],
+        "signed revocation withdraws author title access")
     new_grant=allow(api,key,root,DELEGATE,{**control,"p_decision":"grant",
         "p_expected_revision":7,"p_action_id":"e5200000-0000-4000-8000-000000000b13"})
     check(new_grant.get("revision")==8 and new_grant.get("eventId")!=grant["eventId"],
           "Regrant must preserve a distinct decision epoch")
+    new_entry=author_focus(db,api,key,worker,second["workItemId"],"Fictional next-epoch original")
+    check(new_entry.get("delegationEventId")==new_grant.get("eventId")
+          and new_entry.get("delegationRevision")==8,
+          "New author-title entry must carry new assignment authority epoch")
     next_ready=assignment_preflight(db,api,key,worker,second["workItemId"],OWNER_PERSON,True)
     check(next_ready.get("delegationEventId")==new_grant["eventId"]
           and next_ready.get("delegationRevision")==8,"Preflight reused an older grant epoch")
@@ -433,6 +489,8 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
           "retry/actor/epoch isolation, concurrent responsibility, withdrawn authority, no reader elevation")
     print("PASS R02C root/delegate exact preflight, supplied/unchecked recipient, field allowlist, "
           "current availability, no reservation, source-denied withdrawn authority and no durable effects")
+    print("PASS R02D1 own-title exact Work Focus entry requires independently signed author and "
+          "current assignment grant; field allowlist, pending/wrong-Ledger/revoked/expired denials")
     return successes[0][0]
 
 def work_page(api,key,token):
@@ -555,6 +613,13 @@ def main():
     accepted(api,key,root,a,"Fictional direct accepted original")
     accepted(api,key,root,b,"Fictional consent accepted original")
     rows=work_page(api,key,root)
+    deny_focus(args.db_url,api,key,worker,a["workItemId"],
+        "own submission title does not confer assignment authority")
+    deny_focus(args.db_url,api,key,root,a["workItemId"],
+        "root authority cannot use author's private title entry")
+    for actor,label in ((outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny_focus(args.db_url,api,key,actor,a["workItemId"],
+            label+" cannot use an exact authored Work entry")
     for item in (a,b):
         selected=[x for x in rows if x.get("workItemId")==item["workItemId"]]
         check(len(selected)==1 and
@@ -741,8 +806,12 @@ def main():
     deny_preflight(args.db_url,api,key,worker,
         preflight_arguments(delegate_arguments["p_work_item_id"]),
         "ended grantor denies delegate preflight with the same signed session")
+    deny_focus(args.db_url,api,key,worker,delegate_arguments["p_work_item_id"],
+        "ended issuer denies formerly authorized author-title entry")
     deny_preflight(args.db_url,api,key,root,preflight_arguments(a["workItemId"]),
         "ended root cannot retain preflight authority through a valid JWT")
+    deny_focus(args.db_url,api,key,root,a["workItemId"],
+        "ended root cannot read private submitter title")
     worker_session=signed_claims["worker"]["session_id"]
     check(UUID.fullmatch(worker_session) is not None,"Exact signed delegate session required")
     sql(args.db_url,"UPDATE auth.sessions SET not_after=now()-interval '1 minute' "
@@ -764,7 +833,10 @@ def main():
        "and revoked/disconnected/expired-session/ended-issuer replay PASS. No shadow Work/People or "
        "implicit plans. R02C root/delegate exact assignment preflight, supplied/unchecked recipient, "
        "bounded field allowlist, current availability, withdrawn authority, no reservation and no "
-       "durable effects PASS. Atlas UI, broader permissions, browser and release remain HELD. "
+       "durable effects PASS. R02D1 author-title entry requires separate original "
+       "submitter disclosure and current assignment grant; signed positive/negative "
+       "author/authority/withdrawal checks PASS. Non-author delegate disclosure, "
+       "Atlas UI, browser and release remain HELD. "
        "DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
 if __name__=="__main__":main()
