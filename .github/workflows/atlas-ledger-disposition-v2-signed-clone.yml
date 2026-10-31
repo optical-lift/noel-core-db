@@ -1,0 +1,146 @@
+name: Atlas Ledger intake disposition v2 signed clone
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/atlas-ledger-disposition-v2-signed-clone.yml"
+      - "scripts/validate-production-schema-clone.sh"
+      - "scripts/validate-atlas-ledger-intake-disposition-v2-signed-http.py"
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: atlas-ledger-disposition-v2-signed-${{ github.event_name }}
+  cancel-in-progress: false
+jobs:
+  contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate restricted signed clone
+        run: |
+          set -euo pipefail
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-ledger-intake-disposition-v2-signed-http.py
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path(".github/workflows/atlas-ledger-disposition-v2-signed-clone.yml").read_text()
+          s=Path("scripts/validate-production-schema-clone.sh").read_text()
+          for token in ("github.actor == github.repository_owner","environment: production",
+            "Snapshot production roles and schema READ ONLY","signed-ledger-disposition-v2-summary.txt"):
+            assert token in w
+          assert "signed_ledger_disposition_v2_probe=true" in s
+          assert "validate-atlas-ledger-intake-disposition-v2-signed-http.py" in s
+          assert "supabase start -x realtime,storage-api,imgproxy" in s
+          assert "supabase db start" in s
+          print("PASS exact root signed v2 clone source contract")
+          PY
+  validate:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Ledger intake disposition v2: protected signed clone gate'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    steps:
+      - name: Bind immutable generated migration
+        id: src
+        env:
+          BODY: ${{ github.event.issue.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          b=os.environ.get("BODY","")
+          for n in ("candidate_sha",):
+            hits=re.findall(r"^"+n+r":\s*([0-9a-f]{40})\s*$",b,re.M)
+            if len(hits)!=1:raise SystemExit("Missing immutable "+n)
+            with open(os.environ["GITHUB_OUTPUT"],"a") as f:f.write(n+"="+hits[0]+"\n")
+          PY
+      - name: Checkout trusted main test runner
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify test custody
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-ledger-intake-disposition-v2-signed-http.py
+      - name: Install pinned CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = "2.116.0"
+      - name: Authenticate container registry
+        env:
+          TOKEN: ${{ github.token }}
+          USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$TOKEN" | docker login ghcr.io --username "$USER" --password-stdin
+      - name: Snapshot production roles and schema READ ONLY
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/schema.sql"
+          test -s "$RUNNER_TEMP/roles.sql"
+          test -s "$RUNNER_TEMP/schema.sql"
+      - name: Checkout exact generated migration candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.src.outputs.candidate_sha }}
+          path: generated-v2
+          persist-credentials: false
+      - name: Assemble genuine signed fictional probe
+        id: fixture
+        env:
+          SHA: ${{ steps.src.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C generated-v2 rev-parse HEAD)" = "$SHA"
+          migration="generated-v2/supabase/migrations/20261031004257_atlas_ledger_intake_root_disposition_v2.sql"
+          validation="generated-v2/validation/migrations/20261031004257_atlas_ledger_intake_root_disposition_v2.sql"
+          test -s "$migration" && test -s "$validation"
+          test "$(grep -c '^BEGIN;' "$migration")" = 1
+          test "$(grep -c '^COMMIT;' "$migration")" = 1
+          cat candidates/atlas_work_self_assignment_native_v1/fixture.sql             validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql             >"$RUNNER_TEMP/fixture.sql"
+          test -s "$RUNNER_TEMP/fixture.sql"
+          echo "migration=$migration" >> "$GITHUB_OUTPUT"
+          echo "validation=$validation" >> "$GITHUB_OUTPUT"
+      - name: Protected disposable full-schema signed GoTrue/PostgREST clone
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh             --migration-version 20261031004257             --release-lane atlas             --candidate-migration "${{ steps.fixture.outputs.migration }}"             --candidate-fixture "$RUNNER_TEMP/fixture.sql"             --candidate-validation "${{ steps.fixture.outputs.validation }}"             --roles-dump "$RUNNER_TEMP/roles.sql"             --schema-dump "$RUNNER_TEMP/schema.sql"             --artifacts-dir "$RUNNER_TEMP/disposition-v2-evidence"
+          test -s "$RUNNER_TEMP/disposition-v2-evidence/signed-ledger-disposition-v2-summary.txt"
+          grep -q '^PASS' "$RUNNER_TEMP/disposition-v2-evidence/signed-ledger-disposition-v2-summary.txt"
+      - name: Bounded summary
+        if: always()
+        run: |
+          if test -s "$RUNNER_TEMP/disposition-v2-evidence/summary.md"; then
+            cat "$RUNNER_TEMP/disposition-v2-evidence/summary.md" >>"$GITHUB_STEP_SUMMARY"
+          else
+            echo "Signed clone did not PASS. No production effect." >>"$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-ledger-intake-disposition-v2-signed-clone
+          path: ${{ runner.temp }}/disposition-v2-evidence
+          if-no-files-found: ignore
+          retention-days: 14

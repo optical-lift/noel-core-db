@@ -117,6 +117,7 @@ signed_work_self_assignment_probe=false
 signed_care_single_done_probe=false
 signed_native_work_release_probe=false
 signed_ledger_reciprocal_probe=false
+signed_ledger_disposition_v2_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
 # One exact generated mail permission candidate needs true signed Auth+REST.
@@ -170,6 +171,18 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_ledger_reciprocal_probe=true
+fi
+
+# Exact named Ledger intake v2: genuine signed localhost GoTrue/REST, only
+# when fictional fixture and source postconditions are provided.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_ledger_intake_root_disposition_v2[.]sql$ ]] &&
+   [ -n "$candidate_fixture" ]; then
+  if [ -z "$candidate_validation" ]; then
+    echo "Ledger disposition v2 signed proof requires postconditions." >&2
+    exit 2
+  fi
+  signed_ledger_disposition_v2_probe=true
 fi
 
 # An exact named source-only physical care validation, not a release.
@@ -574,6 +587,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
+       [ "$signed_ledger_disposition_v2_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
        [ "$signed_person_mail_probe" = true ]; then
     # The source-governed signed care/Done test requires only PostgreSQL,
@@ -584,7 +598,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
     # image registries, pinned CLI, health checks, JWT verification or SQL.
     if [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
-       [ "$signed_ledger_reciprocal_probe" = true ]; then
+       [ "$signed_ledger_reciprocal_probe" = true ] ||
+       [ "$signed_ledger_disposition_v2_probe" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
     else
       supabase start >"$startup_log" 2>&1
@@ -770,6 +785,16 @@ if [ "$signed_ledger_reciprocal_probe" = true ]; then
   grep -q '^PASS' "$artifacts_dir/signed-ledger-reciprocal-summary.txt"
 fi
 
+if [ "$signed_ledger_disposition_v2_probe" = true ]; then
+  phase="signed root, worker, outsider Ledger intake disposition v2"
+  python3 "$repo_root/scripts/validate-atlas-ledger-intake-disposition-v2-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-ledger-disposition-v2-summary.txt" \
+    >"$artifacts_dir/signed-ledger-disposition-v2.log" 2>&1
+  test -s "$artifacts_dir/signed-ledger-disposition-v2-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-ledger-disposition-v2-summary.txt"
+fi
+
 if [ "$signed_native_work_release_probe" = true ]; then
   phase="signed native original Work edit, date, own Results and revocation"
   python3 "$repo_root/scripts/validate-atlas-native-work-release-signed-http.py" \
@@ -937,6 +962,9 @@ if [ "$signed_person_mail_probe" = true ]; then
 fi
 if [ "$signed_ledger_reciprocal_probe" = true ]; then
   printf '\nSIGNED reciprocal native Ledger Work: independent GoTrue owner/worker/outsider, root scoping, non-disclosure, unassigned original, revocation, no shadow People/Principals passed.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_ledger_disposition_v2_probe" = true ]; then
+  printf '\nSIGNED Ledger disposition v2: independent GoTrue worker/governor/outsider, follow-up recovery, edited/rejected same original, idempotent retry, root cutoff and true 42501 denials.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_native_work_release_probe" = true ]; then
   printf '\nSIGNED native Work editing/date/status: local independent GoTrue actors, original identity, stale edit, Result privacy, current plan and revoked seat all passed.\n' >> "$artifacts_dir/summary.md"
