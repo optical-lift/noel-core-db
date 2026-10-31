@@ -39,12 +39,17 @@ def allow(*args):return v2.allow(*args)
 def deny(*args):return v2.deny(*args)
 def sql(db,statement):return v2.sql(db,statement)
 def work_page(api,key,token):
-    out=allow(api,key,token,OWNER_WORK,{
+    status,out=base.rpc(api,key,token,OWNER_WORK,{
         "p_organization_id":ORG,"p_ledger_id":ELM,
         "p_scope":"native_ledger","p_limit":200,"p_after_work_item_id":None})
-    check(out.get("contractVersion")=="company_work_accountability_native_ledger_v1",
-          "Expected existing native Ledger Work source, not an intake-only queue")
-    return out.get("items",[])
+    # Established owner Work source is a source-verified packet without an
+    # `ok` field. Do not retrofit a fabricated success property into its API.
+    check(status==200 and isinstance(out,dict) and
+          out.get("contractVersion")=="company_work_accountability_native_ledger_v1"
+          and out.get("selectedNativeLedgerId")==ELM
+          and isinstance(out.get("items"),list),
+          "Expected source-authorized ordinary Ledger Work, not intake-only queue")
+    return out["items"]
 def mine(api,key,token,work):
     out=allow(api,key,token,MY_WORK,{"p_limit":100,"p_after_allocation_id":None})
     check(out.get("sourceScope")=="active_responsible_person_native_ledger_work",
