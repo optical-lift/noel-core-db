@@ -1,0 +1,85 @@
+# R02: delegated original-Work assignment — source boundary
+
+**Date:** October 31, 2026, America/Chicago. **Historical R02 outcome: BLOCKED on a missing native grant lifecycle.** The R02A and R02B continuation contracts below preserve that finding and record the later bounded work; the earlier paragraphs describe R02, not a current claim that no grant source exists. Current R02B verification must be read from the exact-head PR/register receipt. No production authorization is implied.
+
+Continuation: [Atlas completion register, R02](https://github.com/optical-lift/atlas/blob/docs/atlas-completion-register-reconciliation-20261031/docs/integration/ATLAS_INTEGRATION_COMPLETION_REGISTER.md#r02--next-coding-unit-not-started-one-delegated-original-work-assignment-operation). The round permits one existing original-Work operation; it explicitly queues additional grant machinery as a separate dependency. Do not enlarge a root resolver or borrow an unrelated grant to make the operation succeed.
+
+## Inspected state and owning seams
+
+Reviewed Noel main `bb067d1eec201cc5dc0e411e7da771122f2aee2c` and held #2435 base `59c3418f7a4a0ffbfc4f1af8f134abcb9a1a032a`. Read-only production **catalog/function-definition** inspection confirmed the following shapes on October 31. No user/business rows, source permissions, grants, schema or migrations were mutated. The catalog inventory is not a signed actor test or a complete audit of all historic authority systems.
+
+| Existing source | What it actually authorizes | Why it does not supply human assignment delegation |
+| --- | --- | --- |
+| `atlas.company_work_native_ledger_owner_self_v1(org,ledger)` | Current Atlas session, canonical Person/Principal, exact active native seat and Organization participation, plus the same Principal's current native and institutional governing roots | The assignment writer calls it before looking up the original Work. It does not accept a nonroot delegate. Changing this shared helper would widen many independent readers/writers, outside this round. |
+| `atlas.principal_ledger_authorities` | `authority_kind='root_governing'` only, enforced by a live CHECK | Adding a row promotes a root; it is not a bounded assignment permission. |
+| `atlas.company_work_standing_assignment_scopes` | Another Person's separately proposed/accepted responsibility for Work | Consent to carry Work does not grant authority to allocate Work to someone else. Preserve `respond_native_ledger_standing_scope_self_api_v1`. |
+| `atlas.company_work_adjudication_authority_grants` | `authority_kind='result_acceptance'` only; present target is Organization-membership-bound | Result acceptance is not assignment. Do not reinterpret its operation, revive membership authority or broaden its CHECK. |
+| `atlas.principal_authority_allocations` / `principal_upsert_authority_allocation_api_v1` | Principal/portfolio operating allocation; existing writer requires an active Organization membership and does not prove the requested exact Ledger grant | Not a native Person assignment-delegation command. Labels/scope JSON are not sufficient evidence for this writer. |
+| `atlas.delegated_agent_authorizations` and credential/command kernel | Automated carrier, token, command class and target scope | An agent carrier is not the independently signed human Person receiving Ledger authority. No carrier impersonation or service credential substitution. |
+| `reality.responsibility_relations` / `resolve_responsibility_relation_v1` | Existing bounded Person + jurisdiction + explicit operation set, used by other institutional operations | A potential reusable primitive, not an already established signed native assignment grant. The inspected current catalog has no authenticated INSERT/UPDATE on the table and no identified signed grant/revoke writer for this operation. Do not fabricate a private service-inserted row and call it governor approval. |
+
+Source pointers: existing owner and allocation checks in [candidate.sql](candidate.sql); [first-class Ledger authority](../../supabase/migrations/20260913190915_atlas_first_class_ledger_v1.sql); [bounded responsibility relation](../../supabase/migrations/20260925141451_atlas_reality_responsibility_authority_v1.sql); [adjudication grant authority](../../supabase/migrations/20260922182354_atlas_company_work_adjudication_grant_root_authority_v1.sql). A catalog keyword search can include read-only functions; it is not proof that each returned name is a writer. The determination above also uses source review and operation semantics.
+
+## Implemented in this increment: exact negative signed cases
+
+The existing localhost-only GoTrue/PostgREST validator now attempts the actual original-Work assignment RPC, requires PostgreSQL `42501` for independently signed denied callers (anonymous uses its own 401/403 admission boundary), and compares before/after hashes of the original Work, allocations, plans, plan events, exact standing scopes and intake, plus global Work/Person/Principal counts. It never logs those fictional record bodies or signed tokens.
+
+- A genuinely signed connected worker has spoofable `user_metadata.is_owner=true` and an independent real root on another Ledger. Neither confers this Ledger's assignment authority.
+- That worker cannot change the request's Ledger to their own root Ledger and assign the same accepted original.
+- Outsider, unconnected Person and anonymous caller cannot assign the accepted original.
+- After the recipient genuinely accepts the exact-Work responsibility scope, that recipient still cannot invoke direct assignment or the governor scope-assignment writer.
+- At the end of the fictional disposable test, ending the original root's exact Ledger authority leaves the same real GoTrue session present. The old token cannot replay its earlier successful assignment. No test regrants the authority.
+- The earlier positive root direct-unscheduled/idempotent route, independent recipient consent, root assignment, Needs Assignment pagination, blocked Result and no-duplicate cases remain in the same test.
+
+This is **not** the delegated-positive acceptance matrix. Local compilation and static checks do not establish these signed outcomes. The exact protected run/commit verdict must be recorded on the PR and completion register before calling them passed. Product source functions and grant machinery are unchanged by this increment.
+
+## Concrete next dependency, proposed for a separately bounded coding round
+
+**Outcome:** an authorized root can explicitly grant and revoke **one human Person's ability to assign an already accepted original Work in one exact native Ledger**, with a durable source receipt. No other operation is granted.
+
+Reuse current canonical Person, native Ledger, connection and responsibility/authority primitives where their semantics fit. Before choosing storage, verify that grant provenance, immutable decision history, validity, revocation and concurrency can be preserved; this document does not authorize a new universal permission table. Keep new operation-specific grant administration separate from the shared owner helper.
+
+Required contract for that round:
+
+1. Only an independently signed, currently authorized exact-Ledger root may establish/revoke the bounded grant. Prove the legitimate institutional grantor boundary as well as the selected native Ledger; do not promote the delegate to either root.
+2. Target is an existing canonical Person with current native Ledger connection. Grant identifies exact Organization, Ledger, operation, grantor, target, validity, reason and idempotent action. Reject unrecognized operation/scope fields rather than accepting an arbitrary permission JSON bag.
+3. Granting authority creates no Work, allocation, plan, recipient consent, subject disclosure or notification. The consent mechanism for a responsibility stays independent.
+4. Only the specific existing original-Work assignment writer and its exact allocation-integrity guard may later consume that grant. Final intake acceptance, original provenance, eligible target, competing allocation/offer checks and retry provenance still apply. Assignment permission alone cannot schedule, transfer, edit, review intake, enumerate a whole roster or expose private Event/bed context.
+5. Ending the grant, target connection, grantor authority or session must deny future assignment and unauthorized retry through the same still-valid token. Exact effective-time and regrant semantics must be defined and tested, preserving history.
+6. Signed positive/negative disposable cases: root, actually granted delegate, ungranted/expired/revoked delegate, wrong-Ledger delegate, worker with only responsibility consent, outsider and anonymous. Prove original identity, no competing responsibility, no implicit plan, exact action replay/collision and no private existence/count leak.
+
+**Not implemented here:** a grant/revoke RPC, grant rows, delegate-positive assignment, Atlas capability projection/UI, broad Ledger permissions, all-reader conversion, generated migration, source merge, production release or live Person/Work changes. The next round must explicitly admit the missing grant lifecycle before changing assignment authorization. Keep all other completion-register rows queued.
+
+## R02A start contract — native grant/revoke only
+
+The principal's continuation instruction opens this missing prerequisite as its own bounded source round. The earlier R02 blocked result and signed negative proof remain historical evidence.
+
+- **Outcome:** an independently signed authorized root records/revokes one existing connected canonical Person's exact-Ledger accepted-original assignment grant; the Person can inspect only their own current grant state.
+- **Owning source:** Noel's held Atlas candidate, continuing #2435. One Atlas-owned append-only operation-specific decision stream is justified because the generic responsibility relation has no signed grant/revoke lifecycle, immutable decision provenance or concurrent revision contract for this operation. This is not a universal permissions framework, Person identity or Work store.
+- **Dependencies:** current session/Person admission, current native connections, exact native and institutional root authority, active Ledger/Organization binding, prior accepted-original candidate and protected clone harness.
+- **Protected scope:** existing shared owner helper, assignment writer and allocation-integrity guard; no assignment integration, scheduling, roster/history UI, other permissions, production grants/schema/data, source merge or release, and no CI changes.
+- **Acceptance:** real signed root grant/revoke and self-only readback; immutable audit, replay/collision/stale/concurrent checks; expiry and current connection/session/grantor-authority withdrawal; no fallback to an older grant; raw table access denied; Work/Person/allocation/plan state unchanged. Existing direct assignment remains denied to a nonroot even when a grant is recorded, until the separately queued writer integration.
+
+The round must close with its exact source/run evidence. A passing grant lifecycle does not implement delegated assignment or universal Ledger governance.
+
+## R02B start contract — consume the existing operation grant
+
+The principal's continuation admits this next registered outcome. R02A source `a6f3e438e1e4aa2c470ddae9b4ba88b328926b96` passed protected signed clone [41214950545](https://github.com/optical-lift/noel-core-db/actions/runs/41214950545); that earlier proof remains historical.
+
+- **Outcome / owner:** Noel #2435's existing direct-original assignment writer and exact accepted-intake allocation guard admit a genuinely signed nonroot with a current exact-Ledger grant. Preserve the same accepted original and canonical recipient; delegated responsibility remains unscheduled.
+- **Dependencies:** R02A immutable decisions, strict current session/Person admission, current delegate and grantor Ledger connections, both recorded issuing roots, final exact intake acceptance, existing responsibility serialization and protected signed clone.
+- **Permitted scope:** an operation-specific private actor resolver, this existing writer and its accepted-intake guard branch, source postconditions, signed tests and candidate documentation. Serialize grant consumption with grant/revoke decisions, preserve the issuing event in allocation provenance, and reject retries by another actor or another grant epoch.
+- **Protected scope:** shared owner helper and other readers/writers, decomposition authority, scheduling, recipient consent, root roles, roster/Work/private Event/Subject disclosure, Atlas UI, other completion rows, CI/provider configuration, production grants/schema/data, generated migration, merge and deployment.
+- **Acceptance:** actual signed delegate succeeds and exact replay preserves one allocation with its actor/grant evidence; revoked/expired/disconnected/ended-issuer/ended-session and wrong-Ledger callers fail at source without mutations; pending originals and any supplied service date remain denied. Existing root direct and independently consented paths retain their proof. No duplicate Work/Person, competing responsibility, implicit plan, reader elevation or fabricated consent.
+- **Next boundary:** capability projection/UI and governor target-revision administration remain queued separately. Source PASS is not browser acceptance, universal-governor completion or release.
+
+## R02C start contract — exact assignment preflight only
+
+The principal's continuation opens the next registered source seam. R02B source `44cfef7e342820d573f49b6e05d5140ccb86c663` passed [protected signed clone 41216518661](https://github.com/optical-lift/noel-core-db/actions/runs/41216518661); it does not prove this new read.
+
+- **Outcome / owner:** Noel #2435 supplies a bounded preflight for one known accepted original using the existing assignment actor resolver. A root or effective delegate may observe assignment availability and optionally verify one supplied canonical recipient. No recipient supplied means recipient eligibility is unknown and `canAssign=false`, not an implied roster permission.
+- **Dependencies:** R02B strict session/Person and current exact grant/issuer checks, final accepted-original evidence, the existing writer's eligible result contracts, current native recipient connection, active-responsibility and pending-offer sources.
+- **Permitted scope:** one operation-specific Atlas/public RPC pair, source postconditions, real signed disposable tests and candidate documentation. The read returns only supplied identifiers, the caller's authority evidence and bounded capability booleans. Its observation is not a reservation; assignment must revalidate everything.
+- **Protected scope:** existing writer/guard, shared root helper, original root-only preflight, Work/roster/Subject readers, native recipient-choice permissions, consent and scheduling, Atlas UI, other queued requirements, CI/provider configuration, production grants/schema/data, generated migration, merge and deployment.
+- **Acceptance:** signed root/delegate preflight, explicit unchecked recipient, connected supplied recipient and unavailable-after-assignment readback; no Work text/names/reviewer notes/assignee identity/counts/context; pending/wrong-Ledger/ungranted/revoked/expired/disconnected/ended-session/ended-issuer denials at source; no durable effects; prior grant/assignment/consent tests retain their proof. Pending-offer exclusion is also structurally checked; this round does not create a legacy membership to manufacture a signed offer case.
+- **Next boundary:** source-backed Atlas Work Focus integration with the independently authorized native recipient-choice source, and separate proof of an allowed Work entry route. Neither this preflight nor assignment permission grants a whole Ledger Work list or private context. Governor target-revision administration remains queued separately.

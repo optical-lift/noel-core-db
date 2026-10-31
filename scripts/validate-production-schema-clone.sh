@@ -118,6 +118,7 @@ signed_care_single_done_probe=false
 signed_native_work_release_probe=false
 signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
+signed_accepted_ledger_original_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
 # One exact generated mail permission candidate needs true signed Auth+REST.
@@ -183,6 +184,19 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_ledger_disposition_v2_probe=true
+fi
+
+# Held post-v2 Ledger intake original-Work source. ONLY exact scratch
+# package name + DML-only fictional fixture + postconditions can activate
+# the new independent signed root/worker/outsider validation. Never a release.
+if [ "$lane" = "atlas" ] &&
+   [ "$version" = "20261031005959" ] &&
+   [[ "$(basename "$candidate_migration")" = "20261031005959_atlas_ledger_intake_accepted_original_signed_clone_only_v1.sql" ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Accepted Ledger intake compatibility requires fictional fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_accepted_ledger_original_probe=true
 fi
 
 # An exact named source-only physical care validation, not a release.
@@ -588,6 +602,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
+       [ "$signed_accepted_ledger_original_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
        [ "$signed_person_mail_probe" = true ]; then
     # The source-governed signed care/Done test requires only PostgreSQL,
@@ -599,7 +614,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
     if [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
-       [ "$signed_ledger_disposition_v2_probe" = true ]; then
+       [ "$signed_ledger_disposition_v2_probe" = true ] ||
+       [ "$signed_accepted_ledger_original_probe" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
     else
       supabase start >"$startup_log" 2>&1
@@ -795,6 +811,16 @@ if [ "$signed_ledger_disposition_v2_probe" = true ]; then
   grep -q '^PASS' "$artifacts_dir/signed-ledger-disposition-v2-summary.txt"
 fi
 
+if [ "$signed_accepted_ledger_original_probe" = true ]; then
+  phase="signed accepted intake to one original Work, direct or consent assignment"
+  python3 "$repo_root/scripts/validate-atlas-accepted-intake-original-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-accepted-intake-original-summary.txt" \
+    >"$artifacts_dir/signed-accepted-intake-original.log" 2>&1
+  test -s "$artifacts_dir/signed-accepted-intake-original-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-accepted-intake-original-summary.txt"
+fi
+
 if [ "$signed_native_work_release_probe" = true ]; then
   phase="signed native original Work edit, date, own Results and revocation"
   python3 "$repo_root/scripts/validate-atlas-native-work-release-signed-http.py" \
@@ -962,6 +988,9 @@ if [ "$signed_person_mail_probe" = true ]; then
 fi
 if [ "$signed_ledger_reciprocal_probe" = true ]; then
   printf '\nSIGNED reciprocal native Ledger Work: independent GoTrue owner/worker/outsider, root scoping, non-disclosure, unassigned original, revocation, no shadow People/Principals passed.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_accepted_ledger_original_probe" = true ]; then
+  printf '\nSIGNED accepted Ledger intake: real independent GoTrue source denial, exact accepted Work, both lawfully separate responsibility modes, worker schedule denial and original blocked Result on disposable clone.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_ledger_disposition_v2_probe" = true ]; then
   printf '\nSIGNED Ledger disposition v2: independent GoTrue worker/governor/outsider, follow-up recovery, edited/rejected same original, idempotent retry, root cutoff and true 42501 denials.\n' >> "$artifacts_dir/summary.md"
