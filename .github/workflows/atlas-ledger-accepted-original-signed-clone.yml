@@ -138,6 +138,28 @@ jobs:
             --artifacts-dir "$RUNNER_TEMP/accepted-intake-evidence"
           test -s "$RUNNER_TEMP/accepted-intake-evidence/signed-accepted-intake-original-summary.txt"
           grep -q '^PASS' "$RUNNER_TEMP/accepted-intake-evidence/signed-accepted-intake-original-summary.txt"
+      - name: Report disposable-clone phase and short synthetic error diagnostics
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          diag="$RUNNER_TEMP/accepted-intake-evidence"
+          if [[ ! -d "$diag" ]]; then
+            echo "Protected clone never reached its artifact directory."
+            exit 0
+          fi
+          if [[ -s "$diag/summary.md" ]]; then
+            sed -n '1,36p' "$diag/summary.md"
+          fi
+          # Only the disposable fictional fixture, candidate SQL, postcondition
+          # and localhost signed-test errors; NEVER print schema/roles snapshots,
+          # credentials, or live database rows.
+          for name in candidate-fixture.log candidate-migration.log postconditions.log signed-accepted-intake-original.log; do
+            if [[ -s "$diag/$name" ]]; then
+              echo "---- $name (last 45 lines; fictional clone only) ----"
+              tail -n 45 "$diag/$name"
+            fi
+          done
       - name: Publish signed-only result summary, never production snapshot
         if: success()
         shell: bash
