@@ -2088,5 +2088,104 @@ REVOKE ALL ON FUNCTION
  atlas.work_title_disclosure_event_effective_v1(uuid)
  FROM PUBLIC,anon,authenticated,service_role;
 
+
+-- R02D2B: exact accepted-original current title ONLY when a separately
+-- root-granted information permission AND current nonroot assignment authority
+-- are both effective for this same signed recipient. No listing, discovery,
+-- instructions, reviewer context or assignment side effects.
+CREATE OR REPLACE FUNCTION atlas.accepted_intake_non_author_focus_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE
+ authority jsonb; who uuid;
+ title_grant atlas.ledger_original_work_title_disclosure_events_v1%rowtype;
+ permitted_title text;
+BEGIN
+ IF p_organization_id IS NULL OR p_ledger_id IS NULL OR p_work_item_id IS NULL THEN
+   RAISE EXCEPTION 'Exact Organization Ledger and original Work required'
+     USING ERRCODE='22023';
+ END IF;
+ -- The independent current assignment operation is verified before examining
+ -- the disclosure grant or even looking up the supplied original Work.
+ authority:=atlas.original_work_assignment_actor_self_v1(
+   p_organization_id,p_ledger_id);
+ who:=(authority->>'personId')::uuid;
+ IF authority->>'authorizationBasis' IS DISTINCT FROM
+   'delegated_exact_existing_accepted_original_work_v1' THEN
+   RAISE EXCEPTION 'Non-author delegated title entry undisclosed' USING ERRCODE='42501';
+ END IF;
+ -- This is the exact same decision-scope lock used by the title permission
+ -- grant/revoke writer, preventing a concurrent revocation from being ignored.
+ PERFORM pg_advisory_xact_lock(hashtextextended(
+   'atlas.work_title_disclosure.scope:'||p_organization_id::text||':'||
+    p_ledger_id::text||':'||p_work_item_id::text||':'||who::text,0));
+ IF who IS DISTINCT FROM atlas.require_work_assignment_delegation_session_v1()
+   OR NOT atlas.person_has_native_ledger_connection_v1(
+     p_organization_id,p_ledger_id,who) THEN
+   RAISE EXCEPTION 'Current title permission unavailable' USING ERRCODE='42501';
+ END IF;
+ SELECT * INTO title_grant
+ FROM atlas.ledger_original_work_title_disclosure_events_v1 e
+ WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id
+   AND e.work_item_id=p_work_item_id AND e.recipient_person_id=who
+ ORDER BY e.revision DESC LIMIT 1;
+ IF title_grant.id IS NULL OR NOT atlas.work_title_disclosure_event_effective_v1(
+   title_grant.id) THEN
+   RAISE EXCEPTION 'Current title permission unavailable' USING ERRCODE='42501';
+ END IF;
+ -- A disclosure grant never makes a person the original submitter. This is
+ -- a genuinely different Person from the author, and the original must still
+ -- carry its accepted native-Ledger evidence and unchanged Work identity.
+ SELECT w.title INTO permitted_title
+ FROM atlas.ledger_work_intakes i
+ JOIN atlas.work_items w ON w.id=i.work_item_id
+   AND w.organization_id=i.organization_id
+   AND w.source_object_type='ledger_work_intake'
+   AND w.source_object_id=i.id
+ WHERE i.organization_id=p_organization_id AND i.ledger_id=p_ledger_id
+   AND i.work_item_id=p_work_item_id
+   AND i.submitted_by_person_id IS DISTINCT FROM who
+   AND w.work_state='open'
+   AND w.result_contract_key IN (
+     'ordinary_company_work_worker_attestation_v1',
+     'ordinary_company_work_manager_acceptance_v1')
+   AND atlas.accepted_ledger_intake_original_evidence_v1(
+     p_organization_id,p_ledger_id,p_work_item_id);
+ IF coalesce(btrim(permitted_title),'')='' THEN
+   RAISE EXCEPTION 'Non-author original title entry undisclosed' USING ERRCODE='42501';
+ END IF;
+ RETURN jsonb_build_object(
+   'ok',true,'contractVersion','accepted_intake_non_author_focus_title_v1',
+   'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+   'workItemId',p_work_item_id,'title',permitted_title,'workState','open',
+   'focusMode','assignment_title_only',
+   'disclosureBasis','governor_exact_original_title_grant_v1',
+   'actorPersonId',who,
+   'assignmentAuthorizationBasis',authority->>'authorizationBasis',
+   'assignmentGrantEventId',authority->>'delegationEventId',
+   'assignmentGrantRevision',authority->'delegationRevision',
+   'disclosureGrantEventId',title_grant.id,
+   'disclosureGrantRevision',title_grant.revision,
+   'sourceAccepted',true,'assignmentMustRevalidate',true,
+   'instructionsAvailable',false,'authorIdentityDisclosed',false,
+   'recipientRosterDisclosed',false,'reviewContextDisclosed',false,
+   'subjectContextDisclosed',false,'otherWorkDisclosed',false,
+   'workCreated',false,'allocationCreated',false,'planCreated',false);
+END;
+$fn$;
+CREATE OR REPLACE FUNCTION public.accepted_intake_non_author_focus_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path='' AS $fn$
+ SELECT atlas.accepted_intake_non_author_focus_self_api_v1($1,$2,$3);
+$fn$;
+REVOKE ALL ON FUNCTION
+ atlas.accepted_intake_non_author_focus_self_api_v1(uuid,uuid,uuid),
+ public.accepted_intake_non_author_focus_self_api_v1(uuid,uuid,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION
+ atlas.accepted_intake_non_author_focus_self_api_v1(uuid,uuid,uuid),
+ public.accepted_intake_non_author_focus_self_api_v1(uuid,uuid,uuid)
+ TO authenticated;
+
 NOTIFY pgrst,'reload schema';
 COMMIT;
