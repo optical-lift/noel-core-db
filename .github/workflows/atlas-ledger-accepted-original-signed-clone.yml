@@ -1,0 +1,147 @@
+name: Atlas accepted Ledger intake post-v2 signed original Work clone
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/atlas-ledger-accepted-original-signed-clone.yml"
+      - "candidates/atlas_accepted_ledger_intake_original_handoff_v1/**"
+      - "scripts/validate-atlas-accepted-intake-original-signed-http.py"
+      - "scripts/validate-production-schema-clone.sh"
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: atlas-accepted-intake-signed-clone-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  contract:
+    if: >-
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.event.pull_request.number == 2435 &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify hold, test source and exact candidate-only path
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s candidates/atlas_accepted_ledger_intake_original_handoff_v1/candidate.sql
+          test -s candidates/atlas_accepted_ledger_intake_original_handoff_v1/postconditions.sql
+          test -s candidates/atlas_accepted_ledger_intake_original_handoff_v1/fictional_owner_membership_fixture.sql
+          test ! -e supabase/migrations/20261031005959_atlas_ledger_intake_accepted_original_signed_clone_only_v1.sql
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-accepted-intake-original-signed-http.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("scripts/validate-production-schema-clone.sh").read_text()
+          w=Path(".github/workflows/atlas-ledger-accepted-original-signed-clone.yml").read_text()
+          s=Path("candidates/atlas_accepted_ledger_intake_original_handoff_v1/candidate.sql").read_text()
+          assert "signed_accepted_ledger_original_probe=true" in p
+          assert "validate-atlas-accepted-intake-original-signed-http.py" in p
+          assert "environment: production" in w
+          assert "Snapshot production roles and schema READ ONLY" in w
+          assert "supabase db dump --db-url" in w
+          assert "NOEL_CORE_DATABASE_URL" in w
+          assert s.count("BEGIN;")==1 and s.count("COMMIT;")==1
+          assert "accepted_ledger_intake_original_evidence_v1" in s
+          print("PASS held post-v2 source, signed test gate and exact workflow bounds")
+          PY
+
+  protected-clone:
+    needs: contract
+    if: >-
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.event.pull_request.number == 2435 &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    steps:
+      - name: Checkout trusted main for immutable v2 foundation
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n 1)" = "2.116.0"
+      - name: Authenticate read-only GHCR image pulls
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Snapshot production roles and schema READ ONLY
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/schema.sql"
+          test -s "$RUNNER_TEMP/roles.sql"
+          test -s "$RUNNER_TEMP/schema.sql"
+          unset NOEL_CORE_DATABASE_URL
+      - name: Checkout exact candidate PR SHA as untrusted source input
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: candidate
+          persist-credentials: false
+      - name: Assemble separately transactioned v2 then candidate source and synthetic fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C candidate rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test ! -e candidate/supabase/migrations/20261031005959_atlas_ledger_intake_accepted_original_signed_clone_only_v1.sql
+          v2="supabase/migrations/20261031004257_atlas_ledger_intake_root_disposition_v2.sql"
+          src="candidate/candidates/atlas_accepted_ledger_intake_original_handoff_v1/candidate.sql"
+          post="candidate/candidates/atlas_accepted_ledger_intake_original_handoff_v1/postconditions.sql"
+          own="candidate/candidates/atlas_accepted_ledger_intake_original_handoff_v1/fictional_owner_membership_fixture.sql"
+          test -s "$v2" && test -s "$src" && test -s "$post" && test -s "$own"
+          test "$(grep -c '^BEGIN;' "$src")" = 1
+          test "$(grep -c '^COMMIT;' "$src")" = 1
+          cat "$v2" "$src" > "$RUNNER_TEMP/20261031005959_atlas_ledger_intake_accepted_original_signed_clone_only_v1.sql"
+          cat candidates/atlas_work_self_assignment_native_v1/fixture.sql \
+              validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql \
+              "$own" > "$RUNNER_TEMP/fictional-intake-owner-fixture.sql"
+          cp "$post" "$RUNNER_TEMP/compatibility-postconditions.sql"
+          test -s "$RUNNER_TEMP/fictional-intake-owner-fixture.sql"
+          test -s "$RUNNER_TEMP/compatibility-postconditions.sql"
+      - name: Protected disposable full-schema signed GoTrue/PostgREST clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash candidate/scripts/validate-production-schema-clone.sh \
+            --migration-version 20261031005959 \
+            --release-lane atlas \
+            --candidate-migration "$RUNNER_TEMP/20261031005959_atlas_ledger_intake_accepted_original_signed_clone_only_v1.sql" \
+            --candidate-fixture "$RUNNER_TEMP/fictional-intake-owner-fixture.sql" \
+            --candidate-validation "$RUNNER_TEMP/compatibility-postconditions.sql" \
+            --roles-dump "$RUNNER_TEMP/roles.sql" \
+            --schema-dump "$RUNNER_TEMP/schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/accepted-intake-evidence"
+          test -s "$RUNNER_TEMP/accepted-intake-evidence/signed-accepted-intake-original-summary.txt"
+          grep -q '^PASS' "$RUNNER_TEMP/accepted-intake-evidence/signed-accepted-intake-original-summary.txt"
+      - name: Publish signed-only result summary, never production snapshot
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat "$RUNNER_TEMP/accepted-intake-evidence/signed-accepted-intake-original-summary.txt"
+          test ! -e candidate/supabase/migrations/20261031005959_atlas_ledger_intake_accepted_original_signed_clone_only_v1.sql
