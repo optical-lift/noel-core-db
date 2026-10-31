@@ -20,6 +20,7 @@ c1=v2.c1
 ELM=c1.LEDGER_A
 OTHER=c1.LEDGER_B
 ORG="e5200000-0000-4000-8000-000000000801"
+OWNER_PERSON="e5200000-0000-4000-8000-000000000101"
 WORKER_PERSON="e5200000-0000-4000-8000-000000000102"
 SUBMIT="submit_ledger_work_self_api_v1"
 OWNER_WORK="company_work_accountability_native_ledger_self_api_v1"
@@ -108,7 +109,7 @@ def main():
         f"VALUES ('{ORG}'::uuid,'{c['workItemId']}'::uuid,'{ELM}'::uuid,"
         "'owner_attested','synthetic:pending-intake-bypass-attempt',"
         "'Disposable alternate evidence must not defeat final root review',"
-        f"'{c1.OWNER.replace('000000000001','000000000101')}'::uuid)")
+        f"'{OWNER_PERSON}'::uuid)")
     check(all(x.get("workItemId") not in [a["workItemId"],b["workItemId"],c["workItemId"]]
               for x in work_page(api,key,root)),
           "PENDING intake leaked as approved native Ledger Work")
