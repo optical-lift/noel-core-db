@@ -32,7 +32,7 @@ ASSIGN_SCOPE="assign_native_ledger_company_work_under_scope_owner_self_api_v1"
 MY_WORK="connected_person_my_work_self_api_v1"
 REPORT="report_connected_person_company_work_self_api_v1"
 PLACE="connected_person_place_work_self_api_v1"
-UUID=re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",re.I)
+UUID=re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",re.I)
 
 def check(condition,message):v2.must(condition,message)
 def allow(*args):return v2.allow(*args)
