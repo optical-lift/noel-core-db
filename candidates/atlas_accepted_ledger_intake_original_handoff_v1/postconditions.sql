@@ -132,5 +132,22 @@ BEGIN
     position('p_limit NOT BETWEEN 1 AND 100' IN def)=0 OR
     position('JOIN atlas.work_items w' IN def)=0
  THEN RAISE EXCEPTION 'Author own-status must be exact source-filtered and bounded'; END IF;
+ IF to_regprocedure(
+   'public.ledger_accepted_original_needs_assignment_root_self_api_v1(uuid,integer,uuid)')
+   IS NULL THEN RAISE EXCEPTION 'Exact Needs Assignment source wrapper missing'; END IF;
+ IF has_function_privilege('anon',
+   'public.ledger_accepted_original_needs_assignment_root_self_api_v1(uuid,integer,uuid)'::regprocedure,
+   'EXECUTE')
+ THEN RAISE EXCEPTION 'Anonymous cannot enumerate accepted unassigned Work'; END IF;
+ SELECT pg_get_functiondef(
+   'atlas.accepted_ledger_intake_needs_assignment_root_self_api_v1(uuid,integer,uuid)'::regprocedure)
+ INTO def;
+ IF position('capability_root_authority_context_self_v1' IN def)=0
+    OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
+    OR position($source_match$w.source_object_type='ledger_work_intake'$source_match$ IN def)=0
+    OR position($not_allocated$a.allocation_role='responsible' AND a.state='active'$not_allocated$ IN def)=0
+    OR position('p_after_work_item_id' IN def)=0
+    OR position('notificationDeliveryClaimed' IN def)=0
+ THEN RAISE EXCEPTION 'Needs Assignment must be root-only, source-filtered and paginated'; END IF;
 END;
 $check$;
