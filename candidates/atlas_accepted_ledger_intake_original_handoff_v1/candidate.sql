@@ -1152,7 +1152,29 @@ BEGIN
      OR position('accepted_ledger_intake_original_direct_assignment_v1' IN v_source)>0
   THEN RAISE EXCEPTION 'Existing guarded Person connection source changed; do not widen or replace' USING errcode='23514';
   END IF;
-  EXECUTE replace(v_source,v_old,v_new);
+  v_source:=replace(v_source,v_old,v_new);
+
+  -- The old native Person standing-scope guard recognizes owner-attested
+  -- and source-verified relevance. A submitted intake carries a distinct
+  -- participant attestation. Recognize it here ONLY after a final exact
+  -- root review; all other participant attestations remain inadmissible.
+  v_old:=$standing_old$and work.work_state='open'
+        and relevance.attribution_state='active'
+        and (relevance.evidence_kind='owner_attested' or
+          (relevance.evidence_kind='source_verified' and exists($standing_old$;
+  v_new:=$standing_new$and work.work_state='open'
+        and relevance.attribution_state='active'
+        and (relevance.evidence_kind='owner_attested' or
+          (relevance.evidence_kind='participant_attested'
+           and atlas.accepted_ledger_intake_original_evidence_v1(
+             new.organization_id,s.ledger_id,new.work_item_id)) or
+          (relevance.evidence_kind='source_verified' and exists($standing_new$;
+  IF length(v_source)-length(replace(v_source,v_old,''))<>length(v_old)
+  THEN RAISE EXCEPTION 'Native Person standing guard relevance shape changed; refuse to widen'
+    USING ERRCODE='23514';
+  END IF;
+  v_source:=replace(v_source,v_old,v_new);
+  EXECUTE v_source;
 END;
 $accepted_intake_guard$;
 
