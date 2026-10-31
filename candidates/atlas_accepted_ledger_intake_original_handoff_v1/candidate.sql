@@ -1669,5 +1669,62 @@ $fn$;
 REVOKE ALL ON FUNCTION atlas.original_work_assignment_actor_self_v1(uuid,uuid)
  FROM PUBLIC,anon,authenticated,service_role;
 
+-- R02C: one known original and, optionally, one supplied recipient. This is
+-- a capability observation, not a Work/roster/context reader or reservation.
+CREATE OR REPLACE FUNCTION atlas.accepted_ledger_intake_assignment_preflight_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_target_person_id uuid DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE authority jsonb; available boolean;
+BEGIN
+ IF p_organization_id IS NULL OR p_ledger_id IS NULL OR p_work_item_id IS NULL THEN
+   RAISE EXCEPTION 'Exact existing Organization, Ledger and Work required' USING ERRCODE='22023';
+ END IF;
+ -- Authorization precedes Work or recipient lookup, including stale grants.
+ authority:=atlas.original_work_assignment_actor_self_v1(p_organization_id,p_ledger_id);
+ IF NOT atlas.accepted_ledger_intake_original_evidence_v1(
+   p_organization_id,p_ledger_id,p_work_item_id) THEN
+   RAISE EXCEPTION 'Assignment preflight unavailable' USING ERRCODE='42501';
+ END IF;
+ IF p_target_person_id IS NOT NULL AND NOT atlas.person_has_native_ledger_connection_v1(
+   p_organization_id,p_ledger_id,p_target_person_id) THEN
+   RAISE EXCEPTION 'Assignment preflight unavailable' USING ERRCODE='42501';
+ END IF;
+ SELECT EXISTS(SELECT 1 FROM atlas.work_items w
+   WHERE w.id=p_work_item_id AND w.organization_id=p_organization_id
+     AND w.work_state='open' AND w.source_object_type='ledger_work_intake'
+     AND w.result_contract_key IN ('ordinary_company_work_worker_attestation_v1',
+                                   'ordinary_company_work_manager_acceptance_v1')
+     AND NOT EXISTS(SELECT 1 FROM atlas.work_allocations a
+       WHERE a.organization_id=w.organization_id AND a.work_item_id=w.id
+         AND a.state='active' AND a.allocation_role='responsible')
+     AND NOT EXISTS(SELECT 1 FROM atlas.company_work_initial_responsibility_offers o
+       WHERE o.work_item_id=w.id AND o.offer_state='offered')) INTO available;
+ RETURN jsonb_build_object(
+   'ok',true,'contractVersion','accepted_ledger_intake_assignment_preflight_v1',
+   'organizationId',p_organization_id,'ledgerId',p_ledger_id,'workItemId',p_work_item_id,
+   'actorPersonId',authority->>'personId','authorizationBasis',authority->>'authorizationBasis',
+   'delegationEventId',authority->>'delegationEventId','delegationRevision',authority->'delegationRevision',
+   'sourceAccepted',true,'sameOriginalWork',true,'assignmentAvailable',available,
+   'targetPersonId',p_target_person_id,'recipientChecked',p_target_person_id IS NOT NULL,
+   'canAssign',available AND p_target_person_id IS NOT NULL,'serviceDateAccepted',false,
+   'preflightOnly',true,'requiresRevalidationOnAssignment',true,
+   'workCreated',false,'allocationCreated',false,'planCreated',false,
+   'personnelRosterDisclosed',false,'workPayloadDisclosed',false,'subjectContextDisclosed',false);
+END;
+$fn$;
+CREATE OR REPLACE FUNCTION public.accepted_ledger_intake_assignment_preflight_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_target_person_id uuid DEFAULT NULL)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path='' AS $fn$
+ SELECT atlas.accepted_ledger_intake_assignment_preflight_self_api_v1($1,$2,$3,$4);
+$fn$;
+REVOKE ALL ON FUNCTION
+ atlas.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid),
+ public.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION
+ atlas.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid),
+ public.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid)
+ TO authenticated;
+
 NOTIFY pgrst,'reload schema';
 COMMIT;

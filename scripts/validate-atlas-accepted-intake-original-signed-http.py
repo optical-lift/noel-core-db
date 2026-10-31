@@ -28,6 +28,7 @@ SUBMIT="submit_ledger_work_self_api_v1"
 OWNER_WORK="company_work_accountability_native_ledger_self_api_v1"
 DIRECT="owner_direct_assign_existing_original_work_self_api_v1"
 ELIGIBLE="accepted_ledger_intake_owner_assignment_source_self_api_v1"
+PREFLIGHT="accepted_ledger_intake_assignment_preflight_self_api_v1"
 NEEDS="ledger_accepted_original_needs_assignment_root_self_api_v1"
 STATUS="ledger_work_submission_status_self_api_v1"
 PROPOSE="propose_native_ledger_exact_work_scope_owner_self_api_v1"
@@ -77,6 +78,42 @@ def reject_assignment_without_change(db,api,key,actor,arguments,source_code,labe
           "Expected actual source constraint "+source_code+": "+label)
     check(assignment_snapshot(db,arguments["p_work_item_id"])==before,
           "Rejected assignment changed durable state: "+label)
+def preflight_arguments(work,target=OWNER_PERSON,ledger=ELM):
+    return {"p_organization_id":ORG,"p_ledger_id":ledger,
+            "p_work_item_id":work,"p_target_person_id":target}
+def preflight_snapshot(db,work):
+    return (assignment_snapshot(db,work),sql(db,
+        "SELECT count(*) FROM atlas.ledger_original_work_assignment_delegation_events_v1"))
+def deny_preflight(db,api,key,actor,arguments,label):
+    before=preflight_snapshot(db,arguments["p_work_item_id"])
+    deny(api,key,actor,PREFLIGHT,arguments,label)
+    check(preflight_snapshot(db,arguments["p_work_item_id"])==before,
+          "Denied preflight changed durable state: "+label)
+def assignment_preflight(db,api,key,actor,work,target,available):
+    before=preflight_snapshot(db,work)
+    out=allow(api,key,actor,PREFLIGHT,preflight_arguments(work,target))
+    fields={"ok","contractVersion","organizationId","ledgerId","workItemId",
+        "actorPersonId","authorizationBasis","delegationEventId","delegationRevision",
+        "sourceAccepted","sameOriginalWork","assignmentAvailable","targetPersonId",
+        "recipientChecked","canAssign","serviceDateAccepted","preflightOnly",
+        "requiresRevalidationOnAssignment","workCreated","allocationCreated","planCreated",
+        "personnelRosterDisclosed","workPayloadDisclosed","subjectContextDisclosed"}
+    check(set(out)==fields
+          and out.get("contractVersion")=="accepted_ledger_intake_assignment_preflight_v1"
+          and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+          and out.get("workItemId")==work and out.get("targetPersonId")==target
+          and out.get("sourceAccepted") is True and out.get("sameOriginalWork") is True
+          and out.get("assignmentAvailable") is available
+          and out.get("recipientChecked") is (target is not None)
+          and out.get("canAssign") is (available and target is not None)
+          and out.get("preflightOnly") is True
+          and out.get("requiresRevalidationOnAssignment") is True
+          and all(out.get(k) is False for k in ("serviceDateAccepted","workCreated",
+              "allocationCreated","planCreated","personnelRosterDisclosed",
+              "workPayloadDisclosed","subjectContextDisclosed")),
+          "Preflight must disclose only bounded current capability, with unchecked recipient explicit")
+    check(preflight_snapshot(db,work)==before,"Preflight changed Work or grant state")
+    return out
 def delegation_state(api,key,worker):
     out=allow(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM})
     check(out.get("contractVersion")=="original_work_assignment_delegation_self_v1"
@@ -105,6 +142,8 @@ def delegation_lifecycle(db,api,key,root,worker,outsider,no_seat,directargs):
     for token,label in ((worker,"worker/another Ledger root"),(outsider,"outsider"),
                         (no_seat,"unconnected"),(None,"anonymous")):
         deny(api,key,token,DELEGATE,grant,label+" cannot issue an assignment grant")
+        deny_preflight(db,api,key,token,preflight_arguments(work),
+            label+" cannot preflight without exact assignment authority")
     for token,label in ((outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
         deny(api,key,token,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM},
              label+" cannot inspect another Ledger's grants")
@@ -155,6 +194,8 @@ def delegation_lifecycle(db,api,key,root,worker,outsider,no_seat,directargs):
           and own.get("revision")==2,"Revocation failed to suppress prior grant")
     deny_assignment_without_change(db,api,key,worker,directargs,
         "revoked delegate cannot enter the actual assignment writer")
+    deny_preflight(db,api,key,worker,preflight_arguments(work),
+        "revoked grant cannot preflight with the same valid JWT")
     # Even DB-owner writes cannot erase or amend original decision evidence.
     sql(db,f"""DO $immutable$ BEGIN
       BEGIN UPDATE {table} SET reason='Changed immutable fictional decision'
@@ -204,6 +245,8 @@ def delegation_lifecycle(db,api,key,root,worker,outsider,no_seat,directargs):
           "Expiry must retain the newest decision, never revive older authority")
     deny_assignment_without_change(db,api,key,worker,directargs,
         "expired delegate cannot replay an assignment through the actual writer")
+    deny_preflight(db,api,key,worker,preflight_arguments(work),
+        "expired grant cannot produce assignment capability")
     expired_replay=allow(api,key,root,DELEGATE,expiring)
     check(expired_replay.get("idempotent") is True
           and expired_replay.get("eventId")==expiring_receipt.get("eventId")
@@ -235,6 +278,34 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
         "p_work_item_id":first["workItemId"],"p_target_person_id":OWNER_PERSON,
         "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000c01",
         "p_reason":"Fictional delegated accepted-original direct obligation"}
+    ready=assignment_preflight(db,api,key,worker,first["workItemId"],OWNER_PERSON,True)
+    check(ready.get("actorPersonId")==WORKER_PERSON
+          and ready.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1"
+          and ready.get("delegationEventId")==grant["eventId"]
+          and ready.get("delegationRevision")==6,"Preflight lost the current signed grant provenance")
+    root_ready=assignment_preflight(db,api,key,root,first["workItemId"],OWNER_PERSON,True)
+    check(root_ready.get("actorPersonId")==OWNER_PERSON
+          and root_ready.get("authorizationBasis")=="governor_exact_existing_original_work"
+          and root_ready.get("delegationEventId") is None,
+          "Root preflight must preserve its independently established root authority")
+    assignment_preflight(db,api,key,worker,first["workItemId"],None,True)
+    # The public RPC really supports the omitted optional argument as well.
+    omitted=preflight_arguments(first["workItemId"]);del omitted["p_target_person_id"]
+    omitted_before=preflight_snapshot(db,first["workItemId"])
+    no_target=allow(api,key,worker,PREFLIGHT,omitted)
+    check(no_target.get("recipientChecked") is False and no_target.get("canAssign") is False
+          and no_target.get("targetPersonId") is None
+          and preflight_snapshot(db,first["workItemId"])==omitted_before,
+          "Omitted recipient must remain unchecked and create no durable state")
+    for work,target,ledger,label in (
+        (pending["workItemId"],OWNER_PERSON,ELM,"pending alternate-attested intake"),
+        (first["workItemId"],OWNER_PERSON,OTHER,"wrong Ledger"),
+        ("e5200000-0000-4000-8000-000000000971",OWNER_PERSON,ELM,"non-intake original"),
+        ("e5200000-0000-4000-8000-000000000fff",OWNER_PERSON,ELM,"unknown original"),
+        (first["workItemId"],"e5200000-0000-4000-8000-000000000103",ELM,"unconnected recipient"),
+        (first["workItemId"],"e5200000-0000-4000-8000-000000000ffe",ELM,"unknown recipient")):
+        deny_preflight(db,api,key,worker,preflight_arguments(work,target,ledger),
+            "delegate cannot preflight "+label)
     deny_assignment_without_change(db,api,key,worker,{**arguments,"p_ledger_id":OTHER},
         "an exact ELM grant cannot authorize the other Ledger")
     deny_assignment_without_change(db,api,key,worker,
@@ -285,6 +356,11 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
     idem=allow(api,key,worker,DIRECT,arguments)
     check(idem.get("idempotent") is True and idem.get("allocationId")==allocation
           and idem.get("delegationEventId")==grant["eventId"],"Delegate retry is not stable")
+    assignment_preflight(db,api,key,worker,first["workItemId"],OWNER_PERSON,False)
+    assignment_preflight(db,api,key,root,first["workItemId"],OWNER_PERSON,False)
+    reject_assignment_without_change(db,api,key,worker,
+        {**arguments,"p_action_id":"e5200000-0000-4000-8000-000000000c04"},"23514",
+        "an earlier available preflight cannot reserve or overwrite a responsibility")
     mine(api,key,root,first["workItemId"])
     reject_assignment_without_change(db,api,key,worker,
         {**arguments,"p_reason":"Changed fictional delegated retry"},"23505",
@@ -296,16 +372,22 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
         "delegate cannot replace an existing responsibility")
     sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
         f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
-    try:deny_assignment_without_change(db,api,key,worker,arguments,
-        "disconnection denies replay of the delegate's own successful action")
+    try:
+        deny_assignment_without_change(db,api,key,worker,arguments,
+            "disconnection denies replay of the delegate's own successful action")
+        deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
+            "ended connection denies preflight with the same JWT")
     finally:sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
         f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
     session=claims["session_id"]
     check(UUID.fullmatch(session) is not None,"Real signed session required")
     old_expiry=sql(db,f"SELECT quote_nullable(not_after) FROM auth.sessions WHERE id='{session}'::uuid")
     sql(db,f"UPDATE auth.sessions SET not_after=now()-interval '1 minute' WHERE id='{session}'::uuid")
-    try:deny_assignment_without_change(db,api,key,worker,arguments,
-        "expired session denies own assignment replay while grant and issuer remain active")
+    try:
+        deny_assignment_without_change(db,api,key,worker,arguments,
+            "expired session denies own assignment replay while grant and issuer remain active")
+        deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
+            "expired session denies capability while grant and issuer remain active")
     finally:sql(db,f"UPDATE auth.sessions SET not_after={old_expiry} WHERE id='{session}'::uuid")
     control={"p_organization_id":ORG,"p_ledger_id":ELM,"p_delegate_person_id":WORKER_PERSON,
         "p_decision":"revoke","p_expected_revision":6,"p_valid_until":None,
@@ -314,10 +396,15 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
     allow(api,key,root,DELEGATE,control)
     deny_assignment_without_change(db,api,key,worker,arguments,
         "signed revocation denies retry of a previously successful delegated assignment")
+    deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
+        "signed revocation withdraws the earlier preflight capability")
     new_grant=allow(api,key,root,DELEGATE,{**control,"p_decision":"grant",
         "p_expected_revision":7,"p_action_id":"e5200000-0000-4000-8000-000000000b13"})
     check(new_grant.get("revision")==8 and new_grant.get("eventId")!=grant["eventId"],
           "Regrant must preserve a distinct decision epoch")
+    next_ready=assignment_preflight(db,api,key,worker,second["workItemId"],OWNER_PERSON,True)
+    check(next_ready.get("delegationEventId")==new_grant["eventId"]
+          and next_ready.get("delegationRevision")==8,"Preflight reused an older grant epoch")
     reject_assignment_without_change(db,api,key,worker,arguments,"23505",
         "new grant epoch cannot impersonate a prior allocation decision")
     next_arguments={**arguments,"p_work_item_id":second["workItemId"],
@@ -344,6 +431,8 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
           "Delegated assignment created Work/People/Principals or implicit plans/events")
     print("PASS signed native delegate same-original unscheduled assignment, exact grant provenance, "
           "retry/actor/epoch isolation, concurrent responsibility, withdrawn authority, no reader elevation")
+    print("PASS R02C root/delegate exact preflight, supplied/unchecked recipient, field allowlist, "
+          "current availability, no reservation, source-denied withdrawn authority and no durable effects")
     return successes[0][0]
 
 def work_page(api,key,token):
@@ -649,6 +738,11 @@ def main():
           "Grantor root withdrawal failed to invalidate the still-recorded grant")
     deny_assignment_without_change(args.db_url,api,key,worker,delegate_arguments,
         "ended grantor authority denies replay of the delegate's successful assignment")
+    deny_preflight(args.db_url,api,key,worker,
+        preflight_arguments(delegate_arguments["p_work_item_id"]),
+        "ended grantor denies delegate preflight with the same signed session")
+    deny_preflight(args.db_url,api,key,root,preflight_arguments(a["workItemId"]),
+        "ended root cannot retain preflight authority through a valid JWT")
     worker_session=signed_claims["worker"]["session_id"]
     check(UUID.fullmatch(worker_session) is not None,"Exact signed delegate session required")
     sql(args.db_url,"UPDATE auth.sessions SET not_after=now()-interval '1 minute' "
@@ -668,7 +762,9 @@ def main():
        "same-original unscheduled assignment and grant provenance PASS; actor/epoch/retry isolation, "
        "concurrent single responsibility, source-denied pending/wrong-Ledger/scheduling/reader elevation "
        "and revoked/disconnected/expired-session/ended-issuer replay PASS. No shadow Work/People or "
-       "implicit plans. Atlas capability/UI, broader permissions, browser and release remain HELD. "
+       "implicit plans. R02C root/delegate exact assignment preflight, supplied/unchecked recipient, "
+       "bounded field allowlist, current availability, withdrawn authority, no reservation and no "
+       "durable effects PASS. Atlas UI, broader permissions, browser and release remain HELD. "
        "DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
 if __name__=="__main__":main()

@@ -238,3 +238,52 @@ BEGIN
  END IF;
 END;
 $delegation_check$;
+
+-- R02C: bounded capability read; no changes to the existing root-only read.
+DO $preflight_check$
+DECLARE item regprocedure; def text;
+BEGIN
+ FOREACH item IN ARRAY ARRAY[
+   'atlas.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid)'::regprocedure,
+   'public.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid)'::regprocedure] LOOP
+   IF NOT has_function_privilege('authenticated',item,'EXECUTE')
+      OR has_function_privilege('anon',item,'EXECUTE')
+      OR has_function_privilege('service_role',item,'EXECUTE') THEN
+     RAISE EXCEPTION 'Preflight requires authenticated-only entry: %',item;
+   END IF;
+   IF NOT EXISTS(SELECT 1 FROM pg_proc WHERE oid=item
+     AND proconfig @> ARRAY['search_path=""'] AND pronargdefaults=1 AND provolatile='v') THEN
+     RAISE EXCEPTION 'Preflight requires safe search path, current authority and optional recipient: %',item;
+   END IF;
+ END LOOP;
+ IF (SELECT prosecdef FROM pg_proc WHERE oid=
+   'public.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid)'::regprocedure) THEN
+   RAISE EXCEPTION 'Public preflight must remain an invoker';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid)'::regprocedure) INTO def;
+ IF position('original_work_assignment_actor_self_v1' IN def)=0
+    OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
+    OR position('person_has_native_ledger_connection_v1' IN def)=0
+    OR position('a.allocation_role=''responsible''' IN def)=0
+    OR position('o.offer_state=''offered''' IN def)=0
+    OR position('recipientChecked' IN def)=0
+    OR position('requiresRevalidationOnAssignment' IN def)=0
+    OR position('workPayloadDisclosed' IN def)=0 THEN
+   RAISE EXCEPTION 'Preflight must verify exact source, recipient and current assignment availability';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.accepted_ledger_intake_owner_assignment_source_self_api_v1(uuid,uuid,uuid)'::regprocedure) INTO def;
+ IF position('company_work_native_ledger_owner_self_v1' IN def)=0
+    OR position('authorityNotDelegated' IN def)=0
+    OR position('original_work_assignment_actor_self_v1' IN def)>0 THEN
+   RAISE EXCEPTION 'Original owner preflight must remain root-only';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)'::regprocedure) INTO def;
+ IF position('original_work_assignment_actor_self_v1' IN def)=0
+    OR position('accepted_ledger_intake_assignment_preflight_self_api_v1' IN def)>0 THEN
+   RAISE EXCEPTION 'Writer must revalidate source authority independently of any preflight receipt';
+ END IF;
+END;
+$preflight_check$;
