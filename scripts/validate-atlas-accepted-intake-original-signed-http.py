@@ -30,6 +30,8 @@ DIRECT="owner_direct_assign_existing_original_work_self_api_v1"
 ELIGIBLE="accepted_ledger_intake_owner_assignment_source_self_api_v1"
 PREFLIGHT="accepted_ledger_intake_assignment_preflight_self_api_v1"
 FOCUS_ENTRY="accepted_intake_author_work_focus_self_api_v1"
+TITLE_DECIDE="decide_work_title_disclosure_self_api_v1"
+TITLE_STATE="work_title_disclosure_self_api_v1"
 NEEDS="ledger_accepted_original_needs_assignment_root_self_api_v1"
 STATUS="ledger_work_submission_status_self_api_v1"
 PROPOSE="propose_native_ledger_exact_work_scope_owner_self_api_v1"
@@ -147,6 +149,118 @@ def author_focus(db,api,key,actor,work,title):
           "Authored focus entry must disclose only the signed author's title")
     check(preflight_snapshot(db,work)==before,"Authored focus entry changed durable state")
     return out
+def title_grant_args(work,recipient,revision=0,decision="grant",action="e5200000-0000-4000-8000-000000000d01",ledger=ELM):
+    return {"p_organization_id":ORG,"p_ledger_id":ledger,"p_work_item_id":work,
+        "p_recipient_person_id":recipient,"p_decision":decision,"p_expected_revision":revision,
+        "p_valid_until":None,"p_action_id":action,
+        "p_reason":"Fictional explicit exact title disclosure decision"}
+def title_state(api,key,actor,work,expected_person,revision,effective,decision=None):
+    out=allow(api,key,actor,TITLE_STATE,focus_args(work))
+    fields={"ok","contractVersion","organizationId","ledgerId","workItemId","personId",
+        "eventId","revision","decision","validUntil","disclosureScope","grantEffective",
+        "workTitleDisclosed","instructionsDisclosed","workCreated","allocationCreated","planCreated"}
+    check(set(out)==fields and out.get("ok") is True
+        and out.get("contractVersion")=="work_title_disclosure_self_v1"
+        and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+        and out.get("workItemId")==work and out.get("personId")==expected_person
+        and out.get("revision")==revision and out.get("decision")==decision
+        and out.get("grantEffective") is effective
+        and out.get("disclosureScope")=="accepted_original_title_only"
+        and all(out.get(n) is False for n in ("workTitleDisclosed","instructionsDisclosed",
+             "workCreated","allocationCreated","planCreated")),
+        "Self-only title-grant state disclosed a title, wrong Person, or unauthorized permission")
+    return out
+def title_decision(db,api,key,root,args,revision,effective,idem=False):
+    before=assignment_snapshot(db,args["p_work_item_id"])
+    out=allow(api,key,root,TITLE_DECIDE,args)
+    fields={"ok","contractVersion","eventId","organizationId","ledgerId","workItemId",
+        "recipientPersonId","revision","decision","validUntil","disclosureScope",
+        "grantEffective","idempotent","workTitleDisclosed","instructionsDisclosed",
+        "assignmentAuthorityGranted","workCreated","allocationCreated","planCreated"}
+    check(set(out)==fields and out.get("ok") is True
+        and out.get("contractVersion")=="work_title_disclosure_decision_v1"
+        and out.get("revision")==revision and out.get("grantEffective") is effective
+        and out.get("idempotent") is idem
+        and out.get("workItemId")==args["p_work_item_id"]
+        and out.get("recipientPersonId")==args["p_recipient_person_id"]
+        and out.get("disclosureScope")=="accepted_original_title_only"
+        and all(out.get(n) is False for n in ("workTitleDisclosed","instructionsDisclosed",
+             "assignmentAuthorityGranted","workCreated","allocationCreated","planCreated")),
+        "Title disclosure decision must not reveal Work or grant an unrelated operation")
+    check(assignment_snapshot(db,args["p_work_item_id"])==before,
+        "Title disclosure decision altered Work/allocation/Person/plan state")
+    return out
+def title_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending):
+    # The worker is the author; the root is a DIFFERENT Person and does not
+    # derive a private title from grant-state. No Work title is returned at all.
+    title_state(api,key,worker,work,WORKER_PERSON,0,False)
+    title_state(api,key,root,work,OWNER_PERSON,0,False)
+    grant=title_grant_args(work,WORKER_PERSON)
+    for actor,label in ((worker,"connected author with unrelated Ledger root"),
+                        (outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,actor,TITLE_DECIDE,grant,label+" cannot administer disclosure")
+    deny(api,key,worker,TITLE_DECIDE,{**grant,"p_ledger_id":OTHER},
+         "another Ledger root cannot grant title for this Ledger's original")
+    deny(api,key,root,TITLE_DECIDE,{**grant,"p_work_item_id":pending},
+         "pending intake is not an accepted title grant source")
+    deny(api,key,root,TITLE_DECIDE,{**grant,
+         "p_recipient_person_id":"e5200000-0000-4000-8000-000000000103"},
+         "unconnected Person cannot receive title disclosure")
+    deny(api,key,root,TITLE_DECIDE,{**grant,
+         "p_work_item_id":"e5200000-0000-4000-8000-000000000fff"},
+         "unknown original cannot receive title disclosure")
+    before_count=sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1")
+    first=title_decision(db,api,key,root,grant,1,True)
+    check(UUID.fullmatch(first.get("eventId","")) is not None,
+          "Immutable exact permission event required")
+    title_state(api,key,worker,work,WORKER_PERSON,1,True,"grant")
+    title_state(api,key,root,work,OWNER_PERSON,0,False)
+    again=title_decision(db,api,key,root,grant,1,True,True)
+    check(again.get("eventId")==first.get("eventId"),"Exact title decision retry must be idempotent")
+    code,out=base.rpc(api,key,root,TITLE_DECIDE,{**grant,
+       "p_reason":"Fictional changed replay must never override title grant"})
+    check(code in (400,409) and isinstance(out,dict) and out.get("code")=="23505",
+          "Changed action-id replay must be rejected")
+    code,out=base.rpc(api,key,root,TITLE_DECIDE,{**grant,
+       "p_action_id":"e5200000-0000-4000-8000-000000000d02"})
+    check(code in (400,409) and isinstance(out,dict) and out.get("code")=="40001",
+          "Stale title disclosure revision must fail CAS")
+    revoke={**grant,"p_decision":"revoke","p_expected_revision":1,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d03"}
+    ended=title_decision(db,api,key,root,revoke,2,False)
+    check(ended.get("eventId")!=first.get("eventId"),"Revocation must append a distinct event")
+    title_state(api,key,worker,work,WORKER_PERSON,2,False,"revoke")
+    check(sql(db,"SELECT atlas.work_title_disclosure_event_effective_v1("
+        f"'{first['eventId']}'::uuid)")=="f",
+        "Revocation cannot allow fallback to an old title grant epoch")
+    # A newly granted Person can still be disconnected without losing
+    # historical source decisions or gaining an alternate read path.
+    regrant={**grant,"p_expected_revision":2,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d04"}
+    title_decision(db,api,key,root,regrant,3,True)
+    title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny(api,key,worker,TITLE_STATE,focus_args(work),
+             "disconnected Person cannot read title grant-state through existing JWT")
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
+    # A separate explicit non-author recipient can be granted this same
+    # Work without changing the author's own independent permission history.
+    root_target={**grant,"p_recipient_person_id":OWNER_PERSON,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d05"}
+    title_decision(db,api,key,root,root_target,1,True)
+    title_state(api,key,root,work,OWNER_PERSON,1,True,"grant")
+    title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
+    check(sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1")==
+        str(int(before_count)+4),"Grant/revoke history must be exactly append-only")
+    print("PASS R02D2A signed exact-original title-only grant/revoke, self-only state, "
+          "author/non-author separation, CAS, idempotent replay, revoked epoch, "
+          "pending/wrong-Ledger/unconnected denial, no Work effects and no title response")
+
 def delegation_state(api,key,worker):
     out=allow(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM})
     check(out.get("contractVersion")=="original_work_assignment_delegation_self_v1"
@@ -612,6 +726,8 @@ def main():
         deny(api,key,actor,NEEDS,needsargs,label+" cannot discover Needs Assignment")
     accepted(api,key,root,a,"Fictional direct accepted original")
     accepted(api,key,root,b,"Fictional consent accepted original")
+    title_grant_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,
+        a["workItemId"],c["workItemId"])
     rows=work_page(api,key,root)
     deny_focus(args.db_url,api,key,worker,a["workItemId"],
         "own submission title does not confer assignment authority")
@@ -801,6 +917,7 @@ def main():
         "ended exact Ledger root cannot replay a former assignment with a valid session")
     check(delegation_state(api,key,worker).get("grantEffective") is False,
           "Grantor root withdrawal failed to invalidate the still-recorded grant")
+    title_state(api,key,worker,a["workItemId"],WORKER_PERSON,3,False,"grant")
     deny_assignment_without_change(args.db_url,api,key,worker,delegate_arguments,
         "ended grantor authority denies replay of the delegate's successful assignment")
     deny_preflight(args.db_url,api,key,worker,
@@ -835,7 +952,9 @@ def main():
        "bounded field allowlist, current availability, withdrawn authority, no reservation and no "
        "durable effects PASS. R02D1 author-title entry requires separate original "
        "submitter disclosure and current assignment grant; signed positive/negative "
-       "author/authority/withdrawal checks PASS. Non-author delegate disclosure, "
+       "author/authority/withdrawal checks PASS. R02D2A exact-title independent "
+       "root grant/revoke, self-only title-free status and revocation/issuer/seat checks "
+       "PASS; this creates no title reader for non-authors. Non-author delegate disclosure, "
        "Atlas UI, browser and release remain HELD. "
        "DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
