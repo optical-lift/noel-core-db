@@ -26,6 +26,16 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $fn$
       AND w.source_object_type='ledger_work_intake'
       AND w.source_object_id=i.id
       AND w.work_state='open'
+      AND EXISTS (
+        SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+        WHERE rel.organization_id=i.organization_id
+          AND rel.ledger_id=i.ledger_id
+          AND rel.work_item_id=w.id
+          AND rel.attribution_state='active'
+          AND rel.evidence_kind='participant_attested'
+          AND rel.established_by_person_id=i.submitted_by_person_id
+          AND rel.attestation_source_ref='atlas.work_items:'||w.id::text
+      )
   );
 $fn$;
 REVOKE ALL ON FUNCTION
