@@ -467,3 +467,73 @@ BEGIN
  END IF;
 END;
 $non_author_focus_check$;
+
+
+-- R02E2A: separate recipient-choice information grant; NO People reader yet.
+DO $recipient_choice_grant_check$
+DECLARE fn regprocedure; def text;
+BEGIN
+ IF NOT EXISTS(SELECT 1 FROM pg_class
+   WHERE oid='atlas.ledger_assignment_recipient_choice_grant_events_v1'::regclass
+     AND relrowsecurity AND relforcerowsecurity) THEN
+   RAISE EXCEPTION 'Recipient-choice grant event table must be protected with forced RLS';
+ END IF;
+ FOREACH fn IN ARRAY ARRAY[
+   'atlas.decide_recipient_choice_grant_self_api_v1(uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+   'public.decide_recipient_choice_grant_self_api_v1(uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+   'atlas.recipient_choice_grant_self_api_v1(uuid,uuid)'::regprocedure,
+   'public.recipient_choice_grant_self_api_v1(uuid,uuid)'::regprocedure
+ ] LOOP
+   IF NOT has_function_privilege('authenticated',fn,'EXECUTE')
+      OR has_function_privilege('anon',fn,'EXECUTE')
+      OR has_function_privilege('service_role',fn,'EXECUTE') THEN
+     RAISE EXCEPTION 'Recipient-choice permission API is not authenticated-only: %',fn;
+   END IF;
+ END LOOP;
+ FOREACH fn IN ARRAY ARRAY[
+   'atlas.guard_recipient_choice_grant_history_v1()'::regprocedure,
+   'atlas.recipient_choice_grant_event_effective_v1(uuid)'::regprocedure
+ ] LOOP
+   IF has_function_privilege('authenticated',fn,'EXECUTE')
+      OR has_function_privilege('anon',fn,'EXECUTE')
+      OR has_function_privilege('service_role',fn,'EXECUTE') THEN
+     RAISE EXCEPTION 'Private recipient grant helper exposed: %',fn;
+   END IF;
+ END LOOP;
+ IF EXISTS (SELECT 1 FROM pg_proc WHERE oid IN (
+   'public.decide_recipient_choice_grant_self_api_v1(uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+   'public.recipient_choice_grant_self_api_v1(uuid,uuid)'::regprocedure
+ ) AND prosecdef) THEN
+   RAISE EXCEPTION 'Public recipient permission wrapper may not be definer';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.decide_recipient_choice_grant_self_api_v1(uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure) INTO def;
+ IF position('require_work_assignment_delegation_session_v1' IN def)=0
+    OR position('company_work_native_ledger_owner_self_v1' IN def)=0
+    OR position('recipient_choice_grant.scope:' IN def)=0
+    OR position('p_expected_revision' IN def)=0
+    OR position('recipientReaderEnabled'',false' IN def)=0
+    OR position('rosterDisclosed'',false' IN def)=0 THEN
+   RAISE EXCEPTION 'Recipient-choice grant writer bypasses root or field limit';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.recipient_choice_grant_event_effective_v1(uuid)'::regprocedure) INTO def;
+ IF position('newer.delegate_person_id=e.delegate_person_id' IN def)=0
+    OR position('institutional_root_authority_id' IN def)=0
+    OR position('person_has_native_ledger_connection_v1' IN def)=0 THEN
+   RAISE EXCEPTION 'Recipient grant must honor latest event, issuer and connection';
+ END IF;
+ SELECT pg_get_functiondef('atlas.recipient_choice_grant_self_api_v1(uuid,uuid)'::regprocedure)
+ INTO def;
+ IF position('e.delegate_person_id=who' IN def)=0
+    OR position('peopleDisclosed'',false' IN def)=0
+    OR position('rosterDisclosed'',false' IN def)=0 THEN
+   RAISE EXCEPTION 'Recipient permission status must be self-only and roster-free';
+ END IF;
+ SELECT pg_get_functiondef('atlas.original_work_assignment_actor_self_v1(uuid,uuid)'::regprocedure)
+ INTO def;
+ IF position('recipient_choice_grant' IN def)>0 THEN
+   RAISE EXCEPTION 'Assignment operation must not inherit recipient discovery';
+ END IF;
+END;
+$recipient_choice_grant_check$;
