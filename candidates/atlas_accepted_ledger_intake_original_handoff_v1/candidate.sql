@@ -611,6 +611,44 @@ BEGIN
 END;
 $function$;
 
+-- Exact root-only eligibility read for the existing Work Focus direct action.
+-- This checks real source acceptance; mere absence from a pending queue is NOT proof.
+CREATE OR REPLACE FUNCTION atlas.accepted_ledger_intake_owner_assignment_source_self_api_v1(
+  p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE v_owner uuid;
+BEGIN
+  IF p_organization_id IS NULL OR p_ledger_id IS NULL OR p_work_item_id IS NULL
+  THEN RAISE EXCEPTION 'Exact existing source required' USING ERRCODE='22023'; END IF;
+  v_owner:=atlas.company_work_native_ledger_owner_self_v1(
+    p_organization_id,p_ledger_id);
+  IF v_owner IS NULL OR NOT atlas.accepted_ledger_intake_original_evidence_v1(
+    p_organization_id,p_ledger_id,p_work_item_id) THEN
+    RAISE EXCEPTION 'Original accepted Work unavailable for governor'
+      USING ERRCODE='42501';
+  END IF;
+  RETURN jsonb_build_object(
+    'ok',true,'contractVersion','accepted_ledger_intake_owner_assignment_source_v1',
+    'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+    'workItemId',p_work_item_id,'sourceAccepted',true,
+    'sameOriginalWork',true,'authorityNotDelegated',true,
+    'personalWorkAssignmentCreated',false,'workPlanCreated',false);
+END;
+$fn$;
+CREATE OR REPLACE FUNCTION public.accepted_ledger_intake_owner_assignment_source_self_api_v1(
+  p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path='pg_catalog' AS $fn$
+  SELECT atlas.accepted_ledger_intake_owner_assignment_source_self_api_v1($1,$2,$3);
+$fn$;
+REVOKE ALL ON FUNCTION
+  atlas.accepted_ledger_intake_owner_assignment_source_self_api_v1(uuid,uuid,uuid),
+  public.accepted_ledger_intake_owner_assignment_source_self_api_v1(uuid,uuid,uuid)
+FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION
+  atlas.accepted_ledger_intake_owner_assignment_source_self_api_v1(uuid,uuid,uuid),
+  public.accepted_ledger_intake_owner_assignment_source_self_api_v1(uuid,uuid,uuid)
+TO authenticated;
+
 -- Signed submitter *own* status. This is not the root queue, a roster or a
 -- notification delivery receipt. All statuses remain private to the author,
 -- with current exact Ledger authorization checked afresh at read time.
