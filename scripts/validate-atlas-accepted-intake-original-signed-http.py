@@ -30,6 +30,7 @@ DIRECT="owner_direct_assign_existing_original_work_self_api_v1"
 ELIGIBLE="accepted_ledger_intake_owner_assignment_source_self_api_v1"
 PREFLIGHT="accepted_ledger_intake_assignment_preflight_self_api_v1"
 FOCUS_ENTRY="accepted_intake_author_work_focus_self_api_v1"
+NON_AUTHOR_FOCUS="accepted_intake_non_author_focus_self_api_v1"
 TITLE_DECIDE="decide_work_title_disclosure_self_api_v1"
 TITLE_STATE="work_title_disclosure_self_api_v1"
 NEEDS="ledger_accepted_original_needs_assignment_root_self_api_v1"
@@ -190,6 +191,118 @@ def title_decision(db,api,key,root,args,revision,effective,idem=False):
     check(assignment_snapshot(db,args["p_work_item_id"])==before,
         "Title disclosure decision altered Work/allocation/Person/plan state")
     return out
+def deny_non_author_focus(db,api,key,actor,work,label,ledger=ELM):
+    before=(preflight_snapshot(db,work),
+            sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1"))
+    deny(api,key,actor,NON_AUTHOR_FOCUS,focus_args(work,ledger),label)
+    check((preflight_snapshot(db,work),
+            sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1"))==before,
+          "Denied non-author Focus changed state: "+label)
+def non_author_focus(db,api,key,worker,work,expected_title,disclosure,assignment):
+    before=(preflight_snapshot(db,work),
+            sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1"))
+    out=allow(api,key,worker,NON_AUTHOR_FOCUS,focus_args(work))
+    fields={"ok","contractVersion","organizationId","ledgerId","workItemId","title",
+       "workState","focusMode","disclosureBasis","actorPersonId",
+       "assignmentAuthorizationBasis","assignmentGrantEventId","assignmentGrantRevision",
+       "disclosureGrantEventId","disclosureGrantRevision","sourceAccepted",
+       "assignmentMustRevalidate","instructionsAvailable","authorIdentityDisclosed",
+       "recipientRosterDisclosed","reviewContextDisclosed","subjectContextDisclosed",
+       "otherWorkDisclosed","workCreated","allocationCreated","planCreated"}
+    check(set(out)==fields and out.get("ok") is True
+        and out.get("contractVersion")=="accepted_intake_non_author_focus_title_v1"
+        and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+        and out.get("workItemId")==work and out.get("title")==expected_title
+        and out.get("workState")=="open" and out.get("focusMode")=="assignment_title_only"
+        and out.get("disclosureBasis")=="governor_exact_original_title_grant_v1"
+        and out.get("actorPersonId")==WORKER_PERSON
+        and out.get("assignmentAuthorizationBasis")=="delegated_exact_existing_accepted_original_work_v1"
+        and out.get("assignmentGrantEventId")==assignment.get("eventId")
+        and out.get("assignmentGrantRevision")==assignment.get("revision")
+        and out.get("disclosureGrantEventId")==disclosure.get("eventId")
+        and out.get("disclosureGrantRevision")==disclosure.get("revision")
+        and out.get("sourceAccepted") is True and out.get("assignmentMustRevalidate") is True
+        and all(out.get(k) is False for k in
+          ("instructionsAvailable","authorIdentityDisclosed","recipientRosterDisclosed",
+           "reviewContextDisclosed","subjectContextDisclosed","otherWorkDisclosed",
+           "workCreated","allocationCreated","planCreated")),
+        "Non-author title leaked outside exact current two-authority allowance")
+    check((preflight_snapshot(db,work),
+            sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1"))==before,
+          "Non-author title entry created durable effects")
+    return out
+def non_author_focus_lifecycle(db,api,key,root,worker,outsider,no_seat,claims,
+                               authored_work,pending):
+    # Signed root creates an independent original; delegate did not author it.
+    item=submit(api,key,root,"governor-authored-exact-original-006",
+                "Fictional root submitted original")
+    accepted(api,key,root,item,"Fictional root reviewed original")
+    work=item["workItemId"]
+    assignment=delegation_state(api,key,worker)
+    check(assignment.get("revision")==8 and assignment.get("grantEffective") is True,
+          "Need current true nonroot assignment authorization")
+    deny_non_author_focus(db,api,key,worker,work,
+        "assignment grant alone cannot reveal another submitter's original")
+    deny_non_author_focus(db,api,key,worker,authored_work,
+        "non-author read cannot open caller's authored original")
+    for actor,label in ((root,"root"),(outsider,"outsider"),
+                        (no_seat,"unconnected"),(None,"anonymous")):
+        deny_non_author_focus(db,api,key,actor,work,
+            label+" cannot use the non-author assignment Focus reader")
+    grant_args=title_grant_args(work,WORKER_PERSON,
+        action="e5200000-0000-4000-8000-000000000d20")
+    title=title_decision(db,api,key,root,grant_args,1,True)
+    non_author_focus(db,api,key,worker,work,"Fictional root reviewed original",title,assignment)
+    for other,label,ledger in (
+      (pending,"pending",ELM),
+      ("e5200000-0000-4000-8000-000000000fff","unknown",ELM),
+      (work,"wrong Ledger",OTHER),
+      (authored_work,"different original",ELM)):
+        deny_non_author_focus(db,api,key,worker,other,
+            "specific grant does not disclose "+label,ledger)
+    revoked={**grant_args,"p_decision":"revoke","p_expected_revision":1,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d21"}
+    title_decision(db,api,key,root,revoked,2,False)
+    deny_non_author_focus(db,api,key,worker,work,
+        "title disclosure revocation independently withdraws Focus")
+    title=title_decision(db,api,key,root,{**grant_args,"p_expected_revision":2,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d22"},3,True)
+    non_author_focus(db,api,key,worker,work,"Fictional root reviewed original",title,assignment)
+    revoke={"p_organization_id":ORG,"p_ledger_id":ELM,"p_delegate_person_id":WORKER_PERSON,
+        "p_decision":"revoke","p_expected_revision":8,"p_valid_until":None,
+        "p_action_id":"e5200000-0000-4000-8000-000000000b14",
+        "p_reason":"Synthetic assignment revocation while title permission stays active"}
+    allow(api,key,root,DELEGATE,revoke)
+    title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
+    deny_non_author_focus(db,api,key,worker,work,
+        "title grant alone never supplies assignment authority")
+    assignment=allow(api,key,root,DELEGATE,{**revoke,"p_decision":"grant",
+        "p_expected_revision":9,"p_action_id":"e5200000-0000-4000-8000-000000000b15"})
+    check(assignment.get("revision")==10 and assignment.get("currentlyEffective") is True,
+          "New assignment grant must carry its own epoch")
+    non_author_focus(db,api,key,worker,work,"Fictional root reviewed original",title,assignment)
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny_non_author_focus(db,api,key,worker,work,
+            "ended seat prevents reuse of formerly effective dual grants")
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    session=claims["session_id"]
+    old=sql(db,f"SELECT quote_nullable(not_after) FROM auth.sessions WHERE id='{session}'::uuid")
+    sql(db,f"UPDATE auth.sessions SET not_after=now()-interval '1 minute' WHERE id='{session}'::uuid")
+    try:
+        deny_non_author_focus(db,api,key,worker,work,
+            "expired signed session prevents non-author title read")
+    finally:
+        sql(db,f"UPDATE auth.sessions SET not_after={old} WHERE id='{session}'::uuid")
+    non_author_focus(db,api,key,worker,work,"Fictional root reviewed original",title,assignment)
+    print("PASS R02D2B signed independent submitter and non-author title-only Focus, "
+          "separate current information and assignment grants, grant epochs, "
+          "revoked/disconnected/expired/wrong original and no Work mutation")
+    return work
+
 def title_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending,other_work):
     # The worker is the author; the root is a DIFFERENT Person and does not
     # derive a private title from grant-state. No Work title is returned at all.
