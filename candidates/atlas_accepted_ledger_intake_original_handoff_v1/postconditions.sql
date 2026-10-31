@@ -45,6 +45,20 @@ BEGIN
  IF position('accepted_ledger_intake_original_evidence_v1' IN def)=0 OR
     position('organization_membership_present_effective_at_v1' IN def)=0
  THEN RAISE EXCEPTION 'Legacy membership-bound offer path must remain guarded'; END IF;
+ -- The existing allocation guard must itself admit this exact accepted
+ -- intake source while continuing to reject misrepresented Event and connected
+ -- Person provenance. A writer-only change is insufficient.
+ SELECT pg_get_functiondef(
+   'atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure)
+ INTO def;
+ IF position('accepted_ledger_intake_original_direct_assignment_v1' IN def)=0
+    OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
+    OR position('governor_exact_existing_original_work' IN def)=0
+    OR position('company_work_native_ledger_owner_self_v1' IN def)=0
+    OR position('ledger_connected_direct_assignment_v1' IN def)=0
+    OR position('original_subject_direct_assignment_v1' IN def)=0
+ THEN RAISE EXCEPTION 'Exact accepted-original allocation guard missing or older admission law weakened'; END IF;
+
  -- Both native responsibility models remain independent: direct obligation
  -- is never forced through a consent scope and never duplicates original Work.
  IF to_regprocedure('atlas.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)') IS NULL
