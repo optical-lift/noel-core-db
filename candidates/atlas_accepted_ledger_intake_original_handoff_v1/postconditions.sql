@@ -35,5 +35,21 @@ BEGIN
  IF position('accepted_ledger_intake_original_evidence_v1' IN def)=0 OR
     position('organization_membership_present_effective_at_v1' IN def)=0
  THEN RAISE EXCEPTION 'Legacy membership-bound offer path must remain guarded'; END IF;
+ IF to_regprocedure('public.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid)') IS NULL
+ THEN RAISE EXCEPTION 'Signed submitter own-status RPC missing'; END IF;
+ IF has_function_privilege('anon',
+   'public.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid)'::regprocedure,'EXECUTE')
+ THEN RAISE EXCEPTION 'Anonymous must not read authored Work status'; END IF;
+ IF NOT has_function_privilege('authenticated',
+   'public.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid)'::regprocedure,'EXECUTE')
+ THEN RAISE EXCEPTION 'Signed canonical submitter API unavailable'; END IF;
+ SELECT pg_get_functiondef(
+   'atlas.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid)'::regprocedure) INTO def;
+ IF position('i.submitted_by_person_id=who' IN def)=0 OR
+    position('person_has_native_ledger_connection_v1' IN def)=0 OR
+    position('principal_has_ledger_authority_v1' IN def)=0 OR
+    position('notificationDeliveryClaimed' IN def)=0 OR
+    position('p_limit NOT BETWEEN 1 AND 100' IN def)=0
+ THEN RAISE EXCEPTION 'Author own-status must be exact source-filtered and bounded'; END IF;
 END;
 $check$;
