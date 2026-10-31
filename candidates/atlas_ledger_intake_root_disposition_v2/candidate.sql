@@ -196,11 +196,11 @@ DECLARE intake atlas.ledger_work_intakes%rowtype;
     work.source_object_id IS DISTINCT FROM intake.id
  THEN RAISE EXCEPTION 'Original Work unavailable for this intake'
  USING errcode='23514';END IF;
- IF p_decision='rejected' THEN
-  IF EXISTS(SELECT 1 FROM atlas.work_allocations a
+ IF EXISTS(SELECT 1 FROM atlas.work_allocations a
     WHERE a.work_item_id=work.id AND a.state='active')
-  THEN RAISE EXCEPTION 'Assigned Work cannot be rejected as an unassigned intake'
+ THEN RAISE EXCEPTION 'Assigned Work must be handled through the existing Work authority'
   USING errcode='23514';END IF;
+ IF p_decision='rejected' THEN
   UPDATE atlas.work_items
     SET work_state='cancelled',cancelled_at=now(),updated_at=now(),
     metadata=metadata || jsonb_build_object(
