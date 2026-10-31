@@ -57,6 +57,8 @@ BEGIN
     OR position('company_work_native_ledger_owner_self_v1' IN def)=0
     OR position('ledger_connected_direct_assignment_v1' IN def)=0
     OR position('original_subject_direct_assignment_v1' IN def)=0
+    OR position($expected_scope$relevance.evidence_kind='participant_attested'
+           and atlas.accepted_ledger_intake_original_evidence_v1($expected_scope$ IN def)=0
  THEN RAISE EXCEPTION 'Exact accepted-original allocation guard missing or older admission law weakened'; END IF;
 
  -- Both native responsibility models remain independent: direct obligation
