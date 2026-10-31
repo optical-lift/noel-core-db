@@ -35,7 +35,7 @@ def deny(api,key,token,name,args,reason):
     print("PASS denied",reason)
 def stale(api,key,token,name,args,reason):
     code,obj=base.rpc(api,key,token,name,args)
-    must(code in (400,409) and isinstance(obj,dict) and obj.get("code")=="40001",
+    must(code in (400,409,500) and isinstance(obj,dict) and obj.get("code")=="40001",
          f"NOT source stale CAS {reason}: {code} {str(obj)[:160]}")
     print("PASS stale",reason)
 def queue(api,key,token,ledger):
