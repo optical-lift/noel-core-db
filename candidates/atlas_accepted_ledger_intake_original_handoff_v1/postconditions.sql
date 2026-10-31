@@ -68,6 +68,8 @@ BEGIN
  IF position('participant_attested' IN def)=0
     OR position('company_work_native_ledger_owner_self_v1' IN def)=0
     OR position('from atlas.work_items' IN lower(def))=0
+    OR position('p_scope<>''native_ledger''' IN def)=0
+    OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
  THEN RAISE EXCEPTION 'Accepted original missing from normal governor Ledger Work'; END IF;
 
  -- Responsibility never itself authorizes a worker to rewrite Company time.
