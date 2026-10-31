@@ -190,7 +190,7 @@ def title_decision(db,api,key,root,args,revision,effective,idem=False):
     check(assignment_snapshot(db,args["p_work_item_id"])==before,
         "Title disclosure decision altered Work/allocation/Person/plan state")
     return out
-def title_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending):
+def title_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending,other_work):
     # The worker is the author; the root is a DIFFERENT Person and does not
     # derive a private title from grant-state. No Work title is returned at all.
     title_state(api,key,worker,work,WORKER_PERSON,0,False)
@@ -256,8 +256,35 @@ def title_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending):
     title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
     check(sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1")==
         str(int(before_count)+4),"Grant/revoke history must be exactly append-only")
+    # Genuine simultaneous root decisions with the same expected revision on a
+    # different accepted original: one event, one source stale rejection.
+    # A time-bounded grant must also expire without reviving old authority.
+    expires=sql(db,"SELECT (clock_timestamp()+interval '10 seconds')::text")
+    race=title_grant_args(other_work,WORKER_PERSON,
+        action="e5200000-0000-4000-8000-000000000d06")
+    race={**race,"p_valid_until":expires}
+    rival={**race,"p_action_id":"e5200000-0000-4000-8000-000000000d07"}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts=list(pool.map(lambda args:base.rpc(api,key,root,TITLE_DECIDE,args),
+                               (race,rival)))
+    wins=[out for status,out in attempts
+          if status==200 and isinstance(out,dict) and out.get("ok") is True]
+    stale=[out for status,out in attempts
+           if status in (400,409,500) and isinstance(out,dict)
+           and out.get("code")=="40001"]
+    check(len(wins)==1 and len(stale)==1
+        and wins[0].get("revision")==1 and wins[0].get("grantEffective") is True,
+        "Concurrent title disclosure decisions must record exactly one grant epoch")
+    title_state(api,key,worker,other_work,WORKER_PERSON,1,True,"grant")
+    check(sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1")==
+        str(int(before_count)+5),"Concurrent title decisions created extra durable grants")
+    time.sleep(10.3)
+    title_state(api,key,worker,other_work,WORKER_PERSON,1,False,"grant")
+    check(sql(db,"SELECT atlas.work_title_disclosure_event_effective_v1("
+        f"'{wins[0]['eventId']}'::uuid)")=="f",
+        "Expired exact title grant must not remain effective")
     print("PASS R02D2A signed exact-original title-only grant/revoke, self-only state, "
-          "author/non-author separation, CAS, idempotent replay, revoked epoch, "
+          "author/non-author separation, CAS/concurrency/expiry, idempotent replay, revoked epoch, "
           "pending/wrong-Ledger/unconnected denial, no Work effects and no title response")
 
 def delegation_state(api,key,worker):
@@ -726,7 +753,7 @@ def main():
     accepted(api,key,root,a,"Fictional direct accepted original")
     accepted(api,key,root,b,"Fictional consent accepted original")
     title_grant_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,
-        a["workItemId"],c["workItemId"])
+        a["workItemId"],c["workItemId"],b["workItemId"])
     rows=work_page(api,key,root)
     deny_focus(args.db_url,api,key,worker,a["workItemId"],
         "own submission title does not confer assignment authority")
@@ -934,6 +961,8 @@ def main():
         f"WHERE id='{worker_session}'::uuid AND user_id='{c1.WORKER}'::uuid")
     deny(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM},
          "ended delegate session denies readback despite unexpired JWT")
+    deny(api,key,worker,TITLE_STATE,focus_args(a["workItemId"]),
+         "expired signed session denies title-disclosure grant-state readback")
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
        "PASS real signed clone: pending excluded, same original accepted, own status, "
@@ -952,8 +981,8 @@ def main():
        "durable effects PASS. R02D1 author-title entry requires separate original "
        "submitter disclosure and current assignment grant; signed positive/negative "
        "author/authority/withdrawal checks PASS. R02D2A exact-title independent "
-       "root grant/revoke, self-only title-free status and revocation/issuer/seat checks "
-       "PASS; this creates no title reader for non-authors. Non-author delegate disclosure, "
+       "root grant/revoke, self-only title-free status, concurrent CAS, expiry and "
+       "revocation/issuer/seat/session checks PASS; no title reader for non-authors. Non-author delegate disclosure, "
        "Atlas UI, browser and release remain HELD. "
        "DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
