@@ -20,7 +20,7 @@ c1=v2.c1
 ELM=c1.LEDGER_A
 OTHER=c1.LEDGER_B
 ORG="e5200000-0000-4000-8000-000000000801"
-WORKER=c1.WORKER
+WORKER_PERSON="e5200000-0000-4000-8000-000000000102"
 SUBMIT="submit_ledger_work_self_api_v1"
 OWNER_WORK="company_work_accountability_native_ledger_self_api_v1"
 DIRECT="owner_direct_assign_existing_original_work_self_api_v1"
@@ -99,7 +99,7 @@ def main():
         pa={"p_organization_id":ORG,"p_ledger_id":ELM,
             "p_work_item_id":item["workItemId"]}
         deny(api,key,root,ELIGIBLE,pa,"pending original cannot be directly assigned")
-        deny(api,key,root,DIRECT,{**pa,"p_target_person_id":WORKER,
+        deny(api,key,root,DIRECT,{**pa,"p_target_person_id":WORKER_PERSON,
              "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000a41",
              "p_reason":"Synthetic proposal pending governor review"},
              "pending intake cannot bypass root review")
@@ -132,7 +132,7 @@ def main():
              "p_after_created_at":None,"p_after_intake_id":None},
              label+" cannot enumerate author status")
     directargs={"p_organization_id":ORG,"p_ledger_id":ELM,
-        "p_work_item_id":a["workItemId"],"p_target_person_id":WORKER,
+        "p_work_item_id":a["workItemId"],"p_target_person_id":WORKER_PERSON,
         "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000a42",
         "p_reason":"Synthetic direct obligation after exact acceptance"}
     d=allow(api,key,root,DIRECT,directargs)
@@ -153,7 +153,7 @@ def main():
          "responsibility does not delegate Company scheduling")
     scope=allow(api,key,root,PROPOSE,{
         "p_organization_id":ORG,"p_ledger_id":ELM,
-        "p_worker_person_id":WORKER,"p_work_item_id":b["workItemId"],
+        "p_worker_person_id":WORKER_PERSON,"p_work_item_id":b["workItemId"],
         "p_terms":"Synthetic bounded exact original Work responsibility",
         "p_valid_until":None})
     scopeid=scope.get("scopeId")
