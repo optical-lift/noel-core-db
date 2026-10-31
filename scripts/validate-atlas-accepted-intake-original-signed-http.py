@@ -196,10 +196,25 @@ def main():
           "Native proposal must not fabricate acceptance")
     deny(api,key,root,RESPOND,{"p_scope_id":scopeid,"p_decision":"accept"},
          "root cannot consent for independent Person")
-    deny(api,key,root,ASSIGN_SCOPE,{
+    # This is a *state constraint*, not an identity/permission denial:
+    # a legitimately signed governor must receive PostgreSQL 23514 while
+    # consent is still proposed. Preserve the generic signed 42501 denial
+    # helper for actual unauthorized callers.
+    pre_allocations=sql(args.db_url,
+        "SELECT count(*) FROM atlas.work_allocations "
+        f"WHERE work_item_id='{b['workItemId']}'::uuid AND state='active'")
+    rejection,body=base.rpc(api,key,root,ASSIGN_SCOPE,{
         "p_work_item_id":b["workItemId"],"p_scope_id":scopeid,
-        "p_reason":"Synthetic unaccepted proposal cannot assign responsibility"},
-        "unaccepted exact-Work scope cannot establish responsibility")
+        "p_reason":"Synthetic unaccepted proposal cannot assign responsibility"})
+    check(rejection==400 and isinstance(body,dict)
+          and body.get("code")=="23514"
+          and body.get("message")==
+             "Open Work and currently accepted Person/Ledger standing scope required",
+          "Unaccepted scope must fail via actual source-state constraint 23514")
+    check(sql(args.db_url,"SELECT count(*) FROM atlas.work_allocations "
+       f"WHERE work_item_id='{b['workItemId']}'::uuid AND state='active'")==
+       pre_allocations,"Rejected unaccepted scope changed original allocations")
+    print("PASS denied unaccepted exact-Work scope without an allocation")
     consent=allow(api,key,worker,RESPOND,{"p_scope_id":scopeid,"p_decision":"accept"})
     check(consent.get("personConsentRecorded") is True
           and consent.get("assignmentCreated") is False,
