@@ -30,7 +30,8 @@ BEGIN
  SELECT pg_get_functiondef('atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(uuid,uuid,text)'::regprocedure) INTO def;
  IF position('accepted_ledger_intake_original_evidence_v1' IN def)=0 OR
     position('company_work_native_ledger_owner_self_v1' IN def)=0 OR
-    position('v_scope.accepted_by_person_id' IN def)=0
+    position('v_scope.accepted_by_person_id' IN def)=0 OR
+    position($intake_mandatory$IF v_work.source_object_type='ledger_work_intake'$intake_mandatory$ IN def)=0
  THEN RAISE EXCEPTION 'Accepted standing scope path weakened or missing'; END IF;
 
  IF to_regprocedure('atlas.respond_native_ledger_standing_scope_self_api_v1(uuid,text)') IS NULL
@@ -39,7 +40,8 @@ BEGIN
   'atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)'::regprocedure) INTO def;
  IF position('accepted_ledger_intake_original_evidence_v1' IN def)=0 OR
     position('company_work_native_ledger_owner_self_v1' IN def)=0 OR
-    position('person_has_native_ledger_connection_v1' IN def)=0
+    position('person_has_native_ledger_connection_v1' IN def)=0 OR
+    position($intake_mandatory$IF v_work.source_object_type='ledger_work_intake'$intake_mandatory$ IN def)=0
  THEN RAISE EXCEPTION 'Native exact Work proposal is not source-guarded'; END IF;
  SELECT pg_get_functiondef('atlas.offer_unallocated_company_work_self_api_v1(uuid,uuid,uuid,text)'::regprocedure) INTO def;
  IF position('accepted_ledger_intake_original_evidence_v1' IN def)=0 OR
@@ -57,6 +59,7 @@ BEGIN
     OR position('company_work_native_ledger_owner_self_v1' IN def)=0
     OR position('ledger_connected_direct_assignment_v1' IN def)=0
     OR position('original_subject_direct_assignment_v1' IN def)=0
+    OR position($intake_mandatory$work.source_object_type IS DISTINCT FROM 'ledger_work_intake'$intake_mandatory$ IN def)=0
     OR position($expected_scope$relevance.evidence_kind='participant_attested'
            and atlas.accepted_ledger_intake_original_evidence_v1($expected_scope$ IN def)=0
  THEN RAISE EXCEPTION 'Exact accepted-original allocation guard missing or older admission law weakened'; END IF;
