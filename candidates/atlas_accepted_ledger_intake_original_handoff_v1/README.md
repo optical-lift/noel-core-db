@@ -2,6 +2,12 @@
 
 **SOURCE ONLY / DRAFT. NOT A DEPLOYMENT.** Implement under [Noel issue #2434](https://github.com/optical-lift/noel-core-db/issues/2434). Requires exact disposition migration `20261031004257` to have already passed its separate governed release gate. Do not apply this SQL directly on production.
 
+## October 31 current proof and delegated-authority boundary
+
+The earlier verification-status prose below predates the [protected signed clone PASS 41206826240](https://github.com/optical-lift/noel-core-db/actions/runs/41206826240) at exact source `59c3418f7a4a0ffbfc4f1af8f134abcb9a1a032a`; [the dated receipt](https://github.com/optical-lift/noel-core-db/pull/2435#issuecomment-6544277667) supersedes only its claims that those particular signed tests have not run. It does not establish production installation, browser acceptance, every historical status case or delegated authority. The matching Atlas draft #494 passed its independent application build; both remain held.
+
+[R02 source gate](DELEGATED_ASSIGNMENT_SOURCE_GATE_2026-10-31.md) records the missing native human grant/revoke dependency and the added signed negative assignment cases. New tests must pass at their own exact source head before receiving a PASS claim. No product function, grant, root role or migration is changed to bypass the missing authority contract. The larger delegated-governor unit is **blocked**, not implemented by passing denial tests.
+
 ## Intent
 
 Extend the **existing** native original Work editor, existing original-Work direct-obligation writer, native exact-Work consent pathway, initial company Work offer, and accepted standing-scope assignment writer to recognize *one narrowly proven* source: a real Ledger intake already accepted by its exact Ledger root, with a matching final signed decision and the exact original Work. The initial participant-attested evidence row remains intact; it is **not rewritten as owner-attested**. No Work, Person, Principal, allocation, schedule, delivery receipt, or permissions are created in this candidate.

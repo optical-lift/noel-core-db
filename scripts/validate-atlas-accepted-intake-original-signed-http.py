@@ -40,6 +40,32 @@ def check(condition,message):v2.must(condition,message)
 def allow(*args):return v2.allow(*args)
 def deny(*args):return v2.deny(*args)
 def sql(db,statement):return v2.sql(db,statement)
+def assignment_snapshot(db,work):
+    """Hash fictional original state, not private payloads in workflow output."""
+    check(UUID.fullmatch(work or "") is not None,"Exact synthetic Work required")
+    return sql(db,
+        "SELECT md5(jsonb_build_object("
+        "'work',(SELECT to_jsonb(w) FROM atlas.work_items w "
+        f"WHERE w.id='{work}'::uuid),"
+        "'allocations',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) "
+        f"FROM atlas.work_allocations a WHERE a.work_item_id='{work}'::uuid),"
+        "'plans',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) "
+        f"FROM atlas.work_execution_plans p WHERE p.work_item_id='{work}'::uuid),"
+        "'planEvents',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) "
+        f"FROM atlas.work_execution_plan_events e WHERE e.work_item_id='{work}'::uuid),"
+        "'standingScopes',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.id) "
+        "FROM atlas.company_work_standing_assignment_scopes s "
+        f"WHERE s.covered_work_item_id='{work}'::uuid),"
+        "'intake',(SELECT to_jsonb(i) FROM atlas.ledger_work_intakes i "
+        f"WHERE i.work_item_id='{work}'::uuid),"
+        "'workCount',(SELECT count(*) FROM atlas.work_items),"
+        "'peopleCount',(SELECT count(*) FROM reality.entities WHERE entity_kind='person'),"
+        "'principalCount',(SELECT count(*) FROM atlas.principals))::text)")
+def deny_assignment_without_change(db,api,key,actor,arguments,label):
+    before=assignment_snapshot(db,arguments["p_work_item_id"])
+    deny(api,key,actor,DIRECT,arguments,label)
+    check(assignment_snapshot(db,arguments["p_work_item_id"])==before,
+          "Denied original-Work assignment changed durable state: "+label)
 def work_page(api,key,token):
     status,out=base.rpc(api,key,token,OWNER_WORK,{
         "p_organization_id":ORG,"p_ledger_id":ELM,
@@ -86,12 +112,14 @@ def main():
     api,key=c1.local_status()
     base.setup_auth(args.db_url)
     tokens={}
+    signed_claims={}
     for name,user in (("owner",c1.OWNER),("worker",c1.WORKER),
                       ("outsider",c1.OUTSIDER),("no-seat",c1.NO_SEAT)):
         token,claims=c1.sign_in(api,key,name)
         check(claims.get("sub")==user and claims.get("session_id"),
               "Independent real GoTrue session required for "+name)
         tokens[name]=token
+        signed_claims[name]=claims
     root=tokens["owner"]; worker=tokens["worker"]
     outsider=tokens["outsider"]; no_seat=tokens["no-seat"]
     before=sql(args.db_url,"SELECT count(*) FROM atlas.work_items")
@@ -199,6 +227,23 @@ def main():
         "p_work_item_id":a["workItemId"],"p_target_person_id":WORKER_PERSON,
         "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000a42",
         "p_reason":"Synthetic direct obligation after exact acceptance"}
+    # The worker is already a genuine root of OTHER, and GoTrue really signed
+    # their user-editable owner metadata. Neither is exact ELM delegation.
+    check(signed_claims["worker"].get("user_metadata",{}).get("is_owner") is True,
+          "Missing genuine signed spoofable metadata negative fixture")
+    check(sql(args.db_url,"SELECT count(*) FROM atlas.principal_ledger_authorities a "
+       "JOIN atlas.principals p ON p.id=a.principal_id "
+       f"WHERE p.person_id='{WORKER_PERSON}'::uuid AND a.ledger_id='{OTHER}'::uuid "
+       "AND p.status='active' AND a.status='active' AND a.ended_at IS NULL")=="1",
+       "Worker must have real independent root authority on the other Ledger")
+    for actor,label in ((worker,"connected worker with owner metadata and another Ledger root"),
+                        (outsider,"outsider"),(no_seat,"unconnected Person"),
+                        (None,"anonymous")):
+        deny_assignment_without_change(args.db_url,api,key,actor,directargs,
+            label+" cannot assign an accepted original without exact authority")
+    deny_assignment_without_change(args.db_url,api,key,worker,
+        {**directargs,"p_ledger_id":OTHER},
+        "another Ledger root cannot relabel the accepted original's Ledger")
     d=allow(api,key,root,DIRECT,directargs)
     check(d.get("contractVersion")=="ledger_intake_direct_responsibility_v1"
           and d.get("workItemId")==a["workItemId"]
@@ -255,6 +300,20 @@ def main():
     check(consent.get("personConsentRecorded") is True
           and consent.get("assignmentCreated") is False,
           "Signed consent is not assignment")
+    # Accepting responsibility is not receiving governor authority. Exercise
+    # the actual signed direct writer, not just a hidden UI or list endpoint.
+    deny_assignment_without_change(args.db_url,api,key,worker,
+        {**directargs,"p_work_item_id":b["workItemId"],
+         "p_target_person_id":OWNER_PERSON,
+         "p_action_id":"e5200000-0000-4000-8000-000000000a43"},
+        "accepted exact-Work responsibility scope is not assignment delegation")
+    scope_snapshot=assignment_snapshot(args.db_url,b["workItemId"])
+    deny(api,key,worker,ASSIGN_SCOPE,{
+        "p_work_item_id":b["workItemId"],"p_scope_id":scopeid,
+        "p_reason":"Synthetic recipient cannot act as assigning governor"},
+        "consenting recipient cannot invoke the governor scope-assignment writer")
+    check(assignment_snapshot(args.db_url,b["workItemId"])==scope_snapshot,
+          "Denied recipient scope-assignment changed original state")
     scoped=allow(api,key,root,ASSIGN_SCOPE,{
         "p_work_item_id":b["workItemId"],"p_scope_id":scopeid,
         "p_reason":"Synthetic assignment after independent Person consent"})
@@ -283,11 +342,33 @@ def main():
     status=work_page(api,key,root)
     check(any(x.get("workItemId")==a["workItemId"] and x.get("latestWorkerReport")
               for x in status),"Governor Ledger Work does not expose Result history")
+    # Fixture-only authority revocation, with the SAME still-existing signed
+    # GoTrue session. No restore/regrant or production authority mutation.
+    root_authority=sql(args.db_url,
+        "SELECT a.id::text FROM atlas.principal_ledger_authorities a "
+        "JOIN atlas.principals p ON p.id=a.principal_id "
+        f"WHERE p.person_id='{OWNER_PERSON}'::uuid AND a.ledger_id='{ELM}'::uuid "
+        "AND a.authority_kind='root_governing' AND a.status='active' "
+        "AND a.ended_at IS NULL")
+    check(UUID.fullmatch(root_authority or "") is not None,
+          "Expected one exact synthetic root authority to revoke")
+    sql(args.db_url,"UPDATE atlas.principal_ledger_authorities "
+        f"SET status='ended',ended_at=now() WHERE id='{root_authority}'::uuid "
+        "AND status='active'")
+    root_session=signed_claims["owner"]["session_id"]
+    check(UUID.fullmatch(root_session) is not None,"Exact genuine session required")
+    check(sql(args.db_url,"SELECT count(*) FROM auth.sessions "
+       f"WHERE id='{root_session}'::uuid AND user_id='{c1.OWNER}'::uuid")=="1",
+       "Authority revocation proof must retain the genuine signed session")
+    deny_assignment_without_change(args.db_url,api,key,root,directargs,
+        "ended exact Ledger root cannot replay a former assignment with a valid session")
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
        "PASS real signed clone: pending excluded, same original accepted, own status, "
        "source-denied outsiders, direct assignment unscheduled/idempotent, "
        "independent native Person consent and assignment, forbidden worker schedule, "
-       "original blocked Result and no shadow Work/People. DISPOSABLE ONLY.\n")
+       "original blocked Result, no shadow Work/People, source-denied assignment by "
+       "metadata/other-Ledger roots/consenting recipients/ended roots, unchanged denied "
+       "Work/allocation/plan state. No delegated-positive contract claimed. DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
 if __name__=="__main__":main()
