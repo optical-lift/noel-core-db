@@ -311,7 +311,7 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
         "p_work_item_id":first["workItemId"],"p_target_person_id":OWNER_PERSON,
         "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000c01",
         "p_reason":"Fictional delegated accepted-original direct obligation"}
-    entry=author_focus(db,api,key,worker,first["workItemId"],"Fictional delegated original")
+    entry=author_focus(db,api,key,worker,first["workItemId"],"Fictional accepted delegated original")
     check(entry.get("delegationEventId")==grant.get("eventId")
           and entry.get("delegationRevision")==6
           and entry.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1",
@@ -454,7 +454,7 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
         "p_expected_revision":7,"p_action_id":"e5200000-0000-4000-8000-000000000b13"})
     check(new_grant.get("revision")==8 and new_grant.get("eventId")!=grant["eventId"],
           "Regrant must preserve a distinct decision epoch")
-    new_entry=author_focus(db,api,key,worker,second["workItemId"],"Fictional next-epoch original")
+    new_entry=author_focus(db,api,key,worker,second["workItemId"],"Fictional accepted delegated original")
     check(new_entry.get("delegationEventId")==new_grant.get("eventId")
           and new_entry.get("delegationRevision")==8,
           "New author-title entry must carry new assignment authority epoch")
