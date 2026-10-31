@@ -2345,7 +2345,7 @@ BEGIN
    AND s.person_entity_id=who AND s.seat_state='active' AND s.ended_at IS NULL FOR SHARE;
  IF NOT FOUND THEN RAISE EXCEPTION 'Current issuer connection unavailable' USING ERRCODE='42501'; END IF;
  IF NOT EXISTS(SELECT 1 FROM reality.entities e WHERE e.id=p_delegate_person_id
-   AND e.entity_kind='person' AND e.identity_state='canonical' AND e.identity_state='canonical') THEN
+   AND e.entity_kind='person' AND e.identity_state='canonical') THEN
    RAISE EXCEPTION 'Canonical target Person unavailable' USING ERRCODE='42501';
  END IF;
  IF choice='grant' THEN
