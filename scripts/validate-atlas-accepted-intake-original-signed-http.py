@@ -97,7 +97,19 @@ def main():
 
     a=submit(api,key,worker,"accepted-original-direct-001","Fictional direct obligation")
     b=submit(api,key,worker,"accepted-original-consent-002","Fictional scoped request")
-    check(all(x.get("workItemId") not in [a["workItemId"],b["workItemId"]]
+    c=submit(api,key,worker,"accepted-original-never-reviewed-003",
+             "Fictional pending alternate-evidence original")
+    # Synthetic local database fixture: even if a second owner attestation is
+    # associated with a pending original, review is a mandatory intake law.
+    sql(args.db_url,
+        "INSERT INTO atlas.company_work_native_ledger_relevance "
+        "(organization_id,work_item_id,ledger_id,evidence_kind,"
+        "attestation_source_ref,attestation_reason,established_by_person_id) "
+        f"VALUES ('{ORG}'::uuid,'{c['workItemId']}'::uuid,'{ELM}'::uuid,"
+        "'owner_attested','synthetic:pending-intake-bypass-attempt',"
+        "'Disposable alternate evidence must not defeat final root review',"
+        f"'{c1.OWNER.replace('000000000001','000000000101')}'::uuid)")
+    check(all(x.get("workItemId") not in [a["workItemId"],b["workItemId"],c["workItemId"]]
               for x in work_page(api,key,root)),
           "PENDING intake leaked as approved native Ledger Work")
     for item in (a,b):
@@ -108,6 +120,13 @@ def main():
              "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000a41",
              "p_reason":"Synthetic proposal pending governor review"},
              "pending intake cannot bypass root review")
+    # Even an additional owner_attested relevance must not skip intake review.
+    deny(api,key,root,PROPOSE,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_worker_person_id":WORKER_PERSON,"p_work_item_id":c["workItemId"],
+        "p_terms":"Synthetic alternate-attested pending intake must stay blocked",
+        "p_valid_until":None},
+        "alternate owner attestation cannot bypass exact intake review")
     # Pending participant attestation alone cannot authorize exact Work
     # standing consent, even under a real signed root.
     deny(api,key,root,PROPOSE,{
@@ -192,7 +211,7 @@ def main():
           "Consent path replaced original or created new Work")
     mine(api,key,worker,b["workItemId"])
     check(sql(args.db_url,"SELECT count(*) FROM atlas.work_items")==
-          str(int(before)+2),"Submission/assignment created shadow Work")
+          str(int(before)+3),"Submission/assignment created shadow Work")
     check(sql(args.db_url,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")==people,
           "Submission created shadow People")
 
