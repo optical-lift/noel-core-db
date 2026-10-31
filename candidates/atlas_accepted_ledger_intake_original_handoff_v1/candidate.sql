@@ -465,15 +465,17 @@ BEGIN
 
   SELECT coalesce(jsonb_agg(jsonb_build_object(
     'intakeId',x.id,'workItemId',x.work_item_id,
-    'submittedTitle',x.submitted_title,'submittedAt',x.created_at,
+    'title',x.title,'submittedAt',x.created_at,
     'reviewState',x.review_state,'revision',x.revision,
     'reviewedAt',x.reviewed_at,
     'attentionDateProposal',x.attention_date_proposal)
     ORDER BY x.created_at DESC,x.id DESC),'[]'::jsonb) INTO items
   FROM (
-    SELECT i.id,i.work_item_id,i.submitted_title,i.created_at,
+    SELECT i.id,i.work_item_id,w.title,i.created_at,
       i.review_state,i.revision,i.reviewed_at,i.attention_date_proposal
     FROM atlas.ledger_work_intakes i
+    JOIN atlas.work_items w ON w.id=i.work_item_id AND w.organization_id=i.organization_id
+      AND w.source_object_type='ledger_work_intake' AND w.source_object_id=i.id
     WHERE i.organization_id=organization AND i.ledger_id=p_ledger_id
       AND i.submitted_by_person_id=who
       AND (p_after_created_at IS NULL OR
