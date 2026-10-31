@@ -417,3 +417,53 @@ BEGIN
  END IF;
 END;
 $title_disclosure_check$;
+
+-- R02D2B: two independently checked authorities for one exact non-author title.
+DO $non_author_focus_check$
+DECLARE fn regprocedure; def text;
+BEGIN
+ FOREACH fn IN ARRAY ARRAY[
+  'atlas.accepted_intake_non_author_focus_self_api_v1(uuid,uuid,uuid)'::regprocedure,
+  'public.accepted_intake_non_author_focus_self_api_v1(uuid,uuid,uuid)'::regprocedure
+ ] LOOP
+  IF NOT has_function_privilege('authenticated',fn,'EXECUTE')
+   OR has_function_privilege('anon',fn,'EXECUTE')
+   OR has_function_privilege('service_role',fn,'EXECUTE')
+   OR NOT EXISTS(SELECT 1 FROM pg_proc WHERE oid=fn
+     AND proconfig @> ARRAY['search_path=""'] AND provolatile='v') THEN
+    RAISE EXCEPTION 'Non-author Focus reader must be authenticated and correctly bounded: %',fn;
+  END IF;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM pg_proc
+   WHERE oid='public.accepted_intake_non_author_focus_self_api_v1(uuid,uuid,uuid)'::regprocedure
+     AND prosecdef) THEN
+   RAISE EXCEPTION 'Public non-author Work Focus must be invoker wrapper';
+ END IF;
+ SELECT pg_get_functiondef('atlas.accepted_intake_non_author_focus_self_api_v1(uuid,uuid,uuid)'::regprocedure)
+ INTO def;
+ IF position('original_work_assignment_actor_self_v1' IN def)=0
+   OR position('delegated_exact_existing_accepted_original_work_v1' IN def)=0
+   OR position('work_title_disclosure.scope:' IN def)=0
+   OR position('work_title_disclosure_event_effective_v1' IN def)=0
+   OR position('title_grant.recipient_person_id' IN def)>0
+   OR position('e.recipient_person_id=who' IN def)=0
+   OR position('i.submitted_by_person_id IS DISTINCT FROM who' IN def)=0
+   OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
+   OR position('w.source_object_id=i.id' IN def)=0
+   OR position('instructionsAvailable'',false' IN def)=0
+   OR position('otherWorkDisclosed'',false' IN def)=0 THEN
+   RAISE EXCEPTION 'Non-author reader must prove original, dual grants, author distinction and title-only output';
+ END IF;
+ SELECT pg_get_functiondef(
+  'atlas.accepted_intake_author_work_focus_self_api_v1(uuid,uuid,uuid)'::regprocedure) INTO def;
+ IF position('work_title_disclosure' IN def)>0 OR
+    position('submitted_by_person_id=who' IN def)=0 THEN
+   RAISE EXCEPTION 'Existing author-owned Work entry must stay independently author-only';
+ END IF;
+ SELECT pg_get_functiondef(
+  'atlas.original_work_assignment_actor_self_v1(uuid,uuid)'::regprocedure) INTO def;
+ IF position('work_title_disclosure' IN def)>0 THEN
+   RAISE EXCEPTION 'Ledger assignment grant must not inherit title disclosure';
+ END IF;
+END;
+$non_author_focus_check$;
