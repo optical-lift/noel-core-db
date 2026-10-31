@@ -793,6 +793,16 @@ def recipient_choices_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pen
     status,out=base.rpc(api,key,worker,RECIPIENT_CHOICES,recipient_choices_args(work,101))
     check(status==400 and out.get("code")=="22023",
           "Oversize page must fail at source")
+    # An actual signed native seat or GoTrue session withdrawal denies even
+    # an earlier accessible exact Person page; no cached page is authority.
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny_recipient_choices(db,api,key,worker,work,
+            "ended native connection denies independently authorized recipient page")
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
     # R02E2A information revocation is independent of active R02B operation.
     revoke={"p_organization_id":ORG,"p_ledger_id":ELM,
             "p_delegate_person_id":WORKER_PERSON,"p_decision":"revoke",
@@ -1314,6 +1324,8 @@ def main():
               for x in status),"Governor Ledger Work does not expose Result history")
     recipient_choice_grant_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,
         a["workItemId"],signed_claims["worker"])
+    deny_recipient_choices(args.db_url,api,key,worker,a["workItemId"],
+        "recipient information grant alone cannot authorize choices without R02B operation")
     delegation_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,directargs)
     delegate_arguments=delegated_assignment_lifecycle(args.db_url,api,key,root,worker,
         outsider,no_seat,signed_claims["worker"],c)
