@@ -2458,5 +2458,135 @@ GRANT EXECUTE ON FUNCTION
  public.recipient_choice_grant_self_api_v1(uuid,uuid)
  TO authenticated;
 
+
+-- R02E2B: exact accepted original, both current independent permissions and
+-- a bounded canonical seat Person choice page. NOT a governor reader; cannot
+-- enumerate an unrelated Ledger or retrieve Person roles/contact/Work details.
+CREATE OR REPLACE FUNCTION atlas.accepted_intake_assignment_recipient_choices_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,
+ p_limit integer DEFAULT 25,p_after_person_id uuid DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE
+ authority jsonb; who uuid;
+ disclosure atlas.ledger_assignment_recipient_choice_grant_events_v1%rowtype;
+ page_items jsonb:='[]'::jsonb; cursor_id uuid; has_more boolean:=false;
+BEGIN
+ IF p_organization_id IS NULL OR p_ledger_id IS NULL OR p_work_item_id IS NULL
+    OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100 THEN
+   RAISE EXCEPTION 'Exact original and bounded recipient page required' USING ERRCODE='22023';
+ END IF;
+ -- R02B operation authority is independently revalidated and its decision
+ -- scope lock held to transaction end. No Work or People lookup before this.
+ authority:=atlas.original_work_assignment_actor_self_v1(
+   p_organization_id,p_ledger_id);
+ who:=(authority->>'personId')::uuid;
+ IF authority->>'authorizationBasis' IS DISTINCT FROM
+      'delegated_exact_existing_accepted_original_work_v1' THEN
+   RAISE EXCEPTION 'Delegated recipient choices unavailable' USING ERRCODE='42501';
+ END IF;
+ -- This is EXACTLY the lock taken by the separate R02E2A decision writer;
+ -- revocation cannot race an already-authorized recipient page.
+ PERFORM pg_advisory_xact_lock(hashtextextended(
+   'atlas.recipient_choice_grant.scope:'||p_organization_id::text||':'||
+   p_ledger_id::text||':'||who::text,0));
+ IF who IS DISTINCT FROM atlas.require_work_assignment_delegation_session_v1()
+    OR NOT atlas.person_has_native_ledger_connection_v1(
+      p_organization_id,p_ledger_id,who) THEN
+   RAISE EXCEPTION 'Recipient information authority unavailable' USING ERRCODE='42501';
+ END IF;
+ SELECT * INTO disclosure
+ FROM atlas.ledger_assignment_recipient_choice_grant_events_v1 e
+ WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id
+   AND e.delegate_person_id=who
+ ORDER BY e.revision DESC LIMIT 1;
+ IF disclosure.id IS NULL
+    OR NOT atlas.recipient_choice_grant_event_effective_v1(disclosure.id) THEN
+   RAISE EXCEPTION 'Recipient information authority unavailable' USING ERRCODE='42501';
+ END IF;
+ -- The known original is accepted, native, open and assignable. A delegated
+ -- information grant never makes every Company Work a directory entrance.
+ IF NOT atlas.accepted_ledger_intake_original_evidence_v1(
+     p_organization_id,p_ledger_id,p_work_item_id)
+    OR NOT EXISTS(
+      SELECT 1 FROM atlas.ledger_work_intakes i
+      JOIN atlas.work_items w ON w.id=i.work_item_id
+       AND w.organization_id=i.organization_id
+       AND w.source_object_type='ledger_work_intake'
+       AND w.source_object_id=i.id
+      WHERE i.organization_id=p_organization_id AND i.ledger_id=p_ledger_id
+        AND i.work_item_id=p_work_item_id AND w.work_state='open'
+        AND w.result_contract_key IN (
+          'ordinary_company_work_worker_attestation_v1',
+          'ordinary_company_work_manager_acceptance_v1')
+        AND NOT EXISTS(SELECT 1 FROM atlas.work_allocations a
+          WHERE a.organization_id=w.organization_id AND a.work_item_id=w.id
+            AND a.state='active' AND a.allocation_role='responsible')
+        AND NOT EXISTS(SELECT 1 FROM atlas.company_work_initial_responsibility_offers o
+          WHERE o.work_item_id=w.id AND o.offer_state='offered')
+    ) THEN
+   RAISE EXCEPTION 'Accepted available original required for recipient choice' USING ERRCODE='42501';
+ END IF;
+ -- One independently eligible native Person identity per currently active
+ -- Ledger seat. No total or offset, no cross-Ledger Person fields.
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+   'personId',page.id,'name',page.display_name) ORDER BY page.id),'[]'::jsonb)
+ INTO page_items FROM (
+   SELECT DISTINCT p.id,p.display_name FROM ledger.seats seat
+   JOIN reality.entities p ON p.id=seat.person_entity_id
+   WHERE seat.ledger_id=p_ledger_id AND seat.seat_state='active'
+     AND seat.ended_at IS NULL AND p.entity_kind='person'
+     AND p.identity_state='canonical'
+     AND (p_after_person_id IS NULL OR p.id>p_after_person_id)
+   ORDER BY p.id LIMIT p_limit
+ ) page;
+ IF jsonb_array_length(page_items)>0 THEN
+   cursor_id:=(page_items->(jsonb_array_length(page_items)-1)->>'personId')::uuid;
+   SELECT EXISTS(
+     SELECT 1 FROM ledger.seats seat
+     JOIN reality.entities p ON p.id=seat.person_entity_id
+     WHERE seat.ledger_id=p_ledger_id AND seat.seat_state='active'
+       AND seat.ended_at IS NULL AND p.entity_kind='person'
+       AND p.identity_state='canonical' AND p.id>cursor_id
+   ) INTO has_more;
+ END IF;
+ -- Expiry, issuer and actual GoTrue session must still be current immediately
+ -- before disclosing this page; earlier pages are never a reservation.
+ IF who IS DISTINCT FROM atlas.require_work_assignment_delegation_session_v1()
+    OR NOT atlas.recipient_choice_grant_event_effective_v1(disclosure.id) THEN
+   RAISE EXCEPTION 'Recipient page authorization withdrawn' USING ERRCODE='42501';
+ END IF;
+ RETURN jsonb_build_object(
+  'ok',true,'contractVersion','accepted_intake_assignment_recipient_choices_v1',
+  'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+  'workItemId',p_work_item_id,'actorPersonId',who,
+  'authorizationBasis',authority->>'authorizationBasis',
+  'assignmentGrantEventId',authority->>'delegationEventId',
+  'assignmentGrantRevision',authority->'delegationRevision',
+  'recipientGrantEventId',disclosure.id,'recipientGrantRevision',disclosure.revision,
+  'items',page_items,'hasMore',has_more,
+  'nextPersonId',CASE WHEN has_more THEN cursor_id ELSE NULL END,
+  'sourceAccepted',true,'assignmentMustRevalidate',true,
+  'recipientChoiceOnly',true,'rootRosterGranted',false,
+  'workTitleDisclosed',false,'workInstructionsDisclosed',false,
+  'workContextDisclosed',false,'membershipDisclosed',false,
+  'roleDisclosed',false,'contactDisclosed',false,'totalCountDisclosed',false,
+  'workCreated',false,'allocationCreated',false,'planCreated',false);
+END;
+$fn$;
+CREATE OR REPLACE FUNCTION public.accepted_intake_assignment_recipient_choices_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,
+ p_limit integer DEFAULT 25,p_after_person_id uuid DEFAULT NULL)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path='' AS $fn$
+ SELECT atlas.accepted_intake_assignment_recipient_choices_self_api_v1($1,$2,$3,$4,$5);
+$fn$;
+REVOKE ALL ON FUNCTION
+ atlas.accepted_intake_assignment_recipient_choices_self_api_v1(uuid,uuid,uuid,integer,uuid),
+ public.accepted_intake_assignment_recipient_choices_self_api_v1(uuid,uuid,uuid,integer,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION
+ atlas.accepted_intake_assignment_recipient_choices_self_api_v1(uuid,uuid,uuid,integer,uuid),
+ public.accepted_intake_assignment_recipient_choices_self_api_v1(uuid,uuid,uuid,integer,uuid)
+ TO authenticated;
+
 NOTIFY pgrst,'reload schema';
 COMMIT;
