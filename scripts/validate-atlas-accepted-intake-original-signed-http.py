@@ -43,6 +43,8 @@ REPORT="report_connected_person_company_work_self_api_v1"
 PLACE="connected_person_place_work_self_api_v1"
 DELEGATE="decide_original_work_assignment_delegation_self_api_v1"
 DELEGATION="original_work_assignment_delegation_self_api_v1"
+RECIPIENT_DECIDE="decide_recipient_choice_grant_self_api_v1"
+RECIPIENT_STATE="recipient_choice_grant_self_api_v1"
 UUID=re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",re.I)
 
 def check(condition,message):v2.must(condition,message)
@@ -547,6 +549,152 @@ def delegation_lifecycle(db,api,key,root,worker,outsider,no_seat,directargs):
           "Grant lifecycle changed Work/Person/allocation/plan/consent state")
     print("PASS native grant/revoke, self-only signed readback, CAS/concurrency, expiry, "
           "immutable history, connection withdrawal, no Work effects from administration")
+def recipient_choice_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,claims):
+    """R02E2A: separate signed source information grant, not a roster reader."""
+    table="atlas.ledger_assignment_recipient_choice_grant_events_v1"
+    initial=assignment_snapshot(db,work)
+    person_counts=sql(db,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")
+    future=sql(db,"SELECT (clock_timestamp()+interval '1 day')::text")
+    def decision(revision,kind,n,expiry=None,ledger=ELM,target=WORKER_PERSON):
+        return {"p_organization_id":ORG,"p_ledger_id":ledger,
+                "p_delegate_person_id":target,"p_decision":kind,
+                "p_expected_revision":revision,"p_valid_until":expiry,
+                "p_action_id":"e5200000-0000-4000-8000-"+f"{0xe000+n:012x}",
+                "p_reason":"Fictional independent recipient information authorization"}
+    scope={"p_organization_id":ORG,"p_ledger_id":ELM}
+    def state(token,revision,effective):
+        out=allow(api,key,token,RECIPIENT_STATE,scope)
+        fields={"ok","contractVersion","organizationId","ledgerId","personId",
+                "eventId","revision","decision","validUntil","operation",
+                "grantEffective","recipientReaderEnabled","rosterDisclosed",
+                "peopleDisclosed","workDisclosed","titlesDisclosed"}
+        check(set(out)==fields and out.get("contractVersion")=="recipient_choice_grant_self_v1"
+              and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+              and out.get("revision")==revision and out.get("grantEffective") is effective
+              and out.get("operation")=="select_accepted_original_assignment_recipient"
+              and all(out.get(k) is False for k in ("recipientReaderEnabled",
+                  "rosterDisclosed","peopleDisclosed","workDisclosed","titlesDisclosed")),
+              "Recipient authority status must be self-only, exact and People-free")
+        return out
+    def receipt(out,revision,decision_word,effective):
+        fields={"ok","contractVersion","eventId","organizationId","ledgerId",
+                "delegatePersonId","revision","decision","validUntil","recordedAt",
+                "actorPersonId","operation","currentlyEffective","idempotent",
+                "workCreated","allocationCreated","planCreated",
+                "rootAuthorityCreated","recipientReaderEnabled","rosterDisclosed","peopleDisclosed"}
+        check(set(out)==fields and out.get("contractVersion")=="recipient_choice_grant_decision_v1"
+              and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+              and out.get("delegatePersonId")==WORKER_PERSON
+              and out.get("actorPersonId")==OWNER_PERSON and out.get("revision")==revision
+              and out.get("decision")==decision_word and out.get("currentlyEffective") is effective
+              and out.get("operation")=="select_accepted_original_assignment_recipient"
+              and UUID.fullmatch(out.get("eventId") or "") is not None
+              and all(out.get(k) is False for k in ("workCreated","allocationCreated",
+                  "planCreated","rootAuthorityCreated","recipientReaderEnabled",
+                  "rosterDisclosed","peopleDisclosed")),
+              "Recipient information decision must not disclose Persons or create Work authority")
+    state(worker,0,False)
+    root_state=state(root,0,False)
+    check(root_state.get("personId")==OWNER_PERSON and root_state.get("eventId") is None,
+          "Self status must not expose another Person's grant")
+    candidate=decision(0,"grant",1,future)
+    for person,label in ((worker,"delegate"),(outsider,"outsider"),
+                         (no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,person,RECIPIENT_DECIDE,candidate,label+" cannot issue recipient authority")
+    for person,label in ((outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,person,RECIPIENT_STATE,scope,label+" cannot read grant status")
+    deny(api,key,root,RECIPIENT_DECIDE,decision(0,"grant",2,future,OTHER),
+         "wrong Ledger root cannot grant recipient disclosure")
+    deny(api,key,root,RECIPIENT_DECIDE,decision(0,"grant",3,future,ELM,
+         "e5200000-0000-4000-8000-000000000103"),
+         "unconnected Person cannot receive recipient discovery authority")
+    check(sql(db,f"SELECT count(*) FROM {table}")=="0","Rejected grant wrote history")
+    one=allow(api,key,root,RECIPIENT_DECIDE,candidate)
+    receipt(one,1,"grant",True)
+    check(state(worker,1,True).get("eventId")==one["eventId"],
+          "Signed recipient must see their own current epoch")
+    idem=allow(api,key,root,RECIPIENT_DECIDE,candidate)
+    receipt(idem,1,"grant",True)
+    check(idem.get("idempotent") is True and idem.get("eventId")==one["eventId"],
+          "Same action replay duplicated grant")
+    code,obj=base.rpc(api,key,root,RECIPIENT_DECIDE,
+                      {**candidate,"p_reason":"Changed fictional information action"})
+    check(code==409 and obj.get("code")=="23505",
+          "Changed action replay must source-reject")
+    v2.stale(api,key,root,RECIPIENT_DECIDE,decision(0,"revoke",4),
+             "stale recipient information revision must fail")
+    # This information grant must NOT make the root-owned roster discoverable.
+    deny(api,key,worker,"connected_ledger_person_choices_self_api_v1",{
+         "p_ledger_id":ELM,"p_limit":100,"p_after_person_id":None},
+         "information-grant administration cannot expose existing governor roster")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts=list(pool.map(lambda n:base.rpc(api,key,root,RECIPIENT_DECIDE,
+                             decision(1,"revoke",n)),(5,6)))
+    success=[o for code,o in attempts if code==200 and o.get("ok") is True]
+    stale=[o for code,o in attempts if code in (400,409,500) and o.get("code")=="40001"]
+    check(len(success)==1 and len(stale)==1,
+          "Concurrent information decisions must serialize with exactly one stale")
+    receipt(success[0],2,"revoke",False)
+    state(worker,2,False)
+    sql(db,f"""DO $immutable$ BEGIN
+      BEGIN UPDATE {table} SET reason='Changed recipient information evidence'
+       WHERE id='{one["eventId"]}'::uuid;
+       RAISE EXCEPTION 'Recipient UPDATE protection was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+      BEGIN DELETE FROM {table} WHERE id='{one["eventId"]}'::uuid;
+       RAISE EXCEPTION 'Recipient DELETE protection was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+      BEGIN TRUNCATE {table};
+       RAISE EXCEPTION 'Recipient TRUNCATE protection was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+    END $immutable$;""")
+    newer=allow(api,key,root,RECIPIENT_DECIDE,decision(2,"grant",7,future))
+    receipt(newer,3,"grant",True)
+    check(newer["eventId"]!=one["eventId"],"Regrant must use new epoch")
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny(api,key,worker,RECIPIENT_STATE,scope,
+             "withdrawn native seat must deny current grant readback")
+        deny(api,key,root,RECIPIENT_DECIDE,decision(3,"grant",8,future),
+             "cannot grant connected roster discovery to withdrawn Person")
+        revoked=allow(api,key,root,RECIPIENT_DECIDE,decision(3,"revoke",9))
+        receipt(revoked,4,"revoke",False)
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    state(worker,4,False)
+    expiring=decision(4,"grant",10,sql(db,
+                  "SELECT (clock_timestamp()+interval '10 seconds')::text"))
+    expired=allow(api,key,root,RECIPIENT_DECIDE,expiring)
+    receipt(expired,5,"grant",True)
+    stop=time.monotonic()+24
+    while state(worker,5,True if time.monotonic()<stop-17 else False).get("grantEffective"):
+        time.sleep(0.5)
+    expired_receipt=allow(api,key,root,RECIPIENT_DECIDE,expiring)
+    check(expired_receipt.get("idempotent") is True
+          and expired_receipt.get("currentlyEffective") is False,
+          "Idempotent expired grant may not be renewed")
+    final=allow(api,key,root,RECIPIENT_DECIDE,decision(5,"grant",11,future))
+    receipt(final,6,"grant",True)
+    session=claims["session_id"]
+    old=sql(db,f"SELECT quote_nullable(not_after) FROM auth.sessions WHERE id='{session}'::uuid")
+    sql(db,"UPDATE auth.sessions SET not_after=now()-interval '1 minute' "
+        f"WHERE id='{session}'::uuid")
+    try:
+        deny(api,key,worker,RECIPIENT_STATE,scope,
+             "expired actual GoTrue session must deny grant state")
+    finally:
+        sql(db,f"UPDATE auth.sessions SET not_after={old} WHERE id='{session}'::uuid")
+    state(worker,6,True)
+    check(sql(db,f"SELECT count(*) FROM {table}")=="6",
+          "One expected revision per source decision")
+    check(assignment_snapshot(db,work)==initial
+          and sql(db,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")==person_counts,
+          "Grant administration must create no Work/Person/assignment/plan")
+    print("PASS R02E2A independent recipient-choice information grant, root CAS, self-only state, "
+          "signed negative roster read, no durable Work effects; NO actual Person chooser")
+
 def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
     """R02B: real signed nonroot execution of the existing source operation."""
     first=submit(api,key,worker,"accepted-original-delegated-004","Fictional delegated original")
@@ -1038,6 +1186,8 @@ def main():
     check(any(x.get("workItemId")==a["workItemId"] and x.get("latestWorkerReport")
               for x in status),"Governor Ledger Work does not expose Result history")
     delegation_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,directargs)
+    recipient_choice_grant_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,
+        a["workItemId"],signed_claims["worker"])
     delegate_arguments=delegated_assignment_lifecycle(args.db_url,api,key,root,worker,
         signed_claims["worker"],c)
     non_author_work=non_author_focus_lifecycle(
@@ -1108,7 +1258,9 @@ def main():
        "root grant/revoke, self-only title-free status, concurrent CAS, expiry and "
        "revocation/issuer/seat/session checks PASS. R02D2B exact non-author "
        "title-only Focus requires both independent current source grants and signed "
-       "withdrawal protections PASS. Atlas UI, browser and release remain HELD. "
+       "withdrawal protections PASS. R02E2A independent recipient-choice grant "
+       "decisions and self-only status PASS without an actual roster reader. "
+       "Atlas UI, browser and release remain HELD. "
        "DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
 if __name__=="__main__":main()
