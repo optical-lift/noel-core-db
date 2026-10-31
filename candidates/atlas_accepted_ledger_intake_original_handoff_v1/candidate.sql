@@ -2408,7 +2408,7 @@ BEGIN
    'actorPersonId',event.actor_person_id,'operation','select_accepted_original_assignment_recipient',
    'currentlyEffective',atlas.recipient_choice_grant_event_effective_v1(event.id),
    'idempotent',replay,'workCreated',false,'allocationCreated',false,'planCreated',false,
-   'rootAuthorityCreated',false,'recipientReaderEnabled',false,'rosterDisclosed',false,'peopleDisclosed',false,'recipientReaderEnabled',false);
+   'rootAuthorityCreated',false,'rosterDisclosed',false,'peopleDisclosed',false,'recipientReaderEnabled',false);
 END;
 $fn$;
 
