@@ -669,8 +669,12 @@ def recipient_choice_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,wor
     expired=allow(api,key,root,RECIPIENT_DECIDE,expiring)
     receipt(expired,5,"grant",True)
     stop=time.monotonic()+24
-    while state(worker,5,True if time.monotonic()<stop-17 else False).get("grantEffective"):
+    while True:
+        observed=allow(api,key,worker,RECIPIENT_STATE,scope)
+        if observed.get("grantEffective") is False:break
+        check(time.monotonic()<stop,"Recipient information grant did not expire at source")
         time.sleep(0.5)
+    state(worker,5,False)
     expired_receipt=allow(api,key,root,RECIPIENT_DECIDE,expiring)
     check(expired_receipt.get("idempotent") is True
           and expired_receipt.get("currentlyEffective") is False,
@@ -1215,6 +1219,9 @@ def main():
         "ended exact Ledger root cannot replay a former assignment with a valid session")
     check(delegation_state(api,key,worker).get("grantEffective") is False,
           "Grantor root withdrawal failed to invalidate the still-recorded grant")
+    check(allow(api,key,worker,RECIPIENT_STATE,{"p_organization_id":ORG,
+          "p_ledger_id":ELM}).get("grantEffective") is False,
+          "Issuer root withdrawal must invalidate separately granted recipient discovery")
     title_state(api,key,worker,a["workItemId"],WORKER_PERSON,3,False,"grant")
     deny_non_author_focus(args.db_url,api,key,worker,non_author_work,
         "ended issuing root withdraws independently signed non-author title entry")
