@@ -1726,5 +1726,66 @@ GRANT EXECUTE ON FUNCTION
  public.accepted_ledger_intake_assignment_preflight_self_api_v1(uuid,uuid,uuid,uuid)
  TO authenticated;
 
+-- R02D1: one exact accepted original's author-owned title entry, gated
+-- independently by CURRENT assignment authority and original authorship.
+-- This does not delegate disclosure of another submitter's Work. A future
+-- explicit non-author information grant must be independently authorized.
+CREATE OR REPLACE FUNCTION atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE authority jsonb; who uuid; permitted_title text;
+BEGIN
+ IF p_organization_id IS NULL OR p_ledger_id IS NULL OR p_work_item_id IS NULL THEN
+   RAISE EXCEPTION 'Exact Organization, Ledger and original Work required' USING ERRCODE='22023';
+ END IF;
+ -- Fail before reading Work, intake, reviewer information or associated Subject.
+ authority:=atlas.original_work_assignment_actor_self_v1(p_organization_id,p_ledger_id);
+ who:=(authority->>'personId')::uuid;
+ SELECT w.title INTO permitted_title
+ FROM atlas.ledger_work_intakes i
+ JOIN atlas.work_items w ON w.id=i.work_item_id
+    AND w.organization_id=i.organization_id
+    AND w.source_object_type='ledger_work_intake'
+    AND w.source_object_id=i.id
+ WHERE i.organization_id=p_organization_id AND i.ledger_id=p_ledger_id
+   AND i.work_item_id=p_work_item_id AND i.submitted_by_person_id=who
+   AND w.work_state='open'
+   AND w.result_contract_key IN ('ordinary_company_work_worker_attestation_v1',
+                                 'ordinary_company_work_manager_acceptance_v1')
+   AND atlas.accepted_ledger_intake_original_evidence_v1(
+     p_organization_id,p_ledger_id,p_work_item_id);
+ IF coalesce(btrim(permitted_title),'')='' THEN
+   RAISE EXCEPTION 'Original Work entry undisclosed' USING ERRCODE='42501';
+ END IF;
+ RETURN jsonb_build_object(
+   'ok',true,'contractVersion','accepted_ledger_intake_author_delegate_focus_entry_v1',
+   'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+   'workItemId',p_work_item_id,'title',permitted_title,
+   'workState','open','focusMode','assignment_title_only',
+   'disclosureBasis','original_submitter_title_only_v1',
+   'actorPersonId',who,'authorizationBasis',authority->>'authorizationBasis',
+   'delegationEventId',authority->>'delegationEventId',
+   'delegationRevision',authority->'delegationRevision',
+   'sourceAccepted',true,'instructionsAvailable',false,
+   'recipientRosterDisclosed',false,'reviewContextDisclosed',false,
+   'subjectContextDisclosed',false,'otherWorkDisclosed',false,
+   'workCreated',false,'allocationCreated',false,'planCreated',false,
+   'assignmentMustRevalidate',true);
+END;
+$fn$;
+CREATE OR REPLACE FUNCTION public.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path='' AS $fn$
+ SELECT atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1($1,$2,$3);
+$fn$;
+REVOKE ALL ON FUNCTION
+ atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid),
+ public.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION
+ atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid),
+ public.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid)
+ TO authenticated;
+
 NOTIFY pgrst,'reload schema';
 COMMIT;
