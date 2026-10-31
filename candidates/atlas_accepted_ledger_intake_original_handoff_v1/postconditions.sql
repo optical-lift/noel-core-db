@@ -537,3 +537,54 @@ BEGIN
  END IF;
 END;
 $recipient_choice_grant_check$;
+
+
+-- R02E2B: exact accepted-original choices require both independently current
+-- information and operation grants. The root's existing chooser stays unchanged.
+DO $recipient_choices_check$
+DECLARE fn regprocedure; def text;
+BEGIN
+ FOREACH fn IN ARRAY ARRAY[
+  'atlas.accepted_intake_assignment_recipient_choices_self_api_v1(uuid,uuid,uuid,integer,uuid)'::regprocedure,
+  'public.accepted_intake_assignment_recipient_choices_self_api_v1(uuid,uuid,uuid,integer,uuid)'::regprocedure
+ ] LOOP
+  IF NOT has_function_privilege('authenticated',fn,'EXECUTE')
+     OR has_function_privilege('anon',fn,'EXECUTE')
+     OR has_function_privilege('service_role',fn,'EXECUTE')
+     OR NOT EXISTS(SELECT 1 FROM pg_proc WHERE oid=fn
+       AND proconfig @> ARRAY['search_path=""'] AND provolatile='v') THEN
+   RAISE EXCEPTION 'Recipient choice page must have exact signed invoker interface: %',fn;
+  END IF;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM pg_proc
+   WHERE oid='public.accepted_intake_assignment_recipient_choices_self_api_v1(uuid,uuid,uuid,integer,uuid)'::regprocedure
+     AND prosecdef) THEN
+  RAISE EXCEPTION 'Public recipient choices must remain an invoker wrapper';
+ END IF;
+ SELECT pg_get_functiondef(
+ 'atlas.accepted_intake_assignment_recipient_choices_self_api_v1(uuid,uuid,uuid,integer,uuid)'::regprocedure)
+ INTO def;
+ IF position('original_work_assignment_actor_self_v1' IN def)=0
+    OR position('delegated_exact_existing_accepted_original_work_v1' IN def)=0
+    OR position('recipient_choice_grant.scope:' IN def)=0
+    OR position('recipient_choice_grant_event_effective_v1' IN def)=0
+    OR position('e.delegate_person_id=who' IN def)=0
+    OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
+    OR position('w.source_object_id=i.id' IN def)=0
+    OR position('NOT EXISTS(SELECT 1 FROM atlas.work_allocations' IN def)=0
+    OR position('ledger.seats' IN def)=0
+    OR position('p.identity_state=''canonical''' IN def)=0
+    OR position('p_after_person_id' IN def)=0
+    OR position('ORDER BY p.id LIMIT p_limit' IN def)=0
+    OR position('totalCountDisclosed'',false' IN def)=0
+    OR position('rootRosterGranted'',false' IN def)=0
+    OR position('connected_ledger_person_choices_self_api_v1' IN def)>0 THEN
+   RAISE EXCEPTION 'Recipient choices must be dual-grant exact-original bounded native seats only';
+ END IF;
+ SELECT pg_get_functiondef('atlas.original_work_assignment_actor_self_v1(uuid,uuid)'::regprocedure)
+ INTO def;
+ IF position('recipient_choice_grant' IN def)>0 THEN
+   RAISE EXCEPTION 'Assignment permission must not inherit recipient selection disclosure';
+ END IF;
+END;
+$recipient_choices_check$;
