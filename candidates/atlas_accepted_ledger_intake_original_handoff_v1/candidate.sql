@@ -147,6 +147,14 @@ BEGIN
     AND coalesce(v_work.source_object_type,'') NOT IN ('legacy_task','personal_dated_task')) THEN
    RAISE EXCEPTION 'Open original Work with lawful Result contract required'
     USING ERRCODE='23514'; END IF;
+ -- Intake review is a mandatory source condition, not merely one optional
+ -- relevance kind. An owner-attested relevance cannot bypass pending review.
+ IF v_work.source_object_type='ledger_work_intake'
+    AND NOT atlas.accepted_ledger_intake_original_evidence_v1(
+      p_organization_id,p_ledger_id,v_work.id) THEN
+    RAISE EXCEPTION 'Exact intake must have final root acceptance before consent proposal'
+      USING ERRCODE='42501';
+ END IF;
  IF EXISTS(SELECT 1 FROM atlas.work_item_context_links l
     WHERE l.organization_id=v_work.organization_id AND l.work_item_id=v_work.id
     AND l.subject_domain='spatial' AND l.subject_kind='growing_object') THEN
@@ -343,6 +351,14 @@ BEGIN
  -- Signed root Ledger governance was checked by the exact native owner
  -- function. An outdated organization member role is not additional proof.
  v_owner_membership:=NULL;
+ -- The accepted source remains required on execution of consent, not only
+ -- when a scope was proposed; revocation or replaced relevance must fail shut.
+ IF v_work.source_object_type='ledger_work_intake'
+    AND NOT atlas.accepted_ledger_intake_original_evidence_v1(
+      v_work.organization_id,v_scope.ledger_id,v_work.id) THEN
+    RAISE EXCEPTION 'Exact intake root acceptance no longer current'
+      USING ERRCODE='42501';
+ END IF;
  IF v_scope.proposed_by_person_id IS DISTINCT FROM v_owner OR
    NOT atlas.person_has_native_ledger_connection_v1(
      v_work.organization_id,v_scope.ledger_id,v_scope.worker_person_id) THEN
@@ -1163,6 +1179,9 @@ BEGIN
         and (relevance.evidence_kind='owner_attested' or
           (relevance.evidence_kind='source_verified' and exists($standing_old$;
   v_new:=$standing_new$and work.work_state='open'
+        and (work.source_object_type IS DISTINCT FROM 'ledger_work_intake'
+             OR atlas.accepted_ledger_intake_original_evidence_v1(
+               new.organization_id,s.ledger_id,new.work_item_id))
         and relevance.attribution_state='active'
         and (relevance.evidence_kind='owner_attested' or
           (relevance.evidence_kind='participant_attested'
