@@ -462,6 +462,8 @@ CREATE OR REPLACE FUNCTION atlas.owner_direct_assign_existing_original_work_self
 AS $function$
 DECLARE
  v_owner uuid;
+ v_authority jsonb;
+ v_delegated boolean;
  v_work atlas.work_items%rowtype;
  v_group atlas.work_decomposition_groups%rowtype;
  v_allocation atlas.work_allocations%rowtype;
@@ -478,8 +480,13 @@ BEGIN
     RAISE EXCEPTION 'Exact existing Work, Person, action and reason required'
       USING ERRCODE='22023';
  END IF;
- v_owner:=atlas.company_work_native_ledger_owner_self_v1(
-   p_organization_id,p_ledger_id);
+ v_authority:=atlas.original_work_assignment_actor_self_v1(p_organization_id,p_ledger_id);
+ v_owner:=(v_authority->>'personId')::uuid;
+ v_delegated:=v_authority->>'authorizationBasis'='delegated_exact_existing_accepted_original_work_v1';
+ IF v_delegated AND p_service_date IS NOT NULL THEN
+   RAISE EXCEPTION 'Assignment delegation does not authorize scheduling'
+     USING ERRCODE='42501';
+ END IF;
  IF NOT atlas.person_has_native_ledger_connection_v1(
    p_organization_id,p_ledger_id,p_target_person_id) THEN
    RAISE EXCEPTION 'Direct allocation requires a genuinely connected Person'
@@ -491,6 +498,18 @@ BEGIN
   'atlas.company_work.plan:'||p_work_item_id::text,0));
  SELECT * INTO v_work FROM atlas.work_items
  WHERE id=p_work_item_id AND organization_id=p_organization_id FOR UPDATE;
+ -- Recheck after waiting for Work locks, including the retry-only route
+ -- which does not insert an allocation or invoke its integrity trigger.
+ IF v_authority IS DISTINCT FROM atlas.original_work_assignment_actor_self_v1(
+     p_organization_id,p_ledger_id) THEN
+   RAISE EXCEPTION 'Original assignment authority changed during the decision'
+     USING ERRCODE='42501';
+ END IF;
+ IF v_delegated AND (v_work.id IS NULL OR
+     v_work.source_object_type IS DISTINCT FROM 'ledger_work_intake') THEN
+   RAISE EXCEPTION 'Delegation covers only the exact accepted intake original'
+     USING ERRCODE='42501';
+ END IF;
  IF v_work.id IS NULL OR v_work.work_state<>'open'
    OR v_work.source_object_type NOT IN ('work_decomposition','ledger_work_intake')
    OR v_work.result_contract_key NOT IN(
@@ -543,6 +562,10 @@ BEGIN
      AND p.responsible_allocation_id=v_allocation.id AND p.plan_state='active'
    ORDER BY p.created_at LIMIT 1;
    IF v_allocation.assignee_canonical_person_id IS DISTINCT FROM p_target_person_id
+       OR v_allocation.establishment_basis->>'senderPersonId' IS DISTINCT FROM v_owner::text
+       OR v_allocation.establishment_basis->>'authorizationBasis' IS DISTINCT FROM v_authority->>'authorizationBasis'
+       OR v_allocation.establishment_basis->>'delegationEventId' IS DISTINCT FROM v_authority->>'delegationEventId'
+       OR v_allocation.establishment_basis->>'delegationRevision' IS DISTINCT FROM v_authority->>'delegationRevision'
        OR v_allocation.establishment_basis->>'sourceActionId' IS DISTINCT FROM p_action_id::text
        OR v_allocation.establishment_basis->>'requestedServiceDate' IS DISTINCT FROM p_service_date::text
        OR (p_service_date IS NOT NULL AND
@@ -579,7 +602,9 @@ BEGIN
        'assigneePersonId',p_target_person_id,'senderPersonId',v_owner,
        'sourceActionId',p_action_id,'decisionReason',v_reason,
        'requestedServiceDate',p_service_date,
-       'authorizationBasis','governor_exact_existing_original_work'),
+       'authorizationBasis',v_authority->>'authorizationBasis',
+       'delegationEventId',v_authority->>'delegationEventId',
+       'delegationRevision',v_authority->'delegationRevision'),
      jsonb_build_object('source',
        CASE WHEN v_work.source_object_type='ledger_work_intake'
          THEN 'accepted_ledger_intake_original_direct_assignment_v1'
@@ -625,6 +650,8 @@ BEGIN
    'responsibilityEstablished',true,
    'newWorkCreated',false,'newTaskCreated',false,
    'acceptanceQuestionCreated',false,
+   'authorizationBasis',v_allocation.establishment_basis->>'authorizationBasis',
+   'delegationEventId',v_allocation.establishment_basis->>'delegationEventId',
    'workerAttestedAsSelf',false,'employeeSeatRequired',false,
    'assignmentNew',v_created,'idempotent',NOT v_created);
 END;
@@ -1140,24 +1167,34 @@ BEGIN
        or nullif(v_basis->>'nativeLedgerId','') is null
        or nullif(v_basis->>'senderPersonId','') is null
        or nullif(v_basis->>'sourceActionId','') is null
-       or coalesce(v_basis->>'authorizationBasis','')<>'governor_exact_existing_original_work'
+       or coalesce(v_basis->>'authorizationBasis','') not in (
+         'governor_exact_existing_original_work','delegated_exact_existing_accepted_original_work_v1')
     then
       raise exception 'Accepted original intake responsibility provenance incomplete'
         using errcode='23514';
     end if;
-    if atlas.current_person_id_v1() is distinct from
-         (v_basis->>'senderPersonId')::uuid
-       or atlas.company_work_native_ledger_owner_self_v1(
-         new.organization_id,(v_basis->>'nativeLedgerId')::uuid)
-         is distinct from (v_basis->>'senderPersonId')::uuid
-       or not atlas.person_has_native_ledger_connection_v1(
+    declare checked jsonb;
+    begin
+      checked:=atlas.original_work_assignment_actor_self_v1(
+        new.organization_id,(v_basis->>'nativeLedgerId')::uuid);
+      if checked->>'personId' is distinct from v_basis->>'senderPersonId'
+         or checked->>'authorizationBasis' is distinct from v_basis->>'authorizationBasis'
+         or checked->>'delegationEventId' is distinct from v_basis->>'delegationEventId'
+         or checked->>'delegationRevision' is distinct from v_basis->>'delegationRevision'
+         or (checked->>'delegationEventId' is not null
+             and v_basis->>'requestedServiceDate' is not null) then
+        raise exception 'Accepted original assignment authority differs from its recorded provenance'
+          using errcode='42501';
+      end if;
+    end;
+    if not atlas.person_has_native_ledger_connection_v1(
          new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
          new.assignee_canonical_person_id)
        or not atlas.accepted_ledger_intake_original_evidence_v1(
          new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
          new.work_item_id)
     then
-      raise exception 'Accepted original requires current exact root, Person and final review'
+      raise exception 'Accepted original requires current assignment authority, Person and final review'
         using errcode='42501';
     end if;
     return new;
@@ -1303,7 +1340,7 @@ GRANT EXECUTE ON FUNCTION
 TO authenticated;
 
 -- R02A: append-only administration of ONE native human operation grant.
--- Deliberately NOT consumed by the existing assignment writer/guard yet.
+-- R02B consumes it only in the direct accepted-original writer/guard.
 CREATE TABLE atlas.ledger_original_work_assignment_delegation_events_v1 (
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  organization_id uuid NOT NULL REFERENCES atlas.organizations(id),
@@ -1327,7 +1364,7 @@ CREATE TABLE atlas.ledger_original_work_assignment_delegation_events_v1 (
  CHECK (valid_until IS NULL OR valid_until>recorded_at)
 );
 COMMENT ON TABLE atlas.ledger_original_work_assignment_delegation_events_v1 IS
- 'Append-only native human decisions for accepted-original assignment in one exact Ledger. No root, roster, schedule, Work, consent or Subject disclosure is granted; existing assignment writer integration is separately held.';
+ 'Append-only native human decisions for accepted-original assignment in one exact Ledger. Consumption is limited to the existing accepted-intake direct writer/guard; no root, roster, schedule, edit, consent or Subject disclosure is granted.';
 ALTER TABLE atlas.ledger_original_work_assignment_delegation_events_v1 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE atlas.ledger_original_work_assignment_delegation_events_v1 FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON atlas.ledger_original_work_assignment_delegation_events_v1
@@ -1544,7 +1581,7 @@ BEGIN
    'actorPersonId',event.actor_person_id,'operation','assign_accepted_original_work',
    'currentlyEffective',atlas.work_assignment_delegation_event_effective_v1(event.id),
    'idempotent',replay,'workCreated',false,'allocationCreated',false,'planCreated',false,
-   'rootAuthorityCreated',false,'assignmentWriterEnabled',false);
+   'rootAuthorityCreated',false,'assignmentWriterEnabled',true);
 END;
 $fn$;
 
@@ -1565,7 +1602,7 @@ BEGIN
    'eventId',event.id,'revision',coalesce(event.revision,0),'decision',event.decision,
    'validUntil',event.valid_until,'operation','assign_accepted_original_work',
    'grantEffective',coalesce(atlas.work_assignment_delegation_event_effective_v1(event.id),false),
-   'assignmentWriterEnabled',false,'rosterDisclosed',false,'workDisclosed',false);
+   'assignmentWriterEnabled',true,'rosterDisclosed',false,'workDisclosed',false);
 END;
 $fn$;
 
@@ -1593,6 +1630,44 @@ GRANT EXECUTE ON FUNCTION
  atlas.original_work_assignment_delegation_self_api_v1(uuid,uuid),
  public.original_work_assignment_delegation_self_api_v1(uuid,uuid)
  TO authenticated;
+
+-- Private operation-specific resolver: never widen the shared root helper.
+-- Its exact scope lock is also taken by grant/revoke administration, making
+-- assignment and revocation ordered decisions instead of a stale grant read.
+CREATE OR REPLACE FUNCTION atlas.original_work_assignment_actor_self_v1(
+ p_organization_id uuid,p_ledger_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE who uuid; event atlas.ledger_original_work_assignment_delegation_events_v1%rowtype;
+BEGIN
+ who:=atlas.require_work_assignment_delegation_session_v1();
+ BEGIN
+   IF who=atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id) THEN
+     RETURN jsonb_build_object('personId',who,
+       'authorizationBasis','governor_exact_existing_original_work',
+       'delegationEventId',NULL,'delegationRevision',NULL);
+   END IF;
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ PERFORM pg_advisory_xact_lock(hashtextextended(
+   'atlas.work_assignment_delegation.scope:'||p_organization_id::text||':'||
+     p_ledger_id::text||':'||who::text,0));
+ IF who IS DISTINCT FROM atlas.require_work_assignment_delegation_session_v1()
+   OR NOT atlas.person_has_native_ledger_connection_v1(p_organization_id,p_ledger_id,who) THEN
+   RAISE EXCEPTION 'Current exact assignment authority required' USING ERRCODE='42501';
+ END IF;
+ SELECT * INTO event FROM atlas.ledger_original_work_assignment_delegation_events_v1 e
+   WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id
+     AND e.delegate_person_id=who ORDER BY e.revision DESC LIMIT 1;
+ IF event.id IS NULL OR NOT atlas.work_assignment_delegation_event_effective_v1(event.id) THEN
+   RAISE EXCEPTION 'Current exact assignment authority required' USING ERRCODE='42501';
+ END IF;
+ RETURN jsonb_build_object('personId',who,
+   'authorizationBasis','delegated_exact_existing_accepted_original_work_v1',
+   'delegationEventId',event.id,'delegationRevision',event.revision);
+END;
+$fn$;
+REVOKE ALL ON FUNCTION atlas.original_work_assignment_actor_self_v1(uuid,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
 
 NOTIFY pgrst,'reload schema';
 COMMIT;

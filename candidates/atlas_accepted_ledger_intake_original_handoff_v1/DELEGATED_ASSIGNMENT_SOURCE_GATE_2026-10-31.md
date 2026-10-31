@@ -1,6 +1,6 @@
 # R02: delegated original-Work assignment — source boundary
 
-**Date:** October 31, 2026, America/Chicago. **Outcome: BLOCKED on a missing native grant lifecycle.** This is a source inspection and negative-authorization increment on held PR #2435, not delegated assignment implementation or production authorization.
+**Date:** October 31, 2026, America/Chicago. **Historical R02 outcome: BLOCKED on a missing native grant lifecycle.** The R02A and R02B continuation contracts below preserve that finding and record the later bounded work; the earlier paragraphs describe R02, not a current claim that no grant source exists. Current R02B verification must be read from the exact-head PR/register receipt. No production authorization is implied.
 
 Continuation: [Atlas completion register, R02](https://github.com/optical-lift/atlas/blob/docs/atlas-completion-register-reconciliation-20261031/docs/integration/ATLAS_INTEGRATION_COMPLETION_REGISTER.md#r02--next-coding-unit-not-started-one-delegated-original-work-assignment-operation). The round permits one existing original-Work operation; it explicitly queues additional grant machinery as a separate dependency. Do not enlarge a root resolver or borrow an unrelated grant to make the operation succeed.
 
@@ -61,3 +61,14 @@ The principal's continuation instruction opens this missing prerequisite as its 
 - **Acceptance:** real signed root grant/revoke and self-only readback; immutable audit, replay/collision/stale/concurrent checks; expiry and current connection/session/grantor-authority withdrawal; no fallback to an older grant; raw table access denied; Work/Person/allocation/plan state unchanged. Existing direct assignment remains denied to a nonroot even when a grant is recorded, until the separately queued writer integration.
 
 The round must close with its exact source/run evidence. A passing grant lifecycle does not implement delegated assignment or universal Ledger governance.
+
+## R02B start contract — consume the existing operation grant
+
+The principal's continuation admits this next registered outcome. R02A source `a6f3e438e1e4aa2c470ddae9b4ba88b328926b96` passed protected signed clone [41214950545](https://github.com/optical-lift/noel-core-db/actions/runs/41214950545); that earlier proof remains historical.
+
+- **Outcome / owner:** Noel #2435's existing direct-original assignment writer and exact accepted-intake allocation guard admit a genuinely signed nonroot with a current exact-Ledger grant. Preserve the same accepted original and canonical recipient; delegated responsibility remains unscheduled.
+- **Dependencies:** R02A immutable decisions, strict current session/Person admission, current delegate and grantor Ledger connections, both recorded issuing roots, final exact intake acceptance, existing responsibility serialization and protected signed clone.
+- **Permitted scope:** an operation-specific private actor resolver, this existing writer and its accepted-intake guard branch, source postconditions, signed tests and candidate documentation. Serialize grant consumption with grant/revoke decisions, preserve the issuing event in allocation provenance, and reject retries by another actor or another grant epoch.
+- **Protected scope:** shared owner helper and other readers/writers, decomposition authority, scheduling, recipient consent, root roles, roster/Work/private Event/Subject disclosure, Atlas UI, other completion rows, CI/provider configuration, production grants/schema/data, generated migration, merge and deployment.
+- **Acceptance:** actual signed delegate succeeds and exact replay preserves one allocation with its actor/grant evidence; revoked/expired/disconnected/ended-issuer/ended-session and wrong-Ledger callers fail at source without mutations; pending originals and any supplied service date remain denied. Existing root direct and independently consented paths retain their proof. No duplicate Work/Person, competing responsibility, implicit plan, reader elevation or fabricated consent.
+- **Next boundary:** capability projection/UI and governor target-revision administration remain queued separately. Source PASS is not browser acceptance, universal-governor completion or release.

@@ -71,7 +71,7 @@ BEGIN
  SELECT pg_get_functiondef(
  'atlas.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)'::regprocedure) INTO def;
  IF position('accepted_ledger_intake_original_evidence_v1' IN def)=0
-    OR position('company_work_native_ledger_owner_self_v1' IN def)=0
+    OR position('original_work_assignment_actor_self_v1' IN def)=0
     OR position('person_has_native_ledger_connection_v1' IN def)=0
     OR position('v_basis:=''ledger_connection_direct_assignment''' IN def)=0
     OR position('v_basis:=''original_subject_direct_assignment_v1''' IN def)=0
@@ -173,6 +173,7 @@ BEGIN
  FOREACH item IN ARRAY ARRAY[
    'atlas.require_work_assignment_delegation_session_v1()'::regprocedure,
    'atlas.work_assignment_delegation_event_effective_v1(uuid)'::regprocedure,
+   'atlas.original_work_assignment_actor_self_v1(uuid,uuid)'::regprocedure,
    'atlas.guard_work_assignment_delegation_history_v1()'::regprocedure] LOOP
    FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
      IF has_function_privilege(role_name,item,'EXECUTE') THEN
@@ -207,9 +208,33 @@ BEGIN
    RAISE EXCEPTION 'Delegation must recheck latest decision and current source authority';
  END IF;
  SELECT pg_get_functiondef('atlas.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)'::regprocedure) INTO def;
+ IF position('original_work_assignment_actor_self_v1' IN def)=0
+    OR position('v_delegated AND p_service_date IS NOT NULL' IN def)=0
+    OR position('v_work.source_object_type IS DISTINCT FROM ''ledger_work_intake''' IN def)=0
+    OR position('delegationEventId' IN def)=0
+    OR position('delegationRevision' IN def)=0
+    OR position('senderPersonId' IN def)=0 THEN
+   RAISE EXCEPTION 'R02B writer requires exact authority, provenance and no delegated schedule';
+ END IF;
+ SELECT pg_get_functiondef('atlas.original_work_assignment_actor_self_v1(uuid,uuid)'::regprocedure) INTO def;
  IF position('company_work_native_ledger_owner_self_v1' IN def)=0
+    OR position('require_work_assignment_delegation_session_v1' IN def)=0
+    OR position('work_assignment_delegation_event_effective_v1' IN def)=0
+    OR position('atlas.work_assignment_delegation.scope:' IN def)=0
+    OR position('ORDER BY e.revision DESC LIMIT 1' IN def)=0 THEN
+   RAISE EXCEPTION 'R02B must serialize and resolve only current exact operation authority';
+ END IF;
+ SELECT pg_get_functiondef('atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure) INTO def;
+ IF position('original_work_assignment_actor_self_v1' IN def)=0
+    OR position('checked->>''delegationEventId''' IN def)=0
+    OR position('checked->>''delegationRevision''' IN def)=0
+    OR position('requestedServiceDate' IN def)=0 THEN
+   RAISE EXCEPTION 'R02B allocation guard must independently verify exact grant provenance';
+ END IF;
+ SELECT pg_get_functiondef('atlas.company_work_native_ledger_owner_self_v1(uuid,uuid)'::regprocedure) INTO def;
+ IF position('original_work_assignment_actor_self_v1' IN def)>0
     OR position('work_assignment_delegation_event_effective_v1' IN def)>0 THEN
-   RAISE EXCEPTION 'R02A must not enable the assignment writer';
+   RAISE EXCEPTION 'Shared root authority must not consume this operation grant';
  END IF;
 END;
 $delegation_check$;
