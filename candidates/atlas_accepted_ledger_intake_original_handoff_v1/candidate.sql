@@ -1197,5 +1197,110 @@ BEGIN
 END;
 $accepted_intake_guard$;
 
+-- Source-filtered root collection over the SAME accepted original Work.
+-- Not an intake queue, a new task table, employee seat, or a Person schedule.
+-- Cursor/total are determined inside the source, not from a browser slice.
+CREATE OR REPLACE FUNCTION atlas.accepted_ledger_intake_needs_assignment_root_self_api_v1(
+ p_ledger_id uuid,p_limit integer DEFAULT 50,p_after_work_item_id uuid DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE v_root uuid;v_total integer;v_items jsonb;v_next uuid;v_count integer;
+BEGIN
+ IF p_ledger_id IS NULL OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100
+ THEN RAISE EXCEPTION 'Exact Ledger and bounded page required'
+   USING ERRCODE='22023';END IF;
+ SELECT principal_id INTO v_root
+ FROM atlas.capability_root_authority_context_self_v1(p_ledger_id);
+ IF v_root IS NULL
+ THEN RAISE EXCEPTION 'Exact native Ledger root required'
+   USING ERRCODE='42501';END IF;
+
+ SELECT count(*) INTO v_total
+ FROM atlas.ledger_work_intakes i
+ JOIN atlas.work_items w
+   ON w.id=i.work_item_id AND w.organization_id=i.organization_id
+   AND w.source_object_type='ledger_work_intake'
+   AND w.source_object_id=i.id AND w.work_state='open'
+ WHERE i.ledger_id=p_ledger_id AND i.review_state='accepted_for_ledger'
+   AND atlas.accepted_ledger_intake_original_evidence_v1(
+       i.organization_id,i.ledger_id,i.work_item_id)
+   AND NOT EXISTS(
+     SELECT 1 FROM atlas.work_allocations a
+     WHERE a.organization_id=i.organization_id AND a.work_item_id=w.id
+       AND a.allocation_role='responsible' AND a.state='active');
+
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+   'intakeId',page.intake_id,'workItemId',page.work_item_id,
+   'ledgerId',p_ledger_id,'organizationId',page.organization_id,
+   'title',page.title,'acceptedAt',page.reviewed_at,
+   'reviewRevision',page.revision,
+   'pendingOfferCount',page.pending_offer_count,
+   'assignedToPerson',false,
+   'workState','open')
+   ORDER BY page.work_item_id),'[]'::jsonb),
+   count(*)::integer,max(page.work_item_id)
+ INTO v_items,v_count,v_next
+ FROM (
+   SELECT i.id AS intake_id,w.id AS work_item_id,i.organization_id,
+          w.title,i.reviewed_at,i.revision,
+          (SELECT count(*)::integer
+           FROM atlas.company_work_initial_responsibility_offers o
+           WHERE o.organization_id=i.organization_id
+             AND o.ledger_id=i.ledger_id
+             AND o.work_item_id=w.id AND o.offer_state='offered')
+          AS pending_offer_count
+   FROM atlas.ledger_work_intakes i
+   JOIN atlas.work_items w
+     ON w.id=i.work_item_id AND w.organization_id=i.organization_id
+     AND w.source_object_type='ledger_work_intake'
+     AND w.source_object_id=i.id AND w.work_state='open'
+   WHERE i.ledger_id=p_ledger_id AND i.review_state='accepted_for_ledger'
+     AND (p_after_work_item_id IS NULL OR w.id>p_after_work_item_id)
+     AND atlas.accepted_ledger_intake_original_evidence_v1(
+         i.organization_id,i.ledger_id,i.work_item_id)
+     AND NOT EXISTS(
+       SELECT 1 FROM atlas.work_allocations a
+       WHERE a.organization_id=i.organization_id AND a.work_item_id=w.id
+         AND a.allocation_role='responsible' AND a.state='active')
+   ORDER BY w.id LIMIT p_limit
+ ) page;
+
+ RETURN jsonb_build_object(
+  'ok',true,'contractVersion','ledger_accepted_original_needs_assignment_v1',
+  'ledgerId',p_ledger_id,'items',v_items,
+  'totalNeedsAssignment',v_total,'returnedCount',v_count,
+  'hasMore',EXISTS(
+   SELECT 1 FROM atlas.ledger_work_intakes i
+   JOIN atlas.work_items w
+     ON w.id=i.work_item_id AND w.organization_id=i.organization_id
+     AND w.source_object_type='ledger_work_intake'
+     AND w.source_object_id=i.id AND w.work_state='open'
+   WHERE i.ledger_id=p_ledger_id AND i.review_state='accepted_for_ledger'
+     AND (p_after_work_item_id IS NULL OR w.id>p_after_work_item_id)
+     AND (v_next IS NULL OR w.id>v_next)
+     AND atlas.accepted_ledger_intake_original_evidence_v1(
+         i.organization_id,i.ledger_id,i.work_item_id)
+     AND NOT EXISTS(
+       SELECT 1 FROM atlas.work_allocations a
+       WHERE a.organization_id=i.organization_id AND a.work_item_id=w.id
+         AND a.allocation_role='responsible' AND a.state='active')
+   ),
+  'nextWorkItemId',v_next,
+  'isPersonalWorkObligation',false,'notificationDeliveryClaimed',false);
+END;
+$fn$;
+CREATE OR REPLACE FUNCTION public.ledger_accepted_original_needs_assignment_root_self_api_v1(
+ p_ledger_id uuid,p_limit integer DEFAULT 50,p_after_work_item_id uuid DEFAULT NULL)
+RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path='pg_catalog' AS $fn$
+ SELECT atlas.accepted_ledger_intake_needs_assignment_root_self_api_v1($1,$2,$3);
+$fn$;
+REVOKE ALL ON FUNCTION
+ atlas.accepted_ledger_intake_needs_assignment_root_self_api_v1(uuid,integer,uuid),
+ public.ledger_accepted_original_needs_assignment_root_self_api_v1(uuid,integer,uuid)
+FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION
+ atlas.accepted_ledger_intake_needs_assignment_root_self_api_v1(uuid,integer,uuid),
+ public.ledger_accepted_original_needs_assignment_root_self_api_v1(uuid,integer,uuid)
+TO authenticated;
+
 NOTIFY pgrst,'reload schema';
 COMMIT;
