@@ -108,6 +108,14 @@ def main():
              "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000a41",
              "p_reason":"Synthetic proposal pending governor review"},
              "pending intake cannot bypass root review")
+    # Pending participant attestation alone cannot authorize exact Work
+    # standing consent, even under a real signed root.
+    deny(api,key,root,PROPOSE,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_worker_person_id":WORKER_PERSON,"p_work_item_id":b["workItemId"],
+        "p_terms":"Synthetic unapproved original cannot create an assignable scope",
+        "p_valid_until":None},
+        "pending participant attestation cannot establish an accepted exact-Work scope")
     deny(api,key,worker,OWNER_WORK,{
         "p_organization_id":ORG,"p_ledger_id":ELM,"p_scope":"native_ledger",
         "p_limit":200,"p_after_work_item_id":None},"worker cannot inspect owner Ledger Work")
@@ -168,6 +176,10 @@ def main():
           "Native proposal must not fabricate acceptance")
     deny(api,key,root,RESPOND,{"p_scope_id":scopeid,"p_decision":"accept"},
          "root cannot consent for independent Person")
+    deny(api,key,root,ASSIGN_SCOPE,{
+        "p_work_item_id":b["workItemId"],"p_scope_id":scopeid,
+        "p_reason":"Synthetic unaccepted proposal cannot assign responsibility"},
+        "unaccepted exact-Work scope cannot establish responsibility")
     consent=allow(api,key,worker,RESPOND,{"p_scope_id":scopeid,"p_decision":"accept"})
     check(consent.get("personConsentRecorded") is True
           and consent.get("assignmentCreated") is False,
