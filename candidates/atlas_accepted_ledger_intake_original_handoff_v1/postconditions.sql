@@ -151,3 +151,65 @@ BEGIN
  THEN RAISE EXCEPTION 'Needs Assignment must be root-only, source-filtered and paginated'; END IF;
 END;
 $check$;
+
+-- R02A structural custody. Real signed lifecycle cases run separately.
+DO $delegation_check$
+DECLARE relation regclass; item regprocedure; role_name text; def text;
+BEGIN
+ relation:=to_regclass('atlas.ledger_original_work_assignment_delegation_events_v1');
+ IF relation IS NULL OR NOT EXISTS(SELECT 1 FROM pg_class
+   WHERE oid=relation AND relrowsecurity AND relforcerowsecurity) THEN
+   RAISE EXCEPTION 'Delegation history requires forced RLS';
+ END IF;
+ FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
+   IF has_table_privilege(role_name,relation,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') THEN
+     RAISE EXCEPTION 'Raw delegation history privilege leaked to %',role_name;
+   END IF;
+ END LOOP;
+ IF (SELECT count(*) FROM pg_trigger WHERE tgrelid=relation AND NOT tgisinternal
+     AND tgfoid='atlas.guard_work_assignment_delegation_history_v1()'::regprocedure)<>2 THEN
+   RAISE EXCEPTION 'Row and truncate immutability guards required';
+ END IF;
+ FOREACH item IN ARRAY ARRAY[
+   'atlas.require_work_assignment_delegation_session_v1()'::regprocedure,
+   'atlas.work_assignment_delegation_event_effective_v1(uuid)'::regprocedure,
+   'atlas.guard_work_assignment_delegation_history_v1()'::regprocedure] LOOP
+   FOREACH role_name IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
+     IF has_function_privilege(role_name,item,'EXECUTE') THEN
+       RAISE EXCEPTION 'Internal delegation helper exposed: % / %',item,role_name;
+     END IF;
+   END LOOP;
+ END LOOP;
+ FOREACH item IN ARRAY ARRAY[
+   'atlas.decide_original_work_assignment_delegation_self_api_v1(uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+   'public.decide_original_work_assignment_delegation_self_api_v1(uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+   'atlas.original_work_assignment_delegation_self_api_v1(uuid,uuid)'::regprocedure,
+   'public.original_work_assignment_delegation_self_api_v1(uuid,uuid)'::regprocedure] LOOP
+   IF NOT has_function_privilege('authenticated',item,'EXECUTE')
+      OR has_function_privilege('anon',item,'EXECUTE')
+      OR has_function_privilege('service_role',item,'EXECUTE') THEN
+     RAISE EXCEPTION 'Signed delegation membrane ACL invalid: %',item;
+   END IF;
+   IF NOT EXISTS(SELECT 1 FROM pg_proc WHERE oid=item AND proconfig @> ARRAY['search_path=""']) THEN
+     RAISE EXCEPTION 'Delegation membrane requires an empty search path: %',item;
+   END IF;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM pg_proc WHERE oid IN (
+   'public.decide_original_work_assignment_delegation_self_api_v1(uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+   'public.original_work_assignment_delegation_self_api_v1(uuid,uuid)'::regprocedure) AND prosecdef) THEN
+   RAISE EXCEPTION 'Public delegation wrappers must remain invokers';
+ END IF;
+ SELECT pg_get_functiondef('atlas.work_assignment_delegation_event_effective_v1(uuid)'::regprocedure) INTO def;
+ IF position('newer.revision>e.revision' IN def)=0
+    OR position('native_root_authority_id' IN def)=0
+    OR position('institutional_root_authority_id' IN def)=0
+    OR position('person_has_native_ledger_connection_v1' IN def)=0 THEN
+   RAISE EXCEPTION 'Delegation must recheck latest decision and current source authority';
+ END IF;
+ SELECT pg_get_functiondef('atlas.owner_direct_assign_existing_original_work_self_api_v1(uuid,uuid,uuid,uuid,date,uuid,text)'::regprocedure) INTO def;
+ IF position('company_work_native_ledger_owner_self_v1' IN def)=0
+    OR position('work_assignment_delegation_event_effective_v1' IN def)>0 THEN
+   RAISE EXCEPTION 'R02A must not enable the assignment writer';
+ END IF;
+END;
+$delegation_check$;

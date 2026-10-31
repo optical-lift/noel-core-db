@@ -8,6 +8,8 @@ No production API, person or Work may be touched by this script.
 import argparse
 import importlib.util
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -34,6 +36,8 @@ ASSIGN_SCOPE="assign_native_ledger_company_work_under_scope_owner_self_api_v1"
 MY_WORK="connected_person_my_work_self_api_v1"
 REPORT="report_connected_person_company_work_self_api_v1"
 PLACE="connected_person_place_work_self_api_v1"
+DELEGATE="decide_original_work_assignment_delegation_self_api_v1"
+DELEGATION="original_work_assignment_delegation_self_api_v1"
 UUID=re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",re.I)
 
 def check(condition,message):v2.must(condition,message)
@@ -66,6 +70,141 @@ def deny_assignment_without_change(db,api,key,actor,arguments,label):
     deny(api,key,actor,DIRECT,arguments,label)
     check(assignment_snapshot(db,arguments["p_work_item_id"])==before,
           "Denied original-Work assignment changed durable state: "+label)
+def delegation_state(api,key,worker):
+    out=allow(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM})
+    check(out.get("contractVersion")=="original_work_assignment_delegation_self_v1"
+          and out.get("personId")==WORKER_PERSON
+          and out.get("operation")=="assign_accepted_original_work"
+          and out.get("assignmentWriterEnabled") is False
+          and out.get("rosterDisclosed") is False and out.get("workDisclosed") is False,
+          "Self-only delegation source must not claim operational integration or disclose Work")
+    return out
+def delegation_lifecycle(db,api,key,root,worker,outsider,no_seat,directargs):
+    """R02A only: establish/revoke authority, never execute delegated Work."""
+    table="atlas.ledger_original_work_assignment_delegation_events_v1"
+    work=directargs["p_work_item_id"]
+    unchanged=assignment_snapshot(db,work)
+    future=sql(db,"SELECT (clock_timestamp()+interval '1 day')::text")
+    def decision(revision,kind,n,expiry=None):
+        return {"p_organization_id":ORG,"p_ledger_id":ELM,
+                "p_delegate_person_id":WORKER_PERSON,"p_decision":kind,
+                "p_expected_revision":revision,"p_valid_until":expiry,
+                "p_action_id":"e5200000-0000-4000-8000-"+f"{0xb000+n:012x}",
+                "p_reason":"Fictional exact Ledger assignment authority decision"}
+    initial=delegation_state(api,key,worker)
+    check(initial.get("revision")==0 and initial.get("grantEffective") is False,
+          "Connection/metadata/other Ledger root must not fabricate delegation")
+    grant=decision(0,"grant",1,future)
+    for token,label in ((worker,"worker/another Ledger root"),(outsider,"outsider"),
+                        (no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,token,DELEGATE,grant,label+" cannot issue an assignment grant")
+    for token,label in ((outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,token,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM},
+             label+" cannot inspect another Ledger's grants")
+    deny(api,key,root,DELEGATE,{**grant,"p_ledger_id":OTHER},
+         "a root on one Ledger cannot administer another Ledger's grants")
+    deny(api,key,root,DELEGATE,{**grant,
+         "p_delegate_person_id":"e5200000-0000-4000-8000-000000000103"},
+         "grant target must have the current exact native connection")
+    check(sql(db,f"SELECT count(*) FROM {table}")=="0",
+          "Denied grant attempts appended authority")
+    receipt=allow(api,key,root,DELEGATE,grant)
+    check(receipt.get("contractVersion")=="original_work_assignment_delegation_decision_v1"
+          and receipt.get("revision")==1 and receipt.get("decision")=="grant"
+          and receipt.get("currentlyEffective") is True
+          and receipt.get("actorPersonId")==OWNER_PERSON
+          and receipt.get("delegatePersonId")==WORKER_PERSON
+          and receipt.get("operation")=="assign_accepted_original_work"
+          and receipt.get("assignmentWriterEnabled") is False
+          and all(receipt.get(k) is False for k in
+                  ("workCreated","allocationCreated","planCreated","rootAuthorityCreated")),
+          "Signed grant receipt widened scope or claimed an operational effect")
+    event=receipt.get("eventId")
+    check(UUID.fullmatch(event or "") is not None,"Canonical grant event required")
+    own=delegation_state(api,key,worker)
+    check(own.get("grantEffective") is True and own.get("eventId")==event,
+          "Independent signed Person cannot reread the grant")
+    root_self=allow(api,key,root,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM})
+    check(root_self.get("revision")==0 and root_self.get("eventId") is None,
+          "Self-only reader exposed the governor's target's grant")
+    idem=allow(api,key,root,DELEGATE,grant)
+    check(idem.get("idempotent") is True and idem.get("eventId")==event
+          and sql(db,f"SELECT count(*) FROM {table}")=="1",
+          "Exact grant replay duplicated authority history")
+    code,body=base.rpc(api,key,root,DELEGATE,{**grant,"p_reason":"Changed fictional retry"})
+    check(code==409 and body.get("code")=="23505","Grant action collision must source-reject")
+    v2.stale(api,key,root,DELEGATE,decision(0,"revoke",2),
+             "stale grant revision cannot overwrite history")
+    # Actual concurrent signed decisions over the same source revision.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts=list(pool.map(lambda n:base.rpc(api,key,root,DELEGATE,
+                         decision(1,"revoke",n)),(3,4)))
+    successes=[obj for code,obj in attempts if code==200 and obj.get("ok") is True]
+    stale=[obj for code,obj in attempts if code in (400,409,500) and obj.get("code")=="40001"]
+    check(len(successes)==1 and successes[0].get("revision")==2 and len(stale)==1,
+          "Concurrent grant decisions must yield one revision and one genuine stale rejection")
+    own=delegation_state(api,key,worker)
+    check(own.get("grantEffective") is False and own.get("decision")=="revoke"
+          and own.get("revision")==2,"Revocation failed to suppress prior grant")
+    # Even DB-owner writes cannot erase or amend original decision evidence.
+    sql(db,f"""DO $immutable$ BEGIN
+      BEGIN UPDATE {table} SET reason='Changed immutable fictional decision'
+        WHERE id='{event}'::uuid;
+        RAISE EXCEPTION 'Delegation UPDATE immutability was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+      BEGIN DELETE FROM {table} WHERE id='{event}'::uuid;
+        RAISE EXCEPTION 'Delegation DELETE immutability was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+      BEGIN TRUNCATE {table};
+        RAISE EXCEPTION 'Delegation TRUNCATE immutability was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+    END $immutable$;""")
+    regrant=allow(api,key,root,DELEGATE,decision(2,"grant",5,future))
+    check(regrant.get("revision")==3 and regrant.get("currentlyEffective") is True,
+          "A new signed decision must establish a new auditable grant epoch")
+    deny_assignment_without_change(db,api,key,worker,directargs,
+        "recorded grant cannot enable the not-yet-integrated assignment writer")
+    # Only fictional local fixture connectivity is changed/restored here.
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM},
+             "ended connection denies grant readback with the same valid JWT")
+        deny(api,key,root,DELEGATE,decision(3,"grant",6,future),
+             "disconnected target cannot receive another grant")
+        revoked=allow(api,key,root,DELEGATE,decision(3,"revoke",7))
+        check(revoked.get("revision")==4,"Root must be able to revoke a disconnected Person")
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    own=delegation_state(api,key,worker)
+    check(own.get("revision")==4 and own.get("grantEffective") is False,
+          "Reconnection resurrected an older revoked grant")
+    expiry=sql(db,"SELECT (clock_timestamp()+interval '12 seconds')::text")
+    expiring=decision(4,"grant",8,expiry)
+    expiring_receipt=allow(api,key,root,DELEGATE,expiring)
+    stop=time.monotonic()+24
+    while True:
+        own=delegation_state(api,key,worker)
+        if own.get("grantEffective") is False:break
+        check(time.monotonic()<stop,"Grant expiry failed at source")
+        time.sleep(0.5)
+    check(own.get("revision")==5 and own.get("eventId")==expiring_receipt.get("eventId"),
+          "Expiry must retain the newest decision, never revive older authority")
+    expired_replay=allow(api,key,root,DELEGATE,expiring)
+    check(expired_replay.get("idempotent") is True
+          and expired_replay.get("eventId")==expiring_receipt.get("eventId")
+          and expired_replay.get("currentlyEffective") is False,
+          "Replay renewed an expired grant")
+    final=allow(api,key,root,DELEGATE,decision(5,"grant",9))
+    check(final.get("revision")==6 and final.get("currentlyEffective") is True,
+          "Explicit revocation-lifetime grant must be recorded as a new epoch")
+    check(sql(db,f"SELECT count(*) FROM {table}")=="6",
+          "Replay/collision/concurrency lost or duplicated grant decisions")
+    check(assignment_snapshot(db,work)==unchanged,
+          "Grant lifecycle changed Work/Person/allocation/plan/consent state")
+    print("PASS native grant/revoke, self-only signed readback, CAS/concurrency, expiry, "
+          "immutable history, connection withdrawal, no Work effects; writer integration held")
 def work_page(api,key,token):
     status,out=base.rpc(api,key,token,OWNER_WORK,{
         "p_organization_id":ORG,"p_ledger_id":ELM,
@@ -342,6 +481,7 @@ def main():
     status=work_page(api,key,root)
     check(any(x.get("workItemId")==a["workItemId"] and x.get("latestWorkerReport")
               for x in status),"Governor Ledger Work does not expose Result history")
+    delegation_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,directargs)
     # Fixture-only authority revocation, with the SAME still-existing signed
     # GoTrue session. No restore/regrant or production authority mutation.
     root_authority=sql(args.db_url,
@@ -362,6 +502,14 @@ def main():
        "Authority revocation proof must retain the genuine signed session")
     deny_assignment_without_change(args.db_url,api,key,root,directargs,
         "ended exact Ledger root cannot replay a former assignment with a valid session")
+    check(delegation_state(api,key,worker).get("grantEffective") is False,
+          "Grantor root withdrawal failed to invalidate the still-recorded grant")
+    worker_session=signed_claims["worker"]["session_id"]
+    check(UUID.fullmatch(worker_session) is not None,"Exact signed delegate session required")
+    sql(args.db_url,"UPDATE auth.sessions SET not_after=now()-interval '1 minute' "
+        f"WHERE id='{worker_session}'::uuid AND user_id='{c1.WORKER}'::uuid")
+    deny(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM},
+         "ended delegate session denies readback despite unexpired JWT")
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
        "PASS real signed clone: pending excluded, same original accepted, own status, "
@@ -369,6 +517,8 @@ def main():
        "independent native Person consent and assignment, forbidden worker schedule, "
        "original blocked Result, no shadow Work/People, source-denied assignment by "
        "metadata/other-Ledger roots/consenting recipients/ended roots, unchanged denied "
-       "Work/allocation/plan state. No delegated-positive contract claimed. DISPOSABLE ONLY.\n")
+       "Work/allocation/plan state. Native grant/revoke and self-only status, immutable "
+       "history, replay/CAS/concurrency, expiry, connection/grantor/session withdrawal "
+       "PASS; no Work effects. Delegated assignment writer integration remains HELD. DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
 if __name__=="__main__":main()

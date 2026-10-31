@@ -49,3 +49,15 @@ Required contract for that round:
 6. Signed positive/negative disposable cases: root, actually granted delegate, ungranted/expired/revoked delegate, wrong-Ledger delegate, worker with only responsibility consent, outsider and anonymous. Prove original identity, no competing responsibility, no implicit plan, exact action replay/collision and no private existence/count leak.
 
 **Not implemented here:** a grant/revoke RPC, grant rows, delegate-positive assignment, Atlas capability projection/UI, broad Ledger permissions, all-reader conversion, generated migration, source merge, production release or live Person/Work changes. The next round must explicitly admit the missing grant lifecycle before changing assignment authorization. Keep all other completion-register rows queued.
+
+## R02A start contract — native grant/revoke only
+
+The principal's continuation instruction opens this missing prerequisite as its own bounded source round. The earlier R02 blocked result and signed negative proof remain historical evidence.
+
+- **Outcome:** an independently signed authorized root records/revokes one existing connected canonical Person's exact-Ledger accepted-original assignment grant; the Person can inspect only their own current grant state.
+- **Owning source:** Noel's held Atlas candidate, continuing #2435. One Atlas-owned append-only operation-specific decision stream is justified because the generic responsibility relation has no signed grant/revoke lifecycle, immutable decision provenance or concurrent revision contract for this operation. This is not a universal permissions framework, Person identity or Work store.
+- **Dependencies:** current session/Person admission, current native connections, exact native and institutional root authority, active Ledger/Organization binding, prior accepted-original candidate and protected clone harness.
+- **Protected scope:** existing shared owner helper, assignment writer and allocation-integrity guard; no assignment integration, scheduling, roster/history UI, other permissions, production grants/schema/data, source merge or release, and no CI changes.
+- **Acceptance:** real signed root grant/revoke and self-only readback; immutable audit, replay/collision/stale/concurrent checks; expiry and current connection/session/grantor-authority withdrawal; no fallback to an older grant; raw table access denied; Work/Person/allocation/plan state unchanged. Existing direct assignment remains denied to a nonroot even when a grant is recorded, until the separately queued writer integration.
+
+The round must close with its exact source/run evidence. A passing grant lifecycle does not implement delegated assignment or universal Ledger governance.
