@@ -1034,6 +1034,9 @@ def main():
     delegation_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,directargs)
     delegate_arguments=delegated_assignment_lifecycle(args.db_url,api,key,root,worker,
         signed_claims["worker"],c)
+    non_author_work=non_author_focus_lifecycle(
+        args.db_url,api,key,root,worker,outsider,no_seat,
+        signed_claims["worker"],a["workItemId"],c["workItemId"])
     # Fixture-only authority revocation, with the SAME still-existing signed
     # GoTrue session. No restore/regrant or production authority mutation.
     root_authority=sql(args.db_url,
@@ -1057,6 +1060,8 @@ def main():
     check(delegation_state(api,key,worker).get("grantEffective") is False,
           "Grantor root withdrawal failed to invalidate the still-recorded grant")
     title_state(api,key,worker,a["workItemId"],WORKER_PERSON,3,False,"grant")
+    deny_non_author_focus(args.db_url,api,key,worker,non_author_work,
+        "ended issuing root withdraws independently signed non-author title entry")
     deny_assignment_without_change(args.db_url,api,key,worker,delegate_arguments,
         "ended grantor authority denies replay of the delegate's successful assignment")
     deny_preflight(args.db_url,api,key,worker,
@@ -1095,8 +1100,9 @@ def main():
        "submitter disclosure and current assignment grant; signed positive/negative "
        "author/authority/withdrawal checks PASS. R02D2A exact-title independent "
        "root grant/revoke, self-only title-free status, concurrent CAS, expiry and "
-       "revocation/issuer/seat/session checks PASS; no title reader for non-authors. Non-author delegate disclosure, "
-       "Atlas UI, browser and release remain HELD. "
+       "revocation/issuer/seat/session checks PASS. R02D2B exact non-author "
+       "title-only Focus requires both independent current source grants and signed "
+       "withdrawal protections PASS. Atlas UI, browser and release remain HELD. "
        "DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
 if __name__=="__main__":main()
