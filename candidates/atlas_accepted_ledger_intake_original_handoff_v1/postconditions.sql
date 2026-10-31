@@ -331,3 +331,89 @@ BEGIN
  END IF;
 END;
 $focus_entry_check$;
+
+-- R02D2A: exact original title-disclosure grant administration only.
+DO $title_disclosure_check$
+DECLARE tbl regclass; fn regprocedure; def text;
+BEGIN
+ tbl:=to_regclass('atlas.ledger_original_work_title_disclosure_events_v1');
+ IF tbl IS NULL OR NOT EXISTS(SELECT 1 FROM pg_class c WHERE c.oid=tbl
+   AND c.relrowsecurity AND c.relforcerowsecurity)
+   OR has_table_privilege('authenticated',tbl,'SELECT')
+   OR has_table_privilege('authenticated',tbl,'INSERT')
+   OR has_table_privilege('anon',tbl,'SELECT')
+   OR has_table_privilege('service_role',tbl,'SELECT') THEN
+   RAISE EXCEPTION 'Title disclosure decision history must be private and RLS-protected';
+ END IF;
+ IF (SELECT count(*) FROM pg_trigger WHERE tgrelid=tbl
+     AND NOT tgisinternal AND tgfoid=
+     'atlas.guard_work_title_disclosure_history_v1()'::regprocedure)<>2 THEN
+   RAISE EXCEPTION 'Title disclosure history immutability guard missing';
+ END IF;
+ FOREACH fn IN ARRAY ARRAY[
+   'atlas.decide_work_title_disclosure_self_api_v1(uuid,uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+   'public.decide_work_title_disclosure_self_api_v1(uuid,uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+   'atlas.work_title_disclosure_self_api_v1(uuid,uuid,uuid)'::regprocedure,
+   'public.work_title_disclosure_self_api_v1(uuid,uuid,uuid)'::regprocedure
+ ] LOOP
+   IF NOT has_function_privilege('authenticated',fn,'EXECUTE')
+     OR has_function_privilege('anon',fn,'EXECUTE')
+     OR has_function_privilege('service_role',fn,'EXECUTE')
+     OR NOT EXISTS(SELECT 1 FROM pg_proc WHERE oid=fn
+       AND proconfig @> ARRAY['search_path=""'] AND provolatile='v') THEN
+     RAISE EXCEPTION 'Title disclosure API boundary invalid: %',fn;
+   END IF;
+ END LOOP;
+ IF EXISTS(SELECT 1 FROM pg_proc WHERE oid IN (
+    'public.decide_work_title_disclosure_self_api_v1(uuid,uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure,
+    'public.work_title_disclosure_self_api_v1(uuid,uuid,uuid)'::regprocedure) AND prosecdef) THEN
+   RAISE EXCEPTION 'Title disclosure public APIs must remain invokers';
+ END IF;
+ FOREACH fn IN ARRAY ARRAY[
+   'atlas.guard_work_title_disclosure_history_v1()'::regprocedure,
+   'atlas.work_title_disclosure_event_effective_v1(uuid)'::regprocedure
+ ] LOOP
+   IF has_function_privilege('authenticated',fn,'EXECUTE')
+      OR has_function_privilege('anon',fn,'EXECUTE')
+      OR has_function_privilege('service_role',fn,'EXECUTE') THEN
+     RAISE EXCEPTION 'Private title-disclosure helper exposed: %',fn;
+   END IF;
+ END LOOP;
+ SELECT pg_get_functiondef(
+   'atlas.decide_work_title_disclosure_self_api_v1(uuid,uuid,uuid,uuid,text,integer,timestamptz,uuid,text)'::regprocedure)
+ INTO def;
+ IF position('require_work_assignment_delegation_session_v1' IN def)=0
+    OR position('company_work_native_ledger_owner_self_v1' IN def)=0
+    OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
+    OR position('work_title_disclosure.scope:' IN def)=0
+    OR position('p_expected_revision' IN def)=0
+    OR position('workTitleDisclosed'',false' IN def)=0 THEN
+   RAISE EXCEPTION 'Title disclosure decision must authorize exact original, root and revision';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.work_title_disclosure_event_effective_v1(uuid)'::regprocedure) INTO def;
+ IF position('newer.work_item_id=e.work_item_id' IN def)=0
+    OR position('newer.recipient_person_id=e.recipient_person_id' IN def)=0
+    OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
+    OR position('institutional_root_authority_id' IN def)=0 THEN
+   RAISE EXCEPTION 'Exact title permission must honor current source, latest epoch and issuer';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.work_title_disclosure_self_api_v1(uuid,uuid,uuid)'::regprocedure) INTO def;
+ IF position('history.recipient_person_id=who' IN def)=0
+    OR position('workTitleDisclosed'',false' IN def)=0
+    OR position('require_work_assignment_delegation_session_v1' IN def)=0 THEN
+   RAISE EXCEPTION 'Title permission readback must remain current self-only without title';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.original_work_assignment_actor_self_v1(uuid,uuid)'::regprocedure) INTO def;
+ IF position('work_title_disclosure' IN def)>0 THEN
+   RAISE EXCEPTION 'Assignment actor authority must not inherit title disclosure grant';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.accepted_intake_author_work_focus_self_api_v1(uuid,uuid,uuid)'::regprocedure) INTO def;
+ IF position('work_title_disclosure' IN def)>0 THEN
+   RAISE EXCEPTION 'R02D1 author reader must not widen to non-authors';
+ END IF;
+END;
+$title_disclosure_check$;
