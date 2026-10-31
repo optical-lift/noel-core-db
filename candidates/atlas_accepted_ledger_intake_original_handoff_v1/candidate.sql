@@ -564,7 +564,10 @@ BEGIN
        'sourceActionId',p_action_id,'decisionReason',v_reason,
        'requestedServiceDate',p_service_date,
        'authorizationBasis','governor_exact_existing_original_work'),
-     jsonb_build_object('source',v_basis,
+     jsonb_build_object('source',
+       CASE WHEN v_work.source_object_type='ledger_work_intake'
+         THEN 'accepted_ledger_intake_original_direct_assignment_v1'
+         ELSE v_basis END,
        'sameOriginalCanonicalWork',true,'newTaskCreated',false,
        'employeeSeatRequired',false,'workerAttestedAsSelf',false)
    ) RETURNING * INTO v_allocation;
