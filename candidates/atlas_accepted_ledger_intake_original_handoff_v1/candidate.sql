@@ -1100,5 +1100,61 @@ GRANT EXECUTE ON FUNCTION
   public.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid)
 TO authenticated;
 
+
+-- The existing responsibility provenance guard recognizes earlier original
+-- Event/connection sources. Extend ONLY the explicit accepted-intake source,
+-- using the canonical checked pg_get_functiondef patch technique already
+-- used by Noel's 20261021155715 migration. Preserve all older branches.
+DO $accepted_intake_guard$
+DECLARE v_source text; v_old text; v_new text;
+BEGIN
+  v_source:=pg_get_functiondef(
+    'atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure);
+  v_old:=$old_branch$  if v_kind='ledger_connection_direct_assignment' then$old_branch$;
+  v_new:=$accepted_branch$  if v_kind='ledger_connection_direct_assignment'
+     and v_source='accepted_ledger_intake_original_direct_assignment_v1' then
+    if new.assignee_membership_id is not null
+       or new.assigned_by_membership_id is not null
+       or new.assignee_canonical_person_id is null
+       or coalesce(v_basis->>'contractVersion','')<>'exact_work_responsibility_establishment_v2'
+       or coalesce(v_basis->>'basisKind','')<>v_kind
+       or coalesce(v_basis->>'organizationId','')<>new.organization_id::text
+       or coalesce(v_basis->>'workItemId','')<>new.work_item_id::text
+       or coalesce(v_basis->>'assigneePersonId','')<>new.assignee_canonical_person_id::text
+       or nullif(v_basis->>'nativeLedgerId','') is null
+       or nullif(v_basis->>'senderPersonId','') is null
+       or nullif(v_basis->>'sourceActionId','') is null
+       or coalesce(v_basis->>'authorizationBasis','')<>'governor_exact_existing_original_work'
+    then
+      raise exception 'Accepted original intake responsibility provenance incomplete'
+        using errcode='23514';
+    end if;
+    if atlas.current_person_id_v1() is distinct from
+         (v_basis->>'senderPersonId')::uuid
+       or atlas.company_work_native_ledger_owner_self_v1(
+         new.organization_id,(v_basis->>'nativeLedgerId')::uuid)
+         is distinct from (v_basis->>'senderPersonId')::uuid
+       or not atlas.person_has_native_ledger_connection_v1(
+         new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
+         new.assignee_canonical_person_id)
+       or not atlas.accepted_ledger_intake_original_evidence_v1(
+         new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
+         new.work_item_id)
+    then
+      raise exception 'Accepted original requires current exact root, Person and final review'
+        using errcode='42501';
+    end if;
+    return new;
+  end if;
+
+  if v_kind='ledger_connection_direct_assignment' then$accepted_branch$;
+  IF length(v_source)-length(replace(v_source,v_old,''))<>length(v_old)
+     OR position('accepted_ledger_intake_original_direct_assignment_v1' IN v_source)>0
+  THEN RAISE EXCEPTION 'Existing guarded Person connection source changed; do not widen or replace' USING errcode='23514';
+  END IF;
+  EXECUTE replace(v_source,v_old,v_new);
+END;
+$accepted_intake_guard$;
+
 NOTIFY pgrst,'reload schema';
 COMMIT;
