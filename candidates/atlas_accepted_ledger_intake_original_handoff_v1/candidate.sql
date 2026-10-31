@@ -1237,7 +1237,7 @@ BEGIN
    'assignedToPerson',false,
    'workState','open')
    ORDER BY page.work_item_id),'[]'::jsonb),
-   count(*)::integer,max(page.work_item_id)
+   count(*)::integer,(array_agg(page.work_item_id ORDER BY page.work_item_id DESC))[1]
  INTO v_items,v_count,v_next
  FROM (
    SELECT i.id AS intake_id,w.id AS work_item_id,i.organization_id,
