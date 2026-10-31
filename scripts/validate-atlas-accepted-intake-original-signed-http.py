@@ -623,6 +623,12 @@ def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
         (ELIGIBLE,{"p_organization_id":ORG,"p_ledger_id":ELM,
                    "p_work_item_id":first["workItemId"]})):
         deny(api,key,worker,name,payload,"assignment grant cannot widen root reader "+name)
+    # R02E2A Gate 0: even genuine assignment authority cannot reveal the
+    # separate governor-owned connected Person choice roster. A real signed
+    # source denial is required: no 404 or missing function is accepted.
+    deny(api,key,worker,"connected_ledger_person_choices_self_api_v1",{
+        "p_ledger_id":ELM,"p_limit":100,"p_after_person_id":None},
+        "original-Work assignment delegation must not expose the root Person choices roster")
     deny(api,key,worker,DELEGATE,{"p_organization_id":ORG,"p_ledger_id":ELM,
         "p_delegate_person_id":OWNER_PERSON,"p_decision":"grant","p_expected_revision":0,
         "p_valid_until":None,"p_action_id":"e5200000-0000-4000-8000-000000000b11",
