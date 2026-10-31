@@ -45,6 +45,7 @@ DELEGATE="decide_original_work_assignment_delegation_self_api_v1"
 DELEGATION="original_work_assignment_delegation_self_api_v1"
 RECIPIENT_DECIDE="decide_recipient_choice_grant_self_api_v1"
 RECIPIENT_STATE="recipient_choice_grant_self_api_v1"
+RECIPIENT_CHOICES="accepted_intake_assignment_recipient_choices_self_api_v1"
 UUID=re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",re.I)
 
 def check(condition,message):v2.must(condition,message)
@@ -699,11 +700,133 @@ def recipient_choice_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,wor
     print("PASS R02E2A independent recipient-choice information grant, root CAS, self-only state, "
           "signed negative roster read, no durable Work effects; NO actual Person chooser")
 
-def delegated_assignment_lifecycle(db,api,key,root,worker,claims,pending):
+def recipient_choices_args(work,limit=25,after=None,ledger=ELM):
+    return {"p_organization_id":ORG,"p_ledger_id":ledger,
+            "p_work_item_id":work,"p_limit":limit,"p_after_person_id":after}
+def deny_recipient_choices(db,api,key,token,work,label,ledger=ELM):
+    before=assignment_snapshot(db,work)
+    deny(api,key,token,RECIPIENT_CHOICES,recipient_choices_args(work,1,None,ledger),label)
+    check(assignment_snapshot(db,work)==before,
+          "Denied recipient choices changed original Work: "+label)
+def recipient_choices_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending):
+    """R02E2B: exact known accepted unassigned original and both actual grants."""
+    snapshot=assignment_snapshot(db,work)
+    info=allow(api,key,worker,RECIPIENT_STATE,
+               {"p_organization_id":ORG,"p_ledger_id":ELM})
+    operation=delegation_state(api,key,worker)
+    check(info.get("revision")==6 and info.get("grantEffective") is True
+          and operation.get("revision")==6 and operation.get("grantEffective") is True,
+          "Independent current R02B operation and R02E2A information grants required")
+    def read(limit=25,after=None):
+        out=allow(api,key,worker,RECIPIENT_CHOICES,recipient_choices_args(work,limit,after))
+        fields={"ok","contractVersion","organizationId","ledgerId","workItemId",
+                "actorPersonId","authorizationBasis","assignmentGrantEventId",
+                "assignmentGrantRevision","recipientGrantEventId","recipientGrantRevision",
+                "items","hasMore","nextPersonId","sourceAccepted","assignmentMustRevalidate",
+                "recipientChoiceOnly","rootRosterGranted","workTitleDisclosed",
+                "workInstructionsDisclosed","workContextDisclosed","membershipDisclosed",
+                "roleDisclosed","contactDisclosed","totalCountDisclosed",
+                "workCreated","allocationCreated","planCreated"}
+        check(set(out)==fields and out.get("ok") is True
+              and out.get("contractVersion")=="accepted_intake_assignment_recipient_choices_v1"
+              and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+              and out.get("workItemId")==work and out.get("actorPersonId")==WORKER_PERSON
+              and out.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1"
+              and out.get("assignmentGrantEventId")==operation["eventId"]
+              and out.get("assignmentGrantRevision")==operation["revision"]
+              and out.get("recipientGrantEventId")==info["eventId"]
+              and out.get("recipientGrantRevision")==info["revision"]
+              and out.get("sourceAccepted") is True
+              and out.get("assignmentMustRevalidate") is True
+              and out.get("recipientChoiceOnly") is True
+              and all(out.get(k) is False for k in ("rootRosterGranted",
+                  "workTitleDisclosed","workInstructionsDisclosed","workContextDisclosed",
+                  "membershipDisclosed","roleDisclosed","contactDisclosed",
+                  "totalCountDisclosed","workCreated","allocationCreated","planCreated"))
+              and isinstance(out.get("items"),list)
+              and type(out.get("hasMore")) is bool,
+              "Recipient page must be exact dual-grant source-only packet without extra information")
+        for item in out["items"]:
+            check(set(item)=={"personId","name"} and UUID.fullmatch(item.get("personId") or "")
+                  and isinstance(item.get("name"),str),
+                  "Recipient choice must contain only canonical Person ID and display name")
+            check(sql(db,"SELECT count(*) FROM ledger.seats seat "
+                 "JOIN reality.entities p ON p.id=seat.person_entity_id "
+                 f"WHERE p.id='{item['personId']}'::uuid AND seat.ledger_id='{ELM}'::uuid "
+                 "AND seat.seat_state='active' AND seat.ended_at IS NULL "
+                 "AND p.entity_kind='person' AND p.identity_state='canonical')!="0",
+                 "Choice must remain a currently connected canonical native Person")
+        check(assignment_snapshot(db,work)==snapshot,
+              "Reading recipient names changed Work, Person, allocation or plan")
+        return out
+    for person,label in ((root,"governor cannot elevate to delegated chooser"),
+                         (outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny_recipient_choices(db,api,key,person,work,label)
+    for w,ledger,label in ((pending,ELM,"pending original"),
+                           ("e5200000-0000-4000-8000-000000000971",ELM,"non-intake Work"),
+                           ("e5200000-0000-4000-8000-000000000fff",ELM,"unknown original"),
+                           (work,OTHER,"other Ledger")):
+        deny_recipient_choices(db,api,key,worker,w,label,ledger)
+    # Current signed delegate gets a complete deterministic unique Person page.
+    all_items=[];seen=set();after=None
+    for _ in range(100):
+        page=read(1,after)
+        check(len(page["items"])<=1,"Bounded reader exceeded explicit limit")
+        for item in page["items"]:
+            check(item["personId"] not in seen and (after is None or item["personId"]>after),
+                  "Cursor must advance without duplicate native Persons")
+            seen.add(item["personId"]);all_items.append(item)
+        if not page["hasMore"]:
+            check(page["nextPersonId"] is None,"Terminal page cannot expose trailing cursor")
+            break
+        check(len(page["items"])==1 and page["nextPersonId"]==page["items"][-1]["personId"],
+              "Nonterminal cursor must equal last verified Person")
+        after=page["nextPersonId"]
+    else:
+        raise AssertionError("Unbounded native Person pagination")
+    check({OWNER_PERSON,WORKER_PERSON}.issubset(seen),
+          "Expected two truly signed native connected People in eligible choices")
+    check(read(100)["items"]==all_items,"Page sequence must equal bounded full page")
+    status,out=base.rpc(api,key,worker,RECIPIENT_CHOICES,recipient_choices_args(work,0))
+    check(status==400 and out.get("code")=="22023",
+          "Zero page limit must fail at source, not silently expose roster")
+    status,out=base.rpc(api,key,worker,RECIPIENT_CHOICES,recipient_choices_args(work,101))
+    check(status==400 and out.get("code")=="22023",
+          "Oversize page must fail at source")
+    # R02E2A information revocation is independent of active R02B operation.
+    revoke={"p_organization_id":ORG,"p_ledger_id":ELM,
+            "p_delegate_person_id":WORKER_PERSON,"p_decision":"revoke",
+            "p_expected_revision":6,"p_valid_until":None,
+            "p_action_id":"e5200000-0000-4000-8000-00000000e101",
+            "p_reason":"Fictional revoke independent recipient information access"}
+    r=allow(api,key,root,RECIPIENT_DECIDE,revoke)
+    check(r.get("revision")==7 and r.get("currentlyEffective") is False,
+          "Independent recipient choice revocation failed")
+    deny_recipient_choices(db,api,key,worker,work,
+                          "recipient information revoked while assignment grant stays effective")
+    regrant=allow(api,key,root,RECIPIENT_DECIDE,{
+        **revoke,"p_decision":"grant","p_expected_revision":7,
+        "p_action_id":"e5200000-0000-4000-8000-00000000e102"})
+    check(regrant.get("revision")==8 and regrant.get("currentlyEffective") is True,
+          "Recipient information regrant must create a new event")
+    info=allow(api,key,worker,RECIPIENT_STATE,
+               {"p_organization_id":ORG,"p_ledger_id":ELM})
+    read(1)
+    # A delegated reader cannot reuse the governor's independent chooser even
+    # when BOTH current grants are effective.
+    deny(api,key,worker,"connected_ledger_person_choices_self_api_v1",{
+         "p_ledger_id":ELM,"p_limit":100,"p_after_person_id":None},
+         "dual-grant reader never enables governor's older roster")
+    print("PASS R02E2B signed dual-grant exact accepted-original native Person choices, "
+          "canonical pages, revocation/regrant, denied root/outsider/other Ledger, no roster escalation")
+
+def delegated_assignment_lifecycle(db,api,key,root,worker,outsider,no_seat,claims,pending):
     """R02B: real signed nonroot execution of the existing source operation."""
     first=submit(api,key,worker,"accepted-original-delegated-004","Fictional delegated original")
     second=submit(api,key,worker,"accepted-original-delegated-005","Fictional next-epoch original")
     for item in (first,second):accepted(api,key,root,item,"Fictional accepted delegated original")
+    recipient_choices_lifecycle(db,api,key,root,worker,outsider,no_seat,
+                                first["workItemId"],pending["workItemId"])
     work_count=sql(db,"SELECT count(*) FROM atlas.work_items")
     people_count=sql(db,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")
     principal_count=sql(db,"SELECT count(*) FROM atlas.principals")
@@ -1189,11 +1312,11 @@ def main():
     status=work_page(api,key,root)
     check(any(x.get("workItemId")==a["workItemId"] and x.get("latestWorkerReport")
               for x in status),"Governor Ledger Work does not expose Result history")
-    delegation_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,directargs)
     recipient_choice_grant_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,
         a["workItemId"],signed_claims["worker"])
+    delegation_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,directargs)
     delegate_arguments=delegated_assignment_lifecycle(args.db_url,api,key,root,worker,
-        signed_claims["worker"],c)
+        outsider,no_seat,signed_claims["worker"],c)
     non_author_work=non_author_focus_lifecycle(
         args.db_url,api,key,root,worker,outsider,no_seat,
         signed_claims["worker"],a["workItemId"],c["workItemId"])
@@ -1266,7 +1389,8 @@ def main():
        "revocation/issuer/seat/session checks PASS. R02D2B exact non-author "
        "title-only Focus requires both independent current source grants and signed "
        "withdrawal protections PASS. R02E2A independent recipient-choice grant "
-       "decisions and self-only status PASS without an actual roster reader. "
+       "decisions and self-only status PASS. R02E2B exact native Person choices "
+       "require both signed grants, stable source pages and independent withdrawal PASS. "
        "Atlas UI, browser and release remain HELD. "
        "DISPOSABLE ONLY.\n")
     print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
