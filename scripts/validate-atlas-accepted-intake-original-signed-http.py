@@ -1,0 +1,1409 @@
+#!/usr/bin/env python3
+"""Protected disposable signed proof for post-v2 accepted original Ledger Work.
+
+Run ONLY after C1 fictional fixture, reciprocal fixture, v2 review migration
+and held compatibility candidate have all been installed on localhost clone.
+No production API, person or Work may be touched by this script.
+"""
+import argparse
+import importlib.util
+import re
+import time
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+HERE=Path(__file__).resolve().parent
+spec=importlib.util.spec_from_file_location(
+    "ledger_v2_signed", HERE/"validate-atlas-ledger-intake-disposition-v2-signed-http.py")
+v2=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(v2)
+base=v2.base
+c1=v2.c1
+ELM=c1.LEDGER_A
+OTHER=c1.LEDGER_B
+ORG="e5200000-0000-4000-8000-000000000801"
+OWNER_PERSON="e5200000-0000-4000-8000-000000000101"
+WORKER_PERSON="e5200000-0000-4000-8000-000000000102"
+SUBMIT="submit_ledger_work_self_api_v1"
+OWNER_WORK="company_work_accountability_native_ledger_self_api_v1"
+DIRECT="owner_direct_assign_existing_original_work_self_api_v1"
+ELIGIBLE="accepted_ledger_intake_owner_assignment_source_self_api_v1"
+PREFLIGHT="accepted_ledger_intake_assignment_preflight_self_api_v1"
+FOCUS_ENTRY="accepted_intake_author_work_focus_self_api_v1"
+NON_AUTHOR_FOCUS="accepted_intake_non_author_focus_self_api_v1"
+TITLE_DECIDE="decide_work_title_disclosure_self_api_v1"
+TITLE_STATE="work_title_disclosure_self_api_v1"
+NEEDS="ledger_accepted_original_needs_assignment_root_self_api_v1"
+STATUS="ledger_work_submission_status_self_api_v1"
+PROPOSE="propose_native_ledger_exact_work_scope_owner_self_api_v1"
+RESPOND="respond_native_ledger_standing_scope_self_api_v1"
+ASSIGN_SCOPE="assign_native_ledger_company_work_under_scope_owner_self_api_v1"
+MY_WORK="connected_person_my_work_self_api_v1"
+REPORT="report_connected_person_company_work_self_api_v1"
+PLACE="connected_person_place_work_self_api_v1"
+DELEGATE="decide_original_work_assignment_delegation_self_api_v1"
+DELEGATION="original_work_assignment_delegation_self_api_v1"
+RECIPIENT_DECIDE="decide_recipient_choice_grant_self_api_v1"
+RECIPIENT_STATE="recipient_choice_grant_self_api_v1"
+RECIPIENT_CHOICES="accepted_intake_assignment_recipient_choices_self_api_v1"
+UUID=re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",re.I)
+
+def check(condition,message):v2.must(condition,message)
+def allow(*args):return v2.allow(*args)
+def deny(*args):return v2.deny(*args)
+def sql(db,statement):return v2.sql(db,statement)
+def assignment_snapshot(db,work):
+    """Hash fictional original state, not private payloads in workflow output."""
+    check(UUID.fullmatch(work or "") is not None,"Exact synthetic Work required")
+    return sql(db,
+        "SELECT md5(jsonb_build_object("
+        "'work',(SELECT to_jsonb(w) FROM atlas.work_items w "
+        f"WHERE w.id='{work}'::uuid),"
+        "'allocations',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) "
+        f"FROM atlas.work_allocations a WHERE a.work_item_id='{work}'::uuid),"
+        "'plans',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) "
+        f"FROM atlas.work_execution_plans p WHERE p.work_item_id='{work}'::uuid),"
+        "'planEvents',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id) "
+        f"FROM atlas.work_execution_plan_events e WHERE e.work_item_id='{work}'::uuid),"
+        "'standingScopes',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.id) "
+        "FROM atlas.company_work_standing_assignment_scopes s "
+        f"WHERE s.covered_work_item_id='{work}'::uuid),"
+        "'intake',(SELECT to_jsonb(i) FROM atlas.ledger_work_intakes i "
+        f"WHERE i.work_item_id='{work}'::uuid),"
+        "'workCount',(SELECT count(*) FROM atlas.work_items),"
+        "'peopleCount',(SELECT count(*) FROM reality.entities WHERE entity_kind='person'),"
+        "'principalCount',(SELECT count(*) FROM atlas.principals))::text)")
+def deny_assignment_without_change(db,api,key,actor,arguments,label):
+    before=assignment_snapshot(db,arguments["p_work_item_id"])
+    deny(api,key,actor,DIRECT,arguments,label)
+    check(assignment_snapshot(db,arguments["p_work_item_id"])==before,
+          "Denied original-Work assignment changed durable state: "+label)
+def reject_assignment_without_change(db,api,key,actor,arguments,source_code,label):
+    before=assignment_snapshot(db,arguments["p_work_item_id"])
+    status,out=base.rpc(api,key,actor,DIRECT,arguments)
+    check(status in (400,409) and isinstance(out,dict) and out.get("code")==source_code,
+          "Expected actual source constraint "+source_code+": "+label)
+    check(assignment_snapshot(db,arguments["p_work_item_id"])==before,
+          "Rejected assignment changed durable state: "+label)
+def preflight_arguments(work,target=OWNER_PERSON,ledger=ELM):
+    return {"p_organization_id":ORG,"p_ledger_id":ledger,
+            "p_work_item_id":work,"p_target_person_id":target}
+def preflight_snapshot(db,work):
+    return (assignment_snapshot(db,work),sql(db,
+        "SELECT count(*) FROM atlas.ledger_original_work_assignment_delegation_events_v1"))
+def deny_preflight(db,api,key,actor,arguments,label):
+    before=preflight_snapshot(db,arguments["p_work_item_id"])
+    deny(api,key,actor,PREFLIGHT,arguments,label)
+    check(preflight_snapshot(db,arguments["p_work_item_id"])==before,
+          "Denied preflight changed durable state: "+label)
+def assignment_preflight(db,api,key,actor,work,target,available):
+    before=preflight_snapshot(db,work)
+    out=allow(api,key,actor,PREFLIGHT,preflight_arguments(work,target))
+    fields={"ok","contractVersion","organizationId","ledgerId","workItemId",
+        "actorPersonId","authorizationBasis","delegationEventId","delegationRevision",
+        "sourceAccepted","sameOriginalWork","assignmentAvailable","targetPersonId",
+        "recipientChecked","canAssign","serviceDateAccepted","preflightOnly",
+        "requiresRevalidationOnAssignment","workCreated","allocationCreated","planCreated",
+        "personnelRosterDisclosed","workPayloadDisclosed","subjectContextDisclosed"}
+    check(set(out)==fields
+          and out.get("contractVersion")=="accepted_ledger_intake_assignment_preflight_v1"
+          and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+          and out.get("workItemId")==work and out.get("targetPersonId")==target
+          and out.get("sourceAccepted") is True and out.get("sameOriginalWork") is True
+          and out.get("assignmentAvailable") is available
+          and out.get("recipientChecked") is (target is not None)
+          and out.get("canAssign") is (available and target is not None)
+          and out.get("preflightOnly") is True
+          and out.get("requiresRevalidationOnAssignment") is True
+          and all(out.get(k) is False for k in ("serviceDateAccepted","workCreated",
+              "allocationCreated","planCreated","personnelRosterDisclosed",
+              "workPayloadDisclosed","subjectContextDisclosed")),
+          "Preflight must disclose only bounded current capability, with unchecked recipient explicit")
+    check(preflight_snapshot(db,work)==before,"Preflight changed Work or grant state")
+    return out
+def focus_args(work,ledger=ELM):
+    return {"p_organization_id":ORG,"p_ledger_id":ledger,"p_work_item_id":work}
+def deny_focus(db,api,key,actor,work,label,ledger=ELM):
+    before=preflight_snapshot(db,work)
+    deny(api,key,actor,FOCUS_ENTRY,focus_args(work,ledger),label)
+    check(preflight_snapshot(db,work)==before,
+          "Denied author-title Focus entry changed durable state: "+label)
+def author_focus(db,api,key,actor,work,title):
+    before=preflight_snapshot(db,work)
+    out=allow(api,key,actor,FOCUS_ENTRY,focus_args(work))
+    fields={"ok","contractVersion","organizationId","ledgerId","workItemId",
+        "title","workState","focusMode","disclosureBasis","actorPersonId",
+        "authorizationBasis","delegationEventId","delegationRevision",
+        "sourceAccepted","instructionsAvailable","recipientRosterDisclosed",
+        "reviewContextDisclosed","subjectContextDisclosed","otherWorkDisclosed",
+        "workCreated","allocationCreated","planCreated","assignmentMustRevalidate"}
+    check(set(out)==fields and out.get("ok") is True
+          and out.get("contractVersion")=="accepted_ledger_intake_author_delegate_focus_entry_v1"
+          and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+          and out.get("workItemId")==work and out.get("title")==title
+          and out.get("workState")=="open" and out.get("focusMode")=="assignment_title_only"
+          and out.get("disclosureBasis")=="original_submitter_title_only_v1"
+          and out.get("actorPersonId")==WORKER_PERSON
+          and out.get("sourceAccepted") is True
+          and out.get("assignmentMustRevalidate") is True
+          and all(out.get(field) is False for field in
+              ("instructionsAvailable","recipientRosterDisclosed","reviewContextDisclosed",
+               "subjectContextDisclosed","otherWorkDisclosed",
+               "workCreated","allocationCreated","planCreated")),
+          "Authored focus entry must disclose only the signed author's title")
+    check(preflight_snapshot(db,work)==before,"Authored focus entry changed durable state")
+    return out
+def title_grant_args(work,recipient,revision=0,decision="grant",action="e5200000-0000-4000-8000-000000000d01",ledger=ELM):
+    return {"p_organization_id":ORG,"p_ledger_id":ledger,"p_work_item_id":work,
+        "p_recipient_person_id":recipient,"p_decision":decision,"p_expected_revision":revision,
+        "p_valid_until":None,"p_action_id":action,
+        "p_reason":"Fictional explicit exact title disclosure decision"}
+def title_state(api,key,actor,work,expected_person,revision,effective,decision=None):
+    out=allow(api,key,actor,TITLE_STATE,focus_args(work))
+    fields={"ok","contractVersion","organizationId","ledgerId","workItemId","personId",
+        "eventId","revision","decision","validUntil","disclosureScope","grantEffective",
+        "workTitleDisclosed","instructionsDisclosed","workCreated","allocationCreated","planCreated"}
+    check(set(out)==fields and out.get("ok") is True
+        and out.get("contractVersion")=="work_title_disclosure_self_v1"
+        and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+        and out.get("workItemId")==work and out.get("personId")==expected_person
+        and out.get("revision")==revision and out.get("decision")==decision
+        and out.get("grantEffective") is effective
+        and out.get("disclosureScope")=="accepted_original_title_only"
+        and all(out.get(n) is False for n in ("workTitleDisclosed","instructionsDisclosed",
+             "workCreated","allocationCreated","planCreated")),
+        "Self-only title-grant state disclosed a title, wrong Person, or unauthorized permission")
+    return out
+def title_decision(db,api,key,root,args,revision,effective,idem=False):
+    before=assignment_snapshot(db,args["p_work_item_id"])
+    out=allow(api,key,root,TITLE_DECIDE,args)
+    fields={"ok","contractVersion","eventId","organizationId","ledgerId","workItemId",
+        "recipientPersonId","revision","decision","validUntil","disclosureScope",
+        "grantEffective","idempotent","workTitleDisclosed","instructionsDisclosed",
+        "assignmentAuthorityGranted","workCreated","allocationCreated","planCreated"}
+    check(set(out)==fields and out.get("ok") is True
+        and out.get("contractVersion")=="work_title_disclosure_decision_v1"
+        and out.get("revision")==revision and out.get("grantEffective") is effective
+        and out.get("idempotent") is idem
+        and out.get("workItemId")==args["p_work_item_id"]
+        and out.get("recipientPersonId")==args["p_recipient_person_id"]
+        and out.get("disclosureScope")=="accepted_original_title_only"
+        and all(out.get(n) is False for n in ("workTitleDisclosed","instructionsDisclosed",
+             "assignmentAuthorityGranted","workCreated","allocationCreated","planCreated")),
+        "Title disclosure decision must not reveal Work or grant an unrelated operation")
+    check(assignment_snapshot(db,args["p_work_item_id"])==before,
+        "Title disclosure decision altered Work/allocation/Person/plan state")
+    return out
+def deny_non_author_focus(db,api,key,actor,work,label,ledger=ELM):
+    before=(preflight_snapshot(db,work),
+            sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1"))
+    deny(api,key,actor,NON_AUTHOR_FOCUS,focus_args(work,ledger),label)
+    check((preflight_snapshot(db,work),
+            sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1"))==before,
+          "Denied non-author Focus changed state: "+label)
+def non_author_focus(db,api,key,worker,work,expected_title,disclosure,assignment):
+    before=(preflight_snapshot(db,work),
+            sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1"))
+    out=allow(api,key,worker,NON_AUTHOR_FOCUS,focus_args(work))
+    fields={"ok","contractVersion","organizationId","ledgerId","workItemId","title",
+       "workState","focusMode","disclosureBasis","actorPersonId",
+       "assignmentAuthorizationBasis","assignmentGrantEventId","assignmentGrantRevision",
+       "disclosureGrantEventId","disclosureGrantRevision","sourceAccepted",
+       "assignmentMustRevalidate","instructionsAvailable","authorIdentityDisclosed",
+       "recipientRosterDisclosed","reviewContextDisclosed","subjectContextDisclosed",
+       "otherWorkDisclosed","workCreated","allocationCreated","planCreated"}
+    check(set(out)==fields and out.get("ok") is True
+        and out.get("contractVersion")=="accepted_intake_non_author_focus_title_v1"
+        and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+        and out.get("workItemId")==work and out.get("title")==expected_title
+        and out.get("workState")=="open" and out.get("focusMode")=="assignment_title_only"
+        and out.get("disclosureBasis")=="governor_exact_original_title_grant_v1"
+        and out.get("actorPersonId")==WORKER_PERSON
+        and out.get("assignmentAuthorizationBasis")=="delegated_exact_existing_accepted_original_work_v1"
+        and out.get("assignmentGrantEventId")==assignment.get("eventId")
+        and out.get("assignmentGrantRevision")==assignment.get("revision")
+        and out.get("disclosureGrantEventId")==disclosure.get("eventId")
+        and out.get("disclosureGrantRevision")==disclosure.get("revision")
+        and out.get("sourceAccepted") is True and out.get("assignmentMustRevalidate") is True
+        and all(out.get(k) is False for k in
+          ("instructionsAvailable","authorIdentityDisclosed","recipientRosterDisclosed",
+           "reviewContextDisclosed","subjectContextDisclosed","otherWorkDisclosed",
+           "workCreated","allocationCreated","planCreated")),
+        "Non-author title leaked outside exact current two-authority allowance")
+    check((preflight_snapshot(db,work),
+            sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1"))==before,
+          "Non-author title entry created durable effects")
+    return out
+def non_author_focus_lifecycle(db,api,key,root,worker,outsider,no_seat,claims,
+                               authored_work,pending):
+    # Signed root creates an independent original; delegate did not author it.
+    item=submit(api,key,root,"governor-authored-exact-original-006",
+                "Fictional root submitted original")
+    accepted(api,key,root,item,"Fictional root reviewed original")
+    work=item["workItemId"]
+    assignment=delegation_state(api,key,worker)
+    check(assignment.get("revision")==8 and assignment.get("grantEffective") is True,
+          "Need current true nonroot assignment authorization")
+    deny_non_author_focus(db,api,key,worker,work,
+        "assignment grant alone cannot reveal another submitter's original")
+    deny_non_author_focus(db,api,key,worker,authored_work,
+        "non-author read cannot open caller's authored original")
+    for actor,label in ((root,"root"),(outsider,"outsider"),
+                        (no_seat,"unconnected"),(None,"anonymous")):
+        deny_non_author_focus(db,api,key,actor,work,
+            label+" cannot use the non-author assignment Focus reader")
+    grant_args=title_grant_args(work,WORKER_PERSON,
+        action="e5200000-0000-4000-8000-000000000d20")
+    title=title_decision(db,api,key,root,grant_args,1,True)
+    non_author_focus(db,api,key,worker,work,"Fictional root reviewed original",title,assignment)
+    for other,label,ledger in (
+      (pending,"pending",ELM),
+      ("e5200000-0000-4000-8000-000000000fff","unknown",ELM),
+      (work,"wrong Ledger",OTHER),
+      (authored_work,"different original",ELM)):
+        deny_non_author_focus(db,api,key,worker,other,
+            "specific grant does not disclose "+label,ledger)
+    revoked={**grant_args,"p_decision":"revoke","p_expected_revision":1,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d21"}
+    title_decision(db,api,key,root,revoked,2,False)
+    deny_non_author_focus(db,api,key,worker,work,
+        "title disclosure revocation independently withdraws Focus")
+    title=title_decision(db,api,key,root,{**grant_args,"p_expected_revision":2,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d22"},3,True)
+    non_author_focus(db,api,key,worker,work,"Fictional root reviewed original",title,assignment)
+    revoke={"p_organization_id":ORG,"p_ledger_id":ELM,"p_delegate_person_id":WORKER_PERSON,
+        "p_decision":"revoke","p_expected_revision":8,"p_valid_until":None,
+        "p_action_id":"e5200000-0000-4000-8000-000000000b14",
+        "p_reason":"Synthetic assignment revocation while title permission stays active"}
+    allow(api,key,root,DELEGATE,revoke)
+    title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
+    deny_non_author_focus(db,api,key,worker,work,
+        "title grant alone never supplies assignment authority")
+    assignment=allow(api,key,root,DELEGATE,{**revoke,"p_decision":"grant",
+        "p_expected_revision":9,"p_action_id":"e5200000-0000-4000-8000-000000000b15"})
+    check(assignment.get("revision")==10 and assignment.get("currentlyEffective") is True,
+          "New assignment grant must carry its own epoch")
+    non_author_focus(db,api,key,worker,work,"Fictional root reviewed original",title,assignment)
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny_non_author_focus(db,api,key,worker,work,
+            "ended seat prevents reuse of formerly effective dual grants")
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    session=claims["session_id"]
+    old=sql(db,f"SELECT quote_nullable(not_after) FROM auth.sessions WHERE id='{session}'::uuid")
+    sql(db,f"UPDATE auth.sessions SET not_after=now()-interval '1 minute' WHERE id='{session}'::uuid")
+    try:
+        deny_non_author_focus(db,api,key,worker,work,
+            "expired signed session prevents non-author title read")
+    finally:
+        sql(db,f"UPDATE auth.sessions SET not_after={old} WHERE id='{session}'::uuid")
+    non_author_focus(db,api,key,worker,work,"Fictional root reviewed original",title,assignment)
+    print("PASS R02D2B signed independent submitter and non-author title-only Focus, "
+          "separate current information and assignment grants, grant epochs, "
+          "revoked/disconnected/expired/wrong original and no Work mutation")
+    return work
+
+def title_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending,other_work):
+    # The worker is the author; the root is a DIFFERENT Person and does not
+    # derive a private title from grant-state. No Work title is returned at all.
+    title_state(api,key,worker,work,WORKER_PERSON,0,False)
+    title_state(api,key,root,work,OWNER_PERSON,0,False)
+    grant=title_grant_args(work,WORKER_PERSON)
+    for actor,label in ((worker,"connected author with unrelated Ledger root"),
+                        (outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,actor,TITLE_DECIDE,grant,label+" cannot administer disclosure")
+    deny(api,key,worker,TITLE_DECIDE,{**grant,"p_ledger_id":OTHER},
+         "another Ledger root cannot grant title for this Ledger's original")
+    deny(api,key,root,TITLE_DECIDE,{**grant,"p_work_item_id":pending},
+         "pending intake is not an accepted title grant source")
+    deny(api,key,root,TITLE_DECIDE,{**grant,
+         "p_recipient_person_id":"e5200000-0000-4000-8000-000000000103"},
+         "unconnected Person cannot receive title disclosure")
+    deny(api,key,root,TITLE_DECIDE,{**grant,
+         "p_work_item_id":"e5200000-0000-4000-8000-000000000fff"},
+         "unknown original cannot receive title disclosure")
+    before_count=sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1")
+    first=title_decision(db,api,key,root,grant,1,True)
+    check(UUID.fullmatch(first.get("eventId","")) is not None,
+          "Immutable exact permission event required")
+    title_state(api,key,worker,work,WORKER_PERSON,1,True,"grant")
+    title_state(api,key,root,work,OWNER_PERSON,0,False)
+    again=title_decision(db,api,key,root,grant,1,True,True)
+    check(again.get("eventId")==first.get("eventId"),"Exact title decision retry must be idempotent")
+    code,out=base.rpc(api,key,root,TITLE_DECIDE,{**grant,
+       "p_reason":"Fictional changed replay must never override title grant"})
+    check(code in (400,409) and isinstance(out,dict) and out.get("code")=="23505",
+          "Changed action-id replay must be rejected")
+    v2.stale(api,key,root,TITLE_DECIDE,{**grant,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d02"},
+        "stale exact-title disclosure revision cannot overwrite history")
+    revoke={**grant,"p_decision":"revoke","p_expected_revision":1,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d03"}
+    ended=title_decision(db,api,key,root,revoke,2,False)
+    check(ended.get("eventId")!=first.get("eventId"),"Revocation must append a distinct event")
+    title_state(api,key,worker,work,WORKER_PERSON,2,False,"revoke")
+    check(sql(db,"SELECT atlas.work_title_disclosure_event_effective_v1("
+        f"'{first['eventId']}'::uuid)")=="f",
+        "Revocation cannot allow fallback to an old title grant epoch")
+    # A newly granted Person can still be disconnected without losing
+    # historical source decisions or gaining an alternate read path.
+    regrant={**grant,"p_expected_revision":2,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d04"}
+    title_decision(db,api,key,root,regrant,3,True)
+    title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny(api,key,worker,TITLE_STATE,focus_args(work),
+             "disconnected Person cannot read title grant-state through existing JWT")
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
+    # A separate explicit non-author recipient can be granted this same
+    # Work without changing the author's own independent permission history.
+    root_target={**grant,"p_recipient_person_id":OWNER_PERSON,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d05"}
+    title_decision(db,api,key,root,root_target,1,True)
+    title_state(api,key,root,work,OWNER_PERSON,1,True,"grant")
+    title_state(api,key,worker,work,WORKER_PERSON,3,True,"grant")
+    check(sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1")==
+        str(int(before_count)+4),"Grant/revoke history must be exactly append-only")
+    # Genuine simultaneous root decisions with the same expected revision on a
+    # different accepted original: one event, one source stale rejection.
+    # A time-bounded grant must also expire without reviving old authority.
+    expires=sql(db,"SELECT (clock_timestamp()+interval '10 seconds')::text")
+    race=title_grant_args(other_work,WORKER_PERSON,
+        action="e5200000-0000-4000-8000-000000000d06")
+    race={**race,"p_valid_until":expires}
+    rival={**race,"p_action_id":"e5200000-0000-4000-8000-000000000d07"}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts=list(pool.map(lambda args:base.rpc(api,key,root,TITLE_DECIDE,args),
+                               (race,rival)))
+    wins=[out for status,out in attempts
+          if status==200 and isinstance(out,dict) and out.get("ok") is True]
+    stale=[out for status,out in attempts
+           if status in (400,409,500) and isinstance(out,dict)
+           and out.get("code")=="40001"]
+    check(len(wins)==1 and len(stale)==1
+        and wins[0].get("revision")==1 and wins[0].get("grantEffective") is True,
+        "Concurrent title disclosure decisions must record exactly one grant epoch")
+    title_state(api,key,worker,other_work,WORKER_PERSON,1,True,"grant")
+    check(sql(db,"SELECT count(*) FROM atlas.ledger_original_work_title_disclosure_events_v1")==
+        str(int(before_count)+5),"Concurrent title decisions created extra durable grants")
+    time.sleep(10.3)
+    title_state(api,key,worker,other_work,WORKER_PERSON,1,False,"grant")
+    check(sql(db,"SELECT atlas.work_title_disclosure_event_effective_v1("
+        f"'{wins[0]['eventId']}'::uuid)")=="f",
+        "Expired exact title grant must not remain effective")
+    print("PASS R02D2A signed exact-original title-only grant/revoke, self-only state, "
+          "author/non-author separation, CAS/concurrency/expiry, idempotent replay, revoked epoch, "
+          "pending/wrong-Ledger/unconnected denial, no Work effects and no title response")
+
+def delegation_state(api,key,worker):
+    out=allow(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM})
+    check(out.get("contractVersion")=="original_work_assignment_delegation_self_v1"
+          and out.get("personId")==WORKER_PERSON
+          and out.get("operation")=="assign_accepted_original_work"
+          and out.get("assignmentWriterEnabled") is True
+          and out.get("rosterDisclosed") is False and out.get("workDisclosed") is False,
+          "Self-only delegation source must describe only the integrated assignment operation")
+    return out
+def delegation_lifecycle(db,api,key,root,worker,outsider,no_seat,directargs):
+    """Preserve R02A administration proof while R02B consumes the grant."""
+    table="atlas.ledger_original_work_assignment_delegation_events_v1"
+    work=directargs["p_work_item_id"]
+    unchanged=assignment_snapshot(db,work)
+    future=sql(db,"SELECT (clock_timestamp()+interval '1 day')::text")
+    def decision(revision,kind,n,expiry=None):
+        return {"p_organization_id":ORG,"p_ledger_id":ELM,
+                "p_delegate_person_id":WORKER_PERSON,"p_decision":kind,
+                "p_expected_revision":revision,"p_valid_until":expiry,
+                "p_action_id":"e5200000-0000-4000-8000-"+f"{0xb000+n:012x}",
+                "p_reason":"Fictional exact Ledger assignment authority decision"}
+    initial=delegation_state(api,key,worker)
+    check(initial.get("revision")==0 and initial.get("grantEffective") is False,
+          "Connection/metadata/other Ledger root must not fabricate delegation")
+    grant=decision(0,"grant",1,future)
+    for token,label in ((worker,"worker/another Ledger root"),(outsider,"outsider"),
+                        (no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,token,DELEGATE,grant,label+" cannot issue an assignment grant")
+        deny_preflight(db,api,key,token,preflight_arguments(work),
+            label+" cannot preflight without exact assignment authority")
+    for token,label in ((outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,token,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM},
+             label+" cannot inspect another Ledger's grants")
+    deny(api,key,root,DELEGATE,{**grant,"p_ledger_id":OTHER},
+         "a root on one Ledger cannot administer another Ledger's grants")
+    deny(api,key,root,DELEGATE,{**grant,
+         "p_delegate_person_id":"e5200000-0000-4000-8000-000000000103"},
+         "grant target must have the current exact native connection")
+    check(sql(db,f"SELECT count(*) FROM {table}")=="0",
+          "Denied grant attempts appended authority")
+    receipt=allow(api,key,root,DELEGATE,grant)
+    check(receipt.get("contractVersion")=="original_work_assignment_delegation_decision_v1"
+          and receipt.get("revision")==1 and receipt.get("decision")=="grant"
+          and receipt.get("currentlyEffective") is True
+          and receipt.get("actorPersonId")==OWNER_PERSON
+          and receipt.get("delegatePersonId")==WORKER_PERSON
+          and receipt.get("operation")=="assign_accepted_original_work"
+          and receipt.get("assignmentWriterEnabled") is True
+          and all(receipt.get(k) is False for k in
+                  ("workCreated","allocationCreated","planCreated","rootAuthorityCreated")),
+          "Signed grant receipt widened scope or claimed an operational effect")
+    event=receipt.get("eventId")
+    check(UUID.fullmatch(event or "") is not None,"Canonical grant event required")
+    own=delegation_state(api,key,worker)
+    check(own.get("grantEffective") is True and own.get("eventId")==event,
+          "Independent signed Person cannot reread the grant")
+    root_self=allow(api,key,root,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM})
+    check(root_self.get("revision")==0 and root_self.get("eventId") is None,
+          "Self-only reader exposed the governor's target's grant")
+    idem=allow(api,key,root,DELEGATE,grant)
+    check(idem.get("idempotent") is True and idem.get("eventId")==event
+          and sql(db,f"SELECT count(*) FROM {table}")=="1",
+          "Exact grant replay duplicated authority history")
+    code,body=base.rpc(api,key,root,DELEGATE,{**grant,"p_reason":"Changed fictional retry"})
+    check(code==409 and body.get("code")=="23505","Grant action collision must source-reject")
+    v2.stale(api,key,root,DELEGATE,decision(0,"revoke",2),
+             "stale grant revision cannot overwrite history")
+    # Actual concurrent signed decisions over the same source revision.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts=list(pool.map(lambda n:base.rpc(api,key,root,DELEGATE,
+                         decision(1,"revoke",n)),(3,4)))
+    successes=[obj for code,obj in attempts if code==200 and obj.get("ok") is True]
+    stale=[obj for code,obj in attempts if code in (400,409,500) and obj.get("code")=="40001"]
+    check(len(successes)==1 and successes[0].get("revision")==2 and len(stale)==1,
+          "Concurrent grant decisions must yield one revision and one genuine stale rejection")
+    own=delegation_state(api,key,worker)
+    check(own.get("grantEffective") is False and own.get("decision")=="revoke"
+          and own.get("revision")==2,"Revocation failed to suppress prior grant")
+    deny_assignment_without_change(db,api,key,worker,directargs,
+        "revoked delegate cannot enter the actual assignment writer")
+    deny_preflight(db,api,key,worker,preflight_arguments(work),
+        "revoked grant cannot preflight with the same valid JWT")
+    # Even DB-owner writes cannot erase or amend original decision evidence.
+    sql(db,f"""DO $immutable$ BEGIN
+      BEGIN UPDATE {table} SET reason='Changed immutable fictional decision'
+        WHERE id='{event}'::uuid;
+        RAISE EXCEPTION 'Delegation UPDATE immutability was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+      BEGIN DELETE FROM {table} WHERE id='{event}'::uuid;
+        RAISE EXCEPTION 'Delegation DELETE immutability was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+      BEGIN TRUNCATE {table};
+        RAISE EXCEPTION 'Delegation TRUNCATE immutability was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+    END $immutable$;""")
+    regrant=allow(api,key,root,DELEGATE,decision(2,"grant",5,future))
+    check(regrant.get("revision")==3 and regrant.get("currentlyEffective") is True,
+          "A new signed decision must establish a new auditable grant epoch")
+    reject_assignment_without_change(db,api,key,worker,directargs,"23505",
+        "a genuine delegate cannot claim a prior root's assignment action")
+    # Only fictional local fixture connectivity is changed/restored here.
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM},
+             "ended connection denies grant readback with the same valid JWT")
+        deny_assignment_without_change(db,api,key,worker,directargs,
+            "ended connection denies assignment with the same JWT")
+        deny(api,key,root,DELEGATE,decision(3,"grant",6,future),
+             "disconnected target cannot receive another grant")
+        revoked=allow(api,key,root,DELEGATE,decision(3,"revoke",7))
+        check(revoked.get("revision")==4,"Root must be able to revoke a disconnected Person")
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    own=delegation_state(api,key,worker)
+    check(own.get("revision")==4 and own.get("grantEffective") is False,
+          "Reconnection resurrected an older revoked grant")
+    expiry=sql(db,"SELECT (clock_timestamp()+interval '12 seconds')::text")
+    expiring=decision(4,"grant",8,expiry)
+    expiring_receipt=allow(api,key,root,DELEGATE,expiring)
+    stop=time.monotonic()+24
+    while True:
+        own=delegation_state(api,key,worker)
+        if own.get("grantEffective") is False:break
+        check(time.monotonic()<stop,"Grant expiry failed at source")
+        time.sleep(0.5)
+    check(own.get("revision")==5 and own.get("eventId")==expiring_receipt.get("eventId"),
+          "Expiry must retain the newest decision, never revive older authority")
+    deny_assignment_without_change(db,api,key,worker,directargs,
+        "expired delegate cannot replay an assignment through the actual writer")
+    deny_preflight(db,api,key,worker,preflight_arguments(work),
+        "expired grant cannot produce assignment capability")
+    expired_replay=allow(api,key,root,DELEGATE,expiring)
+    check(expired_replay.get("idempotent") is True
+          and expired_replay.get("eventId")==expiring_receipt.get("eventId")
+          and expired_replay.get("currentlyEffective") is False,
+          "Replay renewed an expired grant")
+    final=allow(api,key,root,DELEGATE,decision(5,"grant",9))
+    check(final.get("revision")==6 and final.get("currentlyEffective") is True,
+          "Explicit revocation-lifetime grant must be recorded as a new epoch")
+    check(sql(db,f"SELECT count(*) FROM {table}")=="6",
+          "Replay/collision/concurrency lost or duplicated grant decisions")
+    check(assignment_snapshot(db,work)==unchanged,
+          "Grant lifecycle changed Work/Person/allocation/plan/consent state")
+    print("PASS native grant/revoke, self-only signed readback, CAS/concurrency, expiry, "
+          "immutable history, connection withdrawal, no Work effects from administration")
+def recipient_choice_grant_lifecycle(db,api,key,root,worker,outsider,no_seat,work,claims):
+    """R02E2A: separate signed source information grant, not a roster reader."""
+    table="atlas.ledger_assignment_recipient_choice_grant_events_v1"
+    initial=assignment_snapshot(db,work)
+    person_counts=sql(db,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")
+    future=sql(db,"SELECT (clock_timestamp()+interval '1 day')::text")
+    def decision(revision,kind,n,expiry=None,ledger=ELM,target=WORKER_PERSON):
+        return {"p_organization_id":ORG,"p_ledger_id":ledger,
+                "p_delegate_person_id":target,"p_decision":kind,
+                "p_expected_revision":revision,"p_valid_until":expiry,
+                "p_action_id":"e5200000-0000-4000-8000-"+f"{0xe000+n:012x}",
+                "p_reason":"Fictional independent recipient information authorization"}
+    scope={"p_organization_id":ORG,"p_ledger_id":ELM}
+    def state(token,revision,effective):
+        out=allow(api,key,token,RECIPIENT_STATE,scope)
+        fields={"ok","contractVersion","organizationId","ledgerId","personId",
+                "eventId","revision","decision","validUntil","operation",
+                "grantEffective","recipientReaderEnabled","rosterDisclosed",
+                "peopleDisclosed","workDisclosed","titlesDisclosed"}
+        check(set(out)==fields and out.get("contractVersion")=="recipient_choice_grant_self_v1"
+              and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+              and out.get("revision")==revision and out.get("grantEffective") is effective
+              and out.get("operation")=="select_accepted_original_assignment_recipient"
+              and all(out.get(k) is False for k in ("recipientReaderEnabled",
+                  "rosterDisclosed","peopleDisclosed","workDisclosed","titlesDisclosed")),
+              "Recipient authority status must be self-only, exact and People-free")
+        return out
+    def receipt(out,revision,decision_word,effective):
+        fields={"ok","contractVersion","eventId","organizationId","ledgerId",
+                "delegatePersonId","revision","decision","validUntil","recordedAt",
+                "actorPersonId","operation","currentlyEffective","idempotent",
+                "workCreated","allocationCreated","planCreated",
+                "rootAuthorityCreated","recipientReaderEnabled","rosterDisclosed","peopleDisclosed"}
+        check(set(out)==fields and out.get("contractVersion")=="recipient_choice_grant_decision_v1"
+              and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+              and out.get("delegatePersonId")==WORKER_PERSON
+              and out.get("actorPersonId")==OWNER_PERSON and out.get("revision")==revision
+              and out.get("decision")==decision_word and out.get("currentlyEffective") is effective
+              and out.get("operation")=="select_accepted_original_assignment_recipient"
+              and UUID.fullmatch(out.get("eventId") or "") is not None
+              and all(out.get(k) is False for k in ("workCreated","allocationCreated",
+                  "planCreated","rootAuthorityCreated","recipientReaderEnabled",
+                  "rosterDisclosed","peopleDisclosed")),
+              "Recipient information decision must not disclose Persons or create Work authority")
+    state(worker,0,False)
+    root_state=state(root,0,False)
+    check(root_state.get("personId")==OWNER_PERSON and root_state.get("eventId") is None,
+          "Self status must not expose another Person's grant")
+    candidate=decision(0,"grant",1,future)
+    for person,label in ((worker,"delegate"),(outsider,"outsider"),
+                         (no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,person,RECIPIENT_DECIDE,candidate,label+" cannot issue recipient authority")
+    for person,label in ((outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,person,RECIPIENT_STATE,scope,label+" cannot read grant status")
+    deny(api,key,root,RECIPIENT_DECIDE,decision(0,"grant",2,future,OTHER),
+         "wrong Ledger root cannot grant recipient disclosure")
+    deny(api,key,root,RECIPIENT_DECIDE,decision(0,"grant",3,future,ELM,
+         "e5200000-0000-4000-8000-000000000103"),
+         "unconnected Person cannot receive recipient discovery authority")
+    check(sql(db,f"SELECT count(*) FROM {table}")=="0","Rejected grant wrote history")
+    one=allow(api,key,root,RECIPIENT_DECIDE,candidate)
+    receipt(one,1,"grant",True)
+    check(state(worker,1,True).get("eventId")==one["eventId"],
+          "Signed recipient must see their own current epoch")
+    idem=allow(api,key,root,RECIPIENT_DECIDE,candidate)
+    receipt(idem,1,"grant",True)
+    check(idem.get("idempotent") is True and idem.get("eventId")==one["eventId"],
+          "Same action replay duplicated grant")
+    code,obj=base.rpc(api,key,root,RECIPIENT_DECIDE,
+                      {**candidate,"p_reason":"Changed fictional information action"})
+    check(code==409 and obj.get("code")=="23505",
+          "Changed action replay must source-reject")
+    v2.stale(api,key,root,RECIPIENT_DECIDE,decision(0,"revoke",4),
+             "stale recipient information revision must fail")
+    # This information grant must NOT make the root-owned roster discoverable.
+    deny(api,key,worker,"connected_ledger_person_choices_self_api_v1",{
+         "p_ledger_id":ELM,"p_limit":100,"p_after_person_id":None},
+         "information-grant administration cannot expose existing governor roster")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts=list(pool.map(lambda n:base.rpc(api,key,root,RECIPIENT_DECIDE,
+                             decision(1,"revoke",n)),(5,6)))
+    success=[o for code,o in attempts if code==200 and o.get("ok") is True]
+    stale=[o for code,o in attempts if code in (400,409,500) and o.get("code")=="40001"]
+    check(len(success)==1 and len(stale)==1,
+          "Concurrent information decisions must serialize with exactly one stale")
+    receipt(success[0],2,"revoke",False)
+    state(worker,2,False)
+    sql(db,f"""DO $immutable$ BEGIN
+      BEGIN UPDATE {table} SET reason='Changed recipient information evidence'
+       WHERE id='{one["eventId"]}'::uuid;
+       RAISE EXCEPTION 'Recipient UPDATE protection was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+      BEGIN DELETE FROM {table} WHERE id='{one["eventId"]}'::uuid;
+       RAISE EXCEPTION 'Recipient DELETE protection was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+      BEGIN TRUNCATE {table};
+       RAISE EXCEPTION 'Recipient TRUNCATE protection was not enforced';
+      EXCEPTION WHEN SQLSTATE '42501' THEN NULL; END;
+    END $immutable$;""")
+    newer=allow(api,key,root,RECIPIENT_DECIDE,decision(2,"grant",7,future))
+    receipt(newer,3,"grant",True)
+    check(newer["eventId"]!=one["eventId"],"Regrant must use new epoch")
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny(api,key,worker,RECIPIENT_STATE,scope,
+             "withdrawn native seat must deny current grant readback")
+        deny(api,key,root,RECIPIENT_DECIDE,decision(3,"grant",8,future),
+             "cannot grant connected roster discovery to withdrawn Person")
+        revoked=allow(api,key,root,RECIPIENT_DECIDE,decision(3,"revoke",9))
+        receipt(revoked,4,"revoke",False)
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    state(worker,4,False)
+    expiring=decision(4,"grant",10,sql(db,
+                  "SELECT (clock_timestamp()+interval '10 seconds')::text"))
+    expired=allow(api,key,root,RECIPIENT_DECIDE,expiring)
+    receipt(expired,5,"grant",True)
+    stop=time.monotonic()+24
+    while True:
+        observed=allow(api,key,worker,RECIPIENT_STATE,scope)
+        if observed.get("grantEffective") is False:break
+        check(time.monotonic()<stop,"Recipient information grant did not expire at source")
+        time.sleep(0.5)
+    state(worker,5,False)
+    expired_receipt=allow(api,key,root,RECIPIENT_DECIDE,expiring)
+    check(expired_receipt.get("idempotent") is True
+          and expired_receipt.get("currentlyEffective") is False,
+          "Idempotent expired grant may not be renewed")
+    final=allow(api,key,root,RECIPIENT_DECIDE,decision(5,"grant",11,future))
+    receipt(final,6,"grant",True)
+    session=claims["session_id"]
+    old=sql(db,f"SELECT quote_nullable(not_after) FROM auth.sessions WHERE id='{session}'::uuid")
+    sql(db,"UPDATE auth.sessions SET not_after=now()-interval '1 minute' "
+        f"WHERE id='{session}'::uuid")
+    try:
+        deny(api,key,worker,RECIPIENT_STATE,scope,
+             "expired actual GoTrue session must deny grant state")
+    finally:
+        sql(db,f"UPDATE auth.sessions SET not_after={old} WHERE id='{session}'::uuid")
+    state(worker,6,True)
+    check(sql(db,f"SELECT count(*) FROM {table}")=="6",
+          "One expected revision per source decision")
+    check(assignment_snapshot(db,work)==initial
+          and sql(db,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")==person_counts,
+          "Grant administration must create no Work/Person/assignment/plan")
+    print("PASS R02E2A independent recipient-choice information grant, root CAS, self-only state, "
+          "signed negative roster read, no durable Work effects; NO actual Person chooser")
+
+def recipient_choices_args(work,limit=25,after=None,ledger=ELM):
+    return {"p_organization_id":ORG,"p_ledger_id":ledger,
+            "p_work_item_id":work,"p_limit":limit,"p_after_person_id":after}
+def deny_recipient_choices(db,api,key,token,work,label,ledger=ELM):
+    before=assignment_snapshot(db,work)
+    deny(api,key,token,RECIPIENT_CHOICES,recipient_choices_args(work,1,None,ledger),label)
+    check(assignment_snapshot(db,work)==before,
+          "Denied recipient choices changed original Work: "+label)
+def recipient_choices_lifecycle(db,api,key,root,worker,outsider,no_seat,work,pending):
+    """R02E2B: exact known accepted unassigned original and both actual grants."""
+    snapshot=assignment_snapshot(db,work)
+    info=allow(api,key,worker,RECIPIENT_STATE,
+               {"p_organization_id":ORG,"p_ledger_id":ELM})
+    operation=delegation_state(api,key,worker)
+    check(info.get("revision")==6 and info.get("grantEffective") is True
+          and operation.get("revision")==6 and operation.get("grantEffective") is True,
+          "Independent current R02B operation and R02E2A information grants required")
+    def read(limit=25,after=None):
+        out=allow(api,key,worker,RECIPIENT_CHOICES,recipient_choices_args(work,limit,after))
+        fields={"ok","contractVersion","organizationId","ledgerId","workItemId",
+                "actorPersonId","authorizationBasis","assignmentGrantEventId",
+                "assignmentGrantRevision","recipientGrantEventId","recipientGrantRevision",
+                "items","hasMore","nextPersonId","sourceAccepted","assignmentMustRevalidate",
+                "recipientChoiceOnly","rootRosterGranted","workTitleDisclosed",
+                "workInstructionsDisclosed","workContextDisclosed","membershipDisclosed",
+                "roleDisclosed","contactDisclosed","totalCountDisclosed",
+                "workCreated","allocationCreated","planCreated"}
+        check(set(out)==fields and out.get("ok") is True
+              and out.get("contractVersion")=="accepted_intake_assignment_recipient_choices_v1"
+              and out.get("organizationId")==ORG and out.get("ledgerId")==ELM
+              and out.get("workItemId")==work and out.get("actorPersonId")==WORKER_PERSON
+              and out.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1"
+              and out.get("assignmentGrantEventId")==operation["eventId"]
+              and out.get("assignmentGrantRevision")==operation["revision"]
+              and out.get("recipientGrantEventId")==info["eventId"]
+              and out.get("recipientGrantRevision")==info["revision"]
+              and out.get("sourceAccepted") is True
+              and out.get("assignmentMustRevalidate") is True
+              and out.get("recipientChoiceOnly") is True
+              and all(out.get(k) is False for k in ("rootRosterGranted",
+                  "workTitleDisclosed","workInstructionsDisclosed","workContextDisclosed",
+                  "membershipDisclosed","roleDisclosed","contactDisclosed",
+                  "totalCountDisclosed","workCreated","allocationCreated","planCreated"))
+              and isinstance(out.get("items"),list)
+              and type(out.get("hasMore")) is bool,
+              "Recipient page must be exact dual-grant source-only packet without extra information")
+        for item in out["items"]:
+            check(set(item)=={"personId","name"} and UUID.fullmatch(item.get("personId") or "")
+                  and isinstance(item.get("name"),str),
+                  "Recipient choice must contain only canonical Person ID and display name")
+            check(sql(db,"SELECT count(*) FROM ledger.seats seat "
+                 "JOIN reality.entities p ON p.id=seat.person_entity_id "
+                 f"WHERE p.id='{item['personId']}'::uuid AND seat.ledger_id='{ELM}'::uuid "
+                 "AND seat.seat_state='active' AND seat.ended_at IS NULL "
+                 "AND p.entity_kind='person' AND p.identity_state='canonical'")!="0",
+                 "Choice must remain a currently connected canonical native Person")
+        check(assignment_snapshot(db,work)==snapshot,
+              "Reading recipient names changed Work, Person, allocation or plan")
+        return out
+    for person,label in ((root,"governor cannot elevate to delegated chooser"),
+                         (outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny_recipient_choices(db,api,key,person,work,label)
+    for w,ledger,label in ((pending,ELM,"pending original"),
+                           ("e5200000-0000-4000-8000-000000000971",ELM,"non-intake Work"),
+                           ("e5200000-0000-4000-8000-000000000fff",ELM,"unknown original"),
+                           (work,OTHER,"other Ledger")):
+        deny_recipient_choices(db,api,key,worker,w,label,ledger)
+    # Current signed delegate gets a complete deterministic unique Person page.
+    all_items=[];seen=set();after=None
+    for _ in range(100):
+        page=read(1,after)
+        check(len(page["items"])<=1,"Bounded reader exceeded explicit limit")
+        for item in page["items"]:
+            check(item["personId"] not in seen and (after is None or item["personId"]>after),
+                  "Cursor must advance without duplicate native Persons")
+            seen.add(item["personId"]);all_items.append(item)
+        if not page["hasMore"]:
+            check(page["nextPersonId"] is None,"Terminal page cannot expose trailing cursor")
+            break
+        check(len(page["items"])==1 and page["nextPersonId"]==page["items"][-1]["personId"],
+              "Nonterminal cursor must equal last verified Person")
+        after=page["nextPersonId"]
+    else:
+        raise AssertionError("Unbounded native Person pagination")
+    check({OWNER_PERSON,WORKER_PERSON}.issubset(seen),
+          "Expected two truly signed native connected People in eligible choices")
+    check(read(100)["items"]==all_items,"Page sequence must equal bounded full page")
+    status,out=base.rpc(api,key,worker,RECIPIENT_CHOICES,recipient_choices_args(work,0))
+    check(status==400 and out.get("code")=="22023",
+          "Zero page limit must fail at source, not silently expose roster")
+    status,out=base.rpc(api,key,worker,RECIPIENT_CHOICES,recipient_choices_args(work,101))
+    check(status==400 and out.get("code")=="22023",
+          "Oversize page must fail at source")
+    # An actual signed native seat or GoTrue session withdrawal denies even
+    # an earlier accessible exact Person page; no cached page is authority.
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny_recipient_choices(db,api,key,worker,work,
+            "ended native connection denies independently authorized recipient page")
+    finally:
+        sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+            f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    # R02E2A information revocation is independent of active R02B operation.
+    revoke={"p_organization_id":ORG,"p_ledger_id":ELM,
+            "p_delegate_person_id":WORKER_PERSON,"p_decision":"revoke",
+            "p_expected_revision":6,"p_valid_until":None,
+            "p_action_id":"e5200000-0000-4000-8000-00000000e101",
+            "p_reason":"Fictional revoke independent recipient information access"}
+    r=allow(api,key,root,RECIPIENT_DECIDE,revoke)
+    check(r.get("revision")==7 and r.get("currentlyEffective") is False,
+          "Independent recipient choice revocation failed")
+    deny_recipient_choices(db,api,key,worker,work,
+                          "recipient information revoked while assignment grant stays effective")
+    regrant=allow(api,key,root,RECIPIENT_DECIDE,{
+        **revoke,"p_decision":"grant","p_expected_revision":7,
+        "p_action_id":"e5200000-0000-4000-8000-00000000e102"})
+    check(regrant.get("revision")==8 and regrant.get("currentlyEffective") is True,
+          "Recipient information regrant must create a new event")
+    info=allow(api,key,worker,RECIPIENT_STATE,
+               {"p_organization_id":ORG,"p_ledger_id":ELM})
+    read(1)
+    # A delegated reader cannot reuse the governor's independent chooser even
+    # when BOTH current grants are effective.
+    deny(api,key,worker,"connected_ledger_person_choices_self_api_v1",{
+         "p_ledger_id":ELM,"p_limit":100,"p_after_person_id":None},
+         "dual-grant reader never enables governor's older roster")
+    print("PASS R02E2B signed dual-grant exact accepted-original native Person choices, "
+          "canonical pages, revocation/regrant, denied root/outsider/other Ledger, no roster escalation")
+
+def delegated_assignment_lifecycle(db,api,key,root,worker,outsider,no_seat,claims,pending):
+    """R02B: real signed nonroot execution of the existing source operation."""
+    first=submit(api,key,worker,"accepted-original-delegated-004","Fictional delegated original")
+    second=submit(api,key,worker,"accepted-original-delegated-005","Fictional next-epoch original")
+    for item in (first,second):accepted(api,key,root,item,"Fictional accepted delegated original")
+    recipient_choices_lifecycle(db,api,key,root,worker,outsider,no_seat,
+                                first["workItemId"],pending["workItemId"])
+    work_count=sql(db,"SELECT count(*) FROM atlas.work_items")
+    people_count=sql(db,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")
+    principal_count=sql(db,"SELECT count(*) FROM atlas.principals")
+    plan_count=sql(db,"SELECT count(*) FROM atlas.work_execution_plans")
+    plan_event_count=sql(db,"SELECT count(*) FROM atlas.work_execution_plan_events")
+    grant=delegation_state(api,key,worker)
+    check(grant.get("revision")==6 and grant.get("grantEffective") is True,
+          "Need the independently signed current grant, not a fabricated permission row")
+    arguments={"p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_work_item_id":first["workItemId"],"p_target_person_id":OWNER_PERSON,
+        "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000c01",
+        "p_reason":"Fictional delegated accepted-original direct obligation"}
+    entry=author_focus(db,api,key,worker,first["workItemId"],"Fictional accepted delegated original")
+    check(entry.get("delegationEventId")==grant.get("eventId")
+          and entry.get("delegationRevision")==6
+          and entry.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1",
+          "Own title access must require current assignment grant and author identity")
+    deny_focus(db,api,key,root,first["workItemId"],
+        "root assignment authority is not another Person's title disclosure")
+    deny_focus(db,api,key,worker,pending["workItemId"],
+        "current grant cannot read a still-pending original")
+    deny_focus(db,api,key,worker,first["workItemId"],
+        "wrong Ledger cannot open authored Work",OTHER)
+    deny_focus(db,api,key,worker,"e5200000-0000-4000-8000-000000000fff",
+        "unknown original cannot be read")
+    ready=assignment_preflight(db,api,key,worker,first["workItemId"],OWNER_PERSON,True)
+    check(ready.get("actorPersonId")==WORKER_PERSON
+          and ready.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1"
+          and ready.get("delegationEventId")==grant["eventId"]
+          and ready.get("delegationRevision")==6,"Preflight lost the current signed grant provenance")
+    root_ready=assignment_preflight(db,api,key,root,first["workItemId"],OWNER_PERSON,True)
+    check(root_ready.get("actorPersonId")==OWNER_PERSON
+          and root_ready.get("authorizationBasis")=="governor_exact_existing_original_work"
+          and root_ready.get("delegationEventId") is None,
+          "Root preflight must preserve its independently established root authority")
+    assignment_preflight(db,api,key,worker,first["workItemId"],None,True)
+    # The public RPC really supports the omitted optional argument as well.
+    omitted=preflight_arguments(first["workItemId"]);del omitted["p_target_person_id"]
+    omitted_before=preflight_snapshot(db,first["workItemId"])
+    no_target=allow(api,key,worker,PREFLIGHT,omitted)
+    check(no_target.get("recipientChecked") is False and no_target.get("canAssign") is False
+          and no_target.get("targetPersonId") is None
+          and preflight_snapshot(db,first["workItemId"])==omitted_before,
+          "Omitted recipient must remain unchecked and create no durable state")
+    for work,target,ledger,label in (
+        (pending["workItemId"],OWNER_PERSON,ELM,"pending alternate-attested intake"),
+        (first["workItemId"],OWNER_PERSON,OTHER,"wrong Ledger"),
+        ("e5200000-0000-4000-8000-000000000971",OWNER_PERSON,ELM,"non-intake original"),
+        ("e5200000-0000-4000-8000-000000000fff",OWNER_PERSON,ELM,"unknown original"),
+        (first["workItemId"],"e5200000-0000-4000-8000-000000000103",ELM,"unconnected recipient"),
+        (first["workItemId"],"e5200000-0000-4000-8000-000000000ffe",ELM,"unknown recipient")):
+        deny_preflight(db,api,key,worker,preflight_arguments(work,target,ledger),
+            "delegate cannot preflight "+label)
+    deny_assignment_without_change(db,api,key,worker,{**arguments,"p_ledger_id":OTHER},
+        "an exact ELM grant cannot authorize the other Ledger")
+    deny_assignment_without_change(db,api,key,worker,
+        {**arguments,"p_work_item_id":pending["workItemId"]},
+        "delegation cannot bypass pending intake even with alternate owner attestation")
+    deny_assignment_without_change(db,api,key,worker,
+        {**arguments,"p_work_item_id":"e5200000-0000-4000-8000-000000000971"},
+        "accepted-intake assignment delegation cannot authorize decomposed Subject Work")
+    deny_assignment_without_change(db,api,key,worker,
+        {**arguments,"p_service_date":"2026-11-06"},
+        "delegated assignment cannot create an execution plan")
+    for name,payload in (
+        (OWNER_WORK,{"p_organization_id":ORG,"p_ledger_id":ELM,"p_scope":"native_ledger",
+                     "p_limit":200,"p_after_work_item_id":None}),
+        (NEEDS,{"p_ledger_id":ELM,"p_limit":50,"p_after_work_item_id":None}),
+        (ELIGIBLE,{"p_organization_id":ORG,"p_ledger_id":ELM,
+                   "p_work_item_id":first["workItemId"]})):
+        deny(api,key,worker,name,payload,"assignment grant cannot widen root reader "+name)
+    # R02E2A Gate 0: even genuine assignment authority cannot reveal the
+    # separate governor-owned connected Person choice roster. A real signed
+    # source denial is required: no 404 or missing function is accepted.
+    deny(api,key,worker,"connected_ledger_person_choices_self_api_v1",{
+        "p_ledger_id":ELM,"p_limit":100,"p_after_person_id":None},
+        "original-Work assignment delegation must not expose the root Person choices roster")
+    deny(api,key,worker,DELEGATE,{"p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_delegate_person_id":OWNER_PERSON,"p_decision":"grant","p_expected_revision":0,
+        "p_valid_until":None,"p_action_id":"e5200000-0000-4000-8000-000000000b11",
+        "p_reason":"Fictional delegate cannot grant onward authority"},
+        "assignment delegation is not grant administration")
+    receipt=allow(api,key,worker,DIRECT,arguments)
+    check(receipt.get("contractVersion")=="ledger_intake_direct_responsibility_v1"
+          and receipt.get("workItemId")==first["workItemId"]
+          and receipt.get("targetPersonId")==OWNER_PERSON
+          and receipt.get("authorizationBasis")=="delegated_exact_existing_accepted_original_work_v1"
+          and receipt.get("delegationEventId")==grant.get("eventId")
+          and receipt.get("scheduleState")=="unscheduled" and receipt.get("planId") is None
+          and receipt.get("assignmentNew") is True
+          and all(receipt.get(k) is False for k in
+              ("newWorkCreated","newTaskCreated","acceptanceQuestionCreated","employeeSeatRequired")),
+          "Delegate did not establish exactly one unscheduled same-original responsibility")
+    allocation=receipt.get("allocationId")
+    check(UUID.fullmatch(allocation or "") is not None,"Canonical allocation required")
+    check(sql(db,"SELECT count(*) FROM atlas.work_allocations a "
+        "JOIN atlas.ledger_original_work_assignment_delegation_events_v1 e "
+        "ON e.id::text=a.establishment_basis->>'delegationEventId' "
+        f"WHERE a.id='{allocation}'::uuid AND e.id='{grant['eventId']}'::uuid "
+        "AND e.revision=6 AND e.decision='grant' "
+        f"AND e.actor_person_id='{OWNER_PERSON}'::uuid "
+        f"AND e.delegate_person_id='{WORKER_PERSON}'::uuid "
+        f"AND a.establishment_basis->>'senderPersonId'='{WORKER_PERSON}' "
+        f"AND a.assignee_canonical_person_id='{OWNER_PERSON}'::uuid "
+        "AND a.assignee_membership_id IS NULL AND a.assigned_by_membership_id IS NULL")=="1",
+        "Allocation lost independently signed actor, grant epoch or Person-native provenance")
+    idem=allow(api,key,worker,DIRECT,arguments)
+    check(idem.get("idempotent") is True and idem.get("allocationId")==allocation
+          and idem.get("delegationEventId")==grant["eventId"],"Delegate retry is not stable")
+    assignment_preflight(db,api,key,worker,first["workItemId"],OWNER_PERSON,False)
+    assignment_preflight(db,api,key,root,first["workItemId"],OWNER_PERSON,False)
+    reject_assignment_without_change(db,api,key,worker,
+        {**arguments,"p_action_id":"e5200000-0000-4000-8000-000000000c04"},"23514",
+        "an earlier available preflight cannot reserve or overwrite a responsibility")
+    mine(api,key,root,first["workItemId"])
+    reject_assignment_without_change(db,api,key,worker,
+        {**arguments,"p_reason":"Changed fictional delegated retry"},"23505",
+        "changed retry cannot replace signed decision")
+    reject_assignment_without_change(db,api,key,root,arguments,"23505",
+        "a root cannot claim another signed actor's assignment receipt")
+    reject_assignment_without_change(db,api,key,worker,
+        {**arguments,"p_target_person_id":WORKER_PERSON},"23514",
+        "delegate cannot replace an existing responsibility")
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    try:
+        deny_assignment_without_change(db,api,key,worker,arguments,
+            "disconnection denies replay of the delegate's own successful action")
+        deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
+            "ended connection denies preflight with the same JWT")
+        deny_focus(db,api,key,worker,first["workItemId"],
+            "ended connection denies previously authorized author's title")
+    finally:sql(db,"UPDATE ledger.seats SET seat_state='active',ended_at=NULL "
+        f"WHERE ledger_id='{ELM}'::uuid AND person_entity_id='{WORKER_PERSON}'::uuid")
+    session=claims["session_id"]
+    check(UUID.fullmatch(session) is not None,"Real signed session required")
+    old_expiry=sql(db,f"SELECT quote_nullable(not_after) FROM auth.sessions WHERE id='{session}'::uuid")
+    sql(db,f"UPDATE auth.sessions SET not_after=now()-interval '1 minute' WHERE id='{session}'::uuid")
+    try:
+        deny_assignment_without_change(db,api,key,worker,arguments,
+            "expired session denies own assignment replay while grant and issuer remain active")
+        deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
+            "expired session denies capability while grant and issuer remain active")
+        deny_focus(db,api,key,worker,first["workItemId"],
+            "expired session denies previously authorized author's title")
+    finally:sql(db,f"UPDATE auth.sessions SET not_after={old_expiry} WHERE id='{session}'::uuid")
+    control={"p_organization_id":ORG,"p_ledger_id":ELM,"p_delegate_person_id":WORKER_PERSON,
+        "p_decision":"revoke","p_expected_revision":6,"p_valid_until":None,
+        "p_action_id":"e5200000-0000-4000-8000-000000000b12",
+        "p_reason":"Fictional revoke after delegated assignment proof"}
+    allow(api,key,root,DELEGATE,control)
+    deny_assignment_without_change(db,api,key,worker,arguments,
+        "signed revocation denies retry of a previously successful delegated assignment")
+    deny_preflight(db,api,key,worker,preflight_arguments(first["workItemId"]),
+        "signed revocation withdraws the earlier preflight capability")
+    deny_focus(db,api,key,worker,first["workItemId"],
+        "signed revocation withdraws author title access")
+    new_grant=allow(api,key,root,DELEGATE,{**control,"p_decision":"grant",
+        "p_expected_revision":7,"p_action_id":"e5200000-0000-4000-8000-000000000b13"})
+    check(new_grant.get("revision")==8 and new_grant.get("eventId")!=grant["eventId"],
+          "Regrant must preserve a distinct decision epoch")
+    new_entry=author_focus(db,api,key,worker,second["workItemId"],"Fictional accepted delegated original")
+    check(new_entry.get("delegationEventId")==new_grant.get("eventId")
+          and new_entry.get("delegationRevision")==8,
+          "New author-title entry must carry new assignment authority epoch")
+    next_ready=assignment_preflight(db,api,key,worker,second["workItemId"],OWNER_PERSON,True)
+    check(next_ready.get("delegationEventId")==new_grant["eventId"]
+          and next_ready.get("delegationRevision")==8,"Preflight reused an older grant epoch")
+    reject_assignment_without_change(db,api,key,worker,arguments,"23505",
+        "new grant epoch cannot impersonate a prior allocation decision")
+    next_arguments={**arguments,"p_work_item_id":second["workItemId"],
+        "p_action_id":"e5200000-0000-4000-8000-000000000c02"}
+    competing={**next_arguments,"p_action_id":"e5200000-0000-4000-8000-000000000c03"}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        attempts=list(pool.map(lambda a:base.rpc(api,key,worker,DIRECT,a),
+                               (next_arguments,competing)))
+    successes=[(a,out) for a,(status,out) in zip((next_arguments,competing),attempts)
+               if status==200 and out.get("ok") is True]
+    rejected=[out for status,out in attempts if status==400 and out.get("code")=="23514"]
+    check(len(successes)==1 and len(rejected)==1
+          and successes[0][1].get("delegationEventId")==new_grant["eventId"],
+          "Competing delegated actions must establish only one auditable responsibility")
+    for item in (first,second):
+        check(sql(db,"SELECT count(*) FROM atlas.work_allocations "
+            f"WHERE work_item_id='{item['workItemId']}'::uuid AND state='active' "
+            "AND allocation_role='responsible'")=="1","Duplicate responsibility after delegated execution")
+    check(sql(db,"SELECT count(*) FROM atlas.work_items")==work_count
+          and sql(db,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")==people_count
+          and sql(db,"SELECT count(*) FROM atlas.principals")==principal_count
+          and sql(db,"SELECT count(*) FROM atlas.work_execution_plans")==plan_count
+          and sql(db,"SELECT count(*) FROM atlas.work_execution_plan_events")==plan_event_count,
+          "Delegated assignment created Work/People/Principals or implicit plans/events")
+    print("PASS signed native delegate same-original unscheduled assignment, exact grant provenance, "
+          "retry/actor/epoch isolation, concurrent responsibility, withdrawn authority, no reader elevation")
+    print("PASS R02C root/delegate exact preflight, supplied/unchecked recipient, field allowlist, "
+          "current availability, no reservation, source-denied withdrawn authority and no durable effects")
+    print("PASS R02D1 own-title exact Work Focus entry requires independently signed author and "
+          "current assignment grant; field allowlist, pending/wrong-Ledger/revoked/expired denials")
+    return successes[0][0]
+
+def work_page(api,key,token):
+    status,out=base.rpc(api,key,token,OWNER_WORK,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_scope":"native_ledger","p_limit":200,"p_after_work_item_id":None})
+    # Established owner Work source is a source-verified packet without an
+    # `ok` field. Do not retrofit a fabricated success property into its API.
+    check(status==200 and isinstance(out,dict) and
+          out.get("contractVersion")=="company_work_accountability_native_ledger_v1"
+          and out.get("selectedNativeLedgerId")==ELM
+          and isinstance(out.get("items"),list),
+          "Expected source-authorized ordinary Ledger Work, not intake-only queue")
+    return out["items"]
+def mine(api,key,token,work):
+    out=allow(api,key,token,MY_WORK,{"p_limit":100,"p_after_allocation_id":None})
+    check(out.get("sourceScope")=="active_responsible_person_native_ledger_work",
+          "My Work must be source-authoritative")
+    found=[x for x in out.get("items",[]) if x.get("workItemId")==work]
+    check(len(found)==1,f"Signed worker did not see exactly one original {work}")
+    return found[0]
+def submit(api,key,worker,action,title):
+    r=allow(api,key,worker,SUBMIT,{
+        "p_ledger_id":ELM,"p_title":title,
+        "p_attention_date_proposal":"2026-11-05",
+        "p_source_action_id":action})
+    check(r.get("createdNow") is True and r.get("assignedToPerson") is False,
+          "Submission must create exactly one original, not a Person assignment")
+    check(UUID.fullmatch(r.get("intakeId","")) and UUID.fullmatch(r.get("workItemId","")),
+          "Submitted original identifier must be canonical UUID")
+    return r
+def accepted(api,key,root,r,title):
+    d=v2.review(api,key,root,r["intakeId"],"accepted_for_ledger",0,
+                "Fictional original actionable by exact Ledger",
+                title,"Fictional authorized operational instructions")
+    check(d.get("workItemId")==r["workItemId"],"Acceptance changed original Work ID")
+    return d
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--db-url",required=True)
+    parser.add_argument("--output",required=True)
+    args=parser.parse_args()
+    check(bool(re.fullmatch(
+       r"postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres",args.db_url)),
+       "This signed proof may only run on disposable localhost")
+    api,key=c1.local_status()
+    base.setup_auth(args.db_url)
+    tokens={}
+    signed_claims={}
+    for name,user in (("owner",c1.OWNER),("worker",c1.WORKER),
+                      ("outsider",c1.OUTSIDER),("no-seat",c1.NO_SEAT)):
+        token,claims=c1.sign_in(api,key,name)
+        check(claims.get("sub")==user and claims.get("session_id"),
+              "Independent real GoTrue session required for "+name)
+        tokens[name]=token
+        signed_claims[name]=claims
+    root=tokens["owner"]; worker=tokens["worker"]
+    outsider=tokens["outsider"]; no_seat=tokens["no-seat"]
+    before=sql(args.db_url,"SELECT count(*) FROM atlas.work_items")
+    people=sql(args.db_url,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")
+
+    a=submit(api,key,worker,"accepted-original-direct-001","Fictional direct obligation")
+    b=submit(api,key,worker,"accepted-original-consent-002","Fictional scoped request")
+    c=submit(api,key,worker,"accepted-original-never-reviewed-003",
+             "Fictional pending alternate-evidence original")
+    # Synthetic local database fixture: even if a second owner attestation is
+    # associated with a pending original, review is a mandatory intake law.
+    sql(args.db_url,
+        "INSERT INTO atlas.company_work_native_ledger_relevance "
+        "(organization_id,work_item_id,ledger_id,evidence_kind,"
+        "attestation_source_ref,attestation_reason,established_by_person_id) "
+        f"VALUES ('{ORG}'::uuid,'{c['workItemId']}'::uuid,'{ELM}'::uuid,"
+        "'owner_attested','synthetic:pending-intake-bypass-attempt',"
+        "'Disposable alternate evidence must not defeat final root review',"
+        f"'{OWNER_PERSON}'::uuid)")
+    check(all(x.get("workItemId") not in [a["workItemId"],b["workItemId"],c["workItemId"]]
+              for x in work_page(api,key,root)),
+          "PENDING intake leaked as approved native Ledger Work")
+    for item in (a,b):
+        pa={"p_organization_id":ORG,"p_ledger_id":ELM,
+            "p_work_item_id":item["workItemId"]}
+        deny(api,key,root,ELIGIBLE,pa,"pending original cannot be directly assigned")
+        deny(api,key,root,DIRECT,{**pa,"p_target_person_id":WORKER_PERSON,
+             "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000a41",
+             "p_reason":"Synthetic proposal pending governor review"},
+             "pending intake cannot bypass root review")
+    # Even an additional owner_attested relevance must not skip intake review.
+    deny(api,key,root,PROPOSE,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_worker_person_id":WORKER_PERSON,"p_work_item_id":c["workItemId"],
+        "p_terms":"Synthetic alternate-attested pending intake must stay blocked",
+        "p_valid_until":None},
+        "alternate owner attestation cannot bypass exact intake review")
+    # Pending participant attestation alone cannot authorize exact Work
+    # standing consent, even under a real signed root.
+    deny(api,key,root,PROPOSE,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_worker_person_id":WORKER_PERSON,"p_work_item_id":b["workItemId"],
+        "p_terms":"Synthetic unapproved original cannot create an assignable scope",
+        "p_valid_until":None},
+        "pending participant attestation cannot establish an accepted exact-Work scope")
+    deny(api,key,worker,OWNER_WORK,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,"p_scope":"native_ledger",
+        "p_limit":200,"p_after_work_item_id":None},"worker cannot inspect owner Ledger Work")
+    deny(api,key,outsider,ELIGIBLE,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,"p_work_item_id":a["workItemId"]},
+        "outsider cannot discover accepted source")
+    deny(api,key,None,ELIGIBLE,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,"p_work_item_id":a["workItemId"]},
+        "anonymous cannot discover exact Work")
+    needsargs={"p_ledger_id":ELM,"p_limit":1,"p_after_work_item_id":None}
+    initial=allow(api,key,root,NEEDS,needsargs)
+    check(initial.get("contractVersion")=="ledger_accepted_original_needs_assignment_v1"
+          and initial.get("totalNeedsAssignment")==0 and initial.get("items")==[]
+          and initial.get("hasMore") is False,
+          "Pending originals, including alternate-attested pending original, must be excluded")
+    for actor,label in ((worker,"worker"),(outsider,"outsider"),
+                        (no_seat,"unconnected"),(None,"anonymous")):
+        deny(api,key,actor,NEEDS,needsargs,label+" cannot discover Needs Assignment")
+    accepted(api,key,root,a,"Fictional direct accepted original")
+    accepted(api,key,root,b,"Fictional consent accepted original")
+    title_grant_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,
+        a["workItemId"],c["workItemId"],b["workItemId"])
+    rows=work_page(api,key,root)
+    deny_focus(args.db_url,api,key,worker,a["workItemId"],
+        "own submission title does not confer assignment authority")
+    deny_focus(args.db_url,api,key,root,a["workItemId"],
+        "root authority cannot use author's private title entry")
+    for actor,label in ((outsider,"outsider"),(no_seat,"unconnected"),(None,"anonymous")):
+        deny_focus(args.db_url,api,key,actor,a["workItemId"],
+            label+" cannot use an exact authored Work entry")
+    for item in (a,b):
+        selected=[x for x in rows if x.get("workItemId")==item["workItemId"]]
+        check(len(selected)==1 and
+              selected[0].get("responsibility",{}).get("allocationId") is None,
+              "Accepted original should appear as ONE unassigned normal Ledger Work")
+    first=allow(api,key,root,NEEDS,needsargs)
+    check(first.get("totalNeedsAssignment")==2
+          and first.get("returnedCount")==1
+          and first.get("hasMore") is True
+          and len(first.get("items",[]))==1
+          and first["items"][0].get("assignedToPerson") is False,
+          "Exact root Needs Assignment must return one paged accepted original")
+    cursor=first.get("nextWorkItemId")
+    check(UUID.fullmatch(cursor or "") is not None
+          and first["items"][0].get("workItemId")==cursor,
+          "Needs Assignment cursor must identify the exact original")
+    second=allow(api,key,root,NEEDS,{**needsargs,"p_after_work_item_id":cursor})
+    found=first["items"]+second.get("items",[])
+    check(second.get("totalNeedsAssignment")==2
+          and second.get("returnedCount")==1
+          and second.get("hasMore") is False
+          and {x.get("workItemId") for x in found}==
+              {a["workItemId"],b["workItemId"]}
+          and all(x.get("intakeId") in {a["intakeId"],b["intakeId"]}
+                  and x.get("workState")=="open" for x in found),
+          "Exact Needs Assignment collection must paginate without pending or duplicate Work")
+    current=allow(api,key,worker,STATUS,{"p_ledger_id":ELM,"p_limit":50,
+        "p_after_created_at":None,"p_after_intake_id":None})
+    check(current.get("contractVersion")=="ledger_work_submitter_status_v1"
+          and {x.get("intakeId") for x in current.get("items",[])}.issuperset(
+              {a["intakeId"],b["intakeId"]})
+          and current.get("rootInboxDisclosed") is False,
+          "Author-own submission status leaked or omitted source originals")
+    for actor,label in ((outsider,"outsider"),(no_seat,"unconnected")):
+        deny(api,key,actor,STATUS,{"p_ledger_id":ELM,"p_limit":50,
+             "p_after_created_at":None,"p_after_intake_id":None},
+             label+" cannot enumerate author status")
+    directargs={"p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_work_item_id":a["workItemId"],"p_target_person_id":WORKER_PERSON,
+        "p_service_date":None,"p_action_id":"e5200000-0000-4000-8000-000000000a42",
+        "p_reason":"Synthetic direct obligation after exact acceptance"}
+    # The worker is already a genuine root of OTHER, and GoTrue really signed
+    # their user-editable owner metadata. Neither is exact ELM delegation.
+    check(signed_claims["worker"].get("user_metadata",{}).get("is_owner") is True,
+          "Missing genuine signed spoofable metadata negative fixture")
+    check(sql(args.db_url,"SELECT count(*) FROM atlas.principal_ledger_authorities a "
+       "JOIN atlas.principals p ON p.id=a.principal_id "
+       f"WHERE p.person_id='{WORKER_PERSON}'::uuid AND a.ledger_id='{OTHER}'::uuid "
+       "AND p.status='active' AND a.status='active' AND a.ended_at IS NULL")=="1",
+       "Worker must have real independent root authority on the other Ledger")
+    for actor,label in ((worker,"connected worker with owner metadata and another Ledger root"),
+                        (outsider,"outsider"),(no_seat,"unconnected Person"),
+                        (None,"anonymous")):
+        deny_assignment_without_change(args.db_url,api,key,actor,directargs,
+            label+" cannot assign an accepted original without exact authority")
+    deny_assignment_without_change(args.db_url,api,key,worker,
+        {**directargs,"p_ledger_id":OTHER},
+        "another Ledger root cannot relabel the accepted original's Ledger")
+    d=allow(api,key,root,DIRECT,directargs)
+    check(d.get("contractVersion")=="ledger_intake_direct_responsibility_v1"
+          and d.get("workItemId")==a["workItemId"]
+          and d.get("scheduleState")=="unscheduled"
+          and d.get("newWorkCreated") is False
+          and d.get("acceptanceQuestionCreated") is False
+          and d.get("responsibilityEstablished") is True,
+          "Direct obligation silently created a date, acceptance request or duplicate")
+    idem=allow(api,key,root,DIRECT,directargs)
+    check(idem.get("idempotent") is True
+          and idem.get("allocationId")==d.get("allocationId"),
+          "Exact replay must preserve original allocation")
+    direct_needs=allow(api,key,root,NEEDS,{**needsargs,"p_limit":50})
+    check(direct_needs.get("totalNeedsAssignment")==1
+          and [x.get("workItemId") for x in direct_needs.get("items",[])]==
+              [b["workItemId"]],
+          "Direct responsibility must remove only its original from Needs Assignment")
+    mine(api,key,worker,a["workItemId"])
+    deny(api,key,worker,PLACE,{"p_work_item_id":a["workItemId"],
+         "p_service_date":"2026-11-06","p_reason":"Unauthorized worker date change"},
+         "responsibility does not delegate Company scheduling")
+    scope=allow(api,key,root,PROPOSE,{
+        "p_organization_id":ORG,"p_ledger_id":ELM,
+        "p_worker_person_id":WORKER_PERSON,"p_work_item_id":b["workItemId"],
+        "p_terms":"Synthetic bounded exact original Work responsibility",
+        "p_valid_until":None})
+    scopeid=scope.get("scopeId")
+    check(isinstance(scopeid,str) and UUID.fullmatch(scopeid)
+          and scope.get("workAssigned") is False
+          and scope.get("workerConsentRecorded") is False,
+          "Native proposal must not fabricate acceptance")
+    deny(api,key,root,RESPOND,{"p_scope_id":scopeid,"p_decision":"accept"},
+         "root cannot consent for independent Person")
+    # This is a *state constraint*, not an identity/permission denial:
+    # a legitimately signed governor must receive PostgreSQL 23514 while
+    # consent is still proposed. Preserve the generic signed 42501 denial
+    # helper for actual unauthorized callers.
+    pre_allocations=sql(args.db_url,
+        "SELECT count(*) FROM atlas.work_allocations "
+        f"WHERE work_item_id='{b['workItemId']}'::uuid AND state='active'")
+    rejection,body=base.rpc(api,key,root,ASSIGN_SCOPE,{
+        "p_work_item_id":b["workItemId"],"p_scope_id":scopeid,
+        "p_reason":"Synthetic unaccepted proposal cannot assign responsibility"})
+    check(rejection==400 and isinstance(body,dict)
+          and body.get("code")=="23514"
+          and body.get("message")==
+             "Open Work and currently accepted Person/Ledger standing scope required",
+          "Unaccepted scope must fail via actual source-state constraint 23514")
+    check(sql(args.db_url,"SELECT count(*) FROM atlas.work_allocations "
+       f"WHERE work_item_id='{b['workItemId']}'::uuid AND state='active'")==
+       pre_allocations,"Rejected unaccepted scope changed original allocations")
+    print("PASS denied unaccepted exact-Work scope without an allocation")
+    consent=allow(api,key,worker,RESPOND,{"p_scope_id":scopeid,"p_decision":"accept"})
+    check(consent.get("personConsentRecorded") is True
+          and consent.get("assignmentCreated") is False,
+          "Signed consent is not assignment")
+    # Accepting responsibility is not receiving governor authority. Exercise
+    # the actual signed direct writer, not just a hidden UI or list endpoint.
+    deny_assignment_without_change(args.db_url,api,key,worker,
+        {**directargs,"p_work_item_id":b["workItemId"],
+         "p_target_person_id":OWNER_PERSON,
+         "p_action_id":"e5200000-0000-4000-8000-000000000a43"},
+        "accepted exact-Work responsibility scope is not assignment delegation")
+    scope_snapshot=assignment_snapshot(args.db_url,b["workItemId"])
+    deny(api,key,worker,ASSIGN_SCOPE,{
+        "p_work_item_id":b["workItemId"],"p_scope_id":scopeid,
+        "p_reason":"Synthetic recipient cannot act as assigning governor"},
+        "consenting recipient cannot invoke the governor scope-assignment writer")
+    check(assignment_snapshot(args.db_url,b["workItemId"])==scope_snapshot,
+          "Denied recipient scope-assignment changed original state")
+    scoped=allow(api,key,root,ASSIGN_SCOPE,{
+        "p_work_item_id":b["workItemId"],"p_scope_id":scopeid,
+        "p_reason":"Synthetic assignment after independent Person consent"})
+    check(scoped.get("workItemId")==b["workItemId"]
+          and scoped.get("newWorkCreated") is False,
+          "Consent path replaced original or created new Work")
+    final_needs=allow(api,key,root,NEEDS,{**needsargs,"p_limit":50})
+    check(final_needs.get("totalNeedsAssignment")==0
+          and final_needs.get("items")==[]
+          and final_needs.get("hasMore") is False,
+          "Exact consent assignment must remove its original, not create a shadow task")
+    mine(api,key,worker,b["workItemId"])
+    check(sql(args.db_url,"SELECT count(*) FROM atlas.work_items")==
+          str(int(before)+3),"Submission/assignment created shadow Work")
+    check(sql(args.db_url,"SELECT count(*) FROM reality.entities WHERE entity_kind='person'")==people,
+          "Submission created shadow People")
+
+    # This is a real Result, not notification delivery or a comment.
+    reported=allow(api,key,worker,REPORT,{"p_work_item_id":a["workItemId"],
+        "p_result_kind":"blocked","p_idempotency_key":"signed-accepted-original-blocked-001",
+        "p_payload":{"note":"Fictional blocker needs source-governed attention"}})
+    check(reported.get("ok") is True,"Worker blocked Result not accepted by source")
+    check(sql(args.db_url,"SELECT count(*) FROM atlas.work_execution_results "
+       f"WHERE work_item_id='{a['workItemId']}'::uuid AND result_kind='blocked'")=="1",
+       "Worker blocked Result absent from original history")
+    status=work_page(api,key,root)
+    check(any(x.get("workItemId")==a["workItemId"] and x.get("latestWorkerReport")
+              for x in status),"Governor Ledger Work does not expose Result history")
+    recipient_choice_grant_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,
+        a["workItemId"],signed_claims["worker"])
+    deny_recipient_choices(args.db_url,api,key,worker,a["workItemId"],
+        "recipient information grant alone cannot authorize choices without R02B operation")
+    delegation_lifecycle(args.db_url,api,key,root,worker,outsider,no_seat,directargs)
+    delegate_arguments=delegated_assignment_lifecycle(args.db_url,api,key,root,worker,
+        outsider,no_seat,signed_claims["worker"],c)
+    non_author_work=non_author_focus_lifecycle(
+        args.db_url,api,key,root,worker,outsider,no_seat,
+        signed_claims["worker"],a["workItemId"],c["workItemId"])
+    # Fixture-only authority revocation, with the SAME still-existing signed
+    # GoTrue session. No restore/regrant or production authority mutation.
+    root_authority=sql(args.db_url,
+        "SELECT a.id::text FROM atlas.principal_ledger_authorities a "
+        "JOIN atlas.principals p ON p.id=a.principal_id "
+        f"WHERE p.person_id='{OWNER_PERSON}'::uuid AND a.ledger_id='{ELM}'::uuid "
+        "AND a.authority_kind='root_governing' AND a.status='active' "
+        "AND a.ended_at IS NULL")
+    check(UUID.fullmatch(root_authority or "") is not None,
+          "Expected one exact synthetic root authority to revoke")
+    sql(args.db_url,"UPDATE atlas.principal_ledger_authorities "
+        f"SET status='ended',ended_at=now() WHERE id='{root_authority}'::uuid "
+        "AND status='active'")
+    root_session=signed_claims["owner"]["session_id"]
+    check(UUID.fullmatch(root_session) is not None,"Exact genuine session required")
+    check(sql(args.db_url,"SELECT count(*) FROM auth.sessions "
+       f"WHERE id='{root_session}'::uuid AND user_id='{c1.OWNER}'::uuid")=="1",
+       "Authority revocation proof must retain the genuine signed session")
+    deny_assignment_without_change(args.db_url,api,key,root,directargs,
+        "ended exact Ledger root cannot replay a former assignment with a valid session")
+    check(delegation_state(api,key,worker).get("grantEffective") is False,
+          "Grantor root withdrawal failed to invalidate the still-recorded grant")
+    check(allow(api,key,worker,RECIPIENT_STATE,{"p_organization_id":ORG,
+          "p_ledger_id":ELM}).get("grantEffective") is False,
+          "Issuer root withdrawal must invalidate separately granted recipient discovery")
+    title_state(api,key,worker,a["workItemId"],WORKER_PERSON,3,False,"grant")
+    deny_non_author_focus(args.db_url,api,key,worker,non_author_work,
+        "ended issuing root withdraws independently signed non-author title entry")
+    deny_assignment_without_change(args.db_url,api,key,worker,delegate_arguments,
+        "ended grantor authority denies replay of the delegate's successful assignment")
+    deny_preflight(args.db_url,api,key,worker,
+        preflight_arguments(delegate_arguments["p_work_item_id"]),
+        "ended grantor denies delegate preflight with the same signed session")
+    deny_focus(args.db_url,api,key,worker,delegate_arguments["p_work_item_id"],
+        "ended issuer denies formerly authorized author-title entry")
+    deny_preflight(args.db_url,api,key,root,preflight_arguments(a["workItemId"]),
+        "ended root cannot retain preflight authority through a valid JWT")
+    deny_focus(args.db_url,api,key,root,a["workItemId"],
+        "ended root cannot read private submitter title")
+    worker_session=signed_claims["worker"]["session_id"]
+    check(UUID.fullmatch(worker_session) is not None,"Exact signed delegate session required")
+    sql(args.db_url,"UPDATE auth.sessions SET not_after=now()-interval '1 minute' "
+        f"WHERE id='{worker_session}'::uuid AND user_id='{c1.WORKER}'::uuid")
+    deny(api,key,worker,DELEGATION,{"p_organization_id":ORG,"p_ledger_id":ELM},
+         "ended delegate session denies readback despite unexpired JWT")
+    deny(api,key,worker,TITLE_STATE,focus_args(a["workItemId"]),
+         "expired signed session denies title-disclosure grant-state readback")
+    Path(args.output).parent.mkdir(parents=True,exist_ok=True)
+    Path(args.output).write_text(
+       "PASS real signed clone: pending excluded, same original accepted, own status, "
+       "source-denied outsiders, direct assignment unscheduled/idempotent, "
+       "independent native Person consent and assignment, forbidden worker schedule, "
+       "original blocked Result, no shadow Work/People, source-denied assignment by "
+       "metadata/other-Ledger roots/consenting recipients/ended roots, unchanged denied "
+       "Work/allocation/plan state. Native grant/revoke and self-only status, immutable "
+       "history, replay/CAS/concurrency, expiry, connection/grantor/session withdrawal "
+       "PASS; no Work effects from grant administration. R02B signed nonroot delegate "
+       "same-original unscheduled assignment and grant provenance PASS; actor/epoch/retry isolation, "
+       "concurrent single responsibility, source-denied pending/wrong-Ledger/scheduling/reader elevation "
+       "and revoked/disconnected/expired-session/ended-issuer replay PASS. No shadow Work/People or "
+       "implicit plans. R02C root/delegate exact assignment preflight, supplied/unchecked recipient, "
+       "bounded field allowlist, current availability, withdrawn authority, no reservation and no "
+       "durable effects PASS. R02D1 author-title entry requires separate original "
+       "submitter disclosure and current assignment grant; signed positive/negative "
+       "author/authority/withdrawal checks PASS. R02D2A exact-title independent "
+       "root grant/revoke, self-only title-free status, concurrent CAS, expiry and "
+       "revocation/issuer/seat/session checks PASS. R02D2B exact non-author "
+       "title-only Focus requires both independent current source grants and signed "
+       "withdrawal protections PASS. R02E2A independent recipient-choice grant "
+       "decisions and self-only status PASS. R02E2B exact native Person choices "
+       "require both signed grants, stable source pages and independent withdrawal PASS. "
+       "Atlas UI, browser and release remain HELD. "
+       "DISPOSABLE ONLY.\n")
+    print("PASS accepted Ledger intake signed original lifecycle; NO production mutation")
+if __name__=="__main__":main()
