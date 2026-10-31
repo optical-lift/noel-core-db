@@ -31,6 +31,14 @@ BEGIN
     position('v_scope.accepted_by_person_id' IN def)=0
  THEN RAISE EXCEPTION 'Accepted standing scope path weakened or missing'; END IF;
 
+ IF to_regprocedure('atlas.respond_native_ledger_standing_scope_self_api_v1(uuid,text)') IS NULL
+ THEN RAISE EXCEPTION 'Existing signed native Person consent writer missing'; END IF;
+ SELECT pg_get_functiondef(
+  'atlas.propose_native_ledger_exact_work_scope_owner_self_api_v1(uuid,uuid,uuid,uuid,text,timestamptz)'::regprocedure) INTO def;
+ IF position('accepted_ledger_intake_original_evidence_v1' IN def)=0 OR
+    position('company_work_native_ledger_owner_self_v1' IN def)=0 OR
+    position('person_has_native_ledger_connection_v1' IN def)=0
+ THEN RAISE EXCEPTION 'Native exact Work proposal is not source-guarded'; END IF;
  SELECT pg_get_functiondef('atlas.offer_unallocated_company_work_self_api_v1(uuid,uuid,uuid,text)'::regprocedure) INTO def;
  IF position('accepted_ledger_intake_original_evidence_v1' IN def)=0 OR
     position('organization_membership_present_effective_at_v1' IN def)=0
