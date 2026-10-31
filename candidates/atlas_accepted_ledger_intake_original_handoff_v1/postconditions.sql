@@ -287,3 +287,47 @@ BEGIN
  END IF;
 END;
 $preflight_check$;
+
+-- R02D1: independently lawful author-title disclosure AND current assignment
+-- authority must both be present for one known original. Not a roster reader.
+DO $focus_entry_check$
+DECLARE fn regprocedure; def text;
+BEGIN
+ FOREACH fn IN ARRAY ARRAY[
+   'atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid)'::regprocedure,
+   'public.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid)'::regprocedure] LOOP
+   IF NOT has_function_privilege('authenticated',fn,'EXECUTE')
+      OR has_function_privilege('anon',fn,'EXECUTE')
+      OR has_function_privilege('service_role',fn,'EXECUTE') THEN
+     RAISE EXCEPTION 'Exact authored Work entry requires authenticated-only entry: %',fn;
+   END IF;
+   IF NOT EXISTS(SELECT 1 FROM pg_proc WHERE oid=fn
+     AND proconfig @> ARRAY['search_path=""'] AND pronargdefaults=0 AND provolatile='v') THEN
+     RAISE EXCEPTION 'Exact authored Work entry lacks locked function contract: %',fn;
+   END IF;
+ END LOOP;
+ IF (SELECT prosecdef FROM pg_proc WHERE oid=
+    'public.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid)'::regprocedure) THEN
+   RAISE EXCEPTION 'Public authored focus reader must remain invoker';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1(uuid,uuid,uuid)'::regprocedure) INTO def;
+ IF position('original_work_assignment_actor_self_v1' IN def)=0
+    OR position('i.submitted_by_person_id=who' IN def)=0
+    OR position('accepted_ledger_intake_original_evidence_v1' IN def)=0
+    OR position('w.work_state=''open''' IN def)=0
+    OR position('w.source_object_id=i.id' IN def)=0
+    OR position('original_submitter_title_only_v1' IN def)=0
+    OR position('assignmentMustRevalidate' IN def)=0
+    OR position('instructionsAvailable'',false' IN def)=0
+    OR position('subjectContextDisclosed'',false' IN def)=0 THEN
+   RAISE EXCEPTION 'Authored Work focus must independently gate exact original, author and authority';
+ END IF;
+ SELECT pg_get_functiondef(
+   'atlas.company_work_accountability_native_ledger_self_api_v1(uuid,uuid,text,integer,uuid)'::regprocedure) INTO def;
+ IF position('company_work_native_ledger_owner_self_v1' IN def)=0
+    OR position('accepted_ledger_intake_author_delegate_work_focus_entry_self_api_v1' IN def)>0 THEN
+   RAISE EXCEPTION 'Root Ledger reader must remain independently root-only';
+ END IF;
+END;
+$focus_entry_check$;
