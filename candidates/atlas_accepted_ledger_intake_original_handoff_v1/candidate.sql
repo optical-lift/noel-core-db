@@ -352,5 +352,92 @@ END
 $function$
 
 
+-- Signed submitter *own* status. This is not the root queue, a roster or a
+-- notification delivery receipt. All statuses remain private to the author,
+-- with current exact Ledger authorization checked afresh at read time.
+CREATE OR REPLACE FUNCTION atlas.ledger_work_submission_status_self_api_v1(
+  p_ledger_id uuid,p_limit integer DEFAULT 50,
+  p_after_created_at timestamptz DEFAULT NULL,
+  p_after_intake_id uuid DEFAULT NULL)
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path='' AS $fn$
+DECLARE
+  who uuid; principal uuid; organization uuid; n integer;
+  items jsonb; more boolean; last_item jsonb;
+BEGIN
+  IF auth.uid() IS NULL OR
+     (atlas.reality_access_self_api_v1()->>'state') IS DISTINCT FROM 'ready'
+  THEN RAISE EXCEPTION 'Signed canonical Person required' USING errcode='42501'; END IF;
+  who:=atlas.current_person_id_v1();
+  principal:=atlas.current_principal_id_v1();
+  IF who IS NULL OR principal IS NULL
+  THEN RAISE EXCEPTION 'Canonical Person and Principal required' USING errcode='42501'; END IF;
+  IF p_ledger_id IS NULL OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 100
+     OR (p_after_created_at IS NULL) IS DISTINCT FROM (p_after_intake_id IS NULL)
+  THEN RAISE EXCEPTION 'Exact Ledger, page size and cursor required' USING errcode='22023'; END IF;
+
+  SELECT count(*),(array_agg(lop.organization_id))[1] INTO n,organization
+  FROM atlas.ledger_organization_participations lop
+  JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
+  JOIN ledger.ledgers nl ON nl.id=lop.ledger_id
+     AND nl.ledger_state='active' AND nl.retired_at IS NULL
+  WHERE lop.ledger_id=p_ledger_id AND lop.status='active'
+    AND lop.ended_at IS NULL AND lop.participation_kind IN ('governing','operating');
+  IF n<>1 OR NOT(
+     atlas.person_has_native_ledger_connection_v1(organization,p_ledger_id,who)
+     OR atlas.principal_has_ledger_authority_v1(principal,p_ledger_id))
+  THEN RAISE EXCEPTION 'Not admitted to exact Ledger' USING errcode='42501'; END IF;
+
+  SELECT coalesce(jsonb_agg(jsonb_build_object(
+    'intakeId',x.id,'workItemId',x.work_item_id,
+    'submittedTitle',x.submitted_title,'submittedAt',x.created_at,
+    'reviewState',x.review_state,'revision',x.revision,
+    'reviewedAt',x.reviewed_at,
+    'attentionDateProposal',x.attention_date_proposal)
+    ORDER BY x.created_at DESC,x.id DESC),'[]'::jsonb) INTO items
+  FROM (
+    SELECT i.id,i.work_item_id,i.submitted_title,i.created_at,
+      i.review_state,i.revision,i.reviewed_at,i.attention_date_proposal
+    FROM atlas.ledger_work_intakes i
+    WHERE i.organization_id=organization AND i.ledger_id=p_ledger_id
+      AND i.submitted_by_person_id=who
+      AND (p_after_created_at IS NULL OR
+        (i.created_at,i.id)<(p_after_created_at,p_after_intake_id))
+    ORDER BY i.created_at DESC,i.id DESC LIMIT p_limit
+  ) x;
+
+  SELECT EXISTS(
+    SELECT 1 FROM (
+      SELECT i.id FROM atlas.ledger_work_intakes i
+      WHERE i.organization_id=organization AND i.ledger_id=p_ledger_id
+        AND i.submitted_by_person_id=who
+        AND (p_after_created_at IS NULL OR
+          (i.created_at,i.id)<(p_after_created_at,p_after_intake_id))
+      ORDER BY i.created_at DESC,i.id DESC LIMIT p_limit+1
+    ) page OFFSET p_limit
+  ) INTO more;
+  last_item:=items->(jsonb_array_length(items)-1);
+  RETURN jsonb_build_object(
+    'ok',true,'contractVersion','ledger_work_submitter_status_v1',
+    'ledgerId',p_ledger_id,'items',items,'hasMore',more,
+    'nextCreatedAt',CASE WHEN more THEN last_item->>'submittedAt' ELSE NULL END,
+    'nextIntakeId',CASE WHEN more THEN last_item->>'intakeId' ELSE NULL END,
+    'personnelRosterDisclosed',false,'rootInboxDisclosed',false,
+    'notificationDeliveryClaimed',false);
+END;
+$fn$;
+CREATE OR REPLACE FUNCTION public.ledger_work_submission_status_self_api_v1(
+  p_ledger_id uuid,p_limit integer,p_after_created_at timestamptz,p_after_intake_id uuid)
+RETURNS jsonb LANGUAGE sql SECURITY INVOKER SET search_path='pg_catalog' AS $fn$
+  SELECT atlas.ledger_work_submission_status_self_api_v1($1,$2,$3,$4);
+$fn$;
+REVOKE ALL ON FUNCTION
+  atlas.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid),
+  public.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid)
+FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION
+  atlas.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid),
+  public.ledger_work_submission_status_self_api_v1(uuid,integer,timestamptz,uuid)
+TO authenticated;
+
 NOTIFY pgrst,'reload schema';
 COMMIT;
