@@ -14,7 +14,9 @@ permissions:
 
 concurrency:
   group: atlas-accepted-intake-signed-clone-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  # Only this exact held PR's clone run is cancelled by newer source.
+  # Other migrations and protected workflows have separate concurrency.
+  cancel-in-progress: true
 
 jobs:
   contract:
