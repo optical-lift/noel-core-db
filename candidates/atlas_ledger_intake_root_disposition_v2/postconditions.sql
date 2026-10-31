@@ -12,6 +12,10 @@ BEGIN
     AND pg_get_constraintdef(oid) LIKE '%rejected%')
  THEN RAISE EXCEPTION 'Root decision rejection history missing';END IF;
  IF NOT EXISTS(SELECT 1 FROM pg_attribute
+   WHERE attrelid='atlas.ledger_work_intakes'::regclass
+    AND attname='submitted_title' AND attnotnull AND NOT attisdropped)
+ THEN RAISE EXCEPTION 'Immutable submission replay title missing';END IF;
+ IF NOT EXISTS(SELECT 1 FROM pg_attribute
    WHERE attrelid='atlas.ledger_work_intake_decisions'::regclass
      AND attname='title_before' AND NOT attisdropped)
  THEN RAISE EXCEPTION 'Before-title edit provenance missing';END IF;
