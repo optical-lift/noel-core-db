@@ -53,7 +53,7 @@ BEGIN
      RAISE EXCEPTION 'Approval key already identifies a different action'
       USING ERRCODE='23505';
    END IF;
-   SELECT * INTO v_previous FROM us.financial_expectation_revisions r
+   SELECT r.* INTO v_previous FROM us.financial_expectation_revisions r
     JOIN us.carry_case_streams_v1 s ON s.financial_plan_id=r.plan_id
      AND s.owner_auth_user_id=r.owner_auth_user_id
     WHERE r.id=(v_event.payload->>'revision_id')::uuid
