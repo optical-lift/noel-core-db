@@ -33,6 +33,7 @@ DECLARE
  v_canonical text;
  v_digest text;
  v_ordered jsonb:='[]'::jsonb;
+ v_causes jsonb:='[]'::jsonb;
 BEGIN
  IF p_owner_auth_user_id IS NULL OR p_stream_id IS NULL
     OR p_expected_cutoff IS NULL OR p_expected_cutoff < 3 THEN
@@ -144,6 +145,9 @@ BEGIN
      OR jsonb_typeof(v_value->'line_key')<>'string'
   THEN RAISE EXCEPTION 'Invalid dated event payload' USING ERRCODE='23514'; END IF;
   v_id:=(v_value->>'period_month')||'|'||(v_value->>'line_key');
+  v_causes:=v_causes||jsonb_build_array(jsonb_build_object(
+    'event_sequence',v_event.stream_sequence,
+    'event_type',v_event.event_type,'identity',v_id));
   IF v_value->>'period_month' !~ '^[0-9]{4}-[0-9]{2}-01$'
    OR (v_value->>'line_key') !~ '^[a-z][a-z0-9_:-]{3,159}$'
   THEN RAISE EXCEPTION 'Invalid dated event identity' USING ERRCODE='23514'; END IF;
@@ -197,6 +201,7 @@ BEGIN
   'baseline_revision_id',v_base_id::text,
   'candidate_digest',v_digest,
   'line_count',jsonb_array_length(v_ordered),
+  'causal_events',v_causes,
   'lines',v_ordered,
   'plan_id',v_plan.id::text,
   'source_event_cutoff',p_expected_cutoff,
