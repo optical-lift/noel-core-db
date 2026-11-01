@@ -20,6 +20,9 @@ BEGIN
      'us.carry_read_owned_history_v3(uuid,uuid,bigint,integer)','EXECUTE')
  OR has_table_privilege('us_carry_backend','us.carry_case_events_v1','INSERT')
  OR has_table_privilege('us_carry_backend','us.carry_case_streams_v1','INSERT')
+ OR has_table_privilege('service_role','us.carry_case_streams_v1','INSERT')
+ OR has_table_privilege('service_role','us.carry_case_streams_v1','SELECT')
+ OR has_table_privilege('service_role','us.carry_case_events_v1','SELECT')
  OR has_table_privilege('service_role','us.financial_expectation_lines','INSERT')
  OR has_table_privilege('service_role','us.financial_expectation_revisions','INSERT')
  THEN RAISE EXCEPTION 'P0 role floor broke narrow custody or failed to block inserts'; END IF;
