@@ -143,7 +143,7 @@ BEGIN
      OR jsonb_typeof(v_value->'period_month')<>'string'
      OR jsonb_typeof(v_value->'line_key')<>'string'
   THEN RAISE EXCEPTION 'Invalid dated event payload' USING ERRCODE='23514'; END IF;
-  v_id:=v_value->>'period_month'||'|'||v_value->>'line_key';
+  v_id:=(v_value->>'period_month')||'|'||(v_value->>'line_key');
   IF v_value->>'period_month' !~ '^[0-9]{4}-[0-9]{2}-01$'
    OR (v_value->>'line_key') !~ '^[a-z][a-z0-9_:-]{3,159}$'
   THEN RAISE EXCEPTION 'Invalid dated event identity' USING ERRCODE='23514'; END IF;
