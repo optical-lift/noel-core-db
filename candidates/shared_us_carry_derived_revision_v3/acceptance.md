@@ -80,3 +80,11 @@ invent a positive test receipt to close it.
   adopted baseline, owner-denied candidate and full cleanup.
 - Further Us HTTP/preview-digest work is on the active Us draft branch
   and must be verified against its latest SHA before being called green.
+
+## 2026-11-01 held increment A — privilege floor proven, not releasable alone
+
+- Owned source: `privilege_floor_candidate.sql` and `privilege_floor_postconditions.sql` in this existing v3 candidate. Dependency gate requires original finance + Carry v1 + dated v2; no new migrations were generated.
+- [RiverSong exact-source PostgreSQL run #41312365493](https://github.com/optical-lift/us/actions/runs/41312365493) **SUCCESS**, using source commit `7be38cfeae1e7b24d1d918f5e68573332bc593ce` and dedicated `us-carry-verifier`.
+- Test first observed the expected permission failure on the v1/v2 fixture, then applied held floor to a fresh localhost-only PostgreSQL instance and proved actual `SET LOCAL ROLE service_role` revision INSERT denial, line INSERT denial, legacy `carry_append_event_v1` EXECUTE denial and preserved review SELECT. No real financial users or data, no production/Atlas write.
+- Protected scope: keep live v1/v2, existing Us private FastAPI runtime and Atlas unchanged. The current Python adoption writer would fail after this floor is applied without a new narrow SQL writer; DO NOT release the floor independently.
+- Next unfinished dependency: usable narrow owner-checked read and ordinary-event entrypoints, then sole event-derived SQL adoption/review under lock, complete negative/concurrency regression and separate protected release gate. Do not mark v3 complete on this passing subtest.
