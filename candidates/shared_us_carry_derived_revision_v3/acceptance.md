@@ -111,3 +111,17 @@ invent a positive test receipt to close it.
 **Protected scope:** all tests use disposable loopback PostgreSQL on dedicated RiverSong-Us-Carry, fake finance and identities, and automatic cleanup. No actual Us financial records, production Supabase migrations, Atlas or Titus release, merge, or current runtime cutover.
 
 **Still missing after this outcome:** source-enforced owner-scoped history/read and ordinary-event application cutover without direct broad `service_role` SELECT/legacy appender, current hosted Supabase parity, dependency-complete release clone, and separate governed production migration authorization. The held A/B/C/D SQL source is **not a generated migration**, and partial success does not authorize deploying it.
+
+## Owner choice, 2026-11-01 — universal foundation / isolated private service / post-release real practice
+
+The owner selected **1C / 2D / 3C** after the confirmed signed v3 PostgreSQL Us HTTP success:
+
+- Build general-purpose Carry **functions and contracts**, with a real financial Us Case as the first end-to-end acceptance. No premature Atlas dependency.
+- Put a **separate restricted Us backend service** between the Us web/experience tier and the Noel-owned private database BEFORE cutting over any established Us reader/writer. This is a new *trust boundary*, not a new record source, financial plan/stream or parallel system. Noel owns the canonical SQL and grant custody; Us owns the standalone service and upstream authenticated encounter.
+- Real private financial review/adoption is the goal **after** protected release. None of the passing localhost synthetic tests authorizes accessing live money now. Atlas remains separately queued.
+
+**Next Noel dependency**: deliver a strictly owner-bound private history/stream reader and safe event/bootstrap API that a restricted standalone Us service can use without the older `UsPostgresOwnedStore` directly reading broad tables, inserting streams or calling the unrestricted v1 appender. Maintain original imported-baseline lineage and existing identities. Do not expand direct grants or rely on an upstream-supplied UUID / session GUC.
+
+**Acceptance boundary**: no `anon`/`authenticated` grants on private tables or functions, no unrestricted `service_role` read/write through legacy functions, full stream ownership verified at the SQL source, real signed GoTrue owner/outsider denial at the isolated service endpoint, and unchanged forecast digest/replay/adoption proof. Enforce actual internal-service transport protection, and keep all tests on synthetic disposable RiverSong PostgreSQL. Release of v1/v2/v3 remains held until the complete application path is migrated, hosted runtime parity established and separate release authorization obtained.
+
+The corresponding owner decision and next bounded Us service acceptance are preserved in `optical-lift/us`, `systems/carry/RIVERSONG_LOCAL_STAGING_STATUS.md` (commit `ba107a99557499640cbe4ad69128ea02c081b1fb`). This supplements, rather than restarts, this existing v3 completion register.
