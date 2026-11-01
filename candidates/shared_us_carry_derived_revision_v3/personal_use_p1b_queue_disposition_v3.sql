@@ -36,7 +36,7 @@ DECLARE v_p us.carry_ordinary_proposals_v3%ROWTYPE;
  v_actor_person uuid;v_id uuid;v_digest text;
 BEGIN
  IF p_verified_actor_auth_user_id IS NULL OR p_proposal_id IS NULL
-  OR p_disposition NOT IN ('declined','withdrawn')
+  OR p_disposition IS NULL OR p_disposition NOT IN ('declined','withdrawn')
   OR p_decision_key IS NULL OR length(btrim(p_decision_key)) NOT BETWEEN 8 AND 160
   OR p_expected_envelope_digest IS NULL
   OR p_expected_envelope_digest !~ '^[0-9a-f]{64}$'
@@ -258,6 +258,7 @@ BEGIN
  WHERE p.stream_id=v_stream.id AND p.proposal_key=p_proposal_key;
  IF v_old.id IS NOT NULL THEN
   IF EXISTS (SELECT 1 FROM us.carry_ordinary_dispositions_v3 x WHERE x.proposal_id=v_old.id)
+   OR EXISTS (SELECT 1 FROM us.carry_ordinary_approved_decisions_v3 x WHERE x.proposal_id=v_old.id)
   THEN RAISE EXCEPTION 'Terminal proposal cannot be resubmitted' USING ERRCODE='42501'; END IF;
   IF v_old.owner_person_entity_id IS DISTINCT FROM v_person
    OR v_old.owner_auth_user_id IS DISTINCT FROM p_verified_owner_auth_user_id
