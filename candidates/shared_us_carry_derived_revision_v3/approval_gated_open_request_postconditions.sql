@@ -23,11 +23,11 @@ VALUES
  ('eeeeeeee-3333-4333-8333-333333333333',
   'aaaaaaaa-3333-4333-8333-333333333333',
   'cccccccc-3333-4333-8333-333333333333',
-  1,'adopted','synthetic:primary-revision'),
+  1,'draft','synthetic:primary-revision'),
  ('eeeeeeee-4444-4444-8444-444444444444',
   'aaaaaaaa-3333-4333-8333-333333333333',
   'cccccccc-4444-4444-8444-444444444444',
-  1,'adopted','synthetic:extra-revision'),
+  1,'draft','synthetic:extra-revision'),
  ('eeeeeeee-5555-4555-8555-555555555555',
   'aaaaaaaa-3333-4333-8333-333333333333',
   'cccccccc-5555-4555-8555-555555555555',
@@ -42,6 +42,14 @@ VALUES
  ('aaaaaaaa-3333-4333-8333-333333333333',
   'eeeeeeee-4444-4444-8444-444444444444',
   '2027-01-01','extra_income','household','available_inflow','estimated',22);
+
+-- Emulate two pre-Carry legacy adopted plans in the disposable fixture.
+-- Restore the immutability trigger immediately after the synthetic seed.
+ALTER TABLE us.financial_expectation_revisions DISABLE TRIGGER financial_revisions_immutable;
+UPDATE us.financial_expectation_revisions SET standing='adopted'
+ WHERE id IN ('eeeeeeee-3333-4333-8333-333333333333',
+              'eeeeeeee-4444-4444-8444-444444444444');
+ALTER TABLE us.financial_expectation_revisions ENABLE TRIGGER financial_revisions_immutable;
 
 DO $grantproof$
 DECLARE sig text:='us.carry_request_financial_open_v3(uuid,text,text,text)';
