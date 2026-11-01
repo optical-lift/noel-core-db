@@ -131,7 +131,7 @@ BEGIN
  RETURN jsonb_build_object(
   'approval_grant_id',v_id::text,'nomination_id',v_nom.id::text,
   'scope','open_primary_case_and_import_attested_baseline',
-  'expires_at',v_prior.expires_at,
+  'expires_at',p_expires_at,
   'decision_recorded',false,'case_opened',false,'recorded_event',false,
   'replayed',v_prior.id IS NOT NULL);
 END $fn$;
