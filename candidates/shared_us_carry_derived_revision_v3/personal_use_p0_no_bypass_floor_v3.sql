@@ -48,4 +48,6 @@ BEGIN
   USING ERRCODE='55000'; END IF;
 END $floor$;
 
+REVOKE INSERT ON us.carry_case_streams_v1 FROM service_role;
+REVOKE SELECT ON us.carry_case_streams_v1,us.carry_case_events_v1 FROM service_role;
 COMMIT;
