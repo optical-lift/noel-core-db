@@ -170,11 +170,15 @@ BEGIN
   jsonb_build_array(p_event_type,p_effective_on,p_epistemic_class,
    p_source_ref,p_payload,v_expected)::text,'UTF8'),'sha256'),'hex');
  SELECT * INTO v_old FROM us.carry_ordinary_proposals_v3 p
- WHERE p.stream_id=v_stream.id AND p.proposal_key=p_proposal_key FOR UPDATE;
+ WHERE p.stream_id=v_stream.id AND p.proposal_key=p_proposal_key;
  IF v_old.id IS NOT NULL THEN
   IF v_old.owner_person_entity_id IS DISTINCT FROM v_person
    OR v_old.owner_auth_user_id IS DISTINCT FROM p_verified_owner_auth_user_id
-   OR v_old.envelope_digest IS DISTINCT FROM v_digest
+   OR v_old.envelope_digest IS DISTINCT FROM
+      pg_catalog.encode(extensions.digest(pg_catalog.convert_to(
+       jsonb_build_array(p_event_type,p_effective_on,p_epistemic_class,
+        p_source_ref,p_payload,v_old.expected_sequence)::text,'UTF8'),
+       'sha256'),'hex')
   THEN RAISE EXCEPTION 'Conflicting or stale proposal key'
    USING ERRCODE='23505'; END IF;
   v_id:=v_old.id;
