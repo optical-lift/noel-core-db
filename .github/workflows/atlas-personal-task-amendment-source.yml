@@ -1,0 +1,22 @@
+name: Atlas personal task amendment source contract
+on:
+  pull_request:
+    paths:
+      - "candidates/atlas_personal_task_text_date_amendment_v1/**"
+      - "tests/atlas-personal-task-text-date-amendment-source.test.mjs"
+      - ".github/workflows/atlas-personal-task-amendment-source.yml"
+permissions:
+  contents: read
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Explicit candidate source checks
+        run: |
+          set -euo pipefail
+          node --test tests/atlas-personal-task-text-date-amendment-source.test.mjs
+          echo "Static/source tests only; schema clone and genuine signed Auth/REST remain required."
