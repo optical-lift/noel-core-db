@@ -8,6 +8,8 @@ An interrupted request may be retried against its original expected revision: wh
 
 A new amendment event is written only for a changed task. Private events have no direct table grants and use RLS. Permanent deletion of the original cascades its private amendment text history. A no-op creates no event.
 
+The explicit source-only PR workflow executes this candidate's Node assertions. The synthetic supplemental fixture at validation/fixtures/atlas_personal_task_amendment_signed_clone_extra_v1.sql is intended to be appended AFTER candidates/atlas_work_self_assignment_native_v1/fixture.sql, inside a disposable full-schema clone. It is not a genuine signed actor test, does not install a migration, and is not sufficient for release.
+
 Release gates: independently reviewed source, governed source generation, full disposable production-schema clone, postconditions, signed GoTrue/PostgREST positive and negative tests, exact receipt, and a separately authorized protected production release. Signed cases must include owner text-only/date-only/both/no-op/stale, other owner, anonymous, locked or revoked Principal, completed, archived and transferred tasks, competing promotion, exact replay versus changed payload/stale revision, old/new day reads, no additional Work, and permanent deletion after amendment. No claimed live success until performed.
 
 Only after the protected source release is verified may Atlas expose editing; the application must fail closed when source capability is absent, reread the original and both old/new daily projections, and keep the same task ID.

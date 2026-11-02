@@ -5,6 +5,8 @@ const base=new URL("../candidates/atlas_personal_task_text_date_amendment_v1/",i
 const sql=readFileSync(new URL("candidate.sql",base),"utf8");
 const post=readFileSync(new URL("postconditions.sql",base),"utf8");
 const notes=readFileSync(new URL("README.md",base),"utf8");
+const fixture=readFileSync(new URL("../validation/fixtures/atlas_personal_task_amendment_signed_clone_extra_v1.sql",import.meta.url),"utf8");
+const workflow=readFileSync(new URL("../.github/workflows/atlas-personal-task-amendment-source.yml",import.meta.url),"utf8");
 test("source-only atomic personal task amendment without replacing Work",()=>{
  assert.match(sql,/^-- Source-only candidate/);
  assert.match(sql,/BEGIN;[\s\S]*COMMIT;/);
@@ -37,6 +39,20 @@ test("grants, private event cleanup, and public invoker transport",()=>{
  assert.match(sql,/v_old.amendment_revision=p_expected_revision\+1/);
  assert.match(sql,/'idempotent',true/);
  assert.match(post,/personal_task_amendment_one_per_revision_v1/);
+});
+test("disposable synthetic fixture is source-bounded, never a live account",()=>{
+ assert.match(fixture,/disposable localhost PostgreSQL clone/);
+ assert.match(fixture,/INSERT INTO atlas\.personal_atlas_access_grants/);
+ assert.match(fixture,/INSERT INTO atlas\.task_entries/);
+ assert.match(fixture,/INSERT INTO atlas\.work_items/);
+ assert.match(fixture,/source_object_type,source_object_id/);
+ assert.match(fixture,/personal_dated_task/);
+ assert.doesNotMatch(fixture,/gmail\.com|elmfarm\.co|opticallift\.com/i);
+});
+test("candidate assertions are actually executed in an isolated PR workflow",()=>{
+ assert.match(workflow,/node --test tests\/atlas-personal-task-text-date-amendment-source\.test\.mjs/);
+ assert.match(workflow,/pull_request:/);
+ assert.match(workflow,/source tests only; schema clone and genuine signed Auth\/REST remain required/i);
 });
 test("protected source release is explicitly incomplete",()=>{
  assert.match(notes,/signed GoTrue\/PostgREST/);
