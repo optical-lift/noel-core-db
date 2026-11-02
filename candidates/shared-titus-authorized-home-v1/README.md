@@ -33,7 +33,7 @@ Reply: `{contractVersion:"titus_authorized_home_self_v1",state:"ready",personId:
 
 `structural_postconditions.sql` is a structural-only assertion for a disposable production-schema clone **after applying** the SQL candidate; it checks scoped ACL, search path and key source dependencies. It is neither an executable deployment permission nor signed HTTP proof.
 
-The signed, two-Person test must use existing real authorized sessions or independently authorized ephemeral test identities—never a service-role impersonation:
+A genuine bearer-only harness is staged as `signed_self_read_test.py`. It reads environment-supplied credentials without writing or logging them, rejects anonymous access, and verifies the actual self-response. It has not been executed because the source RPC is not yet installed. Its single-Person proof is insufficient without the separate real two-Person negative/positive tests.\n\nThe signed, two-Person test must use existing real authorized sessions or independently authorized ephemeral test identities—never a service-role impersonation:
 1. Principal-designated existing Person signed into Titus + no educational membership → `ready` with `subjects:[]`, **no private program titles**.
 2. Distinct enrolled Person in an active offering for published version → one `institutional_course` with `roles:["learner"]` (only if independently authorized actual enrollment exists).
 3. Withdrawn enrollment, closed/retired offering, unpublished version, inactive Course → corresponding Course absent without total count or identity disclosure.
