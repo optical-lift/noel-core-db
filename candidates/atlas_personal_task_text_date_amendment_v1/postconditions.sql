@@ -31,9 +31,17 @@ BEGIN
   WHERE conrelid='atlas.personal_task_amendment_events_v1'::regclass
   AND confrelid='atlas.task_entries'::regclass AND confdeltype='c')
  THEN RAISE EXCEPTION 'Permanent original task deletion no longer cascades'; END IF;
+ IF NOT EXISTS (SELECT 1 FROM pg_constraint
+   WHERE conrelid='atlas.personal_task_amendment_events_v1'::regclass
+     AND conname='personal_task_amendment_one_per_revision_v1'
+     AND contype='u')
+ THEN RAISE EXCEPTION 'Repeated revision can create duplicate events'; END IF;
  body:=pg_get_functiondef(wr);
  IF strpos(body,'FOR UPDATE')=0
  OR strpos(body,'amendment_revision<>p_expected_revision')=0
+ OR strpos(body,'e.before_revision=p_expected_revision')=0
+ OR strpos(body,'e.before_due_date')=0
+ OR strpos(body,'''idempotent'',true')=0
  OR strpos(body,'source_object_type=''personal_dated_task''')=0
  THEN RAISE EXCEPTION 'Original source custody guard absent'; END IF;
 END

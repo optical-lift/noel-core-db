@@ -29,6 +29,14 @@ test("grants, private event cleanup, and public invoker transport",()=>{
  assert.match(sql,/LANGUAGE sql STABLE SECURITY INVOKER/);
  assert.match(sql,/LANGUAGE sql VOLATILE SECURITY INVOKER/);
  assert.match(post,/confdeltype='c'/);
+ assert.match(sql,/UNIQUE \(task_id,before_revision\)/);
+ assert.match(sql,/e.before_revision=p_expected_revision/);
+ assert.match(sql,/e.after_revision=v_old.amendment_revision/);
+ assert.match(sql,/e.after_sentence IS NOT DISTINCT FROM v_sentence/);
+ assert.match(sql,/e.after_due_date IS NOT DISTINCT FROM p_new_due_date/);
+ assert.match(sql,/v_old.amendment_revision=p_expected_revision\+1/);
+ assert.match(sql,/'idempotent',true/);
+ assert.match(post,/personal_task_amendment_one_per_revision_v1/);
 });
 test("protected source release is explicitly incomplete",()=>{
  assert.match(notes,/signed GoTrue\/PostgREST/);
