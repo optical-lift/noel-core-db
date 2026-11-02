@@ -58,7 +58,8 @@ create unique index universal_program_invite_issuer_request_v1
 create function atlas.universal_program_invitation_origin_guard_v1()
 returns trigger language plpgsql set search_path=pg_catalog as $guard$
 begin
-  if tg_op='UPDATE' and (
+  if tg_op='UPDATE' then
+    if (
     old.invitee_person_id, old.invited_by_person_id,
     old.atlas_program_id, old.atlas_program_version_id,
     old.titus_program_id, old.titus_curriculum_version_id,
@@ -73,6 +74,7 @@ begin
   ) then
     raise exception 'Invitation original and provenance immutable'
       using errcode='23514';
+    end if;
   end if;
   if new.atlas_program_id is not null and not exists (
     select 1 from atlas.personal_training_program_versions v
@@ -121,7 +123,8 @@ create table atlas.universal_program_participations_v1 (
 create function atlas.universal_program_participation_guard_v1()
 returns trigger language plpgsql set search_path=pg_catalog as $guard$
 begin
-  if tg_op='UPDATE' and (
+  if tg_op='UPDATE' then
+    if (
     old.invitation_id, old.participant_person_id, old.consented_at,
     old.consent_proof_hash, old.created_at
   ) is distinct from (
@@ -130,6 +133,7 @@ begin
   ) then
     raise exception 'Participant consent original immutable'
       using errcode='23514';
+    end if;
   end if;
   if not exists (
     select 1 from atlas.universal_program_invitations_v1 i
