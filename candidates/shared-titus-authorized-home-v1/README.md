@@ -70,3 +70,7 @@ Accordingly, **do not introduce a competing generic participant/coach store in T
 The live Titus resolver returns a canonical Reality entity UUID, whereas Atlas Teaching enrollment points to `atlas.people(id)`. The existing Atlas Teaching enrollment reader compares a Reality Person UUID directly to that Atlas FK. This candidate instead requires an **active, nonretired Atlas Person credential** matching both the signed-in Auth user and verified canonical Reality Person and an active Atlas Person. UUID equality alone is never authorization. If the IDs legitimately diverge in the future, this first slice denies until a governed mapping exists.
 
 Read-only aggregate inspection verified 4 such active canonical mappings, including the principal-selected test account. The existing institutional Teaching enrollment count is 0, so **no private courses are currently entitled by this slice**. The SQL source has not been applied or tested in a schema clone; the signed bearer test remains pending.
+
+## 2026-11-01 source-check receipt
+
+GitHub Database Custody CI passed for draft candidate commit `d857f79c3af8a093a4a0d72dc699114c1f233af6` (Actions run `41370406879`). This checks repository custody at that revision, **not** the proposed Postgres function's execution, proof of source access, a local schema clone, or authorization for production release. The related Titus client branch has no automated verification workflow receipt as of this check.
