@@ -47,6 +47,10 @@ begin
     );
   end if;
 
+  -- Proof that the Reality Person is the same active Atlas Person used by
+  -- institutional Teaching. Their UUID equality alone is NOT authorization.
+  -- A future divergent legacy Person ID stays denied pending a separately
+  -- reviewed canonical mapping; never infer from display name or email.
   -- Existing lawful enrollment is the ONLY currently supported source of
   -- discovery. An authored-by field, teacher display name, organization role,
   -- source-reference link or Constellation grant is never a course entitlement.
@@ -68,14 +72,23 @@ begin
       c.id as course_id,
       left(regexp_replace(v.title, '[[:cntrl:]]+', ' ', 'g'), 180) as title,
       left(regexp_replace(coalesce(v.summary,''), '[[:cntrl:]]+', ' ', 'g'), 280) as subtitle
-    from atlas.teaching_enrollments e
+    from atlas.person_auth_credentials credential
+    join atlas.people person
+      on person.id=credential.person_id
+     and person.status='active'
+    join atlas.teaching_enrollments e
+      on e.person_id=person.id
     join atlas.teaching_course_offerings o
       on o.id=e.offering_id and o.ledger_id=e.ledger_id
     join atlas.teaching_courses c
       on c.id=o.course_id and c.ledger_id=o.ledger_id
     join atlas.teaching_course_versions v
       on v.id=o.course_version_id and v.course_id=c.id
-    where e.person_id=v_person
+    where credential.auth_user_id=v_uid
+      and credential.person_id=v_person
+      and credential.credential_kind='supabase_auth_user'
+      and credential.status='active'
+      and credential.retired_at is null
       and e.state='active' and e.withdrawn_at is null
       and o.state='open' and o.opened_at is not null
       and c.status='active' and c.retired_at is null
