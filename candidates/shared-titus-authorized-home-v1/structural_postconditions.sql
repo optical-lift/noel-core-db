@@ -41,6 +41,7 @@ begin
      position('credential.retired_atisnull' in v_def)=0 or
      position('person.status=''active''' in v_def)=0 or
      position('atlas.teaching_enrollments' in v_def)=0 or
+     position('''pendinginvitations'',''[]''::jsonb' in v_def)=0 or
      position('e.state=''active''' in v_def)=0 or
      position('o.state=''open''' in v_def)=0 or
      position('v.published_atisnotnull' in v_def)=0 then
