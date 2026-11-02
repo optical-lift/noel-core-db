@@ -116,6 +116,7 @@ signed_universal_original_work_probe=false
 signed_work_self_assignment_probe=false
 signed_care_single_done_probe=false
 signed_native_work_release_probe=false
+signed_personal_task_amendment_probe=false
 signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
 signed_unified_today_p0_probe=false
@@ -149,6 +150,16 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_work_self_assignment_probe=true
+fi
+
+# Exact signed personal task amendment requires a fictional disposable clone.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_personal_task_amendment_signed_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Signed personal amendment requires fixture and postconditions." >&2
+    exit 2
+  fi
+  signed_personal_task_amendment_probe=true
 fi
 
 # Owner-gated source-only editor/date/Result status proof. This is
@@ -586,6 +597,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_work_self_assignment_probe" = true ] ||
        [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
+       [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
@@ -598,6 +610,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
     # image registries, pinned CLI, health checks, JWT verification or SQL.
     if [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
+       [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
@@ -795,6 +808,16 @@ if [ "$signed_ledger_disposition_v2_probe" = true ]; then
   grep -q '^PASS' "$artifacts_dir/signed-ledger-disposition-v2-summary.txt"
 fi
 
+if [ "$signed_personal_task_amendment_probe" = true ]; then
+  phase="signed personal task text/date amendment on disposable original"
+  python3 "$repo_root/scripts/validate-atlas-personal-task-amendment-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-personal-task-amendment-summary.txt" \
+    >"$artifacts_dir/signed-personal-task-amendment.log" 2>&1
+  test -s "$artifacts_dir/signed-personal-task-amendment-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-personal-task-amendment-summary.txt"
+fi
+
 if [ "$signed_native_work_release_probe" = true ]; then
   phase="signed native original Work edit, date, own Results and revocation"
   python3 "$repo_root/scripts/validate-atlas-native-work-release-signed-http.py" \
@@ -965,6 +988,9 @@ if [ "$signed_ledger_reciprocal_probe" = true ]; then
 fi
 if [ "$signed_ledger_disposition_v2_probe" = true ]; then
   printf '\nSIGNED Ledger disposition v2: independent GoTrue worker/governor/outsider, follow-up recovery, edited/rejected same original, idempotent retry, root cutoff and true 42501 denials.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_personal_task_amendment_probe" = true ]; then
+  printf '\nSIGNED personal original task: local GoTrue separation, revision edits, conflicts, replays, revocation, private text cleanup.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_native_work_release_probe" = true ]; then
   printf '\nSIGNED native Work editing/date/status: local independent GoTrue actors, original identity, stale edit, Result privacy, current plan and revoked seat all passed.\n' >> "$artifacts_dir/summary.md"
