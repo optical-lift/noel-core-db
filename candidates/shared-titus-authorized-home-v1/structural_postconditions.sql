@@ -35,6 +35,11 @@ begin
   if position('titus.current_authenticated_person_entity_id_v1()' in v_def)=0 or
      position('auth.uid()' in v_def)=0 or
      position('auth.jwt()' in v_def)=0 or
+     position('atlas.person_auth_credentials' in v_def)=0 or
+     position('credential.auth_user_id=v_uid' in v_def)=0 or
+     position('credential.person_id=v_person' in v_def)=0 or
+     position('credential.retired_atisnull' in v_def)=0 or
+     position('person.status=''active''' in v_def)=0 or
      position('atlas.teaching_enrollments' in v_def)=0 or
      position('e.state=''active''' in v_def)=0 or
      position('o.state=''open''' in v_def)=0 or
