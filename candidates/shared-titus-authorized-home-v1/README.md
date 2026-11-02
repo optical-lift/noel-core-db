@@ -167,3 +167,9 @@ Reconciled Atlas Universal Program Participation handoff (October 26, 30 previou
 5. Complete required full university, notes/review, modules and teaching scope tests, current-user and second independent real-person browser proof, optional appropriate API key configuration under separately authorized release, and separately approved production deployment.
 
 **Current status:** PRs #19, #2438 and #2439 source-stage independent boundaries; production permissions, identities, roles, enrollment/participation rows, Titus feature flag and deployment remain untouched.
+
+## Source receipt — November 1, 2026
+- Draft [PR #2439](https://github.com/optical-lift/noel-core-db/pull/2439) at commit `094100dbb20bc502ca68e454c82ed1cd765d6431` passed **Database Custody CI run [#41373247912](https://github.com/optical-lift/noel-core-db/actions/runs/41373247912)**. This is repository source-custody validation, not database execution.
+- The shared Titus authorized-home reader candidate at [PR #2438](https://github.com/optical-lift/noel-core-db/pull/2438), commit `6a5679ae3be74792a3632621586cdf64a0a0c71f`, passed its separate **Database Custody CI run [#41373341349](https://github.com/optical-lift/noel-core-db/actions/runs/41373341349)**.
+- Eleven read-only source-invariant checks were inspected against the actual GitHub candidate: separate invitation and participation tables, Atlas/Titus original version FKs, exclusive source shape, accepted-invite Person match, no inferred capability, both FORCE RLS, no public writer, no direct grant, immutable original identifiers/consent, and no private research bodies. All passed as **static source checks only**.
+- No disposable PG clone or signed negative/positive HTTP tests have been run. No new live relations, issuer permissions, invitations, acceptances, author rights, teacher rights, course releases, keys, PR merges or deployments were created.
