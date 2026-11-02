@@ -58,6 +58,22 @@ create unique index universal_program_invite_issuer_request_v1
 create function atlas.universal_program_invitation_origin_guard_v1()
 returns trigger language plpgsql set search_path=pg_catalog as $guard$
 begin
+  if tg_op='UPDATE' and (
+    old.invitee_person_id, old.invited_by_person_id,
+    old.atlas_program_id, old.atlas_program_version_id,
+    old.titus_program_id, old.titus_curriculum_version_id,
+    old.issued_at, old.expires_at, old.authority_basis,
+    old.authority_proof_hash, old.request_key
+  ) is distinct from (
+    new.invitee_person_id, new.invited_by_person_id,
+    new.atlas_program_id, new.atlas_program_version_id,
+    new.titus_program_id, new.titus_curriculum_version_id,
+    new.issued_at, new.expires_at, new.authority_basis,
+    new.authority_proof_hash, new.request_key
+  ) then
+    raise exception 'Invitation original and provenance immutable'
+      using errcode='23514';
+  end if;
   if new.atlas_program_id is not null and not exists (
     select 1 from atlas.personal_training_program_versions v
     where v.id=new.atlas_program_version_id
@@ -77,8 +93,7 @@ begin
 end;
 $guard$;
 create trigger universal_program_invitation_origin_guard_v1
- before insert or update of atlas_program_id,atlas_program_version_id,
-   titus_program_id,titus_curriculum_version_id
+ before insert or update
  on atlas.universal_program_invitations_v1
  for each row execute function atlas.universal_program_invitation_origin_guard_v1();
 
@@ -106,6 +121,16 @@ create table atlas.universal_program_participations_v1 (
 create function atlas.universal_program_participation_guard_v1()
 returns trigger language plpgsql set search_path=pg_catalog as $guard$
 begin
+  if tg_op='UPDATE' and (
+    old.invitation_id, old.participant_person_id, old.consented_at,
+    old.consent_proof_hash, old.created_at
+  ) is distinct from (
+    new.invitation_id, new.participant_person_id, new.consented_at,
+    new.consent_proof_hash, new.created_at
+  ) then
+    raise exception 'Participant consent original immutable'
+      using errcode='23514';
+  end if;
   if not exists (
     select 1 from atlas.universal_program_invitations_v1 i
     where i.invitation_id=new.invitation_id
@@ -121,7 +146,7 @@ begin
 end;
 $guard$;
 create trigger universal_program_participation_guard_v1
- before insert or update of invitation_id,participant_person_id,consented_at
+ before insert or update
  on atlas.universal_program_participations_v1
  for each row execute function atlas.universal_program_participation_guard_v1();
 
