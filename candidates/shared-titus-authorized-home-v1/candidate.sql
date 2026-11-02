@@ -32,7 +32,8 @@ begin
     return jsonb_build_object(
       'contractVersion','titus_authorized_home_self_v1',
       'state','identity_not_ready',
-      'subjects','[]'::jsonb
+      'subjects','[]'::jsonb,
+      'pendingInvitations','[]'::jsonb
     );
   end if;
 
@@ -43,7 +44,8 @@ begin
     return jsonb_build_object(
       'contractVersion','titus_authorized_home_self_v1',
       'state','identity_not_ready',
-      'subjects','[]'::jsonb
+      'subjects','[]'::jsonb,
+      'pendingInvitations','[]'::jsonb
     );
   end if;
 
@@ -101,7 +103,10 @@ begin
     'contractVersion','titus_authorized_home_self_v1',
     'state','ready',
     'personId',v_person,
-    'subjects',v_subjects
+    'subjects',v_subjects,
+    -- No Atlas universal Program invitation source has been authorized yet.
+    -- Never infer a private invitation from source history or signed-in status.
+    'pendingInvitations','[]'::jsonb
   );
 end;
 $function$;
