@@ -71,10 +71,13 @@ def main() -> None:
     check(data.get("state") in {"ready", "identity_not_ready"},
           "Unknown source status")
     subjects = data.get("subjects")
+    invitations = data.get("pendingInvitations")
     check(isinstance(subjects, list) and len(subjects) <= 100,
           "Invalid source list")
+    check(isinstance(invitations, list) and len(invitations) == 0,
+          "V1 may not disclose invitations before a governed invitation source exists")
     if data.get("state") == "identity_not_ready":
-        check(not subjects, "Unresolved identity leaked subjects")
+        check(not subjects and not invitations, "Unresolved identity leaked private subjects")
     else:
         check(isinstance(data.get("personId"), str),
               "Missing canonical Person source identity")
