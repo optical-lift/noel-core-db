@@ -1,0 +1,11 @@
+# Atlas original personal task amendment — SOURCE CANDIDATE ONLY
+
+Owner: Noel atlas_ structural release lane. No production deployment or personal Task Focus feature results from this draft.
+
+The authenticated established Principal may change sentence (1–500 characters), due date, or both for exactly one open, unarchived original task, when the signed expected amendment revision still matches. Owner user ID, Principal, task ID and initial create-action identity are unchanged. The writer locks the task row and forbids edits after the original has been linked to Company Work. Promotion also locks that row.
+
+A new amendment event is written only for a changed task. Private events have no direct table grants and use RLS. Permanent deletion of the original cascades its private amendment text history. A no-op creates no event.
+
+Release gates: independently reviewed source, governed source generation, full disposable production-schema clone, postconditions, signed GoTrue/PostgREST positive and negative tests, exact receipt, and a separately authorized protected production release. Signed cases must include owner text-only/date-only/both/no-op/stale, other owner, anonymous, locked or revoked Principal, completed, archived and transferred tasks, competing promotion, old/new day reads, no additional Work, and permanent deletion after amendment. No claimed live success until performed.
+
+Only after the protected source release is verified may Atlas expose editing; the application must fail closed when source capability is absent, reread the original and both old/new daily projections, and keep the same task ID.
