@@ -14,7 +14,12 @@ begin
   end if;
   if has_function_privilege('anon', v_oid, 'EXECUTE') or
      has_function_privilege('service_role', v_oid, 'EXECUTE') or
-     has_function_privilege('PUBLIC', v_oid, 'EXECUTE') then
+     exists (
+       select 1 from pg_proc p,
+         lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+       where p.oid = v_oid and acl.grantee = 0
+         and acl.privilege_type = 'EXECUTE'
+     ) then
     raise exception 'Unexpected broad RPC EXECUTE permission';
   end if;
   if not has_function_privilege('authenticated', v_oid, 'EXECUTE') then
