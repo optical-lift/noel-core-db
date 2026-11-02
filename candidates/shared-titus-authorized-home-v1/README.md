@@ -148,3 +148,22 @@ This section transcribes the **exact question and selected option text**; letter
 Titus PR #19 now separates authorized subjects from unaccepted invitation previews in its home parser and display. An invitation has no study/teach/author role and cannot open a subject through a guessed URL. Noel candidate SQL returns an empty pendingInvitations list until a legitimate Atlas source establishes one; structural and signed-read test source checks this.
 
 Proof: seven source-derived V8 parser smoke checks passed, not full Titus CI. Noel Database Custody CI run 41372340695 passed on source commit 0d04ea6; this is not a schema-clone or signed-user authorization proof. No source is released, no database rows or grants changed. Next: real governed Atlas Program invitation and consent relationship; isolated signed positive/negative tests; private curriculum-author, teacher-at-module, learner and source-reviewer rights; complete private university acceptance before production release.
+
+## 2026-11-01 continuation: real universal Program relationship substrate, source-only
+
+Reconciled Atlas Universal Program Participation handoff (October 26, 30 previously chosen decisions), the newer 32 Titus/Discovery University decisions, and current live Atlas/Noel/Titus schema. Existing source has an author-only `atlas.personal_training_programs` with `atlas.personal_training_program_versions`, a separate native `titus.programs` with `titus.curriculum_versions`, but **no released universal Program participation/invitation table or writer**. The existing Atlas institutional Teaching enrollment cannot be used as a fictitious substitute. No existing Person, Program, enrollment, approved curriculum version, or auth configuration was modified.
+
+**New bounded source:** [noel-core-db draft PR #2439](https://github.com/optical-lift/noel-core-db/pull/2439) on `work/shared-program-invitation-consent-source-20261101` (separate from Titus #19 and shared-home reader #2438), with candidate SQL and structural-clone test source. It stages:
+- One exact-version, provenance-bearing offered invitation referencing one original native Atlas authored Program or Titus Program. Original source and identifiers are not duplicated, and an invitation does **not** authorize study or teaching.
+- A separate, version-bound participation referencing **only an accepted invitation for that same Person** with explicit consent proof. It is not a teacher/author/source-reviewer permission.
+- FKs to original sources and versions, checked original-version relationship, pending-invite uniqueness and idempotency key, immutable original/source/consent identity, forced RLS and no released user-data table ACL or self-writer.
+- No legitimate issuance or consent write API, no invitation projection, no module-level teaching/reviewer authority, no real rows, and no changes to Titus's current-published home. A source-only skeleton is not a grant or deployment.
+
+**Next unfinished acceptance gates, in order:**
+1. Finish source-authorized exact-subject governor/delegate **issuance** operation and append-only authority/event receipt under universal Atlas responsibility (not assumed from authorship or credentials).
+2. Finish genuinely signed **invitee acceptance** with consent; verifiable session+canonical Atlas Person, one original participation, replay/expiry/withdrawal denial and immutable version.
+3. Install/test this candidate ONLY in a disposable production-shaped clone, including synthetic signed issuer, invited Person and outsider, direct/alternate read denial, negative tests of arbitrary IDs and no old/special API bypass. Separate source custody CI is insufficient.
+4. When real issuer approval and program invitation exist, extend `public.titus_authorized_home_self_api_v1` (PR #2438) from literal empty `pendingInvitations` and institution-only learner to exact verified invitation and accepted private curricular rights; no source text release by mere participation.
+5. Complete required full university, notes/review, modules and teaching scope tests, current-user and second independent real-person browser proof, optional appropriate API key configuration under separately authorized release, and separately approved production deployment.
+
+**Current status:** PRs #19, #2438 and #2439 source-stage independent boundaries; production permissions, identities, roles, enrollment/participation rows, Titus feature flag and deployment remain untouched.
