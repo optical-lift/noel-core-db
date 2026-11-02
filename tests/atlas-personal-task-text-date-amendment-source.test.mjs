@@ -59,3 +59,10 @@ test("protected source release is explicitly incomplete",()=>{
  assert.match(notes,/separately authorized protected production release/);
  assert.match(notes,/permanent deletion after amendment/);
 });
+
+// A stale signed form is an ordinary HTTP conflict, never a serialization
+// failure. PostgREST retries application-raised 40001 in some versions.
+test("HTTP conflict code is safe for stale or racing personal amendments",()=>{
+ assert.equal((sql.match(/ERRCODE='PT409'/g)||[]).length,2);
+ assert.doesNotMatch(sql,/ERRCODE='40001'/);
+});

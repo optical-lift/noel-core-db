@@ -126,7 +126,7 @@ BEGIN
          'oneOriginalTaskId',true,'noInstitutionalWorkChanged',true);
      END IF;
    END IF;
-   RAISE EXCEPTION 'Task changed; read again before editing' USING ERRCODE='40001';
+   RAISE EXCEPTION 'Task changed; read again before editing' USING ERRCODE='PT409';
  END IF;
  IF v_old.sentence IS NOT DISTINCT FROM v_sentence
     AND v_old.due_date IS NOT DISTINCT FROM p_new_due_date THEN
@@ -143,7 +143,7 @@ BEGIN
    AND t.principal_id=v_principal
  RETURNING * INTO v_new;
  IF v_new.id IS NULL THEN
-   RAISE EXCEPTION 'Original task write unavailable' USING ERRCODE='40001';
+   RAISE EXCEPTION 'Original task write unavailable' USING ERRCODE='PT409';
  END IF;
  INSERT INTO atlas.personal_task_amendment_events_v1 (
   task_id,owner_user_id,principal_id,before_sentence,after_sentence,
