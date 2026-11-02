@@ -22,8 +22,13 @@ jobs:
         run: |
           set -euo pipefail
           bash -n scripts/validate-production-schema-clone.sh
-          python3 -m py_compile scripts/validate-atlas-personal-task-amendment-signed-http.py
-          node --test tests/atlas-personal-task-text-date-amendment-source.test.mjs
+          # The trusted workflow-only PR must not be forced to merge an
+          # unvalidated candidate script. The candidate PR executes both.
+          if test -f scripts/validate-atlas-personal-task-amendment-signed-http.py; then
+            python3 -m py_compile scripts/validate-atlas-personal-task-amendment-signed-http.py
+            node --test tests/atlas-personal-task-text-date-amendment-source.test.mjs
+          fi
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-personal-task-amendment-premerge-clone.yml")'
   validate:
     if: >-
       github.event_name == 'issues' &&
