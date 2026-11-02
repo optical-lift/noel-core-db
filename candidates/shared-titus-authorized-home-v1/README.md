@@ -59,3 +59,9 @@ Record exact clone migration checksum, signed user receipts (redacted), positive
 ## Deployment prohibition
 
 No production DDL, RLS/grant changes, entitlement creation, OAuth client modification, Atlas UI change, research release, Tutor-role creation, Vercel Preview or Production. This proposal does not alter the existing Atlas/Titus authorization release policy.
+
+## Atlas Universal Program Participation reconciliation
+
+The existing October 26 Atlas **Universal Program Participation** handoff was inspected before introducing any private Titus Program membership. It directs that an authored Program alone is *not* a participating Person relationship; explicit consent/acceptance, shared canonical Person identity, original program, approved version, governed facilitator disclosure and source-backed participation are required. Its earlier implementation plan is **not evidence a usable participation entitlement has been released**. The current live Atlas table inventory still has authored personal Programs but no matching generic Program participation/teacher enrollment records for Titus.
+
+Accordingly, **do not introduce a competing generic participant/coach store in Titus just for this login**. Future authorized private Titus Formation access should reuse the universally established Atlas relationship substrate if it can legitimately express that relationship, with any Titus-specific teaching/learner-state semantics remaining Titus custody. At this first slice the institutional Teaching enrollment source is real and empty; private program rights remain held.
