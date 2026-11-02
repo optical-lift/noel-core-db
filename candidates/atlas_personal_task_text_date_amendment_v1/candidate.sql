@@ -14,7 +14,9 @@ CREATE TABLE atlas.personal_task_amendment_events_v1 (
  recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  CHECK (before_sentence IS DISTINCT FROM after_sentence
         OR before_due_date IS DISTINCT FROM after_due_date),
- CHECK (after_revision=before_revision+1 AND before_revision>=0)
+ CHECK (after_revision=before_revision+1 AND before_revision>=0),
+ CONSTRAINT personal_task_amendment_one_per_revision_v1
+   UNIQUE (task_id,before_revision)
 );
 CREATE INDEX personal_task_amendment_events_original_v1
  ON atlas.personal_task_amendment_events_v1(task_id,recorded_at,id);
@@ -75,6 +77,7 @@ DECLARE
  v_new atlas.task_entries%ROWTYPE;
  v_sentence text := btrim(coalesce(p_new_sentence,''));
  v_event uuid;
+ v_original_day date;
 BEGIN
  IF p_task_id IS NULL OR p_expected_revision IS NULL OR p_expected_revision<0
    OR p_new_due_date IS NULL OR char_length(v_sentence) NOT BETWEEN 1 AND 500 THEN
@@ -97,6 +100,32 @@ BEGIN
      USING ERRCODE='23514';
  END IF;
  IF v_old.amendment_revision<>p_expected_revision THEN
+   -- Lost-response retry: only the IMMEDIATELY prior revision, the exact
+   -- desired state, and its recorded original event may replay as success.
+   -- A later mutation, changed payload or different actor cannot replay.
+   IF v_old.amendment_revision=p_expected_revision+1
+      AND v_old.sentence IS NOT DISTINCT FROM v_sentence
+      AND v_old.due_date IS NOT DISTINCT FROM p_new_due_date THEN
+     SELECT e.id,e.before_due_date INTO v_event,v_original_day
+     FROM atlas.personal_task_amendment_events_v1 e
+     WHERE e.task_id=v_old.id
+       AND e.owner_user_id=v_old.owner_user_id
+       AND e.principal_id=v_old.principal_id
+       AND e.before_revision=p_expected_revision
+       AND e.after_revision=v_old.amendment_revision
+       AND e.after_sentence IS NOT DISTINCT FROM v_sentence
+       AND e.after_due_date IS NOT DISTINCT FROM p_new_due_date;
+     IF v_event IS NOT NULL THEN
+       RETURN jsonb_build_object(
+         'ok',true,'contractVersion','personal_task_text_date_amend_v1',
+         'taskId',v_old.id,'sentence',v_old.sentence,
+         'oldDueDate',v_original_day,'dueDate',v_old.due_date,
+         'amendmentRevision',v_old.amendment_revision,
+         'changed',true,'idempotent',true,
+         'amendmentEventId',v_event,
+         'oneOriginalTaskId',true,'noInstitutionalWorkChanged',true);
+     END IF;
+   END IF;
    RAISE EXCEPTION 'Task changed; read again before editing' USING ERRCODE='40001';
  END IF;
  IF v_old.sentence IS NOT DISTINCT FROM v_sentence
@@ -104,7 +133,7 @@ BEGIN
    RETURN jsonb_build_object(
     'ok',true,'contractVersion','personal_task_text_date_amend_v1',
     'taskId',v_old.id,'sentence',v_old.sentence,'dueDate',v_old.due_date,
-    'amendmentRevision',v_old.amendment_revision,'changed',false,
+    'amendmentRevision',v_old.amendment_revision,'changed',false,'idempotent',true,
     'oneOriginalTaskId',true,'noInstitutionalWorkChanged',true);
  END IF;
  UPDATE atlas.task_entries t
@@ -127,7 +156,7 @@ BEGIN
   'ok',true,'contractVersion','personal_task_text_date_amend_v1',
   'taskId',v_new.id,'sentence',v_new.sentence,
   'oldDueDate',v_old.due_date,'dueDate',v_new.due_date,
-  'amendmentRevision',v_new.amendment_revision,'changed',true,
+  'amendmentRevision',v_new.amendment_revision,'changed',true,'idempotent',false,
   'amendmentEventId',v_event,'oneOriginalTaskId',true,
   'noInstitutionalWorkChanged',true);
 END
