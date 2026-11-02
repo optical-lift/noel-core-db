@@ -38,3 +38,9 @@ Before any real issuance or acceptance:
 - **Done:** source candidate for two separate, version-bound private relationship originals, structural postcondition source.
 - **Not done:** apply source to clone/live, signed tests, issuer and consent writers, revision events, authority grants, real study access, real PR approval, Preview or Production. No release authority inferred.
 - **Next bounded gate:** source-authorized issuer validation and accepted-participation atomic writer in an isolated production-shaped clone, with event history and signed denial; do not expand this PR's scope if governance requires separately reviewed increment.
+
+## Source receipt — November 1, 2026
+- Draft [PR #2439](https://github.com/optical-lift/noel-core-db/pull/2439) at commit `094100dbb20bc502ca68e454c82ed1cd765d6431` passed **Database Custody CI run [#41373247912](https://github.com/optical-lift/noel-core-db/actions/runs/41373247912)**. This is repository source-custody validation, not database execution.
+- The shared Titus authorized-home reader candidate at [PR #2438](https://github.com/optical-lift/noel-core-db/pull/2438), commit `6a5679ae3be74792a3632621586cdf64a0a0c71f`, passed its separate **Database Custody CI run [#41373341349](https://github.com/optical-lift/noel-core-db/actions/runs/41373341349)**.
+- Eleven read-only source-invariant checks were inspected against the actual GitHub candidate: separate invitation and participation tables, Atlas/Titus original version FKs, exclusive source shape, accepted-invite Person match, no inferred capability, both FORCE RLS, no public writer, no direct grant, immutable original identifiers/consent, and no private research bodies. All passed as **static source checks only**.
+- No disposable PG clone or signed negative/positive HTTP tests have been run. No new live relations, issuer permissions, invitations, acceptances, author rights, teacher rights, course releases, keys, PR merges or deployments were created.
