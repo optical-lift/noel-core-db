@@ -26,14 +26,14 @@ begin
   ) then
     raise exception 'Search path not pinned';
   end if;
-  v_def := pg_get_functiondef(v_oid);
+  v_def := lower(regexp_replace(pg_get_functiondef(v_oid), '[[:space:]]+', '', 'g'));
   if position('titus.current_authenticated_person_entity_id_v1()' in v_def)=0 or
      position('auth.uid()' in v_def)=0 or
      position('auth.jwt()' in v_def)=0 or
      position('atlas.teaching_enrollments' in v_def)=0 or
-     position('e.state = ''active''' in v_def)=0 or
-     position('o.state = ''open''' in v_def)=0 or
-     position('v.published_at IS NOT NULL' in v_def)=0 then
+     position('e.state=''active''' in v_def)=0 or
+     position('o.state=''open''' in v_def)=0 or
+     position('v.published_atisnotnull' in v_def)=0 then
     raise exception 'Reviewed source gates do not match candidate';
   end if;
   raise notice 'STRUCTURAL CONTRACT ONLY: signed-user and denial tests still required';
