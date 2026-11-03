@@ -1,0 +1,11 @@
+# Source-custody fingerprint checkpoint: Noel read-only pg_get_functiondef MD5, 2026-11-03.
+# This is NON-SECRET schema provenance. No production data, connection strings or credentials.
+atlas.capture_foundry_reality_input_self_api_v1(text,uuid,text,jsonb,text,timestamptz)|38ca0bce0f4ca18e8ef42ebd9237ab8b
+atlas.company_work_native_ledger_owner_self_v1(uuid,uuid)|429fa9bc47f4a4e17188b9d8d0b91167
+atlas.current_principal_id_v1()|107b54ba40e18ac80d711eff3457e66e
+atlas.decide_foundry_source_custody_review_self_api_v1(uuid,text,text)|b14875cb282e1bc3cf0e2b22de64607c
+atlas.foundry_current_signed_principal_v1()|e69b3383920f43c664d58e4b527c6d6d
+atlas.governor_set_subject_disclosure_self_api_v1(uuid,uuid,uuid,text,text,uuid,text,text,uuid,text)|fc074af1e7a00f47059f3d923d612ec7
+atlas.has_current_subject_disclosure_v1(uuid,uuid,text,text,uuid,text)|a866863baad2a40c9ec87da0fcbf0faf
+atlas.request_foundry_source_custody_review_self_api_v1(text,uuid,uuid,text,text[],text[],text,text)|3fecb8a04bf53eb88c4b9942faf28f60
+atlas.revoke_foundry_source_custody_review_self_api_v1(uuid,text)|c6dd7ce2568f8eee70fa11f48f33d7e8
