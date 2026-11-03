@@ -214,6 +214,20 @@ No changes to Atlas app main. Final release remains separate authorization.
   [Noel issue #2457](https://github.com/optical-lift/noel-core-db/issues/2457),
   candidate SHA `81bcdadc49c31406bb27410b5646b834c2d130d4`,
   [protected run #41578056067](https://github.com/optical-lift/noel-core-db/actions/runs/41578056067).
-  **PENDING at latest checked read-only schema snapshot.** Do not treat
-  an active job as successful SQL/signed acceptance. Outcome must be
-  inspected and recorded before release or UI integration.
+  **PASS, inspected artifact #13204202853.** The full clone compiled,
+  candidate postconditions passed, and four real independent signed GoTrue
+  sessions exercised all prior observed-source/Done safeguards plus the
+  separately required R01 two-Subject continuation. [Run #41578056067](https://github.com/optical-lift/noel-core-db/actions/runs/41578056067)
+  signed log ends: `PASS R01 signed owner -> Bed 4 original -> partial ->
+  accepted physical Done -> single Bed 5 original with next approved day,
+  native Today, retry and outsider denial`. Verified exact worker/outsider
+  denial of owner approval, disallowed initial weekday, owner same-action
+  repeat, no partial successor, exactly two originals after final full
+  Actual, second Work native My Work service date, outsider exclusion and
+  replay without duplicate. Baseline Atlas lint 14, candidate 14,
+  introduced 0. Schema/postconditions completed successfully.
+  **ONLY disposable-source R01 is now signed happy-path accepted.**
+  Not tested here: live Elm/Anna, actual Atlas UI, a blocked Actual,
+  mid-campaign scope/Subject withdrawal, legacy collision, campaign
+  end-window non-creation or multi-worker contention. Do not merge/release
+  automatically; these remain bounded release acceptance work.
