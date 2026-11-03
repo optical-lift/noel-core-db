@@ -289,3 +289,24 @@ test('option D RiverSong Bash grammar, with no project invocation',()=>{
  const parsed=spawnSync('bash',['-n',file.pathname],{encoding:'utf8',timeout:10000});
  assert.equal(parsed.status,0,parsed.stderr||parsed.error?.message||'Bash parser unavailable');
 });
+
+
+const nativeFingerprints=readFileSync(
+ new URL('../candidates/atlas_governed_rulebook_u1a_v1/native_source_fingerprints_20261103.tsv',import.meta.url),'utf8');
+test('option D requires current native source fingerprints, not substitute SQL authorizers',()=>{
+ const rows=nativeFingerprints.split('\n').filter(x=>x.startsWith('atlas.'));
+ assert.equal(rows.length,9);
+ for(const row of rows){
+   assert.match(row,/^atlas\.[a-z0-9_]+\([a-z0-9_,\[\]]*\)\|[a-f0-9]{32}$/);
+ }
+ for(const value of [
+  'native_source_fingerprints_20261103.tsv',
+  'pg_get_functiondef(to_regprocedure',
+  'STALE_OR_SUBSTITUTE_SOURCE:',
+  'fingerprint_mismatch',
+  'verified=$((verified+1))',
+  'verified" == 9',
+  'Python before embedding'
+ ])assert.ok(u1aOptionD.includes(value),value);
+ assert.doesNotMatch(u1aOptionD,/CREATE OR REPLACE FUNCTION atlas\.(?:foundry_current_signed_principal_v1|has_current_subject_disclosure_v1)/i);
+});
