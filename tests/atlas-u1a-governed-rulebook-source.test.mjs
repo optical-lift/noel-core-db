@@ -57,6 +57,21 @@ test('signed transport only; revoke private tables, functions and anon',()=>{
  assert.match(s,/coalesce\(p_policy->>'eligibilityMode',''\) NOT IN/);
  assert.match(s,/coalesce\(p_decision,''\) NOT IN/);
 });
+test('Foundry source is selected as a complete row, never a composite column',()=>{
+ assert.match(s,/SELECT e\.\* INTO v_source FROM foundry\.events e/);
+ assert.doesNotMatch(s,/SELECT e INTO v_source FROM foundry\.events e/);
+});
+test('U1A cannot accept a client-invented property, class or release policy',()=>{
+ assert.match(s,/jsonb_object_keys\(p_policy\)/);
+ assert.match(s,/Unapproved policy field; requires new scoped rule version/);
+ for(const field of ["'eligibilityMode'","'desiredOutcome'","'standingPurpose'",
+                     "'triggerMode'","'strategyDisposition'",
+                     "'maxObservationAgeSeconds'","'seasonKeys'","'priority'"]){
+   assert.ok(s.includes(field),field);
+ }
+ assert.match(s,/policyExecutable',false/);
+ assert.doesNotMatch(s,/INSERT INTO (?:atlas|ledger)\.(?:work_items|work_allocations|work_execution_plans)\b/i);
+});
 test('public receipts say this cannot execute Work or Clock',()=>{
  assert.match(s,/'workCreated',false/);
  assert.match(s,/'clockAdmitted',false/);
