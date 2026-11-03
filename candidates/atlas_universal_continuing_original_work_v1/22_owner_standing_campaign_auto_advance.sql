@@ -123,12 +123,13 @@ BEGIN
     ORDER BY pr.created_at DESC LIMIT 1),'UTC');
  IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_timezone_names tz WHERE tz.name=v_tz)
  THEN RAISE EXCEPTION 'No governed service timezone' USING ERRCODE='22023'; END IF;
- v_next_date:=(v_result.reported_at AT TIME ZONE v_tz)::date+1;
- IF extract(dow FROM v_next_date)=0 THEN v_next_date:=v_next_date+1; END IF;
  v_end:=(v_prior.metadata->>'sourceStandingCampaignEndsOn')::date;
- IF v_next_date>v_end THEN
+ v_next_date:=atlas.standing_care_next_governed_service_day_v1(
+    v_result.reported_at,v_tz,
+    v_prior.metadata->'sourceStandingWorkdaysIso',v_end);
+ IF v_next_date IS NULL THEN
    RETURN jsonb_build_object('ok',true,'nextWorkCreated',false,
-      'reason','campaign_window_ended','campaignId',v_campaign);
+      'reason','no_approved_next_workday_in_campaign','campaignId',v_campaign);
  END IF;
  -- An already delivered original is the campaign's outstanding capacity.
  SELECT w.id INTO v_existing FROM atlas.work_items w
@@ -196,6 +197,7 @@ BEGIN
      'sourceStandingCampaignMode','seasonal_closeout',
      'sourceStandingCampaignId',v_campaign,
      'sourceStandingCampaignEndsOn',v_end,
+     'sourceStandingWorkdaysIso',v_prior.metadata->'sourceStandingWorkdaysIso',
      'sourceStandingVisitReason',
        coalesce(v_prior.metadata->>'sourceStandingVisitReason',''),
      'sourceScopeId',v_scope.id,
