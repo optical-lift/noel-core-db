@@ -16,6 +16,8 @@ from signed_isolation_matrix import (
 TARGET = "75000000-0000-4000-8000-000000000002"
 OTHER = "75000000-0000-4000-8000-000000000003"
 PERSON = "75000000-0000-4000-8000-000000000001"
+OTHER_PERSON = "75000000-0000-4000-8000-000000000010"
+WITHDRAWN_PERSON = "75000000-0000-4000-8000-000000000011"
 
 
 def ready(ids=(), person=PERSON):
@@ -45,8 +47,8 @@ def matrix():
     return {
         "anonymous": (401, None),
         "learner": (200, ready([TARGET])),
-        "other_person": (200, ready([OTHER])),
-        "withdrawn": (200, ready([])),
+        "other_person": (200, ready([OTHER], person=OTHER_PERSON)),
+        "withdrawn": (200, ready([], person=WITHDRAWN_PERSON)),
         "wrong_client": (200, identity_not_ready()),
         "unbound": (200, identity_not_ready()),
         "revoked_session": (401, None),
@@ -79,6 +81,16 @@ class IsolationSourceTests(unittest.TestCase):
                 v[label] = (200, ready([TARGET]))
                 with self.assertRaises(MatrixFailure):
                     validate_matrix(v, TARGET)
+
+    def test_separate_sessions_for_one_canonical_person_are_not_two_people(self):
+        v = matrix()
+        v["other_person"] = (200, ready([], person=PERSON))
+        with self.assertRaises(MatrixFailure):
+            validate_matrix(v, TARGET)
+        v = matrix()
+        v["withdrawn"] = (200, ready([], person=OTHER_PERSON))
+        with self.assertRaises(MatrixFailure):
+            validate_matrix(v, TARGET)
 
     def test_revoked_and_wrong_client_cannot_claim_ready_even_with_empty_course(self):
         for label in ("wrong_client", "unbound", "revoked_session", "expired"):
