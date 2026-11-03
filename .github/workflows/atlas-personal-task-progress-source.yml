@@ -1,0 +1,22 @@
+name: Atlas original personal Task progress source contract
+on:
+  pull_request:
+    paths:
+      - "candidates/atlas_personal_task_progress_original_v1/**"
+      - "tests/atlas-personal-task-progress-original-source.test.mjs"
+      - ".github/workflows/atlas-personal-task-progress-source.yml"
+permissions:
+  contents: read
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify one original source and private immutable progress
+        run: |
+          set -euo pipefail
+          node --test tests/atlas-personal-task-progress-original-source.test.mjs
+          echo "Source only. Full disposable signed GoTrue/REST and production-schema validation still required."
