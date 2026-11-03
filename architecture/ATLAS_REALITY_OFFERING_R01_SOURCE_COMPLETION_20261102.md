@@ -145,3 +145,47 @@ No changes to Atlas app main. Final release remains separate authorization.
   starts [signed-clone retest #41574368737](https://github.com/optical-lift/noel-core-db/actions/runs/41574368737).
   The outcome is pending; do not infer success. Do not call R01 complete
   merely because earlier observed-source admission is green.
+
+## R01 validation outcome — source and existing signed journey verified
+- [Atlas RiverSong source-only #41575070078](https://github.com/optical-lift/atlas/actions/runs/41575070078):
+  **10/10 committed Node source regressions PASS**, pinned at Noel source
+  commit `2418dc7196a14682f017581495226ff6644d02cd`. Includes new
+  signed public governor standing-visit membrane, exact private ACL,
+  native rhythm-disclosure reader, approved ISO workdays and Next-Work
+  source guards. This is source-only, not a SQL or human acceptance.
+- [Noel full-schema protected clone #41574368737](https://github.com/optical-lift/noel-core-db/actions/runs/41574368737):
+  **PASS** for non-releasable canary SHA
+  `6fe09b47c7558787a1eb048daffc9c0ea560b032`; checked the actual
+  artifact. R01 SQL compiled on the complete production-shaped clone,
+  all postconditions passed, and **four real independent GoTrue user
+  sessions** exercised signed governor, worker, outsider and withheld
+  Subject enforcement. Passing original Work/Actual/one-Done, observed-
+  source next Work, repeat denial, Person My Work/Today, hold/revocation.
+  Baseline Atlas lint 14 errors; candidate 14; **zero newly introduced**.
+- The above signed acceptance follows the **observed-source** model in
+  the existing validator. It DOES NOT exercise the newly introduced
+  `public.owner_establish_standing_continuing_care_work_self_api_v1`,
+  nor confirm that a first owner-standing Work's worker Actual
+  autonomously releases the next disclosed Subject. The governor
+  public membrane and its stricter postconditions were added AFTER
+  the pinned canary SHA above. Updated held canary head after source
+  reorder: `a75693752e2ca96775abe6312d986afc012fb380`. Its own
+  SQL and signed owner behavior are **UNTESTED**; no false PASS.
+- Next actual signed test must initialize at least TWO independent
+  fictional rhythm Subjects under the same approved campaign,
+  with separate exact Subject grants and different cadence rules.
+  The governor must call the real `public.owner_establish_standing_continuing_care_work_self_api_v1`
+  over bearer HTTP with an explicit nonempty approved ISO workday set.
+  Worker and outsider must fail that same endpoint with source denial,
+  not PGRST202. Worker observes/records a true qualifying first-party
+  Actual and causes the single universal Done. One successor Work
+  should become active only if eligible and inside the frozen
+  approved-days/end-date window; it must remain the original Work
+  in signed My Work/Today and Ledger with correct Plan/Result.
+  Verify duplicate/retry, disallowed workday, held/revoked grant,
+  partial, blocked, overlapping older Work, explicit next-work
+  review when the lawful successor fails, and exact campaign close.
+- This is a new bounded **test infrastructure + signed continuation
+  proof** round. Do not try to claim it by replaying the earlier signed
+  observed-source test, or by a raw SQL auth.uid() impersonation.
+  Neither proposed source nor app is production enabled.
