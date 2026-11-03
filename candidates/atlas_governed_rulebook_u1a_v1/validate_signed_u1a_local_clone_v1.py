@@ -134,7 +134,7 @@ def main():
         "public.adopt_governed_rulebook_version_self_api_v1(uuid,uuid,uuid,text,jsonb,text,text,integer,text,uuid,uuid)",
         "public.read_governed_rulebook_current_self_api_v1(uuid,uuid,uuid,text)",
     ):
-        check(sql(args.db_url, "select (to_regprocedure('" + signature + "') is not null)::text") == "t",
+        check(sql(args.db_url, "select (to_regprocedure('" + signature + "') is not null)::text") == "true",
               "U1A signed public transport missing: " + signature)
 
     api, key = c1.local_status()
