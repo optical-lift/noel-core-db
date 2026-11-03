@@ -78,3 +78,27 @@ test('public receipts say this cannot execute Work or Clock',()=>{
  assert.match(s,/'policyExecutable',false/);
  assert.match(s,/RETURN jsonb_build_object\('ok',true,'replayed',true/);
 });
+
+const runner = readFileSync(
+  new URL('../candidates/atlas_governed_rulebook_u1a_v1/run_riversong_rollback.sh', import.meta.url),'utf8');
+test('RiverSong U1A rollback refuses remote or stale native clone and never persists SQL',()=>{
+ for(const gate of [
+  'noel_schema_clone','-h "$SOCKET"','pg-isolated',
+  'inet_server_addr() IS NULL',"current_setting('data_directory')",
+  'atlas.work_requirements','foundry.workspace_authority_registry_v1',
+  'to_regprocedure','ON_ERROR_STOP=1',"node --test",
+  "'BEGIN;'","'ROLLBACK;'","SET LOCAL statement_timeout",
+  '$before','$after'
+ ])assert.ok(runner.includes(gate),gate);
+ assert.doesNotMatch(runner,/NOEL_CORE_DATABASE_URL|SUPABASE_DB_URL|pg_restore --dbname/);
+ assert.doesNotMatch(runner,/supabase db push|supabase migration up|--db-url/);
+});
+test('RiverSong U1A preflight must precede all SQL sent to psql',()=>{
+ const preflight=runner.indexOf('for rel in atlas.organizations atlas.ledgers');
+ const baseline=runner.indexOf('before="$(q "$fingerprint")"');
+ const entry=runner.indexOf("printf '%s\\n' 'BEGIN;'");
+ const rollback=runner.indexOf("printf '%s\\n' 'ROLLBACK;'");
+ assert.ok(preflight>0 && baseline>preflight && entry>baseline && rollback>entry);
+ assert.match(runner,/set -euo pipefail/);
+ assert.match(runner,/HOLD: genuine signed positive\/negative actors and concurrency untested/);
+});
