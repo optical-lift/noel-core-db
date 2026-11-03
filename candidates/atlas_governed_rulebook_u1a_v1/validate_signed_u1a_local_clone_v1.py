@@ -10,6 +10,7 @@ No signed JWT is synthesized: every actor signs into local GoTrue.
 import argparse
 import importlib.util
 import json
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -104,9 +105,15 @@ def main():
     parser.add_argument("--db-url", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
-    check(bool(re.fullmatch(
-        r"postgres(?:ql)?://[^@]+@127[.]0[.]0[.]1:54322/postgres", args.db_url)),
-        "Only the fresh local Supabase PostgreSQL 127.0.0.1:54322/postgres is admitted")
+    port=os.environ.get("U1A_DISPOSABLE_DB_PORT","")
+    project=os.environ.get("U1A_DISPOSABLE_PROJECT_DIR","")
+    check(bool(re.fullmatch(r"[1-9][0-9]{3,4}",port))
+          and 20000<=int(port)<=65000
+          and bool(re.fullmatch(
+              r"postgres(?:ql)?://postgres:[^@/]+@127[.]0[.]0[.]1:"
+              +re.escape(port)+r"/postgres",args.db_url))
+          and bool(project) and Path.cwd().resolve()==Path(project).resolve(),
+          "Only the exact freshly provisioned local Supabase clone is admitted")
     check(sql(args.db_url, "select current_database()") == "postgres",
           "Wrong local disposable database")
     check(sql(args.db_url, f"select count(*) from atlas.growing_objects where id='{BED}'::uuid") == "1"
