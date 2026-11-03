@@ -167,6 +167,7 @@ AS $adopt$
 DECLARE
  v_root record;
  v_source foundry.events%ROWTYPE;
+ v_review foundry.source_custody_review_cases_v1%ROWTYPE;
  v_segment jsonb;
  v_literal text;
  v_basis jsonb;
@@ -257,13 +258,10 @@ BEGIN
    AND e.event_type='foundry_reality_input_v1'
    AND w.owner_principal_id=v_root.actor_principal_id
    AND w.revoked_at IS NULL AND w.suspended_at IS NULL
-   -- Foundry preparation is only provisional. Never promote an unreconciled
-   -- workspace (including authenticated verified_self claims still pending)
-   -- into durable Rulebook policy. Custody review is a separate source gate.
-   AND w.custody_review_state='reviewed'
-   AND w.custody_reviewed_by_principal_id IS NOT NULL
-   AND w.custody_reviewed_at IS NOT NULL
-   AND pg_catalog.cardinality(w.custody_basis_refs)>0
+   -- Foundry workspaces stay pending even after a separate human
+   -- source-custody review is approved. Pending alone is never authority;
+   -- the independent approved review case is required below.
+   AND w.custody_review_state NOT IN ('revoked','suspended')
    AND e.envelope->'payload'->>'author_principal_id'=
      v_root.actor_principal_id::text
    AND e.envelope->'payload'->>'source_kind' IN
@@ -284,12 +282,36 @@ BEGIN
               v_literal)=0 THEN
    RAISE EXCEPTION 'Original operating instruction unavailable' USING ERRCODE='42501';
  END IF;
+
+ -- Native Foundry's independent approval updates its review CASE, not
+ -- workspace_authority_registry_v1. Require that actual approved CASE,
+ -- covering this exact already-saved source Event, and an analysis right.
+ -- This permits root adoption under separate native Ledger authority;
+ -- source review by itself never creates Ledger or Subject permission.
+ SELECT c.* INTO v_review FROM foundry.source_custody_review_cases_v1 c
+ WHERE c.workspace_id=p_workspace_id
+   AND c.owner_principal_id=v_root.actor_principal_id
+   AND c.review_state='approved'
+   AND c.revoked_at IS NULL
+   AND (c.expires_at IS NULL OR c.expires_at>now())
+   AND c.reviewed_at IS NOT NULL
+   AND c.reviewed_at>=v_source.inserted_at
+   AND p_entry_id=ANY(c.source_refs)
+   AND 'analyze'=ANY(c.permitted_human_actions)
+   AND c.reviewer_principal_id IS DISTINCT FROM v_root.actor_principal_id
+ ORDER BY c.reviewed_at DESC,c.case_id DESC LIMIT 1;
+ IF v_review.case_id IS NULL THEN
+   RAISE EXCEPTION 'Reviewed source custody for exact original unavailable'
+     USING ERRCODE='42501';
+ END IF;
  v_basis:=jsonb_build_object(
   'contractVersion','foundry_governed_rulebook_adoption_v1',
   'workspaceId',p_workspace_id,'entryId',p_entry_id,
   'segmentIndex',p_segment_index,'sourceLiteral',v_literal,
   'sourceKind',v_source.envelope->'payload'->>'source_kind',
-  'approverPrincipalId',v_root.actor_principal_id);
+  'approverPrincipalId',v_root.actor_principal_id,
+  'sourceReviewCaseId',v_review.case_id,
+  'sourceReviewRecordedAt',v_review.reviewed_at);
 
  -- Serialize the ENTIRE rule lineage. All replays still recheck current
  -- source/actor/disclosure; the action UUID alone never grants access.
