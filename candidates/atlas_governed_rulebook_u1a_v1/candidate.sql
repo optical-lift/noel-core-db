@@ -315,7 +315,9 @@ BEGIN
   'sourceKind',v_source.envelope->'payload'->>'source_kind',
   'approverPrincipalId',v_root.actor_principal_id,
   'sourceReviewCaseId',v_review.case_id,
-  'sourceReviewRecordedAt',v_review.reviewed_at);
+  'sourceReviewRecordedAt',to_char(
+    v_review.reviewed_at AT TIME ZONE 'UTC',
+    'YYYY-MM-DD"T"HH24:MI:SS.US"Z"'));
 
  -- Serialize the ENTIRE rule lineage. All replays still recheck current
  -- source/actor/disclosure; the action UUID alone never grants access.
