@@ -319,6 +319,9 @@ def proof(db,api,key,tokens,scope,care):
            "Outsider cannot read newly delivered Bed 5 subject")
     print("PASS R01 signed owner -> Bed 4 original -> partial -> accepted physical Done -> "
           "single Bed 5 original with next approved day, native Today, retry and outsider denial")
-    if generic:\n        print("PASS R02 universal signed governor preview, source adapter denial, " +\n              "same original Work, replay and downstream Actual/Today")\n    return ("PASS R01 genuine signed owner/worker/outsider; two independent "
+    if generic:
+        print("PASS R02 universal signed governor preview, source adapter denial, "
+              "same original Work, replay and downstream Actual/Today")
+    return ("PASS R01 genuine signed owner/worker/outsider; two independent "
             "Subject rhythm rules; one accepted Actual creates exactly one "
             "approved next original in My Work/Today; replay and denial.\n")
