@@ -248,6 +248,10 @@ BEGIN
    RAISE EXCEPTION 'Bounded rule priority required' USING ERRCODE='22023';
  END IF;
 
+ -- Source-custody revocation and independent human review take the same
+ -- native workspace advisory lock. Serialize review/revoke against adoption,
+ -- then re-read CURRENT case state while holding this transaction lock.
+ PERFORM pg_advisory_xact_lock(pg_catalog.hashtextextended(p_workspace_id,0));
  -- Verify original immutable Foundry evidence, current human principal,
  -- exact quoted segment and non-delegated source kind. An AI carrier, user-
  -- supplied "proof" object or an unrelated workspace is not authorization.
