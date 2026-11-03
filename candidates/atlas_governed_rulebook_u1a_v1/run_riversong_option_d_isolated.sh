@@ -60,10 +60,13 @@ cleanup() {
     fi
     # Copy just the nonsecret machine-readable receipt outside scratch.
     if [[ -n "${RUNNER_TEMP:-}" ]]; then
-      mkdir -p "$RUNNER_TEMP/u1a-option-d-results"
-      cp "$EVIDENCE/cleanup-state.txt" "$RUNNER_TEMP/u1a-option-d-results/cleanup-state.txt"
+      # Unique per Actions attempt; never display a stale result from a
+      # previous run on this persistent self-hosted computer.
+      RECEIPT_DIR="$RUNNER_TEMP/u1a-option-d-results-${GITHUB_RUN_ID:-manual-$}-${GITHUB_RUN_ATTEMPT:-1}"
+      mkdir -p "$RECEIPT_DIR"
+      cp "$EVIDENCE/cleanup-state.txt" "$RECEIPT_DIR/cleanup-state.txt"
       [[ ! -s "$EVIDENCE/signed-proof.txt" ]] ||
-        cp "$EVIDENCE/signed-proof.txt" "$RUNNER_TEMP/u1a-option-d-results/signed-proof.txt"
+        cp "$EVIDENCE/signed-proof.txt" "$RECEIPT_DIR/signed-proof.txt"
     fi
     [[ "$SCRATCH" == "$TMP_PARENT"/u1a-option-d-* ]] && rm -rf -- "$SCRATCH"
   fi
