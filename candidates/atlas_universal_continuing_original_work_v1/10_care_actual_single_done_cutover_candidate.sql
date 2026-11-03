@@ -63,6 +63,7 @@ DECLARE
   v_prior atlas.care_current_state%ROWTYPE;
   v_result atlas.work_execution_results%ROWTYPE;
   v_universal_receipt jsonb;
+  v_campaign_continuation jsonb;
   v_care uuid;
   v_observation uuid;
   v_acceptance uuid;
@@ -190,12 +191,28 @@ BEGIN
         -- Same signed action returns the SAME authoritative event and timestamp.
         v_universal_receipt:=atlas.apply_work_lifecycle_transition_internal_v1(
           v_work.id,'complete',v_result.id,v_source_key);
+
+  -- Only a source-accepted terminal physical Actual may advance the already
+  -- owner-approved campaign. Its allocation is guarded separately against
+  -- self-appointment; any failure preserves this accepted physical Result.
+  IF v_work.metadata->>'sourceStandingCampaignId' IS NOT NULL THEN
+    BEGIN
+      v_campaign_continuation:=
+        atlas.advance_owner_standing_campaign_after_actual_internal_v1(v_result.id);
+    EXCEPTION WHEN OTHERS THEN
+      v_campaign_continuation:=jsonb_build_object(
+        'ok',false,'nextWorkCreated',false,
+        'reason','source_continuation_needs_review','errorCode',SQLSTATE);
+    END;
+  END IF;
         RETURN v_universal_receipt||jsonb_build_object(
           'physicalActualContractVersion','continuing_care_actual_v1',
           'workResultId',v_result.id,
           'careResultId',v_result.payload->'careResultId',
           'careObservationId',v_result.payload->'careObservationId',
-          'noNewWorkCreated',true,'noClockAdmission',true);
+          'campaignContinuation',v_campaign_continuation,
+          'noNewWorkCreated',coalesce((v_campaign_continuation->>'nextWorkCreated')::boolean,false)=false,
+          'noClockAdmission',true);
       ELSIF v_work.work_state='completed' THEN
         -- An older accepted physical result is history, not a newly signed
         -- lifecycle event and NEVER a reason to reopen completed Work.
@@ -516,6 +533,20 @@ BEGIN
       RAISE EXCEPTION 'Shared lifecycle did not accept the physical care Done'
         USING ERRCODE='23514';
     END IF;
+
+  -- Only a source-accepted terminal physical Actual may advance the already
+  -- owner-approved campaign. Its allocation is guarded separately against
+  -- self-appointment; any failure preserves this accepted physical Result.
+  IF v_work.metadata->>'sourceStandingCampaignId' IS NOT NULL THEN
+    BEGIN
+      v_campaign_continuation:=
+        atlas.advance_owner_standing_campaign_after_actual_internal_v1(v_result.id);
+    EXCEPTION WHEN OTHERS THEN
+      v_campaign_continuation:=jsonb_build_object(
+        'ok',false,'nextWorkCreated',false,
+        'reason','source_continuation_needs_review','errorCode',SQLSTATE);
+    END;
+  END IF;
     RETURN v_universal_receipt||jsonb_build_object(
       'physicalActualContractVersion','continuing_care_actual_v1',
       'workResultId',v_result.id,'careResultId',v_care,
@@ -523,7 +554,9 @@ BEGIN
       'rhythmSatisfactionId',v_satisfaction,
       'sourceConditionAfter',v_after,'sourceResultKind',v_care_kind,
       'nextEligibleAt',v_due_at,
-      'noNewWorkCreated',true,'noClockAdmission',true);
+      'campaignContinuation',v_campaign_continuation,
+      'noNewWorkCreated',coalesce((v_campaign_continuation->>'nextWorkCreated')::boolean,false)=false,
+      'noClockAdmission',true);
   END IF;
   -- Partial/blocked work retains its original open identity; no universal
   -- terminal receipt is asserted, and no new work is manufactured.
