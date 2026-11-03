@@ -17,10 +17,10 @@ test('two private append-only Rulebook tables, no competing Person/Need/Work sto
 test('native current root, independent disclosure, and existing canonical Need/Subject',()=>{
  for(const q of [
   'foundry_current_signed_principal_v1','company_work_native_ledger_owner_self_v1',
-  'current_principal_id_v1','is_compatibility_primary=true','participation_kind=\\'governing\\'',
-  'work_requirements','state=\\'active\\'','source_object_type=\\'reality_entity\\'',
-  'reality.entities','identity_state=\\'canonical\\'',
-  'has_current_subject_disclosure_v1','\\'identity\\'','\\'condition\\''
+  'current_principal_id_v1','is_compatibility_primary=true','participation_kind=\'governing\'',
+  'work_requirements','state=\'active\'','source_object_type=\'reality_entity\'',
+  'reality.entities','identity_state=\'canonical\'',
+  'has_current_subject_disclosure_v1','\'identity\'','\'condition\''
  ])assert.ok(s.includes(q),q);
 });
 test('human-owned Foundry source and literal original verified before insertion',()=>{
@@ -35,7 +35,7 @@ test('immutable version / same-action replay / expected prior / retired terminal
  for(const q of ['decision_action_id uuid NOT NULL UNIQUE',
  'pg_advisory_xact_lock','p_expected_previous_version_id',
  'v_replay.source_basis IS DISTINCT FROM v_basis',
- 'v_prior.rule_status=\\'retired\\'','v_prior.rule_version+1',
+ 'v_prior.rule_status=\'retired\'','v_prior.rule_version+1',
  "p_decision IN ('paused','retired')"])
   assert.ok(s.includes(q),q);
 });
