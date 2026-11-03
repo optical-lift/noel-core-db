@@ -67,8 +67,18 @@ no other rhythm is silently promoted into the current care source.
 - [Noel protected candidate issue #2459](https://github.com/optical-lift/noel-core-db/issues/2459):
   exact held canary SHA `ccc27b4384231e7aed2ac4a0af661022df0c4020`.
   [Run #41660483209](https://github.com/optical-lift/noel-core-db/actions/runs/41660483209)
-  PENDING as recorded at creation; inspect actual diagnostics before
-  claiming a signed PASS.
+  **PASS, genuine signed R02 acceptance verified in artifact #13241558932**.
+  Signed log explicitly reports "PASS R02 universal signed governor preview,
+  source adapter denial, same original Work, replay and downstream Actual/Today".
+  It separately records 42501 worker/outsider preview and approval denials,
+  unregistered adapter/weekday source rejection, exact owner action replay,
+  full physical Actual → one Done → one next original in My Work/Today.
+  SQL compiled, all source postconditions passed, baseline lint 14 /
+  candidate lint 14, newly introduced 0. Only the **registered care adapter**
+  passed, not a claim about all future adapters or live Elm/Anna execution.
+  The current R02 held canary was restored byte-for-byte to the tested file
+  blob `a1accfec49da8114878ad7eb920833b56b0c9088`; no untested
+  post-test source change is included in this acceptance.
 - Remain HOLD until signed review/approval passes; production migration
   is separately reviewed and approved; mixed-domain expansions require
   their own source qualification and disclosure; real governor and worker
