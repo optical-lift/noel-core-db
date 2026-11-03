@@ -121,12 +121,23 @@ test('U1A runner requires a clean reviewed branch before touching the database',
  assert.ok(branchGuard>0 && cleanGuard>branchGuard && firstPg>cleanGuard && txn>firstPg);
 });
 
-test('Foundry custody must be explicitly reviewed before adoption',()=>{
- // The native workspace constructor starts with pending custody even for
- // verified_self. That is evidence capture, not authorized adoption.
- assert.match(s,/AND w\.custody_review_state='reviewed'/);
- assert.match(s,/AND w\.custody_reviewed_by_principal_id IS NOT NULL/);
- assert.match(s,/AND w\.custody_reviewed_at IS NOT NULL/);
- assert.match(s,/cardinality\(w\.custody_basis_refs\)>0/);
- assert.doesNotMatch(s,/w\.custody_review_state NOT IN \('revoked','suspended'\)/);
+test('Foundry adoption requires a current approved independent review case for exact saved original',()=>{
+ // The native review decision leaves workspace custody pending; it changes
+ // foundry.source_custody_review_cases_v1.review_state to approved. A
+ // provisional workspace by itself is never adopted as policy.
+ for(const piece of [
+   "foundry.source_custody_review_cases_v1",
+   "c.review_state='approved'",
+   "c.revoked_at IS NULL",
+   "c.expires_at IS NULL OR c.expires_at>now()",
+   "c.reviewed_at>=v_source.inserted_at",
+   "p_entry_id=ANY(c.source_refs)",
+   "'analyze'=ANY(c.permitted_human_actions)",
+   "c.reviewer_principal_id IS DISTINCT FROM v_root.actor_principal_id",
+   "sourceReviewCaseId",
+   "sourceReviewRecordedAt"
+ ])assert.ok(s.includes(piece),piece);
+ assert.match(s,/IF v_review\.case_id IS NULL THEN/);
+ assert.doesNotMatch(s,/w\.custody_review_state='reviewed'/);
 });
+
