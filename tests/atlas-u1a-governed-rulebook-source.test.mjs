@@ -306,7 +306,7 @@ test('option D requires current native source fingerprints, not substitute SQL a
   'fingerprint_mismatch',
   'verified=$((verified+1))',
   'verified" == 9',
-  'Python before embedding'
+  'Validate signatures/MD5s before embedding'
  ])assert.ok(u1aOptionD.includes(value),value);
  assert.doesNotMatch(u1aOptionD,/CREATE OR REPLACE FUNCTION atlas\.(?:foundry_current_signed_principal_v1|has_current_subject_disclosure_v1)/i);
 });
