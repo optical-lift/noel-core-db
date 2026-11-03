@@ -134,7 +134,7 @@ REVOKE ALL ON foundry.source_custody_review_cases_v1
 -- END VERBATIM INDEPENDENT SOURCE REVIEW CASE TABLE SOURCE
 
 DO $contract$
-DECLARE v_actual text;v_tables integer;v_component record;
+DECLARE v_actual text;v_tables integer;v_component record;v_index record;
 BEGIN
  WITH c AS (
  SELECT jsonb_build_object(
@@ -164,6 +164,16 @@ BEGIN
   RAISE NOTICE 'U1A_CUSTODY_COMPONENT_HASH: % % % % % %',
    v_component.relname,v_component.meta_md5,v_component.columns_md5,
    v_component.constraints_md5,v_component.indexes_md5,v_component.triggers_md5;
+ END LOOP;
+ -- Exact per-index fingerprints identify source-definition discrepancies
+ -- without exposing private table rows or arbitrary SQL text.
+ FOR v_index IN
+  SELECT cls.relname AS index_name,md5(pg_get_indexdef(i.indexrelid)) AS md5_value
+  FROM pg_index i JOIN pg_class cls ON cls.oid=i.indexrelid
+  WHERE i.indrelid='foundry.source_custody_review_cases_v1'::regclass
+  ORDER BY cls.relname
+ LOOP
+  RAISE NOTICE 'U1A_REVIEW_INDEX_HASH: % %',v_index.index_name,v_index.md5_value;
  END LOOP;
  IF v_tables<>2 OR v_actual IS DISTINCT FROM '784f26bdcbcf77ee5794bcab53848220' THEN
   RAISE EXCEPTION 'Actual current Noel Foundry custody table contract differs from original source'
