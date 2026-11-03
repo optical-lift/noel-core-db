@@ -93,10 +93,12 @@ begin
       and credential.retired_at is null
       and e.state='active' and e.withdrawn_at is null
       and o.state='open' and o.opened_at is not null
+      and o.closed_at is null and o.retired_at is null
       and c.status='active' and c.retired_at is null
       and v.published_at is not null
       and nullif(btrim(v.title),'') is not null
     order by c.id, v.published_at desc, v.id
+    limit 100
   ) as q;
 
   return jsonb_build_object(
