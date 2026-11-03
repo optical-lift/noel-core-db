@@ -1,4 +1,4 @@
--- Disposable Postgres 16 miniature schema for Build B2 structural tests.
+-- Disposable fixture: Postgres 16 miniature schema for Build B2 structural tests.
 -- NOT production-shaped and NOT a source of actual Person, rights or curriculum.
 -- No production user data or credentials.
 BEGIN;
