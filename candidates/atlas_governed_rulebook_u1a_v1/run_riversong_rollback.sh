@@ -5,6 +5,24 @@ HERE="$(cd -- "$(dirname -- "$0")" && pwd)"
 SOCKET="$HOME/atlas-local-test/private-schema"
 PSQL="/Applications/Postgres.app/Contents/Versions/17/bin/psql"
 [[ $# == 0 ]] || { echo 'STOP: no arguments accepted'; exit 1; }
+# Source identity is a prerequisite, not a value provided by a browser.
+# Refuse an untracked local replacement of SQL, tests or the runner itself.
+command -v git >/dev/null || { echo 'STOP: git is required'; exit 1; }
+CHECKOUT="$(git -C "$HERE" rev-parse --show-toplevel 2>/dev/null)" ||
+ { echo 'STOP: candidate is not in a reviewed Git checkout'; exit 1; }
+[[ "$HERE" == "$CHECKOUT/candidates/atlas_governed_rulebook_u1a_v1" ]] ||
+ { echo 'STOP: unexpected candidate source location'; exit 1; }
+SOURCE_BRANCH="$(git -C "$CHECKOUT" symbolic-ref --quiet --short HEAD 2>/dev/null)" ||
+ { echo 'STOP: candidate branch must be a named reviewed branch'; exit 1; }
+[[ "$SOURCE_BRANCH" == "candidate/atlas-u1a-governed-rulebook-adoption-20261103" ]] ||
+ { echo 'STOP: unexpected candidate branch'; exit 1; }
+[[ -z "$(git -C "$CHECKOUT" status --porcelain --untracked-files=all)" ]] ||
+ { echo 'STOP: working tree is dirty or contains untracked files'; exit 1; }
+SOURCE_SHA="$(git -C "$CHECKOUT" rev-parse HEAD)"
+[[ "$SOURCE_SHA" =~ ^[[:xdigit:]]{40}$ ]] ||
+ { echo 'STOP: immutable source commit could not be resolved'; exit 1; }
+echo "SOURCE_SHA=$SOURCE_SHA (held test; not a release migration)"
+
 [[ -x "$PSQL" ]] || { echo 'STOP: local Postgres.app 17 absent'; exit 1; }
 for file in candidate.sql postconditions.sql; do
  [[ -f "$HERE/$file" ]] || { echo "STOP: missing $file"; exit 1; }
