@@ -163,3 +163,11 @@ test('signed rule adoption serializes with native Foundry review/revocation',()=
  assert.match(s,/p_entry_id=ANY\(c\.source_refs\)/);
  assert.match(s,/'sourceReviewCaseId',v_review\.case_id/);
 });
+
+
+test('review adoption receipt keeps one timezone-invariant source-review timestamp',()=>{
+ assert.match(s,/v_review\.reviewed_at AT TIME ZONE 'UTC'/);
+ assert.match(s,/YYYY-MM-DD"T"HH24:MI:SS\.US"Z"/);
+ assert.match(s,/'sourceReviewCaseId',v_review\.case_id/);
+ assert.match(s,/'sourceReviewRecordedAt',to_char\(/);
+});
