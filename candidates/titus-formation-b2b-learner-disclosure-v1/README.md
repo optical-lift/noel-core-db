@@ -42,7 +42,7 @@ The source workflow `.github/workflows/titus-b2b-learner-disclosure-source.yml` 
 - re-consent requires a new explicit decision after withdrawal; chain remains append-only and issuer-stamped;
 - no original raw-text mutation, no browser privileges, no SECURITY DEFINER, and BOTH older authority gates still false.
 
-**CI status:** pending proof at exact implementation SHA. A passing fictional source test does not establish signed live Person, source license, rights acceptance or real consent. Do not merge/deploy on this evidence.
+**CI proof at exact tested source SHA `d0d1caa6b6bbc64a6c28f06d271398bab4a7d320`: PASS.** [PostgreSQL isolated source verification #41706266682](https://github.com/optical-lift/noel-core-db/actions/runs/41706266682) and [Database Custody CI #41706266547](https://github.com/optical-lift/noel-core-db/actions/runs/41706266547) both concluded success. A passing fictional source test does not establish signed live Person, source license, rights acceptance or real consent. Do not merge/deploy on this evidence.
 
 ## Completion register / next required step
 
@@ -52,7 +52,7 @@ The source workflow `.github/workflows/titus-b2b-learner-disclosure-source.yml` 
 | Explicit actor, response, reviewer, decision and idempotence | Candidate staged |
 | Durable append-only revocation/withdrawal and private ACL | Candidate staged |
 | False issuer gate and feedback writer protected | Candidate unchanged |
-| Disposable test outcomes | Pending CI |
+| Disposable test outcomes | **PASS** at exact source SHA (fictional only) |
 | Real signed Person issuance and original authorship | Missing |
 | Rights-cleared release, educational review, reviewer appointment | Missing |
 | Review, learner revision, real signed end-to-end integration | Missing |
