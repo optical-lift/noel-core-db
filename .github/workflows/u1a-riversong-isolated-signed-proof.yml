@@ -80,8 +80,9 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [[ -s "${RUNNER_TEMP}/u1a-option-d-results/cleanup-state.txt" ]]; then
-            cat "${RUNNER_TEMP}/u1a-option-d-results/cleanup-state.txt"
+          receipt="${RUNNER_TEMP}/u1a-option-d-results-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ -s "$receipt/cleanup-state.txt" ]]; then
+            cat "$receipt/cleanup-state.txt"
           else
             echo 'No disposable clone was started, or preflight stopped before test.'
           fi
