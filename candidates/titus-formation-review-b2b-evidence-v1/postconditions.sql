@@ -151,6 +151,14 @@ SELECT pg_temp.expect_match(false,'stale unit');
 UPDATE titus.formation_units SET review_state='current'
  WHERE formation_unit_id='00000000-0000-4000-8000-000000000301';
 
+UPDATE titus.formation_responses
+ SET created_at=now()-interval '2 days'
+ WHERE formation_response_id='00000000-0000-4000-8000-000000000501';
+SELECT pg_temp.expect_match(false,'retrospective release after learner response');
+UPDATE titus.formation_responses
+ SET created_at=now()
+ WHERE formation_response_id='00000000-0000-4000-8000-000000000501';
+
 UPDATE titus.formation_responses SET response_status='reviewed'
  WHERE formation_response_id='00000000-0000-4000-8000-000000000501';
 SELECT pg_temp.expect_match(false,'not-submitted original');
