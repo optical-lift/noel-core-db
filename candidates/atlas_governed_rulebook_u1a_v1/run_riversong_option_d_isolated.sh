@@ -15,8 +15,16 @@ ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
 SHA="$(git -C "$ROOT" rev-parse HEAD)"
 [[ "$SHA" =~ ^[a-f0-9]{40}$ ]] || { echo 'STOP: invalid source SHA'; exit 2; }
 if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
-  [[ "$(printf '%s' "${RUNNER_NAME:-}" | tr '[:upper:]' '[:lower:]')" == riversong ]] ||
-    { echo 'STOP: self-hosted runner is not RiverSong'; exit 2; }
+  # Noel is not where RiverSong is registered. The established, protected
+  # carrier is optical-lift/atlas on its macOS atlas-verifier label; it pins
+  # one immutable Noel commit into a disposable checkout.
+  case "${GITHUB_REPOSITORY:-}:$(printf '%s' "${RUNNER_NAME:-}" | tr '[:upper:]' '[:lower:]')" in
+    optical-lift/atlas:riversong|optical-lift/atlas:riversong-lex)
+      [[ "${U1A_ATLAS_CARRIER_SHA:-}" == "$SHA" ]] ||
+        { echo 'STOP: pinned Atlas carrier source SHA does not match'; exit 2; };;
+    *)
+      echo 'STOP: only the established Atlas RiverSong carrier may execute Actions test'; exit 2;;
+  esac
 fi
 [[ "$(uname -s)" == Darwin ]] || { echo 'STOP: RiverSong macOS only'; exit 2; }
 for key in NOEL_CORE_DATABASE_URL SUPABASE_DB_URL DATABASE_URL SUPABASE_ACCESS_TOKEN; do
