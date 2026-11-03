@@ -137,7 +137,7 @@ for rel in atlas.organizations atlas.ledgers atlas.work_requirements atlas.work_
  atlas.subject_disclosure_decision_events_v1 ledger.ledgers ledger.seats \
  reality.entities foundry.events foundry.workspace_authority_registry_v1 \
  foundry.source_custody_review_cases_v1 auth.users auth.sessions; do
-  if [[ "$(query "SELECT (to_regclass('$rel') IS NOT NULL)::text")" != t ]]; then
+  if [[ "$(query "SELECT (to_regclass('$rel') IS NOT NULL)::text")" != true ]]; then
     echo "MISSING_SOURCE_TABLE: $rel"
     missing=1
   fi
@@ -153,7 +153,7 @@ for sig in \
  'atlas.decide_foundry_source_custody_review_self_api_v1(uuid,text,text)' \
  'atlas.revoke_foundry_source_custody_review_self_api_v1(uuid,text)' \
  'auth.uid()'; do
-  if [[ "$(query "SELECT (to_regprocedure('$sig') IS NOT NULL)::text")" != t ]]; then
+  if [[ "$(query "SELECT (to_regprocedure('$sig') IS NOT NULL)::text")" != true ]]; then
     echo "MISSING_SOURCE_FUNCTION: $sig"
     missing=1
   fi
@@ -163,7 +163,7 @@ done
  { echo 'STOP: nonempty Auth source, not an empty fictional clone'; exit 1; }
 [[ "$(query 'SELECT count(*) FROM atlas.work_items')" == 0 ]] ||
  { echo 'STOP: native Work already exists'; exit 1; }
-[[ "$(query "SELECT (to_regclass('atlas.governed_rulebook_versions_v1') IS NULL)::text")" == t ]] ||
+[[ "$(query "SELECT (to_regclass('atlas.governed_rulebook_versions_v1') IS NULL)::text")" == true ]] ||
  { echo 'STOP: U1A already installed'; exit 1; }
 
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 \
