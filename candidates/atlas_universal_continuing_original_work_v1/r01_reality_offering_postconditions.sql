@@ -24,6 +24,14 @@ BEGIN
      OR has_function_privilege('service_role',v_fn,'EXECUTE')
    THEN RAISE EXCEPTION 'R01 draft function prematurely exposed: %',v_name; END IF;
  END LOOP;
+ -- The owner-standing transport is available to signed clients, but the
+ -- underlying source writer is not independently executable. The writer
+ -- itself verifies root Ledger authority, accepted Person scope and Subject.
+ IF to_regprocedure('public.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])') IS NULL
+    OR has_function_privilege('anon','public.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])','EXECUTE')
+    OR has_function_privilege('authenticated','atlas.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])','EXECUTE')
+ THEN RAISE EXCEPTION 'R01 standing owner membrane missing or incorrectly granted'; END IF;
  -- Existing native Person rhythm discovery is a public signed membrane,
  -- while its source-owned internal function remains denied to client roles.
  IF to_regprocedure('public.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)') IS NULL
