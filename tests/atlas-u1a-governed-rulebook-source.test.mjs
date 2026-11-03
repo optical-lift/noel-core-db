@@ -171,3 +171,51 @@ test('review adoption receipt keeps one timezone-invariant source-review timesta
  assert.match(s,/'sourceReviewCaseId',v_review\.case_id/);
  assert.match(s,/'sourceReviewRecordedAt',to_char\(/);
 });
+
+
+const u1aFixture = readFileSync(
+ new URL('../candidates/atlas_governed_rulebook_u1a_v1/signed_u1a_fictional_fixture_v1.sql',import.meta.url),'utf8');
+const u1aSigned = readFileSync(
+ new URL('../candidates/atlas_governed_rulebook_u1a_v1/validate_signed_u1a_local_clone_v1.py',import.meta.url),'utf8');
+test('U1A exact-Subject approval is limited to currently sourced original growing objects',()=>{
+ for(const x of [
+  "s.entity_kind='growing_object'",
+  "s.metadata->>'subjectDomain'='spatial'",
+  "FROM atlas.growing_objects go",
+  "JOIN atlas.farms f ON f.id=go.farm_id",
+  "go.id=s.id AND f.organization_id=p_organization_id"
+ ])assert.ok(s.includes(x),x);
+});
+test('U1A signed fixture is isolated and never seeds a Rulebook approval',()=>{
+ for(const x of [
+  "current_database()<>'postgres'",
+  "inet_server_addr() IS DISTINCT FROM inet '127.0.0.1'",
+  "current_setting('port') <> '54322'",
+  "e5200000-0000-4000-8000-000000000b03",
+  "source_object_type", "reality_entity",
+  "fictional_bed3_restorative_maintenance",
+  "EXISTS (SELECT 1 FROM atlas.governed_rulebook_versions_v1)",
+  "Fictional Bed 3",
+ ])assert.ok(u1aFixture.includes(x),x);
+ assert.doesNotMatch(u1aFixture,/INSERT INTO atlas\.governed_rulebook_versions_v1|INSERT INTO atlas\.governed_rulebook_bindings_v1/i);
+ assert.doesNotMatch(u1aFixture,/INSERT INTO auth\.users|INSERT INTO auth\.sessions|INSERT INTO ledger\.seats/i);
+});
+test('U1A signed proof uses independent real GoTrue auth and exact native approvals',()=>{
+ for(const x of [
+  "validate-atlas-work-prerequisite-signed-http.py",
+  "c1.sign_in(api, key, name)",
+  "auth.sessions",
+  "request_foundry_source_custody_review_self_api_v1",
+  "decide_foundry_source_custody_review_self_api_v1",
+  "capture_foundry_reality_input_self_api_v1",
+  "governor_set_subject_disclosure_self_api_v1",
+  "adopt_governed_rulebook_version_self_api_v1",
+  "read_governed_rulebook_current_self_api_v1",
+  "revoke_foundry_source_custody_review_self_api_v1",
+  "sourceReviewCurrent",
+  "policyExecutable",
+  "work_before", "need_before"
+ ])assert.ok(u1aSigned.includes(x),x);
+ assert.match(u1aSigned,/127\[.\]0\[.\]0\[.\]1:54322\/postgres/);
+ assert.doesNotMatch(u1aSigned,/jwt\.encode|jwt\.sign|service_role.*Bearer|NOEL_CORE_DATABASE_URL|SUPABASE_DB_URL/i);
+});
