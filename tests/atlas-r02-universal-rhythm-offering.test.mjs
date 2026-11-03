@@ -1,0 +1,52 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const dir=new URL("../candidates/atlas_universal_continuing_original_work_v1/",import.meta.url);
+const read=name=>readFileSync(new URL(name,dir),"utf8");
+const src=read("r02_governed_rhythm_offering_transport.sql");
+const post=read("r02_governed_rhythm_offering_postconditions.sql");
+const pkg=read("r02_reality_offering_release_candidate.sql");
+const clone=readFileSync(new URL("../candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql",import.meta.url),"utf8");
+test("universal review and mandate transport delegates to existing source adapters",()=>{
+ assert.match(src,/CREATE OR REPLACE FUNCTION public\.governor_review_rhythm_opportunities_self_api_v1/);
+ assert.match(src,/CREATE OR REPLACE FUNCTION public\.governor_approve_rhythm_opportunity_self_api_v1/);
+ assert.match(src,/governor_rhythm_care_opportunities_adapter_v1/);
+ assert.match(src,/owner_establish_standing_continuing_care_work_self_api_v1/);
+ assert.doesNotMatch(src,/INSERT INTO atlas\.work_items|INSERT INTO atlas\.work_allocations/i);
+ assert.match(src,/coverage','registered_source_adapters_only'/);
+ assert.match(src,/notAnAllRhythmsCensus',true/);
+ assert.match(src,/sourceChangesRequireApprovalRecheck',true/);
+ assert.match(src,/original Work/);
+});
+test("source enforces true ledger governor, accepted scope and exact Subject disclosure",()=>{
+ assert.match(src,/company_work_native_ledger_owner_self_v1/);
+ assert.match(src,/accepted_by_person_id IS DISTINCT FROM v_scope.worker_person_id/);
+ assert.match(src,/coverage_mode<>'ledger_all_work'/);
+ assert.match(src,/person_has_native_ledger_connection_v1/);
+ assert.match(src,/has_current_subject_disclosure_v1/);
+ assert.match(src,/AND NOT EXISTS\(SELECT 1 FROM atlas\.work_items/);
+ assert.match(src,/AND NOT EXISTS\(SELECT 1 FROM atlas\.tasks/);
+ assert.match(src,/FOR UPDATE|case p_adapter_key|CASE p_adapter_key/);
+});
+test("source only advertises registered adapters; adding a domain does not change the interface",()=>{
+ assert.match(src,/CASE p_adapter_key/);
+ assert.match(src,/No approved source adapter for requested rhythm/);
+ assert.match(src,/registeredAdapters',jsonb_build_array/);
+ assert.match(src,/candidateId',candidate_id/);
+ assert.match(src,/adapterKey','continuing_care_actual_v1'/);
+ assert.match(src,/physicalConditionAsserted',false/);
+ assert.match(src,/notAClockAdmission',true/);
+});
+test("source public/private ACL and isolated protected package are composed",()=>{
+ assert.match(src,/REVOKE ALL ON FUNCTION atlas\.governor_review_rhythm_opportunities_self_api_v1/);
+ assert.match(src,/REVOKE ALL ON FUNCTION atlas\.governor_approve_rhythm_opportunity_self_api_v1/);
+ assert.match(src,/GRANT EXECUTE ON FUNCTION public\.governor_review_rhythm_opportunities_self_api_v1/);
+ assert.match(src,/GRANT EXECUTE ON FUNCTION public\.governor_approve_rhythm_opportunity_self_api_v1/);
+ assert.ok(pkg.includes(src));
+ assert.ok(clone.includes(src));
+ assert.ok(clone.includes(post));
+ assert.match(post,/R02 public source ACL misconfigured/);
+ assert.match(post,/R02 unsigned governor preview did not source deny/);
+ assert.ok(clone.trimEnd().endsWith("COMMIT;"));
+ assert.match(clone,/CLONE TEST ONLY: this candidate is NEVER production-releasable/);
+});
