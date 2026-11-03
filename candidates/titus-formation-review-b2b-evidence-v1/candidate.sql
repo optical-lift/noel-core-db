@@ -144,6 +144,8 @@ AS $$
       AND m.effective_at<=now() AND now()<m.expires_at
       AND m.revoked_at IS NULL
     WHERE r.formation_response_id=p_formation_response_id
+      -- Never retrofit a later release to a response created earlier.
+      AND r.created_at>=e.effective_at
       AND r.response_status='submitted'
       AND d.reviewer_person_entity_id <> learner.person_entity_id
       AND d.reviewer_person_entity_id =
