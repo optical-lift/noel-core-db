@@ -1,5 +1,8 @@
 # noel-core-db
 
+
+**Atlas November 3 documentation handoff (no migration):** [Unified Operating Reality — Noel Source Custody](architecture/ATLAS_UNIFIED_OPERATING_REALITY_SOURCE_CUSTODY_20261103.md) records the current read-only production inventory, exact held R01/R02 signed-clone evidence, unresolved versioned Rulebook/automatic first Work release/negative acceptance and cross-domain proofs. It routes U0 source recovery before new SQL and preserves Noel as the sole canonical post-fence Atlas database migration authority. This is a **documentation pointer**, not a new release request or a replacement for the instructions below.
+
 Executable database custody for the shared `noel-core` Supabase project.
 
 This repository owns canonical database migrations, database custody tests, schema ownership boundaries, and generated database contracts for the physical Supabase project used by Noel, Atlas, Titus, and Write Now.
