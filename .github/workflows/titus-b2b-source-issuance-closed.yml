@@ -1,0 +1,91 @@
+name: Titus B2B source-issuance boundary - isolated PostgreSQL proof
+
+on:
+  push:
+    branches:
+      - work/titus-b2b-source-issuance-closed-20261103
+    paths:
+      - 'candidates/titus-formation-b2b-issuance-verification-v1/**'
+      - '.github/workflows/titus-b2b-source-issuance-closed.yml'
+  pull_request:
+    paths:
+      - 'candidates/titus-formation-b2b-issuance-verification-v1/**'
+      - '.github/workflows/titus-b2b-source-issuance-closed.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-issuance-must-remain-closed:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture-only-not-a-secret
+          POSTGRES_DB: titus_issuance_disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d titus_issuance_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: fixture-only-not-a-secret
+      PGDATABASE: titus_issuance_disposable
+    steps:
+      - name: Exact source checkout without credential persistence
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify source-only boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA" || test "$GITHUB_EVENT_NAME" = "pull_request"
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('candidates/titus-formation-b2b-issuance-verification-v1')
+          sql = (root/'candidate.sql').read_text()
+          tests = (root/'postconditions.sql').read_text()
+          assert 'CREATE OR REPLACE FUNCTION titus.formation_review_source_issuance_verified_v1' in sql
+          assert 'SECURITY INVOKER' in sql
+          assert 'SELECT false;' in sql
+          assert 'REVOKE ALL' in sql
+          assert 'unverified fictional receipt became reviewer authority' in tests
+          assert 'fictional source reference forged issuance' in tests
+          assert 'B2A writer gate accidentally opened' in tests
+          for forbidden in (
+              'CREATE TABLE','ALTER TABLE','CREATE ROLE','ALTER ROLE',
+              'SECURITY DEFINER','GRANT EXECUTE','GRANT SELECT',
+              'CREATE OR REPLACE FUNCTION public.',
+              'CREATE OR REPLACE FUNCTION titus.formation_response_work_authority_gate_v1',
+              'INSERT INTO','UPDATE titus.','DELETE FROM','supabase db push'
+          ):
+              assert forbidden not in sql, forbidden
+          print('PASS: source only; no public access, issuance or writer opening')
+          PY
+      - name: Bootstrap fictional B2A and B2B in disposable PostgreSQL 16
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -X -Atc "select current_setting('server_version_num')::integer >= 160000"
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-response-work-b2-v1/fixture.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/fixture.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-response-work-b2-v1/candidate.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/candidate.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/postconditions.sql
+      - name: Verify source receipts cannot self-authorize reviewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-b2b-issuance-verification-v1/candidate.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-b2b-issuance-verification-v1/postconditions.sql
+          echo 'PASS: fictional evidence cannot become issuance, signed access or released review.'
