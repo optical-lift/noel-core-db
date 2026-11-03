@@ -120,3 +120,13 @@ test('U1A runner requires a clean reviewed branch before touching the database',
  const txn=runner.indexOf("printf '%s\\n' 'BEGIN;'");
  assert.ok(branchGuard>0 && cleanGuard>branchGuard && firstPg>cleanGuard && txn>firstPg);
 });
+
+test('Foundry custody must be explicitly reviewed before adoption',()=>{
+ // The native workspace constructor starts with pending custody even for
+ // verified_self. That is evidence capture, not authorized adoption.
+ assert.match(s,/AND w\.custody_review_state='reviewed'/);
+ assert.match(s,/AND w\.custody_reviewed_by_principal_id IS NOT NULL/);
+ assert.match(s,/AND w\.custody_reviewed_at IS NOT NULL/);
+ assert.match(s,/cardinality\(w\.custody_basis_refs\)>0/);
+ assert.doesNotMatch(s,/w\.custody_review_state NOT IN \('revoked','suspended'\)/);
+});
