@@ -13,13 +13,14 @@ BEGIN
     OR current_setting('server_version_num')::integer NOT BETWEEN 170000 AND 179999
     OR to_regclass('atlas.work_requirements') IS NOT NULL
     OR to_regclass('atlas.organization_units') IS NULL
-    OR NOT EXISTS (SELECT 1 FROM pg_constraint
-                   WHERE conrelid='atlas.organization_units'::regclass
-                     AND contype IN ('p','u')
-                     AND conkey=ARRAY[
-                       (SELECT attnum FROM pg_attribute WHERE attrelid='atlas.organization_units'::regclass AND attname='organization_id'),
-                       (SELECT attnum FROM pg_attribute WHERE attrelid='atlas.organization_units'::regclass AND attname='id')
-                     ]::smallint[])
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_index i
+      WHERE i.indrelid='atlas.organization_units'::regclass
+        AND i.indisunique AND i.indisvalid
+        AND i.indpred IS NULL AND i.indexprs IS NULL
+        AND i.indnkeyatts=2
+        AND pg_get_indexdef(i.indexrelid,1,true)='organization_id'
+        AND pg_get_indexdef(i.indexrelid,2,true)='id')
     OR to_regrole('service_role') IS NULL
     OR to_regrole('anon') IS NULL
     OR to_regrole('authenticated') IS NULL
