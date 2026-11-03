@@ -1,0 +1,96 @@
+name: Titus B2B evidence match - isolated PostgreSQL source proof
+
+on:
+  push:
+    branches:
+      - work/titus-formation-review-b2b-authority-20261103
+    paths:
+      - 'candidates/titus-formation-review-b2b-evidence-v1/**'
+      - '.github/workflows/titus-formation-review-b2b-evidence-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-structural-evidence:
+    if: >-
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.ref == 'refs/heads/work/titus-formation-review-b2b-authority-20261103'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture-only-not-a-secret
+          POSTGRES_DB: titus_b2b_disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d titus_b2b_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: fixture-only-not-a-secret
+      PGDATABASE: titus_b2b_disposable
+    steps:
+      - name: Exact source checkout without credential persistence
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fail closed on scope and unintended permission grants
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('candidates/titus-formation-review-b2b-evidence-v1')
+          src=(root/'candidate.sql').read_text()
+          test=(root/'postconditions.sql').read_text()
+          for item in (
+            'formation_review_edition_evidence_v1',
+            'formation_review_disclosure_evidence_v1',
+            'formation_review_mandate_evidence_v1',
+            'titus.current_authenticated_person_entity_id_v1()',
+            'formation_review_evidence_match_v1',
+            'SECURITY INVOKER',
+            'ENABLE ROW LEVEL SECURITY',
+            'REVOKE ALL',
+            "version_status IN ('frozen','published')"
+          ):
+            assert item in src,item
+          for prohibited in (
+            'CREATE OR REPLACE FUNCTION public.',
+            'GRANT EXECUTE','GRANT SELECT','GRANT INSERT',
+            'SECURITY DEFINER','supabase db push',
+            'CREATE ROLE','ALTER ROLE','DELETE FROM titus.formation_responses',
+            'UPDATE titus.formation_responses',
+            'CREATE OR REPLACE FUNCTION titus.formation_response_work_authority_gate_v1'
+          ):
+            assert prohibited not in src,prohibited
+          assert 'fixture' in (root/'fixture.sql').read_text().lower()
+          assert "B2A writer gate accidentally opened" in test
+          assert "revoked reviewer mandate" in test
+          print('PASS source boundaries; candidate has no grants, public RPC, writer gate replacement or migration.')
+          PY
+      - name: Initialize fictional B2A and B2B source structure in empty Postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -X -Atc "select current_setting('server_version_num')::integer >= 160000"
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-response-work-b2-v1/fixture.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/fixture.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-response-work-b2-v1/candidate.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/candidate.sql
+      - name: Assert independent evidence and fail-closed withdrawal / edition / viewer
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/postconditions.sql
+          echo 'PASS B2B fixture only; not real mandate issuance or signed GoTrue validation.'
