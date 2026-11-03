@@ -379,6 +379,30 @@ begin
     return new;
   end if;
 
+  -- A worker's own accepted physical Actual may continue ONLY the exact
+  -- campaign previously rooted by a Ledger governor. It is not permission to
+  -- give oneself arbitrary Work, choose a different bed or change the scope.
+  -- The verifier checks the prior first-party care result, accepted source
+  -- satisfaction, unexpired root scope, next eligible Subject, source grants,
+  -- campaign cutoff and source original Work identity.
+  if v_kind='delegated_under_standing_scope'
+    and v_source='standing_care_auto_continuation_v1' then
+    if tg_op<>'INSERT'
+       or new.assignee_membership_id is not null
+       or new.assigned_by_membership_id is not null
+       or new.assignee_canonical_person_id is null
+       or new.organization_id is null
+       or coalesce(v_basis->>'authorizationBasis','')<>
+         'owner_preapproved_standing_care_actual_successor_v1'
+       or not atlas.standing_care_auto_successor_authorized_v1(
+         new.work_item_id,new.assignee_canonical_person_id,v_basis)
+    then
+      raise exception 'Standing care successor requires approved campaign and accepted worker Actual'
+        using errcode='42501';
+    end if;
+    return new;
+  end if;
+
   -- Native Ledger standing agreement: canonical Person is the assignee,
   -- without invented Organization/employee membership. The original
   -- membership-based delegated branch below remains unchanged.
