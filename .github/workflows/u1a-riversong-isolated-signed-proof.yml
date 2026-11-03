@@ -6,8 +6,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/u1a-riversong-isolated-signed-proof.yml'
-      - 'candidates/atlas_governed_rulebook_u1a_v1/**'
-      - 'tests/atlas-u1a-governed-rulebook-source.test.mjs'
+      # Explicit operator-owned trigger avoids rerunning a full disposable
+      # Docker test for every draft README/SQL correction.
+      - 'candidates/atlas_governed_rulebook_u1a_v1/OPTION_D_RUN_REQUEST.md'
 
 permissions:
   contents: read
