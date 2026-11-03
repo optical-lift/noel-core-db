@@ -5309,6 +5309,34 @@ REVOKE ALL ON FUNCTION atlas.owner_establish_standing_continuing_care_work_self_
   uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
 ) FROM PUBLIC,anon,authenticated,service_role;
 
+-- Signed application membrane. The ROOT governor proof, scope acceptance,
+-- disclosed physical Subject, explicit weekdays, scheduling and collision
+-- protections remain enforced by the private source function, not the UI.
+-- No arbitrary caller gains direct access to the private writer.
+CREATE OR REPLACE FUNCTION public.owner_establish_standing_continuing_care_work_self_api_v1(
+  p_organization_id uuid,
+  p_ledger_id uuid,
+  p_rhythm_state_id uuid,
+  p_scope_id uuid,
+  p_visit_reason text,
+  p_service_date date,
+  p_campaign_end_date date,
+  p_action_id uuid,
+  p_workdays_iso smallint[]
+) RETURNS jsonb
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path TO ''
+AS $public_owner$
+ SELECT atlas.owner_establish_standing_continuing_care_work_self_api_v1(
+  p_organization_id,p_ledger_id,p_rhythm_state_id,p_scope_id,p_visit_reason,
+  p_service_date,p_campaign_end_date,p_action_id,p_workdays_iso);
+$public_owner$;
+REVOKE ALL ON FUNCTION public.owner_establish_standing_continuing_care_work_self_api_v1(
+ uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
+) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.owner_establish_standing_continuing_care_work_self_api_v1(
+ uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
+) TO authenticated;
+
 
 -- R01 CLONE-ONLY ADDED SOURCE: 20_owner_standing_candidate_preview.sql
 -- R01 source-only integration of held Noel PR #2364 11_owner_standing_candidate_preview.sql.
@@ -6617,6 +6645,7 @@ DO $r01_post$
 DECLARE v_functions text[]:=ARRAY[
  'atlas.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])',
  'atlas.standing_care_next_governed_service_day_v1(timestamptz,text,jsonb,date)',
+ 'atlas.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)',
  'atlas.owner_preview_standing_care_candidates_self_api_v1(uuid,uuid,uuid,uuid,text,date,uuid,integer)',
  'atlas.standing_care_next_subject_internal_v1(uuid,uuid)',
  'atlas.standing_care_auto_successor_authorized_v1(uuid,uuid,jsonb)',
@@ -6635,6 +6664,20 @@ BEGIN
      OR has_function_privilege('service_role',v_fn,'EXECUTE')
    THEN RAISE EXCEPTION 'R01 draft function prematurely exposed: %',v_name; END IF;
  END LOOP;
+ -- The owner-standing transport is available to signed clients, but the
+ -- underlying source writer is not independently executable. The writer
+ -- itself verifies root Ledger authority, accepted Person scope and Subject.
+ IF to_regprocedure('public.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])') IS NULL
+    OR has_function_privilege('anon','public.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])','EXECUTE')
+    OR has_function_privilege('authenticated','atlas.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])','EXECUTE')
+ THEN RAISE EXCEPTION 'R01 standing owner membrane missing or incorrectly granted'; END IF;
+ -- Existing native Person rhythm discovery is a public signed membrane,
+ -- while its source-owned internal function remains denied to client roles.
+ IF to_regprocedure('public.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)') IS NULL
+    OR has_function_privilege('anon','public.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)','EXECUTE')
+ THEN RAISE EXCEPTION 'R01 Today rhythm reader missing or has incorrect signed transport grant'; END IF;
  SELECT pg_get_functiondef(to_regprocedure('atlas.guard_work_allocation_responsibility_establishment_v2()'))
  INTO v_guard;
  IF v_guard NOT LIKE '%capability_root_authority_context_self_v1%'
