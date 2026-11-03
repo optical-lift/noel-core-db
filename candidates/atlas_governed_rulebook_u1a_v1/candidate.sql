@@ -130,8 +130,18 @@ BEGIN
  SELECT * INTO v_subject FROM reality.entities s
  WHERE s.id=v_need.source_object_id
    AND s.identity_state='canonical'
-   AND s.entity_kind NOT IN ('person','organization','household')
-   AND nullif(btrim(s.metadata->>'subjectDomain'),'') IS NOT NULL;
+   -- U1A can only adopt a Subject whose native disclosure writer currently
+   -- proves a matching scoped source. That writer supports spatial growing
+   -- objects and event occurrences, not arbitrary canonical Reality entities.
+   -- This exact-Subject held slice uses only the established spatial path;
+   -- U1B must add other genuine domain adapters without borrowing this grant.
+   AND s.entity_kind='growing_object'
+   AND s.metadata->>'subjectDomain'='spatial'
+   AND EXISTS (
+     SELECT 1 FROM atlas.growing_objects go
+     JOIN atlas.farms f ON f.id=go.farm_id
+     WHERE go.id=s.id AND f.organization_id=p_organization_id
+   );
  IF v_subject.id IS NULL THEN
    RAISE EXCEPTION 'Canonical Subject unavailable' USING ERRCODE='42501';
  END IF;
