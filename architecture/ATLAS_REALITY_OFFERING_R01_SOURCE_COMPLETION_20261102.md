@@ -12,7 +12,7 @@ for an existing real bed or mowing route and a currently accepted connected
 Person. The Work carries its original Subject and source Rule. The responsible
 Person reports a typed physical Actual. One accepted terminal Result goes
 through Noel #2368's universal one-Done lifecycle; then an approved campaign
-may deliver only ONE next eligible original Work on the next governed day.
+may deliver only ONE next eligible original Work on the next owner-approved ISO workday, if that day exists within the campaign.
 Partial/blocked results do not cause a new original. Accepted history survives
 a failed successor attempt with an explicit needs-review receipt.
 
@@ -37,18 +37,25 @@ a failed successor attempt with an explicit needs-review receipt.
 7. `10_care_actual_single_done_cutover_candidate.sql`: after universal Done,
    invokes standing successor only for accepted terminal results; same-action
    replay may reconcile a missed successor; blocked/partial remain open.
-8. `r01_reality_offering_release_candidate.sql`: ONE ordered test-source
+8. The owner writer now requires a signed, sorted ISO weekday set for the
+   campaign. `21_owner_standing_successor_authority.sql` contains a private,
+   fail-closed workday resolver. The verifier and automatic successor use the
+   SAME owner-approved days; a legacy hardcoded Sunday-skip is removed.
+9. `r01_reality_offering_release_candidate.sql`: ONE ordered test-source
    transaction (not a migration), explicitly requiring the held Noel #2368
    universal Work lifecycle in a disposable schema first.
-9. `r01_reality_offering_postconditions.sql`: private ACL, live Ledger root,
+10. `r01_reality_offering_postconditions.sql`: private ACL, live Ledger root,
    old observed-source admission, canonical single Done and negative unsigned
    source checks. `manual_r01_reality_offering_rollback.sh` targets ONLY
    `127.0.0.1:54322` and always rolls back. Reproducible static source
    checks live at `tests/atlas-r01-standing-source.test.mjs`.
 
 ## Evidence and remaining release gates
-- In-session in-memory static source assertions: **24/24 PASS** before final
-  comment-only bundle regeneration; final verification must rerun.
+- After exact current source reassembly, **38/38 in-memory static source
+  assertions PASS**. These check retained native root authority, continuing
+  Actor admission, unified Done, accepted-Actual-only successor, frozen and
+  validated owner ISO workdays, explicit campaign cutoff, idempotence,
+  source-bundle integrity and the local-only rollback runner.
 - **NOT RUN:** PostgreSQL DDL compilation, rollback postconditions, live
   GoTrue-signed governor/connected worker/outsider/withdrawn grant tests,
   concurrent/double-click accepted Result → next Work, native Today/Work Focus
@@ -81,3 +88,14 @@ Focus care UI drafts be reconciled with current deployed app main.
 No production migrations, direct Supabase writes, real farm Work, permissions,
 release deployment, new infrastructure, runner changes or paid branches.
 No changes to Atlas app main. Final release remains separate authorization.
+
+## Verified live-source caveats to resolve before real Elm use
+- The existing U-Pick mowing rhythm rule still contains stale equipment
+  metadata saying `Riding mower`. Do NOT show this as a current instruction;
+  the verified push-mower correction must be source-reconciled first.
+- R01's **one-outstanding-Work** campaign capacity is deliberately narrow.
+  A configurable per-day capacity, full Foundry Rulebook adoption, UI-based
+  governor workday approval and operational signed actor proof are NOT shipped.
+- A successful signed Actual cannot itself prove that the next Work reached
+  Anna's Today; separate actual signed My Work/Today/browser readback remains
+  mandatory.
