@@ -190,8 +190,7 @@ test('U1A exact-Subject approval is limited to currently sourced original growin
 test('U1A signed fixture is isolated and never seeds a Rulebook approval',()=>{
  for(const x of [
   "current_database()<>'postgres'",
-  "inet_server_addr() IS DISTINCT FROM inet '127.0.0.1'",
-  "current_setting('port') <> '54322'",
+  "current_setting('u1a.disposable_clone',true) IS DISTINCT FROM 'true'",
   "e5200000-0000-4000-8000-000000000b03",
   "source_object_type", "reality_entity",
   "fictional_bed3_restorative_maintenance",
@@ -217,7 +216,9 @@ test('U1A signed proof uses independent real GoTrue auth and exact native approv
   "policyExecutable",
   "work_before", "need_before"
  ])assert.ok(u1aSigned.includes(x),x);
- assert.match(u1aSigned,/127\[.\]0\[.\]0\[.\]1:54322\/postgres/);
+ assert.ok(u1aSigned.includes("U1A_DISPOSABLE_DB_PORT"));
+ assert.ok(u1aSigned.includes("U1A_DISPOSABLE_PROJECT_DIR"));
+ assert.ok(u1aSigned.includes("re.escape(port)"));
  assert.doesNotMatch(u1aSigned,/jwt\.encode|jwt\.sign|service_role.*Bearer|NOEL_CORE_DATABASE_URL|SUPABASE_DB_URL/i);
 });
 
@@ -240,7 +241,9 @@ test('U1A guarded signed controller cannot target existing RiverSong clone or pr
   new URL('../candidates/atlas_governed_rulebook_u1a_v1/run_signed_u1a_on_fresh_clone_v1.py',import.meta.url),'utf8');
  for(const v of [
   'confirm-fresh-disposable',
-  'postgres(?:ql)?://[^@]+@127[.]0[.]0[.]1:54322/postgres',
+  'U1A_DISPOSABLE_DB_PORT',
+  'U1A_DISPOSABLE_PROJECT_DIR',
+  "SET u1a.disposable_clone = 'true'",
   'FRESH_SYNTHETIC',
   'status","--porcelain"',
   'validate_signed_u1a_local_clone_v1.py',
@@ -261,4 +264,28 @@ test('signed U1A source tests explicitly cover competing revisions and revoked s
   'Deleted GoTrue session denies historical root read'
  ])assert.ok(u1aSigned.includes(needle),needle);
  assert.doesNotMatch(u1aSigned,/sign_jwt|jwt\.encode|service_role.*Bearer/i);
+});
+
+
+const u1aOptionD=readFileSync(
+ new URL('../candidates/atlas_governed_rulebook_u1a_v1/run_riversong_option_d_isolated.sh',import.meta.url),'utf8');
+test('option D creates isolated random-ported Supabase project and no production access',()=>{
+ for(const x of [
+   'u1a_disposable_', 'supabase init --force','supabase start -x ',
+   'supabase stop --no-backup','mktemp -d',
+   'SOURCE_SHA', 'supabase/migrations',
+   '127.0.0.1:$DB_PORT/postgres',
+   'U1A_DISPOSABLE_DB_PORT',
+   'U1A_DISPOSABLE_PROJECT_DIR',
+   'run_signed_u1a_on_fresh_clone_v1.py',
+   'MISSING_SOURCE_TABLE:','MISSING_SOURCE_FUNCTION:',
+   'CLEANUP_INCOMPLETE', 'NOEL_CORE_DATABASE_URL',
+   'supabase/migrations', 'real local GoTrue+REST'
+ ])assert.ok(u1aOptionD.includes(x),x);
+ assert.doesNotMatch(u1aOptionD,/supabase\s+db\s+push|apply_migration|db\s+dump\s+--db-url|pg_restore|pg_ctl|55432\/postgres|NOEL_CORE_DATABASE_URL:\s*\$\{/);
+});
+test('option D RiverSong Bash grammar, with no project invocation',()=>{
+ const file=new URL('../candidates/atlas_governed_rulebook_u1a_v1/run_riversong_option_d_isolated.sh',import.meta.url);
+ const parsed=spawnSync('bash',['-n',file.pathname],{encoding:'utf8',timeout:10000});
+ assert.equal(parsed.status,0,parsed.stderr||parsed.error?.message||'Bash parser unavailable');
 });
