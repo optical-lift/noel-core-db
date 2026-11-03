@@ -4031,7 +4031,7 @@ END;
 $standing_policy$;
 
 
--- VERIFIED NATIVE AUTHORITY SOURCE
+-- VERIFIED NATIVE AUTHORITY SOURCE (R01 reconciled against current live guard)
 -- HELD EXACT-BASELINE NATIVE GUARD EXTENSION. This IS NOT a new seat.
 -- Only the preauthorized worker who signed a current source-policy action
 -- may establish the existing delegated_under_standing_scope allocation.
@@ -4041,7 +4041,7 @@ DO $native_guard_baseline$
 BEGIN
  IF (SELECT md5(p.prosrc) FROM pg_proc p WHERE p.oid=
     'atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure)
-    <> 'f5a80130cc2f204cf6e72be8f2dc23d5'
+    <> '1043ad551860196f1a13df25de9f8478'
  OR (SELECT md5(p.prosrc) FROM pg_proc p WHERE p.oid=
     'atlas.company_work_native_ledger_exact_source_v1(uuid,uuid)'::regprocedure)
     <> '7570082f04024397227545e685a4c071'
@@ -4352,6 +4352,8 @@ begin
       or nullif(v_basis->>'senderPersonId','') is null
       or coalesce(v_basis->>'authorizationBasis','')<>'active_mutual_native_ledger_connections'
     then raise exception 'Connected direct assignment requires exact original Person and Ledger source' using errcode='23514';end if;
+    IF NOT EXISTS (SELECT 1 FROM atlas.capability_root_authority_context_self_v1((v_basis->>'nativeLedgerId')::uuid))
+    THEN RAISE EXCEPTION 'Exact Ledger root required for connection-direct responsibility' USING errcode='42501';END IF;
     if atlas.current_person_id_v1() is distinct from (v_basis->>'senderPersonId')::uuid
       or not atlas.person_has_native_ledger_connection_v1(
          new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
@@ -4407,6 +4409,30 @@ begin
       and (length(btrim(coalesce(v_basis->>'receiverConsentEvidence','')))<16
          or coalesce(v_basis->>'witnessPersonId','')='') then
       raise exception 'Owner-witnessed uptake must preserve specific external consent evidence' using errcode='23514';
+    end if;
+    return new;
+  end if;
+
+  -- A worker's own accepted physical Actual may continue ONLY the exact
+  -- campaign previously rooted by a Ledger governor. It is not permission to
+  -- give oneself arbitrary Work, choose a different bed or change the scope.
+  -- The verifier checks the prior first-party care result, accepted source
+  -- satisfaction, unexpired root scope, next eligible Subject, source grants,
+  -- campaign cutoff and source original Work identity.
+  if v_kind='delegated_under_standing_scope'
+    and v_source='standing_care_auto_continuation_v1' then
+    if tg_op<>'INSERT'
+       or new.assignee_membership_id is not null
+       or new.assigned_by_membership_id is not null
+       or new.assignee_canonical_person_id is null
+       or new.organization_id is null
+       or coalesce(v_basis->>'authorizationBasis','')<>
+         'owner_preapproved_standing_care_actual_successor_v1'
+       or not atlas.standing_care_auto_successor_authorized_v1(
+         new.work_item_id,new.assignee_canonical_person_id,v_basis)
+    then
+      raise exception 'Standing care successor requires approved campaign and accepted worker Actual'
+        using errcode='42501';
     end if;
     return new;
   end if;
@@ -4965,6 +4991,1698 @@ GRANT EXECUTE ON FUNCTION public.admit_standing_continuing_source_work_self_api_
  uuid,uuid,uuid,uuid,date
 ) TO authenticated;
 SELECT pg_catalog.pg_notify('pgrst','reload schema');
+
+
+-- R01 SOURCE CANDIDATE (NOT RELEASABLE; FULL-CLONE PROOF ONLY)
+-- R01 CLONE-ONLY ADDED SOURCE: 19_owner_standing_visit_source_writer.sql
+-- R01 source-only integration of held Noel PR #2364 10_owner_standing_visit_source_writer.sql.
+-- Parent: Noel #2362; requires exact combined assembly, protected SQL clone,
+-- genuine signed principal/worker/outsider acceptance, and release approval.
+-- NOT a live migration. Retains original source guards and revocations.
+-- DRAFT: owner's standing-visit source adapter to ONE canonical original Work.
+-- The signed owner mandate establishes attention, NOT a fabricated physical
+-- observation. Field Actual remains a separately signed, typed result.
+-- No other task system. Held for protected-clone and signed tests.
+CREATE OR REPLACE FUNCTION atlas.owner_establish_standing_continuing_care_work_self_api_v1(
+  p_organization_id uuid,
+  p_ledger_id uuid,
+  p_rhythm_state_id uuid,
+  p_scope_id uuid,
+  p_visit_reason text,
+  p_service_date date,
+  p_campaign_end_date date,
+  p_action_id uuid,
+  p_workdays_iso smallint[]
+) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
+AS $writer$
+DECLARE
+  v_owner uuid;
+  v_state atlas.rhythm_state%ROWTYPE;
+  v_rule atlas.rhythm_rules%ROWTYPE;
+  v_object atlas.growing_objects%ROWTYPE;
+  v_scope atlas.company_work_standing_assignment_scopes%ROWTYPE;
+  v_existing atlas.work_items%ROWTYPE;
+  v_work uuid;
+  v_source jsonb;
+  v_assignment jsonb;
+  v_allocation uuid;
+  v_plan uuid;
+  v_title text;
+  v_instructions text;
+  v_reason text:=nullif(btrim(coalesce(p_visit_reason,'')),'');
+  v_key text;
+  v_today date;
+BEGIN
+  IF auth.uid() IS NULL OR p_organization_id IS NULL OR p_ledger_id IS NULL
+     OR p_rhythm_state_id IS NULL OR p_scope_id IS NULL
+     OR p_action_id IS NULL OR p_service_date IS NULL
+     OR p_campaign_end_date IS NULL
+     OR p_workdays_iso IS NULL
+     OR coalesce(cardinality(p_workdays_iso),0) NOT BETWEEN 1 AND 7
+     OR EXISTS (SELECT 1 FROM unnest(p_workdays_iso) AS wd(day)
+        WHERE wd.day IS NULL OR wd.day NOT BETWEEN 1 AND 7)
+     OR p_workdays_iso IS DISTINCT FROM
+        ARRAY(SELECT DISTINCT wd.day FROM unnest(p_workdays_iso) AS wd(day)
+              ORDER BY wd.day)::smallint[]
+     OR p_campaign_end_date<p_service_date OR p_campaign_end_date>p_service_date+120
+     OR v_reason IS NULL OR length(v_reason)<10 OR length(v_reason)>1500 THEN
+    RAISE EXCEPTION 'Exact signed owner standing visit and workday required'
+      USING ERRCODE='22023';
+  END IF;
+
+  v_owner:=atlas.company_work_native_ledger_owner_self_v1(
+    p_organization_id,p_ledger_id);
+  SELECT * INTO v_scope FROM atlas.company_work_standing_assignment_scopes
+    WHERE id=p_scope_id FOR UPDATE;
+  IF v_scope.id IS NULL OR v_scope.organization_id<>p_organization_id
+    OR v_scope.ledger_id<>p_ledger_id
+    OR v_scope.proposed_by_person_id IS DISTINCT FROM v_owner
+    OR v_scope.scope_state<>'active'
+    OR v_scope.worker_membership_id IS NOT NULL
+    OR v_scope.accepted_by_person_id IS DISTINCT FROM v_scope.worker_person_id
+    OR v_scope.accepted_at IS NULL
+    OR v_scope.coverage_mode<>'ledger_all_work'
+    OR (v_scope.valid_until IS NOT NULL AND v_scope.valid_until<=now())
+    OR NOT atlas.person_has_native_ledger_connection_v1(
+      p_organization_id,p_ledger_id,v_scope.worker_person_id) THEN
+    RAISE EXCEPTION 'Existing accepted connected-Person Ledger-wide scope required'
+      USING ERRCODE='42501';
+  END IF;
+
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'atlas.continuing-need-owner:'||p_organization_id||':'||p_rhythm_state_id,0));
+  SELECT * INTO v_state FROM atlas.rhythm_state s
+    WHERE s.id=p_rhythm_state_id AND s.organization_id=p_organization_id
+      AND s.subject_kind='growing_object' AND s.state<>'paused'
+    FOR UPDATE;
+  IF v_state.id IS NULL THEN
+    RAISE EXCEPTION 'Original active Subject Need unavailable' USING ERRCODE='23514';
+  END IF;
+  SELECT * INTO v_rule FROM atlas.rhythm_rules r
+    JOIN atlas.rhythm_bindings b ON b.rhythm_rule_id=r.id
+    WHERE b.id=v_state.rhythm_binding_id AND r.id=v_state.rhythm_rule_id
+      AND b.farm_id=v_state.farm_id AND b.organization_id=p_organization_id
+      AND b.active AND r.status='active';
+  SELECT * INTO v_object FROM atlas.growing_objects g
+    WHERE g.id=v_state.subject_id AND g.farm_id=v_state.farm_id;
+  v_today:=(now() at time zone
+    coalesce(nullif(v_rule.metadata->>'timezoneName',''),'UTC'))::date;
+  IF NOT (extract(isodow FROM p_service_date)::integer = ANY(p_workdays_iso)) THEN
+    RAISE EXCEPTION 'Owner service date is not an approved campaign workday'
+      USING ERRCODE='22023';
+  END IF;
+  IF p_service_date<v_today-1 OR p_service_date>v_today+14 THEN
+    RAISE EXCEPTION 'Person-day placement must be an explicit bounded civil date'
+      USING ERRCODE='22023';
+  END IF;
+  IF v_rule.id IS NULL OR v_object.id IS NULL OR
+    v_state.rhythm_key NOT IN ('weed_stewardship','mowing') OR
+    NOT EXISTS(SELECT 1 FROM atlas.farms f WHERE f.id=v_state.farm_id
+      AND f.organization_id=p_organization_id AND f.status='active') THEN
+    RAISE EXCEPTION 'Standing Need lacks active bound Subject and Rule'
+      USING ERRCODE='23514';
+  END IF;
+  IF v_state.rhythm_key='mowing' THEN
+    IF NOT EXISTS(SELECT 1 FROM atlas.mowing_area_state m
+      WHERE m.object_id=v_state.subject_id AND m.farm_id=v_state.farm_id
+        AND m.organization_id=p_organization_id AND m.status<>'closed') THEN
+      RAISE EXCEPTION 'No active mowing Subject' USING ERRCODE='23514';
+    END IF;
+    v_title:='Attend mowing route — '||v_object.label;
+    v_instructions:='Owner-standing inspection: check safety, mow only if appropriate; report the actual. '||v_reason;
+  ELSE
+    IF NOT EXISTS(SELECT 1 FROM atlas.weed_cards c
+      WHERE c.object_id=v_state.subject_id AND c.farm_id=v_state.farm_id) THEN
+      RAISE EXCEPTION 'No governed weed-stewardship Subject' USING ERRCODE='23514';
+    END IF;
+    v_title:='Attend bed — '||v_object.label;
+    v_instructions:='Owner-standing visit: inspect occupants; weed or tidy only as appropriate. Report actual full, partial, acceptable or blocked. '||v_reason;
+  END IF;
+
+  -- The source Disclosure gate is NOT the same as assigning responsibility.
+  -- The worker must actually be permitted to find identity AND condition.
+  IF NOT atlas.has_current_subject_disclosure_v1(
+     p_ledger_id,v_scope.worker_person_id,'spatial','growing_object',
+     v_state.subject_id,'identity')
+    OR NOT atlas.has_current_subject_disclosure_v1(
+     p_ledger_id,v_scope.worker_person_id,'spatial','growing_object',
+     v_state.subject_id,'condition')
+  THEN
+    RAISE EXCEPTION 'The connected Person cannot receive this protected physical Subject'
+      USING ERRCODE='42501';
+  END IF;
+
+  -- Same source action is never a second original, even after completion.
+  SELECT * INTO v_existing FROM atlas.work_items w
+  WHERE w.organization_id=p_organization_id
+    AND w.source_object_type='rhythm_state'
+    AND w.source_object_id=v_state.id
+    AND w.metadata->>'servingKey'=p_action_id::text
+  ORDER BY w.created_at LIMIT 1 FOR UPDATE;
+  IF v_existing.id IS NOT NULL THEN
+    IF v_existing.metadata->>'sourceScopeId' IS DISTINCT FROM p_scope_id::text
+      OR v_existing.metadata->>'sourceServiceDate' IS DISTINCT FROM p_service_date::text
+      OR v_existing.metadata->>'sourceStandingCampaignEndsOn' IS DISTINCT FROM p_campaign_end_date::text
+      OR v_existing.metadata->'sourceStandingWorkdaysIso' IS DISTINCT FROM to_jsonb(p_workdays_iso)
+      OR v_existing.metadata->>'sourceAdmissionMode' IS DISTINCT FROM 'owner_standing_visit_v1'
+      OR v_existing.metadata->>'sourceRuleId' IS DISTINCT FROM v_rule.id::text
+      OR v_existing.metadata->>'sourceVisitReasonDigest' IS DISTINCT FROM md5(v_reason)
+    THEN
+      RAISE EXCEPTION 'Source action replay cannot change Person, date or owner mandate'
+        USING ERRCODE='23505';
+    END IF;
+    IF NOT EXISTS(
+      SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+      WHERE rel.organization_id=p_organization_id AND rel.work_item_id=v_existing.id
+        AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
+    ) THEN
+      RAISE EXCEPTION 'Replayed action does not match the native Ledger'
+        USING ERRCODE='23505';
+    END IF;
+    RETURN jsonb_build_object('ok',true,
+      'contractVersion','owner_standing_continuing_care_work_v1',
+      'workItemId',v_existing.id,'existingAction',true,
+      'noNewWorkCreated',true,'clockAdmitted',false);
+  END IF;
+
+  SELECT * INTO v_existing FROM atlas.work_items w
+  WHERE w.organization_id=p_organization_id
+    AND w.source_object_type='rhythm_state'
+    AND w.source_object_id=v_state.id AND w.work_state='open'
+  LIMIT 1 FOR UPDATE;
+  IF v_existing.id IS NOT NULL THEN
+    -- Never reveal or reassign an existing original that belongs to another
+    -- native Ledger, even when the same underlying spatial Subject is known.
+    IF NOT EXISTS(
+      SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+      WHERE rel.organization_id=p_organization_id
+        AND rel.work_item_id=v_existing.id
+        AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
+    ) THEN
+      RAISE EXCEPTION 'Another governing Ledger already has the open original Work'
+        USING ERRCODE='23514';
+    END IF;
+    -- Never overwrite another person's task/plan with a later observation.
+    RETURN jsonb_build_object('ok',true,
+      'contractVersion','owner_standing_continuing_care_work_v1',
+      'workItemId',v_existing.id,'existingOpenServing',true,
+      'noNewWorkCreated',true,'assignmentUnchanged',true,
+      'noNewObservationCreated',true,'clockAdmitted',false);
+  END IF;
+
+  -- Do not promote the same Need while an unresolved legacy obligation
+  -- still exists. Keep that older task and its history unchanged; exact
+  -- legacy disposition/transfer is a separate governed owner decision.
+  IF EXISTS (
+    SELECT 1 FROM atlas.tasks t
+    LEFT JOIN atlas.planned_work_occurrences o ON o.id=t.planned_occurrence_id
+    WHERE t.farm_id=v_state.farm_id AND t.status IN ('open','blocked')
+      AND (
+        t.metadata->>'rhythm_state_id'=v_state.id::text
+        OR (o.source_kind='rhythm_state' AND o.source_id=v_state.id)
+      )
+  ) THEN
+    RAISE EXCEPTION 'An older active task still serves this exact Need; resolve its custody before creating another original Work'
+      USING ERRCODE='23514';
+  END IF;
+
+  -- No care_current_state transition and no care_observation_events write.
+  -- Only the worker's later signed Actual can establish observed condition.
+  v_source:=atlas.establish_continuing_original_work_internal_v1(
+    'organization',p_organization_id,p_ledger_id,'rhythm_state',v_state.id,
+    p_action_id::text,'spatial','growing_object',v_state.subject_id,
+    left(v_title,500),v_instructions,'continuing_care_actual_v1');
+  v_work:=(v_source->>'workItemId')::uuid;
+  IF v_work IS NULL OR v_source->>'noNewWorkCreated' IS DISTINCT FROM 'false' THEN
+    RAISE EXCEPTION 'Original Work serving was not newly established'
+      USING ERRCODE='23514';
+  END IF;
+
+  -- Freeze the original signed source action: replay must be an exact
+  -- repeat, never a second assignment, observation or service date.
+  UPDATE atlas.work_items SET
+    metadata=metadata||jsonb_build_object(
+      'sourceScopeId',p_scope_id,
+      'sourceServiceDate',p_service_date,
+      'sourceStandingCampaignId',p_action_id,
+      'sourceStandingCampaignEndsOn',p_campaign_end_date,
+      'sourceStandingWorkdaysIso',to_jsonb(p_workdays_iso),
+      'sourceStandingCampaignMode','seasonal_closeout',
+      'sourceStandingVisitReason',v_reason,
+      'sourceApprovedByPersonId',v_owner,
+      'sourceAdmissionMode','owner_standing_visit_v1',
+      'sourceRuleId',v_rule.id,
+      'sourceSubjectId',v_state.subject_id,
+      'sourceRhythmIntervalSeconds',v_rule.validity_interval_seconds,
+      'sourceVisitReasonDigest',md5(v_reason)),
+    updated_at=now()
+  WHERE id=v_work AND organization_id=p_organization_id;
+
+  INSERT INTO atlas.company_work_native_ledger_relevance(
+    organization_id,work_item_id,ledger_id,evidence_kind,
+    attestation_source_ref,attestation_reason,established_by_person_id
+  ) VALUES(
+    p_organization_id,v_work,p_ledger_id,'owner_attested',
+    'atlas.rhythm_rules:'||v_rule.id::text,
+    'Governor established a standing Subject visit; no condition inferred.',
+    v_owner
+  );
+
+  -- Reuse the governed native Person allocation, not an employee seat.
+  v_assignment:=atlas.assign_native_ledger_company_work_under_scope_owner_self_api_v1(
+    v_work,p_scope_id,
+    'Owner-approved standing visit under the existing accepted native Person scope.');
+  IF v_assignment->>'state' IS DISTINCT FROM 'assigned'
+    OR v_assignment->>'workItemId' IS DISTINCT FROM v_work::text THEN
+    RAISE EXCEPTION 'Exact native Person responsibility was not verified'
+      USING ERRCODE='23514';
+  END IF;
+  v_allocation:=(v_assignment->>'allocationId')::uuid;
+
+  -- Only the governor-selected service date creates this Work's Person-day
+  -- plan. Rhythm due_at is NOT the Person's scheduling/attention authority.
+  INSERT INTO atlas.work_execution_plans(
+    organization_id,work_item_id,responsible_allocation_id,
+    assignee_membership_id,planned_by_membership_id,
+    plan_state,first_planned_service_date,planned_service_date,
+    exposure_service_date,plan_reason,metadata
+  ) VALUES(
+    p_organization_id,v_work,v_allocation,NULL,NULL,'active',
+    p_service_date,p_service_date,p_service_date,
+    'Owner deliberately selected the standing visit service date.',
+    jsonb_build_object('source','owner_standing_visit_v1',
+      'ownerPersonId',v_owner,'sourceRuleId',v_rule.id,
+      'sourceStandingCampaignEndsOn',p_campaign_end_date,
+      'connectedPersonDay',true,'principalClockAdmitted',false)
+  ) RETURNING id INTO v_plan;
+  INSERT INTO atlas.work_execution_plan_events(
+    organization_id,work_item_id,plan_id,event_kind,
+    to_planned_service_date,to_exposure_service_date,
+    actor_membership_id,reason,metadata
+  ) VALUES(
+    p_organization_id,v_work,v_plan,'planned',
+    p_service_date,p_service_date,NULL,
+    'Governor selected standing visit service date',
+    jsonb_build_object('sourceRuleId',v_rule.id,
+      'governorPersonId',v_owner,'notLegacyWorkerDay',true)
+  );
+
+  RETURN jsonb_build_object(
+    'ok',true,'contractVersion','owner_standing_continuing_care_work_v1',
+    'workItemId',v_work,'rhythmStateId',v_state.id,
+    'sourceRuleId',v_rule.id,
+    'responsiblePersonId',v_scope.worker_person_id,
+    'allocationId',v_allocation,'planId',v_plan,
+    'serviceDate',p_service_date,
+    'campaignEndDate',p_campaign_end_date,
+    'approvedWorkdaysIso',to_jsonb(p_workdays_iso),
+    'newOriginalWorkCreated',true,
+    'ownerStandingVisitApproved',true,
+    'clockAdmitted',false,'noNextWorkPrecreated',true);
+END;
+$writer$;
+
+-- Denied until protected-clone signed authority/privacy tests pass. This
+-- function is a source-governor operation, not a generic task creation RPC.
+REVOKE ALL ON FUNCTION atlas.owner_establish_standing_continuing_care_work_self_api_v1(
+  uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
+) FROM PUBLIC,anon,authenticated,service_role;
+
+
+-- R01 CLONE-ONLY ADDED SOURCE: 20_owner_standing_candidate_preview.sql
+-- R01 source-only integration of held Noel PR #2364 11_owner_standing_candidate_preview.sql.
+-- Parent: Noel #2362; requires exact combined assembly, protected SQL clone,
+-- genuine signed principal/worker/outsider acceptance, and release approval.
+-- NOT a live migration. Retains original source guards and revocations.
+-- SOURCE-ONLY: owner preview of real governed rhythm candidates.
+-- No tasks, decisions, observations or assignments are inserted.
+-- The same source can be consumed by a reviewed, capacity-bounded successor
+-- writer; time alone does NOT prove physical weeds or mowing safety.
+CREATE OR REPLACE FUNCTION atlas.owner_preview_standing_care_candidates_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_scope_id uuid,p_farm_id uuid,
+ p_rhythm_key text,p_on_date date,p_campaign_id uuid DEFAULT NULL,
+ p_limit integer DEFAULT 25
+) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $preview$
+DECLARE
+  v_owner uuid;
+  v_scope atlas.company_work_standing_assignment_scopes%ROWTYPE;
+  v_rows jsonb;
+  v_total integer;
+  v_withheld integer;
+BEGIN
+  IF auth.uid() IS NULL OR p_organization_id IS NULL OR p_ledger_id IS NULL
+    OR p_scope_id IS NULL OR p_farm_id IS NULL OR p_on_date IS NULL
+    OR p_rhythm_key IS NULL OR p_rhythm_key NOT IN ('weed_stewardship','mowing')
+    OR p_limit NOT BETWEEN 1 AND 50
+  THEN RAISE EXCEPTION 'Signed exact rhythm preview requested'
+    USING ERRCODE='22023'; END IF;
+  v_owner:=atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id);
+  SELECT * INTO v_scope FROM atlas.company_work_standing_assignment_scopes
+    WHERE id=p_scope_id AND ledger_id=p_ledger_id
+      AND organization_id=p_organization_id;
+  IF v_scope.id IS NULL OR v_scope.scope_state<>'active'
+    OR v_scope.worker_membership_id IS NOT NULL
+    OR v_scope.accepted_by_person_id IS DISTINCT FROM v_scope.worker_person_id
+    OR v_scope.proposed_by_person_id IS DISTINCT FROM v_owner
+    OR v_scope.coverage_mode<>'ledger_all_work'
+    OR v_scope.accepted_at IS NULL
+    OR (v_scope.valid_until IS NOT NULL AND v_scope.valid_until<=now())
+    OR NOT atlas.person_has_native_ledger_connection_v1(
+      p_organization_id,p_ledger_id,v_scope.worker_person_id)
+    OR NOT EXISTS(SELECT 1 FROM atlas.farms f
+      WHERE f.id=p_farm_id AND f.organization_id=p_organization_id
+        AND f.status='active')
+  THEN RAISE EXCEPTION 'No governed active Person/Farm scope for preview'
+    USING ERRCODE='42501'; END IF;
+
+  WITH candidates AS MATERIALIZED (
+    SELECT s.id rhythm_state_id,s.subject_id,g.label subject_label,
+      r.id rule_id,r.rule_key,r.validity_interval_seconds,
+      s.due_at,
+      coalesce(
+        extract(epoch FROM ((p_on_date::timestamp AT TIME ZONE
+          coalesce(nullif(r.metadata->>'timezoneName',''),
+            nullif(f.metadata->>'timezoneName',''),'UTC'))-s.due_at))
+          /greatest(r.validity_interval_seconds,86400),
+        0
+      ) overdue_cycles,
+      atlas.has_current_subject_disclosure_v1(p_ledger_id,
+        v_scope.worker_person_id,'spatial','growing_object',
+        s.subject_id,'identity') identity_disclosed,
+      atlas.has_current_subject_disclosure_v1(p_ledger_id,
+        v_scope.worker_person_id,'spatial','growing_object',
+        s.subject_id,'condition') condition_disclosed
+    FROM atlas.rhythm_state s
+    JOIN atlas.rhythm_bindings b ON b.id=s.rhythm_binding_id
+      AND b.organization_id=p_organization_id AND b.farm_id=p_farm_id
+      AND b.active
+    JOIN atlas.rhythm_rules r ON r.id=b.rhythm_rule_id
+      AND r.id=s.rhythm_rule_id AND r.status='active'
+    JOIN atlas.growing_objects g ON g.id=s.subject_id
+      AND g.farm_id=p_farm_id
+    JOIN atlas.farms f ON f.id=s.farm_id
+      AND f.organization_id=p_organization_id AND f.status='active'
+    WHERE s.organization_id=p_organization_id AND s.farm_id=p_farm_id
+      AND s.subject_kind='growing_object'
+      AND s.rhythm_key=p_rhythm_key AND s.state<>'paused'
+      AND (r.validity_interval_seconds IS NOT NULL
+        AND r.validity_interval_seconds>0)
+      AND NOT EXISTS (
+        SELECT 1 FROM atlas.work_items w
+        WHERE w.organization_id=p_organization_id
+          AND w.source_object_type='rhythm_state'
+          AND w.source_object_id=s.id AND w.work_state='open'
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM atlas.tasks t
+        LEFT JOIN atlas.planned_work_occurrences o ON o.id=t.planned_occurrence_id
+        WHERE t.farm_id=p_farm_id AND t.status IN ('open','blocked')
+          AND (t.metadata->>'rhythm_state_id'=s.id::text
+            OR (o.source_kind='rhythm_state' AND o.source_id=s.id))
+      )
+      AND (p_campaign_id IS NULL OR NOT EXISTS (
+        SELECT 1 FROM atlas.work_items served
+        WHERE served.organization_id=p_organization_id
+          AND served.metadata->>'sourceStandingCampaignId'=p_campaign_id::text
+          AND served.metadata->>'sourceSubjectId'=s.subject_id::text
+          AND served.work_state IN ('completed','open')
+      ))
+  ), ranked AS (
+    SELECT c.*,row_number() OVER(
+      ORDER BY c.overdue_cycles DESC,c.validity_interval_seconds ASC,
+        c.subject_label,c.rhythm_state_id
+    ) position FROM candidates c
+  )
+  SELECT count(*)::integer,
+    count(*) FILTER (WHERE NOT identity_disclosed OR NOT condition_disclosed)::integer,
+    coalesce(jsonb_agg(jsonb_build_object(
+      'rhythmStateId',rhythm_state_id,'subjectId',subject_id,
+      'subjectLabel',subject_label,'sourceRuleId',rule_id,'ruleKey',rule_key,
+      'normalIntervalSeconds',validity_interval_seconds,
+      'rhythmDueAt',due_at,
+      'priorityPosition',position,
+      'releasableToConnectedPerson',identity_disclosed AND condition_disclosed,
+      'requiresSourceDisclosure',NOT(identity_disclosed AND condition_disclosed),
+      'eligibilityBasis','owner_standing_visit_not_physical_condition'
+    ) ORDER BY position) FILTER (WHERE position<=p_limit),'[]'::jsonb)
+  INTO v_total,v_withheld,v_rows FROM ranked;
+  RETURN jsonb_build_object(
+    'ok',true,'contractVersion','standing_care_candidate_preview_v1',
+    'organizationId',p_organization_id,'ledgerId',p_ledger_id,
+    'farmId',p_farm_id,'rhythmKey',p_rhythm_key,
+    'workerPersonId',v_scope.worker_person_id,'viewDate',p_on_date,
+    'candidateCount',v_total,'missingDisclosureCount',v_withheld,
+    'candidates',v_rows,'newWorkCreated',false,
+    'doesNotAssertPhysicalNeed',true);
+END;
+$preview$;
+
+REVOKE ALL ON FUNCTION atlas.owner_preview_standing_care_candidates_self_api_v1(
+ uuid,uuid,uuid,uuid,text,date,uuid,integer
+) FROM PUBLIC,anon,authenticated,service_role;
+
+
+-- R01 CLONE-ONLY ADDED SOURCE: 21_owner_standing_successor_authority.sql
+-- Approved ISO workdays (Monday=1 through Sunday=7) only.
+-- No inherited farm Sunday rule or missing-policy fallback.
+CREATE OR REPLACE FUNCTION atlas.standing_care_next_governed_service_day_v1(
+ p_prior_result_at timestamptz,p_timezone text,p_workdays_iso jsonb,
+ p_campaign_end date
+) RETURNS date LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $governed_day$
+DECLARE v_days integer[]; v_count integer; v_unique integer;
+ v_next date; v_offset integer;
+BEGIN
+ IF p_prior_result_at IS NULL OR p_campaign_end IS NULL
+  OR p_timezone IS NULL OR NOT EXISTS(
+   SELECT 1 FROM pg_catalog.pg_timezone_names tz WHERE tz.name=p_timezone)
+  OR jsonb_typeof(p_workdays_iso) IS DISTINCT FROM 'array'
+  OR jsonb_array_length(p_workdays_iso) NOT BETWEEN 1 AND 7
+ THEN RETURN NULL; END IF;
+ SELECT array_agg(d.day::integer ORDER BY d.day::integer),
+        count(*)::integer,count(DISTINCT d.day::integer)::integer
+ INTO v_days,v_count,v_unique
+ FROM jsonb_array_elements_text(p_workdays_iso) AS d(day)
+ WHERE d.day ~ '^[1-7]$';
+ IF v_count IS DISTINCT FROM jsonb_array_length(p_workdays_iso)
+    OR v_unique IS DISTINCT FROM v_count THEN RETURN NULL; END IF;
+ FOR v_offset IN 1..7 LOOP
+  v_next:=(p_prior_result_at AT TIME ZONE p_timezone)::date+v_offset;
+  IF v_next>p_campaign_end THEN RETURN NULL; END IF;
+  IF extract(isodow FROM v_next)::integer=ANY(v_days) THEN RETURN v_next; END IF;
+ END LOOP;
+ RETURN NULL;
+END;
+$governed_day$;
+REVOKE ALL ON FUNCTION atlas.standing_care_next_governed_service_day_v1(
+ timestamptz,text,jsonb,date
+) FROM PUBLIC,anon,authenticated,service_role;
+
+-- R01 source-only integration of held Noel PR #2364 14_owner_standing_successor_authority.sql.
+-- Parent: Noel #2362; requires exact combined assembly, protected SQL clone,
+-- genuine signed principal/worker/outsider acceptance, and release approval.
+-- NOT a live migration. Retains original source guards and revocations.
+-- Held candidate: one sourced next Subject for an already approved standing campaign.
+-- Reuses existing original Work and source authority. No legacy task clock.
+CREATE OR REPLACE FUNCTION atlas.standing_care_next_subject_internal_v1(
+ p_prior_work_item_id uuid,p_ignore_work_item_id uuid DEFAULT NULL
+) RETURNS uuid
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $next$
+DECLARE
+ v_prior atlas.work_items%ROWTYPE;
+ v_state atlas.rhythm_state%ROWTYPE;
+ v_scope atlas.company_work_standing_assignment_scopes%ROWTYPE;
+ v_ledger uuid;
+ v_next uuid;
+BEGIN
+ SELECT * INTO v_prior FROM atlas.work_items WHERE id=p_prior_work_item_id;
+ IF v_prior.id IS NULL OR v_prior.source_object_type<>'rhythm_state'
+   OR v_prior.result_contract_key<>'continuing_care_actual_v1'
+   OR v_prior.metadata->>'sourceStandingCampaignId' IS NULL
+   OR v_prior.metadata->>'sourceScopeId' IS NULL
+ THEN RETURN NULL; END IF;
+ SELECT * INTO v_state FROM atlas.rhythm_state s
+ WHERE s.id=v_prior.source_object_id AND s.organization_id=v_prior.organization_id;
+ IF v_state.id IS NULL THEN RETURN NULL; END IF;
+ SELECT * INTO v_scope FROM atlas.company_work_standing_assignment_scopes
+ WHERE id=atlas.rhythm_safe_uuid_v1(v_prior.metadata->>'sourceScopeId');
+ IF v_scope.id IS NULL OR v_scope.organization_id<>v_prior.organization_id
+   OR v_scope.scope_state<>'active' OR v_scope.worker_membership_id IS NOT NULL
+   OR v_scope.accepted_at IS NULL
+   OR v_scope.accepted_by_person_id IS DISTINCT FROM v_scope.worker_person_id
+   OR (v_scope.valid_until IS NOT NULL AND v_scope.valid_until<=now())
+ THEN RETURN NULL; END IF;
+ v_ledger:=v_scope.ledger_id;
+ SELECT s.id INTO v_next
+ FROM atlas.rhythm_state s
+ JOIN atlas.rhythm_bindings b ON b.id=s.rhythm_binding_id
+   AND b.organization_id=v_prior.organization_id
+   AND b.farm_id=v_state.farm_id AND b.active
+ JOIN atlas.rhythm_rules r ON r.id=b.rhythm_rule_id
+   AND r.id=s.rhythm_rule_id AND r.status='active'
+ JOIN atlas.growing_objects g ON g.id=s.subject_id AND g.farm_id=s.farm_id
+ WHERE s.organization_id=v_prior.organization_id
+   AND s.farm_id=v_state.farm_id AND s.rhythm_key=v_state.rhythm_key
+   AND s.subject_kind='growing_object' AND s.state<>'paused'
+   AND r.validity_interval_seconds>0
+   AND ((s.rhythm_key='weed_stewardship' AND EXISTS (
+       SELECT 1 FROM atlas.weed_cards wc
+       WHERE wc.object_id=s.subject_id AND wc.farm_id=s.farm_id))
+     OR (s.rhythm_key='mowing' AND EXISTS (
+       SELECT 1 FROM atlas.mowing_area_state m
+       WHERE m.object_id=s.subject_id AND m.organization_id=s.organization_id
+         AND m.farm_id=s.farm_id AND m.status<>'closed')))
+   AND atlas.has_current_subject_disclosure_v1(
+     v_ledger,v_scope.worker_person_id,'spatial','growing_object',s.subject_id,'identity')
+   AND atlas.has_current_subject_disclosure_v1(
+     v_ledger,v_scope.worker_person_id,'spatial','growing_object',s.subject_id,'condition')
+   -- Earlier seasonal visits are permanent history, not work reissued in a
+   -- loop. The one newly inserted Work can be ignored during guard checking.
+   AND NOT EXISTS(
+     SELECT 1 FROM atlas.work_items w
+     WHERE w.organization_id=v_prior.organization_id
+       AND w.id IS DISTINCT FROM p_ignore_work_item_id
+       AND w.metadata->>'sourceStandingCampaignId'=
+         v_prior.metadata->>'sourceStandingCampaignId'
+       AND w.metadata->>'sourceSubjectId'=s.subject_id::text
+       AND w.work_state IN ('open','completed'))
+   -- Neither another original nor an unresolved legacy Work may be doubled.
+   AND NOT EXISTS(
+     SELECT 1 FROM atlas.work_items w
+     WHERE w.organization_id=v_prior.organization_id
+       AND w.id IS DISTINCT FROM p_ignore_work_item_id
+       AND w.source_object_type='rhythm_state'
+       AND w.source_object_id=s.id AND w.work_state='open')
+   AND NOT EXISTS(
+     SELECT 1 FROM atlas.tasks t
+     LEFT JOIN atlas.planned_work_occurrences o ON o.id=t.planned_occurrence_id
+     WHERE t.farm_id=s.farm_id AND t.status IN ('open','blocked')
+       AND (t.metadata->>'rhythm_state_id'=s.id::text
+         OR (o.source_kind='rhythm_state' AND o.source_id=s.id))
+   )
+ ORDER BY
+   greatest(0,
+     extract(epoch FROM (now()-s.due_at)) /
+       greatest(86400,r.validity_interval_seconds)) DESC,
+   r.validity_interval_seconds ASC,g.label,s.id
+ LIMIT 1;
+ RETURN v_next;
+END;
+$next$;
+REVOKE ALL ON FUNCTION atlas.standing_care_next_subject_internal_v1(uuid,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+
+-- The delegated worker can never appoint themselves. They may only cause
+-- the next allocation through an accepted physical Actual from the same
+-- original owner-approved campaign. This verifier is also called by the
+-- existing allocation's responsibility establishment trigger.
+CREATE OR REPLACE FUNCTION atlas.standing_care_auto_successor_authorized_v1(
+ p_work_item_id uuid,p_responsible_person_id uuid,p_basis jsonb
+) RETURNS boolean
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $verify$
+DECLARE
+ v_current atlas.work_items%ROWTYPE;
+ v_prior atlas.work_items%ROWTYPE;
+ v_result atlas.work_execution_results%ROWTYPE;
+ v_prior_alloc atlas.work_allocations%ROWTYPE;
+ v_scope atlas.company_work_standing_assignment_scopes%ROWTYPE;
+ v_state atlas.rhythm_state%ROWTYPE;
+ v_prior_rule atlas.rhythm_rules%ROWTYPE;
+ v_ledger uuid;
+ v_tz text;
+ v_expected_date date;
+ v_campaign_end date;
+ v_owner uuid;
+BEGIN
+ IF auth.uid() IS NULL OR atlas.current_person_id_v1()
+    IS DISTINCT FROM p_responsible_person_id
+    OR p_work_item_id IS NULL OR p_responsible_person_id IS NULL
+    OR p_basis IS NULL OR jsonb_typeof(p_basis)<>'object'
+    OR p_basis->>'contractVersion'<>'exact_work_responsibility_establishment_v2'
+    OR p_basis->>'basisKind'<>'delegated_under_standing_scope'
+    OR p_basis->>'authorizationBasis'<>'owner_preapproved_standing_care_actual_successor_v1'
+ THEN RETURN false; END IF;
+ SELECT * INTO v_current FROM atlas.work_items w WHERE w.id=p_work_item_id;
+ IF v_current.id IS NULL OR v_current.work_state<>'open'
+   OR v_current.source_object_type<>'rhythm_state'
+   OR v_current.result_contract_key<>'continuing_care_actual_v1'
+   OR v_current.metadata->>'sourceAdmissionMode'<>'owner_standing_successor_v1'
+   OR v_current.metadata->>'sourceContract'<>'continuing_original_work_v1'
+   OR v_current.metadata->>'sourceAutoPriorResultId' IS NULL
+ THEN RETURN false; END IF;
+ SELECT * INTO v_result FROM atlas.work_execution_results r
+ WHERE r.id=atlas.rhythm_safe_uuid_v1(v_current.metadata->>'sourceAutoPriorResultId')
+   AND r.result_kind='completed' AND r.result_contract_key='continuing_care_actual_v1'
+   AND r.reported_by_user_id=auth.uid();
+ IF v_result.id IS NULL THEN RETURN false; END IF;
+ SELECT * INTO v_prior FROM atlas.work_items w WHERE w.id=v_result.work_item_id;
+ SELECT * INTO v_prior_alloc FROM atlas.work_allocations a
+ WHERE a.id=v_result.responsible_allocation_id
+   AND a.work_item_id=v_prior.id AND a.organization_id=v_prior.organization_id;
+ IF v_prior.id IS NULL OR v_prior.work_state<>'completed'
+   OR v_prior.organization_id IS DISTINCT FROM v_current.organization_id
+   OR v_prior_alloc.id IS NULL OR v_prior_alloc.state<>'completed'
+   OR v_prior_alloc.assignee_canonical_person_id IS DISTINCT FROM p_responsible_person_id
+   OR v_prior_alloc.assignee_membership_id IS NOT NULL
+   OR v_prior.metadata->>'sourceStandingCampaignId' IS NULL
+   OR v_prior.metadata->>'sourceStandingCampaignId'
+      IS DISTINCT FROM v_current.metadata->>'sourceStandingCampaignId'
+   OR v_prior.metadata->>'sourceStandingCampaignEndsOn'
+      IS DISTINCT FROM v_current.metadata->>'sourceStandingCampaignEndsOn'
+   OR v_prior.metadata->'sourceStandingWorkdaysIso'
+      IS DISTINCT FROM v_current.metadata->'sourceStandingWorkdaysIso'
+   OR v_prior.metadata->>'sourceScopeId'
+      IS DISTINCT FROM v_current.metadata->>'sourceScopeId'
+   OR v_prior.metadata->>'sourceApprovedByPersonId'
+      IS DISTINCT FROM v_current.metadata->>'sourceApprovedByPersonId'
+   OR v_current.metadata->>'sourceAutoPriorWorkItemId'
+      IS DISTINCT FROM v_prior.id::text
+ THEN RETURN false; END IF;
+ SELECT * INTO v_scope FROM atlas.company_work_standing_assignment_scopes sc
+ WHERE sc.id=atlas.rhythm_safe_uuid_v1(v_prior.metadata->>'sourceScopeId');
+ IF v_scope.id IS NULL OR v_scope.scope_state<>'active'
+   OR v_scope.organization_id IS DISTINCT FROM v_prior.organization_id
+   OR v_scope.worker_person_id IS DISTINCT FROM p_responsible_person_id
+   OR v_scope.worker_membership_id IS NOT NULL
+   OR v_scope.accepted_at IS NULL
+   OR v_scope.accepted_by_person_id IS DISTINCT FROM p_responsible_person_id
+   OR v_scope.coverage_mode<>'ledger_all_work'
+   OR v_scope.proposed_by_person_id::text
+      IS DISTINCT FROM v_prior.metadata->>'sourceApprovedByPersonId'
+   OR (v_scope.valid_until IS NOT NULL AND v_scope.valid_until<=now())
+ THEN RETURN false; END IF;
+ v_owner:=v_scope.proposed_by_person_id;
+ v_ledger:=v_scope.ledger_id;
+ IF p_basis->>'scopeId' IS DISTINCT FROM v_scope.id::text
+   OR p_basis->>'nativeLedgerId' IS DISTINCT FROM v_ledger::text
+   OR p_basis->>'organizationId' IS DISTINCT FROM v_current.organization_id::text
+   OR p_basis->>'workItemId' IS DISTINCT FROM v_current.id::text
+   OR p_basis->>'assigneePersonId' IS DISTINCT FROM p_responsible_person_id::text
+   OR p_basis->>'priorResultId' IS DISTINCT FROM v_result.id::text
+   OR NOT atlas.person_has_native_ledger_connection_v1(
+      v_current.organization_id,v_ledger,p_responsible_person_id)
+ THEN RETURN false; END IF;
+ IF NOT EXISTS(SELECT 1 FROM atlas.principals issuer
+   JOIN atlas.principal_ledger_authorities authority
+     ON authority.principal_id=issuer.id
+     AND authority.ledger_id=v_ledger
+     AND authority.authority_kind='root_governing'
+     AND authority.status='active'
+   WHERE issuer.person_id=v_owner AND issuer.status='active')
+   OR NOT EXISTS(SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+     WHERE rel.organization_id=v_prior.organization_id
+       AND rel.work_item_id=v_prior.id
+       AND rel.ledger_id=v_ledger
+       AND rel.attribution_state='active' AND rel.evidence_kind='owner_attested')
+   OR NOT EXISTS(SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+     WHERE rel.organization_id=v_current.organization_id
+       AND rel.work_item_id=v_current.id
+       AND rel.ledger_id=v_ledger AND rel.attribution_state='active'
+       AND rel.evidence_kind='owner_attested')
+   OR NOT EXISTS (
+     SELECT 1 FROM atlas.work_result_acceptances ra
+     JOIN atlas.care_result_events care
+       ON care.id=atlas.rhythm_safe_uuid_v1(v_result.payload->>'careResultId')
+       AND care.actor_user_id=auth.uid()
+       AND care.source_kind='continuing_care_actual'
+     JOIN atlas.rhythm_satisfactions sat ON sat.source_id=care.id
+       AND sat.organization_id=v_prior.organization_id
+       AND sat.satisfaction_kind IN ('full','conditional')
+       AND sat.evidence->>'workItemId'=v_prior.id::text
+       AND sat.evidence->>'workResultId'=v_result.id::text
+     WHERE ra.execution_result_id=v_result.id AND ra.work_item_id=v_prior.id
+       AND ra.organization_id=v_prior.organization_id
+       AND ra.decision='accepted'
+       AND ra.acceptance_kind='source_qualified_physical_actual'
+   )
+ THEN RETURN false; END IF;
+ SELECT * INTO v_state FROM atlas.rhythm_state s
+ WHERE s.id=v_prior.source_object_id AND s.organization_id=v_prior.organization_id;
+ SELECT * INTO v_prior_rule FROM atlas.rhythm_rules r
+ WHERE r.id=atlas.rhythm_safe_uuid_v1(v_prior.metadata->>'sourceRuleId');
+ IF v_state.id IS NULL OR v_prior_rule.id IS NULL THEN RETURN false; END IF;
+ v_tz:=coalesce(nullif(v_prior_rule.metadata->>'timezoneName',''),
+   (SELECT nullif(pr.home_timezone,'') FROM atlas.principals pr
+     WHERE pr.person_id=p_responsible_person_id
+       AND pr.user_id=auth.uid() AND pr.status='active'
+     ORDER BY pr.created_at DESC LIMIT 1),'UTC');
+ IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_timezone_names t WHERE t.name=v_tz)
+ THEN RETURN false; END IF;
+ v_campaign_end:=(v_prior.metadata->>'sourceStandingCampaignEndsOn')::date;
+ v_expected_date:=atlas.standing_care_next_governed_service_day_v1(
+   v_result.reported_at,v_tz,
+   v_prior.metadata->'sourceStandingWorkdaysIso',v_campaign_end);
+ IF v_expected_date IS NULL OR v_expected_date>v_campaign_end
+   OR v_current.metadata->>'sourceServiceDate' IS DISTINCT FROM v_expected_date::text
+   OR atlas.standing_care_next_subject_internal_v1(v_prior.id,v_current.id)
+     IS DISTINCT FROM v_current.source_object_id
+ THEN RETURN false; END IF;
+ IF NOT EXISTS(SELECT 1 FROM atlas.work_item_context_links l
+   JOIN atlas.rhythm_state n ON n.id=v_current.source_object_id
+   WHERE l.organization_id=v_current.organization_id
+     AND l.work_item_id=v_current.id AND l.subject_domain='spatial'
+     AND l.subject_kind='growing_object' AND l.subject_id=n.subject_id
+     AND l.relation_kind='acts_on')
+ THEN RETURN false; END IF;
+ RETURN true;
+END;
+$verify$;
+REVOKE ALL ON FUNCTION atlas.standing_care_auto_successor_authorized_v1(uuid,uuid,jsonb)
+ FROM PUBLIC,anon,authenticated,service_role;
+
+
+-- R01 CLONE-ONLY ADDED SOURCE: 22_owner_standing_campaign_auto_advance.sql
+-- R01 source-only integration of held Noel PR #2364 16_owner_standing_campaign_auto_advance.sql.
+-- Parent: Noel #2362; requires exact combined assembly, protected SQL clone,
+-- genuine signed principal/worker/outsider acceptance, and release approval.
+-- NOT a live migration. Retains original source guards and revocations.
+-- Source-owned continuation of an existing approved campaign, not a
+-- recurring-task store. Called ONLY after the first-party physical Actual was
+-- accepted and its original Work + native allocation completed.
+CREATE OR REPLACE FUNCTION atlas.advance_owner_standing_campaign_after_actual_internal_v1(
+ p_prior_result_id uuid
+) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
+AS $advance$
+DECLARE
+ v_result atlas.work_execution_results%ROWTYPE;
+ v_prior atlas.work_items%ROWTYPE;
+ v_prior_allocation atlas.work_allocations%ROWTYPE;
+ v_scope atlas.company_work_standing_assignment_scopes%ROWTYPE;
+ v_prior_rule atlas.rhythm_rules%ROWTYPE;
+ v_next_state atlas.rhythm_state%ROWTYPE;
+ v_next_rule atlas.rhythm_rules%ROWTYPE;
+ v_next_object atlas.growing_objects%ROWTYPE;
+ v_work_id uuid;
+ v_alloc_id uuid;
+ v_plan_id uuid;
+ v_next_date date;
+ v_end date;
+ v_ledger uuid;
+ v_actor uuid:=atlas.current_person_id_v1();
+ v_tz text;
+ v_title text;
+ v_instructions text;
+ v_existing uuid;
+ v_campaign text;
+ v_serving text;
+BEGIN
+ IF auth.uid() IS NULL OR v_actor IS NULL OR p_prior_result_id IS NULL THEN
+   RAISE EXCEPTION 'Signed physical Result required for campaign continuation'
+     USING ERRCODE='42501';
+ END IF;
+ SELECT * INTO v_result FROM atlas.work_execution_results
+ WHERE id=p_prior_result_id AND reported_by_user_id=auth.uid()
+   AND result_contract_key='continuing_care_actual_v1'
+   AND result_kind='completed';
+ IF v_result.id IS NULL THEN
+   RAISE EXCEPTION 'Signed qualifying completed Result unavailable'
+     USING ERRCODE='42501';
+ END IF;
+ SELECT * INTO v_prior FROM atlas.work_items w WHERE w.id=v_result.work_item_id;
+ IF v_prior.id IS NULL OR v_prior.work_state<>'completed'
+   OR v_prior.source_object_type<>'rhythm_state'
+   OR v_prior.result_contract_key<>'continuing_care_actual_v1'
+   OR v_prior.metadata->>'sourceStandingCampaignId' IS NULL THEN
+   RETURN jsonb_build_object('ok',true,'nextWorkCreated',false,
+     'reason','not_an_active_standing_campaign');
+ END IF;
+ v_campaign:=v_prior.metadata->>'sourceStandingCampaignId';
+ IF atlas.rhythm_safe_uuid_v1(v_campaign) IS NULL THEN
+   RAISE EXCEPTION 'Campaign lacks exact source action'
+     USING ERRCODE='23514';
+ END IF;
+ PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+   'atlas.standing-care-campaign:'||v_prior.organization_id::text||':'||
+   v_campaign,0));
+ SELECT * INTO v_prior_allocation FROM atlas.work_allocations a
+ WHERE a.id=v_result.responsible_allocation_id
+   AND a.work_item_id=v_prior.id AND a.organization_id=v_prior.organization_id
+   AND a.assignee_canonical_person_id=v_actor
+   AND a.assignee_membership_id IS NULL AND a.allocation_role='responsible'
+   AND a.state='completed';
+ SELECT * INTO v_scope FROM atlas.company_work_standing_assignment_scopes sc
+ WHERE sc.id=atlas.rhythm_safe_uuid_v1(v_prior.metadata->>'sourceScopeId');
+ IF v_prior_allocation.id IS NULL OR v_scope.id IS NULL
+   OR v_scope.organization_id<>v_prior.organization_id
+   OR v_scope.ledger_id::text IS DISTINCT FROM
+       v_prior_allocation.establishment_basis->>'nativeLedgerId'
+   OR v_scope.worker_person_id<>v_actor
+   OR v_scope.worker_membership_id IS NOT NULL
+   OR v_scope.accepted_by_person_id IS DISTINCT FROM v_actor
+   OR v_scope.accepted_at IS NULL
+   OR v_scope.scope_state<>'active'
+   OR v_scope.coverage_mode<>'ledger_all_work'
+   OR v_scope.proposed_by_person_id::text IS DISTINCT FROM
+       v_prior.metadata->>'sourceApprovedByPersonId'
+   OR (v_scope.valid_until IS NOT NULL AND v_scope.valid_until<=now())
+ THEN
+   RETURN jsonb_build_object('ok',true,'nextWorkCreated',false,
+     'reason','approved_scope_no_longer_current');
+ END IF;
+ v_ledger:=v_scope.ledger_id;
+ IF NOT atlas.person_has_native_ledger_connection_v1(
+     v_prior.organization_id,v_ledger,v_actor)
+   OR NOT EXISTS(SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+     WHERE rel.work_item_id=v_prior.id AND rel.organization_id=v_prior.organization_id
+       AND rel.ledger_id=v_ledger AND rel.attribution_state='active'
+       AND rel.evidence_kind='owner_attested')
+   OR NOT EXISTS(SELECT 1 FROM atlas.work_result_acceptances accepted
+     JOIN atlas.care_result_events care ON care.id=
+       atlas.rhythm_safe_uuid_v1(v_result.payload->>'careResultId')
+       AND care.actor_user_id=auth.uid()
+       AND care.source_kind='continuing_care_actual'
+     JOIN atlas.rhythm_satisfactions satisfied ON satisfied.source_id=care.id
+       AND satisfied.organization_id=v_prior.organization_id
+       AND satisfied.satisfaction_kind IN ('full','conditional')
+       AND satisfied.evidence->>'workItemId'=v_prior.id::text
+       AND satisfied.evidence->>'workResultId'=v_result.id::text
+     WHERE accepted.execution_result_id=v_result.id
+       AND accepted.work_item_id=v_prior.id
+       AND accepted.organization_id=v_prior.organization_id
+       AND accepted.decision='accepted'
+       AND accepted.acceptance_kind='source_qualified_physical_actual')
+ THEN
+   RAISE EXCEPTION 'Standing campaign result lacks accepted original care source'
+     USING ERRCODE='42501';
+ END IF;
+ SELECT * INTO v_prior_rule FROM atlas.rhythm_rules r
+ WHERE r.id=atlas.rhythm_safe_uuid_v1(v_prior.metadata->>'sourceRuleId');
+ IF v_prior_rule.id IS NULL THEN
+   RAISE EXCEPTION 'Original standing policy not found' USING ERRCODE='23514';
+ END IF;
+ v_tz:=coalesce(nullif(v_prior_rule.metadata->>'timezoneName',''),
+   (SELECT nullif(pr.home_timezone,'') FROM atlas.principals pr
+    WHERE pr.person_id=v_actor AND pr.user_id=auth.uid() AND pr.status='active'
+    ORDER BY pr.created_at DESC LIMIT 1),'UTC');
+ IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_timezone_names tz WHERE tz.name=v_tz)
+ THEN RAISE EXCEPTION 'No governed service timezone' USING ERRCODE='22023'; END IF;
+ v_end:=(v_prior.metadata->>'sourceStandingCampaignEndsOn')::date;
+ v_next_date:=atlas.standing_care_next_governed_service_day_v1(
+    v_result.reported_at,v_tz,
+    v_prior.metadata->'sourceStandingWorkdaysIso',v_end);
+ IF v_next_date IS NULL THEN
+   RETURN jsonb_build_object('ok',true,'nextWorkCreated',false,
+      'reason','no_approved_next_workday_in_campaign','campaignId',v_campaign);
+ END IF;
+ -- An already delivered original is the campaign's outstanding capacity.
+ SELECT w.id INTO v_existing FROM atlas.work_items w
+ WHERE w.organization_id=v_prior.organization_id
+   AND w.metadata->>'sourceStandingCampaignId'=v_campaign
+   AND w.work_state='open'
+ ORDER BY w.created_at,w.id LIMIT 1;
+ IF v_existing IS NOT NULL THEN
+   RETURN jsonb_build_object('ok',true,'nextWorkCreated',false,
+     'reason','existing_open_campaign_work',
+     'nextWorkItemId',v_existing);
+ END IF;
+ -- Source action replay must return the same serving, never another task.
+ SELECT w.id INTO v_existing FROM atlas.work_items w
+ WHERE w.organization_id=v_prior.organization_id
+   AND w.metadata->>'sourceAutoPriorResultId'=v_result.id::text
+   AND w.metadata->>'sourceStandingCampaignId'=v_campaign
+ ORDER BY w.created_at,w.id LIMIT 1;
+ IF v_existing IS NOT NULL THEN
+   RETURN jsonb_build_object('ok',true,'nextWorkCreated',false,
+     'reason','already_advanced_from_this_result',
+     'nextWorkItemId',v_existing);
+ END IF;
+ SELECT * INTO v_next_state FROM atlas.rhythm_state s
+ WHERE s.id=atlas.standing_care_next_subject_internal_v1(v_prior.id)
+   AND s.organization_id=v_prior.organization_id;
+ IF v_next_state.id IS NULL THEN
+   RETURN jsonb_build_object('ok',true,'nextWorkCreated',false,
+     'reason','no_disclosed_eligible_subject',
+     'campaignId',v_campaign);
+ END IF;
+ SELECT * INTO v_next_rule FROM atlas.rhythm_rules
+ WHERE id=v_next_state.rhythm_rule_id AND status='active';
+ SELECT * INTO v_next_object FROM atlas.growing_objects
+ WHERE id=v_next_state.subject_id AND farm_id=v_next_state.farm_id;
+ IF v_next_rule.id IS NULL OR v_next_object.id IS NULL THEN
+   RAISE EXCEPTION 'Selected Subject cannot be resolved' USING ERRCODE='23514';
+ END IF;
+ IF v_next_state.rhythm_key='mowing' THEN
+   v_title:='Attend mowing route — '||v_next_object.label;
+   v_instructions:='Owner-standing visit: inspect safety and mow only if appropriate. Report the actual. ';
+ ELSE
+   v_title:='Attend bed — '||v_next_object.label;
+   v_instructions:='Owner-standing visit: inspect current occupants; weed or prepare only as appropriate. Report full, partial, already acceptable or blocked. ';
+ END IF;
+ v_instructions:=v_instructions||
+   coalesce(v_prior.metadata->>'sourceStandingVisitReason','');
+ v_serving:='standing-care:v1:'||v_campaign||':'||v_next_object.id::text;
+ INSERT INTO atlas.work_items(
+   organization_id,title,instructions,work_state,
+   source_object_type,source_object_id,stable_key,result_contract_key,
+   created_by_user_id,metadata
+ ) VALUES(
+   v_prior.organization_id,left(v_title,500),v_instructions,'open',
+   'rhythm_state',v_next_state.id,
+   'continuing:v1:'||pg_catalog.md5(
+     v_prior.organization_id::text||':'||v_serving),
+   'continuing_care_actual_v1',auth.uid(),
+   jsonb_build_object(
+     'sourceContract','continuing_original_work_v1',
+     'needKind','rhythm_state','needId',v_next_state.id,
+     'servingKey',v_serving,
+     'sourceConfirmedBy','accepted_actual_under_owner_campaign',
+     'sourceAdmissionMode','owner_standing_successor_v1',
+     'sourceStandingCampaignMode','seasonal_closeout',
+     'sourceStandingCampaignId',v_campaign,
+     'sourceStandingCampaignEndsOn',v_end,
+     'sourceStandingWorkdaysIso',v_prior.metadata->'sourceStandingWorkdaysIso',
+     'sourceStandingVisitReason',
+       coalesce(v_prior.metadata->>'sourceStandingVisitReason',''),
+     'sourceScopeId',v_scope.id,
+     'sourceApprovedByPersonId',v_scope.proposed_by_person_id,
+     'sourceRuleId',v_next_rule.id,
+     'sourceRhythmIntervalSeconds',v_next_rule.validity_interval_seconds,
+     'sourceSubjectId',v_next_object.id,
+     'sourceServiceDate',v_next_date,
+     'sourceAutoPriorWorkItemId',v_prior.id,
+     'sourceAutoPriorResultId',v_result.id,
+     'noConditionInferredFromClock',true)
+ ) RETURNING id INTO v_work_id;
+ INSERT INTO atlas.work_item_context_links(
+   organization_id,work_item_id,subject_domain,subject_kind,
+   subject_id,relation_kind,provenance,metadata
+ ) VALUES (
+   v_prior.organization_id,v_work_id,'spatial','growing_object',
+   v_next_object.id,'acts_on',
+   jsonb_build_object('sourceKind','rhythm_state',
+     'sourceId',v_next_state.id,'campaignId',v_campaign),
+   '{}'::jsonb
+ );
+ INSERT INTO atlas.company_work_native_ledger_relevance(
+   organization_id,work_item_id,ledger_id,evidence_kind,
+   attestation_source_ref,attestation_reason,established_by_person_id
+ ) VALUES(
+   v_prior.organization_id,v_work_id,v_ledger,'owner_attested',
+   'atlas.work_execution_results:'||v_result.id::text,
+   'Original root-admin seasonal visit campaign, continued by the accepted signed physical care Actual.',
+   v_scope.proposed_by_person_id
+ );
+ INSERT INTO atlas.work_allocations(
+   organization_id,work_item_id,assignee_membership_id,assigned_by_membership_id,
+   assignee_canonical_person_id,allocation_role,state,
+   establishment_basis_kind,establishment_basis,metadata
+ ) VALUES (
+   v_prior.organization_id,v_work_id,NULL,NULL,
+   v_actor,'responsible','active',
+   'delegated_under_standing_scope',
+   jsonb_build_object(
+     'contractVersion','exact_work_responsibility_establishment_v2',
+     'basisKind','delegated_under_standing_scope',
+     'organizationId',v_prior.organization_id,
+     'workItemId',v_work_id,
+     'assigneePersonId',v_actor,
+     'nativeLedgerId',v_ledger,
+     'scopeId',v_scope.id,
+     'priorResultId',v_result.id,
+     'authorizationBasis','owner_preapproved_standing_care_actual_successor_v1'),
+   jsonb_build_object('source','standing_care_auto_continuation_v1',
+     'sourceStandingCampaignId',v_campaign,'sourcePriorResultId',v_result.id)
+ ) RETURNING id INTO v_alloc_id;
+ INSERT INTO atlas.work_execution_plans(
+   organization_id,work_item_id,responsible_allocation_id,
+   assignee_membership_id,planned_by_membership_id,plan_state,
+   first_planned_service_date,planned_service_date,exposure_service_date,
+   plan_reason,metadata
+ ) VALUES (
+   v_prior.organization_id,v_work_id,v_alloc_id,NULL,NULL,'active',
+   v_next_date,v_next_date,v_next_date,
+   'Next approved seasonal stewardship visit after signed accepted prior Actual.',
+   jsonb_build_object('source','standing_care_auto_continuation_v1',
+     'priorResultId',v_result.id,'campaignId',v_campaign)
+ ) RETURNING id INTO v_plan_id;
+ INSERT INTO atlas.work_execution_plan_events(
+   organization_id,work_item_id,plan_id,event_kind,
+   to_planned_service_date,to_exposure_service_date,
+   actor_membership_id,reason,metadata
+ ) VALUES(
+   v_prior.organization_id,v_work_id,v_plan_id,'planned',
+   v_next_date,v_next_date,NULL,
+   'Owner-approved standing campaign automatically continued after accepted Actual.',
+   jsonb_build_object('source','standing_care_auto_continuation_v1',
+     'priorResultId',v_result.id,'sourceScopeId',v_scope.id)
+ );
+ RETURN jsonb_build_object(
+   'ok',true,'contractVersion','standing_care_auto_continuation_v1',
+   'nextWorkCreated',true,'nextWorkItemId',v_work_id,
+   'nextPlanId',v_plan_id,'nextServiceDate',v_next_date,
+   'subjectId',v_next_object.id,'sourceRuleId',v_next_rule.id,
+   'campaignId',v_campaign,'actualResultId',v_result.id,
+   'notLegacyTask',true,'noPhysicalConditionInferred',true);
+END;
+$advance$;
+REVOKE ALL ON FUNCTION atlas.advance_owner_standing_campaign_after_actual_internal_v1(uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+
+
+-- R01 CLONE-ONLY ADDED SOURCE: 10_care_actual_single_done_cutover_candidate.sql
+-- INTEGRATION CANDIDATE ONLY. Exact sibling dependency: Noel PR #2368
+-- apply_work_lifecycle_transition_internal_v1 (ONE immutable Done stream).
+-- Do not apply this file without the common source + protected signed tests.
+-- Does not introduce an alternate Work/Result/recurrence engine.
+
+-- DRAFT SOURCE CANDIDATE; requires protected-clone signed positive/negative tests.
+-- This is a DOMAIN ADAPTER using universal original Work/Result/Continuation.
+-- It does not create a farm task generator, legacy task, employee seat,
+-- or separate Work store. A preapproved standing campaign alone may continue
+-- one new original Work only after an accepted source-qualified physical Actual.
+-- Apply only after candidate.sql in an isolated, authorized validation clone.
+--
+-- The existing Household Laundry adapter continues independently under its
+-- exact source and Result guard. No generic client is allowed to invent a
+-- "source-qualified" Work Result merely by passing a JSON payload.
+
+INSERT INTO atlas.work_result_contract_policies(
+  contract_key,source_domain,acceptance_mode,active,description,metadata
+)
+VALUES(
+  'continuing_care_actual_v1','organization','domain_adapter',true,
+  'Authenticated original responsible Person reports actual care against a governed continuing Need and physical Subject',
+  jsonb_build_object(
+    'continuingActualQualification','source_proven_v1',
+    'requiresOriginalWork',true,'requiresExactSubject',true,
+    'requiresAcceptedNativePerson',true,
+    'clockDoesNotAssertCondition',true,
+    'noAutogeneratedNextWork',true)
+)
+ON CONFLICT (contract_key) DO NOTHING;
+-- Never overwrite an existing policy with different trust semantics.
+DO $policy$
+BEGIN
+  IF NOT EXISTS(
+    SELECT 1 FROM atlas.work_result_contract_policies p
+    WHERE p.contract_key='continuing_care_actual_v1'
+      AND p.source_domain='organization' AND p.acceptance_mode='domain_adapter'
+      AND p.active
+      AND p.metadata->>'continuingActualQualification'='source_proven_v1'
+  ) THEN
+    RAISE EXCEPTION 'Care Actual contract policy does not match required source qualification';
+  END IF;
+END;
+$policy$;
+
+CREATE OR REPLACE FUNCTION atlas.record_continuing_care_actual_self_api_v1(
+  p_work_item_id uuid,
+  p_action_id uuid,
+  p_actual_kind text,
+  p_condition_after text,
+  p_minutes integer DEFAULT NULL,
+  p_note text DEFAULT NULL,
+  p_recheck_on date DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
+AS $actual$
+DECLARE
+  v_work atlas.work_items%ROWTYPE;
+  v_allocation atlas.work_allocations%ROWTYPE;
+  v_state atlas.rhythm_state%ROWTYPE;
+  v_rule atlas.rhythm_rules%ROWTYPE;
+  v_weed atlas.weed_cards%ROWTYPE;
+  v_mowing atlas.mowing_area_state%ROWTYPE;
+  v_prior atlas.care_current_state%ROWTYPE;
+  v_result atlas.work_execution_results%ROWTYPE;
+  v_universal_receipt jsonb;
+  v_campaign_continuation jsonb;
+  v_care uuid;
+  v_observation uuid;
+  v_acceptance uuid;
+  v_satisfaction uuid;
+  v_actor uuid;
+  v_ledger_id uuid;
+  v_source_key text;
+  v_kind text := nullif(btrim(coalesce(p_actual_kind,'')),'');
+  v_after text := nullif(btrim(coalesce(p_condition_after,'')),'');
+  v_note text := nullif(btrim(coalesce(p_note,'')),'');
+  v_before text;
+  v_effect text;
+  v_result_kind text;
+  v_care_kind text;
+  v_source_kind text;
+  v_source_event text;
+  v_touch jsonb;
+  v_touch_index integer;
+  v_renew_seconds integer;
+  v_warning_at timestamptz;
+  v_due_at timestamptz;
+  v_failure_at timestamptz;
+  v_tz text;
+  v_boundary text;
+  v_at timestamptz:=clock_timestamp();
+BEGIN
+  v_actor:=atlas.current_person_id_v1();
+  IF auth.uid() IS NULL OR v_actor IS NULL OR p_work_item_id IS NULL
+     OR p_action_id IS NULL OR v_kind IS NULL OR v_after IS NULL
+     OR length(v_after)>120 OR length(coalesce(v_note,''))>1500
+     OR (p_minutes IS NOT NULL AND (p_minutes<0 OR p_minutes>1440))
+     OR (p_recheck_on IS NOT NULL AND p_recheck_on < (now()::date - 1))
+  THEN
+    RAISE EXCEPTION 'Exact signed physical Work Actual and valid observation required'
+      USING ERRCODE='22023';
+  END IF;
+  v_source_key:='continuing-care-actual:'||p_work_item_id||':'||p_action_id;
+  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+    'atlas.continuing-care-actual:'||p_work_item_id::text,0));
+  SELECT * INTO v_work FROM atlas.work_items
+    WHERE id=p_work_item_id FOR UPDATE;
+  IF v_work.id IS NULL OR v_work.organization_id IS NULL
+    OR v_work.household_id IS NOT NULL
+    OR v_work.source_object_type<>'rhythm_state'
+    OR v_work.result_contract_key<>'continuing_care_actual_v1'
+    OR v_work.metadata->>'sourceContract' IS DISTINCT FROM 'continuing_original_work_v1'
+  THEN
+    RAISE EXCEPTION 'Original governed continuing Work is not available'
+      USING ERRCODE='42501';
+  END IF;
+
+  SELECT * INTO v_allocation FROM atlas.work_allocations a
+    WHERE a.work_item_id=v_work.id AND a.organization_id=v_work.organization_id
+      AND a.allocation_role='responsible'
+      AND a.establishment_basis_kind IN (
+        'person_connection_receiver_uptake','delegated_under_standing_scope',
+        'ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
+      AND a.assignee_canonical_person_id=v_actor
+      AND a.state IN ('active','completed')
+    ORDER BY a.allocated_at DESC,a.id DESC LIMIT 1;
+  IF v_allocation.id IS NULL
+    OR coalesce(v_allocation.establishment_basis->>'nativeLedgerId','')
+        !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+  THEN
+    RAISE EXCEPTION 'Real native-Ledger responsible Person required'
+      USING ERRCODE='42501';
+  END IF;
+  v_ledger_id:=(v_allocation.establishment_basis->>'nativeLedgerId')::uuid;
+  IF NOT atlas.person_original_work_identity_disclosed_self_v1(
+        v_work.organization_id,v_ledger_id,v_work.id,v_actor)
+    OR NOT EXISTS(
+      SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
+      WHERE rel.work_item_id=v_work.id
+        AND rel.organization_id=v_work.organization_id
+        AND rel.ledger_id=v_ledger_id AND rel.attribution_state='active'
+    )
+  THEN
+    RAISE EXCEPTION 'Original Work source and physical Subject are not disclosed'
+      USING ERRCODE='42501';
+  END IF;
+
+  SELECT * INTO v_state FROM atlas.rhythm_state s
+    WHERE s.id=v_work.source_object_id
+      AND s.organization_id=v_work.organization_id
+      AND s.subject_kind='growing_object' FOR UPDATE;
+  IF v_state.id IS NULL OR NOT EXISTS(
+      SELECT 1 FROM atlas.work_item_context_links l
+      WHERE l.organization_id=v_work.organization_id AND l.work_item_id=v_work.id
+        AND l.subject_domain='spatial' AND l.subject_kind='growing_object'
+        AND l.subject_id=v_state.subject_id AND l.relation_kind='acts_on'
+    ) THEN
+    RAISE EXCEPTION 'Original Work is not linked to this exact physical Subject'
+      USING ERRCODE='23514';
+  END IF;
+  -- Replays must survive a later rule retirement/physical state change;
+  -- first confirm the same signed Person, original Subject and exact receipt.
+  -- Authorize before replay, so a different Person cannot use the idempotency
+  -- key to read someone else's Work Result.
+  SELECT * INTO v_result FROM atlas.work_execution_results er
+    WHERE er.organization_id=v_work.organization_id
+      AND er.idempotency_key=v_source_key;
+  IF v_result.id IS NOT NULL THEN
+    IF v_result.work_item_id<>v_work.id
+      OR v_result.reported_by_user_id IS DISTINCT FROM auth.uid()
+      OR v_result.metadata->>'actualKind' IS DISTINCT FROM v_kind
+      OR v_result.payload->>'conditionAfter' IS DISTINCT FROM v_after
+      OR v_result.payload->>'note' IS DISTINCT FROM v_note
+      OR v_result.payload->>'minutes' IS DISTINCT FROM p_minutes::text
+      OR v_result.payload->>'recheckOn' IS DISTINCT FROM p_recheck_on::text
+      OR NOT EXISTS(
+        SELECT 1 FROM atlas.work_result_acceptances a
+        WHERE a.organization_id=v_work.organization_id
+          AND a.work_item_id=v_work.id AND a.execution_result_id=v_result.id
+          AND a.decision='accepted' AND a.acceptance_kind='source_qualified_physical_actual'
+      )
+    THEN
+      RAISE EXCEPTION 'Existing physical Actual does not match original signed action'
+        USING ERRCODE='23505';
+    END IF;
+    IF v_result.result_kind='completed' THEN
+      IF EXISTS(SELECT 1 FROM atlas.work_lifecycle_events_v1 e
+        WHERE e.work_item_id=v_work.id
+          AND e.event_kind='work_transition_applied'
+          AND e.source_idempotency_key=v_source_key) THEN
+        -- Same signed action returns the SAME authoritative event and timestamp.
+        v_universal_receipt:=atlas.apply_work_lifecycle_transition_internal_v1(
+          v_work.id,'complete',v_result.id,v_source_key);
+
+  -- Only a source-accepted terminal physical Actual may advance the already
+  -- owner-approved campaign. Its allocation is guarded separately against
+  -- self-appointment; any failure preserves this accepted physical Result.
+  IF v_work.metadata->>'sourceStandingCampaignId' IS NOT NULL THEN
+    BEGIN
+      v_campaign_continuation:=
+        atlas.advance_owner_standing_campaign_after_actual_internal_v1(v_result.id);
+    EXCEPTION WHEN OTHERS THEN
+      v_campaign_continuation:=jsonb_build_object(
+        'ok',false,'nextWorkCreated',false,
+        'reason','source_continuation_needs_review','errorCode',SQLSTATE);
+    END;
+  END IF;
+        RETURN v_universal_receipt||jsonb_build_object(
+          'physicalActualContractVersion','continuing_care_actual_v1',
+          'workResultId',v_result.id,
+          'careResultId',v_result.payload->'careResultId',
+          'careObservationId',v_result.payload->'careObservationId',
+          'campaignContinuation',v_campaign_continuation,
+          'noNewWorkCreated',coalesce((v_campaign_continuation->>'nextWorkCreated')::boolean,false)=false,
+          'noClockAdmission',true);
+      ELSIF v_work.work_state='completed' THEN
+        -- An older accepted physical result is history, not a newly signed
+        -- lifecycle event and NEVER a reason to reopen completed Work.
+        RETURN jsonb_build_object('ok',true,'idempotent',true,
+          'contractVersion','universal_work_lifecycle_transition_v1',
+          'historicalRecordedCompletion',true,'newTransitionApplied',false,
+          'workItemId',v_work.id,'originalResultId',v_result.id,
+          'workState','completed','noNewWorkCreated',true,
+          'noClockAdmission',true);
+      END IF;
+      RAISE EXCEPTION 'Accepted care result has no terminal lifecycle event'
+        USING ERRCODE='23514';
+    END IF;
+    -- Partial and blocked evidence is real but never a Done receipt.
+    RETURN jsonb_build_object('ok',true,'idempotent',true,
+      'contractVersion','continuing_care_actual_v1',
+      'workItemId',v_work.id,'workResultId',v_result.id,
+      'workState',v_work.work_state,'noNewWorkCreated',true,
+      'noClockAdmission',true);
+  END IF;
+
+
+  SELECT * INTO v_rule FROM atlas.rhythm_rules r
+    JOIN atlas.rhythm_bindings b ON b.rhythm_rule_id=r.id
+    WHERE b.id=v_state.rhythm_binding_id AND r.id=v_state.rhythm_rule_id
+      AND b.organization_id=v_work.organization_id AND b.farm_id=v_state.farm_id
+      AND b.active AND r.status='active';
+  IF v_rule.id IS NULL
+    OR v_state.rhythm_key NOT IN ('weed_stewardship','mowing')
+    OR NOT EXISTS(
+      SELECT 1 FROM atlas.growing_objects g
+      WHERE g.id=v_state.subject_id AND g.farm_id=v_state.farm_id
+    )
+  THEN
+    RAISE EXCEPTION 'Source cannot verify a current allowed care policy'
+      USING ERRCODE='23514';
+  END IF;
+
+  -- No "generic done": source event type, effect, and postcondition are
+  -- explicitly interpreted by the owning domain. Other domains plug in
+  -- their own adapters, without changing the Work/Result lifecycle.
+  IF v_state.rhythm_key='mowing' THEN
+    SELECT * INTO v_mowing FROM atlas.mowing_area_state m
+      WHERE m.object_id=v_state.subject_id
+        AND m.organization_id=v_work.organization_id
+        AND m.farm_id=v_state.farm_id FOR UPDATE;
+    IF v_mowing.object_id IS NULL THEN
+      RAISE EXCEPTION 'Mowing source state missing' USING ERRCODE='23514';
+    END IF;
+    v_source_kind:='mowing_result';v_source_event:=v_kind;
+    CASE v_kind
+      WHEN 'mowed_full' THEN
+        v_effect:='full';v_result_kind:='completed';v_care_kind:='recovered';
+        IF v_after<>'resting' THEN
+          RAISE EXCEPTION 'Full mowing must report the resting condition' USING ERRCODE='22023';
+        END IF;
+      WHEN 'mowed_partial' THEN
+        v_effect:='partial';v_result_kind:='partial';v_care_kind:='improved_more_remains';
+        IF v_after<>'partial' THEN
+          RAISE EXCEPTION 'Partial mowing must retain unfinished condition' USING ERRCODE='22023';
+        END IF;
+      WHEN 'acceptable_no_cut' THEN
+        v_effect:='conditional';v_result_kind:='completed';v_care_kind:='condition_differed';
+        IF v_after<>'acceptable' THEN
+          RAISE EXCEPTION 'No-cut is an observed acceptable condition, not a mow' USING ERRCODE='22023';
+        END IF;
+      WHEN 'too_wet' THEN
+        v_effect:='blocked';v_result_kind:='blocked';v_care_kind:='blocked';
+        IF v_after<>'too_wet' THEN RAISE EXCEPTION 'Wet-ground block must be observed' USING ERRCODE='22023'; END IF;
+      WHEN 'equipment_or_area_problem' THEN
+        v_effect:='blocked';v_result_kind:='blocked';v_care_kind:='blocked';
+        IF v_after<>'problem' THEN RAISE EXCEPTION 'Equipment/area problem must be observed' USING ERRCODE='22023'; END IF;
+      ELSE
+        RAISE EXCEPTION 'Unqualified mowing Actual kind' USING ERRCODE='22023';
+    END CASE;
+  ELSE
+    SELECT * INTO v_weed FROM atlas.weed_cards c
+      WHERE c.object_id=v_state.subject_id AND c.farm_id=v_state.farm_id
+      ORDER BY c.created_at,c.id LIMIT 1 FOR UPDATE;
+    IF v_weed.id IS NULL THEN
+      RAISE EXCEPTION 'Weed stewardship source state missing' USING ERRCODE='23514';
+    END IF;
+    CASE v_kind
+      WHEN 'weeded_full' THEN
+        v_effect:='full';v_result_kind:='completed';v_care_kind:='recovered';
+        v_source_kind:='object';v_source_event:='weeded_reset';
+        IF v_after<>'clear' THEN
+          RAISE EXCEPTION 'Full weed restoration requires observed clear condition' USING ERRCODE='22023';
+        END IF;
+      WHEN 'weeded_partial' THEN
+        v_effect:='partial';v_result_kind:='partial';v_care_kind:='improved_more_remains';
+        v_source_kind:='object';v_source_event:='weeded';
+        IF v_after NOT IN ('row_readable','medium_pressure','heavy') THEN
+          RAISE EXCEPTION 'Partial weed work must preserve residual condition' USING ERRCODE='22023';
+        END IF;
+      WHEN 'inspection_acceptable' THEN
+        v_effect:='conditional';v_result_kind:='completed';v_care_kind:='condition_differed';
+        v_source_kind:='field_log';v_source_event:='action:weed_inspection_acceptable';
+        IF v_after NOT IN ('clear','row_readable') THEN
+          RAISE EXCEPTION 'Acceptable weed inspection must preserve observed condition' USING ERRCODE='22023';
+        END IF;
+      WHEN 'weeding_blocked' THEN
+        v_effect:='blocked';v_result_kind:='blocked';v_care_kind:='blocked';
+        IF v_after NOT IN ('row_readable','medium_pressure','heavy','unknown') THEN
+          RAISE EXCEPTION 'Blocked weeding must preserve real condition' USING ERRCODE='22023';
+        END IF;
+      ELSE
+        RAISE EXCEPTION 'Unqualified weed Actual kind' USING ERRCODE='22023';
+    END CASE;
+  END IF;
+
+  -- Reject invented success when the configured Rhythm doesn't recognize
+  -- the submitted domain event and its effect. Blockers are evidence only.
+  IF v_effect IN ('full','partial','conditional') THEN
+    SELECT t.value,(t.ordinality)::integer
+      INTO v_touch,v_touch_index
+    FROM pg_catalog.jsonb_array_elements(v_rule.qualifying_touches)
+      WITH ORDINALITY AS t(value,ordinality)
+    WHERE t.value->>'effect'=v_effect
+      AND t.value->>'sourceKind'=v_source_kind
+      AND (
+        t.value->>'sourceEvent'=v_source_event
+        OR t.value->'sourceEvents' ? v_source_event
+      )
+      AND (
+        v_kind<>'weeded_partial'
+        OR t.value#>>'{payloadContains,metadata,transition}'='partial'
+      )
+    ORDER BY t.ordinality LIMIT 1;
+    IF v_touch IS NULL THEN
+      RAISE EXCEPTION 'Result does not match original governed Rhythm rule'
+        USING ERRCODE='23514';
+    END IF;
+  END IF;
+
+  IF v_work.work_state<>'open' OR v_allocation.state<>'active'
+    OR v_state.state='paused' OR v_rule.status<>'active' THEN
+    RAISE EXCEPTION 'Original Work or active Rhythm is no longer actionable'
+      USING ERRCODE='23514';
+  END IF;
+  SELECT * INTO v_prior FROM atlas.care_current_state c
+    WHERE c.scope_kind='farm' AND c.scope_id=v_state.farm_id
+      AND c.subject_domain='farm' AND c.subject_kind='growing_object'
+      AND c.subject_id=v_state.subject_id::text FOR UPDATE;
+  v_before:=COALESCE(v_prior.condition_state,
+     CASE WHEN v_state.rhythm_key='mowing' THEN v_mowing.status
+          ELSE v_weed.current_condition END);
+  IF v_prior.id IS NOT NULL AND v_prior.last_observed_at>v_at THEN
+    RAISE EXCEPTION 'Newer physical observation must be reconciled first' USING ERRCODE='23514';
+  END IF;
+  -- No ordinary mowing is issued from a stale rhythm state. That condition
+  -- gate lives at Work creation, not this legitimate worker reporting step.
+  -- The worker is signing the *actual*, not a inferred result of the clock.
+  INSERT INTO atlas.care_result_events(
+    subject_domain,subject_kind,subject_id,scope_kind,scope_id,
+    occurred_at,result_kind,condition_before,condition_after,
+    minutes,minutes_known,actor_user_id,source_kind,source_key,note,metadata
+  ) VALUES(
+    'farm','growing_object',v_state.subject_id::text,
+    'farm',v_state.farm_id,v_at,v_care_kind,v_before,v_after,
+    p_minutes,(p_minutes IS NOT NULL),auth.uid(),'continuing_care_actual',
+    v_source_key,v_note,
+    jsonb_build_object('workItemId',v_work.id,'rhythmStateId',v_state.id,
+      'physicalActualKind',v_kind,'sourceRuleId',v_rule.id,
+      'actualReportedByPersonId',v_actor)
+  ) RETURNING id INTO v_care;
+  INSERT INTO atlas.care_observation_events(
+    subject_domain,subject_kind,subject_id,scope_kind,scope_id,
+    observed_at,condition_state,disposition,observed_by_user_id,
+    source_kind,source_key,note,inferred_from_clock,metadata
+  ) VALUES(
+    'farm','growing_object',v_state.subject_id::text,'farm',v_state.farm_id,
+    v_at,v_after,
+    CASE WHEN v_effect='blocked' THEN 'hold'
+      WHEN v_effect='partial' THEN 'intervene' ELSE 'observe' END,
+    auth.uid(),'continuing_care_actual_observation',
+    'continuing-care-observation:'||v_care::text,
+    v_note,false,
+    jsonb_build_object('careResultId',v_care,'workItemId',v_work.id)
+  ) RETURNING id INTO v_observation;
+  IF NOT EXISTS(
+    SELECT 1 FROM atlas.care_current_state cs
+    WHERE cs.scope_kind='farm' AND cs.scope_id=v_state.farm_id
+      AND cs.subject_domain='farm' AND cs.subject_kind='growing_object'
+      AND cs.subject_id=v_state.subject_id::text
+      AND cs.condition_state=v_after AND cs.last_observation_id=v_observation
+  ) THEN
+    RAISE EXCEPTION 'Physical source readback failed'
+      USING ERRCODE='23514';
+  END IF;
+
+  INSERT INTO atlas.work_execution_results(
+    organization_id,work_item_id,responsible_allocation_id,
+    reported_by_user_id,result_kind,result_contract_key,
+    idempotency_key,payload,metadata,reported_at
+  ) VALUES(
+    v_work.organization_id,v_work.id,v_allocation.id,
+    auth.uid(),v_result_kind,'continuing_care_actual_v1',
+    v_source_key,
+    jsonb_strip_nulls(jsonb_build_object(
+      'careResultId',v_care,'careObservationId',v_observation,
+      'actualKind',v_kind,'conditionAfter',v_after,'note',v_note,
+      'minutes',p_minutes,'recheckOn',p_recheck_on)),
+    jsonb_build_object('actualKind',v_kind,'rhythmStateId',v_state.id,
+      'authenticatedReporterPersonId',v_actor,'nativeLedgerId',v_ledger_id),
+    v_at
+  ) RETURNING * INTO v_result;
+  INSERT INTO atlas.work_result_acceptances(
+    organization_id,work_item_id,execution_result_id,
+    decision,acceptance_kind,accepted_by_domain,evidence
+  ) VALUES(
+    v_work.organization_id,v_work.id,v_result.id,'accepted',
+    'source_qualified_physical_actual','continuing_care_actual',
+    jsonb_build_object('careResultId',v_care,'careObservationId',v_observation,
+      'actualKind',v_kind,'sourceRuleId',v_rule.id,'actualReporter',v_actor)
+  ) RETURNING id INTO v_acceptance;
+
+  IF v_effect IN ('full','conditional') THEN
+    v_renew_seconds:=CASE WHEN coalesce(v_touch->>'renewalIntervalSeconds','') ~ '^[1-9][0-9]*$'
+      THEN (v_touch->>'renewalIntervalSeconds')::integer
+      ELSE v_rule.validity_interval_seconds END;
+    v_tz:=coalesce(nullif(v_rule.metadata->>'timezoneName',''),'America/Chicago');
+    v_boundary:=coalesce(nullif(v_rule.metadata->>'boundaryMode',''),'exact_timestamp');
+    v_warning_at:=atlas.rhythm_boundary_at_v1(v_at,
+      greatest(0,v_renew_seconds-v_rule.warning_window_seconds),v_tz,v_boundary);
+    v_due_at:=atlas.rhythm_boundary_at_v1(v_at,v_renew_seconds,v_tz,v_boundary);
+    v_failure_at:=atlas.rhythm_boundary_at_v1(v_at,
+      v_renew_seconds+v_rule.grace_window_seconds,v_tz,v_boundary);
+    IF v_state.last_qualifying_satisfaction_id IS NOT NULL
+      AND EXISTS(
+        SELECT 1 FROM atlas.rhythm_satisfactions old
+        WHERE old.id=v_state.last_qualifying_satisfaction_id
+          AND old.satisfied_at>v_at
+      ) THEN
+      RAISE EXCEPTION 'Existing newer satisfaction must not be reversed'
+        USING ERRCODE='23514';
+    END IF;
+    INSERT INTO atlas.rhythm_satisfactions(
+      organization_id,farm_id,rhythm_state_id,rhythm_binding_id,rhythm_rule_id,
+      rhythm_key,subject_kind,subject_id,satisfaction_key,satisfaction_kind,
+      satisfied_at,renewal_interval_seconds,source_kind,source_id,source_event,
+      policy_match,evidence,created_by_user_id
+    ) VALUES(
+      v_state.organization_id,v_state.farm_id,v_state.id,v_state.rhythm_binding_id,
+      v_rule.id,v_state.rhythm_key,v_state.subject_kind,v_state.subject_id,
+      'continuing-actual:'||v_result.id::text,v_effect,v_at,
+      CASE WHEN v_effect='conditional' THEN v_renew_seconds ELSE NULL END,
+      'continuing_care_actual',v_care,v_kind,
+      jsonb_build_object('touchIndex',v_touch_index,'touch',v_touch,
+        'domainActualVerified',true),
+      jsonb_build_object('workItemId',v_work.id,'careResultId',v_care,
+        'workResultId',v_result.id),
+      auth.uid()
+    ) RETURNING id INTO v_satisfaction;
+    UPDATE atlas.rhythm_state SET state='resting',
+      last_qualifying_satisfaction_id=v_satisfaction,
+      lease_started_at=v_at,warning_at=v_warning_at,due_at=v_due_at,
+      failure_at=v_failure_at,recovery_started_at=NULL,
+      last_evaluated_at=v_at,last_transition_at=v_at,
+      state_reason=jsonb_build_object('source','continuing_care_actual',
+        'workItemId',v_work.id,'satisfactionId',v_satisfaction,
+        'actualKind',v_kind),updated_at=now()
+    WHERE id=v_state.id;
+  ELSIF v_effect='partial' THEN
+    -- One still-open original Work; partial progress does not manufacture
+    -- another occurrence. The physical state and Actual remain durable.
+    UPDATE atlas.rhythm_state SET state='recovering',
+      recovery_started_at=v_at,last_evaluated_at=v_at,last_transition_at=v_at,
+      state_reason=jsonb_build_object('source','continuing_care_actual',
+        'workItemId',v_work.id,'careResultId',v_care,'actualKind',v_kind),
+      updated_at=now()
+    WHERE id=v_state.id;
+  END IF;
+
+  -- Domain projections retain actual route/bed state; other domains provide
+  -- their own projections without altering canonical Work/Result machinery.
+  IF v_state.rhythm_key='mowing' THEN
+    UPDATE atlas.mowing_area_state SET
+      status=v_after,last_observed_at=v_at,
+      last_mowed_at=CASE WHEN v_kind='mowed_full' THEN v_at ELSE last_mowed_at END,
+      next_check_date=CASE WHEN v_effect IN ('full','conditional')
+        THEN v_due_at::date ELSE next_check_date END,
+      -- source_event_id references legacy mowing_events, NOT care_result_events.
+      -- Preserve legacy source_event_id; the canonical Actual is in care history.
+      note=v_note,metadata=coalesce(metadata,'{}'::jsonb)||
+        jsonb_strip_nulls(jsonb_build_object(
+          'lastCanonicalCareResultId',v_care,
+          'lastCanonicalWorkResultId',v_result.id,
+          'workerSuggestedRecheckDate',p_recheck_on)),
+        updated_at=now()
+    WHERE object_id=v_state.subject_id AND organization_id=v_work.organization_id;
+  ELSIF v_effect IN ('full','partial','conditional') THEN
+    UPDATE atlas.weed_cards SET
+      current_condition=v_after,
+      next_review_on=CASE WHEN v_effect IN ('full','conditional')
+        THEN v_due_at::date ELSE next_review_on END,
+      metadata=coalesce(metadata,'{}'::jsonb)||
+        jsonb_strip_nulls(jsonb_build_object(
+          'lastCanonicalCareResultId',v_care,
+          'lastCanonicalWorkResultId',v_result.id,
+          'workerSuggestedRecheckDate',p_recheck_on)),
+      last_session_at=v_at,updated_at=now()
+    WHERE id=v_weed.id;
+  END IF;
+
+  IF v_result_kind='completed' THEN
+    -- The source-specific writer has established physical Actual, observation,
+    -- accepted Result and qualifying rhythm satisfaction in THIS transaction.
+    -- Only the shared lifecycle may now transition original Work to Done.
+    -- A denial rolls back every physical effect above atomically.
+    v_universal_receipt:=atlas.apply_work_lifecycle_transition_internal_v1(
+      v_work.id,'complete',v_result.id,v_source_key);
+    IF v_universal_receipt->>'ok' IS DISTINCT FROM 'true'
+       OR v_universal_receipt->>'contractVersion'
+            IS DISTINCT FROM 'universal_work_lifecycle_transition_v1'
+       OR v_universal_receipt->>'workState' IS DISTINCT FROM 'completed'
+    THEN
+      RAISE EXCEPTION 'Shared lifecycle did not accept the physical care Done'
+        USING ERRCODE='23514';
+    END IF;
+
+  -- Only a source-accepted terminal physical Actual may advance the already
+  -- owner-approved campaign. Its allocation is guarded separately against
+  -- self-appointment; any failure preserves this accepted physical Result.
+  IF v_work.metadata->>'sourceStandingCampaignId' IS NOT NULL THEN
+    BEGIN
+      v_campaign_continuation:=
+        atlas.advance_owner_standing_campaign_after_actual_internal_v1(v_result.id);
+    EXCEPTION WHEN OTHERS THEN
+      v_campaign_continuation:=jsonb_build_object(
+        'ok',false,'nextWorkCreated',false,
+        'reason','source_continuation_needs_review','errorCode',SQLSTATE);
+    END;
+  END IF;
+    RETURN v_universal_receipt||jsonb_build_object(
+      'physicalActualContractVersion','continuing_care_actual_v1',
+      'workResultId',v_result.id,'careResultId',v_care,
+      'careObservationId',v_observation,'acceptanceId',v_acceptance,
+      'rhythmSatisfactionId',v_satisfaction,
+      'sourceConditionAfter',v_after,'sourceResultKind',v_care_kind,
+      'nextEligibleAt',v_due_at,
+      'campaignContinuation',v_campaign_continuation,
+      'noNewWorkCreated',coalesce((v_campaign_continuation->>'nextWorkCreated')::boolean,false)=false,
+      'noClockAdmission',true);
+  END IF;
+  -- Partial/blocked work retains its original open identity; no universal
+  -- terminal receipt is asserted, and no new work is manufactured.
+  RETURN jsonb_build_object(
+    'ok',true,'contractVersion','continuing_care_actual_v1',
+    'idempotent',false,'workItemId',v_work.id,
+    'workResultId',v_result.id,'careResultId',v_care,
+    'careObservationId',v_observation,'acceptanceId',v_acceptance,
+    'rhythmSatisfactionId',v_satisfaction,'workState','open',
+    'sourceConditionAfter',v_after,'sourceResultKind',v_care_kind,
+    'nextEligibleAt',v_due_at,
+    'noNewWorkCreated',true,'noClockAdmission',true);
+END;
+$actual$;
+
+-- PRE-RELEASE HOLD. Do not grant a domain reporter to authenticated until
+-- real native-Person signed positive/negative clone tests + source disclosure
+-- coverage pass. Explicitly deny unsafe direct execution for now.
+REVOKE ALL ON FUNCTION atlas.record_continuing_care_actual_self_api_v1(
+  uuid,uuid,text,text,integer,text,date
+) FROM PUBLIC, anon, authenticated, service_role;
+
+
+-- R01 CLONE-ONLY ADDED SOURCE: r01_reality_offering_postconditions.sql
+-- R01 protected-clone postconditions. Execute only after composing the
+-- source into a disposable, production-schema-shaped database and ROLLBACK.
+-- These are structural and synthetic unsigned checks, NOT signed human tests.
+DO $r01_post$
+DECLARE v_functions text[]:=ARRAY[
+ 'atlas.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])',
+ 'atlas.standing_care_next_governed_service_day_v1(timestamptz,text,jsonb,date)',
+ 'atlas.owner_preview_standing_care_candidates_self_api_v1(uuid,uuid,uuid,uuid,text,date,uuid,integer)',
+ 'atlas.standing_care_next_subject_internal_v1(uuid,uuid)',
+ 'atlas.standing_care_auto_successor_authorized_v1(uuid,uuid,jsonb)',
+ 'atlas.advance_owner_standing_campaign_after_actual_internal_v1(uuid)',
+ 'atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)'
+]; v_name text; v_fn oid; v_guard text; v_actual text;
+BEGIN
+ IF to_regclass('atlas.work_lifecycle_events_v1') IS NULL
+    OR to_regprocedure('atlas.apply_work_lifecycle_transition_internal_v1(uuid,text,uuid,text)') IS NULL
+ THEN RAISE EXCEPTION 'R01 missing one original-Work lifecycle'; END IF;
+ FOREACH v_name IN ARRAY v_functions LOOP
+   v_fn:=to_regprocedure(v_name);
+   IF v_fn IS NULL THEN RAISE EXCEPTION 'R01 missing exact function: %',v_name; END IF;
+   IF has_function_privilege('anon',v_fn,'EXECUTE')
+     OR has_function_privilege('authenticated',v_fn,'EXECUTE')
+     OR has_function_privilege('service_role',v_fn,'EXECUTE')
+   THEN RAISE EXCEPTION 'R01 draft function prematurely exposed: %',v_name; END IF;
+ END LOOP;
+ SELECT pg_get_functiondef(to_regprocedure('atlas.guard_work_allocation_responsibility_establishment_v2()'))
+ INTO v_guard;
+ IF v_guard NOT LIKE '%capability_root_authority_context_self_v1%'
+   OR v_guard NOT LIKE '%standing_continuing_source_admission_v1%'
+   OR v_guard NOT LIKE '%standing_care_auto_successor_authorized_v1%'
+   OR v_guard NOT LIKE '%owner_preapproved_standing_care_actual_successor_v1%'
+ THEN RAISE EXCEPTION 'R01 lost live Ledger root or existing native-source protection'; END IF;
+ SELECT pg_get_functiondef(to_regprocedure('atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)'))
+ INTO v_actual;
+ IF v_actual NOT LIKE '%apply_work_lifecycle_transition_internal_v1%'
+   OR v_actual NOT LIKE '%advance_owner_standing_campaign_after_actual_internal_v1%'
+   OR v_actual NOT LIKE '%source_continuation_needs_review%'
+   OR v_actual NOT LIKE '%historicalRecordedCompletion%'
+ THEN RAISE EXCEPTION 'R01 care Actual lost unified Done or safe continuation'; END IF;
+ -- A continuation is NOT authorized by a hardcoded old farm calendar.
+ IF pg_get_functiondef(to_regprocedure(
+   'atlas.standing_care_next_governed_service_day_v1(timestamptz,text,jsonb,date)'
+ )) NOT LIKE '%extract(isodow FROM v_next)%'
+ OR pg_get_functiondef(to_regprocedure(
+   'atlas.advance_owner_standing_campaign_after_actual_internal_v1(uuid)'
+ )) NOT LIKE '%sourceStandingWorkdaysIso%'
+ OR pg_get_functiondef(to_regprocedure(
+   'atlas.advance_owner_standing_campaign_after_actual_internal_v1(uuid)'
+ )) LIKE '%extract(dow FROM v_next_date)%'
+ THEN RAISE EXCEPTION 'R01 successor has no approved governing workday proof'; END IF;
+ IF (SELECT count(*) FROM atlas.work_result_contract_policies
+   WHERE contract_key='continuing_care_actual_v1'
+    AND source_domain='organization' AND acceptance_mode='domain_adapter'
+    AND active)<>1
+ THEN RAISE EXCEPTION 'R01 source-qualified care Result contract missing'; END IF;
+END;
+$r01_post$;
+
+-- A deliberately unsigned unknown-work request must fail closed and must
+-- never create a real Work, allocation, care Result or rhythm satisfaction.
+DO $r01_negative$
+DECLARE v_rejected boolean:=false;
+BEGIN
+ BEGIN
+   PERFORM atlas.advance_owner_standing_campaign_after_actual_internal_v1(
+    '00000000-0000-4000-8000-000000000001'::uuid);
+ EXCEPTION WHEN OTHERS THEN v_rejected:=true;
+ END;
+ IF NOT v_rejected THEN
+   RAISE EXCEPTION 'R01 unsigned unknown physical Result did not deny';
+ END IF;
+END;
+$r01_negative$;
 
 
 -- NATIVE SOURCE ADMISSION POSTCONDITIONS
