@@ -239,12 +239,24 @@ DECLARE
   'protocol_version','u1a_structural_test_v1'
  );
  v_denied boolean := false;
+ v_first jsonb;
+ v_replay jsonb;
+ v_written jsonb;
+ v_read jsonb;
 BEGIN
- IF foundry.append_event(v_event)->>'status'<>'APPENDED'
-    OR foundry.append_event(v_event)->>'status'<>'REPLAYED'
-    OR NOT foundry.has_event('u1a-fictional-source-only-001')
+ -- Never combine side-effecting SQL functions in one Boolean expression:
+ -- PostgreSQL need not preserve their left-to-right evaluation order.
+ v_first:=foundry.append_event(v_event);
+ IF v_first->>'status'<>'APPENDED' THEN
+  RAISE EXCEPTION 'First original event append failed';
+ END IF;
+ v_replay:=foundry.append_event(v_event);
+ IF v_replay->>'status'<>'REPLAYED' THEN
+  RAISE EXCEPTION 'Identical original event replay failed';
+ END IF;
+ IF NOT foundry.has_event('u1a-fictional-source-only-001')
     OR (SELECT count(*) FROM foundry.read_events('u1a-fictional-disposable-only',0,NULL,NULL))<>1
- THEN RAISE EXCEPTION 'Original event append, identical replay or read contract failed'; END IF;
+ THEN RAISE EXCEPTION 'Original event read-after-write contract failed'; END IF;
  BEGIN
   UPDATE foundry.events SET event_type='invalid_write' WHERE event_id='u1a-fictional-source-only-001';
  EXCEPTION WHEN OTHERS THEN v_denied:=true; END;
@@ -254,8 +266,9 @@ BEGIN
   DELETE FROM foundry.events WHERE event_id='u1a-fictional-source-only-001';
  EXCEPTION WHEN OTHERS THEN v_denied:=true; END;
  IF NOT v_denied THEN RAISE EXCEPTION 'Original append-only trigger permitted DELETE'; END IF;
- IF foundry.write_snapshot(v_snapshot) IS DISTINCT FROM v_snapshot
-    OR foundry.read_latest_snapshot('u1a-fictional-disposable-only') IS DISTINCT FROM v_snapshot
+ v_written:=foundry.write_snapshot(v_snapshot);
+ v_read:=foundry.read_latest_snapshot('u1a-fictional-disposable-only');
+ IF v_written IS DISTINCT FROM v_snapshot OR v_read IS DISTINCT FROM v_snapshot
  THEN RAISE EXCEPTION 'Original Foundry snapshot write/read failed'; END IF;
 END $probe$;
 
