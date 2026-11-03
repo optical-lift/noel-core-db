@@ -69,7 +69,7 @@ Do not paste credentials into chat, checkout into a production deployment, or in
 
 **Separate signed acceptance still required:** a fresh protected schema-only local GoTrue environment with fictional Subject, Requirement and human principals; current root approval and reread, worker/outsider/revoked/withdrawn/wrong-Ledger/wrong-Subject and missing-evidence denial, same- and different-payload replay, competing revisions, immutable source, and zero native Work/Result/Clock/Need effects. Use the existing R01 protected fresh-clone signed-care harness as a method reference; never copy its farm-specific writer authority into U1A. The retained RiverSong clone is not the signed-HTTP test environment.
 
-**Status:** 15 source-contract assertions passed in an isolated JavaScript evaluation. The new local script, PostgreSQL compilation, actual RiverSong Node process and genuine signed actors have **not** been run in this session. U1B property/class approval and U2 offered initial Work remain queued; user requires full farm identity audit and second domain before Elm pilot.
+**Status:** 16 source-contract assertions passed in an isolated JavaScript evaluation. The new local script, PostgreSQL compilation, actual RiverSong Node process and genuine signed actors have **not** been run in this session. U1B property/class approval and U2 offered initial Work remain queued; user requires full farm identity audit and second domain before Elm pilot.
 
 
 ### Exact independent Foundry custody review — current source contract
@@ -87,4 +87,11 @@ Read-only Noel source inspection confirms:
 
 **Signed tests still required on a FRESH disposable clone:** (1) genuine owner + independently signed reviewer + disconnected worker/outsider; (2) captured Event in pending workspace without approved review **denies** adoption with zero Rulebook rows; (3) approved review for an unrelated Event or without `analyze` **denies**; (4) an exact, after-Event, current independently approved review plus root and Subject grants establishes one immutable version; (5) same-action replay is idempotent and changed-payload replay denies; (6) revoked or expired case denies *new* adoption while historical root read returns `sourceReviewCurrent=false`; (7) competing approvals, revoked Seat/root/Subject grants, wrong Ledger and outsider deny without source/count disclosure; (8) no Work, Need, Actual, Clock or legacy task effects. Do not fabricate positive approvals by direct SQL insertion into the review table or by forging JWTs.
 
-**Status:** 15 U1A structural source-contract assertions passed in an isolated JavaScript evaluation. Neither PostgreSQL compilation, native RiverSong script execution, nor genuine signed GoTrue tests have been performed. U1B property/class policy and U2 offered Work remain separately held.
+**Status:** 16 U1A structural source-contract assertions passed in an isolated JavaScript evaluation. Neither PostgreSQL compilation, native RiverSong script execution, nor genuine signed GoTrue tests have been performed. U1B property/class policy and U2 offered Work remain separately held.
+
+
+### Current review-case readback and deterministic replay
+
+The current U1A source records the approved independent source-review case identifier and its UTC-normalized review timestamp in an immutable `source_basis` receipt. Replays must match this exact evidence; a different current review cannot silently re-authorize an old action ID. The writer locks the workspace's native review/revocation advisory key before inspecting the case. The current root-only historical reader returns `sourceReviewCurrent` according to the linked exact case's latest unrevoked/unexpired status and workspace availability, without removing historical approved versions. All paths continue to report `policyExecutable=false` and cannot establish original Work.
+
+Source-only checks for these invariants are included in 16/16 local JavaScript assertions. **A native PostgreSQL execution and independently signed two-person review/adoption/revocation race have not occurred.** The actual authorized review and fresh GoTrue source acceptance must be proved before this held draft can move toward release.
