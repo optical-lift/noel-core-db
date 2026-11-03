@@ -36,3 +36,18 @@ Read-only November 3 check found 77 active Work Requirements, **zero** with the 
 5. **Not authorized:** production migration generation, Protected release, Atlas browser UI, Household adapter, first-work release, generalized inheritance, or legacy queue retirement.
 
 **Next after this held slice:** run the protected schema-shaped rollback test; repair exact source error in this candidate without broadening authority; then real GoTrue-signed multi-person negative/positive test. Only after those proofs consider an approved versioned U1A source release. U2 remains separate.
+
+
+## Owner decisions and current U1A limit (November 3)
+
+Exact decisions: **1D, 2C, 3B, 4C, 5C, 6B, 7C, 8C, 9C, 10C**. They control U1B/U2 and release; they do not turn this source candidate into a deployable product.
+
+- **1D/2C/10C:** use an isolated fictional nonproduction Subject for the first clone proof. Before any Elm production pilot, complete the farm-wide canonical Subject identity audit AND the genuine Household/non-farm typed Actual/next-Work proof. No fake live Source, Subject, Need, Work, or scope grant.
+- **3B/4C/6B:** present existing recorded rules individually for root approval with citations and explicit unknowns; the eventual seasonal property-wide umbrella contains separately adopted class-wide rules and separately adopted Subject exceptions. Do not interview anew to reproduce existing sourced rules. This held U1A writer still demands one new Foundry Event and one exact Subject: it is NOT yet the chosen property/class approval writer. Queue separate U1B source and authorization design, preserve all old farm Rule data and avoid legacy queue reactivation.
+- **5C/7C/8C/9C:** eventual Elm weeding/restorative care must use physical evidence; Anna is limited to three open originals with manual weekly workdays, and she must accept/decline each offered candidate before the sole canonical original Work writer releases it under a fresh authorized capacity and disclosure recheck. Acceptance is not owner approval and the offer is not original Work.
+
+### Next single gate
+
+Source fixes on this PR corrected malformed JavaScript test quote escapes and changed the Foundry event row read to select its real columns. A policy-key allowlist now rejects client-invented property/class scope or auto-release fields rather than granting them through this exact-Subject U1A. The held structural postconditions include an unsigned read/write default-denial smoke without creating a fixture. Nine static source-contract tests were executed against the candidate in an isolated JavaScript assertion harness; these do not establish Node execution on RiverSong, PostgreSQL compilation, signed positive and negative actors, concurrent approval, or production acceptance.
+
+Do not merge or install before disposable full-schema rollback, actual signed principal and independent Subject denial tests, source owner approval and separate exact protected release. U1B and U2 remain queued, not included here.
