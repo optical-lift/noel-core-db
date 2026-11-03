@@ -17,7 +17,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  syntax_source:
+    if: >-
+      github.event.pull_request.number == 2465 &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == 'optical-lift/noel-core-db' &&
+      github.event.pull_request.head.ref == 'candidate/atlas-u1a-governed-rulebook-adoption-20261103'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout immutable PR source without retained credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Parse U1A Node, Python, Bash and source custody contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n candidates/atlas_governed_rulebook_u1a_v1/run_riversong_option_d_isolated.sh
+          bash -n candidates/atlas_governed_rulebook_u1a_v1/run_riversong_rollback.sh
+          node --test tests/atlas-u1a-governed-rulebook-source.test.mjs
+
   isolated_signed_proof:
+    needs: [syntax_source]
     if: >-
       github.event.pull_request.number == 2465 &&
       github.event.pull_request.draft == true &&
