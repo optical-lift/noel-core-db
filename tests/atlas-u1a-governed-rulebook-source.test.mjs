@@ -141,3 +141,25 @@ test('Foundry adoption requires a current approved independent review case for e
  assert.doesNotMatch(s,/w\.custody_review_state='reviewed'/);
 });
 
+
+
+test('source-review withdrawal remains visible in root-only historical readback',()=>{
+ assert.match(s,/v_source_review_current boolean := false/);
+ assert.match(s,/JOIN foundry\.source_custody_review_cases_v1 c|FROM foundry\.source_custody_review_cases_v1 c/);
+ assert.match(s,/c\.review_state='approved'/);
+ assert.match(s,/c\.revoked_at IS NULL/);
+ assert.match(s,/c\.expires_at IS NULL OR c\.expires_at>now\(\)/);
+ assert.match(s,/'sourceReviewCurrent',v_source_review_current/);
+ assert.match(s,/'sourceReviewCurrent',false/);
+ assert.match(s,/'policyExecutable',false/);
+});
+test('signed rule adoption serializes with native Foundry review/revocation',()=>{
+ const sourceLock=s.indexOf('hashtextextended(p_workspace_id,0)');
+ const evidence=s.indexOf('SELECT e.* INTO v_source FROM foundry.events e');
+ const approval=s.indexOf('SELECT c.* INTO v_review FROM foundry.source_custody_review_cases_v1 c');
+ const writer=s.indexOf('INSERT INTO atlas.governed_rulebook_versions_v1 (');
+ assert.ok(sourceLock>0 && evidence>sourceLock && approval>evidence && writer>approval);
+ assert.match(s,/c\.reviewed_at>=v_source\.inserted_at/);
+ assert.match(s,/p_entry_id=ANY\(c\.source_refs\)/);
+ assert.match(s,/'sourceReviewCaseId',v_review\.case_id/);
+});
