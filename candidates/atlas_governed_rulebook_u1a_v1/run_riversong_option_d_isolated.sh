@@ -111,10 +111,14 @@ if found!={"project","api","db"}: raise SystemExit("STOP: config could not isola
 config.write_text("".join(out),encoding="utf8")
 Path(sys.argv[2]).write_text(f"{ident}\n{api}\n{db}\n",encoding="utf8")
 PY
-mapfile -t conf <"$EVIDENCE/ports.txt"
-PROJECT_ID="${conf[0]}"
-API_PORT="${conf[1]}"
-DB_PORT="${conf[2]}"
+# RiverSong macOS includes Bash 3.2, which has no mapfile/readarray.
+PROJECT_ID="$(sed -n '1p' "$EVIDENCE/ports.txt")"
+API_PORT="$(sed -n '2p' "$EVIDENCE/ports.txt")"
+DB_PORT="$(sed -n '3p' "$EVIDENCE/ports.txt")"
+[[ "$PROJECT_ID" =~ ^u1a_disposable_[a-f0-9]{12}$ ]] ||
+ { echo 'STOP: invalid unique test project identity'; exit 1; }
+[[ "$API_PORT" =~ ^[0-9]{5}$ && "$DB_PORT" =~ ^[0-9]{5}$ ]] ||
+ { echo 'STOP: invalid ephemeral test ports'; exit 1; }
 DB_URL="postgresql://postgres:postgres@127.0.0.1:$DB_PORT/postgres"
 echo "SOURCE_SHA=$SHA; ISOLATED_PROJECT=$PROJECT_ID; LOOPBACK_API=$API_PORT; LOOPBACK_DB=$DB_PORT"
 STARTED=true
