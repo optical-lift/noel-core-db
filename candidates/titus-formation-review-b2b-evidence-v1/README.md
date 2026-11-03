@@ -50,3 +50,17 @@ The fixture checks:
 **B2C:** Only after those real receipts exist, design an authenticated response-specific read and teacher review RPC that checks original respondent attribution, current authority and exact last event in the same transaction as the immutable feedback append. Learner revision must save a new `titus.formation_responses` original and its event link atomically; do not promote a mock browser status to canonical truth.
 
 **Release-quality gates:** Production-shaped disposable schema clone, genuine separate local GoTrue/REST signed Person sessions, positive only for lawfully issued test permissions, negative wrong Person/recipient/Unit/edition/revocation/expiry/concurrent replay, source-body non-leak, historical correction/retention policy, actual rights/adjudication review. Keep both PRs draft and production unchanged.
+
+
+## B2B first-increment source acceptance receipt — November 3, 2026
+
+**Exact tested SQL/workflow source SHA:** `6fe4db32964308895a8c986859ca84ed77025c9c`.
+
+- [Isolated B2B PostgreSQL proof #41676836046](https://github.com/optical-lift/noel-core-db/actions/runs/41676836046): **SUCCESS**, all source-boundary, fictional fixture, three-source match, negative withdrawal/revocation/response-lineage/version/Person checks, and teardown passed.
+- [Existing Titus Formation Custody #41676835887](https://github.com/optical-lift/noel-core-db/actions/runs/41676835887): **SUCCESS**.
+- [Database Custody CI #41676949387](https://github.com/optical-lift/noel-core-db/actions/runs/41676949387): **SUCCESS** for the draft PR.
+- [Noel draft PR #2464](https://github.com/optical-lift/noel-core-db/pull/2464): only five B2B source, fixture, test, workflow and register files; stacked after B2A draft #2463. No migration, merge or browser grant.
+- A **separate read-only live `noel-core` schema query** returned all proposed B2A/B2B source tables and functions **absent**. That confirms the changes have not been applied; it does not confer release status.
+- The test has a fictional current-Person stub, not real Auth. A UUID-shaped educational review reference, rights clearance reference, consent reference or reviewer mandate source reference **is not proof of authentic issuance**. No live reviewer authority was established.
+
+**Truthful status:** B2B evidence *schema/read-model candidate* complete and verified as source-only. **B2B real source-issued educational approval/rights, recipient consent and reviewer mandate is still unresolved.** B2C authenticated teacher feedback/revision writer and genuine signed isolation test remain **not implemented**. Preserve the existing open owner issue and completion register. Do not use this candidate's boolean as a permission gate.
