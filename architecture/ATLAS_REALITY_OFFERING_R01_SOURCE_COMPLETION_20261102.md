@@ -99,3 +99,40 @@ No changes to Atlas app main. Final release remains separate authorization.
 - A successful signed Actual cannot itself prove that the next Work reached
   Anna's Today; separate actual signed My Work/Today/browser readback remains
   mandatory.
+
+## November 2: actual RiverSong and protected-clone verification
+- Existing `RiverSong` self-hosted runner at `optical-lift/atlas` with label
+  `atlas-verifier` verified working, **without modifying runner registration**.
+  Carrier workflow in held Atlas branch
+  `r01/riversong-standing-care-rollback-20261102`.
+- [Atlas RiverSong run #41573094405](https://github.com/optical-lift/atlas/actions/runs/41573094405):
+  local PG17 `noel_schema_clone`, socket `55432` and exact PGDATA
+  confirmed, exact Noel SHA checkout succeeded, **8/8 committed Node
+  source tests passed**. SQL failed closed: clone missing
+  `atlas.company_work_native_ledger_exact_source_v1(uuid,uuid)`.
+  One SQL transaction automatically rolled back; no live data mutation.
+- [Atlas RiverSong run #41573335081](https://github.com/optical-lift/atlas/actions/runs/41573335081):
+  test-only restoration of the precisely catalogued current native
+  source was attempted inside ROLLBACK, then failed safely because the
+  local clone lacks required `ledger.booking_requests` and/or
+  `ledger.booking_offerings` tables. No fictional stand-ins were created.
+  That clone is **not** sufficient for full-source R01 proof.
+- Previously [Noel protected signed-clone #40892657460](https://github.com/optical-lift/noel-core-db/actions/runs/40892657460)
+  had passed authentic owner/worker/outsider observed-source admission,
+  native Ledger relevance, original My Work/Today projection, duplicate
+  and withheld Subject tests at source SHA `5984257962b37362d198fd94193af05c47525d8a`.
+  This does **not** prove owner-standing successor after a physical Actual.
+- Full production-shaped disposable clone rerun initiated via
+  [Noel owner validation request #2454](https://github.com/optical-lift/noel-core-db/issues/2454)
+  and [protected run #41573867067](https://github.com/optical-lift/noel-core-db/actions/runs/41573867067).
+  Its exact non-releasable care-canary candidate SHA is
+  `ea951fe4279e9b8f5fbacb055ae7445f4dd17648`: it retains the old
+  signed test layers and includes source-composed standing visit,
+  explicit approved ISO weekdays, one-Done physical Actual and
+  Actual-driven successor. **Await exact result; never mark this passed
+  from request submission.**
+- No merge to production source, Person grants, real farm data mutations
+  or Atlas app deployments. After clone SQL compatibility, the mandatory
+  R01 signed accepted Actual → next Work → worker Today/owner Ledger
+  journey is STILL OPEN until separately proven. Do not call R01 complete
+  merely because the earlier observed-source admission remains green.
