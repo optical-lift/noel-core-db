@@ -44,6 +44,9 @@ begin
      position('''pendinginvitations'',''[]''::jsonb' in v_def)=0 or
      position('e.state=''active''' in v_def)=0 or
      position('o.state=''open''' in v_def)=0 or
+     position('o.closed_atisnull' in v_def)=0 or
+     position('o.retired_atisnull' in v_def)=0 or
+     position('limit100' in v_def)=0 or
      position('v.published_atisnotnull' in v_def)=0 then
     raise exception 'Reviewed source gates do not match candidate';
   end if;
