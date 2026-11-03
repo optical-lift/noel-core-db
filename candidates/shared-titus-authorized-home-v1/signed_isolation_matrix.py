@@ -170,10 +170,15 @@ def validate_matrix(results: dict[str, tuple[int, object | None]], target: str) 
     enrolled_state, enrolled_ids = checked_response(*results["learner"])
     if enrolled_state != "ready" or target not in enrolled_ids:
         raise MatrixFailure("Independently enrolled learner cannot see verified target")
+    distinct_people = {str(uuid.UUID(results["learner"][1]["personId"]))}
     for scenario in ("other_person", "withdrawn"):
         state, ids = checked_response(*results[scenario])
         if state != "ready" or target in ids:
             raise MatrixFailure(scenario + ": target leaked or signed Person not resolved")
+        person_id = str(uuid.UUID(results[scenario][1]["personId"]))
+        if person_id in distinct_people:
+            raise MatrixFailure("Independent signed Personas must resolve to distinct canonical Persons")
+        distinct_people.add(person_id)
     for scenario in ("wrong_client", "unbound", "revoked_session", "expired"):
         status, body = results[scenario]
         if status in {401, 403}:
