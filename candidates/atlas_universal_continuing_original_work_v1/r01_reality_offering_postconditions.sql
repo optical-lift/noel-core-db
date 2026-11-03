@@ -5,6 +5,7 @@ DO $r01_post$
 DECLARE v_functions text[]:=ARRAY[
  'atlas.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])',
  'atlas.standing_care_next_governed_service_day_v1(timestamptz,text,jsonb,date)',
+ 'atlas.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)',
  'atlas.owner_preview_standing_care_candidates_self_api_v1(uuid,uuid,uuid,uuid,text,date,uuid,integer)',
  'atlas.standing_care_next_subject_internal_v1(uuid,uuid)',
  'atlas.standing_care_auto_successor_authorized_v1(uuid,uuid,jsonb)',
@@ -23,6 +24,12 @@ BEGIN
      OR has_function_privilege('service_role',v_fn,'EXECUTE')
    THEN RAISE EXCEPTION 'R01 draft function prematurely exposed: %',v_name; END IF;
  END LOOP;
+ -- Existing native Person rhythm discovery is a public signed membrane,
+ -- while its source-owned internal function remains denied to client roles.
+ IF to_regprocedure('public.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)') IS NULL
+    OR has_function_privilege('anon','public.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)','EXECUTE')
+    OR NOT has_function_privilege('authenticated','public.connected_person_disclosed_standing_rhythms_self_api_v1(uuid,uuid,integer,uuid)','EXECUTE')
+ THEN RAISE EXCEPTION 'R01 Today rhythm reader missing or has incorrect signed transport grant'; END IF;
  SELECT pg_get_functiondef(to_regprocedure('atlas.guard_work_allocation_responsibility_establishment_v2()'))
  INTO v_guard;
  IF v_guard NOT LIKE '%capability_root_authority_context_self_v1%'
