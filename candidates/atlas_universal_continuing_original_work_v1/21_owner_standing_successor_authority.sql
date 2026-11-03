@@ -1,3 +1,38 @@
+-- Approved ISO workdays (Monday=1 through Sunday=7) only.
+-- No inherited farm Sunday rule or missing-policy fallback.
+CREATE OR REPLACE FUNCTION atlas.standing_care_next_governed_service_day_v1(
+ p_prior_result_at timestamptz,p_timezone text,p_workdays_iso jsonb,
+ p_campaign_end date
+) RETURNS date LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $governed_day$
+DECLARE v_days integer[]; v_count integer; v_unique integer;
+ v_next date; v_offset integer;
+BEGIN
+ IF p_prior_result_at IS NULL OR p_campaign_end IS NULL
+  OR p_timezone IS NULL OR NOT EXISTS(
+   SELECT 1 FROM pg_catalog.pg_timezone_names tz WHERE tz.name=p_timezone)
+  OR jsonb_typeof(p_workdays_iso) IS DISTINCT FROM 'array'
+  OR jsonb_array_length(p_workdays_iso) NOT BETWEEN 1 AND 7
+ THEN RETURN NULL; END IF;
+ SELECT array_agg(d.day::integer ORDER BY d.day::integer),
+        count(*)::integer,count(DISTINCT d.day::integer)::integer
+ INTO v_days,v_count,v_unique
+ FROM jsonb_array_elements_text(p_workdays_iso) AS d(day)
+ WHERE d.day ~ '^[1-7]$';
+ IF v_count IS DISTINCT FROM jsonb_array_length(p_workdays_iso)
+    OR v_unique IS DISTINCT FROM v_count THEN RETURN NULL; END IF;
+ FOR v_offset IN 1..7 LOOP
+  v_next:=(p_prior_result_at AT TIME ZONE p_timezone)::date+v_offset;
+  IF v_next>p_campaign_end THEN RETURN NULL; END IF;
+  IF extract(isodow FROM v_next)::integer=ANY(v_days) THEN RETURN v_next; END IF;
+ END LOOP;
+ RETURN NULL;
+END;
+$governed_day$;
+REVOKE ALL ON FUNCTION atlas.standing_care_next_governed_service_day_v1(
+ timestamptz,text,jsonb,date
+) FROM PUBLIC,anon,authenticated,service_role;
+
 -- R01 source-only integration of held Noel PR #2364 14_owner_standing_successor_authority.sql.
 -- Parent: Noel #2362; requires exact combined assembly, protected SQL clone,
 -- genuine signed principal/worker/outsider acceptance, and release approval.
