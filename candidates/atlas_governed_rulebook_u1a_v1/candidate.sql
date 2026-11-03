@@ -257,7 +257,13 @@ BEGIN
    AND e.event_type='foundry_reality_input_v1'
    AND w.owner_principal_id=v_root.actor_principal_id
    AND w.revoked_at IS NULL AND w.suspended_at IS NULL
-   AND w.custody_review_state NOT IN ('revoked','suspended')
+   -- Foundry preparation is only provisional. Never promote an unreconciled
+   -- workspace (including authenticated verified_self claims still pending)
+   -- into durable Rulebook policy. Custody review is a separate source gate.
+   AND w.custody_review_state='reviewed'
+   AND w.custody_reviewed_by_principal_id IS NOT NULL
+   AND w.custody_reviewed_at IS NOT NULL
+   AND pg_catalog.cardinality(w.custody_basis_refs)>0
    AND e.envelope->'payload'->>'author_principal_id'=
      v_root.actor_principal_id::text
    AND e.envelope->'payload'->>'source_kind' IN
