@@ -179,14 +179,24 @@ PHASE="verified-native-authority-source-fingerprints"
 FINGERPRINTS="$HERE/native_source_fingerprints_20261103.tsv"
 [[ -s "$FINGERPRINTS" ]] ||
  { echo 'STOP: required source fingerprint provenance unavailable'; exit 1; }
+# Validate signatures/MD5s before embedding any reviewed signature in SQL.
+python3 - "$FINGERPRINTS" <<'PY'
+from pathlib import Path
+import re,sys
+rows=[s.strip() for s in Path(sys.argv[1]).read_text().splitlines()
+      if s.strip() and not s.startswith("#")]
+if len(rows)!=9: raise SystemExit("STOP: nine canonical source definitions required")
+for row in rows:
+    pieces=row.split("|")
+    if len(pieces)!=2 or not re.fullmatch(
+       r'atlas\.[a-z_0-9]+\([a-z0-9_,\[\]]*\)',pieces[0]) or not re.fullmatch(
+       r'[a-f0-9]{32}',pieces[1]):
+        raise SystemExit("STOP: invalid source fingerprint record")
+PY
 verified=0
 fingerprint_mismatch=0
 while IFS='|' read -r signature expected; do
   [[ "$signature" == atlas.* ]] || continue
-  [[ "$signature" =~ ^atlas[.][a-z_0-9]+\([a-z0-9_,\[\]]*\)$ ]] ||
-   { echo 'STOP: unexpected function signature in reviewed source manifest'; exit 1; }
-  [[ "$expected" =~ ^[a-f0-9]{32}$ ]] ||
-   { echo 'STOP: unexpected review-source fingerprint encoding'; exit 1; }
   actual="$(query "SELECT md5(pg_get_functiondef(to_regprocedure('$signature')))")"
   if [[ "$actual" != "$expected" ]]; then
     echo "STALE_OR_SUBSTITUTE_SOURCE: $signature" | tee -a "$EVIDENCE/missing-native-sources.txt"
