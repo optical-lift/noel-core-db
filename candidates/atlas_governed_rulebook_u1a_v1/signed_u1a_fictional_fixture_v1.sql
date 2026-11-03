@@ -4,9 +4,13 @@
 -- must already exist on a FRESH disposable Supabase local 127.0.0.1:54322 DB.
 DO $u1a_fixture_guard$
 BEGIN
+ -- PostgreSQL reports its INTERNAL listening port/address from inside
+ -- the container, not the Supabase host-mapped port. The controller verifies
+ -- the host-bound loopback endpoint and fresh isolated project separately.
+ -- The fixture additionally needs this session-local, controller-provided
+ -- clone-only assertion and the exact four synthetic C1 identities below.
  IF current_database()<>'postgres'
-    OR inet_server_addr() IS DISTINCT FROM inet '127.0.0.1'
-    OR current_setting('port') <> '54322'
+    OR current_setting('u1a.disposable_clone',true) IS DISTINCT FROM 'true'
     OR (SELECT count(*) FROM auth.users WHERE id IN (
       'e5200000-0000-4000-8000-000000000001'::uuid,
       'e5200000-0000-4000-8000-000000000002'::uuid,
