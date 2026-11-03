@@ -311,3 +311,31 @@ $writer$;
 REVOKE ALL ON FUNCTION atlas.owner_establish_standing_continuing_care_work_self_api_v1(
   uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
 ) FROM PUBLIC,anon,authenticated,service_role;
+
+-- Signed application membrane. The ROOT governor proof, scope acceptance,
+-- disclosed physical Subject, explicit weekdays, scheduling and collision
+-- protections remain enforced by the private source function, not the UI.
+-- No arbitrary caller gains direct access to the private writer.
+CREATE OR REPLACE FUNCTION public.owner_establish_standing_continuing_care_work_self_api_v1(
+  p_organization_id uuid,
+  p_ledger_id uuid,
+  p_rhythm_state_id uuid,
+  p_scope_id uuid,
+  p_visit_reason text,
+  p_service_date date,
+  p_campaign_end_date date,
+  p_action_id uuid,
+  p_workdays_iso smallint[]
+) RETURNS jsonb
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path TO ''
+AS $public_owner$
+ SELECT atlas.owner_establish_standing_continuing_care_work_self_api_v1(
+  p_organization_id,p_ledger_id,p_rhythm_state_id,p_scope_id,p_visit_reason,
+  p_service_date,p_campaign_end_date,p_action_id,p_workdays_iso);
+$public_owner$;
+REVOKE ALL ON FUNCTION public.owner_establish_standing_continuing_care_work_self_api_v1(
+ uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
+) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.owner_establish_standing_continuing_care_work_self_api_v1(
+ uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
+) TO authenticated;
