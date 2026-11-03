@@ -211,6 +211,24 @@ BEGIN
    RAISE EXCEPTION 'A standing rule requires an approved visit purpose'
      USING ERRCODE='22023';
  END IF;
+ -- U1A has ONLY an exact Subject-bound policy contract. Never persist
+ -- client-supplied property/class scope, autonomous Work release, or new
+ -- permission through a JSON key that U1B/U2 has not yet authorized.
+ IF EXISTS (
+    SELECT 1 FROM pg_catalog.jsonb_object_keys(p_policy) AS k(key)
+    WHERE k.key NOT IN (
+      'eligibilityMode','desiredOutcome','standingPurpose',
+      'triggerMode','strategyDisposition','maxObservationAgeSeconds',
+      'seasonKeys','priority'
+    )
+ ) THEN
+   RAISE EXCEPTION 'Unapproved policy field; requires new scoped rule version'
+     USING ERRCODE='22023';
+ END IF;
+ IF pg_catalog.jsonb_typeof(p_policy->'eligibilityMode') IS DISTINCT FROM 'string'
+    OR pg_catalog.jsonb_typeof(p_policy->'desiredOutcome') IS DISTINCT FROM 'string' THEN
+   RAISE EXCEPTION 'Typed bounded policy required' USING ERRCODE='22023';
+ END IF;
  v_seasons:=coalesce(p_policy->'seasonKeys','[]'::jsonb);
  IF jsonb_typeof(v_seasons)<>'array' OR jsonb_array_length(v_seasons)>24
     OR EXISTS (
@@ -232,7 +250,7 @@ BEGIN
  -- Verify original immutable Foundry evidence, current human principal,
  -- exact quoted segment and non-delegated source kind. An AI carrier, user-
  -- supplied "proof" object or an unrelated workspace is not authorization.
- SELECT e INTO v_source FROM foundry.events e
+ SELECT e.* INTO v_source FROM foundry.events e
  JOIN foundry.workspace_authority_registry_v1 w
    ON w.workspace_id=e.workspace_id
  WHERE e.workspace_id=p_workspace_id AND e.event_id=p_entry_id
