@@ -238,3 +238,16 @@ Reconciled Atlas Universal Program Participation handoff (October 26, 30 previou
 - Initial run: [#41576395091](https://github.com/optical-lift/noel-core-db/actions/runs/41576395091), source SHA `e8a3fe856ecd41d9916c38c2d7b0b1e2e9b00e19`. Record actual run conclusion separately; an initiated run is not a PASS.
 
 **Release hold unchanged:** production RPC absent, Titus site root private flag off, no course/offer/enrollment created, Titus PR #23 and Noel PR #2438 remain drafts. Continue private classroom software work independently; do not activate real private curriculum access before source-authorized participation and at least appropriate signed negative proof.
+
+## Development-only schema-clone success receipt — 2026-11-02
+
+**PASS:** [GitHub Actions #41576395091](https://github.com/optical-lift/noel-core-db/actions/runs/41576395091), event `push`, tested held commit `e8a3fe856ecd41d9916c38c2d7b0b1e2e9b00e19`.
+
+- Protected snapshot/roles-only export step passed; no production rows exported.
+- The existing trusted canonical-main `scripts/validate-production-schema-clone.sh` restored the snapshot to a local disposable PostgreSQL database, applied the proposed `shared_titus_authorized_home_self_clone_only` SQL, and executed its clone structural postconditions successfully.
+- Schema-lint comparison: 14 inherited Atlas errors before; 14 after; **0 new errors**, **0 resolved**. This remains an existing lint debt, not a new Tito source blocker.
+- Workflow reached its `Record bounded development result` step and completed successfully. No releasable migration was generated; no actual source RPC installed in production; no bearer/enrolled fictional learner test was run.
+- The exact tested candidate SQL and structural assertions were taken from immutable held commit `e8a3fe8`; the later README update did not modify those SQL files.
+- Source/security CI for previous exact SQL revision `6a3bdfc68d6f7fd0c4c9059e0fc978f27d2d5da7` also passed [matrix checks #41575635354](https://github.com/optical-lift/noel-core-db/actions/runs/41575635354) and [Database Custody #41575635346](https://github.com/optical-lift/noel-core-db/actions/runs/41575635346).
+
+**Development milestone met:** private learner-only RPC installs into a production-shaped disposable database and passes structural/ACL source assertions. **Still held:** real OAuth bearer/current Person/independent educational enrollment, private Titus Program participation, teacher/author/reviewer access, signed revocation, lesson bodies, any production release. These remain necessary before granting private access; they are not prerequisites to continuing nonpublic UI and curriculum work.
