@@ -222,10 +222,10 @@ def proof(db,api,key,tokens,scope,care):
         "successor did not have independent original Work and approved day")
     require(care.sql(db,
       "select count(*) from atlas.work_items where id="+literal(nextwork)+"::uuid"
-      " and work_state='open' and source_object_id="+literal(STATE5)+"::uuid"
-      " and metadata->>'sourceStandingCampaignId'="+literal(CAMPAIGN)
-      " and metadata->'sourceStandingWorkdaysIso'='[1,2,3,4,5,6,7]'::jsonb"
-      " and metadata->>'sourceAdmissionMode'='owner_standing_successor_v1'")=="1",
+      +" and work_state='open' and source_object_id="+literal(STATE5)+"::uuid"
+      +" and metadata->>'sourceStandingCampaignId'="+literal(CAMPAIGN)
+      +" and metadata->'sourceStandingWorkdaysIso'='[1,2,3,4,5,6,7]'::jsonb"
+      +" and metadata->>'sourceAdmissionMode'='owner_standing_successor_v1'")=="1",
       "successor lost exact Bed 5, original custody, or frozen weekdays")
     require(service<nextday<=end,"successor violated governor's campaign window")
     count=care.sql(db,"select count(*) from atlas.work_items where "
