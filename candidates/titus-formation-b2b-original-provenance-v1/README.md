@@ -34,7 +34,7 @@ On UPDATE, the trigger protects raw original text, original Unit/teacher/questio
 | Capture fresh original author and original text on submission | Source staged |
 | Keep historical unknowns and originals unchanged | Source staged; test below |
 | Protect writer and B2B consent/review boundaries | No prior source modifications |
-| First-draft fictional source proof | Pending CI |
+| First-draft fictional source proof | **PASS** at source SHA below |
 | Signed actual user end-to-end test and production-shape review | Open |
 | Real edition/rights clearance, explicit response consent, reviewer mandate | Open |
 | Release/merge/deploy and teacher–student B2C review | Not done |
@@ -42,3 +42,12 @@ On UPDATE, the trigger protects raw original text, original Unit/teacher/questio
 ### Next bounded increment
 
 When deciding to use Titus privately with a real learner, test the **actual existing signed self-submission RPC** in a disposable production-shaped Auth/PostgREST environment, then verify one newly written original carries the verified real Person, its hash matches the preserved text, and the proposed learner disclosure decision is genuinely attributed to that same Person. Only after that should a separate source-authorized reviewer read be opened, subject to teaching-edition clearance and real appointment. **For first-draft classroom prototype UX, use synthetic/demo content without falsely issuing real consent.**
+
+## Verified first-draft source acceptance — November 3, 2026
+
+**Source/test/workflow SHA:** `b3af2398f02a88a699713c82e6914a5d843ec136`.
+- [Isolated PostgreSQL 16 original-provenance source proof #41708827303](https://github.com/optical-lift/noel-core-db/actions/runs/41708827303) — **SUCCESS**.
+- [Database Custody CI #41708827348](https://github.com/optical-lift/noel-core-db/actions/runs/41708827348) — **SUCCESS**.
+- Read-only live schema check: **zero** source-author and source-hash columns from this candidate are deployed to `titus.formation_responses`.
+
+This proves only fictional first-draft insert/update/delete behavior and source custody in a disposable database. The real signed self-submission adapter, real Marlene/learner identity, release/consent and teacher access were **not** exercised or granted. This candidate remains unmerged.
