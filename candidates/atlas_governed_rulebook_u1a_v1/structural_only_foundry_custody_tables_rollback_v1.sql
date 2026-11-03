@@ -1,8 +1,8 @@
 -- U1A custody table structural-only native source probe (NOT migration).
 -- Original unmodified source blocks: Noel
 -- supabase/migrations/20261024010000_shared_foundry_connected_workspace_gate1_signed_v1.sql
--- Current Noel normalized table catalog MD5 (2026-11-03):
--- 784f26bdcbcf77ee5794bcab53848220
+-- Current Noel normalized table catalog MD5 with C-collated index sort (2026-11-03):
+-- d61fb82fb37dbc9d8b31ccbfce09bebf
 -- No Person/Principal, source Review Case, Work or Rulebook records generated.
 BEGIN;
 SET LOCAL statement_timeout='60s';
@@ -142,7 +142,7 @@ BEGIN
  'name',c.relname,'owner',pg_get_userbyid(c.relowner),'rls',c.relrowsecurity,'forceRls',c.relforcerowsecurity,'acl',coalesce(c.relacl::text,'NULL'),
  'columns',(SELECT jsonb_agg(jsonb_build_object('name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'required',a.attnotnull,'default',pg_get_expr(ad.adbin,ad.adrelid)) ORDER BY a.attnum) FROM pg_attribute a LEFT JOIN pg_attrdef ad ON ad.adrelid=a.attrelid AND ad.adnum=a.attnum WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped),
  'constraints',(SELECT jsonb_agg(jsonb_build_object('name',con.conname,'def',pg_get_constraintdef(con.oid,true)) ORDER BY con.conname) FROM pg_constraint con WHERE con.conrelid=c.oid),
- 'indexes',(SELECT jsonb_agg(pg_get_indexdef(i.indexrelid) ORDER BY pg_get_indexdef(i.indexrelid)) FROM pg_index i WHERE i.indrelid=c.oid),
+ 'indexes',(SELECT jsonb_agg(pg_get_indexdef(i.indexrelid) ORDER BY pg_get_indexdef(i.indexrelid) COLLATE "C") FROM pg_index i WHERE i.indrelid=c.oid),
  'triggers',(SELECT jsonb_agg(pg_get_triggerdef(t.oid) ORDER BY t.tgname) FROM pg_trigger t WHERE t.tgrelid=c.oid AND NOT t.tgisinternal)
  ) ORDER BY c.relname) FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='foundry' AND c.relname IN ('workspace_authority_registry_v1','source_custody_review_cases_v1') AND c.relkind='r')
  ) AS j
@@ -155,7 +155,7 @@ BEGIN
   md5(jsonb_build_object('owner',pg_get_userbyid(c.relowner),'rls',c.relrowsecurity,'forceRls',c.relforcerowsecurity,'acl',coalesce(c.relacl::text,'NULL'))::text) AS meta_md5,
   md5(coalesce((SELECT jsonb_agg(jsonb_build_object('name',a.attname,'type',format_type(a.atttypid,a.atttypmod),'required',a.attnotnull,'default',pg_get_expr(ad.adbin,ad.adrelid)) ORDER BY a.attnum) FROM pg_attribute a LEFT JOIN pg_attrdef ad ON ad.adrelid=a.attrelid AND ad.adnum=a.attnum WHERE a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped),'null'::jsonb)::text) AS columns_md5,
   md5(coalesce((SELECT jsonb_agg(jsonb_build_object('name',con.conname,'def',pg_get_constraintdef(con.oid,true)) ORDER BY con.conname) FROM pg_constraint con WHERE con.conrelid=c.oid),'null'::jsonb)::text) AS constraints_md5,
-  md5(coalesce((SELECT jsonb_agg(pg_get_indexdef(i.indexrelid) ORDER BY pg_get_indexdef(i.indexrelid)) FROM pg_index i WHERE i.indrelid=c.oid),'null'::jsonb)::text) AS indexes_md5,
+  md5(coalesce((SELECT jsonb_agg(pg_get_indexdef(i.indexrelid) ORDER BY pg_get_indexdef(i.indexrelid) COLLATE "C") FROM pg_index i WHERE i.indrelid=c.oid),'null'::jsonb)::text) AS indexes_md5,
   md5(coalesce((SELECT jsonb_agg(pg_get_triggerdef(t.oid) ORDER BY t.tgname) FROM pg_trigger t WHERE t.tgrelid=c.oid AND NOT t.tgisinternal),'null'::jsonb)::text) AS triggers_md5
   FROM pg_class c
   WHERE c.oid IN ('foundry.workspace_authority_registry_v1'::regclass,'foundry.source_custody_review_cases_v1'::regclass)
@@ -175,7 +175,7 @@ BEGIN
  LOOP
   RAISE NOTICE 'U1A_REVIEW_INDEX_HASH: % %',v_index.index_name,v_index.md5_value;
  END LOOP;
- IF v_tables<>2 OR v_actual IS DISTINCT FROM '784f26bdcbcf77ee5794bcab53848220' THEN
+ IF v_tables<>2 OR v_actual IS DISTINCT FROM 'd61fb82fb37dbc9d8b31ccbfce09bebf' THEN
   RAISE EXCEPTION 'Actual current Noel Foundry custody table contract differs from original source'
    USING ERRCODE='42501';
  END IF;
