@@ -413,6 +413,7 @@ AS $read$
 DECLARE
  v_root record;
  v_saved atlas.governed_rulebook_versions_v1%ROWTYPE;
+ v_source_review_current boolean := false;
 BEGIN
  SELECT * INTO v_root FROM atlas.require_governed_rulebook_root_source_v1(
    p_organization_id,p_ledger_id,p_requirement_id);
@@ -428,8 +429,36 @@ BEGIN
  ORDER BY r.rule_version DESC LIMIT 1;
  IF v_saved.id IS NULL THEN
    RETURN jsonb_build_object('ok',true,'state','not_established',
-     'workCreated',false,'clockAdmitted',false);
+     'sourceReviewCurrent',false,
+     'workCreated',false,'clockAdmitted',false,'policyExecutable',false);
  END IF;
+
+ -- Durable historical root readback remains available when Foundry closes.
+ -- Revocation/expiry of the exact underlying source review MUST be visible;
+ -- neither an older active version nor a cancelled review becomes executable.
+ SELECT EXISTS (
+   SELECT 1 FROM foundry.source_custody_review_cases_v1 c
+   JOIN foundry.workspace_authority_registry_v1 w
+     ON w.workspace_id=c.workspace_id
+   JOIN foundry.events e
+     ON e.workspace_id=c.workspace_id
+    AND e.event_id=v_saved.source_basis->>'entryId'
+    AND e.event_type='foundry_reality_input_v1'
+   WHERE c.case_id=(v_saved.source_basis->>'sourceReviewCaseId')::uuid
+     AND c.workspace_id=v_saved.source_basis->>'workspaceId'
+     AND c.owner_principal_id=v_saved.actor_principal_id
+     AND c.review_state='approved'
+     AND c.revoked_at IS NULL
+     AND (c.expires_at IS NULL OR c.expires_at>now())
+     AND c.reviewed_at IS NOT NULL
+     AND c.reviewed_at>=e.inserted_at
+     AND (v_saved.source_basis->>'entryId')=ANY(c.source_refs)
+     AND 'analyze'=ANY(c.permitted_human_actions)
+     AND c.reviewer_principal_id IS DISTINCT FROM c.owner_principal_id
+     AND w.owner_principal_id=c.owner_principal_id
+     AND w.revoked_at IS NULL AND w.suspended_at IS NULL
+     AND w.custody_review_state NOT IN ('revoked','suspended')
+ ) INTO v_source_review_current;
  RETURN jsonb_build_object('ok',true,'state','established',
    'ruleVersionId',v_saved.id,'ruleVersion',v_saved.rule_version,
    'ruleStatus',v_saved.rule_status,'policy',v_saved.policy,
@@ -438,6 +467,7 @@ BEGIN
    'subjectEntityId',v_saved.subject_entity_id,
    'previousVersionId',v_saved.previous_version_id,
    'recordedAt',v_saved.recorded_at,
+   'sourceReviewCurrent',v_source_review_current,
    'workCreated',false,'clockAdmitted',false,'policyExecutable',false);
 END;
 $read$;
