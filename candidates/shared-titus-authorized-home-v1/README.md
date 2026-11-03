@@ -222,3 +222,19 @@ Reconciled Atlas Universal Program Participation handoff (October 26, 30 previou
 **Execution boundary discovered:** The existing protected `production-schema-clone-validation.yml` issue request accepts an exact generated migration package (or one unrelated hardcoded Atlas candidate exception); it cannot dispatch this raw Titus `candidates/.../candidate.sql` through the fully protected schema-clone pipeline. Do **not** turn this unreviewed SQL into a releasable `supabase/migrations` file, weaken the protected workflow, expose production database credentials to a PR job, or count the static source CI as genuine GoTrue/PostgREST proof.
 
 **Exact next unfinished work:** An authorized trusted-source test execution route for this still-held shared candidate, using a protected read-only schema/roles snapshot, disposable complete GoTrue/PostgREST clone, clone-only independently issued signed learner and comparison identities, actual positive/negative matrix including the newly added closed/retired predicates, ACL and privacy assertions, and redacted evidence. This remains the same original gate, not a permission to deploy.
+
+## 2026-11-02 private development-clone route — testing without a publication claim
+
+**Principal instruction:** This stage is not for publication; use proportional verification to advance the build. Do not equate permission to iterate quickly with permission to create real enrollment, share curriculum sources, or change live authentication.
+
+**New workflow on held branch:** [`.github/workflows/titus-authorized-home-dev-clone.yml`](https://github.com/optical-lift/noel-core-db/blob/work/shared-titus-authorized-home-source-20261101/.github/workflows/titus-authorized-home-dev-clone.yml), commit `e8a3fe856ecd41d9916c38c2d7b0b1e2e9b00e19`.
+
+- Triggers only on push to this held source branch for exact candidate SQL/structural assertion/workflow paths.
+- Checks out **trusted Noel main runner** and the exact held Git SHA separately; does not execute held scripts.
+- Uses the repository's existing protected production environment solely to snapshot the production **schema and role definitions** using `supabase db dump`, without exporting production data rows.
+- Copies held `candidate.sql` only to a temporary file named `20261102000000_shared_titus_authorized_home_self_clone_only.sql`, never to `supabase/migrations` or a production release workflow.
+- Uses the existing pinned CLI and `scripts/validate-production-schema-clone.sh` to restore in an isolated local PostgreSQL database, apply SQL, run structural postconditions and schema-lint comparison, then clean up. No named Person, Teaching row, auth secret or live privilege is modified by the workflow.
+- This **development structural clone is intentionally not the complete signed GoTrue/PostgREST acceptance matrix**. It does not establish an actual enrolled fictional Person, a legitimate institution, a private university reader or the full separate 7-scenario session matrix.
+- Initial run: [#41576395091](https://github.com/optical-lift/noel-core-db/actions/runs/41576395091), source SHA `e8a3fe856ecd41d9916c38c2d7b0b1e2e9b00e19`. Record actual run conclusion separately; an initiated run is not a PASS.
+
+**Release hold unchanged:** production RPC absent, Titus site root private flag off, no course/offer/enrollment created, Titus PR #23 and Noel PR #2438 remain drafts. Continue private classroom software work independently; do not activate real private curriculum access before source-authorized participation and at least appropriate signed negative proof.
