@@ -95,3 +95,27 @@ Read-only Noel source inspection confirms:
 The current U1A source records the approved independent source-review case identifier and its UTC-normalized review timestamp in an immutable `source_basis` receipt. Replays must match this exact evidence; a different current review cannot silently re-authorize an old action ID. The writer locks the workspace's native review/revocation advisory key before inspecting the case. The current root-only historical reader returns `sourceReviewCurrent` according to the linked exact case's latest unrevoked/unexpired status and workspace availability, without removing historical approved versions. All paths continue to report `policyExecutable=false` and cannot establish original Work.
 
 Source-only checks for these invariants are included in 16/16 local JavaScript assertions. **A native PostgreSQL execution and independently signed two-person review/adoption/revocation race have not occurred.** The actual authorized review and fresh GoTrue source acceptance must be proved before this held draft can move toward release.
+
+
+## Signed source-proof package — isolated C1 Subject and reviewer
+
+Owner choice **1D** requires the first proof to use a fictional nonproduction Subject. Noel's current `atlas.governor_set_subject_disclosure_self_api_v1` only authorizes original `spatial/growing_object` and `event/occurrence` Subjects; it does **not** authorize arbitrary `reality.entities` merely because an entity is canonical. This held U1A writer now explicitly requires a **same-ID canonical spatial growing_object linked to an existing `atlas.growing_objects` in the exact Organization's farm**. No nonfarm or property/class adapter is implied. The full farm Subject audit and second domain proof remain U1B/U5 prerequisites before Elm production.
+
+Three new **source-only** files extend the retained C1 test convention:
+
+- `signed_u1a_fictional_fixture_v1.sql` — guarded localhost:54322 fictional Bed 3 canonical Reality twin and one active native Requirement with `needKey`, plus a synthetic connected reviewer Principal if missing. **No** original Work, Person, Ledger seat, Foundry evidence, source-custody approval, Subject disclosure, Rulebook policy or actual is fabricated by this fixture.
+- `validate_signed_u1a_local_clone_v1.py` — uses the existing `scripts/validate-atlas-work-prerequisite-signed-http.py` and its real GoTrue session verification. Signed owner grants exact Bed 3 identity/condition disclosure; owner prepares and captures original Foundry evidence; before independent review, U1A must deny. Distinct connected worker/reviewer signs the native review **case**; root may then adopt one nonexecutable policy and retrieve it; worker, outsider, anonymous, conflicting same-action replay and revoked review must deny. Pause/retire each append a version; original Work and Need counts must not change.
+- `run_signed_u1a_on_fresh_clone_v1.py` — fail-closed controller with **literal** localhost database/port, C1 four fake identities, three original fake Work IDs, existing Bed 3, native review sources, checked-out clean U1A branch, and explicit `--confirm-fresh-disposable`. On that already-started, fully provisioned disposable schema+Auth/REST clone **only**, installs candidate+unsigned structural postconditions in one transaction, applies the synthetic fixture, then runs genuine GoTrue tests. It must **not** be pointed at RiverSong's retained 55432 clone or production. The entire disposable clone is destroyed afterwards.
+
+Only when the protected existing source-custody system has provisioned a *fresh production-shaped* clone with canonical C1 original Work fixture and real local GoTrue/PostgREST, from that checked-out U1A branch:
+
+```bash
+python3 candidates/atlas_governed_rulebook_u1a_v1/run_signed_u1a_on_fresh_clone_v1.py \
+  --db-url "$U1A_DISPOSABLE_DB_URL" \
+  --confirm-fresh-disposable \
+  --output /tmp/u1a-signed-disposable-result.txt
+```
+
+The URL must resolve to the local ephemeral `127.0.0.1:54322/postgres`; never supply the production project URI. The controller does **not** provision or destroy the clone for you. Do not run this on a persistent local development instance containing real data. The protected production-schema validation workflow currently accepts versioned migration packages, not this held source; **do not bypass or modify that workflow solely to run this test.**
+
+**Evidence boundary:** 20 static source-contract assertions were exercised successfully against the exact held SQL/test sources in an isolated JavaScript evaluation. A twenty-first Node test for **Python AST parsing** is staged but has **not been run**. The new SQL fixture, Python scripts, local PostgreSQL compilation, real signed HTTP behavior, concurrency, revoked Seat/Subject and completed protected test lane are **not yet runtime-verified**. Do not claim the presence of these files is a passing signed test or permission to merge or deploy.
