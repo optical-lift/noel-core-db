@@ -133,6 +133,24 @@ class IsolationSourceTests(unittest.TestCase):
         self.assertEqual(result[0], "ready")
         self.assertEqual(result[1], frozenset([TARGET, OTHER]))
 
+    def test_unreleased_sql_requires_offering_closure_and_card_bound(self):
+        # Offline source gate; the actual clone must also prove each
+        # state change by independent signed HTTP session reads.
+        from pathlib import Path
+        source = (Path(__file__).resolve().parent / "candidate.sql").read_text()
+        for predicate in (
+            "o.state='open'",
+            "o.opened_at is not null",
+            "o.closed_at is null",
+            "o.retired_at is null",
+            "e.state='active' and e.withdrawn_at is null",
+            "c.status='active' and c.retired_at is null",
+            "v.published_at is not null",
+            "limit 100",
+        ):
+            with self.subTest(predicate=predicate):
+                self.assertIn(predicate, source)
+
     def test_local_clone_only_never_production_origin(self):
         self.assertEqual(require_local_origin("http://127.0.0.1:54321"), "http://127.0.0.1:54321")
         for url in [
