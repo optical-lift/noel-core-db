@@ -102,3 +102,21 @@ test('RiverSong U1A preflight must precede all SQL sent to psql',()=>{
  assert.match(runner,/set -euo pipefail/);
  assert.match(runner,/HOLD: genuine signed positive\/negative actors and concurrency untested/);
 });
+
+
+test('U1A runner requires a clean reviewed branch before touching the database',()=>{
+ for(const needle of [
+   'git -C "$HERE" rev-parse --show-toplevel',
+   'symbolic-ref --quiet --short HEAD',
+   'candidate/atlas-u1a-governed-rulebook-adoption-20261103',
+   'status --porcelain --untracked-files=all',
+   'SOURCE_SHA="$(git -C "$CHECKOUT" rev-parse HEAD)"',
+   'STOP: working tree is dirty or contains untracked files',
+   'SOURCE_SHA=$SOURCE_SHA'
+ ])assert.ok(runner.includes(needle),needle);
+ const branchGuard=runner.indexOf('SOURCE_BRANCH="$(git -C "$CHECKOUT" symbolic-ref');
+ const cleanGuard=runner.indexOf('status --porcelain --untracked-files=all');
+ const firstPg=runner.indexOf('ident="$(q ');
+ const txn=runner.indexOf("printf '%s\\n' 'BEGIN;'");
+ assert.ok(branchGuard>0 && cleanGuard>branchGuard && firstPg>cleanGuard && txn>firstPg);
+});
