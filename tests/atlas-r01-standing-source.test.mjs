@@ -48,6 +48,18 @@ test('initial owner mandate, next subject, and continuation stay bounded',()=>{
   assert.match(advance,/sourceStandingCampaignEndsOn/);
   assert.match(advance,/work_result_acceptances/);
 });
+test('future dates come from signed owner weekdays, never Elm legacy Sunday defaults',()=>{
+  assert.match(writer,/p_workdays_iso smallint\[\]/);
+  assert.match(writer,/sourceStandingWorkdaysIso/);
+  assert.match(writer,/approvedWorkdaysIso/);
+  assert.match(selector,/standing_care_next_governed_service_day_v1/);
+  assert.match(selector,/extract\(isodow FROM v_next\)/);
+  assert.match(selector,/sourceStandingWorkdaysIso/);
+  assert.match(advance,/no_approved_next_workday_in_campaign/);
+  assert.match(advance,/sourceStandingWorkdaysIso/);
+  assert.doesNotMatch(selector,/extract\(dow FROM v_expected_date\)/);
+  assert.doesNotMatch(advance,/extract\(dow FROM v_next_date\)/);
+});
 test('the assembled candidate is an unapplied and explicit hold',()=>{
   assert.ok(bundle.startsWith('BEGIN;\n'));
   assert.ok(bundle.trimEnd().endsWith('COMMIT;'));
