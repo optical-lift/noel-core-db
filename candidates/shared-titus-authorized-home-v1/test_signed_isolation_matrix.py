@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import os
 import unittest
+from unittest.mock import patch
+
+from signed_self_read_test import read_single_environment, validate_single, run as run_single
 
 from signed_isolation_matrix import (
     MatrixFailure, checked_response, read_environment, require_local_origin,
@@ -172,6 +175,63 @@ class IsolationSourceTests(unittest.TestCase):
         env["TITUS_MATRIX_OTHER_PERSON_BEARER"] = env["TITUS_MATRIX_LEARNER_BEARER"]
         with self.assertRaises(MatrixFailure):
             read_environment(env)
+
+
+    def test_legacy_single_reader_cannot_use_production_even_with_override(self):
+        env = {
+            "TITUS_HOME_TEST_URL": "https://zirqkouammpwxlqfbsvf.supabase.co",
+            "TITUS_HOME_TEST_KEY": "synthetic-local-public-key",
+            "TITUS_HOME_TEST_BEARER": "synthetic-local-signed-bearer",
+            "TITUS_HOME_ALLOW_LIVE_READ": "true",
+        }
+        with self.assertRaises(MatrixFailure):
+            read_single_environment(env)
+        env["TITUS_HOME_TEST_URL"] = "http://127.0.0.1:54321"
+        self.assertEqual(read_single_environment(env)[0], env["TITUS_HOME_TEST_URL"])
+
+    def test_legacy_single_reader_rejects_invalid_credentials_and_expectation(self):
+        env = {
+            "TITUS_HOME_TEST_URL": "http://localhost:54321",
+            "TITUS_HOME_TEST_KEY": "local-key",
+            "TITUS_HOME_TEST_BEARER": "local-token",
+        }
+        for change in (
+            {"TITUS_HOME_TEST_KEY": "sb_secret_private"},
+            {"TITUS_HOME_TEST_BEARER": "local-key"},
+            {"TITUS_HOME_EXPECT_EMPTY": "unknown"},
+            {"TITUS_HOME_TEST_BEARER": ""},
+        ):
+            with self.subTest(change=change):
+                with self.assertRaises(MatrixFailure):
+                    read_single_environment({**env, **change})
+
+    def test_legacy_single_reader_refuses_missing_identity_or_false_pass(self):
+        cases = [
+            ((404, None), (200, ready([])), True),
+            ((401, None), (404, None), True),
+            ((403, None), (200, identity_not_ready()), True),
+            ((403, None), (200, ready([TARGET])), True),
+            ((403, None), (200, ready([])), False),
+        ]
+        for anonymous, signed, expected_empty in cases:
+            with self.subTest(anonymous=anonymous[0], expected_empty=expected_empty):
+                with self.assertRaises(MatrixFailure):
+                    validate_single(anonymous, signed, expected_empty)
+        self.assertEqual(validate_single((403, None), (200, ready([])), True), 0)
+        self.assertEqual(validate_single((401, None), (200, ready([TARGET])), False), 1)
+
+    def test_legacy_runner_is_local_read_only_and_requires_both_http_cases(self):
+        env = {
+            "TITUS_HOME_TEST_URL": "http://127.0.0.1:54321",
+            "TITUS_HOME_TEST_KEY": "local-key",
+            "TITUS_HOME_TEST_BEARER": "distinct-local-bearer",
+        }
+        with patch("signed_self_read_test.post_rpc",
+                   side_effect=[(401, None), (200, ready([]))]) as post:
+            run_single(env)
+            self.assertEqual(post.call_count, 2)
+            self.assertEqual(post.call_args_list[0].args[2], None)
+            self.assertEqual(post.call_args_list[1].args[2], env["TITUS_HOME_TEST_BEARER"])
 
 
 if __name__ == "__main__":
