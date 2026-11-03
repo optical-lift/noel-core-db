@@ -64,3 +64,10 @@ The fixture checks:
 - The test has a fictional current-Person stub, not real Auth. A UUID-shaped educational review reference, rights clearance reference, consent reference or reviewer mandate source reference **is not proof of authentic issuance**. No live reviewer authority was established.
 
 **Truthful status:** B2B evidence *schema/read-model candidate* complete and verified as source-only. **B2B real source-issued educational approval/rights, recipient consent and reviewer mandate is still unresolved.** B2C authenticated teacher feedback/revision writer and genuine signed isolation test remain **not implemented**. Preserve the existing open owner issue and completion register. Do not use this candidate's boolean as a permission gate.
+
+
+## Subsequent B2B source-issuance boundary (November 3, 2026)
+
+[Draft PR #2466](https://github.com/optical-lift/noel-core-db/pull/2466), stacked on this B2B draft, adds a **private, deliberately fail-closed source-issuance verifier** in `candidates/titus-formation-b2b-issuance-verification-v1/`. A read-only source inventory inspected historical Titus program/teacher, lesson/curriculum, formation and Person carriers, `draft.reality_source_rights`, study consent, and Atlas institutional teaching/Foundry operations. None has yet been shown to issue **the complete exact-edition rights/review/release + learner response disclosure + reviewer mandate combination**. The new verifier returns `false` for every argument rather than treating UUID-shaped B2B references as permissions.
+
+[Isolated PostgreSQL 16 verification #41704428728](https://github.com/optical-lift/noel-core-db/actions/runs/41704428728) **PASS**; [Database Custody CI #41704428837](https://github.com/optical-lift/noel-core-db/actions/runs/41704428837) **PASS** at exact tested source SHA `0432455a503e41877fc49771020dc74d851ecdb7`. All fixtures remain invented, not GoTrue sessions. The source-authorized issuance operation, actual rights and consent, signed Person review and B2C writer remain **NOT DONE**. The B2A writer gate remains false. No merge, deployment or live permission change is authorized.
