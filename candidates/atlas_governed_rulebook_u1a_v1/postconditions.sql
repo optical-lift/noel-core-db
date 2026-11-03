@@ -70,3 +70,33 @@ BEGIN
  RAISE NOTICE 'U1A private evidence, RLS/ACL, immutable triggers, signed transport and no seeding: PASS';
 END;
 $u1a_postconditions$;
+
+-- U1A unsigned transport smoke: no invented Person, Subject, Requirement,
+-- Foundry event or policy. This proves only unsigned default denial in the
+-- disposable clone; it does not replace real signed governor/worker tests.
+DO $u1a_unsigned$
+DECLARE
+ v_nil uuid:='00000000-0000-0000-0000-000000000000';
+BEGIN
+ IF auth.uid() IS NOT NULL THEN
+   RAISE EXCEPTION 'Unsigned smoke requires an unclaimed local session';
+ END IF;
+ BEGIN
+   PERFORM atlas.read_governed_rulebook_current_self_api_v1(
+     v_nil,v_nil,v_nil,'fixture.read');
+   RAISE EXCEPTION 'Unsigned private Rulebook read unexpectedly succeeded';
+ EXCEPTION WHEN SQLSTATE '42501' THEN
+   NULL;
+ END;
+ BEGIN
+   PERFORM atlas.adopt_governed_rulebook_version_self_api_v1(
+     v_nil,v_nil,v_nil,'fixture.write',
+     '{"eligibilityMode":"standing_stewardship","desiredOutcome":"Observe only","standingPurpose":"Inspect the fixture"}'::jsonb,
+     'fixture-isolated-only','fixture-entry',0,'active',NULL,v_nil);
+   RAISE EXCEPTION 'Unsigned private Rulebook writer unexpectedly succeeded';
+ EXCEPTION WHEN SQLSTATE '42501' THEN
+   NULL;
+ END;
+ RAISE NOTICE 'U1A unsigned private read/write default-denial smoke: PASS (no rows written)';
+END;
+$u1a_unsigned$;
