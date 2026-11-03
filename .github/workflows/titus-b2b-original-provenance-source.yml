@@ -1,0 +1,102 @@
+name: Titus B2B original-response provenance - first-draft source proof
+
+on:
+  push:
+    branches:
+      - work/titus-b2b-original-response-provenance-20261103
+    paths:
+      - 'candidates/titus-formation-b2b-original-provenance-v1/**'
+      - '.github/workflows/titus-b2b-original-provenance-source.yml'
+  pull_request:
+    paths:
+      - 'candidates/titus-formation-b2b-original-provenance-v1/**'
+      - '.github/workflows/titus-b2b-original-provenance-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-proof:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fictional-only
+          POSTGRES_DB: titus_original_disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d titus_original_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: fictional-only
+      PGDATABASE: titus_original_disposable
+    steps:
+      - name: Checkout private draft source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm bounded source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('candidates/titus-formation-b2b-original-provenance-v1/candidate.sql').read_text()
+          t=Path('candidates/titus-formation-b2b-original-provenance-v1/postconditions.sql').read_text()
+          for expected in (
+            'ALTER TABLE titus.formation_responses',
+            'submitted_by_person_entity_id',
+            'original_text_sha256',
+            'titus.current_authenticated_person_entity_id_v1()',
+            'auth.uid()', 'auth.jwt()',
+            'SECURITY INVOKER', 'REVOKE ALL',
+            'BEFORE INSERT OR UPDATE OR DELETE',
+          ):
+            assert expected in s, expected
+          for forbidden in (
+            'SECURITY DEFINER','GRANT EXECUTE', 'GRANT SELECT',
+            'GRANT INSERT','ALTER ROLE','CREATE ROLE',
+            'UPDATE titus.formation_responses SET',
+            'CREATE OR REPLACE FUNCTION public.titus_submit_formation_response_self_api_v1',
+            'CREATE OR REPLACE FUNCTION titus.formation_review_source_issuance_verified_v1',
+            'CREATE OR REPLACE FUNCTION titus.formation_response_work_authority_gate_v1',
+          ):
+            assert forbidden not in s, forbidden
+          for expected in (
+            'legacy original was falsely backfilled',
+            'original learner Person/session/text not captured',
+            'unverified import was falsely signed',
+            'signed original overwritten',
+            'original attribution opened a reviewer gate',
+          ):
+            assert expected in t, expected
+          print('PASS scoped original provenance source; no rights grant or writer replacement')
+          PY
+      - name: Reuse fictional B2A/B2B identity and closed-authority baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-response-work-b2-v1/fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-review-b2b-evidence-v1/fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-response-work-b2-v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-review-b2b-evidence-v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-b2b-issuance-verification-v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-b2b-learner-disclosure-v1/fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-b2b-learner-disclosure-v1/candidate.sql
+      - name: Prove original identity and immutability without publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-b2b-original-provenance-v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/titus-formation-b2b-original-provenance-v1/postconditions.sql
+          echo 'PASS source-only original provenance; no real GoTrue, learner or review permission'
