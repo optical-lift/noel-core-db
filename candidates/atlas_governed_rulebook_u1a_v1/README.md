@@ -101,25 +101,29 @@ Source-only checks for these invariants are included in 16/16 local JavaScript a
 
 Owner choice **1D** requires the first proof to use a fictional nonproduction Subject. Noel's current `atlas.governor_set_subject_disclosure_self_api_v1` only authorizes original `spatial/growing_object` and `event/occurrence` Subjects; it does **not** authorize arbitrary `reality.entities` merely because an entity is canonical. This held U1A writer now explicitly requires a **same-ID canonical spatial growing_object linked to an existing `atlas.growing_objects` in the exact Organization's farm**. No nonfarm or property/class adapter is implied. The full farm Subject audit and second domain proof remain U1B/U5 prerequisites before Elm production.
 
-Three new **source-only** files extend the retained C1 test convention:
+### Owner-selected Option D: fresh RiverSong Supabase + GoTrue + REST test
 
-- `signed_u1a_fictional_fixture_v1.sql` — guarded localhost:54322 fictional Bed 3 canonical Reality twin and one active native Requirement with `needKey`, plus a synthetic connected reviewer Principal if missing. **No** original Work, Person, Ledger seat, Foundry evidence, source-custody approval, Subject disclosure, Rulebook policy or actual is fabricated by this fixture.
-- `validate_signed_u1a_local_clone_v1.py` — uses the existing `scripts/validate-atlas-work-prerequisite-signed-http.py` and its real GoTrue session verification. Signed owner grants exact Bed 3 identity/condition disclosure; owner prepares and captures original Foundry evidence; before independent review, U1A must deny. Distinct connected worker/reviewer signs the native review **case**; root may then adopt one nonexecutable policy and retrieve it; worker, outsider, anonymous, conflicting same-action replay and revoked review must deny. Pause/retire each append a version; original Work and Need counts must not change.
-- `run_signed_u1a_on_fresh_clone_v1.py` — fail-closed controller with **literal** localhost database/port, C1 four fake identities, three original fake Work IDs, existing Bed 3, native review sources, checked-out clean U1A branch, and explicit `--confirm-fresh-disposable`. On that already-started, fully provisioned disposable schema+Auth/REST clone **only**, installs candidate+unsigned structural postconditions in one transaction, applies the synthetic fixture, then runs genuine GoTrue tests. It must **not** be pointed at RiverSong's retained 55432 clone or production. The entire disposable clone is destroyed afterwards.
+The current held draft uses a **separate, randomly ported, disposable Supabase project**, not the old 55432 clone and not the developer's normal 54322 project. The earlier fixed-host-port controller instructions are **superseded**. PostgreSQL inside Docker normally reports port 5432, regardless of the host mapping; treating it as host port 54322 was incorrect and is removed. PostgreSQL booleans explicitly cast to text read `true`/`false`, rather than `t`/`f`; both clone and signed preflights now enforce the correct representation.
 
-Only when the protected existing source-custody system has provisioned a *fresh production-shaped* clone with canonical C1 original Work fixture and real local GoTrue/PostgREST, from that checked-out U1A branch:
+The five added source-only components are:
+
+- `run_riversong_option_d_isolated.sh`: one-command macOS RiverSong preflight, **unique local Supabase project ID**, wildcard-bind-checked random API/DB host ports, pinned Supabase CLI, original C1 fixtures, local-only Auth/REST/PG, named source dependency checks, exact source-function fingerprint checks, and always-attempted `supabase stop --no-backup` cleanup confined to its own temporary project. No production connection string, migration push or update of the old clone.
+- `native_source_fingerprints_20261103.tsv`: **nine current, read-only Noel native authority/Foundry function definition MD5s**, captured from the governing source on November 3, 2026. They contain no credentials or personal data. A local migration snapshot with missing/changed permission semantics must **STOP** rather than offer a forged substitute.
+- `signed_u1a_fictional_fixture_v1.sql`: only the C1 fictional original Bed 3 canonical twin and one explicit native Requirement plus reviewer Principal, allowed after a session-local disposable-clone guard; no fabricated approval or Work.
+- `run_signed_u1a_on_fresh_clone_v1.py`: exact local environment and project-ID gate; verified unique host port from the temporary config; original native C1 prerequisite; candidate and postconditions in disposable local SQL, followed by fictional fixture and signed tests.
+- `validate_signed_u1a_local_clone_v1.py`: genuine GoTrue owner + independent connected reviewer + worker/outsider/anonymous sessions, pending custody denial, exact source review, current Subject grants, immutable versioning, idempotency and conflicting replay, competing version approvals, pause/retire, same-workspace unrelated source denial, source-review revocation, session withdrawal and no canonical Work/Need effects.
+
+The branch also contains [a dedicated held U1A workflow](../../.github/workflows/u1a-riversong-isolated-signed-proof.yml), restricted to **draft Noel PR #2465**, the exact source branch, and a genuine self-hosted machine named RiverSong. It has only repository read permission and **no production environment or secrets**. A separate GitHub-hosted source syntax job must pass before RiverSong is eligible. This is **not** the main production-schema validation workflow.
+
+**How to invoke manually on RiverSong, if the dedicated workflow cannot find an eligible Noel runner:** check out the clean held branch with current head SHA, then run:
 
 ```bash
-python3 candidates/atlas_governed_rulebook_u1a_v1/run_signed_u1a_on_fresh_clone_v1.py \
-  --db-url "$U1A_DISPOSABLE_DB_URL" \
-  --confirm-fresh-disposable \
-  --output /tmp/u1a-signed-disposable-result.txt
+bash candidates/atlas_governed_rulebook_u1a_v1/run_riversong_option_d_isolated.sh
 ```
 
-The URL must resolve to the local ephemeral `127.0.0.1:54322/postgres`; never supply the production project URI. The controller does **not** provision or destroy the clone for you. Do not run this on a persistent local development instance containing real data. The protected production-schema validation workflow currently accepts versioned migration packages, not this held source; **do not bypass or modify that workflow solely to run this test.**
+The script takes no arguments and cannot be pointed to production, to 55432, or to persistent 54322. It does **not** install Docker, Node, PostgreSQL or the pinned Supabase CLI onto RiverSong, and it never uses production schema dumps. The versioned local migrations must recreate the actual native definitions and match all nine pinned fingerprints; if they do not, U1A remains blocked pending a separate source-authorized schema-parity solution, not dummy permissions.
 
-**Evidence boundary:** 21 static source-contract assertions were exercised successfully against the exact held SQL/test sources in an isolated JavaScript evaluation. A twenty-second Node test for **Python AST parsing** is staged but has **not been run**. The new SQL fixture, Python scripts, local PostgreSQL compilation, real signed HTTP behavior, concurrency, revoked Seat/Subject and completed protected test lane are **not yet runtime-verified**. Do not claim the presence of these files is a passing signed test or permission to merge or deploy.
-
+**Current evidence:** 23 of 23 non-subprocess source-contract assertions have passed in an isolated JavaScript evaluation. The actual Node subprocess checks for Python AST and Bash syntax are defined but not yet independently executed. The new GitHub workflow has been created and is pending; source CI is separate. No complete fresh local database installation, genuine signed test, concurrency result or disposable teardown can yet be claimed. U1A remains **draft and held**. U1B property/class existing-rule adoption, U2 worker offer/acceptance, the separate nonfarm domain proof and the full Elm Subject identity audit remain queued.
 
 ### Signed-probe negative cases staged after fixture
 
