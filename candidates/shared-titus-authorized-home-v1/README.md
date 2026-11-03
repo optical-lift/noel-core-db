@@ -196,3 +196,15 @@ Reconciled Atlas Universal Program Participation handoff (October 26, 30 previou
 **Read-only live preflight:** the canonical signed Person resolver and Atlas auth credential/Teaching source tables exist; the new public.titus_authorized_home_self_api_v1() RPC is absent; Atlas Teaching has **0 Course, 0 Offering, 0 Enrollment**. No student entitlement can be inferred from the now-passing offline tests.
 
 **IMPORTANT:** passing source CI is not a full schema clone, not actual signed HTTP acceptance, not teacher/author rights proof and not approval for production. The completion register and PR body must keep these gates explicit.
+
+## 2026-11-02 continuation: remove legacy signed one-Person false-pass route
+
+**Bounded outcome:** Reconcile `signed_self_read_test.py` with the newer mandatory localhost signed-isolation matrix. The older helper previously had an opt-in live-project URL path and accepted `identity_not_ready` as a passing signed read when expecting no courses. Both could misstate the proof needed to release the new current-Person home.
+
+- `52e51a14ad153bc19fe4d8d196accd5f64c4ebcc`: one-Person diagnostic now uses the shared localhost-only origin and bounded user-bearer HTTP response validator. It refuses a production URL even when the old `TITUS_HOME_ALLOW_LIVE_READ=true` override is supplied. Anonymous must receive a real 401/403; 404 is not a denial; signed user must resolve to `ready`; an empty identity failure cannot pass. No credentials, source bodies, Person IDs or tokens are logged.
+- `c740b7cc0e887bbecca1844fbf1a59fb6db7db6c`: four added offline regression tests cover live URL override refusal, malformed/shared credentials, unresolved identity and wrong entitlement expectation, plus the required anonymous and signed local calls. Existing multi-Person matrix is unchanged.
+- **PASS** [signed-matrix source checks #41572871727](https://github.com/optical-lift/noel-core-db/actions/runs/41572871727) and **PASS** [Database Custody CI #41572871744](https://github.com/optical-lift/noel-core-db/actions/runs/41572871744) for exact code commit `c740b7cc0e887bbecca1844fbf1a59fb6db7db6c`. These are offline source/CI checks, **not** actual SQL clone runtime or signed GoTrue/PostgREST tests.
+
+**Preserved:** institutional learner-only candidate SQL and structural postconditions unchanged. No live RPC, Atlas enrolment, Person, grant, session, OAuth client, release migration, Titus page, Vercel setting or deployment changed. Both branches stay draft.
+
+**Next mandatory gate remains open:** controlled production-shaped disposable PostgreSQL + local GoTrue/PostgREST instance, actual current candidate SQL applied *there only*, genuine signed enrolled/unrelated/withdrawn/wrong-client/unbound/revoked/expired cases, closed/offering/unpublished state denials, deduplication, redacted proof, shared-source custody review. Do not graduate this reader from source stage because its diagnostic tests pass.
