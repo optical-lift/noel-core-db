@@ -1,5 +1,6 @@
 // U1A fast static contract; NOT PostgreSQL compilation or signed-actor proof.
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 const p=new URL('../candidates/atlas_governed_rulebook_u1a_v1/candidate.sql', import.meta.url);
@@ -218,4 +219,33 @@ test('U1A signed proof uses independent real GoTrue auth and exact native approv
  ])assert.ok(u1aSigned.includes(x),x);
  assert.match(u1aSigned,/127\[.\]0\[.\]0\[.\]1:54322\/postgres/);
  assert.doesNotMatch(u1aSigned,/jwt\.encode|jwt\.sign|service_role.*Bearer|NOEL_CORE_DATABASE_URL|SUPABASE_DB_URL/i);
+});
+
+
+test('Python 3 syntax of U1A signed clone utilities',()=>{
+ const files=[
+   new URL('../candidates/atlas_governed_rulebook_u1a_v1/validate_signed_u1a_local_clone_v1.py',import.meta.url),
+   new URL('../candidates/atlas_governed_rulebook_u1a_v1/run_signed_u1a_on_fresh_clone_v1.py',import.meta.url)
+ ];
+ // ast.parse parses source without importing Supabase or running the script.
+ const result=spawnSync('python3',[
+  '-c',
+  'import ast,sys; [ast.parse(open(p,encoding="utf-8").read(),filename=p) for p in sys.argv[1:]]',
+  ...files.map(x=>x.pathname)
+ ],{encoding:'utf8',timeout:10000});
+ assert.equal(result.status,0,result.stderr||result.error?.message||'Python parser unavailable');
+});
+test('U1A guarded signed controller cannot target existing RiverSong clone or production',()=>{
+ const runner=readFileSync(
+  new URL('../candidates/atlas_governed_rulebook_u1a_v1/run_signed_u1a_on_fresh_clone_v1.py',import.meta.url),'utf8');
+ for(const v of [
+  'confirm-fresh-disposable',
+  'postgres(?:ql)?://[^@]+@127[.]0[.]0[.]1:54322/postgres',
+  'FRESH_SYNTHETIC',
+  'status","--porcelain"',
+  'validate_signed_u1a_local_clone_v1.py',
+  'signed_u1a_fictional_fixture_v1.sql',
+  'DESTROY disposable Auth/REST/Postgres clone now'
+ ])assert.ok(runner.includes(v),v);
+ assert.doesNotMatch(runner,/NOEL_CORE_DATABASE_URL|supabase db push|--db-url.*noel_schema_clone|remote Supabase SQL/i);
 });
