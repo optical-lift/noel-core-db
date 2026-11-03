@@ -11,6 +11,7 @@ const actual=read('10_care_actual_single_done_cutover_candidate.sql');
 const writer=read('19_owner_standing_visit_source_writer.sql');
 const selector=read('21_owner_standing_successor_authority.sql');
 const advance=read('22_owner_standing_campaign_auto_advance.sql');
+const disclosed=read('23_connected_person_disclosed_standing_rhythms_v1.sql');
 const bundle=read('r01_reality_offering_release_candidate.sql');
 const post=read('r01_reality_offering_postconditions.sql');
 const runner=read('manual_r01_reality_offering_rollback.sh');
@@ -59,6 +60,14 @@ test('future dates come from signed owner weekdays, never Elm legacy Sunday defa
   assert.match(advance,/sourceStandingWorkdaysIso/);
   assert.doesNotMatch(selector,/extract\(dow FROM v_expected_date\)/);
   assert.doesNotMatch(advance,/extract\(dow FROM v_next_date\)/);
+});
+test('the signed disclosed rhythm reader is the only new Today discovery transport',()=>{
+  assert.match(disclosed,/CREATE OR REPLACE FUNCTION public.connected_person_disclosed_standing_rhythms_self_api_v1/);
+  assert.match(disclosed,/has_current_subject_disclosure_v1/);
+  assert.match(disclosed,/source_governance_events_v1/);
+  assert.match(disclosed,/REVOKE ALL ON FUNCTION atlas.connected_person_disclosed_standing_rhythms_self_api_v1/);
+  assert.match(disclosed,/GRANT EXECUTE ON FUNCTION public.connected_person_disclosed_standing_rhythms_self_api_v1/);
+  assert.ok(bundle.includes(disclosed));
 });
 test('the assembled candidate is an unapplied and explicit hold',()=>{
   assert.ok(bundle.startsWith('BEGIN;\n'));
