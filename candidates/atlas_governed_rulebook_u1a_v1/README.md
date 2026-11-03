@@ -51,3 +51,22 @@ Exact decisions: **1D, 2C, 3B, 4C, 5C, 6B, 7C, 8C, 9C, 10C**. They control U1B/U
 Source fixes on this PR corrected malformed JavaScript test quote escapes and changed the Foundry event row read to select its real columns. A policy-key allowlist now rejects client-invented property/class scope or auto-release fields rather than granting them through this exact-Subject U1A. The held structural postconditions include an unsigned read/write default-denial smoke without creating a fixture. Nine static source-contract tests were executed against the candidate in an isolated JavaScript assertion harness; these do not establish Node execution on RiverSong, PostgreSQL compilation, signed positive and negative actors, concurrent approval, or production acceptance.
 
 Do not merge or install before disposable full-schema rollback, actual signed principal and independent Subject denial tests, source owner approval and separate exact protected release. U1B and U2 remain queued, not included here.
+
+
+## RiverSong rollback gate (prepared, not executed)
+
+The held source includes [run_riversong_rollback.sh](run_riversong_rollback.sh), a local-only, fail-closed PostgreSQL 17 runner. It executes the Node source-contract test, checks the exact RiverSong Unix socket, noel_schema_clone:55432 and existing isolated PG data directory, and refuses an arbitrary remote URL, server startup or restoration.
+
+It requires currently installed copies of the real native Ledger, Requirement, Person/Subject, Foundry, auth.sessions and signed source functions. If the October 28 retained clone lacks atlas.work_requirements or any other dependency, it **stops before any SQL mutation**. Do not repair this clone piecemeal or connect to production. A fresh full-schema protected disposable clone is the proper next environment.
+
+Only after all prerequisites does it send one psql transaction: BEGIN, short local timeouts, source candidate, structural/unsigned postconditions, ROLLBACK. First SQL error aborts and rolls back. Afterwards it compares original schema-function-trigger-policy/data-count fingerprints and confirms both U1A tables are absent. It does not run authentic signed GoTrue actors.
+
+On RiverSong only, after an authenticated checkout of the existing U1A draft branch and verification of its exact head SHA, invoke:
+
+    bash candidates/atlas_governed_rulebook_u1a_v1/run_riversong_rollback.sh
+
+Do not paste credentials into chat, checkout into a production deployment, or interpret this documented command as an already executed test. It may refuse the old retained clone without changing it.
+
+**Separate signed acceptance still required:** a fresh protected schema-only local GoTrue environment with fictional Subject, Requirement and human principals; current root approval and reread, worker/outsider/revoked/withdrawn/wrong-Ledger/wrong-Subject and missing-evidence denial, same- and different-payload replay, competing revisions, immutable source, and zero native Work/Result/Clock/Need effects. Use the existing R01 protected fresh-clone signed-care harness as a method reference; never copy its farm-specific writer authority into U1A. The retained RiverSong clone is not the signed-HTTP test environment.
+
+**Status:** 11 source-contract assertions passed in an isolated JavaScript evaluation. The new local script, PostgreSQL compilation, actual RiverSong Node process and genuine signed actors have **not** been run in this session. U1B property/class approval and U2 offered initial Work remain queued; user requires full farm identity audit and second domain before Elm pilot.
