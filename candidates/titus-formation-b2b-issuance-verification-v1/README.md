@@ -60,3 +60,10 @@ Read-only live PostgreSQL catalog confirmation on November 3 found all five prop
 Before enabling a reviewer read or writer: identify and authorize the **real issuing source**, its stewardship Person, exact signed/versioned edition fingerprint and rights-covered source inputs; separate author approval, rights-holder clearance, educational review, named learner release, response-specific learner disclosure, and reviewer appointment (including revocation and expiry). Reuse an established carrier if it actually governs each operation; otherwise specify only the smallest missing source-owned issuance/acceptance operation, then test with independent current Persons on a production-shaped disposable clone. Do **not** turn the existing UUID-shaped references into actual approvals, and do not open the B2A gate.
 
 Keep [issue #2461](https://github.com/optical-lift/noel-core-db/issues/2461) open; Build B2C and Builds C–E remain separately queued.
+
+
+## Subsequent source-owned learner decision candidate — November 3, 2026
+
+[Stacked draft PR #2467](https://github.com/optical-lift/noel-core-db/pull/2467) adds an exact-response, exact-reviewer, current-Person learner declaration and withdrawal history. It **does not authorize actual reviewer disclosure**; the separate issuance verifier in this candidate remains hard false. The current binding to a historical Teacher profile does not prove immutable original response Person attribution. The command is internal (no browser grants); no actual learner decision was recorded.
+
+**Source-only acceptance PASS** at tested SHA `d0d1caa6b6bbc64a6c28f06d271398bab4a7d320`: [PostgreSQL 16 #41706266682](https://github.com/optical-lift/noel-core-db/actions/runs/41706266682) and [Database Custody #41706266547](https://github.com/optical-lift/noel-core-db/actions/runs/41706266547). Synthetic fixture only; no GoTrue signed end-to-end session. Next owning dependency is immutable original-response writer attribution and exact teaching-edition/rights/reviewer issuance. This register remains open.

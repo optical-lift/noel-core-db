@@ -1,0 +1,103 @@
+name: Titus B2B learner disclosure decisions - isolated source proof
+
+on:
+  push:
+    branches:
+      - work/titus-b2b-learner-disclosure-decision-20261103
+    paths:
+      - 'candidates/titus-formation-b2b-learner-disclosure-v1/**'
+      - '.github/workflows/titus-b2b-learner-disclosure-source.yml'
+  pull_request:
+    paths:
+      - 'candidates/titus-formation-b2b-learner-disclosure-v1/**'
+      - '.github/workflows/titus-b2b-learner-disclosure-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-learner-disclosure-source:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture-only-not-a-secret
+          POSTGRES_DB: titus_disclosure_disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d titus_disclosure_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: fixture-only-not-a-secret
+      PGDATABASE: titus_disclosure_disposable
+    steps:
+      - name: Exact source checkout without persistent credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce private source and no permission expansion
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('candidates/titus-formation-b2b-learner-disclosure-v1')
+          sql=(root/'candidate.sql').read_text()
+          tests=(root/'postconditions.sql').read_text()
+          for required in (
+            'formation_review_disclosure_decisions_v1',
+            'titus.current_authenticated_person_entity_id_v1()',
+            'auth.uid()', 'auth.jwt()', 'SECURITY INVOKER',
+            'ENABLE ROW LEVEL SECURITY', 'REVOKE ALL',
+            'decision_kind', 'prior_decision_id',
+            "('consent','withdraw')", 'FOR UPDATE',
+          ):
+            assert required in sql, required
+          for prohibited in (
+            'CREATE OR REPLACE FUNCTION public.', 'SECURITY DEFINER',
+            'GRANT EXECUTE', 'GRANT SELECT', 'GRANT INSERT',
+            'CREATE ROLE', 'ALTER ROLE', 'UPDATE titus.formation_responses',
+            'DELETE FROM titus.formation_responses',
+            'CREATE OR REPLACE FUNCTION titus.formation_response_work_authority_gate_v1',
+            'CREATE OR REPLACE FUNCTION titus.formation_review_source_issuance_verified_v1',
+            'supabase db push',
+          ):
+            assert prohibited not in sql, prohibited
+          for claim in (
+            'retirement blocked lawful learner withdrawal',
+            'browser privilege opened',
+            'learner declaration opened a teaching-review gate',
+            'consent handler modified original learner text',
+          ):
+            assert claim in tests, claim
+          print('PASS source restrictions: no new reviewer permission or response mutation')
+          PY
+      - name: Initialize fictional B2A and B2B sources in disposable Postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-response-work-b2-v1/fixture.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/fixture.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-response-work-b2-v1/candidate.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/candidate.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-review-b2b-evidence-v1/postconditions.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-b2b-issuance-verification-v1/candidate.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-b2b-issuance-verification-v1/postconditions.sql
+      - name: Verify guarded learner decision and withdrawal in synthetic environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-b2b-learner-disclosure-v1/fixture.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-b2b-learner-disclosure-v1/candidate.sql
+          psql -v ON_ERROR_STOP=1 -X -f candidates/titus-formation-b2b-learner-disclosure-v1/postconditions.sql
+          echo 'PASS synthetic learner declaration only; no real signed Person, issuance or B2C access.'
