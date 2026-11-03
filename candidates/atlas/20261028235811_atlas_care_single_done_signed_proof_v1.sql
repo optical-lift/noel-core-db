@@ -7189,7 +7189,4 @@ BEGIN
 END;
 $admission_gate$;
 
--- R02: reload REST schema only AFTER the new public source RPCs were created.
-SELECT pg_catalog.pg_notify('pgrst','reload schema');
-
 COMMIT;
