@@ -69,7 +69,7 @@ Do not paste credentials into chat, checkout into a production deployment, or in
 
 **Separate signed acceptance still required:** a fresh protected schema-only local GoTrue environment with fictional Subject, Requirement and human principals; current root approval and reread, worker/outsider/revoked/withdrawn/wrong-Ledger/wrong-Subject and missing-evidence denial, same- and different-payload replay, competing revisions, immutable source, and zero native Work/Result/Clock/Need effects. Use the existing R01 protected fresh-clone signed-care harness as a method reference; never copy its farm-specific writer authority into U1A. The retained RiverSong clone is not the signed-HTTP test environment.
 
-**Status:** 16 source-contract assertions passed in an isolated JavaScript evaluation. The new local script, PostgreSQL compilation, actual RiverSong Node process and genuine signed actors have **not** been run in this session. U1B property/class approval and U2 offered initial Work remain queued; user requires full farm identity audit and second domain before Elm pilot.
+**Status:** 21 static source-contract assertions passed in an isolated JavaScript evaluation. The new local script, PostgreSQL compilation, actual RiverSong Node process and genuine signed actors have **not** been run in this session. U1B property/class approval and U2 offered initial Work remain queued; user requires full farm identity audit and second domain before Elm pilot.
 
 
 ### Exact independent Foundry custody review — current source contract
@@ -87,7 +87,7 @@ Read-only Noel source inspection confirms:
 
 **Signed tests still required on a FRESH disposable clone:** (1) genuine owner + independently signed reviewer + disconnected worker/outsider; (2) captured Event in pending workspace without approved review **denies** adoption with zero Rulebook rows; (3) approved review for an unrelated Event or without `analyze` **denies**; (4) an exact, after-Event, current independently approved review plus root and Subject grants establishes one immutable version; (5) same-action replay is idempotent and changed-payload replay denies; (6) revoked or expired case denies *new* adoption while historical root read returns `sourceReviewCurrent=false`; (7) competing approvals, revoked Seat/root/Subject grants, wrong Ledger and outsider deny without source/count disclosure; (8) no Work, Need, Actual, Clock or legacy task effects. Do not fabricate positive approvals by direct SQL insertion into the review table or by forging JWTs.
 
-**Status:** 16 U1A structural source-contract assertions passed in an isolated JavaScript evaluation. Neither PostgreSQL compilation, native RiverSong script execution, nor genuine signed GoTrue tests have been performed. U1B property/class policy and U2 offered Work remain separately held.
+**Status:** 21 U1A static source-contract assertions passed in an isolated JavaScript evaluation. Neither PostgreSQL compilation, native RiverSong script execution, nor genuine signed GoTrue tests have been performed. U1B property/class policy and U2 offered Work remain separately held.
 
 
 ### Current review-case readback and deterministic replay
@@ -118,4 +118,11 @@ python3 candidates/atlas_governed_rulebook_u1a_v1/run_signed_u1a_on_fresh_clone_
 
 The URL must resolve to the local ephemeral `127.0.0.1:54322/postgres`; never supply the production project URI. The controller does **not** provision or destroy the clone for you. Do not run this on a persistent local development instance containing real data. The protected production-schema validation workflow currently accepts versioned migration packages, not this held source; **do not bypass or modify that workflow solely to run this test.**
 
-**Evidence boundary:** 20 static source-contract assertions were exercised successfully against the exact held SQL/test sources in an isolated JavaScript evaluation. A twenty-first Node test for **Python AST parsing** is staged but has **not been run**. The new SQL fixture, Python scripts, local PostgreSQL compilation, real signed HTTP behavior, concurrency, revoked Seat/Subject and completed protected test lane are **not yet runtime-verified**. Do not claim the presence of these files is a passing signed test or permission to merge or deploy.
+**Evidence boundary:** 21 static source-contract assertions were exercised successfully against the exact held SQL/test sources in an isolated JavaScript evaluation. A twenty-second Node test for **Python AST parsing** is staged but has **not been run**. The new SQL fixture, Python scripts, local PostgreSQL compilation, real signed HTTP behavior, concurrency, revoked Seat/Subject and completed protected test lane are **not yet runtime-verified**. Do not claim the presence of these files is a passing signed test or permission to merge or deploy.
+
+
+### Signed-probe negative cases staged after fixture
+
+The signed Python test also verifies that an independently reviewed Source Event does **not** authorize a second, unreviewed Event in the same workspace; two simultaneous approvals against one expected version cannot both win; and the root's revoked `auth.sessions` row causes a real signed historical read to fail. These tests use the *same existing local GoTrue/C1* identities, not fabricated JWTs. Concurrent writers and withdrawn-session tests have **not been executed**.
+
+The latest source-contract check in an isolated JavaScript environment passed **21/21 executable static assertions**; the additional Python AST syntax test is defined for the real `node --test` execution but is **still unrun**. Consequently, no PostgreSQL compilation, genuine GoTrue test, disposal receipt or production release may be claimed.
