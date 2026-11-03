@@ -179,12 +179,76 @@ def proof(db,api,key,tokens,scope,care):
     status,obj=care.rpc(api,key,owner,OWNER_RPC,invalid)
     require(status==400 and isinstance(obj,dict) and obj.get("code")=="22023",
             "governor's disallowed initial workday must fail at source; not PGRST202")
+    # When the held R02 universal transport is installed, it must establish
+    # the FIRST original using genuine signed governor authority. The prior
+    # specialized owner writer must then return exactly the same source action.
+    generic_sig=("public.governor_approve_rhythm_opportunity_self_api_v1"
+                 "(uuid,uuid,uuid,text,uuid,text,date,date,smallint[],uuid)")
+    generic=care.sql(db,"select to_regprocedure("+literal(generic_sig)+") is not null")=="t"
+    if generic:
+        review_args={"p_organization_id":ORG,"p_ledger_id":LEDGER,
+                     "p_scope_id":scope,"p_limit":20,"p_after_candidate_id":None}
+        care.deny(api,key,worker,"governor_review_rhythm_opportunities_self_api_v1",
+                  review_args,"worker cannot preview governor rhythm opportunities")
+        care.deny(api,key,outsider,"governor_review_rhythm_opportunities_self_api_v1",
+                  review_args,"outsider cannot preview governor rhythm opportunities")
+        preview=care.allow(api,key,owner,
+            "governor_review_rhythm_opportunities_self_api_v1",review_args)
+        require(preview.get("contractVersion")=="governed_rhythm_opportunities_v1"
+          and preview.get("coverage")=="registered_source_adapters_only"
+          and preview.get("notAnAllRhythmsCensus") is True
+          and preview.get("workerPersonId")=="e5200000-0000-4000-8000-000000000102"
+          and isinstance(preview.get("items"),list)
+          and any(item.get("candidateId")==STATE4 and item.get("canOffer") is True
+                  and item.get("adapterKey")=="continuing_care_actual_v1"
+                  and item.get("physicalConditionAsserted") is False
+                  for item in preview["items"]),
+          "universal source preview lacks real eligible Subject or exact coverage")
+        gargs={"p_organization_id":ORG,"p_ledger_id":LEDGER,
+               "p_scope_id":scope,"p_adapter_key":"continuing_care_actual_v1",
+               "p_candidate_id":STATE4,"p_reason":args["p_visit_reason"],
+               "p_first_workday":service,"p_campaign_end_date":end,
+               "p_approved_iso_workdays":[1,2,3,4,5,6,7],"p_action_id":CAMPAIGN}
+        care.deny(api,key,worker,"governor_approve_rhythm_opportunity_self_api_v1",
+                  gargs,"worker cannot approve universal rhythm mandate")
+        care.deny(api,key,outsider,"governor_approve_rhythm_opportunity_self_api_v1",
+                  gargs,"outsider cannot approve universal rhythm mandate")
+        code,obj=care.rpc(api,key,owner,
+           "governor_approve_rhythm_opportunity_self_api_v1",
+           dict(gargs,p_adapter_key="unsupported_other_rhythm_v1"))
+        require(code==400 and isinstance(obj,dict) and obj.get("code")=="22023",
+                "unregistered source adapter was not rejected")
+        code,obj=care.rpc(api,key,owner,
+           "governor_approve_rhythm_opportunity_self_api_v1",
+           dict(gargs,p_approved_iso_workdays=[wrong_weekday]))
+        require(code==400 and isinstance(obj,dict) and obj.get("code")=="22023",
+                "governor approved a weekday outside the selected mandate")
+        first=care.allow(api,key,owner,
+            "governor_approve_rhythm_opportunity_self_api_v1",gargs)
+        require(first.get("contractVersion")=="governed_rhythm_approval_v1"
+          and first.get("newOriginalWorkCreated") is True
+          and first.get("adapterKey")=="continuing_care_actual_v1"
+          and first.get("candidateId")==STATE4
+          and first.get("actionId")==CAMPAIGN
+          and first.get("noPhysicalResultInferred") is True,
+          "universal approval did not verify the first original and source")
+        repeat_generic=care.allow(api,key,owner,
+            "governor_approve_rhythm_opportunity_self_api_v1",gargs)
+        require(repeat_generic.get("existingAction") is True
+          and repeat_generic.get("workItemId")==first.get("workItemId"),
+          "universal approved action replay duplicated an original")
     made=care.allow(api,key,owner,OWNER_RPC,args)
     work=made.get("workItemId")
-    require(made.get("newOriginalWorkCreated") is True and work
-      and made.get("responsiblePersonId")=="e5200000-0000-4000-8000-000000000102"
-      and made.get("approvedWorkdaysIso")==[1,2,3,4,5,6,7],
+    require(work
+      and (made.get("newOriginalWorkCreated") is True or
+           generic and made.get("existingAction") is True)
+      and (generic or made.get("responsiblePersonId")==
+           "e5200000-0000-4000-8000-000000000102")
+      and (generic or made.get("approvedWorkdaysIso")==[1,2,3,4,5,6,7]),
       "governor's signed mandate did not create one correct original")
+    if generic:
+        require(work==first.get("workItemId"),
+                "the universal and domain sources generated different originals")
     repeated=care.allow(api,key,owner,OWNER_RPC,args)
     require(repeated.get("existingAction") is True
       and repeated.get("workItemId")==work,"same governor action duplicated Work")
@@ -255,6 +319,9 @@ def proof(db,api,key,tokens,scope,care):
            "Outsider cannot read newly delivered Bed 5 subject")
     print("PASS R01 signed owner -> Bed 4 original -> partial -> accepted physical Done -> "
           "single Bed 5 original with next approved day, native Today, retry and outsider denial")
+    if generic:
+        print("PASS R02 universal signed governor preview, source adapter denial, "
+              "same original Work, replay and downstream Actual/Today")
     return ("PASS R01 genuine signed owner/worker/outsider; two independent "
             "Subject rhythm rules; one accepted Actual creates exactly one "
             "approved next original in My Work/Today; replay and denial.\n")
