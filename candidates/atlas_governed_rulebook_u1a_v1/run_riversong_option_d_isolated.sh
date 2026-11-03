@@ -41,9 +41,11 @@ PROJECT="$SCRATCH/project"
 EVIDENCE="$SCRATCH/evidence"
 mkdir -p "$PROJECT" "$EVIDENCE"
 STARTED=false
+PHASE="prepare-isolated-project"
 cleanup() {
   code=$?
   trap - EXIT
+  printf 'SOURCE_SHA=%s\nPHASE=%s\nEXIT_CODE=%s\n' "$SHA" "$PHASE" "$code" >"$EVIDENCE/source-result.txt"
   if [[ "$STARTED" == true ]]; then
     if (cd "$PROJECT" && supabase stop --no-backup) >"$EVIDENCE/cleanup.log" 2>&1; then
       echo 'CLEANUP: exact disposable Supabase project stopped without backup'
@@ -65,6 +67,9 @@ cleanup() {
       RECEIPT_DIR="$RUNNER_TEMP/u1a-option-d-results-${GITHUB_RUN_ID:-manual-$}-${GITHUB_RUN_ATTEMPT:-1}"
       mkdir -p "$RECEIPT_DIR"
       cp "$EVIDENCE/cleanup-state.txt" "$RECEIPT_DIR/cleanup-state.txt"
+      cp "$EVIDENCE/source-result.txt" "$RECEIPT_DIR/source-result.txt"
+      [[ ! -s "$EVIDENCE/missing-native-sources.txt" ]] ||
+        cp "$EVIDENCE/missing-native-sources.txt" "$RECEIPT_DIR/missing-native-sources.txt"
       [[ ! -s "$EVIDENCE/signed-proof.txt" ]] ||
         cp "$EVIDENCE/signed-proof.txt" "$RECEIPT_DIR/signed-proof.txt"
     fi
@@ -76,6 +81,7 @@ cleanup() {
 trap cleanup EXIT
 
 cd "$PROJECT"
+PHASE="initialize-unique-supabase-project"
 supabase init --force >"$EVIDENCE/init.log" 2>&1
 mkdir -p "$PROJECT/supabase/migrations"
 cp "$MIGRATIONS"/*.sql "$PROJECT/supabase/migrations/"
@@ -125,6 +131,7 @@ DB_PORT="$(sed -n '3p' "$EVIDENCE/ports.txt")"
 DB_URL="postgresql://postgres:postgres@127.0.0.1:$DB_PORT/postgres"
 echo "SOURCE_SHA=$SHA; ISOLATED_PROJECT=$PROJECT_ID; LOOPBACK_API=$API_PORT; LOOPBACK_DB=$DB_PORT"
 STARTED=true
+PHASE="launch-local-auth-rest-postgres"
 supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor \
   >"$EVIDENCE/startup.log" 2>&1 ||
  { echo 'HOLD: isolated local Supabase startup failed (no other project changed)'; exit 1; }
@@ -134,6 +141,7 @@ query() { psql "$DB_URL" -X -At -v ON_ERROR_STOP=1 -c "$1"; }
 
 # Source-only migrations MUST reconstruct actual Noel sources. Missing
 # schemas/functions are a HOLD, never a reason to synthesize grants.
+PHASE="native-schema-source-parity"
 missing=0
 for rel in atlas.organizations atlas.ledgers atlas.work_requirements atlas.work_items \
  atlas.farms atlas.growing_objects atlas.ledger_organization_participations \
@@ -141,7 +149,7 @@ for rel in atlas.organizations atlas.ledgers atlas.work_requirements atlas.work_
  reality.entities foundry.events foundry.workspace_authority_registry_v1 \
  foundry.source_custody_review_cases_v1 auth.users auth.sessions; do
   if [[ "$(query "SELECT (to_regclass('$rel') IS NOT NULL)::text")" != true ]]; then
-    echo "MISSING_SOURCE_TABLE: $rel"
+    echo "MISSING_SOURCE_TABLE: $rel" | tee -a "$EVIDENCE/missing-native-sources.txt"
     missing=1
   fi
 done
@@ -157,7 +165,7 @@ for sig in \
  'atlas.revoke_foundry_source_custody_review_self_api_v1(uuid,text)' \
  'auth.uid()'; do
   if [[ "$(query "SELECT (to_regprocedure('$sig') IS NOT NULL)::text")" != true ]]; then
-    echo "MISSING_SOURCE_FUNCTION: $sig"
+    echo "MISSING_SOURCE_FUNCTION: $sig" | tee -a "$EVIDENCE/missing-native-sources.txt"
     missing=1
   fi
 done
@@ -169,10 +177,12 @@ done
 [[ "$(query "SELECT (to_regclass('atlas.governed_rulebook_versions_v1') IS NULL)::text")" == true ]] ||
  { echo 'STOP: U1A already installed'; exit 1; }
 
+PHASE="install-source-owned-fictional-c1-fixture"
 psql "$DB_URL" -X -v ON_ERROR_STOP=1 \
  -f "$ROOT/validation/fixtures/20261026215011_atlas_universal_original_work_integrated_v1.sql" \
  >"$EVIDENCE/fictional-c1.log" 2>&1 ||
  { echo 'HOLD: source-owned fictional C1 fixture could not install'; exit 1; }
+PHASE="signed-u1a-governed-root-revision-review"
 export U1A_DISPOSABLE_DB_PORT="$DB_PORT"
 export U1A_DISPOSABLE_PROJECT_DIR="$PROJECT"
 python3 "$HERE/run_signed_u1a_on_fresh_clone_v1.py" --db-url "$DB_URL" \
