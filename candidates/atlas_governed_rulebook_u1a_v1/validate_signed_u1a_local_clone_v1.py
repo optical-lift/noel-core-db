@@ -11,6 +11,7 @@ import argparse
 import importlib.util
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +33,7 @@ BED = "e5200000-0000-4000-8000-000000000b03"
 NEED = "ec310000-0000-4000-8000-000000000001"
 ACTION = "ec310000-0000-4000-8000-000000000021"
 PAUSE_ACTION = "ec310000-0000-4000-8000-000000000022"
+COMPETING_PAUSE_ACTION = "ec310000-0000-4000-8000-000000000025"
 RETIRE_ACTION = "ec310000-0000-4000-8000-000000000023"
 RULE = "fictional_bed3_restorative_maintenance"
 POLICY = {
@@ -209,6 +211,20 @@ def main():
           and approved.get("workspaceCustodyState")=="pending",
           "Independent review must approve CASE without promoting workspace")
 
+    # Approval of one Event never licenses other provisional evidence in
+    # the same Foundry workspace, even for the identical signed Ledger root.
+    unrelated = allow(api,key,owner,"capture_foundry_reality_input_self_api_v1",{
+        "p_workspace_id":ws,
+        "p_request_id":"ec310000-0000-4000-8000-000000000014",
+        "p_original_text":"Different fictional observation with no independent source review.",
+        "p_segments":[{"kind":"operating_instruction",
+                       "text":"Different fictional observation with no independent source review."}],
+        "p_source_kind":"operator_statement", "p_observed_at":None,
+    })
+    denied(api,key,owner,"adopt_governed_rulebook_version_self_api_v1",
+           adopt(ws,unrelated["entryId"],"active",ACTION),
+           "Approved review case does not permit another Foundry Event")
+
     denied(api,key,worker,"adopt_governed_rulebook_version_self_api_v1",
            adopt(ws,entry,"active",ACTION),"Source reviewer cannot govern Rulebook")
     denied(api,key,outsider,"adopt_governed_rulebook_version_self_api_v1",
@@ -234,10 +250,25 @@ def main():
     check(current.get("ruleVersionId")==version and current.get("sourceReviewCurrent") is True,
           "Signed root must read same immutable version with current approval")
 
-    paused = allow(api,key,owner,"adopt_governed_rulebook_version_self_api_v1",
-                   adopt(ws,entry,"paused",PAUSE_ACTION,expected=version))
+    # Competing signed approvals for the exact same predecessor must not
+    # create two version-2 decisions. Neither thread forges a JWT.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        race = list(pool.map(
+            lambda action: rpc(
+                api,key,owner,"adopt_governed_rulebook_version_self_api_v1",
+                adopt(ws,entry,"paused",action,expected=version)),
+            (PAUSE_ACTION,COMPETING_PAUSE_ACTION)))
+    successes = [obj for status,obj in race
+                 if status==200 and isinstance(obj,dict) and obj.get("ok") is True]
+    denials = [obj for status,obj in race
+               if status in (401,403) and isinstance(obj,dict)
+               and obj.get("code")=="42501"]
+    check(len(successes)==1 and len(denials)==1,
+          f"Expected one signed version-2 pause and one native stale denial, got: {race}")
+    paused = successes[0]
     check(paused.get("ruleVersion")==2 and paused.get("policyExecutable") is False,
-          "Explicit pause must append exactly one nonexecuting version")
+          "Concurrent pause must append exactly one nonexecuting version")
+    print("PASS signed competing version decisions serialized with one native denial")
     retired = allow(api,key,owner,"adopt_governed_rulebook_version_self_api_v1",
                     adopt(ws,entry,"retired",RETIRE_ACTION,
                           expected=paused["ruleVersionId"]))
@@ -259,6 +290,14 @@ def main():
            adopt(ws,entry,"retired","ec310000-0000-4000-8000-000000000024",
                  expected=retired["ruleVersionId"]),
            "Withdrawn source custody cannot authorize a new decision")
+
+    # A JWT whose local GoTrue session was deleted must not be a
+    # reusable root credential, even while its token signature still parses.
+    owner_session = signed["owner"][1]["session_id"]
+    sql(args.db_url, "delete from auth.sessions where id='"
+        +owner_session+"'::uuid")
+    denied(api,key,owner,"read_governed_rulebook_current_self_api_v1",
+           read(), "Deleted GoTrue session denies historical root read")
 
     check(sql(args.db_url,"select count(*) from atlas.governed_rulebook_versions_v1")=="3"
           and sql(args.db_url,"select count(*) from atlas.governed_rulebook_bindings_v1")=="3",
