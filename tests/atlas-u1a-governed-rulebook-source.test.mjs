@@ -249,3 +249,16 @@ test('U1A guarded signed controller cannot target existing RiverSong clone or pr
  ])assert.ok(runner.includes(v),v);
  assert.doesNotMatch(runner,/NOEL_CORE_DATABASE_URL|supabase db push|--db-url.*noel_schema_clone|remote Supabase SQL/i);
 });
+
+test('signed U1A source tests explicitly cover competing revisions and revoked sessions',()=>{
+ for(const needle of [
+  'ThreadPoolExecutor(max_workers=2)',
+  'COMPETING_PAUSE_ACTION',
+  'len(successes)==1 and len(denials)==1',
+  'unrelated["entryId"]',
+  'Approved review case does not permit another Foundry Event',
+  'delete from auth.sessions where id=',
+  'Deleted GoTrue session denies historical root read'
+ ])assert.ok(u1aSigned.includes(needle),needle);
+ assert.doesNotMatch(u1aSigned,/sign_jwt|jwt\.encode|service_role.*Bearer/i);
+});
