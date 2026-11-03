@@ -125,14 +125,23 @@ No changes to Atlas app main. Final release remains separate authorization.
 - Full production-shaped disposable clone rerun initiated via
   [Noel owner validation request #2454](https://github.com/optical-lift/noel-core-db/issues/2454)
   and [protected run #41573867067](https://github.com/optical-lift/noel-core-db/actions/runs/41573867067).
-  Its exact non-releasable care-canary candidate SHA is
-  `ea951fe4279e9b8f5fbacb055ae7445f4dd17648`: it retains the old
-  signed test layers and includes source-composed standing visit,
-  explicit approved ISO weekdays, one-Done physical Actual and
-  Actual-driven successor. **Await exact result; never mark this passed
-  from request submission.**
+  Its first clone-only candidate SHA was
+  `ea951fe4279e9b8f5fbacb055ae7445f4dd17648`: the full
+  production-shaped PostgreSQL schema accepted the new owner visit,
+  ISO workdays, source Done/Actual and successor DDL, and all structural
+  postconditions passed. **Signed run failed**, correctly, at missing
+  public `connected_person_disclosed_standing_rhythms_self_api_v1`
+  (PostgREST PGRST202, not a valid denial). This is an unstaged held
+  sibling-source dependency, not proof of an R01 signed successor.
 - No merge to production source, Person grants, real farm data mutations
   or Atlas app deployments. After clone SQL compatibility, the mandatory
   R01 signed accepted Actual → next Work → worker Today/owner Ledger
-  journey is STILL OPEN until separately proven. Do not call R01 complete
-  merely because the earlier observed-source admission remains green.
+  journey is STILL OPEN until separately proven. The reader has now been
+  reused byte-for-byte from held Noel #2385 in
+  `23_connected_person_disclosed_standing_rhythms_v1.sql`, assembled into
+  the R01 source package, and staged in a refreshed non-releasable clone
+  canary at SHA `6fe09b47c7558787a1eb048daffc9c0ea560b032`.
+  [Owner validation issue #2455](https://github.com/optical-lift/noel-core-db/issues/2455)
+  starts [signed-clone retest #41574368737](https://github.com/optical-lift/noel-core-db/actions/runs/41574368737).
+  The outcome is pending; do not infer success. Do not call R01 complete
+  merely because earlier observed-source admission is green.
