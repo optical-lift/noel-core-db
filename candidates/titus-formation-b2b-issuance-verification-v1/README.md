@@ -51,7 +51,7 @@ Fixture success is NOT a signed GoTrue/PostgREST positive authorization test. Th
 
 ### CI and release evidence
 
-The isolated source workflow is `.github/workflows/titus-b2b-source-issuance-closed.yml`, using the existing B2A/B2B disposable fictional fixtures and a separate final negative-only gate proof. **Verification is pending until the exact GitHub run is inspected.** No live Supabase DDL is executed by this workflow.
+The isolated source workflow is `.github/workflows/titus-b2b-source-issuance-closed.yml`, using the existing B2A/B2B disposable fictional fixtures and a separate final negative-only gate proof. **Verified source SHA:** `0432455a503e41877fc49771020dc74d851ecdb7`. **PASS:** [isolated PostgreSQL 16 issuance-denial proof #41704428728](https://github.com/optical-lift/noel-core-db/actions/runs/41704428728) and [Database Custody CI #41704428837](https://github.com/optical-lift/noel-core-db/actions/runs/41704428837), both successful for that exact source revision. No live Supabase DDL is executed by this workflow. This is an isolated synthetic no-grant check, not a signed two-Person success.
 
 Read-only live PostgreSQL catalog confirmation on November 3 found all five proposed B2A/B2B tables/functions checked **absent** from deployment. No production data or permissions were written.
 
