@@ -570,6 +570,22 @@ def main():
         historical_summary=hist.proof(args.db_url,api,key,tokens,sys.modules[__name__])
     else:
         historical_summary="NOT TESTED: historical review source not present in this candidate.\n"
+    # R01 is a NEW source-accepted, owner-standing continuation. A green older
+    # observed-source test must never substitute for this signed chain.
+    # Older clone candidates lack the owner endpoint and retain their original
+    # independent pass; a candidate that exposes it MUST pass this extra gate.
+    r01_summary="NOT TESTED: R01 owner-standing source not installed in this candidate.\\n"
+    r01_sig=("public.owner_establish_standing_continuing_care_work_self_api_v1"
+             "(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])")
+    if sql(args.db_url,"select to_regprocedure("+literal(r01_sig)+") is not null")=="t":
+        import sys
+        r01_spec=importlib.util.spec_from_file_location(
+          "r01_signed_successor",ROOT/"validate-atlas-r01-standing-successor-signed-http.py")
+        check(r01_spec is not None and r01_spec.loader is not None,
+              "R01 owner endpoint is present but mandatory signed successor test unavailable")
+        r01=importlib.util.module_from_spec(r01_spec)
+        r01_spec.loader.exec_module(r01)
+        r01_summary=r01.proof(args.db_url,api,key,tokens,scope,sys.modules[__name__])
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
       "PASS local GoTrue independent sessions, disclosure, private governor "
@@ -582,7 +598,8 @@ def main():
       "one scheduled Today row, replay, outsider denial, and no second open serving.\n" +
       historical_summary +
       retirement_summary +
-      "NOT PROVEN: production rollout, standing care release, next-bed Today.\n",
+      r01_summary +
+      "NOT PROVEN: production rollout, Elm/Anna live operation or Atlas UI release.\n",
       encoding="utf-8")
 
 if __name__=="__main__":
