@@ -3,7 +3,8 @@
 -- These are structural and synthetic unsigned checks, NOT signed human tests.
 DO $r01_post$
 DECLARE v_functions text[]:=ARRAY[
- 'atlas.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid)',
+ 'atlas.owner_establish_standing_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[])',
+ 'atlas.standing_care_next_governed_service_day_v1(timestamptz,text,jsonb,date)',
  'atlas.owner_preview_standing_care_candidates_self_api_v1(uuid,uuid,uuid,uuid,text,date,uuid,integer)',
  'atlas.standing_care_next_subject_internal_v1(uuid,uuid)',
  'atlas.standing_care_auto_successor_authorized_v1(uuid,uuid,jsonb)',
@@ -36,6 +37,17 @@ BEGIN
    OR v_actual NOT LIKE '%source_continuation_needs_review%'
    OR v_actual NOT LIKE '%historicalRecordedCompletion%'
  THEN RAISE EXCEPTION 'R01 care Actual lost unified Done or safe continuation'; END IF;
+ -- A continuation is NOT authorized by a hardcoded old farm calendar.
+ IF pg_get_functiondef(to_regprocedure(
+   'atlas.standing_care_next_governed_service_day_v1(timestamptz,text,jsonb,date)'
+ )) NOT LIKE '%extract(isodow FROM v_next)%'
+ OR pg_get_functiondef(to_regprocedure(
+   'atlas.advance_owner_standing_campaign_after_actual_internal_v1(uuid)'
+ )) NOT LIKE '%sourceStandingWorkdaysIso%'
+ OR pg_get_functiondef(to_regprocedure(
+   'atlas.advance_owner_standing_campaign_after_actual_internal_v1(uuid)'
+ )) LIKE '%extract(dow FROM v_next_date)%'
+ THEN RAISE EXCEPTION 'R01 successor has no approved governing workday proof'; END IF;
  IF (SELECT count(*) FROM atlas.work_result_contract_policies
    WHERE contract_key='continuing_care_actual_v1'
     AND source_domain='organization' AND acceptance_mode='domain_adapter'
