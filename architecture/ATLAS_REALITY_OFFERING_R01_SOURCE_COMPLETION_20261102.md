@@ -189,3 +189,31 @@ No changes to Atlas app main. Final release remains separate authorization.
   proof** round. Do not try to claim it by replaying the earlier signed
   observed-source test, or by a raw SQL auth.uid() impersonation.
   Neither proposed source nor app is production enabled.
+
+## Two-Subject genuine signed acceptance gate (Nov 2)
+- [Noel PR #2456](https://github.com/optical-lift/noel-core-db/pull/2456)
+  merged **test-only** into main, squash commit
+  `ed703d2fa5422c2871752af629fcb30f938ae8f0`.
+  Only two validator scripts were changed; no migration, domain writer,
+  Atlas application, client grant, live schema/data or production deployment.
+- New signed R01 validator is conditional on the exact public owner
+  standing-visit function signature being installed in the disposable clone.
+  Old candidates remain marked NOT TESTED; an R01 candidate cannot
+  claim PASS without the additional signed test.
+- Test builds fictional independent Bed4 + Bed5 rhythm Rules, Bindings,
+  State and Weed Cards, approved explicit ISO workdays, two exact
+  Subject disclosures, a native owner standing Work, worker partial
+  and complete Results, one universal Done, one next Bed5 original,
+  next approved Person workday, worker native My Work/Today, outsider
+  exclusion, replays and no duplicate. Uses the same genuine local
+  GoTrue owner/worker/outsider accounts as existing protected validation.
+- [RiverSong source/Syntax run #41577779907](https://github.com/optical-lift/atlas/actions/runs/41577779907)
+  passed Python syntax after correcting the SQL-string concatenation in
+  the new validator. Noel Database Custody CI on test-only PR passed.
+- Protected source-exact full-schema validation requested in
+  [Noel issue #2457](https://github.com/optical-lift/noel-core-db/issues/2457),
+  candidate SHA `81bcdadc49c31406bb27410b5646b834c2d130d4`,
+  [protected run #41578056067](https://github.com/optical-lift/noel-core-db/actions/runs/41578056067).
+  **PENDING at latest checked read-only schema snapshot.** Do not treat
+  an active job as successful SQL/signed acceptance. Outcome must be
+  inspected and recorded before release or UI integration.
