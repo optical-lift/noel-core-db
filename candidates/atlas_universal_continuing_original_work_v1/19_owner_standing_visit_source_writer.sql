@@ -14,7 +14,8 @@ CREATE OR REPLACE FUNCTION atlas.owner_establish_standing_continuing_care_work_s
   p_visit_reason text,
   p_service_date date,
   p_campaign_end_date date,
-  p_action_id uuid
+  p_action_id uuid,
+  p_workdays_iso smallint[]
 ) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
 AS $writer$
@@ -40,6 +41,13 @@ BEGIN
      OR p_rhythm_state_id IS NULL OR p_scope_id IS NULL
      OR p_action_id IS NULL OR p_service_date IS NULL
      OR p_campaign_end_date IS NULL
+     OR p_workdays_iso IS NULL
+     OR coalesce(cardinality(p_workdays_iso),0) NOT BETWEEN 1 AND 7
+     OR EXISTS (SELECT 1 FROM unnest(p_workdays_iso) AS wd(day)
+        WHERE wd.day IS NULL OR wd.day NOT BETWEEN 1 AND 7)
+     OR p_workdays_iso IS DISTINCT FROM
+        ARRAY(SELECT DISTINCT wd.day FROM unnest(p_workdays_iso) AS wd(day)
+              ORDER BY wd.day)::smallint[]
      OR p_campaign_end_date<p_service_date OR p_campaign_end_date>p_service_date+120
      OR v_reason IS NULL OR length(v_reason)<10 OR length(v_reason)>1500 THEN
     RAISE EXCEPTION 'Exact signed owner standing visit and workday required'
@@ -83,6 +91,10 @@ BEGIN
     WHERE g.id=v_state.subject_id AND g.farm_id=v_state.farm_id;
   v_today:=(now() at time zone
     coalesce(nullif(v_rule.metadata->>'timezoneName',''),'UTC'))::date;
+  IF NOT (extract(isodow FROM p_service_date)::integer = ANY(p_workdays_iso)) THEN
+    RAISE EXCEPTION 'Owner service date is not an approved campaign workday'
+      USING ERRCODE='22023';
+  END IF;
   IF p_service_date<v_today-1 OR p_service_date>v_today+14 THEN
     RAISE EXCEPTION 'Person-day placement must be an explicit bounded civil date'
       USING ERRCODE='22023';
@@ -135,6 +147,7 @@ BEGIN
     IF v_existing.metadata->>'sourceScopeId' IS DISTINCT FROM p_scope_id::text
       OR v_existing.metadata->>'sourceServiceDate' IS DISTINCT FROM p_service_date::text
       OR v_existing.metadata->>'sourceStandingCampaignEndsOn' IS DISTINCT FROM p_campaign_end_date::text
+      OR v_existing.metadata->'sourceStandingWorkdaysIso' IS DISTINCT FROM to_jsonb(p_workdays_iso)
       OR v_existing.metadata->>'sourceAdmissionMode' IS DISTINCT FROM 'owner_standing_visit_v1'
       OR v_existing.metadata->>'sourceRuleId' IS DISTINCT FROM v_rule.id::text
       OR v_existing.metadata->>'sourceVisitReasonDigest' IS DISTINCT FROM md5(v_reason)
@@ -217,6 +230,7 @@ BEGIN
       'sourceServiceDate',p_service_date,
       'sourceStandingCampaignId',p_action_id,
       'sourceStandingCampaignEndsOn',p_campaign_end_date,
+      'sourceStandingWorkdaysIso',to_jsonb(p_workdays_iso),
       'sourceStandingCampaignMode','seasonal_closeout',
       'sourceStandingVisitReason',v_reason,
       'sourceApprovedByPersonId',v_owner,
@@ -285,6 +299,7 @@ BEGIN
     'allocationId',v_allocation,'planId',v_plan,
     'serviceDate',p_service_date,
     'campaignEndDate',p_campaign_end_date,
+    'approvedWorkdaysIso',to_jsonb(p_workdays_iso),
     'newOriginalWorkCreated',true,
     'ownerStandingVisitApproved',true,
     'clockAdmitted',false,'noNextWorkPrecreated',true);
@@ -294,5 +309,5 @@ $writer$;
 -- Denied until protected-clone signed authority/privacy tests pass. This
 -- function is a source-governor operation, not a generic task creation RPC.
 REVOKE ALL ON FUNCTION atlas.owner_establish_standing_continuing_care_work_self_api_v1(
-  uuid,uuid,uuid,uuid,text,date,date,uuid
+  uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
 ) FROM PUBLIC,anon,authenticated,service_role;
