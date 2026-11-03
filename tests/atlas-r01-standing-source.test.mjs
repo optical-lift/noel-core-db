@@ -49,6 +49,13 @@ test('initial owner mandate, next subject, and continuation stay bounded',()=>{
   assert.match(advance,/sourceStandingCampaignEndsOn/);
   assert.match(advance,/work_result_acceptances/);
 });
+test('a signed governor has a public entrypoint, without client access to the private writer',()=>{
+  assert.match(writer,/CREATE OR REPLACE FUNCTION public.owner_establish_standing_continuing_care_work_self_api_v1/);
+  assert.match(writer,/GRANT EXECUTE ON FUNCTION public.owner_establish_standing_continuing_care_work_self_api_v1/);
+  assert.match(writer,/REVOKE ALL ON FUNCTION atlas.owner_establish_standing_continuing_care_work_self_api_v1/);
+  assert.ok(bundle.includes(writer));
+  assert.match(post,/R01 standing owner membrane missing or incorrectly granted/);
+});
 test('future dates come from signed owner weekdays, never Elm legacy Sunday defaults',()=>{
   assert.match(writer,/p_workdays_iso smallint\[\]/);
   assert.match(writer,/sourceStandingWorkdaysIso/);
