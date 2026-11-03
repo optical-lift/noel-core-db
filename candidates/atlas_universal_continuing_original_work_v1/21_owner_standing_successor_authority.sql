@@ -186,6 +186,8 @@ BEGIN
       IS DISTINCT FROM v_current.metadata->>'sourceStandingCampaignId'
    OR v_prior.metadata->>'sourceStandingCampaignEndsOn'
       IS DISTINCT FROM v_current.metadata->>'sourceStandingCampaignEndsOn'
+   OR v_prior.metadata->'sourceStandingWorkdaysIso'
+      IS DISTINCT FROM v_current.metadata->'sourceStandingWorkdaysIso'
    OR v_prior.metadata->>'sourceScopeId'
       IS DISTINCT FROM v_current.metadata->>'sourceScopeId'
    OR v_prior.metadata->>'sourceApprovedByPersonId'
@@ -263,10 +265,11 @@ BEGIN
      ORDER BY pr.created_at DESC LIMIT 1),'UTC');
  IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_timezone_names t WHERE t.name=v_tz)
  THEN RETURN false; END IF;
- v_expected_date:=(v_result.reported_at AT TIME ZONE v_tz)::date+1;
- IF extract(dow FROM v_expected_date)=0 THEN v_expected_date:=v_expected_date+1; END IF;
  v_campaign_end:=(v_prior.metadata->>'sourceStandingCampaignEndsOn')::date;
- IF v_expected_date>v_campaign_end
+ v_expected_date:=atlas.standing_care_next_governed_service_day_v1(
+   v_result.reported_at,v_tz,
+   v_prior.metadata->'sourceStandingWorkdaysIso',v_campaign_end);
+ IF v_expected_date IS NULL OR v_expected_date>v_campaign_end
    OR v_current.metadata->>'sourceServiceDate' IS DISTINCT FROM v_expected_date::text
    OR atlas.standing_care_next_subject_internal_v1(v_prior.id,v_current.id)
      IS DISTINCT FROM v_current.source_object_id
