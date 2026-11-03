@@ -65,7 +65,11 @@ def main():
     if not config.is_file():
         stop("Fresh disposable Supabase project config missing")
     config_text=config.read_text(encoding="utf8")
-    if not re.search(r'(?m)^project_id\s*=\s*"u1a_disposable_[0-9a-f]{12}"\s*    if not args.confirm_fresh_disposable:
+    if not re.search(r'(?m)^project_id\s*=\s*"u1a_disposable_[0-9a-f]{12}"\s*$',config_text):
+        stop("Invalid ephemeral project identity")
+    if not re.search(r'(?ms)^\[db\]\s*.*?^port\s*=\s*'+re.escape(port)+r'\s*$',config_text):
+        stop("Supabase ephemeral local database port mismatch")
+    if not args.confirm_fresh_disposable:
         stop("Explicit --confirm-fresh-disposable required: this DB is destroyed after test")
     if not all(x.is_file() for x in (TEST,CANDIDATE,POST,FIXTURE)):
         stop("Missing exact held source or test fixture")
