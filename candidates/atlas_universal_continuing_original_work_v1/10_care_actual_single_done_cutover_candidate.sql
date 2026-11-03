@@ -5,8 +5,9 @@
 
 -- DRAFT SOURCE CANDIDATE; requires protected-clone signed positive/negative tests.
 -- This is a DOMAIN ADAPTER using universal original Work/Result/Continuation.
--- It DOES NOT create a farm task generator, legacy task, employee seat,
--- new canonical Work store, scheduled task, or automatic next original Work.
+-- It does not create a farm task generator, legacy task, employee seat,
+-- or separate Work store. A preapproved standing campaign alone may continue
+-- one new original Work only after an accepted source-qualified physical Actual.
 -- Apply only after candidate.sql in an isolated, authorized validation clone.
 --
 -- The existing Household Laundry adapter continues independently under its
