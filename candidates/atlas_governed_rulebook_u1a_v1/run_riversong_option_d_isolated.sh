@@ -170,6 +170,33 @@ for sig in \
   fi
 done
 [[ "$missing" == 0 ]] || { echo 'HOLD: incomplete versioned schema, no fictional fixture'; exit 1; }
+
+# Name-only schema checks are inadequate for SECURITY DEFINER code. A fresh
+# local clone must match pinned READ-ONLY native source-definition fingerprints
+# from Noel for all nine authority/Foundry methods. No live DB endpoint is
+# ever accessed from RiverSong; this file has names/hashes only.
+PHASE="verified-native-authority-source-fingerprints"
+FINGERPRINTS="$HERE/native_source_fingerprints_20261103.tsv"
+[[ -s "$FINGERPRINTS" ]] ||
+ { echo 'STOP: required source fingerprint provenance unavailable'; exit 1; }
+verified=0
+fingerprint_mismatch=0
+while IFS='|' read -r signature expected; do
+  [[ "$signature" == atlas.* ]] || continue
+  [[ "$signature" =~ ^atlas[.][a-z_0-9]+\([a-z0-9_,\[\]]*\)$ ]] ||
+   { echo 'STOP: unexpected function signature in reviewed source manifest'; exit 1; }
+  [[ "$expected" =~ ^[a-f0-9]{32}$ ]] ||
+   { echo 'STOP: unexpected review-source fingerprint encoding'; exit 1; }
+  actual="$(query "SELECT md5(pg_get_functiondef(to_regprocedure('$signature')))")"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "STALE_OR_SUBSTITUTE_SOURCE: $signature" | tee -a "$EVIDENCE/missing-native-sources.txt"
+    fingerprint_mismatch=1
+  fi
+  verified=$((verified+1))
+done <"$FINGERPRINTS"
+[[ "$verified" == 9 && "$fingerprint_mismatch" == 0 ]] ||
+ { echo 'HOLD: nine approved native source definitions must match exactly before signed test'; exit 1; }
+
 [[ "$(query 'SELECT count(*) FROM auth.users')" == 0 ]] ||
  { echo 'STOP: nonempty Auth source, not an empty fictional clone'; exit 1; }
 [[ "$(query 'SELECT count(*) FROM atlas.work_items')" == 0 ]] ||
