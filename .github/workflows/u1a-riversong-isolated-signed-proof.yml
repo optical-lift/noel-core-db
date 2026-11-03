@@ -1,0 +1,64 @@
+name: Held U1A RiverSong Isolated Signed Proof
+
+on:
+  pull_request:
+    types: [synchronize, opened, reopened]
+    branches: [main]
+    paths:
+      - '.github/workflows/u1a-riversong-isolated-signed-proof.yml'
+      - 'candidates/atlas_governed_rulebook_u1a_v1/**'
+      - 'tests/atlas-u1a-governed-rulebook-source.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: held-u1a-riversong-isolated
+  cancel-in-progress: false
+
+jobs:
+  isolated_signed_proof:
+    if: >-
+      github.event.pull_request.number == 2465 &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == 'optical-lift/noel-core-db' &&
+      github.event.pull_request.head.ref == 'candidate/atlas-u1a-governed-rulebook-adoption-20261103'
+    runs-on: self-hosted
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact held candidate without persistent credentials
+        uses: actions/checkout@v4
+        with:
+          ref: candidate/atlas-u1a-governed-rulebook-adoption-20261103
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check exact PR head and RiverSong machine before any database work
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git branch --show-current)" = 'candidate/atlas-u1a-governed-rulebook-adoption-20261103'
+          test "$(uname -s)" = 'Darwin'
+          test "$(printf '%s' "${RUNNER_NAME:-}" | tr '[:upper:]' '[:lower:]')" = 'riversong'
+          test -z "$(git status --porcelain --untracked-files=all)"
+          echo 'PASS: exact owner-held PR and RiverSong local machine; no secrets loaded.'
+
+      - name: Run disposable source-derived Supabase Auth/REST/PG proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash candidates/atlas_governed_rulebook_u1a_v1/run_riversong_option_d_isolated.sh
+
+      - name: Display limited source-only result
+        if: always()
+        shell: bash
+        run: |
+          if [[ -s "${RUNNER_TEMP}/u1a-option-d-results/cleanup-state.txt" ]]; then
+            cat "${RUNNER_TEMP}/u1a-option-d-results/cleanup-state.txt"
+          else
+            echo 'No disposable clone was started, or preflight stopped before test.'
+          fi
+          echo 'No U1A runtime result authorizes migration, source approval, or production release.'
