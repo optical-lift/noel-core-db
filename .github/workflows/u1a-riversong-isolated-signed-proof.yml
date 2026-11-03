@@ -83,7 +83,18 @@ jobs:
           receipt="${RUNNER_TEMP}/u1a-option-d-results-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           if [[ -s "$receipt/cleanup-state.txt" ]]; then
             cat "$receipt/cleanup-state.txt"
+            if [[ -s "$receipt/source-result.txt" ]]; then cat "$receipt/source-result.txt"; fi
+            if [[ -s "$receipt/missing-native-sources.txt" ]]; then cat "$receipt/missing-native-sources.txt"; fi
           else
             echo 'No disposable clone was started, or preflight stopped before test.'
           fi
           echo 'No U1A runtime result authorizes migration, source approval, or production release.'
+
+      - name: Upload only sanitized phase and cleanup receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: held-u1a-isolated-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/u1a-option-d-results-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: ignore
+          retention-days: 7
