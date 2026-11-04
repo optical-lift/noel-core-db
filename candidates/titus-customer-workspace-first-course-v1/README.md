@@ -12,10 +12,11 @@ The inherited `titus.courses` table contains historical curriculum/reader Course
 This candidate introduces separate private, customer-scoped draft nouns:
 
 - `titus.customer_workspaces_v1`: one durable workspace keyed by a current nonanonymous, confirmed Auth user; allowed to have zero Courses.
-- `titus.customer_course_drafts_v1`: one original user-created Course title in draft state, owner/workspace-linked, create-request idempotency.
+- `titus.customer_course_drafts_v1`: one original user-created Course title in draft state, owner/workspace-linked, idempotent per workspace rather than globally.
+- `titus.customer_workspace_entitlements_v1`: **default-deny purchase/private-pilot source grant** with current active state, source receipt and optional expiration. No grants are seeded; no authenticated/anon/service-role direct table grants.
 - Three narrow `public.titus_customer_*_self_api_v1` RPCs: current owner's read, explicit workspace creation, explicit first draft Course creation.
 
-No Course, Person, learner, university, purchase/entitlement, or unpublished research row is seeded. Underlying tables have RLS enabled and no authenticated/anon direct privileges. Each privileged RPC rechecks `auth.uid()`, confirmed nonanonymous `auth.users` and current `auth.sessions` with the signed JWT session id, checks current source owner and does not accept caller-supplied workspace/Person/owner identifiers. Public SECURITY DEFINER RPC boundary requires source/security review before release; functions are revoked from PUBLIC, with explicit only authenticated execution.
+No Course, Person, learner, university, purchase/entitlement, or unpublished research row is seeded. Underlying tables have RLS enabled and no authenticated/anon direct privileges. Each privileged RPC rechecks `auth.uid()`, confirmed nonanonymous `auth.users`, current `auth.sessions` with the signed JWT session id, and a **source-issued active Titus entitlement**; it checks current source owner and does not accept caller-supplied workspace/Person/owner identifiers. Public SECURITY DEFINER RPC boundary requires source/security review before release; functions are revoked from PUBLIC, with explicit only authenticated execution.
 
 ## Acceptance checks
 
@@ -32,7 +33,8 @@ No Course, Person, learner, university, purchase/entitlement, or unpublished res
 | Production-shaped schema-clone review and governed Titus lane assessment | NOT DONE |
 | Auth-signed owner/outsider production API smoke check | NOT DONE |
 | Generated migration, source merge, protected release, feature flags | NOT DONE |
-| Paid customer entitlement and billing/checkouts | NOT IMPLEMENTED; DO NOT CLAIM |
+| Source customer-entitlement gate | **IMPLEMENTED and scratch-tested, default-deny**; no grants issued |
+| Purchase/owner-pilot grant issuer and billing/checkouts | **NOT IMPLEMENTED; DO NOT CLAIM** |
 | Lesson editor, module builder, publication or actual teaching | NOT IMPLEMENTED by this increment |
 
 ## Security and release ordering
@@ -41,7 +43,7 @@ This changes only Titus-owned private tables and public self-APIs. Proposed clas
 
 The fake `auth.jwt()` and `auth.uid()` functions exist **only** in `fixture.sql` to exercise source behavior; they do not verify a JWT cryptographically. Only real GoTrue/PostgREST can do so.
 
-The app must keep `TITUS_CUSTOMER_CATALOG_ENABLED=false` until source and operational release are approved. When enabled, public use without a genuine paid-customer entitlement would allow ordinary confirmed Auth users to create customer workspaces; do **not** advertise this pilot as a gated paid SaaS. Entitlement issuance must be its own source-authorized step.
+The app must keep `TITUS_CUSTOMER_CATALOG_ENABLED=false` until source and operational release are approved. Even with its flag enabled, the revised source denies a confirmed Auth user who has **no active separately issued entitlement**. It does not manufacture entitlement from a login. A trusted purchase-based or explicitly owner-approved private-pilot **entitlement issuance and revocation workflow has not been implemented**; there are no live grants. Do not advertise this as paid SaaS or insert user grants through unreviewed privileged SQL.
 
 **Next unfinished practical step:** once source code review and scratch PG proof pass, run a true production-shaped schema-clone validation, then request source generation/release. If releasing only the data-free shell, keep this source feature OFF. After source release, use a real signed owner and unrelated user for one positive/negative smoke test before enabling customer creation.
 
@@ -52,3 +54,20 @@ The app must keep `TITUS_CUSTOMER_CATALOG_ENABLED=false` until source and operat
 **Independent application proof:** [Titus RiverSong #41919951401](https://github.com/optical-lift/titus/actions/runs/41919951401), exact app source SHA `dffe8e8fe6422e127d851473647035dd659061ad`, **15/15 Node tests PASS, ESLint PASS, Next build PASS (15/15 static pages), workspace cleanup PASS**.
 
 **Closed:** bounded draft source candidate and its scratch source proof. **Open:** production-shaped clone; explicit source/security review and Titus lane classification; migration source generation, main merge, protected production release; a real owner/outsider signed smoke test; paid entitlement; real private-use launch. This README-only update does not change executable source bytes after verification.
+
+## Targeted live-shape and paid-entitlement review — 2026-11-04
+
+Read-only metadata checks against shared production confirmed PostgreSQL **17.6**, existence of existing `titus` schema, `auth.users` (confirmed/anonymous/ban/deletion state), `auth.sessions` (`id`, `user_id`, `not_after`, optional `oauth_client_id`), and the actual `auth.uid()`/`auth.jwt()` claim-resolution expressions. The scratch fixture now matches **those relevant live schema dependencies** without copying any real Auth rows, user IDs, tokens or production secrets. This is a **targeted compatibility check**, **not the protected complete production-schema clone**.
+
+**Final source PASS:** [RiverSong #41922948074](https://github.com/optical-lift/titus/actions/runs/41922948074), exact reviewed/executable Noel SHA `932fef564b80f6ddff7946436ce8a1ca15a509bf`, isolated PG17 port **55447** (Atlas protected clone 55432 untouched). It loads the candidate as one transaction, then proves:
+
+- No Course, workspace or entitlement is seeded in the candidate.
+- Signed-shaped current Auth user without source entitlement cannot even read the catalog or create a workspace.
+- With **fixture-only fictional grants**, separate users independently create empty workspaces and their own first private draft Course.
+- The same create UUID is valid in a separate customer workspace; replay within one workspace does not duplicate or rewrite an original.
+- Outsider isolation, expired Auth session rejection, revoked entitlement rejection and absence of direct authenticated/anon/service-role table access.
+- All claims in this proof are **unsigned fixture GUCs**; real GoTrue signed-session acceptance is not claimed. No live DDL, grants or data were changed.
+
+**Release-route dependency:** [Noel PR #2476](https://github.com/optical-lift/noel-core-db/pull/2476) repairs the owner-only migration generator and production-schema clone validator, which omitted the already-governed `titus` release lane. Exact [RiverSong #41922208777](https://github.com/optical-lift/titus/actions/runs/41922208777) **PASS** on owner request parsing and existing lane-membrane denial. That support must enter Noel canonical `main` before owner-triggered `Titus` migration generation and protected complete production-shape validation can proceed.
+
+**Remaining non-negotiable gates:** merge-reviewed source in Noel main through governance; owner-triggered migration issue after lane PR; generated exact migration; complete protected production-schema clone; explicit release approval; real authenticated owner/outsider smoke; real source-governed entitlement issuance (paid or private pilot); deployment/flags. The blank Titus software shell can launch with zero courses independently of all those teaching/course storage gates.
