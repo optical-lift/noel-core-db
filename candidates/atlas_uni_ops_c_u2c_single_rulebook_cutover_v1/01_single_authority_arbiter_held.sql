@@ -58,7 +58,12 @@ BEGIN
         AND b.rhythm_rule_id=s.rhythm_rule_id AND b.active
       WHERE s.organization_id=p_organization_id AND s.farm_id=p_farm_id
         AND s.subject_id=p_subject_id AND s.rhythm_rule_id=p_source_rule_id
-        AND s.subject_kind='growing_object' AND s.state<>'paused')
+        AND s.subject_kind='growing_object' AND s.state<>'paused'
+        -- Only this R01 standing mowing source adapter is admitted so far.
+        AND s.rhythm_key='mowing'
+        AND EXISTS(SELECT 1 FROM atlas.mowing_area_state m
+          WHERE m.object_id=s.subject_id AND m.farm_id=s.farm_id
+            AND m.organization_id=s.organization_id AND m.status<>'closed'))
  THEN
    RETURN pg_catalog.jsonb_build_object('ok',false,
     'state','native_source_unavailable','candidateOfferAdmissible',false,
@@ -141,7 +146,8 @@ BEGIN
 
  -- Option C's first standing adapter does not resolve named seasons or
  -- corrective physical conditions. A clock NEVER proves observed weeds.
- IF v_effective.policy->>'eligibilityMode'<>'standing_stewardship'
+ IF v_parent.policy->>'eligibilityMode'<>'standing_stewardship'
+    OR v_effective.policy->>'eligibilityMode'<>'standing_stewardship'
     OR pg_catalog.jsonb_typeof(coalesce(
       v_effective.policy->'seasonKeys','[]'::jsonb))<>'array'
     OR pg_catalog.jsonb_array_length(coalesce(
