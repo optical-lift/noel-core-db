@@ -80,4 +80,4 @@ BEGIN
  IF NOT v_call_denied THEN
    RAISE EXCEPTION 'No-session customer catalog call was not denied';
  END IF;
-END $titus_customer_clone_v1$;
+END; $titus_customer_clone_v1$;
