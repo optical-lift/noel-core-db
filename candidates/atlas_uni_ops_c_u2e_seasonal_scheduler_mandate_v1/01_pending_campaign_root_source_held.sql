@@ -210,6 +210,7 @@ BEGIN
    'replayed',true,'campaignId',v_saved.id,
    'workerPersonId',v_saved.target_person_id,
    'seasonStart',v_saved.season_start,'seasonEnd',v_saved.season_end,
+   'maxOriginals',1,'repeatMode','new_campaign_requires_root_approval',
    'carrierState','unbound','schedulerAuthorized',false,
    'offerCreated',false,'originalWorkCreated',false,
    'nextCampaignPreapproved',false);
