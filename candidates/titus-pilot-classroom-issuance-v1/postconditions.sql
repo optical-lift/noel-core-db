@@ -125,7 +125,7 @@ SELECT set_config('titus.test_person',
  '00000000-0000-4000-8000-000000000201',false);
 SET ROLE authenticated;
 DO $learner_accept$
-DECLARE s jsonb; source_receipt jsonb;denied boolean:=false;
+DECLARE s jsonb;
 BEGIN
  s:=public.titus_classroom_pilot_accept_self_api_v1(
   '00000000-0000-4000-8000-000000000100',
@@ -133,6 +133,13 @@ BEGIN
   '00000000-0000-4000-8000-000000000202',true);
  IF s->>'state'<>'accepted' THEN
    RAISE EXCEPTION 'FAIL: learner named consent not accepted'; END IF;
+END;$learner_accept$;
+
+-- Authorization is deliberately a distinct statement/request: STABLE
+-- read APIs must not be judged against a snapshot taken before acceptance.
+DO $learner_authority$
+DECLARE source_receipt jsonb;
+BEGIN
  source_receipt:=public.titus_classroom_authorize_self_api_v1(
   '00000000-0000-4000-8000-000000000100','homework_submission');
  IF source_receipt->>'viewerRole'<>'learner'
@@ -146,7 +153,7 @@ BEGIN
  IF public.titus_classroom_authorize_self_api_v1(
    '00000000-0000-4000-8000-000000000100','homework_feedback') IS NOT NULL
  THEN RAISE EXCEPTION 'FAIL: learner got teacher review right'; END IF;
-END;$learner_accept$;
+END;$learner_authority$;
 RESET ROLE;
 
 SELECT set_config('titus.test_person',
@@ -231,19 +238,25 @@ SELECT set_config('titus.test_person',
  '00000000-0000-4000-8000-000000000201',false);
 SET ROLE authenticated;
 DO $withdrawn$
-DECLARE r jsonb;denied boolean:=false;
+DECLARE r jsonb;
 BEGIN
  r:=public.titus_classroom_pilot_withdraw_self_api_v1(
   '00000000-0000-4000-8000-000000000100',
   current_setting('titus.test_learner_receipt')::uuid);
  IF r->>'state'<>'withdrawn' THEN
    RAISE EXCEPTION 'FAIL: learner cannot withdraw'; END IF;
+END;$withdrawn$;
+
+-- Fresh request/snapshot after withdrawal; withdrawal must revoke access.
+DO $withdrawal_revokes_learner$
+DECLARE denied boolean:=false;
+BEGIN
  BEGIN
   PERFORM public.titus_classroom_read_self_api_v1(
    '00000000-0000-4000-8000-000000000100');
  EXCEPTION WHEN OTHERS THEN denied:=(SQLSTATE='42501'); END;
  IF NOT denied THEN RAISE EXCEPTION 'FAIL: withdrawn learner can still read'; END IF;
-END;$withdrawn$;
+END;$withdrawal_revokes_learner$;
 RESET ROLE;
 SELECT set_config('titus.test_person',
  '00000000-0000-4000-8000-000000000202',false);
