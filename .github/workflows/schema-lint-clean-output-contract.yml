@@ -1,0 +1,30 @@
+name: Schema lint clean-output parser contract
+
+on:
+  push:
+    branches:
+      - fix/titus-clone-clean-lint-output-20261104
+    paths:
+      - 'scripts/compare-schema-lint.py'
+      - 'scripts/test-compare-schema-lint-clean-output.py'
+      - '.github/workflows/schema-lint-clean-output-contract.yml'
+  pull_request:
+    paths:
+      - 'scripts/compare-schema-lint.py'
+      - 'scripts/test-compare-schema-lint-clean-output.py'
+      - '.github/workflows/schema-lint-clean-output-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verified-clean-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact no-database CLI-lint parser and fail-closed checks
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/compare-schema-lint.py scripts/test-compare-schema-lint-clean-output.py
+          python3 scripts/test-compare-schema-lint-clean-output.py
