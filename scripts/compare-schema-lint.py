@@ -13,6 +13,32 @@ from typing import Any
 
 ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
+# Supabase CLI 2.116.0 can complete a clean schema lint with no JSON and no
+# "No schema errors found" line. It prints only its connection/schema banner
+# and an optional CLI-update notice. Never infer clean lint from silence or an
+# arbitrary command's exit status: require BOTH exact known banner text and
+# the independently captured zero exit code from the same harness phase.
+_CLEAN_LINT_LINES = (
+    re.compile(r"Connecting to local database\.\.\.$"),
+    re.compile(r"Linting schema: [a-z_][a-z0-9_,]*$"),
+    re.compile(r"No schema errors found\.?$"),
+    re.compile(r"A new version of Supabase CLI is available: v[0-9.]+ \(currently installed v[0-9.]+\)$"),
+    re.compile(r"We recommend updating regularly for new features and bug fixes: https://supabase\.com/docs/guides/cli/getting-started#updating-the-supabase-cli$"),
+)
+
+
+def verified_clean_lint(path: Path, raw: str) -> bool:
+    if not path.name.endswith(".raw.log"):
+        return False
+    status_file = path.with_name(path.name.removesuffix(".raw.log") + ".exit-code.txt")
+    if not status_file.is_file() or status_file.read_text(encoding="utf-8").strip() != "0":
+        return False
+    lines = [line.strip() for line in raw.splitlines() if line.strip()]
+    return (
+        any(line.startswith("Linting schema: ") for line in lines)
+        and all(any(rule.fullmatch(line) for rule in _CLEAN_LINT_LINES) for line in lines)
+    )
+
 
 def parse_lint(path: Path) -> list[dict[str, Any]]:
     raw = ANSI.sub("", path.read_text(encoding="utf-8", errors="replace"))
@@ -30,7 +56,7 @@ def parse_lint(path: Path) -> list[dict[str, Any]]:
             parsed = candidate
             break
 
-    if parsed is None and "No schema errors found" in raw:
+    if parsed is None and verified_clean_lint(path, raw):
         return []
 
     if parsed is None:
@@ -106,7 +132,7 @@ def main() -> int:
     lines = [
         "# Production schema clone validation",
         "",
-        f"**{outcome}: candidate-introduced Atlas lint errors: {len(introduced)}.**",
+        f"**{outcome}: candidate-introduced schema lint errors: {len(introduced)}.**",
         "",
         f"- Baseline production-clone errors: {len(baseline)}",
         f"- Candidate-clone errors: {len(candidate)}",
@@ -126,7 +152,7 @@ def main() -> int:
     if baseline and not introduced:
         lines.extend(
             [
-                "The pre-existing Atlas lint findings remain visible in the attached baseline report, "
+                "The pre-existing schema lint findings remain visible in the attached baseline report, "
                 "but this candidate added or worsened none of them.",
                 "",
             ]
