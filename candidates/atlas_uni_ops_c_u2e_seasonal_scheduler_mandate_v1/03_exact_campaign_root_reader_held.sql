@@ -23,12 +23,11 @@ BEGIN
  IF v.id IS NULL THEN
   RAISE EXCEPTION 'Campaign unavailable' USING ERRCODE='42501';
  END IF;
- SELECT * INTO v_root FROM atlas.require_governed_farm_rulebook_root_v1(
-  v.organization_id,v.ledger_id,v.farm_id,v.source_rule_id);
- IF v_root.actor_person_id IS DISTINCT FROM v.approving_root_person_id
-  OR v_root.actor_principal_id IS DISTINCT FROM v.approving_root_principal_id
- THEN RAISE EXCEPTION 'Current original native root required'
-  USING ERRCODE='42501'; END IF;
+ -- A current signed governing Ledger root may inspect a known historical
+ -- campaign even if its old Rule has been retired or governance transferred.
+ -- Historical approving identity remains source attribution, not login.
+ SELECT * INTO v_root FROM atlas.require_seasonal_campaign_current_ledger_root_v1(
+  v.organization_id,v.ledger_id);
  v_today:=(pg_catalog.now() AT TIME ZONE v.timezone_name)::date;
  SELECT EXISTS(
   SELECT 1 FROM atlas.governed_seasonal_scheduler_revocations_v1 r
