@@ -90,7 +90,7 @@ def main():
         target = Path(tmp) / (VERSION + "_" + NAME + ".sql")
         # Minimal disposable source: this tests existing lane routing, not
         # a not-yet-merged customer candidate from an unrelated PR.
-        target.write_text("BEGIN;\\nSELECT 1;\\nCOMMIT;\\n")
+        target.write_text("BEGIN;\nSELECT 1;\nCOMMIT;\n")
         check = subprocess.run(
             ["bash", "scripts/check-migration-release-lane.sh",
              VERSION, "titus", str(target)],
