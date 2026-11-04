@@ -65,3 +65,11 @@ CREATE FUNCTION atlas.teaching_activation_active_v1(
  p_ledger_id uuid,p_capability_activation_id uuid
 ) RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog
 AS $$SELECT true$$;
+
+-- Fixture-only lesson-part registry. The source reader requires both 'class'
+-- and 'homework'; source-issued seats alone never grant content access.
+-- In the parent 1E proof these parts were seeded by its postconditions;
+-- this independent 1F scratch cluster must seed its own allowed parts.
+INSERT INTO titus.classroom_pilot_parts_v1(thread_id,part_ref) VALUES
+ ('00000000-0000-4000-8000-000000000100','class'),
+ ('00000000-0000-4000-8000-000000000100','homework');
