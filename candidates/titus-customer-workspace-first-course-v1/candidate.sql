@@ -26,11 +26,12 @@ CREATE TABLE titus.customer_course_drafts_v1(
     ON DELETE RESTRICT,
   created_by_auth_user_id uuid NOT NULL REFERENCES auth.users(id)
     ON DELETE RESTRICT,
-  create_request_id uuid NOT NULL UNIQUE,
+  create_request_id uuid NOT NULL,
   title text NOT NULL
     CHECK(title=btrim(title) AND length(title) BETWEEN 1 AND 150),
   state text NOT NULL DEFAULT 'draft' CHECK(state='draft'),
-  created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  CONSTRAINT customer_course_request_scoped_v1 UNIQUE(workspace_id,create_request_id)
 );
 CREATE INDEX customer_course_drafts_by_workspace_v1
   ON titus.customer_course_drafts_v1(workspace_id,created_at,course_id);
@@ -138,7 +139,8 @@ $start$;
 
 -- An explicit owner action creates one new, unpublished original draft Course.
 -- It never opens a Teaching Offering, publishes curriculum or enrolls a Person.
--- The UUID request ID is an idempotency key; same key and different title fails.
+-- The UUID request ID is idempotent within this workspace; reusing a key
+-- in a separate customer's workspace is a distinct authorized original.
 CREATE FUNCTION public.titus_customer_create_course_self_api_v1(
  p_request_id uuid,p_title text
 )
