@@ -1,0 +1,30 @@
+name: Titus owner production release request parser
+
+on:
+  push:
+    branches:
+      - fix/titus-production-release-owner-request-20261104
+    paths:
+      - '.github/workflows/production-db-release-request.yml'
+      - '.github/workflows/titus-production-request-parser-contract.yml'
+      - 'scripts/test-titus-owner-production-request-dispatch.py'
+  pull_request:
+    paths:
+      - '.github/workflows/production-db-release-request.yml'
+      - '.github/workflows/titus-production-request-parser-contract.yml'
+      - 'scripts/test-titus-owner-production-request-dispatch.py'
+
+permissions:
+  contents: read
+
+jobs:
+  owner-release-request-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify strict Titus owner issue dispatch contract without secret or release
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/test-titus-owner-production-request-dispatch.py
+          python3 scripts/test-titus-owner-production-request-dispatch.py
