@@ -9,7 +9,7 @@ set -Eeuo pipefail
 }
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 sql_dir="$root/candidates/titus-customer-workspace-first-course-v1"
-for name in fixture.sql candidate.sql postconditions.sql; do
+for name in fixture.sql candidate.sql clone_postconditions.sql postconditions.sql; do
   test -s "$sql_dir/$name" || { echo "Missing $name" >&2; exit 2; }
 done
 bin=""
@@ -79,5 +79,8 @@ expected="$data|t|t"
 echo "Verified NEW RiverSong PG17 on private socket 55447, not Atlas protected 55432."
 psql_local -f "$sql_dir/fixture.sql"
 psql_local -f "$sql_dir/candidate.sql"
+# Also exercise the production-clone-safe invariant probe while the candidate
+# is still empty. No synthetic Auth users/rows are issued by that probe.
+psql_local -f "$sql_dir/clone_postconditions.sql"
 psql_local -f "$sql_dir/postconditions.sql"
 echo "PASS: two synthetic buyer sessions; zero-course workspace, first draft, idempotent create, outsider isolation, expired session and no direct table grants. UNVERIFIED GUC claims; no actual GoTrue proof or production writes."
