@@ -146,10 +146,6 @@ BEGIN
     OR source_receipt->>'sourceReceiptId' IS DISTINCT FROM
         current_setting('titus.test_learner_receipt')
  THEN RAISE EXCEPTION 'FAIL: learner source grant not issued'; END IF;
- BEGIN
-  PERFORM public.titus_classroom_authorize_self_api_v1(
-   '00000000-0000-4000-8000-000000000100','homework_feedback');
- EXCEPTION WHEN OTHERS THEN denied:=true; END;
  IF public.titus_classroom_authorize_self_api_v1(
    '00000000-0000-4000-8000-000000000100','homework_feedback') IS NOT NULL
  THEN RAISE EXCEPTION 'FAIL: learner got teacher review right'; END IF;
