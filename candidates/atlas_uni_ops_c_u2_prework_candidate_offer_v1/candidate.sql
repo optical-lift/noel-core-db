@@ -14,6 +14,8 @@ CREATE TABLE atlas.governed_prework_candidate_offers_v1 (
  subject_id uuid NOT NULL REFERENCES atlas.growing_objects(id) ON DELETE RESTRICT,
  rule_version_id uuid NOT NULL
   REFERENCES atlas.governed_farm_rulebook_scope_versions_v1(id) ON DELETE RESTRICT,
+ property_rule_version_id uuid NOT NULL
+  REFERENCES atlas.governed_farm_rulebook_scope_versions_v1(id) ON DELETE RESTRICT,
  accepted_standing_scope_id uuid NOT NULL
   REFERENCES atlas.company_work_standing_assignment_scopes(id) ON DELETE RESTRICT,
  target_person_id uuid NOT NULL REFERENCES reality.entities(id) ON DELETE RESTRICT,
@@ -73,6 +75,7 @@ DECLARE
  v atlas.governed_prework_candidate_offers_v1%ROWTYPE;
  v_current_version uuid;
  v_property_status text;
+ v_current_property_version uuid;
  v_open_count integer;
 BEGIN
  SELECT * INTO v FROM atlas.governed_prework_candidate_offers_v1
@@ -150,12 +153,14 @@ BEGIN
            AND p.source_id=v.source_candidate_id)))
  THEN RETURN false; END IF;
 
- SELECT r.rule_status INTO v_property_status
+ SELECT r.id,r.rule_status INTO v_current_property_version,v_property_status
  FROM atlas.governed_farm_rulebook_scope_versions_v1 r
  WHERE r.organization_id=v.organization_id AND r.ledger_id=v.ledger_id
    AND r.farm_id=v.farm_id AND r.source_rule_id=v.source_rule_id
    AND r.scope_key='property' ORDER BY r.rule_version DESC LIMIT 1;
- IF v_property_status IS DISTINCT FROM 'active' THEN RETURN false; END IF;
+ IF v_property_status IS DISTINCT FROM 'active'
+   OR v_current_property_version IS DISTINCT FROM v.property_rule_version_id
+ THEN RETURN false; END IF;
 
  SELECT r.id INTO v_current_version
  FROM atlas.governed_farm_rulebook_scope_versions_v1 r
@@ -216,6 +221,7 @@ DECLARE
  v_existing atlas.governed_prework_candidate_offers_v1%ROWTYPE;
  v_created atlas.governed_prework_candidate_offers_v1%ROWTYPE;
  v_subject_id uuid;v_candidate_id uuid;v_rule_version_id uuid;
+ v_property_version_id uuid;
  v_reason text:=btrim(coalesce(p_reason,''));
  v_day_count integer;v_unique_count integer;
  v_timezone text:=btrim(coalesce(p_timezone_name,''));
@@ -312,6 +318,31 @@ BEGIN
    USING ERRCODE='23514';
  END IF;
 
+ -- Freeze the exact governing umbrella version; even an ACTIVE revision is
+ -- a new authority decision and must not silently transfer an old offer.
+ SELECT p.id INTO v_property_version_id
+ FROM atlas.governed_farm_rulebook_scope_versions_v1 p
+ WHERE p.organization_id=p_organization_id AND p.ledger_id=p_ledger_id
+   AND p.farm_id=p_farm_id AND p.source_rule_id=p_source_rule_id
+   AND p.scope_key='property' AND p.rule_status='active'
+ ORDER BY p.rule_version DESC LIMIT 1;
+ IF v_property_version_id IS NULL OR EXISTS(
+   SELECT 1 FROM atlas.governed_farm_rulebook_scope_versions_v1 later
+   WHERE later.organization_id=p_organization_id
+    AND later.ledger_id=p_ledger_id AND later.farm_id=p_farm_id
+    AND later.source_rule_id=p_source_rule_id AND later.scope_key='property'
+    AND later.rule_status<>'active'
+    AND later.rule_version>(
+     SELECT p.rule_version FROM atlas.governed_farm_rulebook_scope_versions_v1 p
+     WHERE p.id=v_property_version_id)
+ ) THEN
+   RETURN pg_catalog.jsonb_build_object('ok',true,
+    'contractVersion','governed_prework_candidate_offer_v1',
+    'state','no_source_eligible_candidate','offerCreated',false,
+    'originalWorkCreated',false,'responsibilityCreated',false,
+    'notAnAllNeedsCensus',true);
+ END IF;
+
  -- Same active first-party R01 source, but read-only selection instead of
  -- the old governor-direct original writer. Latest selected scope version
  -- must be active, standing, and free of unknown seasonal activation.
@@ -398,17 +429,18 @@ BEGIN
  END IF;
  INSERT INTO atlas.governed_prework_candidate_offers_v1(
   organization_id,ledger_id,farm_id,source_rule_id,source_candidate_id,
-  subject_id,rule_version_id,accepted_standing_scope_id,target_person_id,
+  subject_id,rule_version_id,property_rule_version_id,accepted_standing_scope_id,target_person_id,
   offered_by_person_id,first_service_day,campaign_end_date,
   approved_iso_weekdays,timezone_name,reason,source_basis,offered_action_id
  ) VALUES(
   p_organization_id,p_ledger_id,p_farm_id,p_source_rule_id,v_candidate_id,
-  v_subject_id,v_rule_version_id,p_accepted_standing_scope_id,
+  v_subject_id,v_rule_version_id,v_property_version_id,p_accepted_standing_scope_id,
   v_scope.worker_person_id,v_root.actor_person_id,
   p_first_service_day,p_campaign_end_date,p_approved_iso_weekdays,
   v_timezone,v_reason,
   pg_catalog.jsonb_build_object('contractVersion','governed_prework_candidate_offer_v1',
-   'ruleVersionId',v_rule_version_id,'sourceCandidateId',v_candidate_id,
+   'ruleVersionId',v_rule_version_id,'propertyRuleVersionId',v_property_version_id,
+   'sourceCandidateId',v_candidate_id,
    'sourceKind','native_rhythm_state','physicalConditionAsserted',false,
    'workerConsentRecorded',false,'rootPersonId',v_root.actor_person_id),
   p_action_id
@@ -422,6 +454,7 @@ BEGIN
    'state','offered','replayed',false,'offerId',v_created.id,
    'candidateId',v_created.source_candidate_id,
    'ruleVersionId',v_rule_version_id,
+   'propertyRuleVersionId',v_property_version_id,
    'targetPersonId',v_created.target_person_id,
    'firstServiceDay',p_first_service_day,
    'physicalConditionAsserted',false,
