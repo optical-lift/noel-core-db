@@ -336,6 +336,16 @@ BEGIN
     '00000000-0000-4000-8000-000000000100');
  EXCEPTION WHEN OTHERS THEN denied:=(SQLSTATE='42501'); END;
  IF NOT denied THEN RAISE EXCEPTION 'FAIL: revoked participant read'; END IF;
+ denied:=false;
+ BEGIN
+  PERFORM public.titus_classroom_append_self_api_v1(
+    '00000000-0000-4000-8000-000000000100',
+    jsonb_build_object('operationId',
+      '00000000-0000-4000-8000-000000000413',
+      'expectedVersion',6,'kind','discussion_post','partRef','class',
+      'body','revoked teacher must not write','replyToEventId',NULL));
+ EXCEPTION WHEN OTHERS THEN denied:=(SQLSTATE='42501'); END;
+ IF NOT denied THEN RAISE EXCEPTION 'FAIL: revoked participant wrote'; END IF;
 END;$revoked$;
 RESET ROLE;
 
