@@ -34,7 +34,7 @@ CREATE TABLE atlas.governed_prework_candidate_offers_v1 (
  offered_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
  CHECK (campaign_end_date>=first_service_day
         AND campaign_end_date<=first_service_day+120),
- CHECK (pg_catalog.array_length(approved_iso_weekdays,1) BETWEEN 1 AND 7),
+ CHECK (coalesce(pg_catalog.array_length(approved_iso_weekdays,1),0) BETWEEN 1 AND 7),
  CHECK (
   (offer_state='offered' AND response_action_id IS NULL AND responded_at IS NULL
     AND responding_principal_id IS NULL AND original_work_item_id IS NULL)
@@ -79,7 +79,7 @@ BEGIN
  WHERE id=p_offer_id;
  IF v.id IS NULL OR v.offer_state NOT IN ('offered','accepted')
     OR (pg_catalog.now() AT TIME ZONE v.timezone_name)::date>v.first_service_day
-    OR pg_catalog.now()::date>v.campaign_end_date
+    OR (pg_catalog.now() AT TIME ZONE v.timezone_name)::date>v.campaign_end_date
     OR NOT EXISTS(
       SELECT 1 FROM atlas.farms f
       JOIN atlas.farm_crop_ledger_custody_v1 c
@@ -122,6 +122,10 @@ BEGIN
      AND s.farm_id=v.farm_id AND s.organization_id=v.organization_id
      AND s.rhythm_rule_id=v.source_rule_id
      AND s.subject_id=v.subject_id AND s.state<>'paused'
+     AND s.rhythm_key='mowing'
+     AND EXISTS(SELECT 1 FROM atlas.mowing_area_state m
+        WHERE m.object_id=s.subject_id AND m.farm_id=s.farm_id
+          AND m.organization_id=v.organization_id AND m.status<>'closed')
  ) OR NOT coalesce(atlas.has_current_subject_disclosure_v1(
       v.ledger_id,v.target_person_id,
       'spatial','growing_object',v.subject_id,'identity'),false)
@@ -226,18 +230,18 @@ BEGIN
        WHERE tz.name=v_timezone)
    OR p_first_service_day<(pg_catalog.now() AT TIME ZONE v_timezone)::date
    OR p_approved_iso_weekdays IS NULL
-   OR pg_catalog.array_length(p_approved_iso_weekdays,1) NOT BETWEEN 1 AND 7
+   OR coalesce(pg_catalog.array_length(p_approved_iso_weekdays,1),0) NOT BETWEEN 1 AND 7
    OR NOT (EXTRACT(ISODOW FROM p_first_service_day)::smallint
       = ANY(p_approved_iso_weekdays))
  THEN
   RAISE EXCEPTION 'Source-approved service day, timezone and bounded workdays required'
    USING ERRCODE='22023';
  END IF;
- SELECT count(*),count(DISTINCT day) INTO v_day_count,v_unique_count
- FROM pg_catalog.unnest(p_approved_iso_weekdays) AS day;
+ SELECT count(*),count(DISTINCT d) INTO v_day_count,v_unique_count
+ FROM pg_catalog.unnest(p_approved_iso_weekdays) AS days(d);
  IF v_day_count<>v_unique_count OR EXISTS(
-   SELECT 1 FROM pg_catalog.unnest(p_approved_iso_weekdays) AS day
-     WHERE day NOT BETWEEN 1 AND 7)
+   SELECT 1 FROM pg_catalog.unnest(p_approved_iso_weekdays) AS days(d)
+     WHERE d IS NULL OR d NOT BETWEEN 1 AND 7)
  THEN RAISE EXCEPTION 'Distinct ISO weekdays required' USING ERRCODE='22023'; END IF;
 
  SELECT * INTO v_scope FROM atlas.company_work_standing_assignment_scopes s
@@ -253,6 +257,11 @@ BEGIN
  THEN RAISE EXCEPTION 'Accepted native Person scope not current'
    USING ERRCODE='42501'; END IF;
 
+ -- Share the property umbrella lock with U1B; a paused property cannot
+ -- race an accepted candidate or a new candidate selection.
+ PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+  'u1b:'||p_organization_id::text||':'||p_ledger_id::text||':'||
+  p_farm_id::text||':'||p_source_rule_id::text||':property',0));
  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
   'u2:offer:'||p_organization_id::text||':'||p_ledger_id::text||':'||
   p_farm_id::text||':'||p_source_rule_id::text,0));
@@ -320,6 +329,12 @@ BEGIN
  ) rp ON true
  WHERE s.farm_id=p_farm_id AND s.organization_id=p_organization_id
    AND s.rhythm_rule_id=p_source_rule_id AND s.state<>'paused'
+   -- This first source adapter is intentionally mowing stewardship only;
+   -- weed-restoration requires separately witnessed current physical condition.
+   AND s.rhythm_key='mowing'
+   AND EXISTS(SELECT 1 FROM atlas.mowing_area_state m
+       WHERE m.object_id=s.subject_id AND m.farm_id=s.farm_id
+        AND m.organization_id=p_organization_id AND m.status<>'closed')
    AND rp.rule_status='active'
    AND rp.policy->>'eligibilityMode'='standing_stewardship'
    AND pg_catalog.jsonb_array_length(
