@@ -35,7 +35,7 @@ def verified_clean_lint(path: Path, raw: str) -> bool:
         return False
     lines = [line.strip() for line in raw.splitlines() if line.strip()]
     return (
-        any(line.startswith("Linting schema: ") for line in lines)
+        any(line.startswith("Linting schema: ") or line.startswith("No schema errors found") for line in lines)
         and all(any(rule.fullmatch(line) for rule in _CLEAN_LINT_LINES) for line in lines)
     )
 
