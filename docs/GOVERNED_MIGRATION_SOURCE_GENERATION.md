@@ -12,14 +12,14 @@ The generator is `.github/workflows/migration-source-generation.yml` on canonica
 It runs only when the repository OWNER opens an issue with the exact title:
 
 ```
-Migration generation request: <Atlas|WNPH|Noel|Shared> <migration_name>
+Migration generation request: <Atlas|Titus|WNPH|Noel|Shared> <migration_name>
 ```
 
 The body must contain one token per field:
 
 ```
-release_lane: noel
-migration_name: noel_research_function_example_v1
+release_lane: titus
+migration_name: titus_customer_workspace_first_course_v1
 candidate_sha: <40-character commit on main>
 candidate_path: candidates/example/candidate.sql
 fixture_path: candidates/example/fixture.sql
@@ -46,6 +46,8 @@ Pull-request creation remains a separate review action.
 ## What it cannot do
 
 The generator:
+
+- recognizes the existing `titus` lane, with an exact `Migration generation request: Titus titus_...` owner issue title; the candidate must still already be merged to canonical `main`, and the separate `check-migration-release-lane.sh` validates the `titus_` domain membrane;
 
 - has no production database secret or production environment;
 - cannot apply a migration;
