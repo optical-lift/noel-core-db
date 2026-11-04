@@ -5,7 +5,7 @@ usage() {
   cat >&2 <<'EOF'
 Usage: scripts/validate-production-schema-clone.sh \
   --migration-version <14 digits> \
-  --release-lane <atlas|wnph|noel|shared> \
+  --release-lane <atlas|wnph|titus|noel|shared> \
   --candidate-migration <path> \
   [--candidate-fixture <path>] \
   [--candidate-validation <path>] \
@@ -46,7 +46,7 @@ done
 if [[ ! "$version" =~ ^[0-9]{14}$ ]]; then
   usage
 fi
-if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "noel" && "$lane" != "shared" ]]; then
+if [[ "$lane" != "atlas" && "$lane" != "wnph" && "$lane" != "titus" && "$lane" != "noel" && "$lane" != "shared" ]]; then
   usage
 fi
 for required_path in "$candidate_migration" "$roles_dump" "$schema_dump"; do
