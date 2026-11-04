@@ -35,30 +35,54 @@ CREATE TABLE titus.customer_course_drafts_v1(
 );
 CREATE INDEX customer_course_drafts_by_workspace_v1
   ON titus.customer_course_drafts_v1(workspace_id,created_at,course_id);
+
+-- A verified Auth login is NOT a Titus purchase. Zero grants are deployed.
+-- Issuance/revocation must later be a separately authorized source operation
+-- after a genuine payment or explicit private-pilot owner approval.
+CREATE TABLE titus.customer_workspace_entitlements_v1(
+  owner_auth_user_id uuid PRIMARY KEY REFERENCES auth.users(id)
+    ON DELETE RESTRICT,
+  grant_kind text NOT NULL
+    CHECK(grant_kind IN ('private_pilot','purchase')),
+  grant_source_receipt text NOT NULL UNIQUE
+    CHECK(grant_source_receipt=btrim(grant_source_receipt)
+      AND length(grant_source_receipt) BETWEEN 8 AND 200),
+  state text NOT NULL DEFAULT 'active'
+    CHECK(state IN ('active','suspended','revoked')),
+  granted_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  valid_until timestamptz,
+  CHECK(valid_until IS NULL OR valid_until>granted_at)
+);
 ALTER TABLE titus.customer_workspaces_v1 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE titus.customer_course_drafts_v1 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE titus.customer_workspace_entitlements_v1 ENABLE ROW LEVEL SECURITY;
 -- No table-level access for end users: only guarded, narrow source RPCs.
 REVOKE ALL ON TABLE titus.customer_workspaces_v1,
- titus.customer_course_drafts_v1 FROM PUBLIC;
+ titus.customer_course_drafts_v1,
+ titus.customer_workspace_entitlements_v1 FROM PUBLIC;
 DO $privs$ BEGIN
  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='authenticated') THEN
    REVOKE ALL ON TABLE titus.customer_workspaces_v1,
-    titus.customer_course_drafts_v1 FROM authenticated;
+    titus.customer_course_drafts_v1,
+    titus.customer_workspace_entitlements_v1 FROM authenticated;
  END IF;
  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='anon') THEN
    REVOKE ALL ON TABLE titus.customer_workspaces_v1,
-    titus.customer_course_drafts_v1 FROM anon;
+    titus.customer_course_drafts_v1,
+    titus.customer_workspace_entitlements_v1 FROM anon;
  END IF;
  IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN
    REVOKE ALL ON TABLE titus.customer_workspaces_v1,
-    titus.customer_course_drafts_v1 FROM service_role;
+    titus.customer_course_drafts_v1,
+    titus.customer_workspace_entitlements_v1 FROM service_role;
  END IF;
 END; $privs$;
 
 -- This is Titus-specific buyer authentication, independent of Atlas
 -- Teaching capability, Atlas Person, School Ledger, learner, or enrollment.
 -- PostgREST verifies the JWT cryptographically before setting auth claims.
--- Recheck the current nonanonymous confirmed user and real live Auth session.
+-- Recheck the current confirmed user/session AND a source-issued entitlement.
+-- A fresh signed Atlas OAuth identity alone is NOT a Titus purchase.
 CREATE FUNCTION titus.customer_current_auth_user_v1()
 RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER
 SET search_path=pg_catalog
@@ -77,6 +101,16 @@ BEGIN
  ) THEN
    RAISE EXCEPTION 'Current confirmed Titus Auth session required'
     USING ERRCODE='42501';
+ END IF;
+ -- Authentication cannot create a purchase or private-pilot invitation.
+ -- Every catalog access must have a separately issued active entitlement.
+ IF NOT EXISTS(
+   SELECT 1 FROM titus.customer_workspace_entitlements_v1 e
+   WHERE e.owner_auth_user_id=v_user AND e.state='active'
+     AND (e.valid_until IS NULL OR e.valid_until>now())
+ ) THEN
+   RAISE EXCEPTION 'Active Titus customer entitlement required'
+     USING ERRCODE='42501';
  END IF;
  RETURN v_user;
 END;
