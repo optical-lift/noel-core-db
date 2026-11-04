@@ -328,6 +328,7 @@ AS $effective$
 DECLARE
  v_root record;v_object atlas.growing_objects%ROWTYPE;
  v_selected atlas.governed_farm_rulebook_scope_versions_v1%ROWTYPE;
+ v_property_status text;
 BEGIN
  SELECT * INTO v_root FROM atlas.require_governed_farm_rulebook_root_v1(
   p_organization_id,p_ledger_id,p_farm_id,p_source_rule_id);
@@ -349,6 +350,27 @@ BEGIN
       'spatial','growing_object',p_subject_id,'condition'),false) THEN
   RAISE EXCEPTION 'Exact Subject Rulebook read unavailable'
    USING ERRCODE='42501';
+ END IF;
+ -- Property umbrella cannot be bypassed by a later active class/Subject
+ -- version. Pausing the parent holds ALL children even when they are active.
+ SELECT p.rule_status INTO v_property_status
+ FROM atlas.governed_farm_rulebook_scope_versions_v1 p
+ WHERE p.organization_id=p_organization_id AND p.ledger_id=p_ledger_id
+   AND p.farm_id=p_farm_id AND p.source_rule_id=p_source_rule_id
+   AND p.scope_key='property'
+ ORDER BY p.rule_version DESC LIMIT 1;
+ IF v_property_status IS NULL THEN
+  RETURN pg_catalog.jsonb_build_object('ok',true,
+   'contractVersion','governed_native_farm_rulebook_effective_v1',
+   'state','not_established','subjectId',p_subject_id,
+   'sourceRuleId',p_source_rule_id,'policyExecutable',false);
+ END IF;
+ IF v_property_status<>'active' THEN
+  RETURN pg_catalog.jsonb_build_object('ok',true,
+   'contractVersion','governed_native_farm_rulebook_effective_v1',
+   'state','on_hold','holdSource','property_umbrella',
+   'subjectId',p_subject_id,'sourceRuleId',p_source_rule_id,
+   'policyExecutable',false,'offerCreated',false,'workCreated',false);
  END IF;
  SELECT r.* INTO v_selected
  FROM atlas.governed_farm_rulebook_scope_versions_v1 r
