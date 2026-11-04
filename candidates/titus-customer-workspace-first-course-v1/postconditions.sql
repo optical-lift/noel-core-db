@@ -14,10 +14,40 @@ DO $denial$ BEGIN
     OR has_table_privilege('service_role',
     'titus.customer_course_drafts_v1','SELECT')
     OR has_table_privilege('service_role',
-    'titus.customer_workspaces_v1','INSERT') THEN
+    'titus.customer_workspaces_v1','INSERT')
+    OR has_table_privilege('authenticated',
+    'titus.customer_workspace_entitlements_v1','SELECT')
+    OR has_table_privilege('service_role',
+    'titus.customer_workspace_entitlements_v1','INSERT') THEN
    RAISE EXCEPTION 'private table grants leaked';
  END IF;
 END; $denial$;
+
+-- A confirmed Auth session without an explicit source entitlement must
+-- NOT be able to read/initialize a customer workspace or create a Course.
+SET request.jwt.claims='{"sub":"00000000-0000-4000-8000-000000000101","session_id":"00000000-0000-4000-8000-000000000201"}';
+SET ROLE authenticated;
+DO $unpaid$
+BEGIN
+ BEGIN
+   PERFORM public.titus_customer_catalog_self_api_v1();
+   RAISE EXCEPTION 'Unentitled Auth user could read Titus catalog';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+ BEGIN
+   PERFORM public.titus_customer_start_workspace_self_api_v1('Unpurchased');
+   RAISE EXCEPTION 'Unentitled Auth user could create Titus workspace';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+END; $unpaid$;
+RESET ROLE;
+-- Only fictional scratch custody issues entitlements. The actual source
+-- candidate contains ZERO grants; no real purchase/pilot is inferred.
+INSERT INTO titus.customer_workspace_entitlements_v1(
+ owner_auth_user_id,grant_kind,grant_source_receipt
+) VALUES
+ ('00000000-0000-4000-8000-000000000101','private_pilot','fictional-scratch-receipt-A'),
+ ('00000000-0000-4000-8000-000000000102','purchase','fictional-scratch-receipt-B');
 
 SET request.jwt.claims='{"sub":"00000000-0000-4000-8000-000000000101","session_id":"00000000-0000-4000-8000-000000000201"}';
 SET ROLE authenticated;
@@ -110,5 +140,21 @@ BEGIN
  EXCEPTION WHEN insufficient_privilege THEN NULL;
  END;
 END; $expired$;
+RESET ROLE;
+
+-- Source entitlement withdrawal invalidates owner access even if their
+-- Auth session is otherwise current.
+UPDATE titus.customer_workspace_entitlements_v1
+ SET state='revoked' WHERE owner_auth_user_id='00000000-0000-4000-8000-000000000101';
+SET request.jwt.claims='{"sub":"00000000-0000-4000-8000-000000000101","session_id":"00000000-0000-4000-8000-000000000201"}';
+SET ROLE authenticated;
+DO $revoked_entitlement$
+BEGIN
+ BEGIN
+   PERFORM public.titus_customer_catalog_self_api_v1();
+   RAISE EXCEPTION 'Revoked customer entitlement retained read access';
+ EXCEPTION WHEN insufficient_privilege THEN NULL;
+ END;
+END; $revoked_entitlement$;
 RESET ROLE;
 RESET request.jwt.claims;
