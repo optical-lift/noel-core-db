@@ -35,7 +35,7 @@ Never copy this test-only `auth.jwt()` or `auth.uid()` into the shared Supabase 
 | --- | --- |
 | Earlier 1F fictional offer/accept/withdrawal & event history | **PASS**, [RiverSong #41884149777](https://github.com/optical-lift/titus/actions/runs/41884149777) |
 | Titus 1G-A signed-user HTTP transport mocks and no-release build | **PASS**, [RiverSong #41888181853](https://github.com/optical-lift/titus/actions/runs/41888181853) |
-| Live-source-shaped Postgres session/Person binding proof | **CODED — independent PG17 acceptance pending** |
+| Live-source-shaped Postgres session/Person binding proof | **PASS — [RiverSong #41892880522](https://github.com/optical-lift/titus/actions/runs/41892880522), pinned source SHA `a725a540a2186e9d4b436893831b23ed4f61e9e2`** |
 | Actual GoTrue-signed JWT, PostgREST signature verification, two distinct real consenting people | **NOT DONE** |
 | Source rights review / Teaching edition authorization | **NOT DONE** |
 | True source issuer/writer migration, authenticated grants and production release | **NOT DONE** |
@@ -45,4 +45,8 @@ Never copy this test-only `auth.jwt()` or `auth.uid()` into the shared Supabase 
 
 ## Exact verification receipt
 
-Pending RiverSong native PG17 execution; preserve this register even if an initial test fails. Document a corrected exact SHA, any failed reason, and the remaining gates without silently merging the entire draft stack.
+**PASS — 2026-11-04**. [Titus RiverSong carrier #41892880522](https://github.com/optical-lift/titus/actions/runs/41892880522), workflow SHA `e6e8b94c6f1b40baa94faa84cf1da6afdbab1be6`, fetched exact Noel source/test SHA `a725a540a2186e9d4b436893831b23ed4f61e9e2` and passed all four independent disposable PostgreSQL 17 test clusters on private-socket ports 55437, 55439, 55441 and **55443**. The protected Atlas clone port 55432 was untouched. The fourth cluster logs confirm the source-shaped session table/Person-binding denial matrix, the principal/teacher/learner source events, withdrawal and the writer still false. The runner cleaned up its isolated source checkout.
+
+**Closed:** source-shaped current-session/Person-binding **synthetic test** behavior. The claims originate from a test-only GUC, so the test does **not** verify a GoTrue cryptographic signature, real authenticated sessions or independent human assent. **Not closed:** two genuinely authenticated people, actual principal jurisdiction, rights-cleared edition, production source issuer/writer release, or a live Titus classroom. Keep Noel PR #2472, PR #2471 and Titus PR #41 as drafts; do not merge or deploy on this result.
+
+**Next bounded necessity:** cryptographically verified GoTrue/PostgREST signed sessions and distinct participant acceptance against an approved, isolated source-backed environment, with separate source release authority and explicit rights approval. Do not substitute synthetic `request.jwt.claims` for this gate.
