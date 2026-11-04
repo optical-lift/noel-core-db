@@ -129,8 +129,8 @@ DECLARE
 BEGIN
  SELECT * INTO v_root FROM atlas.require_governed_farm_rulebook_root_v1(
   p_organization_id,p_ledger_id,p_farm_id,p_source_rule_id);
- IF p_action_id IS NULL OR p_scope_kind NOT IN ('property','class','subject')
-   OR p_decision NOT IN ('active','paused','retired')
+ IF p_action_id IS NULL OR coalesce(p_scope_kind,'') NOT IN ('property','class','subject')
+   OR coalesce(p_decision,'') NOT IN ('active','paused','retired')
    OR length(v_ref) NOT BETWEEN 1 AND 100
    OR p_policy IS NULL OR pg_catalog.jsonb_typeof(p_policy)<>'object'
    OR pg_catalog.octet_length(p_policy::text)>8192
@@ -192,6 +192,7 @@ BEGIN
    RAISE EXCEPTION 'Canonical exact Subject required' USING ERRCODE='42501';
   END IF;
   v_subject_id:=v_ref::uuid;
+  v_ref:=v_subject_id::text;
   IF NOT EXISTS(SELECT 1 FROM atlas.growing_objects g
     JOIN reality.entities re ON re.id=g.id
      AND re.identity_state='canonical' AND re.entity_kind='growing_object'
@@ -211,6 +212,12 @@ BEGIN
   END IF;
   v_scope_key:='subject:'||v_subject_id::text;
  END CASE;
+
+ -- Serialize the property umbrella first, including every child exception,
+ -- so a concurrent property pause cannot race a new active class decision.
+ PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
+  'u1b:'||p_organization_id::text||':'||p_ledger_id::text||':'||
+  p_farm_id::text||':'||p_source_rule_id::text||':property',0));
 
  -- A class or Subject exception needs an explicitly active umbrella for
  -- this same first-party rule; no parallel self-authorized namespace.
@@ -324,7 +331,7 @@ DECLARE
 BEGIN
  SELECT * INTO v_root FROM atlas.require_governed_farm_rulebook_root_v1(
   p_organization_id,p_ledger_id,p_farm_id,p_source_rule_id);
- SELECT * INTO v_object FROM atlas.growing_objects g
+ SELECT g.* INTO v_object FROM atlas.growing_objects g
  JOIN reality.entities e ON e.id=g.id
   AND e.identity_state='canonical' AND e.entity_kind='growing_object'
   AND e.metadata->>'subjectDomain'='spatial'
