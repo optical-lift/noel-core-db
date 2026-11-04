@@ -140,7 +140,8 @@ BEGIN
    SELECT 1 FROM atlas.teaching_course_offerings o
    JOIN atlas.teaching_courses c ON c.id=o.course_id
    WHERE o.id=v_binding.offering_id AND o.ledger_id=v_binding.ledger_id
-      AND c.ledger_id=o.ledger_id AND c.status='active' AND o.state='open')
+      AND c.ledger_id=o.ledger_id AND c.status='active' AND o.state='open'
+      AND atlas.teaching_activation_active_v1(c.ledger_id,c.capability_activation_id))
     OR NOT atlas.principal_has_ledger_authority_v1(
       v_binding.issuing_principal_id,v_binding.ledger_id)
     OR NOT EXISTS(
@@ -189,6 +190,19 @@ BEGIN
    ORDER BY e.id DESC LIMIT 1;
    IF v_teacher_accept.event_kind IS DISTINCT FROM 'accepted'
       OR v_teacher_accept.role IS DISTINCT FROM 'teacher'
+      OR NOT EXISTS(
+        SELECT 1 FROM titus.classroom_pilot_participation_v1 seat
+        JOIN titus.classroom_pilot_assignment_events_v1 offer
+          ON offer.thread_id=seat.thread_id
+         AND offer.participant_person_entity_id=seat.person_entity_id
+         AND offer.assignment_receipt_id=seat.assignment_receipt_id
+         AND offer.event_kind='offered' AND offer.role='teacher'
+        WHERE seat.thread_id=p_thread_id AND seat.actor_role='teacher'
+        AND seat.person_entity_id=v_teacher
+        AND seat.assignment_receipt_id=v_teacher_accept.assignment_receipt_id
+        AND seat.assignment_state='active'
+        AND offer.actor_person_entity_id=v_binding.issuing_person_entity_id
+        AND offer.id<v_teacher_accept.id)
    THEN RETURN false; END IF;
  ELSE
    -- Teacher may read a room only while a learner currently consents to
@@ -250,7 +264,8 @@ BEGIN
  IF v_offering.id IS NULL OR NOT EXISTS(
    SELECT 1 FROM atlas.teaching_courses c WHERE
    c.id=v_offering.course_id AND c.ledger_id=v_offering.ledger_id
-   AND c.status='active') THEN
+   AND c.status='active' AND atlas.teaching_activation_active_v1(
+       c.ledger_id,c.capability_activation_id)) THEN
    RAISE EXCEPTION 'Active Teaching Offering required' USING ERRCODE='42501'; END IF;
 
  SELECT * INTO v_governor FROM titus.classroom_pilot_source_governor_v1(
@@ -355,7 +370,7 @@ BEGIN
    SELECT * INTO v_teacher FROM titus.classroom_pilot_participation_v1
    WHERE thread_id=p_thread_id AND actor_role='teacher'
      AND person_entity_id=p_named_reviewer_person_id AND
-     assignment_state='active';
+     assignment_state='active' FOR SHARE;
    IF v_teacher.person_entity_id IS NULL OR NOT EXISTS(
      SELECT 1 FROM titus.classroom_pilot_assignment_events_v1 e
      WHERE e.thread_id=p_thread_id AND
