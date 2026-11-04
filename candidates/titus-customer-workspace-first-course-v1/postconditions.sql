@@ -10,6 +10,10 @@ DO $denial$ BEGIN
  IF has_table_privilege('authenticated',
     'titus.customer_course_drafts_v1','SELECT')
     OR has_table_privilege('authenticated',
+    'titus.customer_workspaces_v1','INSERT')
+    OR has_table_privilege('service_role',
+    'titus.customer_course_drafts_v1','SELECT')
+    OR has_table_privilege('service_role',
     'titus.customer_workspaces_v1','INSERT') THEN
    RAISE EXCEPTION 'private table grants leaked';
  END IF;
@@ -75,8 +79,10 @@ BEGIN
     v->'workspace'->>'title'<>'Second University' THEN
    RAISE EXCEPTION 'buyer B workspace creation failed';
  END IF;
+ -- B deliberately reuses A's request UUID: idempotency is scoped to the
+ -- current workspace, not a cross-customer global request namespace.
  v:=public.titus_customer_create_course_self_api_v1(
-   '00000000-0000-4000-8000-000000000302','Buyer B Course');
+   '00000000-0000-4000-8000-000000000301','Buyer B Course');
  IF jsonb_array_length(v->'courses')<>1 OR
     v->'courses'->0->>'title'<>'Buyer B Course' THEN
    RAISE EXCEPTION 'buyer B original missing';
