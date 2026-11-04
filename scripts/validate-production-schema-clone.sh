@@ -675,6 +675,10 @@ run_lint() {
     # Noel owns draft Reality Pools and core/intelligence evidence infrastructure.
     # Compare *changes* to the inherited lint baseline, not existing lint debt.
     supabase db lint --local --schema draft,core,intelligence --level error --fail-on error >"$lint_output" 2>&1
+  elif [[ "$lane" == "titus" ]]; then
+    # Titus's structural release must lint Titus, not accidentally pass on Atlas.
+    # Do not widen this to private Noel research or unrelated application schemas.
+    supabase db lint --local --schema titus --level error --fail-on error >"$lint_output" 2>&1
   else
     supabase db lint --local --schema atlas --level error --fail-on error >"$lint_output" 2>&1
   fi
