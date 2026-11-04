@@ -72,6 +72,7 @@ SET search_path=pg_catalog,titus,atlas,reality,auth
 AS $append$
 DECLARE
   v_thread titus.classroom_threads_v1%ROWTYPE;
+  v_member titus.classroom_pilot_participation_v1%ROWTYPE;
   v_receipt jsonb;
   v_person uuid;
   v_role text;
@@ -153,6 +154,28 @@ BEGIN
   END IF;
   v_person:=(v_receipt->>'viewerPersonId')::uuid;
   v_role:=v_receipt->>'viewerRole';
+
+  -- Lock the exact membership before issuing a durable original. A
+  -- concurrent withdrawal/update of this Person's assignment must either
+  -- precede this lock (and deny the write) or follow the committed write.
+  -- This closes the revoke-vs-submit gap left by an unlocked STABLE reader.
+  SELECT * INTO v_member FROM titus.classroom_pilot_participation_v1
+  WHERE thread_id=p_thread_id AND person_entity_id=v_person FOR SHARE;
+  IF v_member.person_entity_id IS NULL
+     OR v_member.assignment_state<>'active'
+     OR v_member.actor_role IS DISTINCT FROM v_role
+     OR v_member.assignment_receipt_id::text IS DISTINCT FROM
+          (v_receipt->>'sourceReceiptId')
+     OR v_member.effective_at>clock_timestamp()
+     OR (v_member.expires_at IS NOT NULL AND
+         v_member.expires_at<=clock_timestamp())
+     OR v_member.withdrawn_at IS NOT NULL
+     OR NOT titus.classroom_pilot_assignment_issued_v1(
+       p_thread_id,v_person,v_role,v_member.assignment_receipt_id)
+  THEN
+    RAISE EXCEPTION 'Classroom assignment changed' USING ERRCODE='42501';
+  END IF;
+
   IF NOT EXISTS(
     SELECT 1 FROM titus.classroom_pilot_parts_v1
     WHERE thread_id=p_thread_id AND part_ref=v_part)
