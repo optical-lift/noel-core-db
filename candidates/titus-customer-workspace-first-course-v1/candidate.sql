@@ -52,7 +52,7 @@ DO $privs$ BEGIN
    REVOKE ALL ON TABLE titus.customer_workspaces_v1,
     titus.customer_course_drafts_v1 FROM service_role;
  END IF;
-END $privs$;
+END; $privs$;
 
 -- This is Titus-specific buyer authentication, independent of Atlas
 -- Teaching capability, Atlas Person, School Ledger, learner, or enrollment.
@@ -207,5 +207,5 @@ DO $rpc_grants$ BEGIN
   REVOKE ALL ON FUNCTION public.titus_customer_create_course_self_api_v1(uuid,text)
    FROM anon;
  END IF;
-END $rpc_grants$;
+END; $rpc_grants$;
 COMMIT;
