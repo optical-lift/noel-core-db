@@ -122,6 +122,41 @@ $current$;
 REVOKE ALL ON FUNCTION atlas.seasonal_scheduler_campaign_current_v1(uuid)
  FROM PUBLIC,anon,authenticated,service_role;
 
+-- A historical approved campaign remains revocable by the CURRENT
+-- native governing Ledger root even when the original farm Rule is retired,
+-- revoked or farm custody moves. This grants no authority to issue Work.
+-- Unlike the fresh-source campaign approver, do not require the old
+-- underlying source to remain active merely to revoke its old mandate.
+CREATE FUNCTION atlas.require_seasonal_campaign_current_ledger_root_v1(
+ p_organization_id uuid,p_ledger_id uuid
+) RETURNS TABLE(actor_person_id uuid,actor_principal_id uuid)
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $root$
+DECLARE v_person uuid;v_principal uuid;
+BEGIN
+ IF p_organization_id IS NULL OR p_ledger_id IS NULL THEN
+  RAISE EXCEPTION 'Exact governing Ledger required'
+   USING ERRCODE='42501'; END IF;
+ v_principal:=atlas.foundry_current_signed_principal_v1();
+ v_person:=atlas.company_work_native_ledger_owner_self_v1(
+  p_organization_id,p_ledger_id);
+ IF v_principal IS NULL OR v_person IS NULL
+  OR v_principal IS DISTINCT FROM atlas.current_principal_id_v1()
+  OR NOT EXISTS(
+   SELECT 1 FROM atlas.ledger_organization_participations l
+   WHERE l.organization_id=p_organization_id AND l.ledger_id=p_ledger_id
+    AND l.status='active' AND l.ended_at IS NULL
+    AND l.participation_kind='governing'
+    AND l.is_compatibility_primary=true)
+ THEN RAISE EXCEPTION 'Current signed native governing Ledger root required'
+   USING ERRCODE='42501'; END IF;
+ actor_person_id:=v_person;actor_principal_id:=v_principal;
+ RETURN NEXT;
+END;
+$root$;
+REVOKE ALL ON FUNCTION atlas.require_seasonal_campaign_current_ledger_root_v1(
+ uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+
 -- The Principal explicitly authorizes the seasonal campaign, NOT an
 -- unnamed scheduler. Root authority + real native source/Person scope
 -- are independently required. A later principal registration, narrow
@@ -358,11 +393,10 @@ BEGIN
  WHERE id=p_campaign_id;
  IF v.id IS NULL THEN RAISE EXCEPTION 'Campaign unavailable'
   USING ERRCODE='42501'; END IF;
- SELECT * INTO v_root FROM atlas.require_governed_farm_rulebook_root_v1(
-  v.organization_id,v.ledger_id,v.farm_id,v.source_rule_id);
- IF v_root.actor_person_id IS DISTINCT FROM v.approving_root_person_id THEN
-  RAISE EXCEPTION 'Only the current source root may revoke this campaign'
-   USING ERRCODE='42501'; END IF;
+ SELECT * INTO v_root FROM atlas.require_seasonal_campaign_current_ledger_root_v1(
+  v.organization_id,v.ledger_id);
+ -- The active governing Ledger root may close an inherited campaign without
+ -- claiming to be the historical original approving root.
  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(
   'u2e:one-offer:'||v.id::text,0));
  SELECT * INTO v_prior FROM atlas.governed_seasonal_scheduler_revocations_v1
