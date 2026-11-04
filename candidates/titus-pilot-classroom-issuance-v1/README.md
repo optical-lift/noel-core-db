@@ -35,11 +35,20 @@ No Titus Next route, approved visual Preview v4, university curriculum, deployme
 | --- | --- |
 | Source read/append event carrier with shared originals | PASS, [RiverSong Titus carrier #41873256390](https://github.com/optical-lift/titus/actions/runs/41873256390) |
 | Signed current Person issuer using actual Atlas root/Teaching source names | Source coded; signed-session fixture only |
-| Principal offer → teacher self-accept → learner named consent | Source + negative/positive tests coded; RiverSong run pending |
-| Withdrawal shuts learner and reviewer access | Source + test coded; RiverSong run pending |
-| Immutable event/assignment history, private RLS tables | Source + test coded; RiverSong run pending |
+| Principal offer → teacher self-accept → learner named consent | **PASS, fictional PG17** [RiverSong #41884149777](https://github.com/optical-lift/titus/actions/runs/41884149777) at exact Noel source SHA `77a1e0e40572015e67bca559f0358e74c4868ffb` |
+| Withdrawal shuts learner and reviewer access | **PASS, fictional PG17**, same exact run/SHA |
+| Immutable event/assignment history, private RLS tables | **PASS, fictional PG17**, same exact run/SHA; no browser role table privileges |
 | Real signer/issuer tests from two actual GoTrue accounts | NOT DONE |
 | Independent writer custody, live source permissions/release | NOT DONE |
 | Two-person deployed Titus classroom UI | NOT DONE |
 
 **Next after runtime proof:** complete the governed replacement for the still-hard-false *event writer* gate and demonstrate two genuine self-authenticated accounts in an isolated source-shaped test. Only then enable the actual Titus classroom GET/POST route and switch the approved UI from its browser-local demo store to server projections. Do not merge the whole draft stack merely because this sample fixture works.
+
+
+## 2026-11-04 verification closeout — exact code SHA
+
+The independent Titus repository RiverSong carrier [#41884149777](https://github.com/optical-lift/titus/actions/runs/41884149777) **SUCCESS**, running pinned Noel SHA `77a1e0e40572015e67bca559f0358e74c4868ffb` through three fresh, private Unix-socket PostgreSQL 17 clusters: membership on `55437`, immutable read/append on `55439`, and this issuer on `55441`. The protected Atlas clone `55432` was untouched. The logs specifically confirm principal offer, teacher self-acceptance, learner named-teacher acceptance, one shared original, subsequent withdrawal denying both parties, and the independent event writer gate restored **false**.
+
+Initial issuer tests failed because this independent fixture omitted the `class` and `homework` part registry that the older read/append fixture had seeded in its own postconditions. Separate-statement permission tests established the denial persisted after acceptance; the disposable root probe verified authentic fixture issuance was `true`, accepted receipts and active enrollment existed, and permitted parts were missing. The fix seeds only those two fixture parts, without weakening any production candidate source authorization. Diagnostic instrumentation was removed after identification.
+
+**Precisely closed:** source-only sample classroom Build 1F synthetic PG17 acceptance. **Not closed:** real GoTrue/Person approval issuance, real rights-cleared learner/teacher seats, production source migration/grants, independent write-gate release, or deployed Titus two-person classroom. Keep PR #2471 draft and issue #2461 open; no merge, deployment, data mutation or real classroom access.
