@@ -140,36 +140,6 @@ BEGIN
    RAISE EXCEPTION 'FAIL: learner named consent not accepted'; END IF;
 END;$learner_accept$;
 
--- Disposable-only independent issuer probe, using the scratch-cluster
--- administrator. No source grants are changed and no browser can call it.
-RESET ROLE;
-DO $fixture_issuer_probe$
-DECLARE
- v_thread uuid:='00000000-0000-4000-8000-000000000100';
- v_learner uuid:='00000000-0000-4000-8000-000000000201';
- v_teacher uuid:='00000000-0000-4000-8000-000000000202';
- v_receipt uuid:=current_setting('titus.test_learner_receipt')::uuid;
- v_teacher_receipt uuid:=current_setting('titus.test_teacher_receipt')::uuid;
-BEGIN
- RAISE NOTICE 'ISSUER PROBE: issued=%, learner_seat=%, learner_events=%, teacher_seat=%, teacher_events=%, learner_enrolled=%, principal_governs=%',
-  titus.classroom_pilot_assignment_issued_v1(v_thread,v_learner,'learner',v_receipt),
-  (SELECT to_jsonb(m) FROM titus.classroom_pilot_participation_v1 m
-   WHERE m.thread_id=v_thread AND m.person_entity_id=v_learner),
-  (SELECT jsonb_agg(jsonb_build_object('id',e.id,'kind',e.event_kind,'actor',e.actor_person_entity_id,'reviewer',e.named_reviewer_person_entity_id) ORDER BY e.id)
-    FROM titus.classroom_pilot_assignment_events_v1 e WHERE e.thread_id=v_thread AND e.participant_person_entity_id=v_learner),
-  (SELECT to_jsonb(m) FROM titus.classroom_pilot_participation_v1 m
-   WHERE m.thread_id=v_thread AND m.person_entity_id=v_teacher),
-  (SELECT jsonb_agg(jsonb_build_object('id',e.id,'kind',e.event_kind,'actor',e.actor_person_entity_id) ORDER BY e.id)
-    FROM titus.classroom_pilot_assignment_events_v1 e WHERE e.thread_id=v_thread AND e.participant_person_entity_id=v_teacher),
-  EXISTS(SELECT 1 FROM atlas.teaching_enrollments e
-   WHERE e.person_id=v_learner AND e.offering_id='00000000-0000-4000-8000-000000000610'
-     AND e.state='active' AND e.withdrawn_at IS NULL),
-  atlas.principal_has_ledger_authority_v1(
-   '00000000-0000-4000-8000-000000000630',
-   '00000000-0000-4000-8000-000000000600');
-END;$fixture_issuer_probe$;
-SET ROLE authenticated;
-
 -- Authorization is deliberately a distinct statement/request: STABLE
 -- read APIs must not be judged against a snapshot taken before acceptance.
 DO $learner_authority$
