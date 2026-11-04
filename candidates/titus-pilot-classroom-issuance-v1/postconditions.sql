@@ -101,7 +101,7 @@ SELECT set_config('titus.test_person',
  '00000000-0000-4000-8000-000000000202',false);
 SET ROLE authenticated;
 DO $teacher_accept$
-DECLARE s jsonb; denied boolean:=false;
+DECLARE s jsonb;
 BEGIN
  s:=public.titus_classroom_pilot_accept_self_api_v1(
    '00000000-0000-4000-8000-000000000100',
@@ -109,14 +109,19 @@ BEGIN
    NULL,true);
  IF s->>'state'<>'accepted' OR s->>'role'<>'teacher' THEN
    RAISE EXCEPTION 'FAIL: teacher self acceptance incorrect'; END IF;
- -- Teacher has been appointed, but has no student disclosure consent yet.
+END;$teacher_accept$;
+
+-- Verify the appointment does not confer disclosure on a fresh request.
+DO $teacher_no_consent$
+DECLARE denied boolean:=false;
+BEGIN
  BEGIN
   PERFORM public.titus_classroom_read_self_api_v1(
    '00000000-0000-4000-8000-000000000100');
  EXCEPTION WHEN OTHERS THEN denied:=(SQLSTATE='42501'); END;
  IF NOT denied THEN
    RAISE EXCEPTION 'FAIL: teacher read before learner acceptance'; END IF;
-END;$teacher_accept$;
+END;$teacher_no_consent$;
 RESET ROLE;
 
 -- Learner explicitly accepts that particular teacher, with a live Offering
