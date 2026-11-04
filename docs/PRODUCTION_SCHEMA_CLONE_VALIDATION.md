@@ -8,7 +8,7 @@ The validator is `.github/workflows/production-schema-clone-validation.yml` on c
 
 It may be triggered only by an open GitHub issue authored by the repository owner with the exact title:
 
-`Production schema validation request: <Atlas|WNPH|Noel|Shared> <14-digit-version>`
+`Production schema validation request: <Atlas|Titus|WNPH|Noel|Shared> <14-digit-version>`
 
 The issue body must contain exactly resolved single-token fields for:
 
@@ -79,3 +79,7 @@ This improves visibility to reviewers who cannot enumerate the issue-triggered G
 The reporting job must never quote schema data, execution logs, environment variables, connection strings or sensitive artifact contents in issue comments. Only the result enum, run URL and fixed interpretation text are permitted.
 
 For an issue opened before the reporter became part of canonical `main`, an owner-authorized issue edit or reopen can cause a **new** validation run under the existing `opened, edited, reopened` trigger. It does not retroactively comment old run results.
+
+## Titus lane compatibility (2026-11-04)
+
+The `titus_` lane is an existing domain in `custody/release-lanes-v1.json` and in the protected manual database releaser. The owner-triggered generation and schema-clone request parsers now recognize the exact `Titus` title and `release_lane: titus`, and the clone's local validation script accepts that lane. This is a routing compatibility repair only: it does **not** change release authority, protected production secrets, candidate source precedence, signature verification, schema dump behavior or require a teaching enrollment to launch Titus. It cannot validate an ungenerated `candidate.sql`; the normal reviewed candidate → merged source → owner-generated migration → protected disposable production clone sequence remains mandatory. No production schema snapshot is exposed to the application runner or draft PR.
