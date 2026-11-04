@@ -39,7 +39,7 @@ cleanup() {
   if [[ "$started" == "true" ]]; then
     "$bin/pg_ctl" -D "$data" -m immediate -w stop >/dev/null 2>&1 || true
   fi
-  if [[ "$scratch" == /tmp/noel-titus-pilot.* && -d "$scratch" ]]; then
+  if [[ "$scratch" == /tmp/noel-titus-read-append.* && -d "$scratch" ]]; then
     rm -rf -- "$scratch"
   else
     echo "Unsafe scratch path, refusing deletion." >&2
