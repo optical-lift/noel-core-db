@@ -6,7 +6,7 @@
 BEGIN;
 
 CREATE FUNCTION titus.classroom_pilot_read_current_v1(p_thread_id uuid)
-RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path=pg_catalog,titus,atlas,reality,auth
 AS $read$
 DECLARE
@@ -259,7 +259,7 @@ REVOKE ALL ON FUNCTION titus.classroom_pilot_append_current_v1(
 -- neither a prior authorize call nor an OAuth token implies permission.
 CREATE FUNCTION public.titus_classroom_read_self_api_v1(
   p_thread_id uuid
-) RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER
+) RETURNS jsonb LANGUAGE sql VOLATILE SECURITY DEFINER
 SET search_path=pg_catalog,titus,public
 AS $$SELECT titus.classroom_pilot_read_current_v1(p_thread_id)$$;
 REVOKE ALL ON FUNCTION public.titus_classroom_read_self_api_v1(uuid)
