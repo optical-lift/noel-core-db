@@ -239,10 +239,23 @@ BEGIN
  END IF;
  SELECT count(*),count(DISTINCT d) INTO v_day_count,v_unique_count
  FROM pg_catalog.unnest(p_approved_iso_weekdays) AS days(d);
- IF v_day_count<>v_unique_count OR EXISTS(
+ IF p_approved_iso_weekdays IS DISTINCT FROM
+    ARRAY(SELECT DISTINCT d FROM pg_catalog.unnest(p_approved_iso_weekdays) AS days(d)
+      ORDER BY d)::smallint[]
+    OR v_day_count<>v_unique_count OR EXISTS(
    SELECT 1 FROM pg_catalog.unnest(p_approved_iso_weekdays) AS days(d)
      WHERE d IS NULL OR d NOT BETWEEN 1 AND 7)
  THEN RAISE EXCEPTION 'Distinct ISO weekdays required' USING ERRCODE='22023'; END IF;
+
+ -- R01's original writer uses the Rule's source timezone, not a client
+ -- timezone claim, and admits only a short explicit human-selected horizon.
+ IF v_timezone IS DISTINCT FROM coalesce(
+       nullif((SELECT r.metadata->>'timezoneName'
+         FROM atlas.rhythm_rules r WHERE r.id=p_source_rule_id),''),'UTC')
+    OR p_first_service_day>(pg_catalog.now() AT TIME ZONE v_timezone)::date+14 THEN
+  RAISE EXCEPTION 'Native rule timezone and bounded R01 service horizon required'
+    USING ERRCODE='22023';
+ END IF;
 
  SELECT * INTO v_scope FROM atlas.company_work_standing_assignment_scopes s
  WHERE s.id=p_accepted_standing_scope_id
