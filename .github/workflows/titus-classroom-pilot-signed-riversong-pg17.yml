@@ -1,0 +1,83 @@
+name: Noel Titus classroom pilot signed participation — RiverSong PG17 source proof
+
+on:
+  push:
+    branches:
+      - candidate/titus-classroom-pilot-signed-participation-20261104
+    paths:
+      - 'candidates/titus-classroom-pilot-signed-participation-v1/**'
+      - 'scripts/test-titus-classroom-pilot-riversong-pg17.sh'
+      - '.github/workflows/titus-classroom-pilot-signed-riversong-pg17.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'candidates/titus-classroom-pilot-signed-participation-v1/**'
+      - 'scripts/test-titus-classroom-pilot-riversong-pg17.sh'
+      - '.github/workflows/titus-classroom-pilot-signed-riversong-pg17.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: noel-titus-classroom-signed-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source:
+    if: >-
+      github.repository == 'optical-lift/noel-core-db' &&
+      ((github.event_name == 'push' &&
+        github.ref == 'refs/heads/candidate/titus-classroom-pilot-signed-participation-20261104') ||
+       (github.event_name == 'pull_request' &&
+        github.head_ref == 'candidate/titus-classroom-pilot-signed-participation-20261104' &&
+        github.event.pull_request.head.repo.full_name == github.repository))
+    runs-on: [self-hosted, macOS, X64, lex-research]
+    timeout-minutes: 18
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Isolated exact SHA checkout
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "optical-lift/noel-core-db" ]]
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          work="$(mktemp -d "$RUNNER_TEMP/noel-titus-classroom-auth.XXXXXXXX")"
+          echo "NOEL_TITUS_WORK=$work" >> "$GITHUB_ENV"
+          git -C "$work" init -q
+          git -C "$work" remote add origin https://github.com/optical-lift/noel-core-db.git
+          encoded="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -C "$work" -c "http.extraHeader=AUTHORIZATION: basic $encoded" fetch --no-tags --depth=1 origin "$EXPECTED_SHA"
+          unset encoded GH_TOKEN
+          git -C "$work" checkout --detach --force FETCH_HEAD
+          [[ "$(git -C "$work" rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          echo "Exact Noel candidate $EXPECTED_SHA"
+
+      - name: Local private PG17 and protected scope preflight
+        run: |
+          set -euo pipefail
+          cd "$NOEL_TITUS_WORK"
+          bash -n scripts/test-titus-classroom-pilot-riversong-pg17.sh
+          for filename in fixture.sql candidate.sql postconditions.sql; do
+            test -s "candidates/titus-classroom-pilot-signed-participation-v1/$filename"
+          done
+          test ! -e supabase/migrations/20261104000000_titus_classroom_pilot.sql
+
+      - name: Signed source negative and positive tests in disposable PostgreSQL
+        run: |
+          set -euo pipefail
+          cd "$NOEL_TITUS_WORK"
+          bash scripts/test-titus-classroom-pilot-riversong-pg17.sh
+
+      - name: Delete only this isolated job workspace
+        if: always()
+        run: |
+          set -euo pipefail
+          if [[ -n "$NOEL_TITUS_WORK" &&
+                "$NOEL_TITUS_WORK" == "$RUNNER_TEMP"/noel-titus-classroom-auth.* ]]; then
+            rm -rf -- "$NOEL_TITUS_WORK"
+          fi
