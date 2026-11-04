@@ -88,8 +88,9 @@ def main():
     # The independently existing lane checker must not be bypassed.
     with tempfile.TemporaryDirectory(prefix="noel-titus-lane-") as tmp:
         target = Path(tmp) / (VERSION + "_" + NAME + ".sql")
-        target.write_text((ROOT /
-           "candidates/titus-customer-workspace-first-course-v1/candidate.sql").read_text())
+        # Minimal disposable source: this tests existing lane routing, not
+        # a not-yet-merged customer candidate from an unrelated PR.
+        target.write_text("BEGIN;\\nSELECT 1;\\nCOMMIT;\\n")
         check = subprocess.run(
             ["bash", "scripts/check-migration-release-lane.sh",
              VERSION, "titus", str(target)],
