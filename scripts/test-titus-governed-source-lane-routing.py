@@ -84,6 +84,8 @@ def main():
     assert '--release-lane <atlas|wnph|titus|noel|shared>' in script
     assert '"$lane" != "titus"' in script
     assert '"$lane" != "shared"' in script
+    assert 'elif [[ "$lane" == "titus" ]]; then' in script
+    assert 'supabase db lint --local --schema titus --level error' in script
 
     # The independently existing lane checker must not be bypassed.
     with tempfile.TemporaryDirectory(prefix="noel-titus-lane-") as tmp:
