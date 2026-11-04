@@ -21,14 +21,14 @@ No Course, Person, learner, university, purchase/entitlement, or unpublished res
 
 | Test or gate | Current state |
 | --- | --- |
-| Signed new user's catalog legitimately `workspace:null,courses:[]` | Source and fixture written; PG17 result pending |
-| Create private workspace, still zero Courses | Source and fixture written; PG17 result pending |
-| Append original draft Course; second read returns same Course | Source and fixture written; PG17 result pending |
-| Reusing original request ID does not duplicate; conflict rejected | Source and fixture written; PG17 result pending |
-| Another signed buyer cannot see or mutate first buyer's Courses | Source and fixture written; PG17 result pending |
-| Expired/revoked session denied, no direct table grants | Source and fixture written; PG17 result pending |
-| Single scratch-only RiverSong PG17 proof | [Titus carrier run #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840), pending |
-| Titus Node contract/Next no-release build | [Titus run #41919951401](https://github.com/optical-lift/titus/actions/runs/41919951401), pending |
+| Signed new user's catalog legitimately `workspace:null,courses:[]` | **PASS — [RiverSong #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840), exact source SHA `955a9a9de95198ca511b4e907f3957e2ccee5d80`** |
+| Create private workspace, still zero Courses | **PASS — [RiverSong #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840), exact source SHA `955a9a9de95198ca511b4e907f3957e2ccee5d80`** |
+| Append original draft Course; second read returns same Course | **PASS — [RiverSong #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840), exact source SHA `955a9a9de95198ca511b4e907f3957e2ccee5d80`** |
+| Reusing original request ID does not duplicate; conflict rejected | **PASS — [RiverSong #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840), exact source SHA `955a9a9de95198ca511b4e907f3957e2ccee5d80`** |
+| Another signed buyer cannot see or mutate first buyer's Courses | **PASS — [RiverSong #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840), exact source SHA `955a9a9de95198ca511b4e907f3957e2ccee5d80`** |
+| Expired/revoked session denied, no direct table grants | **PASS — [RiverSong #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840), exact source SHA `955a9a9de95198ca511b4e907f3957e2ccee5d80`** |
+| Single scratch-only RiverSong PG17 proof | **PASS** [Titus RiverSong #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840) |
+| Titus Node contract/Next no-release build | **PASS** [Titus RiverSong #41919951401](https://github.com/optical-lift/titus/actions/runs/41919951401) — 15/15 tests, scoped ESLint, no-deploy Next build, cleanup |
 | Production-shaped schema-clone review and governed Titus lane assessment | NOT DONE |
 | Auth-signed owner/outsider production API smoke check | NOT DONE |
 | Generated migration, source merge, protected release, feature flags | NOT DONE |
@@ -44,3 +44,11 @@ The fake `auth.jwt()` and `auth.uid()` functions exist **only** in `fixture.sql`
 The app must keep `TITUS_CUSTOMER_CATALOG_ENABLED=false` until source and operational release are approved. When enabled, public use without a genuine paid-customer entitlement would allow ordinary confirmed Auth users to create customer workspaces; do **not** advertise this pilot as a gated paid SaaS. Entitlement issuance must be its own source-authorized step.
 
 **Next unfinished practical step:** once source code review and scratch PG proof pass, run a true production-shaped schema-clone validation, then request source generation/release. If releasing only the data-free shell, keep this source feature OFF. After source release, use a real signed owner and unrelated user for one positive/negative smoke test before enabling customer creation.
+
+## Verified source closeout — 2026-11-04
+
+**PASS:** [RiverSong #41919987840](https://github.com/optical-lift/titus/actions/runs/41919987840) on exact executable source/fixture/runner commit `955a9a9de95198ca511b4e907f3957e2ccee5d80` (Titus carrier `4ddd58abdd9e8f396d6d36d83d2ba8add6b395d4`). One newly initialized **disposable PostgreSQL 17** instance on private socket port **55447** (never protected Atlas clone 55432) loaded `fixture.sql`, then this actual single-transaction source candidate, then `postconditions.sql` and exited successfully. Verified new owner empty read, explicit workspace remaining empty, first draft Course original, replay idempotency/conflict, unrelated buyer isolation, no direct table grants, and live-session expiry denial. The scratch `auth.uid()/auth.jwt()` functions read **unsigned invented test claims**; this is a SQL-source behavior proof, NOT real GoTrue signature verification. No production schema/data/permissions were changed. Isolated runner checkout and scratch database cleanup passed.
+
+**Independent application proof:** [Titus RiverSong #41919951401](https://github.com/optical-lift/titus/actions/runs/41919951401), exact app source SHA `dffe8e8fe6422e127d851473647035dd659061ad`, **15/15 Node tests PASS, ESLint PASS, Next build PASS (15/15 static pages), workspace cleanup PASS**.
+
+**Closed:** bounded draft source candidate and its scratch source proof. **Open:** production-shaped clone; explicit source/security review and Titus lane classification; migration source generation, main merge, protected production release; a real owner/outsider signed smoke test; paid entitlement; real private-use launch. This README-only update does not change executable source bytes after verification.
