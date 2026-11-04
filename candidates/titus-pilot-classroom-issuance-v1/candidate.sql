@@ -392,7 +392,7 @@ BEGIN
  END IF;
 
  UPDATE titus.classroom_pilot_participation_v1
- SET assignment_state='active',effective_at=clock_timestamp(),
+ SET assignment_state='active',effective_at=now(),
      withdrawn_at=NULL WHERE thread_id=p_thread_id
      AND person_entity_id=v_person;
  INSERT INTO titus.classroom_pilot_assignment_events_v1(
