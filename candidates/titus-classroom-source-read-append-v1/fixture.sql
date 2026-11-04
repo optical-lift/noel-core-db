@@ -24,3 +24,24 @@ INSERT INTO reality.entities(id,entity_kind,identity_state) VALUES
  ('00000000-0000-4000-8000-000000000204','person','canonical'),
  ('00000000-0000-4000-8000-000000000205','person','retired');
 
+
+-- TEST-ONLY user/session stubs. Arbitrary GUCs are NOT signed identity.
+-- Actual deployment must use the existing GoTrue current-session resolvers.
+CREATE FUNCTION atlas.existing_person_claim_signed_actor_v1()
+RETURNS uuid LANGUAGE plpgsql STABLE SET search_path=pg_catalog
+AS $stub$
+DECLARE v uuid;
+BEGIN
+  BEGIN v:=NULLIF(current_setting('titus.test_user',true),'')::uuid;
+  EXCEPTION WHEN OTHERS THEN RETURN NULL; END;
+  RETURN v;
+END;$stub$;
+CREATE FUNCTION titus.current_authenticated_person_entity_id_v1()
+RETURNS uuid LANGUAGE plpgsql STABLE SET search_path=pg_catalog
+AS $stub$
+DECLARE v uuid;
+BEGIN
+  BEGIN v:=NULLIF(current_setting('titus.test_person',true),'')::uuid;
+  EXCEPTION WHEN OTHERS THEN RETURN NULL; END;
+  RETURN v;
+END;$stub$;
