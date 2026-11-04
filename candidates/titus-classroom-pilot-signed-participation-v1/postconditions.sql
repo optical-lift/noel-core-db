@@ -192,7 +192,9 @@ CREATE OR REPLACE FUNCTION titus.classroom_pilot_assignment_issued_v1(
 ) RETURNS boolean LANGUAGE sql STABLE SET search_path=pg_catalog
 AS $$SELECT false$$;
 SELECT set_config('titus.test_person','00000000-0000-4000-8000-000000000202',false);
-SET ROLE authenticated;
+-- Inspect the private hard-false issuer ONLY as the fixture administrator.
+-- The authenticated browser role must not have schema usage or direct
+-- EXECUTE on the underlying private issuer; that denial is intentional.
 DO $closed$
 BEGIN
  IF titus.classroom_pilot_assignment_issued_v1(
@@ -200,8 +202,12 @@ BEGIN
   '00000000-0000-4000-8000-000000000202','teacher',
   '00000000-0000-4000-8000-000000000302') THEN
   RAISE EXCEPTION 'FAIL: test issuer left open'; END IF;
+END;$closed$;
+SET ROLE authenticated;
+DO $public_closed$
+BEGIN
  IF public.titus_classroom_authorize_self_api_v1(
    '00000000-0000-4000-8000-000000000100','read') IS NOT NULL
  THEN RAISE EXCEPTION 'FAIL: end-state issuer not closed'; END IF;
-END;$closed$;
+END;$public_closed$;
 RESET ROLE;
