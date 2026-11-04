@@ -102,6 +102,7 @@ BEGIN
      AND ss.worker_person_id=v.target_person_id
      AND ss.scope_state='active' AND ss.coverage_mode='ledger_all_work'
      AND ss.worker_membership_id IS NULL
+     AND ss.proposed_by_person_id=v.offered_by_person_id
      AND ss.accepted_by_person_id=v.target_person_id
      AND ss.accepted_at IS NOT NULL
      AND (ss.valid_until IS NULL OR ss.valid_until>pg_catalog.now())
@@ -262,6 +263,7 @@ BEGIN
    AND s.organization_id=p_organization_id AND s.ledger_id=p_ledger_id
    AND s.scope_state='active' AND s.coverage_mode='ledger_all_work'
    AND s.worker_membership_id IS NULL
+   AND s.proposed_by_person_id=v_root.actor_person_id
    AND s.accepted_by_person_id=s.worker_person_id
    AND s.accepted_at IS NOT NULL
    AND (s.valid_until IS NULL OR s.valid_until>pg_catalog.now());
@@ -504,7 +506,13 @@ BEGIN
   'offerId',o.id,'state',o.offer_state,'organizationId',o.organization_id,
   'ledgerId',o.ledger_id,'firstServiceDay',o.first_service_day,
   'campaignEndDate',o.campaign_end_date,'timezoneName',o.timezone_name,
-  'reason',o.reason,'originalWorkCreated',false,
+  'reason',o.reason,
+  'sourceRuleLabel',(SELECT r.label FROM atlas.rhythm_rules r
+      WHERE r.id=o.source_rule_id),
+  'subjectLabel',(SELECT g.label FROM atlas.growing_objects g
+      WHERE g.id=o.subject_id),
+  'sourceCandidateIdentityDisclosed',true,
+  'originalWorkCreated',false,
   'acceptanceIsNotAssignment',true
  ) ORDER BY o.offered_at,o.id),'[]'::jsonb) INTO v_items
  FROM atlas.governed_prework_candidate_offers_v1 o
