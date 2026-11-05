@@ -48,3 +48,14 @@
 - Changed in this branch: source-controlled issuer, OWNER verification, default-off manual protected workflow and disposable tests. Owner issue #2489 created.
 - Live state: **no entitlement issued** as of the read-only inventory.
 - Next unfinished: source tests, independent review, protected release and verified actual receipt. Do not declare the user enabled until all succeed.
+
+## Source review checkpoint — November 4, 2026
+
+- **PASS** exact owner issue #2489 was fetched and verified as open, authored by `optical-lift`, GitHub `author_association=OWNER`, with an exact matching request to issue `private_pilot` for `lexprjct@gmail.com`.
+- **PASS** read-only live Auth lookup: one confirmed nonanonymous undeleted account, no Titus entitlement; live migration 20261104222535 and three RLS-closed customer tables exist, with no workspaces, Courses, or entitlements.
+- **PASS** hosted [issuer preflight run #41957855598](https://github.com/optical-lift/noel-core-db/actions/runs/41957855598), exact executable SHA `74bc21a0eece3e072d75073c65a0649240a222f5`, **8/8 Python source/owner-issue tests**, separate job `owner_approval_preflight`; proves exact issue checks, forged/closed/other target denials, manual-only protected workflow and narrow existing-table mutation. The full workflow remains **queued** because its separate RiverSong PG17 job has no available runner slot.
+- **PASS** [Database Custody CI #41957863658](https://github.com/optical-lift/noel-core-db/actions/runs/41957863658), same exact source SHA.
+- **NOT VERIFIED:** actual SQL behavior on RiverSong PG17 (queued), source code review and merge, protected manual dispatch, production entitlement, signed owner/outsider smoke.
+- **Do not mark entitled.** The live account still has **zero** grant as of the read-only check; issue #2489 and this draft code are authorization evidence, not a completed SQL write.
+
+**No further changes to application/issuer code beyond tested SHA**; this register update is documentary only. Once the isolated SQL test passes, review and source-merge deliberately. The protected production issuer is intentionally manual-only and cannot be dispatched from a draft branch.
