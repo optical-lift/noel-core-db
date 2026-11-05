@@ -33,6 +33,14 @@ BEGIN
     RAISE EXCEPTION 'Titus pilot issue requires protected postgres release role'
       USING ERRCODE='42501';
   END IF;
+  -- Owner request #2489 authorizes exactly this existing test account.
+  -- A structurally plausible issue number is NOT an authorization to
+  -- award an unrelated user a pilot grant.
+  IF pg_catalog.lower(v_email) <> 'lexprjct@gmail.com'
+     OR v_receipt <> 'github:optical-lift/noel-core-db/issues/2489#titus-private-pilot-v1' THEN
+    RAISE EXCEPTION 'Titus pilot target or owner receipt not authorized'
+      USING ERRCODE='42501';
+  END IF;
   IF length(v_email) NOT BETWEEN 6 AND 254
     OR v_email !~* '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'
     OR v_email<>pg_catalog.btrim(v_email) THEN
