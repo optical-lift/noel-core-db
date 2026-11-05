@@ -200,7 +200,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 1
 
-      - name: Assemble pinned latest held L1/L2 and history only into disposable scratch
+      - name: Assemble exact native Person-only held source in test scratch
         id: migration
         shell: bash
         env:
@@ -212,29 +212,33 @@ jobs:
           test "$RELEASE_LANE" = "atlas"
           test ! -e candidate/supabase/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql
           test ! -e supabase/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql
-          node candidate/candidates/atlas_actual_first_p1_assigned_care_activity_v1/assemble_current_l1_l2_clone_only.mjs --check
-          node candidate/candidates/atlas_actual_first_p1_assigned_care_activity_v1/assemble_current_l1_l2_clone_only.mjs --output /tmp/L1_L2_CURRENT_HISTORY_CLONE_ONLY.sql
-          source=/tmp/L1_L2_CURRENT_HISTORY_CLONE_ONLY.sql
+          node candidate/candidates/atlas_native_person_completion_only_v1/assemble_native_person_only_clone_only.mjs --check
+          node candidate/candidates/atlas_native_person_completion_only_v1/assemble_native_person_only_clone_only.mjs --output /tmp/L1_L2_NATIVE_PERSON_ONLY_CLONE_ONLY.sql
+          source=/tmp/L1_L2_NATIVE_PERSON_ONLY_CLONE_ONLY.sql
           test -s "$source"
-          # The preexisting local harness requires an exact test-only basename.
-          # It exists only in runner.temp and never under supabase/migrations/.
+          # The trusted local P1 signed harness selects the test-only filename.
+          # It is NEVER placed in a migration directory, never executed on prod.
           candidate_migration="$RUNNER_TEMP/20261028235811_atlas_care_single_done_signed_proof_v1.sql"
           cp "$source" "$candidate_migration"
           chmod 600 "$candidate_migration"
           cmp "$source" "$candidate_migration"
           python3 - "$candidate_migration" <<'PY'
-          import sys
           from pathlib import Path
+          import sys
           s=Path(sys.argv[1]).read_text()
           assert s.startswith('BEGIN;\n-- CLONE TEST ONLY:')
           assert s.endswith('\nCOMMIT;\n')
-          assert s.count('CREATE TABLE atlas.work_lifecycle_events_v1 (')==1
-          assert s.count('CREATE TABLE atlas.historical_self_adoption_review_events_v1(')==1
-          assert s.count('CREATE OR REPLACE FUNCTION atlas.apply_work_lifecycle_transition_internal_v1(')==1
-          assert "p_transition_kind NOT IN ('complete','cancel')" in s
-          assert 'Historical self-adopted responsibility requires native reconciliation' in s
-          assert 'CREATE OR REPLACE FUNCTION public.governor_retire_historical_work_self_api_v1(' in s
-          print('PASS clone-only latest L1/L2 + history single authority')
+          assert "p_transition_kind IS DISTINCT FROM 'complete'" in s
+          assert "Historical self-adopted responsibility requires native reconciliation" in s
+          assert "Current native responsible Person required" in s
+          assert s.count("CREATE OR REPLACE FUNCTION atlas.apply_work_lifecycle_transition_internal_v1(")==1
+          for banned in ("atlas.historical_self_adoption_review_events_v1",
+                         "governor_retire_historical_work_self_api_v1(",
+                         "governor_historical_retirement_preflight_self_api_v1(",
+                         "IF p_transition_kind='cancel' THEN",
+                         "SET work_state='cancelled'"):
+              assert banned not in s,banned
+          print('PASS Person-only source, no historical cancellation or new permission')
           PY
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
           shopt -s nullglob
@@ -242,10 +246,15 @@ jobs:
           validations=(candidate/validation/migrations/20261028235811_*.sql)
           test "${#fixtures[@]}" -eq 1
           test "${#validations[@]}" -eq 1
-          sha256sum "$candidate_migration" "${fixtures[0]}" "${validations[0]}"
+          native_post="candidate/candidates/atlas_native_person_completion_only_v1/07_native_only_structural_clone_postconditions.sql"
+          test -s "$native_post"
+          combined_post="$RUNNER_TEMP/20261028235811_native_person_only_clone_postconditions.sql"
+          cat "${validations[0]}" "$native_post" > "$combined_post"
+          test -s "$combined_post"
+          sha256sum "$candidate_migration" "${fixtures[0]}" "$combined_post" "$native_post"
           echo "path=$candidate_migration" >> "$GITHUB_OUTPUT"
           echo "fixture_path=${fixtures[0]}" >> "$GITHUB_OUTPUT"
-          echo "validation_path=${validations[0]}" >> "$GITHUB_OUTPUT"
+          echo "validation_path=$combined_post" >> "$GITHUB_OUTPUT"
 
       - name: Verify bounded signed scripts and P1 opt-in source
         shell: bash
