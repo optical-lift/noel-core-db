@@ -84,3 +84,15 @@ test('disposable PG postconditions and local ROLLBACK guard included',()=>{
   assert.match(sh,/ROLLBACK;/);
   assert.doesNotMatch(sh,/COMMIT;/);
 });
+
+test('held clone preserves the live October 30 connection-direct root gate',()=>{
+  const held=readFileSync(new URL('../candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql',import.meta.url),'utf8');
+  const liveLedgerSource='7570082f04024397227545e685a4c071';
+  const liveResponsibilityGuard='1043ad551860196f1a13df25de9f8478';
+  assert.match(held,/<> '1043ad551860196f1a13df25de9f8478'/);
+  assert.match(held,/<> '7570082f04024397227545e685a4c071'/);
+  assert.equal((held.match(/Exact Ledger root required for connection-direct responsibility/g)||[]).length,1);
+  assert.match(held,/if v_kind='ledger_connection_direct_assignment' then[\s\S]*?Connected direct assignment requires exact original Person and Ledger source' using errcode='23514';end if;\s*IF NOT EXISTS \(SELECT 1 FROM atlas\.capability_root_authority_context_self_v1\(\(v_basis->>'nativeLedgerId'\)::uuid\)\)[\s\S]*?Exact Ledger root required for connection-direct responsibility/);
+  assert.equal(liveLedgerSource.length,32);
+  assert.equal(liveResponsibilityGuard.length,32);
+});
