@@ -7,7 +7,6 @@
   "evidence": {
     "signedIsolatedP1": "https://github.com/optical-lift/noel-core-db/actions/runs/42105399414",
     "signedScope": "Fictional local signed GoTrue/PostgREST; not live production",
-    "latestP1Draft": "0b3675f43e295b1992774aefb929f6d436bf9235",
     "combinedCandidate": {
       "commit": "0b3675f43e295b1992774aefb929f6d436bf9235",
       "path": "candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql",
@@ -23,7 +22,8 @@
         "createTriggerDeclarations": 16,
         "createViewDeclarations": 1
       }
-    }
+    },
+    "preSplitP1DraftHead": "0b3675f43e295b1992774aefb929f6d436bf9235"
   },
   "files": [
     {
@@ -370,6 +370,113 @@
         "live_oct30_root"
       ],
       "notes": "P1 proof #2500 only when combined with C1 disposable source; campaign-linked originals must stay fail-closed until P3."
+    },
+    {
+      "id": "historical_review_source",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/16_historical_self_adoption_review_candidate.sql",
+      "gitBlobSha1": "2bccffbaee2de725f511ca5a67145ae72f7980c",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.historical_self_adoption_review_events_v1",
+        "atlas.reject_historical_review_mutation_v1",
+        "atlas.governor_link_historical_self_adoption_self_api_v1",
+        "atlas.report_historical_self_adoption_pending_self_api_v1",
+        "atlas.governor_review_historical_self_adoption_self_api_v1"
+      ],
+      "requires": [
+        "lifecycle_shadow_events"
+      ],
+      "notes": "Current #2368 06 complete/cancel function refers to this append-only historical review, ABSENT in production and signed P1 clone; not proven by #2500."
+    },
+    {
+      "id": "historical_governor_readback",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/17_historical_self_adoption_review_readback_candidate.sql",
+      "gitBlobSha1": "bb30f49462ee564197cac036ec701d6c221a5044",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.governor_historical_self_adoption_history_self_api_v1"
+      ],
+      "requires": [
+        "historical_review_source"
+      ],
+      "notes": "Historical governor-only bounded readback, no raw review table disclosure."
+    },
+    {
+      "id": "historical_review_postconditions",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/18_historical_self_adoption_review_postconditions.sql",
+      "gitBlobSha1": "48df29f49626d137a5f25b4f09e90e2e6a069de1",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "historical_review_RLS_ACL_mutation_tests"
+      ],
+      "requires": [
+        "historical_review_source"
+      ],
+      "notes": "Disposable validation only, not migration source."
+    },
+    {
+      "id": "historical_rest_transport",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/19_historical_self_adoption_public_transport_candidate.sql",
+      "gitBlobSha1": "a578abb3bbfb810386ce134d23b91981b02a401f",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "public.governor_link_historical_self_adoption_self_api_v1",
+        "public.report_historical_self_adoption_pending_self_api_v1",
+        "public.governor_review_historical_self_adoption_self_api_v1",
+        "public.governor_historical_self_adoption_history_self_api_v1"
+      ],
+      "requires": [
+        "historical_review_source",
+        "historical_governor_readback"
+      ],
+      "notes": "Signed historical-review API transport; never implicitly add to minimum care migration."
+    },
+    {
+      "id": "historical_cancel_bridge",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql",
+      "gitBlobSha1": "93f7b9cf0bad5eb536ffa90d3973aabfe75542d9",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.governor_retire_historical_work_self_api_v1"
+      ],
+      "requires": [
+        "single_done_transition",
+        "historical_review_source"
+      ],
+      "notes": "Separate historical cancellation bridge; requires independent signed governance and retirement preflight tests."
+    },
+    {
+      "id": "historical_cancel_preflight",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/21_native_historical_retirement_preflight_transport_candidate.sql",
+      "gitBlobSha1": "254f214caadb697988e1bfa689d6bd72eeabe08b",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.governor_historical_retirement_preflight_self_api_v1",
+        "public.governor_historical_retirement_preflight_self_api_v1",
+        "public.governor_retire_historical_work_self_api_v1"
+      ],
+      "requires": [
+        "historical_cancel_bridge"
+      ],
+      "notes": "Native dependency-impact preflight and signed transport; outside demonstrated P1 physical-care acceptance."
     }
   ],
   "stageOrder": [
@@ -391,7 +498,21 @@
         "lifecycle_baseline",
         "lifecycle_projection"
       ],
-      "hold": "06 latest source diverges; historical cancellation native authority cannot be silently dropped"
+      "hold": "Current #2368 06 complete/cancel contains historical cancellation absent from #2500 composite; full current source requires 16 historical review, separately signed eligibility, and existing native dependency snapshot. A proposed complete-only variant would be a NEW source decision and must be re-tested."
+    },
+    {
+      "order": 2.5,
+      "stage": "L2_HISTORICAL_PREREQ",
+      "scope": "only if current full complete+cancel Done authority is chosen",
+      "requires": [
+        "historical_review_source",
+        "historical_governor_readback",
+        "historical_review_postconditions",
+        "historical_rest_transport",
+        "historical_cancel_bridge",
+        "historical_cancel_preflight"
+      ],
+      "hold": "All historical-review sources absent from passing P1 clone and unapproved for production; independent owner/source-law review before installation."
     },
     {
       "order": 3,
@@ -454,7 +575,9 @@
     "ensure_rhythm_task_v1": "b1c08de87ddb8033a26793005d74149a",
     "can_read_rhythm_state_v1": "a1baa2535313e49f80347563cae2010e",
     "record_worker_activity_log_v1": "48de174d6ddad6b130e5d92f21d71c6b",
-    "oct30RootCapabilityGuardPresent": true
+    "oct30RootCapabilityGuardPresent": true,
+    "historical_self_adoption_review_events_v1": "ABSENT",
+    "company_work_retirement_dependency_snapshot_v1_uuid": "PRESENT"
   },
   "excludedFromProduction": [
     "candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql",
@@ -463,7 +586,7 @@
     "all direct SQL execution against production or reuse of 20261028235811",
     "P2 retrospective governor recognition, P3 automatic successor cutover and P4/P5 app domain work"
   ],
-  "nextSingleOutcome": "Audit and reconcile L1 latest source 01 + L2 latest 06 against exact protected-clone older version, then isolate/retest native universal Done predecessor before proposing any canonical migration.",
+  "nextSingleOutcome": "Prove exact source versions and minimal L1/L2 native lifecycle closure: reconcile PR #2368 current 01/06 plus historical cancellation dependencies with version tested at #2500; select a reviewed authoritative target, then obtain a fresh signed clone before any migration.",
   "protected": [
     "production DDL/data/credentials",
     "retained RiverSong clone",
@@ -473,5 +596,13 @@
     "Atlas draft #535",
     "P2–P5",
     "existing production release machinery"
+  ],
+  "criticalProvenanceDifferences": [
+    "Current PR #2368 01_shadow_event_source.sql includes atlas.historical_self_adoption_review_events_v1 source-kind not in the signed P1 composite; no byte-exact witness.",
+    "Current PR #2368 06_single_transition_authority_private.sql allows governed historical cancel and reads historical_self_adoption_review_events_v1, absent from production/P1 test; no byte-exact witness.",
+    "Original PR #2362 16_native_standing_source_authority_extension_v1.sql lacks the October 30 root-capability clause; P1 composite manually reconciles current live source, not byte-identical.",
+    "PR #2362 07 old legacy ensure_rhythm_task source comment MD5 d195ec2ccf9b36858cba9c5bfbfb2724 differs from current live b1c08de87ddb8033a26793005d74149a.",
+    "PR #2362 09 raw rhythm state reader replacement must be reconciled against current live a1baa2535313e49f80347563cae2010e.",
+    "Latest #2368 full historical cancellation and P1 #2500 tested completion-only clone are distinct sources; do not promote on test proof alone."
   ]
 }
