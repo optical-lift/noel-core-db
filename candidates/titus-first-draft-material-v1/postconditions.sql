@@ -136,6 +136,37 @@ BEGIN
 END $outsider$;
 RESET ROLE;
 
+-- Independent control: B must be able to read/write B's OWN Course before
+-- session expiration. Without this control, reading A's Course after expiry
+-- would pass due to ownership denial alone, even if session checks regressed.
+SET request.jwt.claims='{"sub":"00000000-0000-4000-8000-000000000102","session_id":"00000000-0000-4000-8000-000000000202"}';
+SET ROLE authenticated;
+DO $owner_b_active$
+DECLARE v jsonb; v_course uuid;
+BEGIN
+ v:=public.titus_customer_start_workspace_self_api_v1('Independent fictional owner B');
+ IF v->'courses' <> '[]'::jsonb THEN
+  RAISE EXCEPTION 'Unrelated buyer must start with no seeded Courses';
+ END IF;
+ v:=public.titus_customer_create_course_self_api_v1(
+   '00000000-0000-4000-8000-000000000302','Owner B private control');
+ v_course:=(v->'courses'->0->>'courseId')::uuid;
+ v:=public.titus_customer_material_save_self_api_v1(
+   v_course,'00000000-0000-4000-8000-000000000521',0,'Only B can access this private control');
+ IF v->'material'->>'text'<>'Only B can access this private control' THEN
+  RAISE EXCEPTION 'B active-session own-Course save failed';
+ END IF;
+ v:=public.titus_customer_material_read_self_api_v1(v_course);
+ IF v->'material'->>'text'<>'Only B can access this private control' THEN
+  RAISE EXCEPTION 'B active-session own-Course read failed';
+ END IF;
+END $owner_b_active$;
+RESET ROLE;
+SELECT set_config('test.owner_b_course',(
+ SELECT course_id::text FROM titus.customer_course_drafts_v1
+ WHERE created_by_auth_user_id='00000000-0000-4000-8000-000000000102'
+ LIMIT 1),false);
+
 -- Active user A loses all material access immediately after grant revocation.
 UPDATE titus.customer_workspace_entitlements_v1 SET state='revoked'
  WHERE owner_auth_user_id='00000000-0000-4000-8000-000000000101';
@@ -156,19 +187,27 @@ BEGIN
 END $revoked$;
 RESET ROLE;
 
--- Valid grant but expired GoTrue session also denies reads.
+-- B has a valid entitlement and known OWN Course; only its expired session
+-- can explain this read/write denial. A foreign UUID alone was not a valid test.
 UPDATE auth.sessions SET not_after=now()-interval '1 minute'
  WHERE id='00000000-0000-4000-8000-000000000202';
 SET request.jwt.claims='{"sub":"00000000-0000-4000-8000-000000000102","session_id":"00000000-0000-4000-8000-000000000202"}';
 SET ROLE authenticated;
-DO $expired$ BEGIN
+DO $expired$
+DECLARE v_course uuid:=current_setting('test.owner_b_course')::uuid;
+BEGIN
  BEGIN
-  PERFORM public.titus_customer_material_read_self_api_v1(
-    current_setting('test.owner_a_course')::uuid);
-  RAISE EXCEPTION 'Expired session retained material reader';
+  PERFORM public.titus_customer_material_read_self_api_v1(v_course);
+  RAISE EXCEPTION 'Expired session retained its OWN material reader';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN
+  PERFORM public.titus_customer_material_save_self_api_v1(
+   v_course,'00000000-0000-4000-8000-000000000522',1,'Expired own-Course write');
+  RAISE EXCEPTION 'Expired session retained its OWN material writer';
  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $expired$;
 RESET ROLE;
 RESET request.jwt.claims;
 RESET test.owner_a_course;
-SELECT 'PASS: source-auth first material, revisions, replay, stale denial, outsider, revoked, expired, private grants' as result;
+RESET test.owner_b_course;
+SELECT 'PASS: source-auth first material, revisions, replay, stale denial, outsider, revoked, same-owner expired read/write, private grants (scratch-only)' as result;
