@@ -10,7 +10,7 @@ set -Eeuo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd -P)"
 source_dir="$root/candidates/titus-customer-workspace-first-course-v1"
 sql_dir="$root/candidates/titus-first-draft-material-v1"
-for f in "$source_dir/fixture.sql" "$source_dir/candidate.sql" "$sql_dir/candidate.sql" "$sql_dir/postconditions.sql"; do
+for f in "$source_dir/fixture.sql" "$source_dir/candidate.sql" "$sql_dir/candidate.sql" "$sql_dir/clone_validation.sql" "$sql_dir/postconditions.sql"; do
   test -s "$f" || { echo "Missing $f" >&2; exit 2; }
 done
 bin=""
@@ -81,5 +81,6 @@ echo "Verified NEW RiverSong PG17 on private socket 55449, not Atlas protected 5
 psql_local -f "$source_dir/fixture.sql"
 psql_local -f "$source_dir/candidate.sql"
 psql_local -f "$sql_dir/candidate.sql"
+psql_local -f "$sql_dir/clone_validation.sql"
 psql_local -f "$sql_dir/postconditions.sql"
 echo "PASS: synthetic owner creates original Course material, reopens and revises without overwriting; replay idempotency, stale/outside/revoked/expired denial, no direct grants. Unsigned synthetic Auth fixture only, no live writes."
