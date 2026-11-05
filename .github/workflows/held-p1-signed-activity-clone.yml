@@ -1,0 +1,411 @@
+name: HELD P1 signed Activity disposable clone (test only)
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request:
+    paths:
+      - '.github/workflows/held-p1-signed-activity-clone.yml'
+      - 'scripts/validate-atlas-care-single-done-signed-http.py'
+      - 'scripts/validate-atlas-actual-first-p1-signed-http.py'
+      - 'tests/atlas-actual-first-p1-source.test.mjs'
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read  # exact draft PR #2487 head preflight is read-only
+
+concurrency:
+  group: noel-core-held-p1-signed-clone
+  cancel-in-progress: false
+
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check trusted test-only workflow trigger boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/validate-atlas-care-single-done-signed-http.py
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-p1-signed-activity-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path('.github/workflows/held-p1-signed-activity-clone.yml').read_text()
+          assert sum(line.strip()=='github.actor == github.repository_owner &&' for line in w.splitlines())==2
+          assert "github.event.issue.title == 'UNI-OPS-01 P1 signed activity clone request'" in w
+          lines=w.splitlines()
+          step_names=[line.strip().removeprefix('- name: ') for line in lines
+                      if line.strip().startswith('- name: ')]
+          assert step_names.index('Snapshot production user schemas read-only') < step_names.index('Checkout immutable candidate')
+          assert step_names.index('Checkout immutable candidate') < step_names.index('Verify exact P1 opt-in source before disposable test')
+          assert step_names.index('Verify exact P1 opt-in source before disposable test') < step_names.index('Validate P1 through canonical disposable local harness (opt-in)')
+          assert sum(line.strip()=='environment: production' for line in lines)==1
+          assert 'P1 C1 entrypoint changed beyond isolated opt-in' in w
+          assert "start='    if args.p1_recognition_proof:" in w
+          assert 'P1 genuine signed manual Activity' in w
+          assert 'node --test tests/atlas-actual-first-p1-source.test.mjs' in w
+          assert not any(line.lstrip().startswith('supabase db '+'push') for line in lines)
+          print('PASS held P1 protected issue gate, source equivalence and no release path')
+          PY
+
+  validate:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS-01 P1 signed activity clone request'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 30
+    # Use pinned Supabase CLI's image-registry fallback when a registry throttles.
+    # Read-only GHCR authentication remains in the protected workflow.
+    steps:
+      - name: Resolve governed validation request
+        id: request
+        shell: bash
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          title = os.environ.get('ISSUE_TITLE', '')
+          body = os.environ.get('ISSUE_BODY', '')
+          fields = {}
+          for raw in body.splitlines():
+              match = re.fullmatch(r'([a-z_]+):\s*([^\s]+)\s*', raw)
+              if match:
+                  key, value = match.groups()
+                  if key in fields and fields[key] != value:
+                      raise SystemExit(f'duplicate conflicting field: {key}')
+                  fields[key] = value
+
+          required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
+          missing = [key for key in required if key not in fields]
+          if missing:
+              raise SystemExit('missing required validation field(s): ' + ', '.join(missing))
+
+          version = fields['migration_version']
+          lane = fields['release_lane']
+          target = fields['production_target']
+          candidate_sha = fields['candidate_sha'].lower()
+
+          if not re.fullmatch(r'\d{14}', version):
+              raise SystemExit('migration_version must be exactly 14 digits')
+          if lane not in {'atlas', 'wnph', 'titus', 'noel', 'shared'}:
+              raise SystemExit('release_lane must be atlas, wnph, titus, noel, or shared')
+          if target != 'zirqkouammpwxlqfbsvf':
+              raise SystemExit('production_target does not match noel-core production')
+          if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha):
+              raise SystemExit('candidate_sha must be an immutable 40-character commit SHA')
+
+          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'titus': 'Titus', 'noel': 'Noel', 'shared': 'Shared'}[lane]
+          if version != '20261028235811' or lane != 'atlas':
+              raise SystemExit('P1 signed isolated clone admits exact held Atlas version only')
+          expected_title = 'UNI-OPS-01 P1 signed activity clone request'
+          if title != expected_title:
+              raise SystemExit(f'issue title must be exactly: {expected_title}')
+
+          output = Path(os.environ['GITHUB_OUTPUT'])
+          with output.open('a', encoding='utf-8') as handle:
+              handle.write(f'migration_version={version}\n')
+              handle.write(f'release_lane={lane}\n')
+              handle.write(f'candidate_sha={candidate_sha}\n')
+          PY
+
+      - name: Checkout canonical main validator
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Verify custody and schema-validation contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+          supabase db dump --help >/dev/null
+          supabase db start --help >/dev/null
+          supabase db lint --help >/dev/null
+
+      - name: Authenticate read-only GHCR image pulls
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      - name: Fail closed unless exact held P1 draft and approved head match
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ steps.request.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          test "$EXPECTED_HEAD" != ""
+          status="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2487" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+          test "$status" = "open|true|candidate/atlas-actual-first-p1-assigned-activity-20261104|$EXPECTED_HEAD" ||
+            { echo "::error::P1 draft branch moved/closed or is not the exact owner-pinned SHA"; exit 1; }
+
+      - name: Snapshot production user schemas read-only
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NOEL_CORE_DATABASE_URL:-}" ]]; then
+            echo '::error::The protected production environment is missing NOEL_CORE_DATABASE_URL.'
+            exit 1
+          fi
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only \
+            --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/production-custom-roles.sql"
+          sha256sum "$RUNNER_TEMP/production-user-schema.sql"
+
+      - name: Checkout immutable candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Resolve exact candidate migration package
+        id: migration
+        shell: bash
+        env:
+          MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+        run: |
+          set -euo pipefail
+          # One exact non-releasable TEST SOURCE path; never accepted by the
+          # production release migration directory or arbitrary candidate.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261028235811" ]]; then
+            candidate_migration="candidate/candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql"
+            if [[ ! -s "$candidate_migration" ]] ||
+               [[ -e "candidate/supabase/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql" ]]; then
+              echo "::error::Care proof must be a held source candidate, NEVER a releasable migration."
+              exit 1
+            fi
+          else
+            mapfile -t matches < <(find candidate/supabase/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print)
+            if [[ "${#matches[@]}" -ne 1 ]]; then
+              echo "::error::Expected exactly one candidate migration for ${MIGRATION_VERSION}; found ${#matches[@]}."
+              exit 1
+            fi
+            candidate_migration="${matches[0]}"
+          fi
+
+          mapfile -t canonical_matches < <(find supabase/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print)
+          if [[ "${#canonical_matches[@]}" -gt 1 ]]; then
+            echo "::error::Canonical main contains multiple migrations for ${MIGRATION_VERSION}."
+            exit 1
+          fi
+          if [[ "${#canonical_matches[@]}" -eq 1 ]]; then
+            if ! cmp -s "${canonical_matches[0]}" "$candidate_migration"; then
+              echo '::error::Candidate migration version already exists on canonical main with different bytes.'
+              exit 1
+            fi
+            echo 'Candidate preserves the exact migration bytes already staged on main and corrects only governed path ownership.'
+          fi
+
+          mapfile -t fixtures < <(find candidate/validation/fixtures -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print 2>/dev/null || true)
+          if [[ "${#fixtures[@]}" -gt 1 ]]; then
+            echo "::error::Expected at most one candidate validation fixture for ${MIGRATION_VERSION}; found ${#fixtures[@]}."
+            exit 1
+          fi
+
+          mapfile -t validations < <(find candidate/validation/migrations -maxdepth 1 -type f -name "${MIGRATION_VERSION}_*.sql" -print 2>/dev/null || true)
+          if [[ "${#validations[@]}" -gt 1 ]]; then
+            echo "::error::Expected at most one candidate postcondition file for ${MIGRATION_VERSION}; found ${#validations[@]}."
+            exit 1
+          fi
+
+          bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
+
+          sha256sum "$candidate_migration"
+          echo "path=$candidate_migration" >> "$GITHUB_OUTPUT"
+          if [[ "${#fixtures[@]}" -eq 1 ]]; then
+            sha256sum "${fixtures[0]}"
+            echo "fixture_path=${fixtures[0]}" >> "$GITHUB_OUTPUT"
+          fi
+          if [[ "${#validations[@]}" -eq 1 ]]; then
+            sha256sum "${validations[0]}"
+            echo "validation_path=${validations[0]}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify exact P1 opt-in source before disposable test
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s candidate/scripts/validate-atlas-actual-first-p1-signed-http.py
+          test -s candidate/scripts/validate-atlas-care-single-done-signed-http.py
+          test ! -e candidate/supabase/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql
+          python3 -m py_compile candidate/scripts/validate-atlas-care-single-done-signed-http.py candidate/scripts/validate-atlas-actual-first-p1-signed-http.py
+          (cd candidate && node --test tests/atlas-actual-first-p1-source.test.mjs)
+          python3 - <<'PY'
+          from pathlib import Path
+          held=Path('candidate/candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql').read_text()
+          exact=Path('candidate/candidates/atlas_actual_first_p1_assigned_care_activity_v1/01_assigned_activity_recognition_held.sql').read_text()
+          post=Path('candidate/validation/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql').read_text()
+          assert held.count(exact)==1, 'P1 source must be byte-exact in held candidate'
+          assert 'P1 structural, RLS and ACL postconditions passed' in post
+          assert 'P1 SQL role: anonymous recognition denied' in post
+          actual=Path('candidate/scripts/validate-atlas-care-single-done-signed-http.py').read_text()
+          trusted=Path('scripts/validate-atlas-care-single-done-signed-http.py').read_text()
+          mode='    ap.add_argument("--p1-recognition-proof",action="store_true",help="HELD disposable P1 signed Activity proof; skips ordinary direct-C1 completion")\n'
+          start='    if args.p1_recognition_proof:\n'
+          stop='    print("PASS governor source observation and one bounded original Work")'
+          assert actual.count(mode)==actual.count(start)==actual.count(stop)==1
+          i=actual.index(start);j=actual.index(stop,i)
+          assert actual.replace(mode,'').replace(actual[i:j],'')==trusted, 'P1 C1 entrypoint changed beyond isolated opt-in'
+          helper=Path('candidate/scripts/validate-atlas-actual-first-p1-signed-http.py').read_text()
+          for item in ('ThreadPoolExecutor(max_workers=2)','record_worker_activity_log_v1','retract_worker_activity_log_v1','recognitionLinkId','noClockAdmission'):
+              assert item in helper,item
+          assert 'https://' not in helper and 'http://' not in helper
+          print('PASS exact held P1 and only optional diff from proven C1 signed entrypoint')
+          PY
+          # Credential-bearing step has already ended. These are disposable
+          # local test scripts; never copy candidate code before RO snapshot.
+          cp candidate/scripts/validate-atlas-care-single-done-signed-http.py scripts/validate-atlas-care-single-done-signed-http.py
+          cp candidate/scripts/validate-atlas-actual-first-p1-signed-http.py scripts/validate-atlas-actual-first-p1-signed-http.py
+          # Isolated P1 lane: keep the canonical main harness logic unchanged
+          # except the single opt-in argument to its existing local C1 entrypoint.
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path('scripts/validate-production-schema-clone.sh')
+          s=f.read_text()
+          anchor='    --output "$artifacts_dir/signed-care-single-done-summary.txt" \\\n'
+          assert s.count(anchor)==1, 'canonical local C1 signed argument drift'
+          f.write_text(s.replace(anchor,anchor+'    --p1-recognition-proof \\\n'))
+          PY
+          bash -n scripts/validate-production-schema-clone.sh
+          sha256sum candidate/scripts/validate-atlas-actual-first-p1-signed-http.py candidate/scripts/validate-atlas-care-single-done-signed-http.py
+
+      - name: Validate P1 through canonical disposable local harness (opt-in)
+        id: validation
+        shell: bash
+        env:
+          MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+          CANDIDATE_MIGRATION: ${{ steps.migration.outputs.path }}
+          CANDIDATE_FIXTURE: ${{ steps.migration.outputs.fixture_path }}
+          CANDIDATE_VALIDATION: ${{ steps.migration.outputs.validation_path }}
+        run: |
+          set -euo pipefail
+          args=(
+            --migration-version "$MIGRATION_VERSION"
+            --release-lane "$RELEASE_LANE"
+            --candidate-migration "$CANDIDATE_MIGRATION"
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql"
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql"
+            --artifacts-dir "$RUNNER_TEMP/production-schema-validation-artifacts"
+          )
+          if [[ -n "${CANDIDATE_FIXTURE:-}" ]]; then
+            args+=(--candidate-fixture "$CANDIDATE_FIXTURE")
+          fi
+          if [[ -n "${CANDIDATE_VALIDATION:-}" ]]; then
+            args+=(--candidate-validation "$CANDIDATE_VALIDATION")
+          fi
+          bash scripts/validate-production-schema-clone.sh "${args[@]}"
+
+      - name: Assert genuinely signed P1 acceptance, never C1-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="$RUNNER_TEMP/production-schema-validation-artifacts/signed-care-single-done-summary.txt"
+          test -s "$file"
+          grep -q '^PASS isolated P1 genuine signed manual Activity' "$file"
+          grep -q '^NOT PROVEN: production' "$file"
+          printf '\nThis run selected the P1 genuine signed Activity recognition probe (NOT the default C1 direct-care signed suite). No release was performed.\n' >> "$RUNNER_TEMP/production-schema-validation-artifacts/summary.md"
+
+      - name: Publish validation summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/production-schema-validation-artifacts/summary.md"
+          if [[ -s "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '::error::The validation harness did not produce its required summary artifact.'
+            exit 1
+          fi
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: held-p1-signed-disposable-${{ steps.request.outputs.migration_version }}
+          path: ${{ runner.temp }}/production-schema-validation-artifacts
+          if-no-files-found: error
+          retention-days: 30
+
+  report-result:
+    name: Report clone outcome to request
+    needs: [validate]
+    if: >-
+      always() &&
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS-01 P1 signed activity clone request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    # This separate job has no protected environment and no database secrets.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish non-sensitive result and run link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUEST_NUMBER: ${{ github.event.issue.number }}
+          RESULT: ${{ needs.validate.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$RESULT" in
+            success|failure|cancelled|skipped) ;;
+            *) echo 'Unexpected validation status; refusing report.' >&2; exit 1 ;;
+          esac
+          gh issue comment "$REQUEST_NUMBER" --body "HELD P1 genuine-signed Activity clone validation result: **$RESULT**.
+
+          [View the full GitHub Actions run]($RUN_URL) to inspect the validation summary, migration diagnostics, lint delta, and any failed steps.
+
+          This status report does not authorize a database release or attest to untested two-person permission and concurrency requirements."
