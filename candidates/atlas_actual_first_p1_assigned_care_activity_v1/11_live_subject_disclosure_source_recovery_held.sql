@@ -1,47 +1,27 @@
--- Held P1 genuine exact-Subject disclosure source recovery, disposable only.
--- Source: live Noel's read-only pg_catalog/pg_get_functiondef 2026-11-05.
--- No production DDL; do not merge or migrate this test-only compatibility
--- source. The retained RiverSong DDL snapshot can omit this live source.
--- This reconstitutes an EMPTY append-only disclosure ledger with the current
--- live PK/FKs, unique action, checks, RLS and non-client ACL. Existing
--- historical disclosure is never copied, inferred, rewritten or granted.
--- The source SQL functions below are verbatim current live Noel definitions.
+-- Held P1 exact-Subject disclosure CALLABLE-SOURCE recovery, scratch only.
+-- Read-only Noel pg_get_functiondef/proacl on 2026-11-05.
+-- RiverSong's retained schema ALREADY has the canonical append-only
+-- evidence table, constraints and trigger. NEVER recreate it, replace it,
+-- disable the trigger, import other Persons' events, or grant direct reads.
+-- Only recover the signed private/public functions in the disposable DB.
 DO $preflight$
+DECLARE v_table regclass:=to_regclass('atlas.subject_disclosure_decision_events_v1');
 BEGIN
- IF to_regclass('atlas.subject_disclosure_decision_events_v1') IS NOT NULL THEN
-   RAISE EXCEPTION 'STOP: Subject disclosure evidence table already present; reconcile, do not replace';
- END IF;
- IF to_regclass('atlas.organizations') IS NULL OR to_regclass('ledger.ledgers') IS NULL
-   OR to_regclass('reality.entities') IS NULL THEN
-   RAISE EXCEPTION 'STOP: bounded disclosure FK source missing';
+ IF v_table IS NULL
+    OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid=v_table)
+    OR (SELECT count(*) FROM atlas.subject_disclosure_decision_events_v1)<>0
+    OR NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid=v_table AND conname='subject_disclosure_action_identity_v1' AND contype='u')
+    OR NOT EXISTS(SELECT 1 FROM pg_constraint WHERE conrelid=v_table AND conname='subject_disclosure_supported_subject_v1' AND contype='c')
+    OR NOT EXISTS(
+       SELECT 1 FROM pg_trigger t
+       WHERE t.tgrelid=v_table AND t.tgname='subject_disclosure_append_only_v1'
+        AND t.tgenabled IN ('O','A') AND t.tgfoid='atlas.block_subject_disclosure_mutation_v1()'::regprocedure
+    )
+    OR has_table_privilege('anon',v_table,'SELECT')
+    OR has_table_privilege('authenticated',v_table,'SELECT')
+ THEN RAISE EXCEPTION 'STOP existing disclosure evidence table lacks canonical immutable/permission boundary';
  END IF;
 END;$preflight$;
-
-CREATE TABLE atlas.subject_disclosure_decision_events_v1 (
- id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
- organization_id uuid NOT NULL REFERENCES atlas.organizations(id) ON DELETE RESTRICT,
- ledger_id uuid NOT NULL REFERENCES ledger.ledgers(id) ON DELETE RESTRICT,
- target_person_id uuid NOT NULL REFERENCES reality.entities(id) ON DELETE RESTRICT,
- subject_domain text NOT NULL,
- subject_kind text NOT NULL,
- subject_id uuid NOT NULL,
- disclosure_class text NOT NULL CHECK (disclosure_class IN ('identity','condition','current_inventory')),
- decision_kind text NOT NULL CHECK (decision_kind IN ('grant','withhold')),
- source_action_id uuid NOT NULL,
- reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 12 AND 1600),
- decided_by_person_id uuid NOT NULL REFERENCES reality.entities(id) ON DELETE RESTRICT,
- recorded_at timestamptz NOT NULL DEFAULT now(),
- CONSTRAINT subject_disclosure_action_identity_v1 UNIQUE (ledger_id,source_action_id),
- CONSTRAINT subject_disclosure_supported_subject_v1 CHECK (
-  (subject_domain='spatial' AND subject_kind='growing_object' AND disclosure_class IN ('identity','condition'))
-  OR (subject_domain='event' AND subject_kind='occurrence' AND disclosure_class='identity')
-  OR (subject_domain='spatial' AND subject_kind='farm' AND disclosure_class='current_inventory')
- )
-);
-CREATE INDEX subject_disclosure_current_lookup_v1 ON atlas.subject_disclosure_decision_events_v1
- (ledger_id,target_person_id,subject_domain,subject_kind,subject_id,disclosure_class,recorded_at DESC,id DESC);
-ALTER TABLE atlas.subject_disclosure_decision_events_v1 ENABLE ROW LEVEL SECURITY;
-REVOKE ALL ON atlas.subject_disclosure_decision_events_v1 FROM PUBLIC,anon,authenticated,service_role;
 
 CREATE OR REPLACE FUNCTION atlas.block_subject_disclosure_mutation_v1()
  RETURNS trigger
@@ -55,9 +35,7 @@ BEGIN
 END;
 $function$;
 REVOKE ALL ON FUNCTION atlas.block_subject_disclosure_mutation_v1() FROM PUBLIC,anon,authenticated,service_role;
-CREATE TRIGGER subject_disclosure_append_only_v1
- BEFORE UPDATE OR DELETE ON atlas.subject_disclosure_decision_events_v1
- FOR EACH ROW EXECUTE FUNCTION atlas.block_subject_disclosure_mutation_v1();
+-- Existing canonical immutable trigger stays active; do not recreate it.
 
 CREATE OR REPLACE FUNCTION atlas.has_current_subject_disclosure_v1(p_ledger_id uuid, p_person_id uuid, p_subject_domain text, p_subject_kind text, p_subject_id uuid, p_disclosure_class text)
  RETURNS boolean
@@ -213,7 +191,6 @@ GRANT EXECUTE ON FUNCTION public.governor_set_subject_disclosure_self_api_v1(uui
 DO $postconditions$
 BEGIN
  IF (SELECT count(*) FROM atlas.subject_disclosure_decision_events_v1)<>0
- OR (SELECT count(*) FROM pg_constraint WHERE conrelid='atlas.subject_disclosure_decision_events_v1'::regclass)<>10
  OR NOT (SELECT relrowsecurity FROM pg_class WHERE oid='atlas.subject_disclosure_decision_events_v1'::regclass)
  OR (SELECT count(*) FROM pg_policies WHERE schemaname='atlas' AND tablename='subject_disclosure_decision_events_v1')<>0
  OR has_table_privilege('authenticated','atlas.subject_disclosure_decision_events_v1','SELECT')
@@ -224,5 +201,5 @@ BEGIN
  OR NOT has_function_privilege('authenticated','public.governor_set_subject_disclosure_self_api_v1(uuid,uuid,uuid,text,text,uuid,text,text,uuid,text)','EXECUTE')
  THEN RAISE EXCEPTION 'STOP: recovered live Subject disclosure failed evidence and permission postconditions';
  END IF;
- RAISE NOTICE 'PASS live append-only exact Subject disclosure source, RLS, signed public governor API and no direct evidence access';
+ RAISE NOTICE 'PASS retained canonical append-only disclosure table protected; recovered exact signed governor API with no direct evidence access';
 END;$postconditions$;
