@@ -34,7 +34,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           root=Path('candidates/atlas_native_person_completion_only_v1')
-          assert all(not p.name.endswith('.sql') or '_held.sql' in p.name for p in root.iterdir())
+          assert all(not p.name.endswith('.sql') or p.name.endswith(('_held.sql','_clone_postconditions.sql')) for p in root.iterdir())
           w=Path('.github/workflows/held-native-person-completion-source.yml').read_text()
           prelude=w.split('    steps:',1)[0]
           assert 'permissions:\n  contents: read' in prelude
