@@ -1,0 +1,65 @@
+name: Titus manuscript privileged RPC grants — isolated PG17
+
+on:
+  push:
+    branches:
+      - fix/titus-material-service-rpc-grants-20261105
+    paths:
+      - 'candidates/titus-first-draft-material-v1/**'
+      - 'candidates/titus-customer-workspace-first-course-v1/fixture.sql'
+      - 'scripts/test-titus-first-material-riversong-pg17.sh'
+      - 'scripts/test-titus-first-material-hosted-pg17.sh'
+      - '.github/workflows/titus-material-private-rpc-acl-pg17.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: titus-material-service-role-acl-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/fix/titus-material-service-rpc-grants-20261105'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Exact revision into job-owned isolated directory
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY}" == "optical-lift/noel-core-db" ]]
+          [[ "${EXPECTED_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          workspace="$(mktemp -d "${RUNNER_TEMP:?}/titus-acl-proof.XXXXXXXX")"
+          echo "TITUS_MATERIAL_WORKSPACE=$workspace" >> "$GITHUB_ENV"
+          git -C "$workspace" init -q
+          git -C "$workspace" remote add origin https://github.com/optical-lift/noel-core-db.git
+          header="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+          git -C "$workspace" -c "http.extraHeader=AUTHORIZATION: basic $header" fetch -q --no-tags --depth=1 origin "$EXPECTED_SHA"
+          unset header GH_TOKEN
+          git -C "$workspace" checkout -q --detach FETCH_HEAD
+          [[ "$(git -C "$workspace" rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+          test -s "$workspace/supabase/migrations/20261104222535_titus_customer_workspace_first_course_v1.sql"
+          test -s "$workspace/candidates/titus-first-draft-material-v1/candidate.sql"
+          test -s "$workspace/candidates/titus-first-draft-material-v1/postconditions.sql"
+          echo "Exact test-only revision loaded: $EXPECTED_SHA; generated migration and production remain unchanged"
+
+      - name: Disposable network-isolated PostgreSQL 17, fictional identities only
+        run: |
+          set -euo pipefail
+          cd "${TITUS_MATERIAL_WORKSPACE:?}"
+          bash scripts/test-titus-first-material-hosted-pg17.sh
+
+      - name: Clean only this job's checkout
+        if: always()
+        run: |
+          set -euo pipefail
+          case "${TITUS_MATERIAL_WORKSPACE:-}" in
+            "${RUNNER_TEMP:?}"/titus-acl-proof.*)
+              rm -rf -- "$TITUS_MATERIAL_WORKSPACE";;
+          esac

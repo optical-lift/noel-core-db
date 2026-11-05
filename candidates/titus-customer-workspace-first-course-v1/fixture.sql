@@ -9,6 +9,11 @@ CREATE SCHEMA titus;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE service_role NOLOGIN BYPASSRLS;
+-- Mirror verified live Supabase public-function default ACL in scratch only.
+-- Without this, a clean PG17 fixture hides the direct service_role EXECUTE
+-- that Supabase assigns when the functions are created by postgres.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+ GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;
 GRANT USAGE ON SCHEMA public TO authenticated,anon;
 GRANT USAGE ON SCHEMA auth TO authenticated,anon;
 CREATE TABLE auth.users(

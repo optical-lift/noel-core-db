@@ -46,6 +46,10 @@ BEGIN
     OR has_function_privilege('anon',v_save,'EXECUTE') THEN
   RAISE EXCEPTION 'Anonymous actor may call private material function';
  END IF;
+ IF has_function_privilege('service_role',v_read,'EXECUTE')
+    OR has_function_privilege('service_role',v_save,'EXECUTE') THEN
+  RAISE EXCEPTION 'Service-role transport may call private signed-user material function';
+ END IF;
  FOR v_role IN SELECT rolname FROM pg_roles
    WHERE rolname IN ('authenticated','anon','service_role')
  LOOP
