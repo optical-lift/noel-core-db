@@ -185,6 +185,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--db-url",required=True)
     ap.add_argument("--output",required=True)
+    ap.add_argument("--p1-recognition-proof",action="store_true",help="HELD disposable P1 signed Activity proof; skips ordinary direct-C1 completion")
     args=ap.parse_args()
     check(bool(re.fullmatch(
       r"postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres",args.db_url)),
@@ -384,6 +385,22 @@ def main():
     check(made.get("ok") is True and made.get("newOriginalWorkCreated") is True,
           "Governor failed to establish governed original care Work")
     work=made["workItemId"]
+    if args.p1_recognition_proof:
+        # This alternate branch is not invoked by the protected C1 workflow.
+        # Only a separately approved disposable signed P1 test lane may run it.
+        p1_file=ROOT/"validate-atlas-actual-first-p1-signed-http.py"
+        p1_spec=importlib.util.spec_from_file_location("p1_signed_source",p1_file)
+        check(p1_spec is not None and p1_spec.loader is not None,
+              "P1 genuine signed test source unavailable")
+        p1_module=importlib.util.module_from_spec(p1_spec)
+        p1_spec.loader.exec_module(p1_module)
+        receipt=p1_module.prove(
+            args.db_url,api,key,tokens,work,
+            signed_source=signed_source,rpc=rpc,sql=sql,literal=literal,
+            check=check,farm_id="e5200000-0000-4000-8000-000000000b01",
+            state_id=STATE)
+        Path(args.output).write_text(receipt,encoding="utf-8")
+        return
     print("PASS governor source observation and one bounded original Work")
 
     allow(api,key,worker,"connected_person_original_work_subject_self_api_v1",

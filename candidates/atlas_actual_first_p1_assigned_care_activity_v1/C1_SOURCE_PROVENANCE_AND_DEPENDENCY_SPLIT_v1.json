@@ -1,0 +1,610 @@
+{
+  "contract": "C1_SOURCE_PROVENANCE_AND_DEPENDENCY_SPLIT_v1",
+  "verifiedOn": "2026-11-05",
+  "owner": "Noel",
+  "releaseEligibility": "BLOCKED",
+  "productionId": "zirqkouammpwxlqfbsvf",
+  "evidence": {
+    "signedIsolatedP1": "https://github.com/optical-lift/noel-core-db/actions/runs/42105399414",
+    "signedScope": "Fictional local signed GoTrue/PostgREST; not live production",
+    "combinedCandidate": {
+      "commit": "0b3675f43e295b1992774aefb929f6d436bf9235",
+      "path": "candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql",
+      "gitBlobSha1": "a59bd0053b68629bf8a31b8eda2f5d072e2b890e",
+      "bytes": 269204,
+      "lines": 5449,
+      "sourceOnly": true,
+      "syntheticAuthAndGrowingObjectCanary": true,
+      "canBeReleased": false,
+      "sqlDefinitions": {
+        "createTableDeclarations": 3,
+        "createFunctionDeclarations": 34,
+        "createTriggerDeclarations": 16,
+        "createViewDeclarations": 1
+      }
+    },
+    "preSplitP1DraftHead": "0b3675f43e295b1992774aefb929f6d436bf9235",
+    "canonicalMainProofRef": "461ebb5d54ac800d7092bad0ae4b050a8673dc22",
+    "canonicalMainNote": "The two live owned migration files were re-fetched at this immutable main SHA and matched their recorded Git blob IDs."
+  },
+  "files": [
+    {
+      "id": "live_manual_activity",
+      "stage": "LIVE",
+      "originPr": null,
+      "originCommit": "461ebb5d54ac800d7092bad0ae4b050a8673dc22",
+      "path": "supabase/migrations/20260829172226_worker_manual_activity_log_v1.sql",
+      "gitBlobSha1": "548cea7eb76686975aee89cb79f377a5dd74d5db",
+      "exactVerbatimInP1CombinedClone": "baseline-not-applicable",
+      "objects": [
+        "atlas.record_worker_activity_log_v1",
+        "atlas.retract_worker_activity_log_v1",
+        "atlas.field_logs"
+      ],
+      "requires": [],
+      "notes": "Existing real signed first-party manual Activity is inert until Result recognition; do not invent a public worker-log RPC."
+    },
+    {
+      "id": "live_oct30_root",
+      "stage": "LIVE",
+      "originPr": null,
+      "originCommit": "461ebb5d54ac800d7092bad0ae4b050a8673dc22",
+      "path": "supabase/migrations/20261030230921_atlas_ledger_reciprocal_root_work_intake_v1.sql",
+      "gitBlobSha1": "6d3ac9312a44849e1402e41631da0d32922bc454",
+      "exactVerbatimInP1CombinedClone": "baseline-not-applicable",
+      "objects": [
+        "atlas.guard_work_allocation_responsibility_establishment_v2"
+      ],
+      "requires": [],
+      "notes": "Applied October 30 Ledger-root capability guard; live md5(prosrc)=1043ad551860196f1a13df25de9f8478. Latest original R01 16 lacks this check; P1 combined clone reconciles it."
+    },
+    {
+      "id": "lifecycle_shadow_events",
+      "stage": "L1",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/01_shadow_event_source.sql",
+      "gitBlobSha1": "1190b2d188846e48252da33be70ea35e9cd56efc",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.work_lifecycle_events_v1",
+        "atlas.guard_work_lifecycle_event_immutable_v1",
+        "atlas.append_work_lifecycle_observation_internal_v1"
+      ],
+      "requires": [],
+      "notes": "Current held #2368 source has historical review/cancellation extension absent from signed P1 composite. MUST reassemble/retest."
+    },
+    {
+      "id": "lifecycle_baseline",
+      "stage": "L1",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/02_baseline_and_shadow_observers.sql",
+      "gitBlobSha1": "0ca69e0a604f43cf3eee442cb1edeb4ae6c1672b",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.seed_work_lifecycle_shadow_baseline_internal_v1",
+        "atlas.observe_original_work_lifecycle_shadow_v1"
+      ],
+      "requires": [
+        "lifecycle_shadow_events"
+      ],
+      "notes": "Existing Work/Result/Acceptance snapshot records remain observations, not historical performance proof."
+    },
+    {
+      "id": "lifecycle_projection",
+      "stage": "L1",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/03_shadow_projection_and_observers.sql",
+      "gitBlobSha1": "4113d95c1d8ae3b1161ca5a43e344100b6120c1b",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.work_lifecycle_shadow_reconciliation_v1",
+        "native_work_shadow_observer_triggers"
+      ],
+      "requires": [
+        "lifecycle_shadow_events",
+        "lifecycle_baseline"
+      ],
+      "notes": "Must preserve security_invoker=true, native guards and event history; shadow alone cannot mark Done."
+    },
+    {
+      "id": "single_done_transition",
+      "stage": "L2",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/06_single_transition_authority_private.sql",
+      "gitBlobSha1": "a6947ae7d5c5d31a75740c2cd2672e9832a7fee8",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.apply_work_lifecycle_transition_internal_v1"
+      ],
+      "requires": [
+        "lifecycle_shadow_events",
+        "lifecycle_baseline",
+        "lifecycle_projection"
+      ],
+      "notes": "Current held #2368 includes native historical cancellation/governor review not in #2500 P1 composite; private no browser EXECUTE. Difference requires separate signed acceptance, not equivalence claim."
+    },
+    {
+      "id": "continuing_original_core",
+      "stage": "C1",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/candidate.sql",
+      "gitBlobSha1": "a1b45327e3b8de6582b86f446f56cc3b25ab904c",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.establish_continuing_original_work_internal_v1",
+        "atlas.continuing_original_work_result_continuation_internal_v1"
+      ],
+      "requires": [
+        "single_done_transition"
+      ],
+      "notes": "Private one-source-one-serving original and subsequent eligibility, not an independent recurring task generator. Campaign successor route remains P3-held."
+    },
+    {
+      "id": "care_base_writer_superseded",
+      "stage": "C2",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/02_farm_care_actual_adapter.sql",
+      "gitBlobSha1": "97b1486a807ee01328c682af49fcd6b7db46f64e",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.record_continuing_care_actual_self_api_v1"
+      ],
+      "requires": [
+        "continuing_original_core"
+      ],
+      "notes": "Older direct-terminal-care Result writer is subsequently replaced by exact C1 file 10. NEVER use file 02 as final production writer."
+    },
+    {
+      "id": "care_result_guards",
+      "stage": "C2",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/04_care_actual_source_guards.sql",
+      "gitBlobSha1": "4983bace4a5ce83c73580316117955b5964a571c",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.guard_continuing_care_actual_result_v1",
+        "atlas.guard_continuing_care_actual_acceptance_v1",
+        "atlas.guard_continuing_care_work_completion_v1"
+      ],
+      "requires": [
+        "continuing_original_core",
+        "care_single_done_writer"
+      ],
+      "notes": "Three source-qualified Result/acceptance/Done triggers. Independently reverify trigger order/SQLSTATE, RLS and immutable provenance."
+    },
+    {
+      "id": "governor_original_issuer",
+      "stage": "C2",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/05_governed_observed_need_work_writer.sql",
+      "gitBlobSha1": "cd2d888c5c210d4d0bf7c9e420a50e771dccc455",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.owner_establish_observed_continuing_care_work_self_api_v1"
+      ],
+      "requires": [
+        "continuing_original_core",
+        "live_oct30_root"
+      ],
+      "notes": "Uses native Ledger owner, active Person connection, full Subject disclosure, real observed care Need and explicit plan/date; already-approved exact original not retrospection."
+    },
+    {
+      "id": "care_single_done_writer",
+      "stage": "C2",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/10_care_actual_single_done_cutover_candidate.sql",
+      "gitBlobSha1": "967456ae34a305a59d663a73f90f9070ef74f1ba",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.record_continuing_care_actual_self_api_v1"
+      ],
+      "requires": [
+        "continuing_original_core",
+        "single_done_transition"
+      ],
+      "notes": "FINAL tested care writer in #2500; delegates native Done via same lifecycle transition; partial/blocked must remain nonterminal. Requires fresh test against final current lifecycle source."
+    },
+    {
+      "id": "care_signed_adapter",
+      "stage": "C2",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/12_care_signed_http_rpc_candidate.sql",
+      "gitBlobSha1": "3e09b66e54c15e100110c2b50f43dc9c7593e51a",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "public.record_continuing_care_actual_self_api_v1"
+      ],
+      "requires": [
+        "care_single_done_writer",
+        "care_result_guards"
+      ],
+      "notes": "Public SECURITY DEFINER transport needs exact authenticated EXECUTE only; private source rechecks identity, ACL and Result qualifications."
+    },
+    {
+      "id": "legacy_carrier_compatibility",
+      "stage": "COMPATIBILITY",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/07_legacy_rhythm_no_duplicate_task_cutover.sql",
+      "gitBlobSha1": "1bdb0b44729b41ff3d16f79540f5bf08e4120880",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.continuing_rhythm_original_work_has_custody_v1",
+        "atlas.ensure_rhythm_task_v1",
+        "atlas.guard_continuing_original_rhythm_old_carrier_v1"
+      ],
+      "requires": [
+        "continuing_original_core"
+      ],
+      "notes": "Original file comment cites old ensure_rhythm_task md5 d195ec... on Oct28; live now b1c08de87ddb8033a26793005d74149a. Separate exact live-byte and tick-retry audit REQUIRED."
+    },
+    {
+      "id": "raw_state_disclosure_cutover",
+      "stage": "COMPATIBILITY",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/09_rhythm_state_raw_worker_disclosure_cutover.sql",
+      "gitBlobSha1": "bb7ff3bd9b48bcf01a7cd6c4265b086f8a2a4ccb",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.can_read_rhythm_state_v1"
+      ],
+      "requires": [
+        "governor_original_issuer"
+      ],
+      "notes": "Live read source md5 a1baa2535313e49f80347563cae2010e; test/production disclosure parity requires review, never broaden raw farm-hand access."
+    },
+    {
+      "id": "standing_source_policy",
+      "stage": "STANDING_OPTIONAL",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/13_governed_standing_source_policy_eligibility_v1.sql",
+      "gitBlobSha1": "428b90c7e31b323cd6905f67adcd837e55592943",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.continuing_work_source_governance_events_v1",
+        "atlas.owner_decide_continuing_source_governance_self_api_v1",
+        "atlas.continuing_work_source_eligibility_self_api_v1"
+      ],
+      "requires": [
+        "continuing_original_core"
+      ],
+      "notes": "Governed standing-source policy is separate from owner-issued P1 care original; assess need before adding a minimum candidate."
+    },
+    {
+      "id": "standing_observation",
+      "stage": "STANDING_OPTIONAL",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/14_signed_standing_physical_observation_v1.sql",
+      "gitBlobSha1": "1e4a9ba8138232122007286e5573f51b27033964",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.record_standing_care_observation_self_api_v1"
+      ],
+      "requires": [
+        "standing_source_policy"
+      ],
+      "notes": "Physical observation does not create Work. May be deferred if implementing only owner-issued P1."
+    },
+    {
+      "id": "native_standing_guard_replacement",
+      "stage": "COMPATIBILITY",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/16_native_standing_source_authority_extension_v1.sql",
+      "gitBlobSha1": "901993f497334d72cceec42f2c76ce94f92631ce",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.company_work_native_ledger_exact_source_v1",
+        "atlas.guard_work_allocation_responsibility_establishment_v2"
+      ],
+      "requires": [
+        "live_oct30_root"
+      ],
+      "notes": "Original file lacks Oct30 root condition, composite adapted it. Never apply old replacement over live source md5 1043ad...; live ledger-exact resolver md5 7570082f04024397227545e685a4c071."
+    },
+    {
+      "id": "standing_admission",
+      "stage": "STANDING_OPTIONAL",
+      "originPr": 2362,
+      "originCommit": "5984257962b37362d198fd94193af05c47525d8a",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/17_standing_source_qualified_admission_v1.sql",
+      "gitBlobSha1": "7ab6caddf78cdee3de0c011ca6bdef799f12fe2c",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.admit_standing_continuing_source_work_self_api_v1"
+      ],
+      "requires": [
+        "standing_source_policy",
+        "native_standing_guard_replacement"
+      ],
+      "notes": "Worker standing-source Work admission requires independent owner policy, strict native Ledger scope; broader source lane separate."
+    },
+    {
+      "id": "standing_disclosed_reader",
+      "stage": "STANDING_OPTIONAL",
+      "originPr": 2385,
+      "originCommit": "620853243630c5783a0b22174f808615e19a2d62",
+      "path": "candidates/atlas_universal_continuing_original_work_v1/19_connected_person_disclosed_standing_rhythms_v1.sql",
+      "gitBlobSha1": "f2ca1a5975c5f1e06a54709e6d90e08e1bb1d751",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.connected_person_disclosed_standing_rhythms_self_api_v1"
+      ],
+      "requires": [
+        "standing_source_policy"
+      ],
+      "notes": "For pagination and current Subject identity/condition disclosure; no blanket raw rhythm grants."
+    },
+    {
+      "id": "p1_activity_recognition",
+      "stage": "P1",
+      "originPr": 2487,
+      "originCommit": "0b3675f43e295b1992774aefb929f6d436bf9235",
+      "path": "candidates/atlas_actual_first_p1_assigned_care_activity_v1/01_assigned_activity_recognition_held.sql",
+      "gitBlobSha1": "476e85b1e6f46d7ac996dce9ea0e51b89c50f28c",
+      "exactVerbatimInP1CombinedClone": true,
+      "objects": [
+        "atlas.assigned_care_activity_recognition_links_v1",
+        "atlas.recognize_assigned_care_activity_self_api_v1",
+        "public.recognize_assigned_care_activity_self_api_v1"
+      ],
+      "requires": [
+        "live_manual_activity",
+        "continuing_original_core",
+        "governor_original_issuer",
+        "care_single_done_writer",
+        "care_result_guards",
+        "care_signed_adapter",
+        "single_done_transition",
+        "live_oct30_root"
+      ],
+      "notes": "P1 proof #2500 only when combined with C1 disposable source; campaign-linked originals must stay fail-closed until P3."
+    },
+    {
+      "id": "historical_review_source",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/16_historical_self_adoption_review_candidate.sql",
+      "gitBlobSha1": "2bccffbaee2de725f511ca5a67145ae72f7980c3",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.historical_self_adoption_review_events_v1",
+        "atlas.reject_historical_review_mutation_v1",
+        "atlas.governor_link_historical_self_adoption_self_api_v1",
+        "atlas.report_historical_self_adoption_pending_self_api_v1",
+        "atlas.governor_review_historical_self_adoption_self_api_v1"
+      ],
+      "requires": [
+        "lifecycle_shadow_events"
+      ],
+      "notes": "Current #2368 06 complete/cancel function refers to this append-only historical review, ABSENT in production and signed P1 clone; not proven by #2500."
+    },
+    {
+      "id": "historical_governor_readback",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/17_historical_self_adoption_review_readback_candidate.sql",
+      "gitBlobSha1": "bb30f49462ee564197cac036ec701d6c221a5044",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.governor_historical_self_adoption_history_self_api_v1"
+      ],
+      "requires": [
+        "historical_review_source"
+      ],
+      "notes": "Historical governor-only bounded readback, no raw review table disclosure."
+    },
+    {
+      "id": "historical_review_postconditions",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/18_historical_self_adoption_review_postconditions.sql",
+      "gitBlobSha1": "48df29f49626d137a5f25b4f09e90e2e6a069de1",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "historical_review_RLS_ACL_mutation_tests"
+      ],
+      "requires": [
+        "historical_review_source"
+      ],
+      "notes": "Disposable validation only, not migration source."
+    },
+    {
+      "id": "historical_rest_transport",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/19_historical_self_adoption_public_transport_candidate.sql",
+      "gitBlobSha1": "a578abb3bbfb810386ce134d23b91981b02a401f",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "public.governor_link_historical_self_adoption_self_api_v1",
+        "public.report_historical_self_adoption_pending_self_api_v1",
+        "public.governor_review_historical_self_adoption_self_api_v1",
+        "public.governor_historical_self_adoption_history_self_api_v1"
+      ],
+      "requires": [
+        "historical_review_source",
+        "historical_governor_readback"
+      ],
+      "notes": "Signed historical-review API transport; never implicitly add to minimum care migration."
+    },
+    {
+      "id": "historical_cancel_bridge",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql",
+      "gitBlobSha1": "93f7b9cf0bad5eb536ffa90d3973aabfe75542d9",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.governor_retire_historical_work_self_api_v1"
+      ],
+      "requires": [
+        "single_done_transition",
+        "historical_review_source"
+      ],
+      "notes": "Separate historical cancellation bridge; requires independent signed governance and retirement preflight tests."
+    },
+    {
+      "id": "historical_cancel_preflight",
+      "stage": "L2_HISTORICAL_PREREQ",
+      "originPr": 2368,
+      "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
+      "path": "candidates/atlas_universal_work_lifecycle_v1/21_native_historical_retirement_preflight_transport_candidate.sql",
+      "gitBlobSha1": "254f214caadb697988e1bfa689d6bd72eeabe08b",
+      "exactVerbatimInP1CombinedClone": false,
+      "objects": [
+        "atlas.governor_historical_retirement_preflight_self_api_v1",
+        "public.governor_historical_retirement_preflight_self_api_v1",
+        "public.governor_retire_historical_work_self_api_v1"
+      ],
+      "requires": [
+        "historical_cancel_bridge"
+      ],
+      "notes": "Native dependency-impact preflight and signed transport; outside demonstrated P1 physical-care acceptance."
+    }
+  ],
+  "stageOrder": [
+    {
+      "order": 1,
+      "stage": "L1",
+      "scope": "shadow lifecycle evidence/source custody",
+      "requires": [
+        "live_manual_activity"
+      ],
+      "hold": "01 latest source diverges from composed test; current-schema clone + exact RLS/observer audit needed"
+    },
+    {
+      "order": 2,
+      "stage": "L2",
+      "scope": "single private universal Done transition",
+      "requires": [
+        "lifecycle_shadow_events",
+        "lifecycle_baseline",
+        "lifecycle_projection"
+      ],
+      "hold": "Current #2368 06 complete/cancel contains historical cancellation absent from #2500 composite; full current source requires 16 historical review, separately signed eligibility, and existing native dependency snapshot. A proposed complete-only variant would be a NEW source decision and must be re-tested."
+    },
+    {
+      "order": 2.5,
+      "stage": "L2_HISTORICAL_PREREQ",
+      "scope": "only if current full complete+cancel Done authority is chosen",
+      "requires": [
+        "historical_review_source",
+        "historical_governor_readback",
+        "historical_review_postconditions",
+        "historical_rest_transport",
+        "historical_cancel_bridge",
+        "historical_cancel_preflight"
+      ],
+      "hold": "All historical-review sources absent from passing P1 clone and unapproved for production; independent owner/source-law review before installation."
+    },
+    {
+      "order": 3,
+      "stage": "C1",
+      "scope": "one governed original / result eligibility primitive",
+      "requires": [
+        "single_done_transition"
+      ],
+      "hold": "source truth, no retroactive original or successor self-authorization"
+    },
+    {
+      "order": 4,
+      "stage": "C2",
+      "scope": "owner-issued exact care original + source-qualified typed Actual",
+      "requires": [
+        "continuing_original_core",
+        "governor_original_issuer",
+        "care_result_guards",
+        "care_single_done_writer",
+        "care_signed_adapter"
+      ],
+      "hold": "choose cutover file 10 as final writer, not older direct-terminal file 02"
+    },
+    {
+      "order": 5,
+      "stage": "COMPATIBILITY",
+      "scope": "existing rhythm legacy carrier, raw disclosure, Ledger-root patch",
+      "requires": [
+        "legacy_carrier_compatibility",
+        "raw_state_disclosure_cutover",
+        "native_standing_guard_replacement"
+      ],
+      "hold": "live function MD5 drift; must rebase against current authoritative catalog and prove no duplicate task and no access widening"
+    },
+    {
+      "order": 6,
+      "stage": "P1",
+      "scope": "Activity → already assigned original → typed Result evidence link",
+      "requires": [
+        "p1_activity_recognition"
+      ],
+      "hold": "source-only until prereqs canonically released, real signed exact-release clone repeated, no campaign successor"
+    },
+    {
+      "order": 7,
+      "stage": "STANDING_OPTIONAL",
+      "scope": "policy/readers/signed standing observation/native admission",
+      "requires": [
+        "standing_source_policy",
+        "standing_observation",
+        "standing_admission",
+        "standing_disclosed_reader"
+      ],
+      "hold": "independent governing scope, not automatically bundled into a minimum owner-issued P1 release"
+    }
+  ],
+  "liveFingerprintObservations": {
+    "guard_work_allocation_responsibility_establishment_v2": "1043ad551860196f1a13df25de9f8478",
+    "company_work_native_ledger_exact_source_v1": "7570082f04024397227545e685a4c071",
+    "ensure_rhythm_task_v1": "b1c08de87ddb8033a26793005d74149a",
+    "can_read_rhythm_state_v1": "a1baa2535313e49f80347563cae2010e",
+    "record_worker_activity_log_v1": "48de174d6ddad6b130e5d92f21d71c6b",
+    "oct30RootCapabilityGuardPresent": true,
+    "historical_self_adoption_review_events_v1": "ABSENT",
+    "company_work_retirement_dependency_snapshot_v1_uuid": "PRESENT"
+  },
+  "excludedFromProduction": [
+    "candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql",
+    "synthetic C1 fictional Auth/growing-object canary; disposable owner-issuance bridge and scratch source recoveries 05–16",
+    "02_farm_care_actual_adapter.sql as final terminal writer (superseded by file 10)",
+    "all direct SQL execution against production or reuse of 20261028235811",
+    "P2 retrospective governor recognition, P3 automatic successor cutover and P4/P5 app domain work"
+  ],
+  "nextSingleOutcome": "Prove exact source versions and minimal L1/L2 native lifecycle closure: reconcile PR #2368 current 01/06 plus historical cancellation dependencies with version tested at #2500; select a reviewed authoritative target, then obtain a fresh signed clone before any migration.",
+  "protected": [
+    "production DDL/data/credentials",
+    "retained RiverSong clone",
+    "Noel draft PR #2487",
+    "Noel draft PR #2362/#2368",
+    "U2C/U2E held stack",
+    "Atlas draft #535",
+    "P2–P5",
+    "existing production release machinery"
+  ],
+  "criticalProvenanceDifferences": [
+    "Current PR #2368 01_shadow_event_source.sql includes atlas.historical_self_adoption_review_events_v1 source-kind not in the signed P1 composite; no byte-exact witness.",
+    "Current PR #2368 06_single_transition_authority_private.sql allows governed historical cancel and reads historical_self_adoption_review_events_v1, absent from production/P1 test; no byte-exact witness.",
+    "Original PR #2362 16_native_standing_source_authority_extension_v1.sql lacks the October 30 root-capability clause; P1 composite manually reconciles current live source, not byte-identical.",
+    "PR #2362 07 old legacy ensure_rhythm_task source comment MD5 d195ec2ccf9b36858cba9c5bfbfb2724 differs from current live b1c08de87ddb8033a26793005d74149a.",
+    "PR #2362 09 raw rhythm state reader replacement must be reconciled against current live a1baa2535313e49f80347563cae2010e.",
+    "Latest #2368 full historical cancellation and P1 #2500 tested completion-only clone are distinct sources; do not promote on test proof alone."
+  ]
+}
