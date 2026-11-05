@@ -314,3 +314,9 @@ A repeat execution of the [READ-ONLY production preflight](P1_RELEASE_READONLY_P
 
 **Next one bounded source step:** reconcile the actual latest #2368 file 01 + file 06 with the previously signed clone's earlier lifecycle source, including separately adjudicating historical cancellation dependency. Only then select the exact lifecycle/Done predecessor and perform new non-release signed clone tests. **P1 release: BLOCKED**, P2–P5: HELD.
 
+
+
+## 2026-11-05 L1/L2 source-version delta checked — not a new signed runtime acceptance
+
+[Exact current-vs-signed lifecycle diff](L1_L2_EXACT_SOURCE_VERSION_RECONCILIATION_20261105.md) records the immutable latest [#2368](https://github.com/optical-lift/noel-core-db/pull/2368) Git blobs, selected **actual SQL body line comparison** and five semantic diff hunks: one additional L1 event source (`historical_self_adoption_review_events_v1`), four L2 differences comprising narrowly source-governed historical cancellation and **removal of legacy membership self-adopted Done authority** in favor of native current responsible Person. **The older P1 composite was not current #2368 L1/L2** and continues to be proof only for its own earlier immutable source. The newer historical cancellation requires separately owned #2368 files 16–21; no silent code substitution, authority rollback, merge, migration or deployment is allowed. Source scope/approval for latest complete+cancel vs newly reviewed native-only complete-only remains open under [Noel #2505](https://github.com/optical-lift/noel-core-db/issues/2505), and is **not decided by this document**. The source test checks this exact version barrier but does not claim independent current-version protected signed runtime acceptance.
+
