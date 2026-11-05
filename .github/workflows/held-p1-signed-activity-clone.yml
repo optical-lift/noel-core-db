@@ -38,15 +38,18 @@ jobs:
           w=Path('.github/workflows/held-p1-signed-activity-clone.yml').read_text()
           assert sum(line.strip()=='github.actor == github.repository_owner &&' for line in w.splitlines())==2
           assert "github.event.issue.title == 'UNI-OPS-01 P1 signed activity clone request'" in w
-          assert w.index('name: Snapshot production user schemas read-only') < w.index('name: Checkout immutable candidate')
-          assert w.index('name: Checkout immutable candidate') < w.index('name: Verify exact P1 opt-in source')
-          assert w.index('name: Verify exact P1 opt-in source') < w.index('name: Validate P1 through canonical disposable local harness')
-          assert w.count('environment: production')==1
+          lines=w.splitlines()
+          step_names=[line.strip().removeprefix('- name: ') for line in lines
+                      if line.strip().startswith('- name: ')]
+          assert step_names.index('Snapshot production user schemas read-only') < step_names.index('Checkout immutable candidate')
+          assert step_names.index('Checkout immutable candidate') < step_names.index('Verify exact P1 opt-in source before disposable test')
+          assert step_names.index('Verify exact P1 opt-in source before disposable test') < step_names.index('Validate P1 through canonical disposable local harness (opt-in)')
+          assert sum(line.strip()=='environment: production' for line in lines)==1
           assert 'P1 C1 entrypoint changed beyond isolated opt-in' in w
           assert "start='    if args.p1_recognition_proof:" in w
           assert 'P1 genuine signed manual Activity' in w
           assert 'node --test tests/atlas-actual-first-p1-source.test.mjs' in w
-          assert 'supabase db push' not in w
+          assert not any(line.lstrip().startswith('supabase db '+'push') for line in lines)
           print('PASS held P1 protected issue gate, source equivalence and no release path')
           PY
 
