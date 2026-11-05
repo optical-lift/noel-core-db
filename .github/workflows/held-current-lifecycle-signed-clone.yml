@@ -33,9 +33,10 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           w=Path(".github/workflows/held-current-lifecycle-signed-clone.yml").read_text()
-          assert w.count("github.actor == github.repository_owner &&")==2
-          assert w.count("github.event.issue.author_association == 'OWNER'")==2
-          assert w.count("github.event.issue.title == 'UNI-OPS-01 current L1 L2 signed lifecycle diagnostic request'")==2
+          gates=w.split("  validate:\n",1)[1]
+          assert gates.count("github.actor == github.repository_owner &&")==2
+          assert gates.count("github.event.issue.author_association == 'OWNER'")==2
+          assert gates.count("github.event.issue.title == 'UNI-OPS-01 current L1 L2 signed lifecycle diagnostic request'")==2
           assert "proof: [native_p1, historical_cancel]" in w and "fail-fast: false" in w
           assert w.count("environment: production")==1
           assert w.index("Snapshot production user schemas read-only") < w.index("Checkout immutable candidate")
