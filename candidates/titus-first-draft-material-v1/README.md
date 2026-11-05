@@ -51,3 +51,14 @@ Not a universal model of institutional membership. The prior private single-owne
 | Titus authoring UI/API / preview | **Not implemented by this source-only increment** |
 
 **Next:** Pass isolated PG17, then build a default-OFF Titus authoring client/API against precisely this source contract; separately review source/custody and build a genuine private-pilot grant issuer. The user must explicitly authorize any live migration/release. Do not manually insert a pilot entitlement merely to obtain a screenshot.
+
+## Clone-safe migration validation (2026-11-05)
+
+For a genuine source migration, the previous `postconditions.sql` is **synthetic-only**: it inserts fictional entitlement rows, simulates Auth claim variables, and writes sample Course revisions in an isolated PG17 fixture. **It must never be used as the validation input to the production-shaped clone or live migration.**
+
+Added `clone_validation.sql`, deliberately read-only and fixture-free. It checks the new material table, zero seeded originals, RLS, protected function identities, explicit `authenticated` function access, anonymous function denial, and absence of direct table read/write for `authenticated`, `anon`, and `service_role`. Both isolated PG17 runners now apply this clone-safe check immediately after the candidate SQL and before any fictional-owner behavior is tested.
+
+**PASS:** [isolated PG17 run #42106005394](https://github.com/optical-lift/noel-core-db/actions/runs/42106005394) on source SHA `3c7d16bcf826b8c46e43657a040d2c3438c10c83`. The original [#41963000155](https://github.com/optical-lift/noel-core-db/actions/runs/41963000155) remains the prior signed-shaped fixture proof.
+
+**Still not done:** genuine production-shaped clone of generated migration, canonical migration generation, protected production release/version receipt, real GoTrue bearer owner/outsider/revocation test, or Titus app activation. The owner-approved five-requirement sequence is now in `optical-lift/titus/docs/TITUS_FIRST_REAL_COURSE_READINESS_20261105.md`. The `titus` lane source-generation request must use `fixture_path: none` and `validation_path: candidates/titus-first-draft-material-v1/clone_validation.sql`; **never** substitute the synthetic `postconditions.sql`.
+
