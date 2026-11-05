@@ -152,9 +152,18 @@ def proof(db, api, key, tokens, h):
     check(replay.get("idempotent") is True
       and replay.get("eventId")==retired.get("eventId"),
       "Retirement action replay minted a second terminal event")
-    deny(api,key,owner,"governor_retire_historical_work_self_api_v1",
-      dict(final,p_action_id=action(4)),
-      "A second action may not retire the same original again")
+    # With the original already cancelled, a *different* action cannot
+    # masquerade as the replayed terminal event. The single lifecycle writer
+    # refuses non-open Work with SQLSTATE 23514, not the actor-denial 42501.
+    second_status,second_obj=h.rpc(
+      api,key,owner,"governor_retire_historical_work_self_api_v1",
+      dict(final,p_action_id=action(4)))
+    check(second_status in (400,409) and isinstance(second_obj,dict)
+          and second_obj.get("code")=="23514",
+          "A second retirement action must fail at the exact terminal-state "
+          "guard, not pass or become a missing RPC: "+str(second_status)
+          +" / "+str(second_obj)[:160])
+    print("PASS distinct retirement action denied by terminal Work source 23514")
     check(sql(db,"select work_state from atlas.work_items where id="
       +literal(WORK)+"::uuid")=="cancelled",
       "Original did not project cancelled state")
