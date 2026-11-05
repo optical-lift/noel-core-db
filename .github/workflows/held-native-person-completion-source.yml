@@ -1,0 +1,62 @@
+name: HELD native Person-only completion source contract (no release)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-native-person-completion-source.yml'
+      - 'candidates/atlas_native_person_completion_only_v1/**'
+      - 'tests/atlas-native-person-completion-only-source.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: held-native-person-completion-source-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  exact-source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate source provenance, single writer, historical cancellation held
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          node --test tests/atlas-native-person-completion-only-source.test.mjs
+          node candidates/atlas_native_person_completion_only_v1/assemble_native_person_only_clone_only.mjs --check
+          test ! -e supabase/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('candidates/atlas_native_person_completion_only_v1')
+          assert all(not p.name.endswith('.sql') or p.name.endswith(('_held.sql','_clone_postconditions.sql')) for p in root.iterdir())
+          w=Path('.github/workflows/held-native-person-completion-source.yml').read_text()
+          prelude=w.split('    steps:',1)[0]
+          assert 'permissions:\n  contents: read' in prelude
+          assert all(not line.lstrip().startswith('environment:') for line in w.splitlines())
+          assert all(not line.lstrip().startswith('uses: actions/upload-artifact') for line in w.splitlines())
+          print('PASS no credentials, privileged runner, deploy or releasable migration')
+          PY
+      - name: Parse held generated SQL using PostgreSQL grammar only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          node candidates/atlas_native_person_completion_only_v1/assemble_native_person_only_clone_only.mjs \
+            --output /tmp/L1_L2_NATIVE_PERSON_ONLY_CLONE_ONLY.sql
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          sql=Path('/tmp/L1_L2_NATIVE_PERSON_ONLY_CLONE_ONLY.sql').read_text()
+          parse_sql(sql)
+          assert sql.startswith('BEGIN;\n-- CLONE TEST ONLY:')
+          assert sql.endswith('\nCOMMIT;\n')
+          assert 'historical_self_adoption_review_events_v1' not in sql
+          assert "p_transition_kind IS DISTINCT FROM 'complete'" in sql
+          print('PASS PostgreSQL outer SQL grammar for held native Person-only composition')
+          PY
