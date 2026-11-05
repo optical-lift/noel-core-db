@@ -587,3 +587,135 @@ BEGIN
  RAISE NOTICE 'Disclosed standing care structural source accepted; signed denial still required.';
 END;
 $disclosed_standing$;
+
+
+-- UNI-OPS-01 P1 CURRENT HELD SOURCE-ONLY VALIDATION
+-- Original postconditions SHA a07c7551d9f9bed379df421882782ddd47401588; SQL role-denial SHA 59e031f273c8482855ad13fab1190dc5de5f91d5.
+-- Exact source reused; role tests operate only in a disposable transaction.
+-- P1 HELD structural/ACL postconditions for disposable PG clone.
+-- Read/inspection only after 01 is applied in a ROLLBACK transaction.
+-- Neither these checks nor a passing source test establish signed acceptance.
+DO $p1$
+DECLARE
+  v_private oid:=pg_catalog.to_regprocedure(
+    'atlas.recognize_assigned_care_activity_self_api_v1(uuid,uuid,text,text)');
+  v_public oid:=pg_catalog.to_regprocedure(
+    'public.recognize_assigned_care_activity_self_api_v1(uuid,uuid,text,text)');
+BEGIN
+  IF pg_catalog.to_regclass('atlas.assigned_care_activity_recognition_links_v1') IS NULL
+    OR v_private IS NULL OR v_public IS NULL
+    OR pg_catalog.to_regprocedure(
+       'atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)') IS NULL
+    OR pg_catalog.to_regprocedure(
+       'atlas.record_worker_activity_log_v1(uuid,date,text,text,uuid,timestamptz,timestamptz,text)') IS NULL
+  THEN
+    RAISE EXCEPTION 'P1 needs existing manual activity and typed physical Result source';
+  END IF;
+  IF NOT EXISTS(
+    SELECT 1 FROM pg_catalog.pg_class c
+    JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='atlas'
+      AND c.relname='assigned_care_activity_recognition_links_v1'
+      AND c.relrowsecurity
+  ) THEN RAISE EXCEPTION 'P1 provenance links require RLS'; END IF;
+  IF pg_catalog.has_table_privilege(
+       'anon','atlas.assigned_care_activity_recognition_links_v1','SELECT')
+    OR pg_catalog.has_table_privilege(
+       'authenticated','atlas.assigned_care_activity_recognition_links_v1','SELECT')
+    OR pg_catalog.has_table_privilege(
+       'service_role','atlas.assigned_care_activity_recognition_links_v1','SELECT')
+  THEN RAISE EXCEPTION 'P1 evidence link table is not source private'; END IF;
+  IF pg_catalog.has_function_privilege('anon',v_public,'EXECUTE')
+    OR pg_catalog.has_function_privilege('service_role',v_public,'EXECUTE')
+    OR NOT pg_catalog.has_function_privilege('authenticated',v_public,'EXECUTE')
+    OR pg_catalog.has_function_privilege('authenticated',v_private,'EXECUTE')
+    OR pg_catalog.has_function_privilege('service_role',v_private,'EXECUTE')
+  THEN RAISE EXCEPTION 'P1 signed entrypoint privileges are incorrect'; END IF;
+  IF NOT EXISTS(
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    WHERE t.tgrelid='atlas.assigned_care_activity_recognition_links_v1'::regclass
+      AND t.tgname='assigned_care_activity_recognition_append_only_v1'
+      AND NOT t.tgisinternal
+  ) THEN RAISE EXCEPTION 'P1 evidence links need append-only trigger'; END IF;
+  IF NOT EXISTS(
+    SELECT 1 FROM pg_catalog.pg_constraint c
+    WHERE c.conrelid='atlas.assigned_care_activity_recognition_links_v1'::regclass
+      AND c.contype='u'
+      AND pg_catalog.pg_get_constraintdef(c.oid) LIKE '%activity_log_id%'
+  ) THEN RAISE EXCEPTION 'One source activity must have at most one Actual link'; END IF;
+  RAISE NOTICE 'P1 structural, RLS and ACL postconditions passed in disposable clone; SIGNED TESTS OUTSTANDING';
+END;
+$p1$;
+
+BEGIN;
+-- UNI-OPS-01 P1 SQL-only negative behavioral checks in EXACT isolated PG clone.
+-- Must be executed in the SAME BEGIN/ROLLBACK after 01/02; no real
+-- GoTrue JWT is issued. This is a lower-fidelity SQL role / source ACL test.
+-- Never mistake simulated PostgreSQL roles for genuinely signed humans.
+
+CREATE TEMP TABLE p1_negative_baseline ON COMMIT DROP AS
+SELECT
+ (SELECT count(*) FROM atlas.work_items) AS originals,
+ (SELECT count(*) FROM atlas.work_execution_results) AS results,
+ (SELECT count(*) FROM atlas.work_result_acceptances) AS acceptances,
+ (SELECT count(*) FROM atlas.assigned_care_activity_recognition_links_v1) AS links;
+
+-- Anonymous cannot execute exposed transport at all.
+SET LOCAL ROLE anon;
+DO $p1_anon$
+BEGIN
+  BEGIN
+    PERFORM public.recognize_assigned_care_activity_self_api_v1(
+      'a1100000-0000-4000-8000-000000000001'::uuid,
+      'a1100000-0000-4000-8000-000000000002'::uuid,
+      'weeded_full', 'clear');
+    RAISE EXCEPTION 'P1 FAIL: anon invoked signed recognition';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    RAISE NOTICE 'PASS P1 SQL role: anonymous recognition denied (not a GoTrue test)';
+  END;
+END;
+$p1_anon$;
+RESET ROLE;
+
+-- An authenticated Postgres role without an actual signed GoTrue session
+-- cannot present a Person identity. Null/wrong fields remain denied.
+SET LOCAL ROLE authenticated;
+DO $p1_authenticated$
+BEGIN
+  IF auth.uid() IS NOT NULL THEN
+    RAISE EXCEPTION 'P1 FAIL: fresh SQL session unexpectedly has JWT identity';
+  END IF;
+  BEGIN
+    PERFORM public.recognize_assigned_care_activity_self_api_v1(
+      'a1100000-0000-4000-8000-000000000001'::uuid,
+      'a1100000-0000-4000-8000-000000000002'::uuid,
+      'weeded_full', 'clear');
+    RAISE EXCEPTION 'P1 FAIL: unbound authenticated SQL role invoked recognition';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    RAISE NOTICE 'PASS P1 SQL role: unbound authenticated recognition denied (not a GoTrue test)';
+  END;
+  BEGIN
+    PERFORM public.recognize_assigned_care_activity_self_api_v1(
+      NULL,NULL,NULL,NULL);
+    RAISE EXCEPTION 'P1 FAIL: empty signed operation invoked recognition';
+  EXCEPTION WHEN SQLSTATE '42501' THEN
+    RAISE NOTICE 'PASS P1 SQL role: empty operation denied (not a GoTrue test)';
+  END;
+END;
+$p1_authenticated$;
+RESET ROLE;
+
+DO $p1_counts$
+DECLARE v p1_negative_baseline%ROWTYPE;
+BEGIN
+  SELECT * INTO v FROM p1_negative_baseline;
+  IF (SELECT count(*) FROM atlas.work_items)<>v.originals
+    OR (SELECT count(*) FROM atlas.work_execution_results)<>v.results
+    OR (SELECT count(*) FROM atlas.work_result_acceptances)<>v.acceptances
+    OR (SELECT count(*) FROM atlas.assigned_care_activity_recognition_links_v1)<>v.links
+  THEN RAISE EXCEPTION 'P1 FAIL: denied SQL role mutated canonical Work/Result/evidence';
+  END IF;
+  RAISE NOTICE 'PASS P1 SQL negative postconditions: no Work, Result, acceptance or link changed; SIGNED ACCEPTANCE STILL OPEN';
+END;
+$p1_counts$;
+ROLLBACK;
