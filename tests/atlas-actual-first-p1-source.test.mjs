@@ -120,5 +120,7 @@ test('held signed care suite has the exact source-owned disclosure reader, no fa
   assert.match(postconditions,/DO \$disclosed_standing\$/);
   assert.match(postconditions,/Missing exact signed native disclosed care list/);
   assert.match(postconditions,/Standing care reader exposed through wrong authority/);
+  assert.match(postconditions,/AND 'search_path=""'=ANY\(p\.proconfig\)/);
+  assert.doesNotMatch(postconditions,/AND 'search_path='=ANY\(p\.proconfig\)/);
   assert.match(held,/\nCOMMIT;\s*$/);
 });
