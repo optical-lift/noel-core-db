@@ -23,14 +23,16 @@
         "createViewDeclarations": 1
       }
     },
-    "preSplitP1DraftHead": "0b3675f43e295b1992774aefb929f6d436bf9235"
+    "preSplitP1DraftHead": "0b3675f43e295b1992774aefb929f6d436bf9235",
+    "canonicalMainProofRef": "461ebb5d54ac800d7092bad0ae4b050a8673dc22",
+    "canonicalMainNote": "The two live owned migration files were re-fetched at this immutable main SHA and matched their recorded Git blob IDs."
   },
   "files": [
     {
       "id": "live_manual_activity",
       "stage": "LIVE",
       "originPr": null,
-      "originCommit": "main",
+      "originCommit": "461ebb5d54ac800d7092bad0ae4b050a8673dc22",
       "path": "supabase/migrations/20260829172226_worker_manual_activity_log_v1.sql",
       "gitBlobSha1": "548cea7eb76686975aee89cb79f377a5dd74d5db",
       "exactVerbatimInP1CombinedClone": "baseline-not-applicable",
@@ -46,7 +48,7 @@
       "id": "live_oct30_root",
       "stage": "LIVE",
       "originPr": null,
-      "originCommit": "main",
+      "originCommit": "461ebb5d54ac800d7092bad0ae4b050a8673dc22",
       "path": "supabase/migrations/20261030230921_atlas_ledger_reciprocal_root_work_intake_v1.sql",
       "gitBlobSha1": "6d3ac9312a44849e1402e41631da0d32922bc454",
       "exactVerbatimInP1CombinedClone": "baseline-not-applicable",
