@@ -11,6 +11,17 @@ on:
       - 'tests/test_titus_private_pilot_approval.py'
       - '.github/workflows/titus-protected-private-pilot-issuance.yml'
       - '.github/workflows/titus-private-pilot-issuer-riversong.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'scripts/titus-private-pilot-issue.sql'
+      - 'scripts/verify-titus-pilot-approval.py'
+      - 'scripts/test-titus-private-pilot-issuer-pg17.sh'
+      - 'scripts/test-titus-private-pilot-issuer-hosted-pg17.sh'
+      - 'tests/test_titus_private_pilot_approval.py'
+      - '.github/workflows/titus-protected-private-pilot-issuance.yml'
+      - '.github/workflows/titus-private-pilot-issuer-riversong.yml'
 permissions:
   contents: read
 jobs:
