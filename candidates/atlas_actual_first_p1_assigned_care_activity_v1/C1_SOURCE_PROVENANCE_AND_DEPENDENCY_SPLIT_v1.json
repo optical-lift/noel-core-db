@@ -64,7 +64,7 @@
       "originPr": 2368,
       "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
       "path": "candidates/atlas_universal_work_lifecycle_v1/01_shadow_event_source.sql",
-      "gitBlobSha1": "1190b2d188846e48252da33be70ea35e9cd56ef",
+      "gitBlobSha1": "1190b2d188846e48252da33be70ea35e9cd56efc",
       "exactVerbatimInP1CombinedClone": false,
       "objects": [
         "atlas.work_lifecycle_events_v1",
@@ -379,7 +379,7 @@
       "originPr": 2368,
       "originCommit": "ddfb0bf5374798301fe076a61d2b944dfb52ff63",
       "path": "candidates/atlas_universal_work_lifecycle_v1/16_historical_self_adoption_review_candidate.sql",
-      "gitBlobSha1": "2bccffbaee2de725f511ca5a67145ae72f7980c",
+      "gitBlobSha1": "2bccffbaee2de725f511ca5a67145ae72f7980c3",
       "exactVerbatimInP1CombinedClone": false,
       "objects": [
         "atlas.historical_self_adoption_review_events_v1",
