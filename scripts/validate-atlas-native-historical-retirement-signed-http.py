@@ -124,9 +124,20 @@ def proof(db, api, key, tokens, h):
       final,"Worker cannot cancel reviewed original")
     deny(api,key,outsider,"governor_retire_historical_work_self_api_v1",
       final,"Outsider cannot cancel reviewed original")
-    deny(api,key,owner,"governor_retire_historical_work_self_api_v1",
-      dict(final,p_impact_token="0"*32),
-      "Stale dependency snapshot must not cancel Work")
+    # The source issues SQLSTATE 40001 for a stale impact token, which
+    # PostgREST returns as HTTP 500 under this pinned disposable stack.
+    # This is a rejection, not the 42501 access denial used for wrong actors.
+    stale_status,stale_obj=h.rpc(
+      api,key,owner,"governor_retire_historical_work_self_api_v1",
+      dict(final,p_impact_token="0"*32))
+    check(stale_status==500 and isinstance(stale_obj,dict)
+          and stale_obj.get("code")=="40001",
+          "Stale dependency token must produce exact source 40001, not success "
+          "or a missing RPC: "+str(stale_status)+" / "+str(stale_obj)[:160])
+    check(sql(db,"select work_state from atlas.work_items where id="
+          +literal(WORK)+"::uuid")=="open",
+          "Stale retirement token changed the original Work")
+    print("PASS stale dependency token denied by exact source SQLSTATE 40001")
     prior=sql(db,"select count(*) from atlas.work_lifecycle_events_v1 "
       "where work_item_id="+literal(WORK)+"::uuid "
       "and event_kind='work_transition_applied'")
