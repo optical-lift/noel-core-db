@@ -13,6 +13,21 @@ on:
 permissions:
   contents: read
 jobs:
+  owner_approval_preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact commit and owner authorization denials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 -m unittest discover -s tests -p 'test_titus_private_pilot_approval.py' -v
+          python3 -m py_compile scripts/verify-titus-pilot-approval.py
+          bash -n scripts/test-titus-private-pilot-issuer-pg17.sh
   check:
     if: github.repository == 'optical-lift/noel-core-db'
     runs-on: [self-hosted, macOS, X64, lex-research]
