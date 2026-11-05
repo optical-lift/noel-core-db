@@ -1,0 +1,90 @@
+name: Titus protected private-pilot entitlement issuance
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner_issue_number:
+        description: "Exact open, owner-authored private-pilot approval issue number"
+        required: true
+        type: string
+      target_email:
+        description: "Existing confirmed Auth email, exactly as approved"
+        required: true
+        type: string
+      valid_days:
+        description: "Private-pilot validity (1–180 days); no purchase implied"
+        required: true
+        default: "180"
+        type: string
+      confirm_project_ref:
+        description: "Type the Noel production project ref"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: noel-core-production-database-release
+  cancel-in-progress: false
+
+jobs:
+  issue:
+    if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+      APPROVAL_ISSUE: ${{ inputs.owner_issue_number }}
+      PILOT_EMAIL: ${{ inputs.target_email }}
+      PILOT_DAYS: ${{ inputs.valid_days }}
+      CONFIRMED_REF: ${{ inputs.confirm_project_ref }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check canonical source and existing custody controls
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify exact OWNER issue and protected destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY}" == "optical-lift/noel-core-db" ]]
+          [[ "${GITHUB_REF}" == "refs/heads/main" ]]
+          [[ "${CONFIRMED_REF}" == "zirqkouammpwxlqfbsvf" ]]
+          [[ -n "${NOEL_CORE_DATABASE_URL:-}" ]]
+          [[ "${APPROVAL_ISSUE}" =~ ^[1-9][0-9]{0,6}$ ]]
+          [[ "${PILOT_DAYS}" =~ ^[0-9]{1,3}$ ]]
+          (( 10#${PILOT_DAYS} >= 1 && 10#${PILOT_DAYS} <= 180 ))
+          # The issue is an owner authorization record, NOT self-issued from
+          # a browser or claims string. Verify it anew before protected write.
+          gh api "repos/optical-lift/noel-core-db/issues/${APPROVAL_ISSUE}" > "${RUNNER_TEMP}/titus-pilot-approved-issue.json"
+          python3 scripts/verify-titus-pilot-approval.py \
+            "${RUNNER_TEMP}/titus-pilot-approved-issue.json" \
+            "${PILOT_EMAIL}" "${APPROVAL_ISSUE}"
+          bash scripts/check-custody.sh
+          bash scripts/check-titus-formation-custody.sh
+
+      - name: Apply one reviewed private-pilot source transaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY}" == "optical-lift/noel-core-db" ]]
+          [[ "${GITHUB_REF}" == "refs/heads/main" ]]
+          [[ -f scripts/titus-private-pilot-issue.sql ]]
+          [[ -n "${NOEL_CORE_DATABASE_URL:-}" ]]
+          receipt="github:optical-lift/noel-core-db/issues/${APPROVAL_ISSUE}#titus-private-pilot-v1"
+          psql "${NOEL_CORE_DATABASE_URL}" -X -v ON_ERROR_STOP=1 \
+            -v "pilot_email=${PILOT_EMAIL}" \
+            -v "pilot_receipt=${receipt}" \
+            -v "pilot_days=${PILOT_DAYS}" \
+            -f scripts/titus-private-pilot-issue.sql
+
+      - name: Remove only issue verification file
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- "${RUNNER_TEMP}/titus-pilot-approved-issue.json"
