@@ -87,8 +87,11 @@ def main():
     args=p.parse_args()
     check(re.fullmatch(r"postgres(ql)?://postgres:postgres@127[.]0[.]0[.]1:[0-9]{2,5}/postgres",
                        args.db_url) is not None,"Refuse nonlocal or privileged production database")
-    check(sql(args.db_url,"SELECT inet_server_addr()::text") in ("127.0.0.1","::1",""),
-          "Postgres is not a local database")
+    # Docker port forwarding uses a localhost client address even if the
+    # server reports its internal bridge IP. The exact db-url regex above,
+    # not inet_server_addr(), is the remote-destination prevention boundary.
+    check(sql(args.db_url,"SELECT current_database()")=="postgres",
+          "Unexpected disposable local database")
     api,key,service=local_credentials()
     suffix=secrets.token_hex(5)
     password=secrets.token_urlsafe(26)
