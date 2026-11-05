@@ -106,3 +106,29 @@ test('catalog preflight remains read-only and no release action is smuggled into
   assert.match(doc,/never.*production migration|not a new migration/i);
   assert.match(doc,/no release request/i);
 });
+
+
+test('L1/L2 signed-composite versus latest source reconciliation stays version-explicit',()=>{
+  // This compares the local *earlier accepted* composite with the pinned
+  // source review. It does NOT claim latest #2368 source passed a runtime test.
+  const review=readFileSync(new URL(root+'L1_L2_EXACT_SOURCE_VERSION_RECONCILIATION_20261105.md',import.meta.url),'utf8');
+  const oldL2Start=combined.indexOf('CREATE OR REPLACE FUNCTION atlas.apply_work_lifecycle_transition_internal_v1(');
+  const oldL2End=combined.indexOf('REVOKE ALL ON FUNCTION atlas.apply_work_lifecycle_transition_internal_v1(',oldL2Start);
+  assert.ok(oldL2Start>0&&oldL2End>oldL2Start);
+  const oldL2=combined.slice(oldL2Start,oldL2End);
+  assert.match(oldL2,/p_transition_kind IS DISTINCT FROM 'complete'/);
+  assert.doesNotMatch(oldL2,/p_transition_kind NOT IN \('complete','cancel'\)/);
+  assert.match(oldL2,/atlas\.organization_memberships/);
+  assert.doesNotMatch(oldL2,/atlas\.historical_self_adoption_review_events_v1/);
+  const oldL1Start=combined.indexOf('CREATE TABLE atlas.work_lifecycle_events_v1 (');
+  const oldL1End=combined.indexOf('CREATE UNIQUE INDEX work_lifecycle_historical_origin_once_v1',oldL1Start);
+  assert.ok(oldL1Start>0&&oldL1End>oldL1Start);
+  assert.doesNotMatch(combined.slice(oldL1Start,oldL1End),/atlas\.historical_self_adoption_review_events_v1/);
+  assert.equal(byId.get('lifecycle_shadow_events').gitBlobSha1,'1190b2d188846e48252da33be70ea35e9cd56efc');
+  assert.equal(byId.get('single_done_transition').gitBlobSha1,'a6947ae7d5c5d31a75740c2cd2672e9832a7fee8');
+  assert.match(review,/One L1 hunk.*four L2 hunks/);
+  assert.match(review,/historical.*cancel/i);
+  assert.match(review,/legacy membership/i);
+  assert.match(review,/unresolved release-scope\/authority decision/);
+  assert.match(review,/No production, canonical migration, deploy, release request or merge occurred/);
+});
