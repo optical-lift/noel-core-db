@@ -96,6 +96,28 @@ class OwnerIssueTests(unittest.TestCase):
         self.assertNotIn("min(id) INTO", source)
         self.assertNotIn("INSERT INTO auth.users", source)
 
+    def test_protected_issue_formation_custody_inputs_match_release(self):
+        # The live formation custody check is not a purely local assertion.
+        # Both read-only packet inputs must be present before protected DML.
+        root = CODE.parents[1]
+        issuer = (root / ".github/workflows/titus-protected-private-pilot-issuance.yml").read_text()
+        release = (root / ".github/workflows/production-db-release.yml").read_text()
+        for variable in ("NOEL_CORE_SUPABASE_URL", "NOEL_CORE_SUPABASE_PUBLISHABLE_KEY"):
+            release_line = next(
+                line.strip() for line in release.splitlines()
+                if line.strip().startswith(variable + ":")
+            )
+            issuer_line = next(
+                line.strip() for line in issuer.splitlines()
+                if line.strip().startswith(variable + ":")
+            )
+            self.assertEqual(issuer_line, release_line)
+        self.assertLess(
+            issuer.index("bash scripts/check-titus-formation-custody.sh"),
+            issuer.index("Apply one reviewed private-pilot source transaction"),
+        )
+        self.assertIn("environment: production", issuer)
+
     def test_issuer_is_a_narrow_existing_table_transaction(self):
         source = (CODE.parents[1] / "scripts/titus-private-pilot-issue.sql").read_text()
         self.assertIn("BEGIN;", source)
