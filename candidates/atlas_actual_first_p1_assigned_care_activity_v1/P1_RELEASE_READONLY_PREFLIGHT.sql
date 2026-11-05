@@ -15,7 +15,7 @@ WITH required(kind, identity, purpose) AS (
     ('function','atlas.continuing_original_work_result_continuation_internal_v1(uuid)','source-qualified physical continuation'),
     ('function','atlas.owner_establish_observed_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,text,timestamptz,date,uuid)','signed governor original issuer used by test'),
     ('function','atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)','required typed physical Result writer'),
-    ('function','public.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)','existing C1 signed care adapter'),
+    ('function','public.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)','held C1 signed care adapter'),
     ('function','atlas.recognize_assigned_care_activity_self_api_v1(uuid,uuid,text,text)','held P1 private source'),
     ('function','public.recognize_assigned_care_activity_self_api_v1(uuid,uuid,text,text)','held P1 authenticated public adapter'),
     ('relation','atlas.work_items','existing native original Work store'),
@@ -39,7 +39,7 @@ SELECT kind,identity,purpose,
  END AS exists_in_current_catalog,
  CASE
    WHEN kind='migration' THEN 'Must remain absent: test-only, not a releasable migration'
-   ELSE 'Missing source: independently reconcile source custody before release'
+   ELSE 'Review exact presence; if missing, reconcile canonical source custody before release'
  END AS review_rule
 FROM required
 ORDER BY kind,identity;
