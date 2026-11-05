@@ -165,3 +165,30 @@ test('optional P1 signed bearer proof does not replace the existing C1 signed ma
 
   assert.doesNotMatch(p1,/https?:\/\//);
 });
+
+
+test('release eligibility records live-missing C1 prerequisite identities and clone-only fence',()=>{
+  const review=readFileSync(new URL('../candidates/atlas_actual_first_p1_assigned_care_activity_v1/RELEASE_ELIGIBILITY_20261105.md',import.meta.url),'utf8');
+  const liveProbe=readFileSync(new URL('../candidates/atlas_actual_first_p1_assigned_care_activity_v1/P1_RELEASE_READONLY_PREFLIGHT.sql',import.meta.url),'utf8');
+  const combined=readFileSync(new URL('../candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql',import.meta.url),'utf8');
+  assert.match(review,/Decision: BLOCKED for production release/);
+  assert.match(review,/isolated P1 signed acceptance: PASSED/);
+  assert.match(review,/source provenance and dependency split register/);
+  for(const signature of (
+    'atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)',
+    'atlas.apply_work_lifecycle_transition_internal_v1(uuid,text,uuid,text)',
+    'atlas.owner_establish_observed_continuing_care_work_self_api_v1(uuid,uuid,uuid,uuid,text,text,timestamptz,date,uuid)',
+    'atlas.recognize_assigned_care_activity_self_api_v1(uuid,uuid,text,text)',
+    'atlas.assigned_care_activity_recognition_links_v1'
+  )){
+    assert.ok(liveProbe.includes(signature),'missing dependency from read-only live preflight: '+signature);
+  }
+  const sqlOnly=liveProbe.split('\n').filter(line=>!line.trimStart().startsWith('--')).join('\n');
+  assert.match(sqlOnly,/^\s*WITH required\(/);
+  assert.match(sqlOnly,/SELECT kind,identity,purpose/);
+  assert.doesNotMatch(sqlOnly,/\b(CREATE|ALTER|DROP|TRUNCATE|INSERT|UPDATE|DELETE|GRANT|REVOKE|COPY|CALL)\s+(TABLE|FUNCTION|SCHEMA|INTO|FROM|ON)\b/i);
+  assert.match(combined,/^BEGIN;\n-- CLONE TEST ONLY:/);
+  assert.match(combined,/Test-only care source requires an exact fictional C1 clone/);
+  assert.match(combined,/\nCOMMIT;\s*$/);
+  assert.match(review,/No P1 migration until this is reconciled/);
+});
