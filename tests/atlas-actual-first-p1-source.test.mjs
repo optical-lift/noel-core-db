@@ -124,3 +124,20 @@ test('held signed care suite has the exact source-owned disclosure reader, no fa
   assert.doesNotMatch(postconditions,/AND 'search_path='=ANY\(p\.proconfig\)/);
   assert.match(held,/\nCOMMIT;\s*$/);
 });
+
+
+test('full protected clone exercises exact P1 source and SQL-only denials',()=>{
+  const held=readFileSync(new URL('../candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql',import.meta.url),'utf8');
+  const p1=readFileSync(new URL('../candidates/atlas_actual_first_p1_assigned_care_activity_v1/01_assigned_activity_recognition_held.sql',import.meta.url),'utf8');
+  const structural=readFileSync(new URL('../candidates/atlas_actual_first_p1_assigned_care_activity_v1/02_rollback_postconditions_held.sql',import.meta.url),'utf8');
+  const denials=readFileSync(new URL('../candidates/atlas_actual_first_p1_assigned_care_activity_v1/04_sql_role_denials_held.sql',import.meta.url),'utf8');
+  const post=readFileSync(new URL('../validation/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql',import.meta.url),'utf8');
+  assert.ok(held.includes(p1),'P1 source must stay verbatim');
+  assert.equal(held.split('CREATE FUNCTION atlas.recognize_assigned_care_activity_self_api_v1').length,2);
+  assert.ok(post.includes(structural.trimEnd()),'P1 structural checks must be executed');
+  assert.ok(post.includes(denials.trimEnd()),'P1 signed-absent role denials must be executed');
+  assert.match(post,/BEGIN;\s*-- UNI-OPS-01 P1 SQL-only negative behavioral checks/);
+  assert.match(post,/\$p1_counts\$;\s*ROLLBACK;/);
+  assert.match(post,/Standing care read must be constrained and stable/);
+  assert.match(held,/\nCOMMIT;\s*$/);
+});
