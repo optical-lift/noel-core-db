@@ -1,5 +1,6 @@
 // UNI-OPS-01 Actual-first P1 SOURCE-ONLY guards. These are NOT PG/signed tests.
 import test from 'node:test';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
@@ -95,4 +96,29 @@ test('held clone preserves the live October 30 connection-direct root gate',()=>
   assert.match(held,/if v_kind='ledger_connection_direct_assignment' then[\s\S]*?Connected direct assignment requires exact original Person and Ledger source' using errcode='23514';end if;\s*IF NOT EXISTS \(SELECT 1 FROM atlas\.capability_root_authority_context_self_v1\(\(v_basis->>'nativeLedgerId'\)::uuid\)\)[\s\S]*?Exact Ledger root required for connection-direct responsibility/);
   assert.equal(liveLedgerSource.length,32);
   assert.equal(liveResponsibilityGuard.length,32);
+});
+
+
+test('held signed care suite has the exact source-owned disclosure reader, no fake permission bridge',()=>{
+  const held=readFileSync(new URL('../candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql',import.meta.url),'utf8');
+  const postconditions=readFileSync(new URL('../validation/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql',import.meta.url),'utf8');
+  const marker='-- HELD SOURCE-ONLY candidate stacked on Noel #2362.';
+  const beginning=held.lastIndexOf(marker);
+  const ending=held.lastIndexOf('\n\nCOMMIT;');
+  assert.ok(beginning>0 && ending>beginning,'source reader must precede the held COMMIT');
+  const exactSource=held.slice(beginning,ending)+'\n';
+  const gitBlobSha=createHash('sha1').update('blob '+Buffer.byteLength(exactSource)+'\0').update(exactSource).digest('hex');
+  assert.equal(gitBlobSha,'f2ca1a5975c5f1e06a54709e6d90e08e1bb1d751','reader must retain exact approved held source blob');
+  const checks=['auth.uid()','current_person_id_v1','current_active_ledger_seat_v1',
+    'person_has_native_ledger_connection_v1','scope.accepted_at IS NOT NULL',
+    "scope.coverage_mode='ledger_all_work'","'identity')","'condition')",
+    'LIMIT (p_limit+1)','noUndisclosedCounts','noWorkCreated',
+    'REVOKE ALL ON FUNCTION atlas.connected_person_disclosed_standing_rhythms_self_api_v1',
+    'GRANT EXECUTE ON FUNCTION public.connected_person_disclosed_standing_rhythms_self_api_v1'];
+  for(const needle of checks)assert.ok(exactSource.includes(needle),'missing '+needle);
+  assert.doesNotMatch(exactSource,/^\s*(INSERT|UPDATE|DELETE|TRUNCATE)\s/mi);
+  assert.match(postconditions,/DO \$disclosed_standing\$/);
+  assert.match(postconditions,/Missing exact signed native disclosed care list/);
+  assert.match(postconditions,/Standing care reader exposed through wrong authority/);
+  assert.match(held,/\nCOMMIT;\s*$/);
 });
