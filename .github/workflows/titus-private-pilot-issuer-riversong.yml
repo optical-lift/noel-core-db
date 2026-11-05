@@ -1,4 +1,4 @@
-name: Titus pilot issuer scratch verification
+name: Titus pilot issuer scratch verification (hosted PG17)
 on:
   push:
     branches:
@@ -7,6 +7,7 @@ on:
       - 'scripts/titus-private-pilot-issue.sql'
       - 'scripts/verify-titus-pilot-approval.py'
       - 'scripts/test-titus-private-pilot-issuer-pg17.sh'
+      - 'scripts/test-titus-private-pilot-issuer-hosted-pg17.sh'
       - 'tests/test_titus_private_pilot_approval.py'
       - '.github/workflows/titus-protected-private-pilot-issuance.yml'
       - '.github/workflows/titus-private-pilot-issuer-riversong.yml'
@@ -27,10 +28,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           python3 -m unittest discover -s tests -p 'test_titus_private_pilot_approval.py' -v
           python3 -m py_compile scripts/verify-titus-pilot-approval.py
-          bash -n scripts/test-titus-private-pilot-issuer-pg17.sh
+          bash -n scripts/test-titus-private-pilot-issuer-hosted-pg17.sh
   check:
     if: github.repository == 'optical-lift/noel-core-db'
-    runs-on: [self-hosted, macOS, X64, lex-research]
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
@@ -47,4 +48,4 @@ jobs:
       - name: Disposable local PG17 grant and denial proof
         run: |
           set -euo pipefail
-          bash scripts/test-titus-private-pilot-issuer-pg17.sh
+          bash scripts/test-titus-private-pilot-issuer-hosted-pg17.sh
