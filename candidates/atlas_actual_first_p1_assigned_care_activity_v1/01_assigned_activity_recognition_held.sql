@@ -119,6 +119,9 @@ BEGIN
         'ledger_connection_direct_assignment','original_subject_direct_assignment_v1')
     ORDER BY a.allocated_at DESC,a.id DESC LIMIT 1;
   IF v_allocation.id IS NULL
+    OR v_work.created_at IS NULL
+    OR v_activity.created_at IS NULL
+    OR v_allocation.allocated_at IS NULL
     OR v_work.created_at>v_activity.created_at
     OR v_allocation.allocated_at>v_activity.created_at
     OR NOT EXISTS (
