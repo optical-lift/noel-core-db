@@ -30,7 +30,8 @@ def prove(db, api, key, tokens, work, *, signed_source, rpc, sql, literal,
         status, payload = rpc(api, key, token, p1_rpc, dict(
             p_activity_log_id=activity, p_work_item_id=target,
             p_actual_kind=kind, p_condition_after=condition))
-        check(status in ((400, 403) if token is not None else (401, 403))
+        allowed = (409,) if code == "23505" else ((400, 403) if token is not None else (401, 403))
+        check(status in allowed
               and isinstance(payload, dict) and payload.get("code")==code,
               "P1 signed denial missing or replaced by an RPC error: " +
               str(status) + " " + str(payload)[:400])
