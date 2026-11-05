@@ -79,6 +79,42 @@ class OwnerIssueTests(unittest.TestCase):
         self.assertIn("scripts/check-titus-formation-custody.sh", workflow)
         self.assertIn("verify-titus-pilot-approval.py", workflow)
 
+    def test_issuer_sql_single_complete_transaction_and_guard(self):
+        source = (CODE.parents[1] / "scripts/titus-private-pilot-issue.sql").read_text()
+        self.assertEqual(source.count("\nCOMMIT;"), 1)
+        self.assertEqual(source.count("BEGIN;\nSET LOCAL"), 1)
+        self.assertEqual(source.count("DO $issue$"), 1)
+        self.assertEqual(source.count("$issue$;"), 1)
+        self.assertEqual(source.count("LOCK TABLE titus.customer_workspace_entitlements_v1"), 1)
+        self.assertTrue(source.strip().endswith("COMMIT;"))
+        self.assertIn(
+            "OR v_email !~* '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+
+        source = (CODE.parents[1] / "scripts/titus-private-pilot-issue.sql").read_text()
+        self.assertIn("BEGIN;", source)
+        self.assertIn("COMMIT;", source)
+        self.assertIn("current_user <> 'postgres'", source)
+        self.assertIn("grant_source_receipt", source)
+        self.assertIn("v_prior.grant_kind<>'private_pilot'", source)
+        self.assertIn("v_prior.grant_source_receipt<>v_receipt", source)
+        self.assertIn("owner_auth_user_id", source)
+        self.assertNotIn("CREATE USER", source)
+        self.assertNotIn("INSERT INTO auth.users", source)
+        self.assertNotIn("INSERT INTO titus.customer_workspaces_v1", source)
+        self.assertNotIn("INSERT INTO titus.customer_course_drafts_v1", source)
+        self.assertNotIn("UPDATE titus.customer_workspace_entitlements_v1", source)
+        self.assertNotIn("service_role", source)
+
+
+if __name__ == "__main__":
+    unittest.main(verbosity=2)
+",
+            source,
+        )
+        self.assertIn("min(id::text)::uuid", source)
+        self.assertEqual(source.count("AS ignored \\gset"), 3)
+        self.assertNotIn("min(id) INTO", source)
+        self.assertNotIn("INSERT INTO auth.users", source)
+
     def test_issuer_is_a_narrow_existing_table_transaction(self):
         source = (CODE.parents[1] / "scripts/titus-private-pilot-issue.sql").read_text()
         self.assertIn("BEGIN;", source)
