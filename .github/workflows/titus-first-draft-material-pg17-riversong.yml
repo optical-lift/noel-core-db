@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: titus-first-draft-material-${{ github.ref }}
-  cancel-in-progress: false
+  group: titus-first-material-hosted-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
