@@ -18,6 +18,16 @@ The new evidence-link table is private, RLS protected and append-only. Underlyin
 - Proposed signed RPC: public.recognize_assigned_care_activity_self_api_v1(activity_log_id, work_item_id, actual_kind, condition_after). The private source function rechecks all identity and scope.
 - No general text-to-Work matching, retrospective governor adjudication, Household/Event generalization or new scheduler.
 
+## Native schema-only reconciliation / RiverSong verification (2026-11-04)
+
+Held file `05_exact_native_ledger_source_schema_reconciliation_held.sql` preserves the native Ledger verifier's two exact booking source-FK predicates while refusing to return any verified source if their historical booking relations are absent. It does not create booking tables, synthesize proof, weaken source attribution, or alter the real relevance trigger. It revokes authenticated helper execution. This is a source-owned held candidate, **not a production patch or release grant**.
+
+Fresh PG17 + native GoTrue/PostgREST RiverSong [#41965499066](https://github.com/optical-lift/atlas/actions/runs/41965499066), [#41965643053](https://github.com/optical-lift/atlas/actions/runs/41965643053), and diagnostic [#41966117584](https://github.com/optical-lift/atlas/actions/runs/41966117584) confirmed P1/R01/lifecycle compilation, genuine signed denied no-Work requests, anonymous denial, and fail-closed no-booking-source verification. All three fresh databases and services were cleaned, with retained clone read-only.
+
+**Signed positive P1 remains untested.** The older C1 fictional fixture contains unrelated Household rows triggering missing `atlas.ensure_household_care_policy_v1(uuid,timestamptz)`. After those unrelated rows were excluded in scratch, its garden care fixture hit another missing helper: `atlas.is_retired_growing_object_v1(text)`. The persisted `atlas.guard_retired_object_rhythm_binding_v1`, `atlas.guard_retired_object_rhythm_state_v1`, and `atlas.guard_retired_object_task_v1` call that nonexistent helper. This is an unresolved canonical source-history/schema seam. Do **not** install a fake allow/deny helper or bypass those guards to force a test pass.
+
+**Next one bounded task:** reconcile the exact original retirement helper source and its migration/adjudicated retirement in Noel, then stage a genuinely source-authorized Person/Ledger/Subject care-original fixture without unrelated legacy Household setup. Only afterward run signed positive typed Result and physical state/Need/evidence readback, replay, mismatch, withdrawal and concurrency tests. P2–P5 and production stay held.
+
 ## Dependencies and tests
 Compose only on a **verified disposable PostgreSQL clone**: migration baseline, exact pinned R01/R02 care Result source and lifecycle, current canonical Work/Person/disclosure, U1A/U1B/U2C/U2E dependencies, then 01 source SQL and 02 postconditions within one transaction ending ROLLBACK.
 
