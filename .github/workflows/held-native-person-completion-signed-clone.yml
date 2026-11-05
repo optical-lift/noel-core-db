@@ -332,27 +332,21 @@ jobs:
           fi
           bash scripts/validate-production-schema-clone.sh "${args[@]}"
 
-      - name: Assert selected real signed proof completed, not only C1/source static
+      - name: Require genuine signed native P1 and uninstalled historical cancellation
         shell: bash
         env:
           PROOF: ${{ matrix.proof }}
         run: |
           set -euo pipefail
-          file="$RUNNER_TEMP/production-schema-validation-artifacts/signed-care-single-done-summary.txt"
+          test "$PROOF" = native_p1
+          dir="$RUNNER_TEMP/production-schema-validation-artifacts"
+          file="$dir/signed-care-single-done-summary.txt"
           test -s "$file"
-          if [[ "$PROOF" == "native_p1" ]]; then
-            grep -q '^PASS isolated P1 genuine signed manual Activity' "$file"
-            grep -q '^NOT PROVEN: production' "$file"
-          elif [[ "$PROOF" == "historical_cancel" ]]; then
-            grep -q '^PASS genuine signed governor historic retirement' "$file"
-            grep -q '^PASS signed historical review' "$file"
-            grep -q '^PASS delegated native Work admission' "$file"
-            ! grep -q '^NOT TESTED: native historical retirement' "$file"
-            ! grep -q '^NOT TESTED: historical review' "$file"
-          else
-            echo '::error::Invalid proof case'; exit 1
-          fi
-          printf '\nValidated signed diagnostic case %s, no release was performed.\n' "$PROOF" >> "$RUNNER_TEMP/production-schema-validation-artifacts/summary.md"
+          grep -q '^PASS isolated P1 genuine signed manual Activity' "$file"
+          grep -q '^NOT PROVEN: production' "$file"
+          test -s "$dir/postconditions.log"
+          grep -q 'PASS completion-only source: native Person, one private transition and no historical cancellation functions' "$dir/postconditions.log"
+          printf '\nPASS native Person-only current-source signed clone; historical cancel not installed. No release was performed.\n' >> "$dir/summary.md"
 
       - name: Publish validation summary
         if: always()
@@ -371,7 +365,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: held-current-lifecycle-${{ matrix.proof }}-${{ steps.request.outputs.migration_version }}
+          name: held-native-person-only-${{ steps.request.outputs.migration_version }}
           path: ${{ runner.temp }}/production-schema-validation-artifacts
           if-no-files-found: error
           retention-days: 30
@@ -407,8 +401,8 @@ jobs:
             success|failure|cancelled|skipped) ;;
             *) echo 'Unexpected validation status; refusing report.' >&2; exit 1 ;;
           esac
-          gh issue comment "$REQUEST_NUMBER" --body "HELD #2505 current L1/L2/history two-case signed diagnostic result: **$RESULT**.
+          gh issue comment "$REQUEST_NUMBER" --body "HELD #2505 native Person-only completion signed clone result: **$RESULT**.
 
           [View the full GitHub Actions run]($RUN_URL) to inspect the validation summary, migration diagnostics, lint delta, and any failed steps.
 
-          Both independent matrix cases must pass genuine signed checks; source checks alone prove nothing about runtime. No merge or release authority is granted."
+          Only genuinely signed Person-native P1 with historical cancellation uninstalled passes this clone; it grants no production release authority."
