@@ -256,7 +256,7 @@ jobs:
           echo "fixture_path=${fixtures[0]}" >> "$GITHUB_OUTPUT"
           echo "validation_path=$combined_post" >> "$GITHUB_OUTPUT"
 
-      - name: Verify bounded signed scripts and P1 opt-in source
+      - name: Verify P1 signer, native-only scope and unchanged trusted C1 entrypoint
         shell: bash
         run: |
           set -euo pipefail
@@ -264,7 +264,7 @@ jobs:
           test -s candidate/scripts/validate-atlas-care-single-done-signed-http.py
           test ! -e candidate/supabase/migrations/20261028235811_atlas_care_single_done_signed_proof_v1.sql
           python3 -m py_compile candidate/scripts/validate-atlas-care-single-done-signed-http.py candidate/scripts/validate-atlas-actual-first-p1-signed-http.py
-          (cd candidate && node --test tests/atlas-actual-first-p1-source.test.mjs)
+          (cd candidate && node --test tests/atlas-native-person-completion-only-source.test.mjs tests/atlas-actual-first-p1-source.test.mjs)
           python3 - <<'PY'
           from pathlib import Path
           held=Path('candidate/candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql').read_text()
@@ -291,8 +291,7 @@ jobs:
           # local test scripts; never copy candidate code before RO snapshot.
           cp candidate/scripts/validate-atlas-care-single-done-signed-http.py scripts/validate-atlas-care-single-done-signed-http.py
           cp candidate/scripts/validate-atlas-actual-first-p1-signed-http.py scripts/validate-atlas-actual-first-p1-signed-http.py
-          # P1 and history MUST run in separate fresh clone matrix jobs.
-          # Only P1 receives the opt-in argument; historical uses normal C1.
+          # Native P1 only: history cancellation remains held and uninstalled.
           if [[ "${{ matrix.proof }}" == "native_p1" ]]; then
           python3 - <<'PY'
           from pathlib import Path
@@ -302,16 +301,11 @@ jobs:
           assert s.count(anchor)==1, 'canonical local C1 signed argument drift'
           f.write_text(s.replace(anchor,anchor+'    --p1-recognition-proof \\\n'))
           PY
-          elif [[ "${{ matrix.proof }}" != "historical_cancel" ]]; then
-            echo '::error::Unrecognized diagnostic proof case'; exit 1
           fi
-          test -s scripts/validate-atlas-native-historical-retirement-signed-http.py
-          test -s scripts/validate-atlas-historical-self-adoption-signed-http.py
-          python3 -m py_compile scripts/validate-atlas-native-historical-retirement-signed-http.py scripts/validate-atlas-historical-self-adoption-signed-http.py
           bash -n scripts/validate-production-schema-clone.sh
           sha256sum candidate/scripts/validate-atlas-actual-first-p1-signed-http.py candidate/scripts/validate-atlas-care-single-done-signed-http.py
 
-      - name: Validate latest L1/L2 with real signed local actor matrix
+      - name: Validate native Person-only completion with signed local actor matrix
         id: validation
         shell: bash
         env:
