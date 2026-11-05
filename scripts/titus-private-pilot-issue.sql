@@ -63,11 +63,11 @@ BEGIN
   END IF;
   SELECT (
     deleted_at IS NULL
-    AND NOT pg_catalog.coalesce(is_anonymous,false)
+    AND NOT coalesce(is_anonymous,false)
     AND (email_confirmed_at IS NOT NULL OR phone_confirmed_at IS NOT NULL)
     AND (banned_until IS NULL OR banned_until<=now())
   ) INTO v_confirmed FROM auth.users WHERE id=v_user;
-  IF NOT pg_catalog.coalesce(v_confirmed,false) THEN
+  IF NOT coalesce(v_confirmed,false) THEN
     RAISE EXCEPTION 'Pilot target is not an eligible confirmed Auth account'
       USING ERRCODE='42501';
   END IF;
@@ -139,11 +139,11 @@ COMMIT;
   END IF;
   SELECT (
     deleted_at IS NULL
-    AND NOT pg_catalog.coalesce(is_anonymous,false)
+    AND NOT coalesce(is_anonymous,false)
     AND (email_confirmed_at IS NOT NULL OR phone_confirmed_at IS NOT NULL)
     AND (banned_until IS NULL OR banned_until<=now())
   ) INTO v_confirmed FROM auth.users WHERE id=v_user;
-  IF NOT pg_catalog.coalesce(v_confirmed,false) THEN
+  IF NOT coalesce(v_confirmed,false) THEN
     RAISE EXCEPTION 'Pilot target is not an eligible confirmed Auth account'
       USING ERRCODE='42501';
   END IF;
