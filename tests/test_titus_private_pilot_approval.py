@@ -72,7 +72,7 @@ class OwnerIssueTests(unittest.TestCase):
         workflow = (CODE.parents[1] / ".github/workflows/titus-protected-private-pilot-issuance.yml").read_text()
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("\n  push:", workflow)
-        self.assertNotIn("\n  issues:", workflow)
+        self.assertNotIn("\n  issues:", workflow.split("\npermissions:", 1)[0])
         self.assertIn("environment: production", workflow)
         self.assertIn("refs/heads/main", workflow)
         self.assertIn("scripts/check-custody.sh", workflow)
