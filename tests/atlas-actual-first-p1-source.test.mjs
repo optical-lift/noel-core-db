@@ -1,0 +1,86 @@
+// UNI-OPS-01 Actual-first P1 SOURCE-ONLY guards. These are NOT PG/signed tests.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+
+const folder='../candidates/atlas_actual_first_p1_assigned_care_activity_v1/';
+const sql=readFileSync(new URL(folder+'01_assigned_activity_recognition_held.sql',import.meta.url),'utf8');
+const post=readFileSync(new URL(folder+'02_rollback_postconditions_held.sql',import.meta.url),'utf8');
+const sh=readFileSync(new URL(folder+'03_local_rollback_source_check.sh',import.meta.url),'utf8');
+const executable=sql.split('\n').filter(line=>!line.trimStart().startsWith('--')).join('\n');
+
+test('activity evidence is pre-existing, worker-authored and unretracted',()=>{
+  assert.match(sql,/v_activity.source<>'worker_manual_log'/);
+  assert.match(sql,/v_activity.retracted_at IS NOT NULL/);
+  assert.match(sql,/v_activity.actor_user_id IS DISTINCT FROM v_uid/);
+});
+test('signed current canonical Person is mandatory',()=>{
+  assert.match(sql,/v_uid uuid:=auth.uid\(\)/);
+  assert.match(sql,/v_person uuid:=atlas.current_person_id_v1\(\)/);
+  assert.match(sql,/v_activity.actor_membership_id/);
+});
+test('only one known original and its live Subject link',()=>{
+  assert.match(sql,/v_work.source_object_type<>'rhythm_state'/);
+  assert.match(sql,/v_work.result_contract_key<>'continuing_care_actual_v1'/);
+  assert.match(sql,/farm_id=v_activity.farm_id/);
+  assert.match(sql,/l.relation_kind='acts_on'/);
+});
+test('exact assigned performer, not generic standing worker scope',()=>{
+  assert.match(sql,/a.assignee_canonical_person_id=v_person/);
+  assert.match(sql,/a.allocation_role='responsible'/);
+});
+test('original and assignment precede the report',()=>{
+  assert.match(sql,/v_work.created_at>v_activity.created_at/);
+  assert.match(sql,/v_allocation.allocated_at>v_activity.created_at/);
+});
+test('one piece of activity evidence cannot be reinterpreted against another Work',()=>{
+  assert.match(sql,/activity_log_id uuid NOT NULL UNIQUE/);
+  assert.match(sql,/execution_result_id uuid NOT NULL UNIQUE/);
+  assert.match(sql,/WHERE activity_log_id=v_activity.id FOR UPDATE/);
+  assert.match(sql,/23505/);
+});
+test('typed Actual is explicit, never silently extracted from free text',()=>{
+  assert.match(sql,/v_kind text:=nullif/);
+  assert.match(sql,/v_after text:=nullif/);
+  assert.match(sql,/v_work.id,v_activity.id,v_kind,v_after/);
+});
+test('native care actual and accepted result are independently checked',()=>{
+  assert.match(sql,/atlas.record_continuing_care_actual_self_api_v1/);
+  assert.match(sql,/atlas.work_execution_results/);
+  assert.match(sql,/a.acceptance_kind='source_qualified_physical_actual'/);
+});
+test('no retrospective original creation, Work creation or responsibility creation',()=>{
+  assert.doesNotMatch(executable,/\bINSERT\s+INTO\s+atlas.work_items\b/i);
+  assert.doesNotMatch(executable,/\bUPDATE\s+atlas.work_items\b/i);
+  assert.doesNotMatch(executable,/\bINSERT\s+INTO\s+atlas.work_allocations\b/i);
+  assert.match(sql,/'retrospectiveOriginalCreated',false/);
+});
+test('old standing campaign successor path is blocked',()=>{
+  assert.match(sql,/v_work.metadata \? 'sourceStandingCampaignId'/);
+  assert.match(sql,/requires no-successor source cutover/);
+  assert.doesNotMatch(executable,/advance_owner_standing_campaign_after_actual_internal_v1\s*\(/);
+});
+test('receipt requires zero new Work and no Clock admission',()=>{
+  assert.match(sql,/v_receipt->>'noNewWorkCreated' IS DISTINCT FROM 'true'/);
+  assert.match(sql,/v_receipt->>'noClockAdmission' IS DISTINCT FROM 'true'/);
+  assert.match(sql,/'nextCampaignAuthorized',false/);
+});
+test('no second Activity, Work or Actual store — only immutable private link',()=>{
+  assert.match(sql,/CREATE TABLE atlas.assigned_care_activity_recognition_links_v1/);
+  assert.match(sql,/ENABLE ROW LEVEL SECURITY/);
+  assert.match(sql,/BEFORE UPDATE OR DELETE/);
+});
+test('RPC is signed authenticated only; private data grants revoked',()=>{
+  assert.match(sql,/REVOKE ALL ON atlas.assigned_care_activity_recognition_links_v1/);
+  assert.match(sql,/REVOKE ALL ON FUNCTION atlas.recognize_assigned_care_activity_self_api_v1/);
+  assert.match(sql,/GRANT EXECUTE ON FUNCTION public.recognize_assigned_care_activity_self_api_v1/);
+  assert.match(sql,/TO authenticated;/);
+});
+test('disposable PG postconditions and local ROLLBACK guard included',()=>{
+  assert.match(post,/to_regprocedure/);
+  assert.match(post,/has_function_privilege/);
+  assert.match(post,/pg_trigger/);
+  assert.match(sh,/P1_DISPOSABLE_CONFIRM/);
+  assert.match(sh,/ROLLBACK;/);
+  assert.doesNotMatch(sh,/COMMIT;/);
+});
