@@ -4037,11 +4037,15 @@ $standing_policy$;
 -- may establish the existing delegated_under_standing_scope allocation.
 -- All original owner paths and unrelated ledgers are copied unchanged.
 -- Fail before replacing functions if the native source has drifted.
+-- Current executed 20261030230921 adds the exact Ledger-root requirement
+-- to the connection-direct basis (live body md5 1043ad551860196f1a13df25de9f8478).
+-- Preserve that narrower production authority when extending standing scope.
+-- Protected clone must still stop on any subsequent native source drift.
 DO $native_guard_baseline$
 BEGIN
  IF (SELECT md5(p.prosrc) FROM pg_proc p WHERE p.oid=
     'atlas.guard_work_allocation_responsibility_establishment_v2()'::regprocedure)
-    <> 'f5a80130cc2f204cf6e72be8f2dc23d5'
+    <> '1043ad551860196f1a13df25de9f8478'
  OR (SELECT md5(p.prosrc) FROM pg_proc p WHERE p.oid=
     'atlas.company_work_native_ledger_exact_source_v1(uuid,uuid)'::regprocedure)
     <> '7570082f04024397227545e685a4c071'
@@ -4352,6 +4356,8 @@ begin
       or nullif(v_basis->>'senderPersonId','') is null
       or coalesce(v_basis->>'authorizationBasis','')<>'active_mutual_native_ledger_connections'
     then raise exception 'Connected direct assignment requires exact original Person and Ledger source' using errcode='23514';end if;
+    IF NOT EXISTS (SELECT 1 FROM atlas.capability_root_authority_context_self_v1((v_basis->>'nativeLedgerId')::uuid))
+    THEN RAISE EXCEPTION 'Exact Ledger root required for connection-direct responsibility' USING errcode='42501';END IF;
     if atlas.current_person_id_v1() is distinct from (v_basis->>'senderPersonId')::uuid
       or not atlas.person_has_native_ledger_connection_v1(
          new.organization_id,(v_basis->>'nativeLedgerId')::uuid,
