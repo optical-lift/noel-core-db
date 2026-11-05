@@ -36,7 +36,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-p1-signed-activity-clone.yml').read_text()
-          assert w.count('github.actor == github.repository_owner')==2
+          assert w.count('      github.actor == github.repository_owner &&')==2
           assert "github.event.issue.title == 'UNI-OPS-01 P1 signed activity clone request'" in w
           assert w.index('name: Snapshot production user schemas read-only') < w.index('name: Checkout immutable candidate')
           assert w.index('name: Checkout immutable candidate') < w.index('name: Verify exact P1 opt-in source')
