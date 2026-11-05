@@ -9,6 +9,7 @@ import {createHash} from 'node:crypto';
 import {INPUTS,GIT_SHA,gitBlobSha} from '../atlas_actual_first_p1_assigned_care_activity_v1/assemble_current_l1_l2_clone_only.mjs';
 
 const HERE=dirname(fileURLToPath(import.meta.url));
+const PARENT=resolve(HERE,'../atlas_actual_first_p1_assigned_care_activity_v1');
 const TEST_NAME='L1_L2_NATIVE_PERSON_ONLY_CLONE_ONLY.sql';
 const CLONE_GUARD='-- CLONE TEST ONLY: this candidate is NEVER production-releasable.';
 const L1_START='CREATE TABLE atlas.work_lifecycle_events_v1 (';
@@ -32,9 +33,9 @@ export const NATIVE_SHA=Object.freeze({
   l2:'3178e11863f1c6de89e07724c3b209923fd825d3'
 });
 export const SOURCE_PATHS=Object.freeze({
-  base:resolve(HERE,INPUTS.base),
-  originalL1:resolve(HERE,INPUTS.shadow),
-  originalL2:resolve(HERE,INPUTS.transition),
+  base:resolve(PARENT,INPUTS.base),
+  originalL1:resolve(PARENT,INPUTS.shadow),
+  originalL2:resolve(PARENT,INPUTS.transition),
   l1:resolve(HERE,'01_shadow_event_native_person_completion_only_held.sql'),
   l2:resolve(HERE,'06_single_transition_native_person_completion_only_held.sql')
 });
