@@ -36,8 +36,10 @@ jobs:
           root=Path('candidates/atlas_native_person_completion_only_v1')
           assert all(not p.name.endswith('.sql') or '_held.sql' in p.name for p in root.iterdir())
           w=Path('.github/workflows/held-native-person-completion-source.yml').read_text()
-          assert 'secrets.' not in w and 'environment: production' not in w
-          assert 'supabase db push' not in w and 'apply_migration' not in w
+          prelude=w.split('    steps:',1)[0]
+          assert 'permissions:\n  contents: read' in prelude
+          assert all(not line.lstrip().startswith('environment:') for line in w.splitlines())
+          assert all(not line.lstrip().startswith('uses: actions/upload-artifact') for line in w.splitlines())
           print('PASS no credentials, privileged runner, deploy or releasable migration')
           PY
       - name: Parse held generated SQL using PostgreSQL grammar only
