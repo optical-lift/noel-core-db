@@ -10,6 +10,7 @@ sql_dir="/source/candidates/titus-first-draft-material-v1"
 for f in "$root/candidates/titus-customer-workspace-first-course-v1/fixture.sql" \
          "$root/candidates/titus-customer-workspace-first-course-v1/candidate.sql" \
          "$root/candidates/titus-first-draft-material-v1/candidate.sql" \
+         "$root/candidates/titus-first-draft-material-v1/clone_validation.sql" \
          "$root/candidates/titus-first-draft-material-v1/postconditions.sql"; do
   test -s "$f" || { echo "Missing source $f" >&2; exit 2; }
 done
@@ -62,5 +63,6 @@ echo "Verified disposable network-isolated PostgreSQL 17; no production connecti
 psql_local -f "$source_dir/fixture.sql"
 psql_local -f "$source_dir/candidate.sql"
 psql_local -f "$sql_dir/candidate.sql"
+psql_local -f "$sql_dir/clone_validation.sql"
 psql_local -f "$sql_dir/postconditions.sql"
 echo "PASS: synthetic owner creates original Course material, reopens and revises without overwriting; replay idempotency, stale/outside/revoked/expired denial, no direct grants. Unsigned synthetic Auth fixture only, no live writes."
