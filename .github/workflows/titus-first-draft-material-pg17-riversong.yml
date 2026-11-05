@@ -1,4 +1,4 @@
-name: Titus first original Course material — isolated PG17 RiverSong
+name: Titus first original Course material — isolated hosted PG17
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
     paths:
       - 'candidates/titus-first-draft-material-v1/**'
       - 'scripts/test-titus-first-material-riversong-pg17.sh'
+      - 'scripts/test-titus-first-material-hosted-pg17.sh'
       - '.github/workflows/titus-first-draft-material-pg17-riversong.yml'
 
 permissions:
@@ -19,7 +20,7 @@ concurrency:
 jobs:
   verify:
     if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/candidate/titus-first-draft-material-20261104'
-    runs-on: [self-hosted, macOS, X64, lex-research]
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
       run:
@@ -47,11 +48,11 @@ jobs:
           test -s "$workspace/candidates/titus-first-draft-material-v1/postconditions.sql"
           echo "Exact held source loaded: $EXPECTED_SHA; production migration unchanged"
 
-      - name: Disposable scratch PostgreSQL 17, fictional identities only
+      - name: Disposable network-isolated PostgreSQL 17, fictional identities only
         run: |
           set -euo pipefail
           cd "${TITUS_MATERIAL_WORKSPACE:?}"
-          bash scripts/test-titus-first-material-riversong-pg17.sh
+          bash scripts/test-titus-first-material-hosted-pg17.sh
 
       - name: Clean only this job's checkout
         if: always()
