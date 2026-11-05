@@ -131,7 +131,7 @@ COMMIT;
 
   -- Exact, current, unique Auth account: no test user creation,
   -- no Person role, no trust in mutable profile/user_metadata claims.
-  SELECT count(*),min(id) INTO v_matches,v_user
+  SELECT count(*),min(id::text)::uuid INTO v_matches,v_user
   FROM auth.users WHERE pg_catalog.lower(email)=pg_catalog.lower(v_email);
   IF v_matches<>1 THEN
     RAISE EXCEPTION 'Pilot target must match exactly one existing Auth account'
