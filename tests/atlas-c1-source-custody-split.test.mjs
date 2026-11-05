@@ -5,6 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import {createHash} from 'node:crypto';
+import {assembleFromRepo,GIT_SHA,gitBlobSha} from '../candidates/atlas_actual_first_p1_assigned_care_activity_v1/assemble_current_l1_l2_clone_only.mjs';
 
 const root='../candidates/atlas_actual_first_p1_assigned_care_activity_v1/';
 const manifest=JSON.parse(readFileSync(new URL(root+'C1_SOURCE_PROVENANCE_AND_DEPENDENCY_SPLIT_v1.json',import.meta.url),'utf8'));
@@ -131,4 +132,40 @@ test('L1/L2 signed-composite versus latest source reconciliation stays version-e
   assert.match(review,/legacy membership/i);
   assert.match(review,/unresolved release-scope\/authority decision/);
   assert.match(review,/No production, canonical migration, deploy, release request or merge occurred/);
+});
+
+
+test('current held L1/L2 + historical source snapshots build one canary-guarded DIAGNOSTIC, never replace the passing P1 candidate',()=>{
+  const oldVerifiedBlob=gitBlobSha(combined);
+  assert.equal(oldVerifiedBlob,GIT_SHA.base);
+  for(const [name,file] of [
+    ['shadow','01_shadow_event_source.sql'],
+    ['transition','06_single_transition_authority_private.sql'],
+    ['history','16_historical_self_adoption_review_candidate.sql']
+  ]){
+    const source=readFileSync(new URL(root+'l1_l2_current_source_snapshot/'+file,import.meta.url),'utf8');
+    assert.equal(gitBlobSha(source),GIT_SHA[name],'upstream held '+name+' bytes drifted');
+  }
+  const result=assembleFromRepo();
+  const sql=result.sql;
+  assert.match(sql,/^BEGIN;\n-- CLONE TEST ONLY: this candidate is NEVER production-releasable/);
+  assert.match(sql,/Refuse absent synthetic C1 canary/);
+  assert.match(sql,/id='e5200000-0000-4000-8000-000000000001'::uuid/);
+  assert.match(sql,/id='e5200000-0000-4000-8000-000000000b03'::uuid/);
+  assert.match(sql,/DERIVED DIAGNOSTIC.*NOT releasable/);
+  assert.match(sql,/p_transition_kind NOT IN \('complete','cancel'\)/);
+  assert.match(sql,/Historical self-adopted responsibility requires native reconciliation/);
+  assert.match(sql,/Historical Work has dependencies needing separate governor reconciliation/);
+  assert.match(sql,/Present native Ledger governor and reviewed source required/);
+  assert.match(sql,/CREATE TABLE atlas.historical_self_adoption_review_events_v1\(/);
+  assert.match(sql,/FORCE ROW LEVEL SECURITY/);
+  assert.match(sql,/CREATE TRIGGER reject_historical_review_mutation_v1/);
+  assert.match(sql,/REVOKE ALL ON FUNCTION atlas.apply_work_lifecycle_transition_internal_v1/);
+  assert.doesNotMatch(sql,/p_transition_kind IS DISTINCT FROM 'complete'/);
+  assert.equal((sql.match(/CREATE TABLE atlas.work_lifecycle_events_v1\s*\(/g)||[]).length,1);
+  assert.equal((sql.match(/CREATE OR REPLACE FUNCTION atlas.apply_work_lifecycle_transition_internal_v1\s*\(/g)||[]).length,1);
+  assert.equal((sql.match(/CREATE TABLE atlas.historical_self_adoption_review_events_v1\s*\(/g)||[]).length,1);
+  assert.ok(sql.length>combined.length);
+  assert.equal(gitBlobSha(combined),oldVerifiedBlob,'earlier signed P1 candidate must stay intact');
+  assert.equal(existsSync(new URL('../supabase/migrations/L1_L2_CURRENT_HISTORY_CLONE_ONLY.sql',import.meta.url)),false);
 });
