@@ -1,0 +1,28 @@
+# #2505 — current L1/L2 signed diagnostic execution contract (HELD; 2026-11-05)
+
+**Owner:** Noel (#2505). **State:** PREPARED / NOT AUTHORIZED FOR EXECUTION / NOT TESTED.
+**Purpose:** Prove exact current held #2368 lifecycle source before any source-law release-scope choice, migration, merge or production activity. This is a diagnostic contract, not an executable CI workflow or release permission.
+
+## Exact inputs and custody
+- Current held #2368 head: `ddfb0bf5374798301fe076a61d2b944dfb52ff63`.
+- L1 Git blob: `1190b2d188846e48252da33be70ea35e9cd56efc`; L2 Git blob: `a6947ae7d5c5d31a75740c2cd2672e9832a7fee8`.
+- The nine identical source snapshots are in `l1_l2_current_source_snapshot/`, with historical review/retirement `16`–`22`. The original accepted older P1 composite must retain Git blob `a59bd0053b68629bf8a31b8eda2f5d072e2b890e`.
+- Generate only with `assemble_current_l1_l2_clone_only.mjs` and the exact `--output /tmp/L1_L2_CURRENT_HISTORY_CLONE_ONLY.sql` option *inside an authorized isolated runner*. It must not become a migration. Verify output hash, original clone-only synthetic auth/Bed canary, single private lifecycle writer, table-source pins, and that no real Person, Work, Result, private row or secret enters a fixture.
+- Restore a **fresh, disposable, source-equivalent current production-schema and custom-role** PostgreSQL 17 database from a protected **read-only** snapshot, separate from both live production and the retained RiverSong clone. Use local genuine GoTrue sign-ins and PostgREST HTTP, not self-forged JWTs, service-role substitutions or post-hoc source claims.
+
+## Two independent signed runtime proofs are required
+The existing `scripts/validate-atlas-care-single-done-signed-http.py` already supports both proof families, but **not in the same invocation**.
+
+**A — Current native completion / P1 physical Actual:** Run the established held `--p1-recognition-proof` branch against the exact newly assembled latest-source diagnostic, with the trusted current-schema test carrier. This branch returns immediately after `validate-atlas-actual-first-p1-signed-http.py` and therefore **does not execute historical retirement**. Require genuine signed governor/worker/outsider/no-seat tests; correctly assigned original and worker first-party activity; exact typed Result and a single terminal native Done; physical Subject/Person and condition mismatches denied; replay and competing recognition produce no second Result/Done; withdrawn activity and revoked access denied; no derived second Work or Clock admission. Report result and database reset receipt separately from static source checks.
+
+**B — Current historical review/cancel:** Run the normal signed C1 care/Done path in a **separate fresh isolated run** with the exact same pinned current diagnostic and local signed actor model. When the exact historical RPC is installed, its later `validate-atlas-native-historical-retirement-signed-http.py` companion is invoked by `validate-atlas-care-single-done-signed-http.py` (the companion already exists; do not duplicate it). The signed retirement proof includes owner-only linked history, `obsolete_cancelled` review, governor dependency preflight and token, worker/outsider/no-seat denials, stale-token refusal, one cancellation, identical-action replay, old allocation released, and no physical Result, acceptance or second original. The separate `validate-atlas-historical-self-adoption-signed-http.py` proof covers historical evidence/review, old membership denial, revoked Seat/session, review replay, privacy and unchanged original. Confirm both modules **actually run and pass**, not merely that their source compiles.
+
+**Both runs:** Enforce current native Person-only completion (never restore legacy self-adoption membership Done); signed current-root authority and session revocation, incorrect actor/Work rejection, private lifecycle function EXECUTE denied, event and historical review table forced RLS, immutable append-only triggers, one terminal transition, and actual schema/RLS/ACL/grant/trigger plus schema-lint delta. Preserve raw denial errors only in the protected carrier; issue/register must report non-sensitive categories and source fingerprints, not identities or secrets.
+
+## Protected execution and release stop
+The existing `.github/workflows/held-p1-signed-activity-clone.yml` is intentionally owner/issue/immutable-SHA gated to the **earlier** `20261028235811` diagnostic. It **cannot** be reused, repointed, or claimed as a current-version proof. A different, narrowly owner-authorized protected diagnostic path is required before invoking either run. Do not edit existing workflow, production credentials, schema, ACL, migration history, retained clone, CI settings, or deployment to get a pass. If such a path is not available or authorized, status remains **BLOCKED: NO CURRENT-SOURCE SIGNED RECEIPT**.
+
+After both signed runs pass and cleanup is evidenced, #2505 still needs a **distinct source-law release-scope decision**: preserve full reviewed complete+historical cancel or prepare separately reviewed current-Person-only complete while historical cancel stays held. Tests do **not** make that decision. Keep Noel #2487/#2368/#2362, Atlas #535, U1/U2, P2–P5, migrations and all production unmerged/unreleased.
+
+## Completion receipt required
+Record for **each** run: immutable tested candidate SHA, exact assembled SHA-256 and source blob IDs, protected workflow/job URL, disposable DB/Auth/PostgREST provenance, signed actor-matrix outcome, correct and refused transitions, RLS/ACL/trigger and lint results, cleanup, and deviations. If a run is skipped or blocked, label it NOT TESTED and do not promote older P1 evidence.
