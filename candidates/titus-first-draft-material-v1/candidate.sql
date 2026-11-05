@@ -161,5 +161,14 @@ DO $api_privs$ BEGIN
   REVOKE ALL ON FUNCTION public.titus_customer_material_save_self_api_v1(uuid,uuid,integer,text)
    FROM anon;
  END IF;
+ -- Supabase's public-function default ACL separately grants EXECUTE to
+ -- service_role. Revoking PUBLIC does not withdraw that direct grant.
+ -- These signed-owner RPCs are for authenticated users, not service-role transport.
+ IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN
+  REVOKE ALL ON FUNCTION public.titus_customer_material_read_self_api_v1(uuid)
+   FROM service_role;
+  REVOKE ALL ON FUNCTION public.titus_customer_material_save_self_api_v1(uuid,uuid,integer,text)
+   FROM service_role;
+ END IF;
 END; $api_privs$;
 COMMIT;
