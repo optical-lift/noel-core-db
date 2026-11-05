@@ -67,7 +67,7 @@ BEGIN
     OR p_work_item_id IS NULL OR v_kind IS NULL OR v_after IS NULL
     OR pg_catalog.length(v_kind)>80 OR pg_catalog.length(v_after)>120
   THEN
-    RAISE EXCEPTION 'Signed activity, exact original and typed observation required'
+    RAISE EXCEPTION 'Signed activity or original unavailable'
       USING ERRCODE='42501';
   END IF;
 
@@ -79,14 +79,14 @@ BEGIN
     OR v_activity.actor_user_id IS DISTINCT FROM v_uid
     OR nullif(pg_catalog.btrim(v_activity.summary_sentence),'') IS NULL
   THEN
-    RAISE EXCEPTION 'Current signed worker activity evidence unavailable'
+    RAISE EXCEPTION 'Signed activity or original unavailable'
       USING ERRCODE='42501';
   END IF;
   SELECT * INTO v_membership FROM atlas.farm_memberships
     WHERE id=v_activity.actor_membership_id
       AND farm_id=v_activity.farm_id AND user_id=v_uid AND active;
   IF v_membership.id IS NULL THEN
-    RAISE EXCEPTION 'Current signed activity membership unavailable'
+    RAISE EXCEPTION 'Signed activity or original unavailable'
       USING ERRCODE='42501';
   END IF;
 
@@ -98,7 +98,7 @@ BEGIN
     OR v_work.result_contract_key<>'continuing_care_actual_v1'
     OR v_work.metadata->>'sourceContract' IS DISTINCT FROM 'continuing_original_work_v1'
   THEN
-    RAISE EXCEPTION 'Exact governed original Work unavailable'
+    RAISE EXCEPTION 'Signed activity or original unavailable'
       USING ERRCODE='42501';
   END IF;
   SELECT * INTO v_state FROM atlas.rhythm_state
@@ -106,7 +106,7 @@ BEGIN
       AND organization_id=v_work.organization_id
       AND farm_id=v_activity.farm_id AND subject_kind='growing_object';
   IF v_state.id IS NULL THEN
-    RAISE EXCEPTION 'Activity and original Subject do not share a farm'
+    RAISE EXCEPTION 'Signed activity or original unavailable'
       USING ERRCODE='42501';
   END IF;
   SELECT * INTO v_allocation FROM atlas.work_allocations a
@@ -127,7 +127,7 @@ BEGIN
         AND l.subject_domain='spatial' AND l.subject_kind='growing_object'
         AND l.subject_id=v_state.subject_id AND l.relation_kind='acts_on')
   THEN
-    RAISE EXCEPTION 'Exact assigned original and Subject link unavailable'
+    RAISE EXCEPTION 'Signed activity or original unavailable'
       USING ERRCODE='42501';
   END IF;
 
