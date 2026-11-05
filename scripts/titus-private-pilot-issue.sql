@@ -11,9 +11,9 @@ SET LOCAL search_path=pg_catalog;
 SET LOCAL lock_timeout='5s';
 SET LOCAL statement_timeout='25s';
 
-SELECT pg_catalog.set_config('titus.pilot.email', :'pilot_email', true);
-SELECT pg_catalog.set_config('titus.pilot.receipt', :'pilot_receipt', true);
-SELECT pg_catalog.set_config('titus.pilot.days', :'pilot_days', true);
+SELECT pg_catalog.set_config('titus.pilot.email', :'pilot_email', true) AS ignored \\gset;
+SELECT pg_catalog.set_config('titus.pilot.receipt', :'pilot_receipt', true) AS ignored \\gset;
+SELECT pg_catalog.set_config('titus.pilot.days', :'pilot_days', true) AS ignored \\gset;
 
 -- This lock serializes other grant issues and forbids a racing duplicate.
 LOCK TABLE titus.customer_workspace_entitlements_v1 IN SHARE ROW EXCLUSIVE MODE;
