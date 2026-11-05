@@ -4,6 +4,10 @@
 **Authority:** November 4 owner decisions 1B/2D/3D/4C/5A/6A/7A; exceptions 1B/2C belong to P2; U2E prospective 1C/2C/3C preserved.
 **Canonical owner:** Noel for Work, Person, Subject, Result, Actual, state and permissions. Atlas remains the presentation/one-sentence capture layer.
 
+## 2026-11-05 production-release custody audit — BLOCKED (current authority)
+
+The genuine signed P1 clone acceptance passed at #2500 / [run #42105399414](https://github.com/optical-lift/noel-core-db/actions/runs/42105399414), but **production-release eligibility is BLOCKED**. The dedicated [release eligibility audit](RELEASE_ELIGIBILITY_20261105.md) and [read-only current-live dependency preflight](P1_RELEASE_READONLY_PREFLIGHT.sql) enumerate exact native source status, canonical migration/branch ownership, the clone-only canary, missing C1 prerequisite source, rollback/forward-remediation and ordered release gates. The preflight was executed read-only on current Noel production and confirmed missing typed physical Result writer, owner original issuer, lifecycle writer/store, governance store and P1 link/entrypoints; existing manual Activity, native Work and Person sources are present. `20261028235811` is a test-only clone version and was **not** found in the live migration ledger. The full composed candidate is **not** a production migration and the standalone P1 fragment cannot execute against current production. Both Noel #2487 and Atlas #535 remain unmerged drafts. The next bounded coding outcome is a canonical, minimal C1 prerequisite source/dependency split, not a P1 release request.
+
 ## What this increment does
 The authenticated original worker chooses one existing manual activity record and one exact existing assigned canonical Work ID. The worker also explicitly attests a typed care result and observed condition. This does not infer a physical state from sentence text.
 
