@@ -37,15 +37,15 @@ jobs:
           assert gates.count("github.actor == github.repository_owner &&")==2
           assert gates.count("github.event.issue.author_association == 'OWNER'")==2
           assert gates.count("github.event.issue.title == 'UNI-OPS-01 current L1 L2 signed lifecycle diagnostic request'")==2
-          assert "proof: [native_p1, historical_cancel]" in w and "fail-fast: false" in w
-          assert w.count("environment: production")==1
-          assert w.index("Snapshot production user schemas read-only") < w.index("Checkout immutable candidate")
-          assert "assemble_current_l1_l2_clone_only.mjs --check" in w
-          assert "validate-atlas-native-historical-retirement-signed-http.py" in w
-          assert "PASS genuine signed governor historic retirement" in w
-          assert "PASS signed historical review" in w
-          assert "PASS isolated P1 genuine signed manual Activity" in w
-          assert "No release was performed" in w
+          assert "proof: [native_p1, historical_cancel]" in gates and "fail-fast: false" in gates
+          assert gates.count("environment: production")==1
+          assert gates.index("Snapshot production user schemas read-only") < gates.index("Checkout immutable candidate")
+          assert "assemble_current_l1_l2_clone_only.mjs --check" in gates
+          assert "validate-atlas-native-historical-retirement-signed-http.py" in gates
+          assert "PASS genuine signed governor historic retirement" in gates
+          assert "PASS signed historical review" in gates
+          assert "PASS isolated P1 genuine signed manual Activity" in gates
+          assert "no release was performed" in gates.lower()
           print("PASS #2505 runner source-only gates; not a signed result")
           PY
 
