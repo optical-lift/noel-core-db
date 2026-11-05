@@ -1,4 +1,5 @@
 // UNI-OPS-01 Actual-first P1 SOURCE-ONLY guards. These are NOT PG/signed tests.
+import './atlas-c1-source-custody-split.test.mjs';
 import test from 'node:test';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
