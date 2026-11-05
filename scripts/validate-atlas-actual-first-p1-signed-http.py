@@ -73,6 +73,21 @@ def prove(db, api, key, tokens, work, *, signed_source, rpc, sql, literal,
     check(baseline["work"]==1 and baseline["results"]==0 and
           baseline["acceptances"]==0 and baseline["links"]==0,
           "Signed P1 must start with one already-assigned open original and zero Actuals")
+    check(count("atlas.work_items",
+          "id="+work_literal+" and work_state='open'"
+          " and source_object_type='rhythm_state'"
+          " and result_contract_key='continuing_care_actual_v1'"
+          " and metadata->>'sourceContract'='continuing_original_work_v1'"
+          " and not (metadata ? 'sourceStandingCampaignId')")==1,
+          "P1 original is absent, campaign-linked, or not a qualifying care Work")
+    check(count("atlas.work_allocations",
+          "work_item_id="+work_literal
+          +" and assignee_canonical_person_id="+literal(person_worker)+"::uuid"
+          +" and allocation_role='responsible' and state in ('active','completed')"
+          +" and establishment_basis_kind in ("
+          +"'person_connection_receiver_uptake','delegated_under_standing_scope',"
+          +"'ledger_connection_direct_assignment','original_subject_direct_assignment_v1')")==1,
+          "P1 worker has no exact prior accepted responsible allocation")
 
     deny(outsider, "a1100000-0000-4000-8000-000000000001",
          work, "weeded_full", "clear")
