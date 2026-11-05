@@ -160,5 +160,8 @@ test('optional P1 signed bearer proof does not replace the existing C1 signed ma
   assert.match(p1,/noClockAdmission/);
   assert.match(p1,/noNewWorkCreated/);
   assert.match(p1,/NOT PROVEN: production/);
+  assert.match(p1,/allowed = \(409,\) if code == "23505"/);
+  assert.match(p1,/and isinstance\(payload, dict\) and payload.get\("code"\)==code/);
+
   assert.doesNotMatch(p1,/https?:\/\//);
 });
