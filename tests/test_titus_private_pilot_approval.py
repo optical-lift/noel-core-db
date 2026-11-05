@@ -88,26 +88,7 @@ class OwnerIssueTests(unittest.TestCase):
         self.assertEqual(source.count("LOCK TABLE titus.customer_workspace_entitlements_v1"), 1)
         self.assertTrue(source.strip().endswith("COMMIT;"))
         self.assertIn(
-            "OR v_email !~* '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+
-        source = (CODE.parents[1] / "scripts/titus-private-pilot-issue.sql").read_text()
-        self.assertIn("BEGIN;", source)
-        self.assertIn("COMMIT;", source)
-        self.assertIn("current_user <> 'postgres'", source)
-        self.assertIn("grant_source_receipt", source)
-        self.assertIn("v_prior.grant_kind<>'private_pilot'", source)
-        self.assertIn("v_prior.grant_source_receipt<>v_receipt", source)
-        self.assertIn("owner_auth_user_id", source)
-        self.assertNotIn("CREATE USER", source)
-        self.assertNotIn("INSERT INTO auth.users", source)
-        self.assertNotIn("INSERT INTO titus.customer_workspaces_v1", source)
-        self.assertNotIn("INSERT INTO titus.customer_course_drafts_v1", source)
-        self.assertNotIn("UPDATE titus.customer_workspace_entitlements_v1", source)
-        self.assertNotIn("service_role", source)
-
-
-if __name__ == "__main__":
-    unittest.main(verbosity=2)
-",
+            "OR v_email !~* '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'",
             source,
         )
         self.assertIn("min(id::text)::uuid", source)
