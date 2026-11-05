@@ -59,3 +59,13 @@
 - **Do not mark entitled.** The live account still has **zero** grant as of the read-only check; issue #2489 and this draft code are authorization evidence, not a completed SQL write.
 
 **No further changes to application/issuer code beyond tested SHA**; this register update is documentary only. Once the isolated SQL test passes, review and source-merge deliberately. The protected production issuer is intentionally manual-only and cannot be dispatched from a draft branch.
+
+## Runner routing repaired and PG17 source closeout — 2026-11-04
+
+**Root cause:** The earlier Noel candidate workflow requested `self-hosted, macOS, X64, lex-research`. The verified `RiverSong-Lex` runner accepted identical-label jobs in the **Titus** repository, but no Noel candidate job was assigned a runner. The new Noel workflow uses `ubuntu-latest` with a disposable `postgres:17` container, no published ports, `--network none`, private Unix socket, synthetic Auth fixtures and exact source SHA. It does not alter RiverSong's registration or Atlas's PostgreSQL clone.
+
+**PASS:** [Private-pilot hosted PG17 #41962839734](https://github.com/optical-lift/noel-core-db/actions/runs/41962839734), executable SHA `327d80f0729e3c5c45fb42c5c7fa6e9de104e469`. The owner-issue preflight passed, **9/9 Python tests passed**, the actual guarded issuer SQL created **one** scratch grant, replay stayed idempotent, and unknown/other user, conflicting issue, invalid duration, deleted/unconfirmed user and revoked-grant replay were denied. Job cleanup succeeded. The only scratch `Auth` people were synthetic. The source SQL itself now pins the precise approved recipient and issue #2489; the workflow independently checks the live exact owner-authored issue.
+
+**PASS:** Database Custody CI on the same source branch at [#41962846170](https://github.com/optical-lift/noel-core-db/actions/runs/41962846170). No Titus/Atlas/Noel production DDL or data was applied.
+
+**Still held:** This is **not** proof a live entitlement exists. This PR must merge to canonical `main` before the owner can manually dispatch the separate `production` environment workflow with approval issue #2489, exact email and duration. Protected dispatch and post-issuance source readback are independent from source testing. The source-only trial also does not release the Titus customer app or course material writer.
