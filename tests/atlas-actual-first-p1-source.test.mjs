@@ -141,3 +141,24 @@ test('full protected clone exercises exact P1 source and SQL-only denials',()=>{
   assert.match(post,/Standing care read must be constrained and stable/);
   assert.match(held,/\nCOMMIT;\s*$/);
 });
+
+
+test('optional P1 signed bearer proof does not replace the existing C1 signed matrix',()=>{
+  const c1=readFileSync(new URL('../scripts/validate-atlas-care-single-done-signed-http.py',import.meta.url),'utf8');
+  const p1=readFileSync(new URL('../scripts/validate-atlas-actual-first-p1-signed-http.py',import.meta.url),'utf8');
+  assert.match(c1,/--p1-recognition-proof/);
+  assert.match(c1,/if args\.p1_recognition_proof:/);
+  assert.match(c1,/p1_module\.prove\(/);
+  assert.ok(c1.indexOf('if args.p1_recognition_proof:')>c1.indexOf('work=made["workItemId"]'));
+  assert.ok(c1.indexOf('if args.p1_recognition_proof:')<c1.indexOf('print("PASS governor source observation and one bounded original Work")'));
+  assert.match(p1,/record_worker_activity_log_v1\(/);
+  assert.match(p1,/signed_source\(db, worker, event\)/);
+  assert.match(p1,/ThreadPoolExecutor\(max_workers=2\)/);
+  assert.match(p1,/recognitionLinkId/);
+  assert.match(p1,/retract_worker_activity_log_v1/);
+  assert.match(p1,/active=false where user_id=/);
+  assert.match(p1,/noClockAdmission/);
+  assert.match(p1,/noNewWorkCreated/);
+  assert.match(p1,/NOT PROVEN: production/);
+  assert.doesNotMatch(p1,/https?:\/\//);
+});
