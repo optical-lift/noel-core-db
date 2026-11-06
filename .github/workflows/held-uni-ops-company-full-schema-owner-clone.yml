@@ -195,6 +195,7 @@ jobs:
           echo 'PASS fixed nine-source scratch candidate; never generated a releasable migration'
 
       - name: Validate through canonical disposable schema clone
+        id: clone_validation
         shell: bash
         run: |
           set -euo pipefail
@@ -207,11 +208,65 @@ jobs:
             --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
             --artifacts-dir "$RUNNER_TEMP/uniops-company-clone-artifacts"
 
-      - name: Record safe summary without production schema exports
+      - name: Report allowlisted local failure phase without private diagnostics
         if: always()
         shell: bash
+        env:
+          CLONE_VALIDATION_OUTCOME: ${{ steps.clone_validation.outcome }}
         run: |
           set -euo pipefail
-          summary="$RUNNER_TEMP/uniops-company-clone-artifacts/summary.md"
-          if test -s "$summary"; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; fi
-          echo 'No production SQL write, no release, no Person Work/Clock, no genuine signed GoTrue test.' >> "$GITHUB_STEP_SUMMARY"
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+
+          base=Path(os.environ['RUNNER_TEMP'])/'uniops-company-clone-artifacts'
+          summary=base/'summary.md'
+          content=summary.read_text(encoding='utf-8',errors='replace')[:16000] if summary.is_file() else ''
+          # Only known phase IDENTIFIERS may escape a protected runner; never
+          # print a source dump, SQL error body, role, credential, or path.
+          allowed={
+              'release-lane custody check','validation fixture safety check',
+              'schema dump sanitation','disposable database startup',
+              'production custom-role restore','production user-schema restore',
+              'baseline domain schema lint','candidate validation fixture application',
+              'candidate migration application','candidate migration postconditions',
+              'candidate domain schema lint','candidate lint delta comparison',
+              'local database advisors','complete'
+          }
+          phase='not_reported'
+          for tag in ('FAILED during ','Validation command exited during `'):
+              pos=content.rfind(tag)
+              if pos>=0:
+                  line=content[pos+len(tag):].splitlines()[0].strip().strip('*.` ')
+                  if line in allowed: phase=line
+                  break
+
+          category='none'
+          if os.environ.get('CLONE_VALIDATION_OUTCOME')=='failure':
+              category='unclassified_local_failure'
+              if phase=='disposable database startup':
+                  candidates=sorted(base.glob('disposable-database-startup-attempt-*.log'))
+                  # Categorization is fixed vocabulary; no diagnostic text echoed.
+                  body='\n'.join(x.read_text(encoding='utf-8',errors='replace')[-150000:] for x in candidates if x.is_file()).lower()
+                  patterns=(
+                     ('registry_throttling',r'toomanyrequests|too many requests|rate[ -]?limit|rate exceeded|\b429\b'),
+                     ('local_port_conflict',r'address already in use|port is already allocated|port is in use'),
+                     ('container_health_failure',r'container is not healthy|failed health check|health check failed|container .* unhealthy'),
+                     ('local_role_or_auth_failure',r'password authentication failed|fatal: +role .* does not exist'),
+                     ('local_docker_failure',r'cannot connect to the docker daemon|error response from daemon'),
+                     ('local_initdb_failure',r'initdb: error|database system is shut down')
+                  )
+                  for label,pattern in patterns:
+                      if re.search(pattern,body):
+                          category=label
+                          break
+
+          outcome=os.environ.get('CLONE_VALIDATION_OUTCOME','unknown')
+          if outcome not in ('success','failure','cancelled','skipped'): outcome='unknown'
+          report=f'HELD schema-clone outcome={outcome}; sanitized_phase={phase}; startup_class={category}'
+          print(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
+              out.write(report+'\n')
+              out.write('No raw production schema, SQL, role, user identity, or secret diagnostics published.\n')
+              out.write('No production SQL write, no release, no Person Work/Clock, no genuine signed GoTrue test.\n')
+          PY
