@@ -60,6 +60,70 @@ BEGIN
  )=0 THEN
   RAISE EXCEPTION 'Governed Rulebook legacy task and direct insert guards are not assembled';
  END IF;
+
+ IF position('activation_prerequisite_completed' IN v_eval)=0 THEN
+  RAISE EXCEPTION 'Done-activated rhythm still has an automatic source issuance gap';
+ END IF;
+ IF pg_catalog.to_regprocedure(
+  'atlas.guard_uni_ops_governed_care_original_acceptance_v1()'
+ ) IS NULL OR pg_catalog.to_regprocedure(
+  'atlas.require_uni_ops_original_finalize_on_commit_v1()'
+ ) IS NULL THEN
+  RAISE EXCEPTION 'Canonical governed original INSERT or atomic COMMIT guard missing';
+ END IF;
+ IF NOT EXISTS (
+  SELECT 1 FROM pg_catalog.pg_trigger t
+  WHERE t.tgrelid='atlas.work_items'::regclass
+    AND t.tgname='c_uni_ops_governed_care_original_acceptance_v1'
+    AND t.tgenabled<>'D'
+ ) OR NOT EXISTS (
+  SELECT 1 FROM pg_catalog.pg_trigger t
+  WHERE t.tgrelid='atlas.work_items'::regclass
+    AND t.tgname='z_uni_ops_governed_original_finalization_v1'
+    AND t.tgdeferrable
+    AND t.tginitdeferred
+    AND t.tgenabled<>'D'
+ ) THEN
+   RAISE EXCEPTION 'Required source/atomic original guards are not attached and deferred';
+ END IF;
+ IF pg_catalog.has_function_privilege(
+    'authenticated','atlas.guard_uni_ops_governed_care_original_acceptance_v1()'::regprocedure,'EXECUTE'
+ ) OR pg_catalog.has_function_privilege(
+    'service_role','atlas.require_uni_ops_original_finalize_on_commit_v1()'::regprocedure,'EXECUTE'
+ ) THEN
+   RAISE EXCEPTION 'Private governed original guard exposed to client/API roles';
+ END IF;
+ -- Source-only structural check for the seven known old Done/event/clock
+ -- callbacks. Dynamic SQL/indirect scheduling require separate signed tests.
+ IF EXISTS (
+  SELECT 1 FROM pg_catalog.pg_proc p
+  JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+  WHERE n.nspname='atlas'
+    AND (
+      (p.proname IN (
+         'release_after_task_terminal_v1','advance_task_dependency_clocks_v1',
+         'apply_workflow_event_v1')
+       AND pg_catalog.pg_get_functiondef(p.oid) ~*
+          'perform[[:space:]]+atlas[.]release_eligible_work_v1[[:space:]]*[(]'
+      )
+      OR (p.proname IN (
+         'advance_anna_weeding_serial_queue_v1',
+         'advance_owner_completion_gated_queue_v1',
+         'advance_pot_up_serial_queue_v1')
+       AND pg_catalog.pg_get_functiondef(p.oid) ~*
+          'perform[[:space:]]+atlas[.]apply_[[:alnum:]_]+_release_effect_v1[[:space:]]*[(]'
+      )
+      OR (p.proname='advance_gentle_pressure_wash_serial_queue_v1'
+       AND pg_catalog.pg_get_functiondef(p.oid) ~*
+          'perform[[:space:]]+atlas[.]release_next_pressure_wash_task_v1[[:space:]]*[(]')
+      OR (p.proname='apply_workflow_event_v1'
+       AND pg_catalog.pg_get_functiondef(p.oid) ~*
+          'perform[[:space:]]+atlas[.]record_task_transition_v1_internal[[:space:]]*[(]')
+    )
+ ) THEN
+  RAISE EXCEPTION 'An explicit known legacy Done/event/dependency source still automatically releases Work';
+ END IF;
+
  RAISE NOTICE 'P3 source contract structurally present; signed outcome/ACL/collision and no-DML verification remain HELD';
 END;
 $post$;
