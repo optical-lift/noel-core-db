@@ -107,7 +107,7 @@ begin
   end if;
 
   v_completed_date:=(v_evaluated_at at time zone 'America/Chicago')::date;
-  NULL; -- 6A: historical completion/source boundary recorded; a separate independently authorized issuer must consider any later Work.
+  NULL; /* 6A: preserve completion/boundary; later Work requires independent source. */
   return new;
 end;
 $function$
@@ -152,7 +152,7 @@ begin
   where id=v_item.id;
 
   v_completed_date := (coalesce(new.completed_at,now()) at time zone 'America/Chicago')::date;
-  NULL; -- 6A: historical completion/source boundary recorded; a separate independently authorized issuer must consider any later Work.
+  NULL; /* 6A: preserve completion/boundary; later Work requires independent source. */
   return new;
 end;
 $function$
@@ -229,7 +229,7 @@ begin
   end if;
 
   v_completed_date:=(v_evaluated_at at time zone 'America/Chicago')::date;
-  NULL; -- 6A: historical completion/source boundary recorded; a separate independently authorized issuer must consider any later Work.
+  NULL; /* 6A: preserve completion/boundary; later Work requires independent source. */
 
   return new;
 end;
@@ -308,7 +308,7 @@ begin
   end if;
 
   v_completed_date:=(v_evaluated_at at time zone 'America/Chicago')::date;
-  NULL; -- 6A: historical completion/source boundary recorded; a separate independently authorized issuer must consider any later Work.
+  NULL; /* 6A: preserve completion/boundary; later Work requires independent source. */
 
   return new;
 end;
@@ -358,7 +358,7 @@ begin
     -- Finishing one of these carriers must not invoke the unrelated legacy
     -- farm-wide release sweep; that sweep may still serve legacy farm work.
     if not v_company_work_managed then
-      NULL; -- 6A: historical completion/source boundary recorded; a separate independently authorized issuer must consider any later Work.
+      NULL; /* 6A: preserve completion/boundary; later Work requires independent source. */
     end if;
   end if;
   return new;
