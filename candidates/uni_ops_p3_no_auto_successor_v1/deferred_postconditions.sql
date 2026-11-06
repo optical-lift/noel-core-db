@@ -209,6 +209,37 @@ BEGIN
    RAISE EXCEPTION 'Private P3 governed owner attention exposed to an API role';
  END IF;
 
+
+ IF pg_catalog.to_regclass(
+   'atlas.uni_ops_p3_owner_attention_decision_events_v1'
+ ) IS NULL OR pg_catalog.to_regprocedure(
+   'atlas.uni_ops_p3_owner_decide_source_attention_self_held_v1(uuid,uuid,text,text,uuid,uuid)'
+ ) IS NULL THEN
+   RAISE EXCEPTION 'Immutable current signed owner source decision not staged';
+ END IF;
+ IF NOT EXISTS(
+   SELECT 1 FROM pg_catalog.pg_trigger t
+   WHERE t.tgrelid=
+     'atlas.uni_ops_p3_owner_attention_decision_events_v1'::regclass
+     AND t.tgname='uni_ops_p3_owner_attention_decision_immutable_v1'
+     AND t.tgenabled<>'D'
+ ) THEN
+   RAISE EXCEPTION 'Source owner choice has no append-only protection';
+ END IF;
+ IF pg_catalog.has_function_privilege('authenticated',
+   'atlas.uni_ops_p3_owner_decide_source_attention_self_held_v1(uuid,uuid,text,text,uuid,uuid)'::regprocedure,'EXECUTE')
+ OR pg_catalog.has_function_privilege('service_role',
+   'atlas.uni_ops_p3_owner_decide_source_attention_self_held_v1(uuid,uuid,text,text,uuid,uuid)'::regprocedure,'EXECUTE')
+ THEN
+   RAISE EXCEPTION 'Private source governor decision transport exposed';
+ END IF;
+ IF position('uni_ops_p3_owner_attention_decision_events_v1' IN
+    pg_catalog.pg_get_functiondef(
+     'atlas.uni_ops_p3_owner_pending_decisions_self_held_v1(uuid,uuid,date,date)'::regprocedure)
+ )=0 THEN
+   RAISE EXCEPTION 'Owner source attention does not track its actual governor decision';
+ END IF;
+
  RAISE NOTICE 'P3 source contract structurally present; signed outcome/ACL/collision and no-DML verification remain HELD';
 END;
 $post$;
