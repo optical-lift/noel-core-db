@@ -60,3 +60,10 @@ No public admission transport or new source adapter, no generic all-company Need
 **Still open:** formal company-neutral source adapter registry/authority attestation, company/non-rhythm Rulebook admission, independent Person offers/consent and one canonical Work writer per source, genuine current Result/one Done, source freshness at action time, Principal escalation contract/ClockCandidate, P3 farm adapter emission thresholds and UI. The user's governing authority must decide issuer mode if not already recorded; do not choose agent/worker impersonation. Old P3 and P2 PRs remain separately held, and no mainline changes are implied.
 
 **No PostgreSQL parser/compile, full-schema migration, real signed GoTrue/PostgREST actor tests, RiverSong or CI, production SQL, ACL/RLS permission change, schema deployment, branch merge, Work/Result/Clock/schedule/Person operation was performed by authoring this held candidate.**
+
+
+## No competing decision histories — explicit source assembly stop
+
+The existing farm P3 #2565 file 17 separately creates `uni_ops_p3_owner_attention_decision_events_v1`. That farm-local table and `uni_ops_governed_case_decision_events_v1` MUST NOT operate as two independent governor authorities. **The universal schema file 01 now refuses compilation/installation if the farm-local decision table already exists; P3 file 17 symmetrically refuses installation if the universal decision table exists.** In either order, a direct accidental stacked deployment fails closed.
+
+This is a **migration constraint**, not a recommendation to erase P3 data. The next approved implementation must retain each farm source attestation, preserve existing immutable farm decision events at their real times and authors, and replace the P3 17 writer with ONE authenticated source-bound adapter to the canonical company decision history. Until that mapping and its same-event replay semantics pass signed actor/negative/race tests, both drafts remain HELD and **cannot be released together**. There is no data migration authored or approved by this PR.
