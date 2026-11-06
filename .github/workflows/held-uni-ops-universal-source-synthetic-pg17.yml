@@ -39,6 +39,12 @@ jobs:
           test -f candidates/uni_ops_universal_company_decision_v1/tests/synthetic_pg17_source_schema.sql
           test -f candidates/uni_ops_universal_company_decision_v1/tests/synthetic_pg17_source_admission_checks.sql
           bash -n scripts/test-uni-ops-universal-held-pg17.sh
+          bash -n candidates/uni_ops_universal_company_decision_v1/tests/assemble_protected_full_schema_clone_held.sh
+          if bash candidates/uni_ops_universal_company_decision_v1/tests/assemble_protected_full_schema_clone_held.sh --local-db-url 'postgresql://postgres:postgres@example.com:5432/postgres' --main-checkout . --p3-checkout . --universal-checkout . >/dev/null 2>&1; then
+            echo 'ERROR: protected clone script accepted remote database URL' >&2
+            exit 1
+          fi
+          echo 'PASS: protected assembly source syntax and remote-URL fail-closed preflight'
           ! git diff --name-only "$GITHUB_SHA" -- supabase/migrations | grep .
           echo 'Source-only candidate custody PASS; no production migration'
       - name: Isolated PostgreSQL 17 source compilation and synthetic denials
