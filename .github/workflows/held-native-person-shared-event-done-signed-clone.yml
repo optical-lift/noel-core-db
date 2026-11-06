@@ -330,17 +330,17 @@ jobs:
           marker='    print("PASS signed local canonical Event write acceptance")\n'
           assert old.count(marker)==1, 'Trust boundary: canonical scheduler signed oracle drifted'
           addition='''    # TEST-ONLY: after canonical Event scheduler and its signed denials,
-    # prove the separately existing shared checklist DONE path with true sessions.
-    import subprocess
-    subprocess.run([
-        "python3",
-        str(Path(__file__).resolve().parents[1] /
-            "tests" / "held_native_person_shared_event_done_signed.py"),
-        "--db-url", args.db_url,
-        "--output", str(Path(args.output).with_name(
-            "signed-shared-event-done-summary.txt")),
-    ], check=True)
-'''
+              # prove the separately existing shared checklist DONE path with true sessions.
+              import subprocess
+              subprocess.run([
+                  "python3",
+                  str(Path(__file__).resolve().parents[1] /
+                      "tests" / "held_native_person_shared_event_done_signed.py"),
+                  "--db-url", args.db_url,
+                  "--output", str(Path(args.output).with_name(
+                      "signed-shared-event-done-summary.txt")),
+              ], check=True)
+          '''
           result=old.replace(marker,marker+addition)
           assert result.count('signed-shared-event-done-summary.txt')==1
           p.write_text(result)
