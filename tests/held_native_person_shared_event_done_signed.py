@@ -81,35 +81,85 @@ def main():
         "Exact connected Person's synthetic Ledger seat is absent")
     print("PASS two independent genuine signed Event Person sessions and live seats")
 
+    # Source ACL on the *current production-shaped schema* independently
+    # gates Event Work creation. The held completion packet must not mint an
+    # execute privilege for that out-of-scope writer. Read current cloned ACL.
     create = dict(p_organization_id=ORG,p_ledger_id=LEDGER,
                   p_occurrence_id=OCC,
                   p_sentence="Set out and count chairs for synthetic Gathering",
                   p_source_action_id="signed-event-shared-work-20261105-create")
     mark_fn="mark_ledger_occurrence_shared_work_done_self_api_v1"
     create_fn="create_ledger_occurrence_shared_work_self_api_v1"
+    check(scalar(args.db_url,
+        "SELECT has_function_privilege('authenticated',"
+        "'atlas.create_ledger_occurrence_shared_work_self_api_v1(uuid,uuid,uuid,text,text)','EXECUTE')"
+        )=="f","The schema unexpectedly grants Event create: separate source permission review")
+    check(scalar(args.db_url,
+        "SELECT has_function_privilege('authenticated',"
+        "'atlas.mark_ledger_occurrence_shared_work_done_self_api_v1(uuid,uuid,uuid,uuid,text)','EXECUTE')"
+        )=="t","Existing signed Person Event state-confirmation RPC is not admitted")
     denied(api,key,outsider,create_fn,create,
-           "outsider cannot create Work in someone else's exact Event")
-    response=permitted(api,key,member,create_fn,create)
-    work=qid(response.get("workItemId"))
-    check(response.get("created") is True
-      and response.get("idempotent") is False
-      and response.get("assignmentCreated") is False
-      and response.get("workerDayCreated") is False
-      and response.get("workState")=="open",
-      "Original shared Event creation must not invent worker/Date/assignment")
-    duplicate=permitted(api,key,member,create_fn,create)
-    check(duplicate.get("workItemId")==work and duplicate.get("idempotent") is True
-       and duplicate.get("created") is False,
-       "Same source action created duplicate original Work")
+           "out-of-scope Event creation remains ACL-denied to outsider")
+    denied(api,key,member,create_fn,create,
+           "connected Person Event creation currently ACL-denied; no new grant")
+    # Mimic *preexisting* source-authored Work only in a disposable fixture.
+    # No accepted Result, lifecycle Done, API authority, browser grant or
+    # physical performance is inserted. The following signed mark POST is
+    # the first and only source-authorized terminal transition.
+    work="f5210000-0000-4000-8000-000000000a91"
+    check(scalar(args.db_url,
+        f"SELECT count(*) FROM atlas.work_items WHERE id='{work}'::uuid")=="0",
+        "Fixture Work ID must not collide with existing original")
+    scalar(args.db_url,f"""
+      BEGIN;
+      INSERT INTO atlas.work_items (
+        id,organization_id,title,work_state,source_object_type,source_object_id,
+        result_contract_key,created_by_user_id,stable_key,metadata
+      ) VALUES (
+        '{work}'::uuid,'{ORG}'::uuid,
+        'Set out and count chairs for synthetic Gathering','open',
+        'ledger_occurrence_shared_work','{OCC}'::uuid,
+        'ledger_occurrence_shared_confirmation_v1',
+        '{MEMBER}'::uuid,
+        'ledger-occurrence-shared:'||md5(
+          '{LEDGER}:{OCC}:{PERSON}:signed-event-shared-work-20261105-create'),
+        jsonb_build_object(
+          'sourceContract','ledger_occurrence_shared_work_v1',
+          'ledgerId','{LEDGER}','occurrenceId','{OCC}',
+          'sourceActionId','signed-event-shared-work-20261105-create',
+          'createdByPersonId','{PERSON}',
+          'custody','institutional','ordinarySharedChecklist',true,
+          'exclusiveAssigneeAuthority',false,'workerDayRequired',false,
+          'physicalPerformerNotInferred',true,
+          'syntheticFixtureOnly',true)
+      );
+      INSERT INTO atlas.company_work_native_ledger_relevance(
+        organization_id,work_item_id,ledger_id,evidence_kind,
+        attestation_source_ref,attestation_reason,established_by_person_id
+      ) VALUES ('{ORG}'::uuid,'{work}'::uuid,'{LEDGER}'::uuid,
+        'participant_attested','atlas.work_items:{work}',
+        'Disposable preexisting Event work; no real Person or Work',
+        '{PERSON}'::uuid);
+      SELECT atlas.attach_work_item_context_internal_v1(
+         '{work}'::uuid,'temporal','occurrence','{OCC}'::uuid,'for',null,
+         jsonb_build_object('source','synthetic_existing_event_original',
+            'createdByPersonId','{PERSON}','ledgerId','{LEDGER}'),
+         '{{"purpose":"ordinary_shared_work"}}'::jsonb);
+      COMMIT;
+    """)
     check(scalar(args.db_url,
        f"SELECT count(*) FROM atlas.work_items WHERE id='{work}'::uuid "
        f"AND source_object_type='ledger_occurrence_shared_work' "
        f"AND result_contract_key='ledger_occurrence_shared_confirmation_v1' "
        f"AND work_state='open'")=="1",
-       "Source-bound shared Event original Work missing before Done")
+       "Current-schema fixture failed to establish existing source-compliant Event Work")
     check(scalar(args.db_url,
        f"SELECT count(*) FROM atlas.work_allocations WHERE work_item_id='{work}'::uuid")=="0",
-       "Shared checklist is not delegated worker obligation")
+       "Existing shared checklist does not imply a worker assignment")
+    check(scalar(args.db_url,
+       f"SELECT count(*) FROM atlas.work_execution_results WHERE work_item_id='{work}'::uuid")=="0",
+       "Fixture must never fabricate source Result or accepted Done")
+    print("PASS original shared Event Work exists only as source-shaped disposable fixture; live create ACL remains DENIED")
 
     action="signed-event-state-confirmed-once-20261105"
     mark=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
@@ -171,7 +221,9 @@ def main():
         {**mark,"p_source_action_id":"distinct-event-action-after-done-20261105"})
     check(second.get("alreadyDone") is True
           and second.get("newTransitionApplied") is False
-          and second.get("markedByPersonId") is None,
+          and second.get("markedByPersonId") is None
+          and second.get("historicalRecordedCompletion") is False
+          and second.get("eventId")==event_id,
           "Distinct action after Done must not adopt prior completion as new physical actor")
     check(scalar(args.db_url,
         f"SELECT count(*) FROM atlas.work_execution_results WHERE work_item_id='{work}'::uuid")=="1",
@@ -197,9 +249,9 @@ def main():
         f"SELECT work_state FROM atlas.work_items WHERE id='{work}'::uuid")=="completed",
         "Revoking a connection cannot erase prior historical Work state")
     Path(args.output).write_text(
-       "PASS independently signed shared Event checklist original Work, state-only Result, "
+       "PASS independently signed *preexisting* shared Event checklist Work Done, state-only Result, "
        "one universal Done, legacy receipt, two replay modes, outsider/wrong Event/revoked denials\n"
-       "NOT PROVEN: live Event UI, historical cancellation, production, concurrent sessions\n",
+       "BLOCKED: native signed Person Event creation by existing current ACL. NOT PROVEN: live Event UI, historical cancellation, production, concurrent sessions\n",
        encoding="utf-8")
     print("PASS signed shared Event checklist completion, same-action replay and current permission withdrawal")
 
