@@ -313,6 +313,10 @@ jobs:
             test -s "$artifacts_dir/signed-u1a-rulebook-summary.txt"
             grep -q "^PASS: genuine independent GoTrue custody review and U1A root authority" \\
                  "$artifacts_dir/signed-u1a-rulebook-summary.txt"
+            phase="genuinely signed universal common source authority negative/positive"
+            python3 "$UNIVERSAL_COMMON_SIGNED_TEST_SCRIPT" --db-url "$database_url" --u1a-helper "$U1A_SIGNED_TEST_SCRIPT" --output "$artifacts_dir/signed-universal-common-summary.txt" > "$artifacts_dir/signed-universal-common.log" 2>&1
+            test -s "$artifacts_dir/signed-universal-common-summary.txt"
+            grep -q '^PASS universal COMMON exact source:' "$artifacts_dir/signed-universal-common-summary.txt"
           fi
           
           '''
@@ -361,6 +365,8 @@ jobs:
           test -s "$dir/signed-u1a-rulebook-summary.txt"
           grep -q "^PASS: genuine independent GoTrue custody review and U1A root authority" "$dir/signed-u1a-rulebook-summary.txt"
           grep -q 'zero Work/Need side effects' "$dir/signed-u1a-rulebook-summary.txt"
+          grep -q '^PASS universal COMMON exact source:' "$dir/signed-universal-common-summary.txt"
+          grep -q 'zero policy or Work rights' "$dir/signed-universal-common-summary.txt"
           printf "\nU1A signed independent root/Reviewer policy version acceptance, no Work/Need. Production release HELD.\n" >> "$dir/summary.md"
 
       - name: Publish validation summary
