@@ -67,6 +67,11 @@ def main():
     if head != P3_SHA:
         reject("farm P3 source commit changed; manual re-review required")
 
+    validation_file = (roots["univ"] / "candidates/uni_ops_universal_company_decision_v1/deferred_postconditions.sql").resolve()
+    if not validation_file.is_relative_to(roots["univ"]) or not validation_file.is_file():
+        reject("missing exact original structural validator")
+    if git_blob(validation_file.read_bytes()) != "427d195dd76c7fa58b1a5dce58e146778a56e1d9":
+        reject("unreviewed structural validator changed; no protected schema access")
     chunks = [
         "-- HELD TEST ONLY. Never install or release this composite.",
         "-- Prepared from exact Git blob-pinned sources; no public API calls.",
