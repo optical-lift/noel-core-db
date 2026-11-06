@@ -9,7 +9,7 @@ BEGIN
  IF NOT EXISTS(
    SELECT 1 FROM pg_catalog.pg_proc p
    WHERE p.oid=v_fn AND p.prosecdef AND p.provolatile='s'
-     AND p.proconfig @> ARRAY['search_path=']
+     AND position('search_path=' in array_to_string(p.proconfig,','))>0
  ) THEN
    RAISE EXCEPTION 'Native Household source must remain private signed STABLE';
  END IF;
