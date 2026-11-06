@@ -243,6 +243,9 @@ BEGIN
     'workerAssignmentCreated',false,
     'workerConsentInferred',false,
     'scheduledSuccessorCreated',false,
+    'operationalSourceDecisionOnly',true,
+    'principalEscalationQualified',false,
+    'principalClockCandidateCreated',false,
     'nonRhythmOriginalIssuerStillRequired',true);
 END;
 $decision$;
