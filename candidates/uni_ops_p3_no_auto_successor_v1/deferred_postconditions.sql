@@ -240,6 +240,12 @@ BEGIN
    RAISE EXCEPTION 'Owner source attention does not track its actual governor decision';
  END IF;
 
+ IF pg_catalog.to_regclass(
+   'atlas.uni_ops_governed_case_decision_events_v1'
+ ) IS NOT NULL THEN
+   RAISE EXCEPTION 'Farm P3 independent governor decisions conflict with canonical Company decision history';
+ END IF;
+
  RAISE NOTICE 'P3 source contract structurally present; signed outcome/ACL/collision and no-DML verification remain HELD';
 END;
 $post$;
