@@ -64,7 +64,7 @@ python3 "$root/scripts/validate-titus-course-units-signed-local.py"  --db-url "$
 python3 - "$scratch/signed-proof.json" <<'PY'
 import json,sys
 result=json.load(open(sys.argv[1],encoding="utf-8"))
-assert result["scope"]=="disposable-local-only"
+assert result["scope"]=="fully_disposable_local_auth_and_rest"
 assert result["signedUnitContracts"]=="PASS"
 assert result["realHumanAcceptance"] is False
 assert result["productionWrites"] is False
