@@ -255,8 +255,8 @@ jobs:
           lean='    if [ "$signed_care_single_done_probe" = true ] ||'
           stage='phase="candidate domain schema lint"\n'
           assert s.count(full)==s.count(lean)==s.count(stage)==1, "Trusted harness drift"
-          s=s.replace(full,'if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] || '+full)
-          s=s.replace(lean,'    if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] ||\n'+lean)
+          s=s.replace(full,'if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] || '+full[3:])
+          s=s.replace(lean,'    if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] ||\n'+lean.replace('    if ', '    ', 1))
           proof='''# This hook is added to the disposable harness COPY only.
           if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ]; then
             phase="signed U1A root and independent source-reviewer approval"
