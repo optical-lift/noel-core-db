@@ -11,6 +11,7 @@ BEGIN
     OR pg_catalog.to_regprocedure(
       'atlas.company_work_native_ledger_owner_self_v1(uuid,uuid)') IS NULL
     OR pg_catalog.to_regclass('atlas.journal_event_index') IS NULL
+    OR pg_catalog.to_regclass('atlas.uni_ops_p3_owner_attention_decision_events_v1') IS NULL
  THEN RAISE EXCEPTION
     'P3 pending-attention reader requires true U1B native Ledger custody and real Journal';
  END IF;
@@ -75,6 +76,9 @@ BEGIN
  WITH candidates AS (
    SELECT j.id,j.source_kind,j.source_id,j.event_key,j.created_at,
           j.occurred_at,j.journal_date,
+          coalesce(d.decision,'pending_owner_decision') current_decision,
+          d.id latest_source_decision_id,
+          d.recorded_at latest_source_decision_at,
           CASE
            WHEN j.source_kind='flower_harvest_batch'
              THEN 'harvest_preparation_owner_direction'
@@ -103,6 +107,17 @@ BEGIN
            ELSE NULL
           END AS current_verified_shortfall
    FROM atlas.journal_event_index j
+   LEFT JOIN LATERAL (
+     SELECT e.id,e.decision,e.recorded_at
+     FROM atlas.uni_ops_p3_owner_attention_decision_events_v1 e
+     WHERE e.attention_id=j.id
+       AND e.ledger_id=p_ledger_id
+       -- A new source event after a previous governor decision reopens
+       -- review; the old decision remains immutable historical evidence.
+       AND e.source_evidence_event_recorded_at=j.occurred_at
+     ORDER BY e.recorded_at DESC,e.id DESC
+     LIMIT 1
+   ) d ON TRUE
    WHERE j.farm_id=v_farm.id
      AND j.organization_id=v_farm.organization_id
      AND j.event_kind='owner_decision'
@@ -135,9 +150,10 @@ BEGIN
      )
  ), still_pending AS (
    SELECT * FROM candidates c
-   WHERE c.source_kind='flower_harvest_batch'
+   WHERE c.current_decision<>'decline_new_work_at_present'
+     AND (c.source_kind='flower_harvest_batch'
       OR (c.source_kind='seed_lot'
-          AND coalesce(c.current_verified_shortfall,0)>0)
+          AND coalesce(c.current_verified_shortfall,0)>0))
  ), bounded AS (
    SELECT p.*,pg_catalog.row_number() OVER(
       ORDER BY p.created_at DESC,p.id DESC) AS pos
@@ -157,7 +173,15 @@ BEGIN
       'sourceJournalDate',journal_date,
       'harvestObservationCount',observed_bucket_count,
       'currentVerifiedSeedShortfall',current_verified_shortfall,
-      'ownerDecisionStillRequired',true,
+      'latestOwnerDecisionId',latest_source_decision_id,
+      'latestOwnerDecisionAt',latest_source_decision_at,
+      'currentOwnerDecisionState',current_decision,
+      'ownerDecisionStillRequired',
+         current_decision='pending_owner_decision',
+      'independentWorkAdmissionRequested',
+         current_decision='request_independent_work_admission',
+      'newPhysicalObservationNeeded',
+         current_decision='hold_for_new_observation',
       'workAlreadyAuthorizedByAttention',false,
       'workerAlreadyAssignedByAttention',false,
       'clockAdmissionGranted',false
