@@ -128,6 +128,34 @@ BEGIN
       USING ERRCODE='42501';
   END IF;
 
+  -- A review responsibility is NOT automatically a right to read original
+  -- Household evidence. Approval needs distinct current identity AND
+  -- condition disclosures to this reviewer's signed canonical Person.
+  -- Protective revocation remains possible after information withdrawal.
+  IF p_event_kind='approved' THEN
+    IF coalesce((
+      atlas.uni_ops_household_disclosure_current_self_internal_v1(
+        v_proposal.household_id,v_proposal.kernel_instance_id,'subject_identity'
+      )->>'currentlyAuthorized')::boolean,false)=false
+      OR coalesce((
+      atlas.uni_ops_household_disclosure_current_self_internal_v1(
+        v_proposal.household_id,v_proposal.kernel_instance_id,'subject_condition'
+      )->>'currentlyAuthorized')::boolean,false)=false
+    THEN
+      RAISE EXCEPTION 'Both current original Household information disclosures required'
+        USING ERRCODE='42501';
+    END IF;
+  ELSIF p_event_kind='rejected' THEN
+    IF coalesce((
+      atlas.uni_ops_household_disclosure_current_self_internal_v1(
+        v_proposal.household_id,v_proposal.kernel_instance_id,'subject_identity'
+      )->>'currentlyAuthorized')::boolean,false)=false
+    THEN
+      RAISE EXCEPTION 'Current Household identity disclosure required for rejection'
+        USING ERRCODE='42501';
+    END IF;
+  END IF;
+
   -- An independent reviewer cannot be the proposing Principal or the
   -- current Household governor, even if they also carry a review relation.
   SELECT principal.person_id INTO v_governor_person_id
