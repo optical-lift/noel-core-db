@@ -164,8 +164,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$EXPECTED_HEAD" != ""
-          status="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2520" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
-          test "$status" = "open|true|candidate/atlas-native-completion-release-packet-20261105|$EXPECTED_HEAD" ||
+          status="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2522" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+          test "$status" = "open|true|candidate/atlas-native-person-completion-mainline-20261105|$EXPECTED_HEAD" ||
             { echo "::error::Native packet draft changed or not pinned to exact source"; exit 1; }
 
       - name: Snapshot production user schemas read-only
