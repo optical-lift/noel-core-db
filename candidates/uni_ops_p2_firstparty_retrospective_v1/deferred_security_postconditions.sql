@@ -83,6 +83,29 @@ BEGIN
    RAISE EXCEPTION 'P2 matched-original governor review is not source-qualified';
  END IF;
 
+
+ IF pg_catalog.to_regclass(
+  'atlas.uni_ops_p2_later_worker_subject_attributions_v1'
+ ) IS NULL OR pg_catalog.to_regprocedure(
+  'atlas.uni_ops_p2_worker_attest_subject_later_held_v1(uuid,uuid,uuid,text,uuid)'
+ ) IS NULL
+ THEN RAISE EXCEPTION 'Actual worker manual log needs independent P2 later Subject attribution source'; END IF;
+ IF NOT EXISTS (
+  SELECT 1 FROM pg_catalog.pg_trigger t
+  WHERE t.tgrelid='atlas.uni_ops_p2_later_worker_subject_attributions_v1'::regclass
+    AND t.tgname='uni_ops_p2_later_subject_attribution_append_only_v1'
+    AND t.tgenabled<>'D'
+ ) OR pg_catalog.has_function_privilege(
+  'authenticated',
+  'atlas.uni_ops_p2_worker_attest_subject_later_held_v1(uuid,uuid,uuid,text,uuid)'::regprocedure,
+  'EXECUTE')
+ THEN RAISE EXCEPTION 'Later first-party Subject attribution append-only or ACL missing'; END IF;
+ IF position('later_signed_worker_subject_claim' IN
+   pg_catalog.pg_get_functiondef(
+    'atlas.uni_ops_p2_governor_original_custody_preflight_held_v1(uuid,uuid,uuid)'::regprocedure)
+ )=0
+ THEN RAISE EXCEPTION 'P2 original review would falsely require native object link absent from live worker logs'; END IF;
+
  RAISE NOTICE 'P2 structural ownership/ACL only; signed source evidence/Work non-creation remains DEFERRED';
 END;
 $post$;
