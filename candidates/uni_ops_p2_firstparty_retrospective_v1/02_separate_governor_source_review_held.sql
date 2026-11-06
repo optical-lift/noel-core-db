@@ -44,16 +44,30 @@ CREATE TABLE atlas.uni_ops_p2_governor_activity_review_events_v1 (
    'testimony_rejected')),
  matched_original_work_item_id uuid REFERENCES atlas.work_items(id)
    ON DELETE RESTRICT,
+ -- Database original establishment timestamp, NEVER backdated performed_at.
+ matched_source_rhythm_state_id uuid REFERENCES atlas.rhythm_state(id)
+   ON DELETE RESTRICT,
+ matched_original_established_at timestamptz,
+ matched_original_created_before_log_record boolean,
+ matched_original_source_checked_at timestamptz,
  reason text NOT NULL CHECK(pg_catalog.char_length(reason) BETWEEN 12 AND 2000),
  source_report_snapshot_md5 text NOT NULL
    CHECK(source_report_snapshot_md5 ~ '^[0-9a-f]{32}$'),
  reviewer_recorded_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
  CHECK(
    (outcome='existing_original_needs_separate_adjudication'
-     AND matched_original_work_item_id IS NOT NULL)
+     AND matched_original_work_item_id IS NOT NULL
+     AND matched_source_rhythm_state_id IS NOT NULL
+     AND matched_original_established_at IS NOT NULL
+     AND matched_original_created_before_log_record IS NOT NULL
+     AND matched_original_source_checked_at IS NOT NULL)
    OR
    (outcome<>'existing_original_needs_separate_adjudication'
-     AND matched_original_work_item_id IS NULL))
+     AND matched_original_work_item_id IS NULL
+     AND matched_source_rhythm_state_id IS NULL
+     AND matched_original_established_at IS NULL
+     AND matched_original_created_before_log_record IS NULL
+     AND matched_original_source_checked_at IS NULL))
 );
 CREATE INDEX uni_ops_p2_review_by_report_v1
  ON atlas.uni_ops_p2_governor_activity_review_events_v1(
@@ -225,6 +239,10 @@ BEGIN
     OR v_review.reason IS DISTINCT FROM v_reason
     OR v_review.matched_original_work_item_id IS DISTINCT FROM
       p_matched_existing_work_item_id
+    OR v_review.matched_original_established_at IS DISTINCT FROM
+      v_existing.created_at
+    OR v_review.matched_source_rhythm_state_id IS DISTINCT FROM
+      v_subject.id
   THEN RAISE EXCEPTION 'Immutable retrospective review replay conflicts with source'
    USING ERRCODE='23505';
   END IF;
@@ -243,12 +261,20 @@ BEGIN
  INSERT INTO atlas.uni_ops_p2_governor_activity_review_events_v1(
   report_id,organization_id,ledger_id,farm_id,source_action_id,
   previous_review_event_id,reviewing_person_id,reviewing_user_id,
-  outcome,matched_original_work_item_id,reason,source_report_snapshot_md5)
+  outcome,matched_original_work_item_id,
+  matched_source_rhythm_state_id,matched_original_established_at,
+  matched_original_created_before_log_record,
+  matched_original_source_checked_at,reason,source_report_snapshot_md5)
  VALUES(
   v_report.id,v_report.organization_id,p_ledger_id,v_report.farm_id,
   p_action_id,p_expected_previous_review_id,v_root,v_uid,
-  p_outcome,p_matched_existing_work_item_id,v_reason,
-  v_report.source_summary_snapshot_md5)
+  p_outcome,p_matched_existing_work_item_id,
+  v_subject.id,v_existing.created_at,
+  CASE WHEN v_existing.id IS NULL THEN NULL
+       ELSE v_existing.created_at<=v_report.source_log_recorded_at END,
+  CASE WHEN v_existing.id IS NULL THEN NULL
+       ELSE pg_catalog.clock_timestamp() END,
+  v_reason,v_report.source_summary_snapshot_md5)
  RETURNING * INTO v_review;
  RETURN jsonb_build_object(
   'ok',true,'contractVersion','p2_governor_source_review_v1',
@@ -256,9 +282,11 @@ BEGIN
   'outcome',v_review.outcome,
   'existingOriginalIdSelected',
      v_review.matched_original_work_item_id IS NOT NULL,
+  'matchedOriginalEstablishedAt',v_review.matched_original_established_at,
+  'sourceLogRecordedAt',v_report.source_log_recorded_at,
   'existingOriginalPrecededLogRecord',
-     CASE WHEN v_existing.id IS NULL THEN NULL
-       ELSE v_existing.created_at<=v_report.source_log_recorded_at END,
+    v_review.matched_original_created_before_log_record,
+  'sourceReconciledAt',v_review.matched_original_source_checked_at,
   'chronologyIsNotProofOfActualExecution',true,
   'physicalActualAccepted',false,'originalWorkCreated',false,
   'doneCreated',false,'pastAuthorityFabricated',false,
