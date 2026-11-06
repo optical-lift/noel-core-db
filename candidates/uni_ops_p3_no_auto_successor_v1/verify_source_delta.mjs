@@ -16,6 +16,7 @@ assert.equal(fn.indexOf("if coalesce(p_trigger_kind,'clock') in",first+1),-1);
 const block=fn.slice(first,last+"      end if;".length);
 assert.match(block,/'workflow_precheck','workflow_result'/);
 assert.match(block,/'game_master_precheck','game_master_satisfaction'/);
+assert.match(block,/'activation_prerequisite_completed'/);
 assert.match(block,/'qualified_evaluation_no_successor'/);
 assert.match(block,/v_task_result := atlas\.ensure_rhythm_task_v1\(/);
 const restored=fn.replace(block,"v_task_result := atlas.ensure_rhythm_task_v1(v_state.id, v_next_state, v_boundary_at);");
