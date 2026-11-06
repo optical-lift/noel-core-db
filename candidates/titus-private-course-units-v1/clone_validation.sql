@@ -13,7 +13,7 @@ BEGIN
  FOREACH f IN ARRAY ARRAY[
    'public.titus_customer_outline_read_self_api_v1(uuid)',
    'public.titus_customer_unit_create_self_api_v1(uuid,uuid,text,text)',
-   'public.titus_customer_unit_move_self_api_v1(uuid,text)',
+   'public.titus_customer_unit_move_self_api_v1(uuid,uuid,text)',
    'public.titus_customer_unit_read_self_api_v1(uuid)',
    'public.titus_customer_unit_save_self_api_v1(uuid,uuid,integer,text)']
  LOOP
