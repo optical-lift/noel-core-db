@@ -1,0 +1,105 @@
+{
+  "contractVersion": 1,
+  "title": "UNI-OPS-01 typed Household native source genuine signed acceptance",
+  "asOf": "2026-11-06",
+  "status": "SIGNED_DISPOSABLE_NONFARM_NATIVE_SOURCE_PASSED__CANONICAL_DOMAIN_AND_PRODUCTION_HELD",
+  "sourceOwner": "Noel",
+  "atlasIntegrationIssue": 532,
+  "heldTypedSource": {
+    "pr": 2559,
+    "head": "416378d8207e4efdfe8e6a680bd33b4777945dab",
+    "draft": true,
+    "merged": false,
+    "candidate": {
+      "path": "candidates/atlas_uni_ops_universal_typed_household_evidence_v1/candidate.sql",
+      "gitBlobSha1": "392f42dc9c3866b5649c181c3a32f412f47924d6"
+    },
+    "postconditions": {
+      "path": "candidates/atlas_uni_ops_universal_typed_household_evidence_v1/postconditions.sql",
+      "gitBlobSha1": "1ffcef69a6f27b71b55a58996e874b68d41c5a8a"
+    },
+    "sourceContractTests": {
+      "path": "tests/atlas-uni-ops-typed-household-native-source.test.mjs",
+      "gitBlobSha1": "da767085903abdb100e506cabd53e33465b0e4bd"
+    }
+  },
+  "unchangedUniversalCommon": {
+    "pr": 2555,
+    "head": "848f14c6b96a4745eb28c97c413b2d0e7cbb2c4f",
+    "candidateBlob": "9e3dd3c9edda725aeb2c8d480996d64ec272486c"
+  },
+  "unchangedU1A": {
+    "pr": 2465,
+    "head": "f9c372d3487ea6af4d29a4ee3b22579b9d94c5ae",
+    "candidateBlob": "c7df9269a0726732b27e88764b04fabe0039aee5"
+  },
+  "fictionalFoundation": {
+    "pr": 2487,
+    "head": "9af4ab9b203877f048af09e23bac58bf86cd58fe",
+    "c1FixtureBlob": "e877d93323ddc67d8778be8bea1dfa34319cc85c"
+  },
+  "verifiedCi": {
+    "sourceContractRun": 42264248699,
+    "sourceDatabaseCustodyRun": 42264248519,
+    "testOnlyCarrierPr": 2560,
+    "testOnlyCarrierMergedMain": "66d7b8f113d003f54a9fda8302cdf33b49cb6a88",
+    "testOnlyCarrierWorkflowBlob": "2e1aa258779a188d0fb706e78bb94a075cf55f7a",
+    "testOnlySignedProbeBlob": "f6c507f7d49187def5c507038cc48c89df8b679c",
+    "testOnlySignedWrapperBlob": "be75d5e2236e7ebfcd2114d1bcaf1a4b10574ff6",
+    "testOnlySourceContractRun": 42265038379,
+    "testOnlyDatabaseCustodyRun": 42265038195,
+    "ownerRequestIssue": 2561,
+    "signedRunId": 42265271242,
+    "signedRunConclusion": "success",
+    "artifactId": 13527202184
+  },
+  "artifactVerified": {
+    "archiveSha256": "fbf13e64e80d8b7af4906f665a7a62ef29ca18c32349c69385468551dbae9331",
+    "typedNativeSummarySha256": "b6b6b9ad89f843c71f928b56d609f4309733cd283c865ed5910597ac85c75f62",
+    "typedNativeLogSha256": "c0571fafc796d1978bf31f7b6e99a786274398f3e02e6ca1f28a2391405c8791",
+    "unchangedU1ASummarySha256": "582a8576e112096e08be463b0efd94e7b932fba53605b3586cd8bbf81d8d156b",
+    "unchangedCommonSummarySha256": "b50f97aaa0e75b330c99a4a9547e3e48117ad723ec44c9bf4998b4c166f652a5",
+    "postconditionsLogSha256": "878d74dc83bcc50337ae179753d727f8b7bec66df10dd294ba19a91ec5236d6a",
+    "summarySha256": "00c6bea22e73224181947a90ee10a6fab7888cc35515150bed6e59b32931209f",
+    "lintDeltaSha256": "b14805de091822bcbffc724e3794fef5dd73d3722eeb136b17a38a24879b4882",
+    "cleanupSha256": "8eaee8c00f04592d00bcde372bf94e4e4a3a5237a6b848311e58612736819d89",
+    "lintBefore": 14,
+    "lintAfter": 14,
+    "introducedLintErrors": 0,
+    "localServicesStopped": true
+  },
+  "tested": [
+    "exact original U1A current signed Ledger root + independent Foundry reviewer adoption/replay/concurrency/retire passed unchanged",
+    "exact prior universal common signed root/wrong actor/Requirement/Ledger/anonymous/revoked-session tests passed unchanged",
+    "first-party genuinely signed native Household governor admits only the known exact active synthetic native Household/kernel",
+    "genuinely signed Household worker with user-editable owner metadata and actual active household membership denied governance",
+    "separately signed outsider and no-seat Persons and anonymous caller denied",
+    "wrong Household identifier, wrong kernel identifier and deleted current GoTrue session denied",
+    "native current observed-condition flag false and open-Need source flag false, with zero invented observation or native Need",
+    "canonical Reality binding, common Requirement, independent Foundry review, domain admission, policy adoptable/executable, Work, Clock and successor flags all false",
+    "private Household source no anon/authenticated/service_role direct EXECUTE, only ephemeral synthetic authenticated transport",
+    "no newly created or changed Household Work/Need/observation or any original Work Requirement/Rulebook version due to adapter probe",
+    "U1A/common/typed Household structural source checks, cleanup and lint passed on disposable production-schema-shaped database"
+  ],
+  "liveReadOnlyPostTest": {
+    "activeHouseholds": 4,
+    "activeNativeHouseholdKernelInstances": 1,
+    "householdCareObservations": 0,
+    "openHouseholdNeeds": 0,
+    "canonicalRealityLinkedActiveWorkRequirements": 0,
+    "typedNativeFunctionInstalled": false,
+    "universalCommonFunctionInstalled": false,
+    "U1AVersionsTableInstalled": false
+  },
+  "explicitlyNotProven": [
+    "current real nonfarm observed condition and source-positive open Need",
+    "independently adjudicated canonical Reality Household Subject plus exact native source binding",
+    "current native Household Subject identity and condition disclosure in a shared universal authority resolver",
+    "original independently approved Foundry Event authorizing a real nonfarm Rulebook",
+    "full U1A/U1B one Rulebook authority and signed U2 first offer/recipient acceptance/one original",
+    "actual independent second-domain end-to-end Work/Actual/Done and future Need",
+    "current UI signed real household Person/worker proof",
+    "source-reviewed canonical CLI migration and separate exact production release authorization"
+  ],
+  "disposition": "Native nonfarm source current signed governance and denials are proven in a synthetic disposable setting. Held product source remains draft/unmerged; no production SQL, identity, Work, Need, observation, policy, role, grant, or deployment. No accepted Actual auto-issues successor Work."
+}
