@@ -1,0 +1,137 @@
+name: Titus Course Studio — protected read-only production-shaped clone (held)
+
+on:
+  push:
+    branches: [candidate/titus-private-course-units-v1-20261105]
+    paths:
+      - 'candidates/titus-private-course-units-v1/candidate.sql'
+      - 'candidates/titus-private-course-units-v1/clone_validation.sql'
+      - 'candidates/titus-private-course-units-v1/postconditions.sql'
+      - 'candidates/titus-private-course-units-v1/negative_postconditions.sql'
+      - '.github/workflows/titus-private-course-units-production-shaped-clone.yml'
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: titus-private-units-production-shaped-clone
+  cancel-in-progress: false
+
+jobs:
+  production-shaped-clone:
+    if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/candidate/titus-private-course-units-v1-20261105'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 35
+    steps:
+      - name: Checkout the exact held candidate with no persistent write credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Confirm isolated source-only branch and candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REPOSITORY}" == 'optical-lift/noel-core-db' ]]
+          [[ "${GITHUB_REF}" == 'refs/heads/candidate/titus-private-course-units-v1-20261105' ]]
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]]
+          test -s candidates/titus-private-course-units-v1/candidate.sql
+          test -s candidates/titus-private-course-units-v1/clone_validation.sql
+          test ! -e supabase/migrations/20261105235555_titus_private_course_units_v1.sql
+          ! git diff --name-only HEAD | grep .
+          echo "PASS: held candidate only, no committed migration or live schema mutation"
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = "2.116.0"
+          supabase db dump --help >/dev/null
+          supabase migration new --help >/dev/null
+          supabase db start --help >/dev/null
+      - name: Authenticate GitHub registry pulls only
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Snapshot production roles and user schema READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "${NOEL_CORE_DATABASE_URL:-}"
+          umask 077
+          mkdir -p "$RUNNER_TEMP/titus-unit-clone"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only \
+            --file "$RUNNER_TEMP/titus-unit-clone/production-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/titus-unit-clone/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/titus-unit-clone/production-roles.sql"
+          test -s "$RUNNER_TEMP/titus-unit-clone/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/titus-unit-clone/production-roles.sql" \
+            "$RUNNER_TEMP/titus-unit-clone/production-user-schema.sql" \
+            | sed "s|$RUNNER_TEMP/|protected-temp/|g"
+          # The connection string exists in this step ONLY; never pass it to
+          # the local validation step, outputs, artifacts, commands or logs.
+      - name: Generate temporary validation-only migration identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/titus-unit-clone"
+          mkdir -p "$scratch/temporary-source"
+          (cd "$scratch/temporary-source" && supabase init --force >/dev/null)
+          (cd "$scratch/temporary-source" && supabase migration new titus_private_course_units_v1 >/dev/null)
+          mapfile -t files < <(find "$scratch/temporary-source/supabase/migrations" \
+            -maxdepth 1 -type f -name '*_titus_private_course_units_v1.sql' -print)
+          [[ "${#files[@]}" -eq 1 ]]
+          filename="$(basename "${files[0]}")"
+          [[ "$filename" =~ ^[0-9]{14}_titus_private_course_units_v1[.]sql$ ]]
+          version="${BASH_REMATCH[0]:0:14}"
+          cp candidates/titus-private-course-units-v1/candidate.sql "${files[0]}"
+          cmp -s candidates/titus-private-course-units-v1/candidate.sql "${files[0]}"
+          {
+            echo "TITUS_VALIDATION_ONLY_VERSION=$version"
+            echo "TITUS_VALIDATION_CANDIDATE=${files[0]}"
+          } >> "$GITHUB_ENV"
+          echo "PASS temporary CLI-generated validation identity (NOT a release version)"
+      - name: Apply candidate only in the disposable production-shaped clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset NOEL_CORE_DATABASE_URL DATABASE_URL SUPABASE_DB_URL PGPASSWORD
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${TITUS_VALIDATION_ONLY_VERSION:?}" \
+            --release-lane titus \
+            --candidate-migration "${TITUS_VALIDATION_CANDIDATE:?}" \
+            --candidate-validation candidates/titus-private-course-units-v1/clone_validation.sql \
+            --roles-dump "$RUNNER_TEMP/titus-unit-clone/production-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/titus-unit-clone/production-user-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/titus-unit-clone/diagnostics"
+          echo 'PASS: production-shaped clone applied candidate locally, no live DDL'
+      - name: Summarize protected results without leaking schema or source records
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          file="$RUNNER_TEMP/titus-unit-clone/diagnostics/summary.md"
+          if [[ -s "$file" ]]; then
+            sed -n '1,75p' "$file" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No completed production-shaped clone summary: examine failing step' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Cleanup private snapshots and local diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/titus-unit-clone"
+          if [[ -d "$scratch" ]]; then rm -rf -- "$scratch"; fi
