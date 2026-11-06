@@ -1,0 +1,457 @@
+name: HELD #2505 native Person signed shared Event checklist Done (test only)
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request:
+    paths:
+      - '.github/workflows/held-native-person-shared-event-done-signed-clone.yml'
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read  # exact draft PR #2487 head preflight is read-only
+
+concurrency:
+  group: noel-core-held-native-person-shared-event-done-signed-clone
+  cancel-in-progress: false
+
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify owner issue gate and absence of production writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-native-person-shared-event-done-signed-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path('.github/workflows/held-native-person-shared-event-done-signed-clone.yml').read_text()
+          gate=w.split('  validate:\n',1)[1]
+          assert gate.count('github.actor == github.repository_owner &&')==2
+          assert gate.count("github.event.issue.author_association == 'OWNER'")==2
+          assert gate.count("github.event.issue.title == 'UNI-OPS-01 signed shared Event checklist Done clone request'")==2
+          assert gate.count('environment: production')==1
+          assert 'proof: [signed_shared_event_done]' in gate
+          assert gate.index('Snapshot production user schemas read-only') < gate.index('Checkout immutable candidate')
+          assert 'verify_release_packet.mjs --check' in gate
+          assert 'postconditions.sql' in gate
+          assert 'Pin and narrow trusted signed original Work test to current source authority' in gate
+          assert 'No release was performed' in gate
+          assert 'Attach independent shared Event signed proof AFTER canonical Event scheduler' in gate
+          print('PASS owner-gated shared Event Done signed runner source contract; test-only')
+          PY
+
+  validate:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS-01 signed shared Event checklist Done clone request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        proof: [signed_shared_event_done]
+    environment: production
+    timeout-minutes: 30
+    # Use pinned Supabase CLI's image-registry fallback when a registry throttles.
+    # Read-only GHCR authentication remains in the protected workflow.
+    steps:
+      - name: Resolve governed validation request
+        id: request
+        shell: bash
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          title = os.environ.get('ISSUE_TITLE', '')
+          body = os.environ.get('ISSUE_BODY', '')
+          fields = {}
+          for raw in body.splitlines():
+              match = re.fullmatch(r'([a-z_]+):\s*([^\s]+)\s*', raw)
+              if match:
+                  key, value = match.groups()
+                  if key in fields and fields[key] != value:
+                      raise SystemExit(f'duplicate conflicting field: {key}')
+                  fields[key] = value
+
+          required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha', 'diagnostic_scope')
+          missing = [key for key in required if key not in fields]
+          if missing:
+              raise SystemExit('missing required validation field(s): ' + ', '.join(missing))
+
+          version = fields['migration_version']
+          lane = fields['release_lane']
+          target = fields['production_target']
+          candidate_sha = fields['candidate_sha'].lower()
+
+          if not re.fullmatch(r'\d{14}', version):
+              raise SystemExit('migration_version must be exactly 14 digits')
+          if lane not in {'atlas', 'wnph', 'titus', 'noel', 'shared'}:
+              raise SystemExit('release_lane must be atlas, wnph, titus, noel, or shared')
+          if target != 'zirqkouammpwxlqfbsvf':
+              raise SystemExit('production_target does not match noel-core production')
+          if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha):
+              raise SystemExit('candidate_sha must be an immutable 40-character commit SHA')
+
+          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'titus': 'Titus', 'noel': 'Noel', 'shared': 'Shared'}[lane]
+          if version != '20261028235811' or lane != 'atlas' or fields['diagnostic_scope'] != 'native_person_shared_event_checklist_done_signed':
+              raise SystemExit('Only source-pinned unversioned Person completion packet admitted')
+          expected_title = 'UNI-OPS-01 signed shared Event checklist Done clone request'
+          if title != expected_title:
+              raise SystemExit(f'issue title must be exactly: {expected_title}')
+
+          output = Path(os.environ['GITHUB_OUTPUT'])
+          with output.open('a', encoding='utf-8') as handle:
+              handle.write(f'migration_version={version}\n')
+              handle.write(f'release_lane={lane}\n')
+              handle.write(f'candidate_sha={candidate_sha}\n')
+          PY
+
+      - name: Checkout canonical main validator
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Verify custody and schema-validation contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+          supabase db dump --help >/dev/null
+          supabase db start --help >/dev/null
+          supabase db lint --help >/dev/null
+
+      - name: Authenticate read-only GHCR image pulls
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      - name: Fail closed unless clean-mainline Person packet #2522 and immutable head match
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ steps.request.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          test "$EXPECTED_HEAD" != ""
+          status="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2522" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+          test "$status" = "open|true|candidate/atlas-native-person-completion-mainline-20261105|$EXPECTED_HEAD" ||
+            { echo "::error::Native packet draft changed or not pinned to exact source"; exit 1; }
+
+      - name: Snapshot production user schemas read-only
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NOEL_CORE_DATABASE_URL:-}" ]]; then
+            echo '::error::The protected production environment is missing NOEL_CORE_DATABASE_URL.'
+            exit 1
+          fi
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only \
+            --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/production-custom-roles.sql"
+          sha256sum "$RUNNER_TEMP/production-user-schema.sql"
+
+      - name: Checkout immutable candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.candidate_sha }}
+          path: candidate
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Assemble exact unversioned release packet in disposable scratch
+        id: migration
+        shell: bash
+        env:
+          MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+        run: |
+          set -euo pipefail
+          test "$MIGRATION_VERSION" = "20261028235811"
+          test "$RELEASE_LANE" = "atlas"
+          test ! -e candidate/supabase/migrations/20261028235811_atlas_native_person_completion_release_packet_v1.sql
+          node candidate/candidates/atlas_native_person_completion_release_packet_v1/verify_release_packet.mjs --check
+          (cd candidate && node --test tests/atlas-native-person-completion-release-packet-source.test.mjs)
+          source=candidate/candidates/atlas_native_person_completion_release_packet_v1/candidate.sql
+          post=candidate/candidates/atlas_native_person_completion_release_packet_v1/postconditions.sql
+          test -s "$source" && test -s "$post"
+          test "$(git -C candidate hash-object candidates/atlas_native_person_completion_release_packet_v1/candidate.sql)" = \
+            "49eab6550a001726faaadd8f8123c0b278ba8867"
+          test "$(sha256sum "$source" | cut -d' ' -f1)" = \
+            "2119bfb444723b13300908825cc4b936ffa3c27b7e983e337d1c98a128e13bf2"
+          candidate_migration="$RUNNER_TEMP/20261028235811_atlas_universal_original_work_integrated_v1.sql"
+          cp "$source" "$candidate_migration"
+          chmod 600 "$candidate_migration"
+          cmp "$source" "$candidate_migration"
+          bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
+          python3 - "$candidate_migration" <<'PY'
+          from pathlib import Path
+          import sys
+          s=Path(sys.argv[1]).read_text()
+          assert s.startswith('BEGIN;\n') and s.endswith('\nCOMMIT;\n')
+          assert 'CLONE TEST ONLY' not in s and 'e5200000' not in s
+          assert 'historical_self_adoption_review_events_v1' not in s
+          assert "p_transition_kind IS DISTINCT FROM 'complete'" in s
+          assert 'Current native responsible Person required' in s
+          assert 'Historical self-adopted responsibility requires native reconciliation' in s
+          assert 'recognize_assigned_care_activity_self_api_v1' not in s
+          print('PASS exact unversioned native-only original Work completion packet; no clone fixture')
+          PY
+          sha256sum "$candidate_migration" "$post"
+          echo "path=$candidate_migration" >> "$GITHUB_OUTPUT"
+          echo "validation_path=$post" >> "$GITHUB_OUTPUT"
+          # Historical canonical fixture has a Worker Person but no principal;
+          # production source's signed Work-Day planner requires both identities.
+          # Add ONLY the matching fictional identity record to a runner-temp COPY.
+          # This is neither a Ledger authority nor an additional Work entitlement.
+          original=validation/fixtures/20261026215011_atlas_universal_original_work_integrated_v1.sql
+          test "$(git hash-object "$original")" = e877d93323ddc67d8778be8bea1dfa34319cc85c
+          fixture="$RUNNER_TEMP/20261028235811_atlas_native_person_signed_fixture_v1.sql"
+          cp "$original" "$fixture"
+          cat >> "$fixture" <<'SQL'
+          -- TEST ONLY: linked existing synthetic Worker Person and existing signed Auth.
+          INSERT INTO atlas.principals(id,user_id,person_id,stable_key,name,status)
+          VALUES ('e5200000-0000-4000-8000-000000000112',
+                  'e5200000-0000-4000-8000-000000000002',
+                  'e5200000-0000-4000-8000-000000000102',
+                  'c1-validation-worker-principal','Validation Worker','active');
+          SQL
+          chmod 600 "$fixture"
+          echo "fixture_path=$fixture" >> "$GITHUB_OUTPUT"
+
+      - name: Verify trusted canonical schema validator and no signer substitution
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s scripts/validate-production-schema-clone.sh
+          test -s candidate/candidates/atlas_native_person_completion_release_packet_v1/postconditions.sql
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('scripts/validate-production-schema-clone.sh').read_text()
+          assert 'psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration"' in s
+          assert 'psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_validation"' in s
+          assert 'supabase stop --no-backup' in s
+          assert 'signed_care_single_done_probe=false' in s
+          assert "signed_universal_original_work_probe=true" in s
+          assert 'validate-atlas-universal-original-work-signed-http.py' in s
+          assert 'validate-atlas-one-event-schedule-writer-signed-http.py' in s
+          print('PASS trusted original Work signed GoTrue/REST matrix routing')
+          PY
+
+      - name: Pin and narrow trusted signed original Work test to current source authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object scripts/validate-atlas-universal-original-work-signed-http.py)" = "1e6a739e4e39717aabdcb82d1b7bb33852965e81"
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('scripts/validate-atlas-universal-original-work-signed-http.py')
+          source=path.read_text()
+          anchor='    print("PASS signed undated original Work responsibility, disclosure and no plan")\n'
+          assert source.count(anchor)==1, 'Trusted signed original Work test changed'
+          insert='''
+              # Current source law: an accepted responsible Person is NOT automatically
+              # the governing scheduler. Prove the governor-only scheduling refusal.
+              current_day=dict(p_work_item_id=bed4,p_service_date="2030-10-31",
+                               p_reason="Responsible Person seeks to place this Work.")
+              status,blocked=rpc(api,key,worker,"connected_person_place_work_self_api_v1",current_day)
+              check(status==403 and isinstance(blocked,dict)
+                    and blocked.get("code")=="42501"
+                    and blocked.get("message")=="Root governing authority over Ledger required.",
+                    "Current governor-only scheduling authority did not refuse worker placement")
+              check(sql(args.db_url,f"select count(*) from atlas.work_execution_plans where work_item_id='{bed4}'::uuid")=="0",
+                    "Denied worker date placement must create no plan")
+              print("PASS signed non-governor responsible Person cannot place Work on a date")
+              Path(args.output).write_text(
+                 "PASS signed native original Work completion and governor-only scheduling denial\\n"
+                 "NOT TESTED: outdated worker-schedules-own-Work sequence, ordinary third Work, "
+                 "Household Laundry, shared Event checklist Done or production\\n")
+              return
+          '''
+          changed=source.replace(anchor,anchor+insert)
+          assert changed.count('PASS signed native original Work completion and governor-only scheduling denial')==1
+          path.write_text(changed)
+          print('PASS trusted signed source pinned, exact one-insertion scoped oracle')
+          PY
+          python3 -m py_compile scripts/validate-atlas-universal-original-work-signed-http.py
+
+      - name: Attach independent shared Event signed proof AFTER canonical Event scheduler
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object scripts/validate-atlas-one-event-schedule-writer-signed-http.py)" = "b9cc90c265b2efed663e11375722e6d3c0173cc3"
+          test -s tests/held_native_person_shared_event_done_signed.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/validate-atlas-one-event-schedule-writer-signed-http.py')
+          old=p.read_text()
+          marker='    print("PASS signed local canonical Event write acceptance")\n'
+          assert old.count(marker)==1, 'Trust boundary: canonical scheduler signed oracle drifted'
+          addition='''    # TEST-ONLY: after canonical Event scheduler and its signed denials,
+              # prove the separately existing shared checklist DONE path with true sessions.
+              import subprocess
+              subprocess.run([
+                  "python3",
+                  str(Path(__file__).resolve().parents[1] /
+                      "tests" / "held_native_person_shared_event_done_signed.py"),
+                  "--db-url", args.db_url,
+                  "--output", str(Path(args.output).with_name(
+                      "signed-shared-event-done-summary.txt")),
+              ], check=True)
+          '''
+          result=old.replace(marker,marker+addition)
+          assert result.count('signed-shared-event-done-summary.txt')==1
+          p.write_text(result)
+          print('PASS original signed Event oracle pinned; only local additive test AFTER existing source regression')
+          PY
+          python3 -m py_compile \
+            scripts/validate-atlas-one-event-schedule-writer-signed-http.py \
+            tests/held_native_person_shared_event_done_signed.py
+
+      - name: Validate source packet with genuine signed original Work and Event schedule matrix
+        id: validation
+        shell: bash
+        env:
+          MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+          CANDIDATE_MIGRATION: ${{ steps.migration.outputs.path }}
+          CANDIDATE_FIXTURE: ${{ steps.migration.outputs.fixture_path }}
+          CANDIDATE_VALIDATION: ${{ steps.migration.outputs.validation_path }}
+        run: |
+          set -euo pipefail
+          args=(
+            --migration-version "$MIGRATION_VERSION"
+            --release-lane "$RELEASE_LANE"
+            --candidate-migration "$CANDIDATE_MIGRATION"
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql"
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql"
+            --artifacts-dir "$RUNNER_TEMP/production-schema-validation-artifacts"
+          )
+          if [[ -n "${CANDIDATE_FIXTURE:-}" ]]; then
+            args+=(--candidate-fixture "$CANDIDATE_FIXTURE")
+          fi
+          if [[ -n "${CANDIDATE_VALIDATION:-}" ]]; then
+            args+=(--candidate-validation "$CANDIDATE_VALIDATION")
+          fi
+          bash scripts/validate-production-schema-clone.sh "${args[@]}"
+
+      - name: Require genuine signed original Work reporter and Event schedule receipts
+        shell: bash
+        env:
+          PROOF: ${{ matrix.proof }}
+        run: |
+          set -euo pipefail
+          test "$PROOF" = signed_shared_event_done
+          dir="$RUNNER_TEMP/production-schema-validation-artifacts"
+          test -s "$dir/postconditions.log"
+          grep -q 'PASS native completion-only source: single Work writer, Person authority, old writer cutover, historical cancel held' "$dir/postconditions.log"
+          test -s "$dir/signed-universal-original-work-summary.txt"
+          grep -q '^PASS signed native original Work completion and governor-only scheduling denial' "$dir/signed-universal-original-work-summary.txt"
+          test -s "$dir/signed-universal-original-work-event-regression.txt"
+          grep -q '^PASS' "$dir/signed-universal-original-work-event-regression.txt"
+          test -s "$dir/signed-shared-event-done-summary.txt"
+          grep -q '^PASS independently signed shared Event checklist original Work' "$dir/signed-shared-event-done-summary.txt"
+          test -s "$dir/schema-lint-delta.json"
+          test -s "$dir/summary.md"
+          printf '\nPASS scoped original Work + signed shared Event checklist state Done and replay, no claimed performer. NOT TESTED: full obsolete Work-day suite or production. No release was performed.\n' >> "$dir/summary.md"
+
+      - name: Publish validation summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/production-schema-validation-artifacts/summary.md"
+          if [[ -s "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '::error::The validation harness did not produce its required summary artifact.'
+            exit 1
+          fi
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: held-native-shared-event-done-signed-${{ steps.request.outputs.migration_version }}
+          path: ${{ runner.temp }}/production-schema-validation-artifacts
+          if-no-files-found: error
+          retention-days: 30
+
+  report-result:
+    name: Report clone outcome to request
+    needs: [validate]
+    if: >-
+      always() &&
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS-01 signed shared Event checklist Done clone request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    # This separate job has no protected environment and no database secrets.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish non-sensitive result and run link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUEST_NUMBER: ${{ github.event.issue.number }}
+          RESULT: ${{ needs.validate.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$RESULT" in
+            success|failure|cancelled|skipped) ;;
+            *) echo 'Unexpected validation status; refusing report.' >&2; exit 1 ;;
+          esac
+          gh issue comment "$REQUEST_NUMBER" --body "HELD #2505 native Person signed shared Event checklist Done result: **$RESULT**.
+
+          [View the full GitHub Actions run]($RUN_URL) to inspect the validation summary, migration diagnostics, lint delta, and any failed steps.
+
+          This run demands real signed shared Event checklist Done with no claimed performer, same-action replay, outsider/revoked denials and original client receipt on a disposable database. It does not approve production or cancellation."
