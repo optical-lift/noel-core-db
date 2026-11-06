@@ -177,6 +177,9 @@ begin
       'fieldHarvestObservationCount',v_field_observation_count,
       'externalIntakeLineCount',v_external_line_count,
       'ownerDecisionStillRequired',true,
+      'operationalOwnerReviewOnly',true,
+      'principalEscalationQualified',false,
+      'principalClockCandidateCreated',false,
       'ownerReviewWorkCreated',false,
       'workerPreparationReleased',false
     ),
