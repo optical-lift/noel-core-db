@@ -14,3 +14,8 @@ One future exact-source owner-approved disposable PG17/GoTrue/PostgREST assembly
 10. **Release isolation**: no unconditional public API/RLS grants, no direct generic client insertion, no migration until company-neutral source admission and genuine actor/negative security tests. Owner must accept operator and Principal UX separately.
 
 **These are acceptance criteria, not passed tests.**
+
+
+11. **No two decision authorities:** assembling universal case DDL when farm P3 17 independent decision table exists must stop; assembling P3 17 when universal case decision table exists must stop. Do not delete a farm history to get a green test; convert past events by an explicitly reviewed immutable-source bridge with original timestamps/actors preserved. Only one signed governing decision path may become production authoritative after integration.
+
+**No assembly test executed.**
