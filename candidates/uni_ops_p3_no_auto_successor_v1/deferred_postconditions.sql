@@ -47,6 +47,19 @@ BEGIN
  THEN
   RAISE EXCEPTION 'P3 private source receipt exposed to API role';
  END IF;
+ IF pg_catalog.to_regprocedure(
+  'atlas.uni_ops_legacy_rhythm_under_governed_rulebook_held_v1(uuid)'
+ ) IS NULL OR position(
+   'uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
+   pg_catalog.pg_get_functiondef(
+     'atlas.ensure_rhythm_task_v1(uuid,text,timestamptz)'::regprocedure)
+ )=0 OR position(
+   'uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
+   pg_catalog.pg_get_functiondef(
+     'atlas.guard_continuing_original_rhythm_old_carrier_v1()'::regprocedure)
+ )=0 THEN
+  RAISE EXCEPTION 'Governed Rulebook legacy task and direct insert guards are not assembled';
+ END IF;
  RAISE NOTICE 'P3 source contract structurally present; signed outcome/ACL/collision and no-DML verification remain HELD';
 END;
 $post$;
