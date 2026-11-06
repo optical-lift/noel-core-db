@@ -193,7 +193,10 @@ BEGIN
          current_decision='hold_for_new_observation',
       'workAlreadyAuthorizedByAttention',false,
       'workerAlreadyAssignedByAttention',false,
-      'clockAdmissionGranted',false
+      'clockAdmissionGranted',false,
+      'operationalOwnerAttentionOnly',true,
+      'principalEscalationQualified',false,
+      'universalCompanyDecisionCreated',false
     ) ORDER BY created_at DESC,id DESC)
     FILTER(WHERE pos<=25),'[]'::jsonb),
     coalesce(pg_catalog.bool_or(pos>25),false)
