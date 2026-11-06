@@ -64,3 +64,12 @@ U2E independently authorized nonhuman carrier is **UNBOUND**: root approval of a
 28. U2A #2482 currently supports **mowing `rhythm_state` only**, not Harvest batch, seed lot, goal or other independent Need. Test that P3 17 cannot create a fake rhythm state, offer, assignment or original and cannot cause a C1 Result/Done. A genuine separate source-governed non-rhythm accepted-first issuer and worker consent must be designed and signed before any harvest/seed Work release. Role/service_role or an owner's unreviewed note must never substitute.
 
 **All cases are future collected PG17/GoTrue/actor/security/human acceptance, NOT EXECUTED.**
+
+### Universal scope / no duplicated governor / Principal attention — deferred
+
+29. Across three unrelated legitimate Company types (e.g., manufacturing quality, client delivery, nonprofit grant restriction), prove a common source-governed decision + independently accepted original Work contract without `farm_id` or `rhythm_state` in canonical decision tables. Farm P3 must remain a source adapter, not the global definition.
+30. First-party routine Harvest bucket and seed inventory facts remain operational evidence, **not automatically Principal ClockCandidate**. P3 operational owner attention flags must remain false for Principal escalation; only separately signed policy/threshold and correct principal arbitration may raise one. Test delegated ordinary miss stays in Worker Day.
+31. Combined schema must reject a second independent governor decision history in BOTH installation orders (P3 17 first or universal #2567 first). Prior immutable farm decisions must be preserved during an explicitly reviewed one-history adapter migration—not erased or silently duplicated. Signed consent/Root source/Result source cannot be bypassed.
+32. U2A's `rhythm_key='mowing'` guard remains source true; no Harvest/Seed/Goal/HR/Contract case can create a bogus mowing candidate to issue Work. Independent accepted-first original source is still UNBUILT. Distinguish company root and technical agent and no automatic Next Work.
+
+**None of these signed integration cases ran.**
