@@ -1,0 +1,213 @@
+name: HELD UNI-OPS full-schema Company source assembly (owner issue only; no release)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-uni-ops-company-full-schema-owner-clone.yml'
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  packages: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: held-uni-ops-company-full-schema-owner
+  cancel-in-progress: false
+
+jobs:
+  review-source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify owner gate and absence of production mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-company-full-schema-owner-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path('.github/workflows/held-uni-ops-company-full-schema-owner-clone.yml').read_text()
+          protected=w.split('\n  validate-protected:\n',1)[1]
+          for required in (
+             "github.event.issue.author_association == 'OWNER'",
+             "github.actor == github.repository_owner",
+             "environment: production",
+             "diagnostic_scope",
+             "NOEL_CORE_DATABASE_URL",
+             "supabase db dump",
+             "scripts/validate-production-schema-clone.sh",
+             "prepare_protected_clone_candidate_held.py",
+             "6365371342b021406154f3646424497cc6f47f7e",
+             "candidate/uni-ops-universal-decision-boundary-20261106",
+          ):
+             assert required in protected,required
+          for forbidden in ('supabase db '+'push', 'supabase migration '+'up',
+                            'supabase db reset '+'--linked', 'apply_'+'migration',
+                            'secrets.SUPABASE_'+'SERVICE_ROLE_KEY'):
+             assert forbidden not in protected,forbidden
+          assert protected.index('Snapshot production user schemas read-only') < protected.index('Checkout exact held company source')
+          assert protected.index('Checkout exact held company source') < protected.index('Verify source and generate scratch SQL') < protected.index('Validate through canonical disposable schema clone')
+          print('PASS owner issue protected test gate and no production mutation path')
+          PY
+
+  validate-protected:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS-01 universal Company full-schema held test request'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Pin exact owner test request before accessing protected schema
+        id: request
+        shell: bash
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          fields={}
+          for raw in os.environ.get('ISSUE_BODY','').splitlines():
+              m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
+              if m:
+                  k,v=m.groups()
+                  if k in fields and fields[k]!=v: raise SystemExit('conflicting source ID')
+                  fields[k]=v
+          required=('diagnostic_scope','production_target','universal_head','p3_head')
+          if not all(x in fields for x in required):
+              raise SystemExit('missing exact owner-approved test source IDs')
+          if fields['diagnostic_scope']!='uni_ops_company_full_schema_held_v1':
+              raise SystemExit('this workflow does not admit any other release/diagnostic scope')
+          if fields['production_target']!='zirqkouammpwxlqfbsvf':
+              raise SystemExit('not the exact production READ-ONLY schema source')
+          if not re.fullmatch(r'[0-9a-f]{40}',fields['universal_head']):
+              raise SystemExit('universal source must be an immutable Git commit')
+          if fields['p3_head']!='f9ca3c44065a0d2f8a23821a583fcc0571d2d0fc':
+              raise SystemExit('P3 source head changed')
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
+              f.write('universal_head='+fields['universal_head']+'\n')
+              f.write('p3_head='+fields['p3_head']+'\n')
+          print('PASS owner submitted only the required HELD test scope')
+          PY
+
+      - name: Checkout canonical main validator
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: canonical
+          persist-credentials: false
+
+      - name: Verify original guarded schema-clone custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+
+      - name: Check both source PRs remain held and exact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_UNIVERSAL: ${{ steps.request.outputs.universal_head }}
+          EXPECTED_P3: ${{ steps.request.outputs.p3_head }}
+        run: |
+          set -euo pipefail
+          u="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2567" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
+          p="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2565" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
+          test "$u" = "open|true|candidate/uni-ops-universal-decision-boundary-20261106|$EXPECTED_UNIVERSAL"
+          test "$p" = "open|true|candidate/uni-ops-p3-result-no-successor-20261106|$EXPECTED_P3"
+          echo 'PASS exactly two draft held PRs, no moving source'
+
+      - name: Install pinned schema-clone CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -1)" = '2.116.0'
+
+      - name: Authenticate read-only container image pulls
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      - name: Snapshot production user schemas read-only
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          echo 'Read-only schema/roles dump completed; never publish contents as artifact'
+
+      - name: Checkout exact held company source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.universal_head }}
+          path: universal
+          persist-credentials: false
+
+      - name: Checkout exact held Farm source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.p3_head }}
+          path: p3
+          persist-credentials: false
+
+      - name: Verify source and generate scratch SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C universal hash-object --no-filters candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py)" = '6365371342b021406154f3646424497cc6f47f7e'
+          python3 -m py_compile universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py
+          python3 universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py \
+            --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
+            --output "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
+          test -s "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
+          test ! -e "canonical/supabase/migrations/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
+          echo 'PASS fixed nine-source scratch candidate; never generated a releasable migration'
+
+      - name: Validate through canonical disposable schema clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash canonical/scripts/validate-production-schema-clone.sh \
+            --migration-version 20261106235959 \
+            --release-lane atlas \
+            --candidate-migration "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql" \
+            --candidate-validation universal/candidates/uni_ops_universal_company_decision_v1/deferred_postconditions.sql \
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/uniops-company-clone-artifacts"
+
+      - name: Record safe summary without production schema exports
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/uniops-company-clone-artifacts/summary.md"
+          if test -s "$summary"; then cat "$summary" >> "$GITHUB_STEP_SUMMARY"; fi
+          echo 'No production SQL write, no release, no Person Work/Clock, no genuine signed GoTrue test.' >> "$GITHUB_STEP_SUMMARY"

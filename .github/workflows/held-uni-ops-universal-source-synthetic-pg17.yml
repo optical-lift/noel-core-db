@@ -1,0 +1,95 @@
+name: HELD UNI-OPS universal Company source — synthetic PG17 only
+
+on:
+  push:
+    branches:
+      - candidate/uni-ops-universal-decision-boundary-20261106
+    paths:
+      - 'candidates/uni_ops_universal_company_decision_v1/**'
+      - 'scripts/test-uni-ops-universal-held-pg17.sh'
+      - '.github/workflows/held-uni-ops-universal-source-synthetic-pg17.yml'
+  pull_request:
+    paths:
+      - 'candidates/uni_ops_universal_company_decision_v1/**'
+      - 'scripts/test-uni-ops-universal-held-pg17.sh'
+      - '.github/workflows/held-uni-ops-universal-source-synthetic-pg17.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: held-uni-ops-universal-synthetic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pg17-source:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact held candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify script and source-only custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -f candidates/uni_ops_universal_company_decision_v1/tests/synthetic_pg17_source_schema.sql
+          test -f candidates/uni_ops_universal_company_decision_v1/tests/synthetic_pg17_source_admission_checks.sql
+          bash -n scripts/test-uni-ops-universal-held-pg17.sh
+          bash -n candidates/uni_ops_universal_company_decision_v1/tests/assemble_protected_full_schema_clone_held.sh
+          if bash candidates/uni_ops_universal_company_decision_v1/tests/assemble_protected_full_schema_clone_held.sh --local-db-url 'postgresql://postgres:postgres@example.com:5432/postgres' --main-checkout . --p3-checkout . --universal-checkout . >/dev/null 2>&1; then
+            echo 'ERROR: protected clone script accepted remote database URL' >&2
+            exit 1
+          fi
+          echo 'PASS: protected assembly source syntax and remote-URL fail-closed preflight'
+          ! git diff --name-only "$GITHUB_SHA" -- supabase/migrations | grep .
+          echo 'Source-only candidate custody PASS; no production migration'
+      - name: Isolated PostgreSQL 17 source compilation and synthetic denials
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/test-uni-ops-universal-held-pg17.sh
+      - name: Explicit non-claim
+        if: always()
+        shell: bash
+        run: |
+          echo 'This job never uses production secrets or genuine GoTrue sessions.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Synthetic PG17 is not the protected RiverSong full-schema signed-clone gate.' >> "$GITHUB_STEP_SUMMARY"
+
+
+  assembly-source:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact current universal candidate (no credentials persisted)
+        uses: actions/checkout@v4
+        with:
+          path: universal
+          persist-credentials: false
+      - name: Checkout canonical main for exact already-reviewed custody blob
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: canonical
+          persist-credentials: false
+      - name: Checkout exact held P3 source SHA (no second governor)
+        uses: actions/checkout@v4
+        with:
+          ref: f9ca3c44065a0d2f8a23821a583fcc0571d2d0fc
+          path: p3
+          persist-credentials: false
+      - name: Verify isolated full-schema test SQL input without any database or credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py
+          python3 universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py \
+            --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
+            --output "$RUNNER_TEMP/held-uni-ops-universal-full-schema-test-only.sql"
+          test -s "$RUNNER_TEMP/held-uni-ops-universal-full-schema-test-only.sql"
+          ! grep -F 'uni_ops_p3_owner_attention_decision_events_v1 (' "$RUNNER_TEMP/held-uni-ops-universal-full-schema-test-only.sql"
+          echo 'PASS: pinned source assembly input only, never SQL execution or release'
