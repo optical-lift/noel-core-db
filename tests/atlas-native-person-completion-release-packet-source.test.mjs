@@ -35,7 +35,7 @@ test('must preserve old originals as historical observations before installing w
   const actor=committed.indexOf('CREATE OR REPLACE FUNCTION atlas.apply_work_lifecycle_transition_internal_v1(');
   const writer=committed.indexOf('CREATE OR REPLACE FUNCTION atlas.report_connected_person_company_work_internal_v1(');
   assert.ok(lock>0 && lock<seed && seed<trig && trig<actor && actor<writer);
-  assert.match(parts[1],/original source evidence/i);
+  assert.match(parts[1],/Historical baseline is a privileged custody operation/);
   assert.equal((committed.match(/SELECT atlas.seed_work_lifecycle_shadow_baseline_internal_v1\(\);/g)||[]).length,1);
 });
 test('postconditions require actual ACL, RLS, no cancellation and current original writer delegation',()=>{
