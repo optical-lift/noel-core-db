@@ -23,7 +23,7 @@ BEGIN
   course,'00000000-0000-4000-8000-000000000312','assignment','Homework 1');
  unit_b:=(outline->'units'->1->>'unitId')::uuid;
  IF jsonb_array_length(outline->'units')<>2 THEN RAISE EXCEPTION 'Unit create failed'; END IF;
- outline:=public.titus_customer_unit_move_self_api_v1(unit_b,'up');
+ outline:=public.titus_customer_unit_move_self_api_v1(course,unit_b,'up');
  IF (outline->'units'->0->>'unitId')::uuid<>unit_b THEN
   RAISE EXCEPTION 'Reorder was not source durable'; END IF;
  material:=public.titus_customer_unit_save_self_api_v1(
