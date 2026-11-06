@@ -12,8 +12,8 @@ const postconditions=readFileSync(resolve(ROOT,'postconditions.sql'),'utf8');
 
 test('immutable source-linked candidate exactly equals seven owner files in fixed order',()=>{
   assert.equal(buildReleasePacket(parts),committed);
-  assert.equal(verifyFromRepository().gitBlob,'203a4fb9309a3ff2af40dbb9df3e9d458e65ec82');
-  assert.equal(Buffer.byteLength(committed,'utf8'),65916);
+  assert.equal(verifyFromRepository().gitBlob,'49eab6550a001726faaadd8f8123c0b278ba8867');
+  assert.equal(Buffer.byteLength(committed,'utf8'),66562);
   assert.equal(parts.length,7);
   assert.ok(INPUTS.every((x,k)=>gitBlob(parts[k])===x.git));
 });
@@ -39,6 +39,17 @@ test('existing connected-Person result fields survive terminal Done and exact re
   assert.match(linked,/historicalRecordedCompletion',true/);
   assert.equal((linked.match(/apply_work_lifecycle_transition_internal_v1\(/g)||[]).length,2);
   assert.doesNotMatch(linked,/update atlas.work_items|set work_state='completed'/i);
+});
+test('existing Event checklist response projects one Done without claiming performer',()=>{
+  const shared=parts[6];
+  assert.equal((shared.match(/apply_work_lifecycle_transition_internal_v1\(/g)||[]).length,2);
+  assert.match(shared,/'resultId',v_result.id/);
+  assert.match(shared,/'acceptanceId',v_receipt.id/);
+  assert.match(shared,/'markedByPersonId',v_actor/);
+  assert.match(shared,/'physicalPerformerAsserted',false/);
+  assert.match(shared,/'eventReceipt',v_universal_receipt/);
+  assert.match(shared,/personalPerformanceNotClaimed',true/);
+  assert.doesNotMatch(shared,/update atlas.work_items|set work_state='completed'/i);
 });
 test('must preserve old originals as historical observations before installing writers',()=>{
   const lock=committed.indexOf('LOCK TABLE atlas.work_items,atlas.work_allocations,');
