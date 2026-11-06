@@ -56,7 +56,7 @@ jobs:
           assert protected.index('Checkout exact held company source') < protected.index('Verify source and generate scratch SQL') < protected.index('Validate through canonical disposable schema clone')
           import re
           for key in ('diagnostic_scope','production_target','universal_head','p3_head'):
-             assert re.fullmatch(r'([a-z0-9_]+):\\s*([a-zA-Z0-9_-]+)\\s*', key+': abc_123'), key
+             assert re.fullmatch(r'([a-z0-9_]+):\s*([a-zA-Z0-9_-]+)\s*', key+': abc_123'), key
           print('PASS validated numeric key p3_head along with exact owner issue source fields')
           print('PASS owner issue protected test gate and no production mutation path')
           PY
