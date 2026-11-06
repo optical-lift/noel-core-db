@@ -5,7 +5,7 @@ on:
     types: [opened, edited, reopened]
   pull_request:
     paths:
-      - 'held-native-person-completion-scope-signed-clone.yml'
+      - '.github/workflows/held-native-person-completion-scope-signed-clone.yml'
 
 permissions:
   contents: read
@@ -29,10 +29,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ruby -r yaml -e 'YAML.load_file("held-native-person-completion-scope-signed-clone.yml")'
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-native-person-completion-scope-signed-clone.yml")'
           python3 - <<'PY'
           from pathlib import Path
-          w=Path('held-native-person-completion-scope-signed-clone.yml').read_text()
+          w=Path('.github/workflows/held-native-person-completion-scope-signed-clone.yml').read_text()
           gate=w.split('  validate:\n',1)[1]
           assert gate.count('github.actor == github.repository_owner &&')==2
           assert gate.count("github.event.issue.author_association == 'OWNER'")==2
