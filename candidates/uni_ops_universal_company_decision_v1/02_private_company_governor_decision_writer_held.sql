@@ -25,7 +25,7 @@ DECLARE
  v_uid uuid:=auth.uid();
  v_person uuid:=atlas.current_person_id_v1();
  v_current_root uuid;
- v_reason text:=pg_catalog.nullif(pg_catalog.btrim(p_reason),'');
+ v_reason text:=NULLIF(pg_catalog.btrim(p_reason),'');
 BEGIN
  IF v_uid IS NULL OR v_person IS NULL OR p_case_id IS NULL
     OR p_action_id IS NULL OR p_outcome IS NULL
