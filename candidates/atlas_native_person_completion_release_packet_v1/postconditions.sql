@@ -89,6 +89,8 @@ BEGIN
     OR v_worker NOT LIKE '%apply_work_lifecycle_transition_internal_v1%'
     OR v_event NOT LIKE '%apply_work_lifecycle_transition_internal_v1%'
     OR v_event NOT LIKE '%personalPerformanceNotClaimed%'
+    OR v_event NOT LIKE '%eventReceipt%'
+    OR v_event NOT LIKE '%physicalPerformerAsserted%'
     OR v_legacy NOT LIKE '%Historical self-adopted Work is reference only%'
   THEN RAISE EXCEPTION 'Existing original-Work writer cutovers incomplete or reauthorized legacy'; END IF;
 
