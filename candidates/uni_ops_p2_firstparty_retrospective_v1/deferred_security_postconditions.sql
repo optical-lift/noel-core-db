@@ -55,6 +55,34 @@ BEGIN
   RAISE EXCEPTION 'P2 private source table RLS/FORCE RLS required';
  END IF;
 
+
+ -- Retrospective original-source custody requires actual linked firsthand
+ -- source and no direct Work writer in P2.
+ IF pg_catalog.to_regprocedure(
+  'atlas.uni_ops_p2_governor_original_custody_preflight_held_v1(uuid,uuid,uuid)'
+ ) IS NULL OR pg_catalog.to_regprocedure(
+  'atlas.uni_ops_p2_current_future_offer_separation_held_v1(uuid,uuid,uuid,uuid)'
+ ) IS NULL THEN
+   RAISE EXCEPTION 'P2 original-first source and independent U2 later-offer separation are missing';
+ END IF;
+ IF pg_catalog.has_function_privilege(
+  'authenticated',
+  'atlas.uni_ops_p2_governor_original_custody_preflight_held_v1(uuid,uuid,uuid)'::regprocedure,
+  'EXECUTE')
+  OR pg_catalog.has_function_privilege(
+  'service_role',
+  'atlas.uni_ops_p2_current_future_offer_separation_held_v1(uuid,uuid,uuid,uuid)'::regprocedure,
+  'EXECUTE')
+ THEN
+  RAISE EXCEPTION 'P2 original/future-offer private source was exposed';
+ END IF;
+ IF position('uni_ops_p2_governor_original_custody_preflight_held_v1' IN
+   pg_catalog.pg_get_functiondef(
+     'atlas.uni_ops_p2_governor_review_activity_self_api_v1(uuid,uuid,text,text,uuid,uuid,uuid)'::regprocedure)
+  )=0 THEN
+   RAISE EXCEPTION 'P2 matched-original governor review is not source-qualified';
+ END IF;
+
  RAISE NOTICE 'P2 structural ownership/ACL only; signed source evidence/Work non-creation remains DEFERRED';
 END;
 $post$;
