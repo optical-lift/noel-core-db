@@ -5,6 +5,7 @@
 CREATE SCHEMA atlas;
 CREATE SCHEMA auth;
 CREATE SCHEMA reality;
+CREATE SCHEMA ledger;
 CREATE ROLE anon NOLOGIN;
 CREATE ROLE authenticated NOLOGIN;
 CREATE ROLE service_role NOLOGIN;
@@ -13,6 +14,7 @@ CREATE TABLE auth.users(id uuid PRIMARY KEY);
 CREATE TABLE reality.entities(id uuid PRIMARY KEY);
 CREATE TABLE atlas.organizations(id uuid PRIMARY KEY,status text NOT NULL);
 CREATE TABLE atlas.ledgers(id uuid PRIMARY KEY,organization_id uuid,status text NOT NULL);
+CREATE TABLE ledger.ledgers(id uuid PRIMARY KEY,ledger_state text NOT NULL,retired_at timestamptz);
 CREATE TABLE atlas.ledger_organization_participations(
  ledger_id uuid NOT NULL,organization_id uuid NOT NULL,status text,
  ended_at timestamptz,participation_kind text,is_compatibility_primary boolean
