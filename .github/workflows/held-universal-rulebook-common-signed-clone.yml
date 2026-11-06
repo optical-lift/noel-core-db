@@ -254,28 +254,37 @@ jobs:
           test "$(git -C held hash-object candidates/atlas_governed_rulebook_u1a_v1/signed_u1a_fictional_fixture_v1.sql)" = 66bf4750d2e7554210e81f1c1893be0efa2288b4
           test "$(git -C held hash-object tests/atlas-u1a-governed-rulebook-source.test.mjs)" = 4acd9c52b7af04c1ce61d369548d823c1c249d78
           test "$(git -C c1fixture hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = e877d93323ddc67d8778be8bea1dfa34319cc85c
+          test "$(git -C universal hash-object candidates/atlas_universal_rulebook_common_source_v1/candidate.sql)" = 9e3dd3c9edda725aeb2c8d480996d64ec272486c
+          test "$(git -C universal hash-object candidates/atlas_universal_rulebook_common_source_v1/postconditions.sql)" = 97b240bc19b35fc1aaad301a04f529f3100f5f56
+          test "$(git -C universal hash-object tests/atlas-universal-rulebook-common-source.test.mjs)" = 11a3fb41c2cbd878c1f1a19f6c3125d20651c439
+          test "$(git hash-object validation/fixtures/atlas_universal_rulebook_common_signed_probe_disposable_v1.sql)" = 8617455228081427b00d8e26f20bce1b0cc9cb77
+          (cd universal && node --test tests/atlas-universal-rulebook-common-source.test.mjs)
+          python3 -m py_compile scripts/validate-universal-rulebook-common-signed-http.py
           (cd held && node --test tests/atlas-u1a-governed-rulebook-source.test.mjs)
           python3 -m py_compile "$d/validate_signed_u1a_local_clone_v1.py"
           scratch="$RUNNER_TEMP/20261028235811_atlas_u1a_signed_clone_only_v1.sql"
           fixture="$RUNNER_TEMP/u1a-original-c1-fixture-dml-only.sql"
           validation="$RUNNER_TEMP/u1a-original-signed-source-postconditions.sql"
           cp "$d/candidate.sql" "$scratch"
+          cat universal/candidates/atlas_universal_rulebook_common_source_v1/candidate.sql >> "$scratch"
           cp c1fixture/validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql "$fixture"
           {
             printf "SET u1a.disposable_clone = 'true';\n"
             cat "$d/signed_u1a_fictional_fixture_v1.sql"
             cat "$d/postconditions.sql"
+            cat universal/candidates/atlas_universal_rulebook_common_source_v1/postconditions.sql
+            cat validation/fixtures/atlas_universal_rulebook_common_signed_probe_disposable_v1.sql
             printf "\nNOTIFY pgrst, 'reload schema';\n"
           } > "$validation"
           test -s "$scratch" && test -s "$fixture" && test -s "$validation"
           test ! -e held/supabase/migrations/20261028235811_atlas_u1a_signed_clone_only_v1.sql
-          cmp "$scratch" "$d/candidate.sql"
+          cmp "$scratch" <(cat "$d/candidate.sql" universal/candidates/atlas_universal_rulebook_common_source_v1/candidate.sql)
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$scratch"
           sha256sum "$scratch" "$fixture" "$validation"
           echo "path=$scratch" >> "$GITHUB_OUTPUT"
           echo "fixture_path=$fixture" >> "$GITHUB_OUTPUT"
           echo "validation_path=$validation" >> "$GITHUB_OUTPUT"
-          echo "PASS exact original U1A policy and fictional C1: scratch ONLY, no release"
+          echo "PASS exact original U1A plus separate HELD universal common; test wrapper disposable ONLY"
 
       - name: Attach U1A genuine signed test to disposable harness copy only
         shell: bash
@@ -325,6 +334,7 @@ jobs:
           CANDIDATE_VALIDATION: ${{ steps.migration.outputs.validation_path }}
           U1A_SIGNED_TEST_ONLY: signed
           U1A_SIGNED_TEST_SCRIPT: ${{ github.workspace }}/held/candidates/atlas_governed_rulebook_u1a_v1/validate_signed_u1a_local_clone_v1.py
+          UNIVERSAL_COMMON_SIGNED_TEST_SCRIPT: ${{ github.workspace }}/scripts/validate-universal-rulebook-common-signed-http.py
         run: |
           set -euo pipefail
           args=(
