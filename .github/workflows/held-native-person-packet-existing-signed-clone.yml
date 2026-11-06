@@ -36,7 +36,7 @@ jobs:
           gate=w.split('  validate:\n',1)[1]
           assert gate.count('github.actor == github.repository_owner &&')==2
           assert gate.count("github.event.issue.author_association == 'OWNER'")==2
-          assert gate.count("github.event.issue.title == 'UNI-OPS-01 native Person packet signed existing Work clone request'")==2
+          assert gate.count("github.event.issue.title == 'UNI-OPS-01 native Person packet signed existing Work identity fixture request'")==2
           assert gate.count('environment: production')==1
           assert 'proof: [signed_existing_work]' in gate
           assert gate.index('Snapshot production user schemas read-only') < gate.index('Checkout immutable candidate')
@@ -52,7 +52,7 @@ jobs:
       github.event.issue.state == 'open' &&
       github.event.issue.author_association == 'OWNER' &&
       github.actor == github.repository_owner &&
-      github.event.issue.title == 'UNI-OPS-01 native Person packet signed existing Work clone request'
+      github.event.issue.title == 'UNI-OPS-01 native Person packet signed existing Work identity fixture request'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -107,9 +107,9 @@ jobs:
               raise SystemExit('candidate_sha must be an immutable 40-character commit SHA')
 
           title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'titus': 'Titus', 'noel': 'Noel', 'shared': 'Shared'}[lane]
-          if version != '20261028235811' or lane != 'atlas' or fields['diagnostic_scope'] != 'native_person_release_packet_signed_existing_work':
+          if version != '20261028235811' or lane != 'atlas' or fields['diagnostic_scope'] != 'native_person_release_packet_signed_existing_work_principal_fixture':
               raise SystemExit('Only source-pinned unversioned Person completion packet admitted')
-          expected_title = 'UNI-OPS-01 native Person packet signed existing Work clone request'
+          expected_title = 'UNI-OPS-01 native Person packet signed existing Work identity fixture request'
           if title != expected_title:
               raise SystemExit(f'issue title must be exactly: {expected_title}')
 
@@ -215,9 +215,9 @@ jobs:
           post=candidate/candidates/atlas_native_person_completion_release_packet_v1/postconditions.sql
           test -s "$source" && test -s "$post"
           test "$(git -C candidate hash-object candidates/atlas_native_person_completion_release_packet_v1/candidate.sql)" = \
-            "203a4fb9309a3ff2af40dbb9df3e9d458e65ec82"
+            "49eab6550a001726faaadd8f8123c0b278ba8867"
           test "$(sha256sum "$source" | cut -d' ' -f1)" = \
-            "536b1e2f7cc4c58373b91697cc30474e7477230ada35c100833d43ed6ec4b76f"
+            "2119bfb444723b13300908825cc4b936ffa3c27b7e983e337d1c98a128e13bf2"
           candidate_migration="$RUNNER_TEMP/20261028235811_atlas_universal_original_work_integrated_v1.sql"
           cp "$source" "$candidate_migration"
           chmod 600 "$candidate_migration"
@@ -239,7 +239,24 @@ jobs:
           sha256sum "$candidate_migration" "$post"
           echo "path=$candidate_migration" >> "$GITHUB_OUTPUT"
           echo "validation_path=$post" >> "$GITHUB_OUTPUT"
-          echo "fixture_path=validation/fixtures/20261026215011_atlas_universal_original_work_integrated_v1.sql" >> "$GITHUB_OUTPUT"
+          # Historical canonical fixture has a Worker Person but no principal;
+          # production source's signed Work-Day planner requires both identities.
+          # Add ONLY the matching fictional identity record to a runner-temp COPY.
+          # This is neither a Ledger authority nor an additional Work entitlement.
+          original=validation/fixtures/20261026215011_atlas_universal_original_work_integrated_v1.sql
+          test "$(git hash-object "$original")" = e877d93323ddc67d8778be8bea1dfa34319cc85c
+          fixture="$RUNNER_TEMP/20261028235811_atlas_native_person_signed_fixture_v1.sql"
+          cp "$original" "$fixture"
+          cat >> "$fixture" <<'SQL'
+          -- TEST ONLY: linked existing synthetic Worker Person and existing signed Auth.
+          INSERT INTO atlas.principals(id,user_id,person_id,stable_key,name,status)
+          VALUES ('e5200000-0000-4000-8000-000000000112',
+                  'e5200000-0000-4000-8000-000000000002',
+                  'e5200000-0000-4000-8000-000000000102',
+                  'c1-validation-worker-principal','Validation Worker','active');
+          SQL
+          chmod 600 "$fixture"
+          echo "fixture_path=$fixture" >> "$GITHUB_OUTPUT"
 
       - name: Verify trusted canonical schema validator and no signer substitution
         shell: bash
@@ -337,7 +354,7 @@ jobs:
       github.event.issue.state == 'open' &&
       github.event.issue.author_association == 'OWNER' &&
       github.actor == github.repository_owner &&
-      github.event.issue.title == 'UNI-OPS-01 native Person packet signed existing Work clone request'
+      github.event.issue.title == 'UNI-OPS-01 native Person packet signed existing Work identity fixture request'
     runs-on: ubuntu-latest
     timeout-minutes: 3
     # This separate job has no protected environment and no database secrets.
