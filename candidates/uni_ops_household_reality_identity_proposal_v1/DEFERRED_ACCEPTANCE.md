@@ -15,7 +15,8 @@ Do **not** spend another signed RiverSong/Postgres/GoTrue cycle merely because a
 5. `current_identity_status_candidate.sql`.
 6. `private_reviewer_queue_candidate.sql`.
 7. `household_source_composition_candidate.sql`.
-8. `postconditions.sql`, `deferred_security_postconditions.sql` and later signed transport, **clone only**.
+8. `original_need_source_packet_candidate.sql`.
+9. `postconditions.sql`, `deferred_security_postconditions.sql` and later signed transport, **clone only**.
 
 The independent reviewer's exact Reality responsibility is a **separately issued human-authorized source fact**, never an automatic inserted test positive on a live server. A synthetic one may exist inside disposable signer fixtures only, and may prove mechanics rather than real source adjudication.
 
@@ -27,6 +28,7 @@ The independent reviewer's exact Reality responsibility is a **separately issued
 - Two conflicting current kernel/entity approvals deny. Identical action replay is side-effect-free; changed action payload conflicts. Simultaneous same-action or competing approved actions yield at most one current identity positive, never two.
 - An independent revocation closes the prior approval. A later disclosure withdrawal closes it immediately, and reauthorization must **not** revive an old approval; approval carries exact immutable disclosure event receipts. Current reviewer responsibility expiry/withdrawal, old governor replacement, native retirement, canonical Reality dispute/retirement or stale evidence similarly must fail closed.
 - Reviewer queue is bounded (max 20), private, independent-role-AND-two-disclosure gated. No entire roster, sensitive evidence contents, notes, unrelated Households or public wrapper. Change in disclosure must alter visibility.
+- Exact native Need receipt identifies one genuinely open Household Need and the original non-clock physical observation. The typed Requirement packet remains a non-admitted source projection: no second Requirement record, no Work, and a signal when the original Need is already Work-linked.
 - Composition uses the exact #2559 verifier and retains its original native authority. It may report original current condition/open Need booleans only when source-positive. All Requirement/Foundry/U1A/U1B/U2/Work/Clock/successor permission flags stay false.
 - Compare clone object count and granted privileges before/after; only the three new append-only event tables receive intended data changes; no original Household/Reality entities/evidence/Need/Requirement/Foundry/Work/Clock changes. No CI secret, live migration or production DB mutation.
 - Existing unrelated U1A, U1B, universal common and assignment/concurrency regressions stay unchanged. Nov 4 **6A** no Result/Done automatic successor Work.
