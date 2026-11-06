@@ -58,8 +58,8 @@ CREATE TABLE atlas.uni_ops_governed_source_cases_v1 (
    CHECK (source_admission_state IN (
       'held_pending_source_admission','source_verified_by_adapter')),
  -- No assumption that every evidence event is a real Need/Work/Clock.
- attention_contract text NOT NULL DEFAULT 'principal_decision_candidate_v1'
-   CHECK (attention_contract='principal_decision_candidate_v1'),
+ attention_contract text NOT NULL DEFAULT 'operational_governor_review_v1'
+   CHECK (attention_contract='operational_governor_review_v1'),
  source_registered_at timestamptz NOT NULL DEFAULT pg_catalog.clock_timestamp(),
  case_automatically_issues_work boolean NOT NULL DEFAULT false
    CHECK(case_automatically_issues_work=false),
