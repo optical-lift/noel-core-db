@@ -346,6 +346,9 @@ begin
         'unit',v_lot.quantity_unit,
         'uncoveredDependencyCount',v_uncovered_count,
         'ownerDecisionStillRequired',true,
+        'operationalOwnerReviewOnly',true,
+        'principalEscalationQualified',false,
+        'principalClockCandidateCreated',false,
         'purchaseOrOtherWorkAuthorized',false,
         'newTaskCreated',false
       ),
