@@ -31,3 +31,9 @@ Use one **disposable** current-schema PG17/GoTrue/PostgREST RiverSong environmen
 U2E independently authorized nonhuman carrier is **UNBOUND**: root approval of a 120-day campaign is not a scheduler principal, Work issuer or root impersonation. No auto campaign renewal. U5 independent Household canonical identity and Need bridge remains held; P2 governor-reviewed retrospective evidence is a separately governed exception; U6 Event privacy and ten Christmas originals require distinct signed source authorization. Do not call a fake positive fixture source deployment, a source-only structural pass a signed proof, or one bounded increment a completed UNI-OPS-01 release.
 
 **No collected tests run in this authored matrix.** Keep the complete original Atlas register, exact source commit fingerprints and next unfinished step.
+
+### Additional direct rhythm/signal acceptance (NOT EXECUTED)
+
+14. With a genuine governed Rhythm source, direct call to signal_work_occurrence_v1 with rhythm_clock: must preserve metadata only and NOT release or make planned occurrence eligible. Mismatched source kind/missing native rhythm ID denied. Real historical task/occurrence retained, no new Work.
+15. Independent real sale commitment, flower output and trusted seed shortage signals must retain original source semantics. Where those generate Work, the current issuer and recipient authority still require owner review, not presumed 6A compliance. Other old farm-wide and goal release callers remain explicitly open.
+16. Direct calls to ensure_rhythm_task_v1_base and ensure_rhythm_task_without_physical_gate_v1 for a U1A/U1B governed native rhythm, including paused/retired source, must return held without task/occurrence mutation. Ungoverned old path separately regression-tested and actor/ACL/collision negatives checked. No new PG17, GoTrue, RiverSong, Node or browser tests run.
