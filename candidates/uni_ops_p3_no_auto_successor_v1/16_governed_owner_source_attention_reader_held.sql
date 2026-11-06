@@ -93,13 +93,13 @@ BEGIN
            WHEN j.source_kind='seed_lot'
              THEN (
                SELECT greatest(
-                   coalesce(sum(c.outstanding_quantity),0)-
-                   coalesce(p.projected_on_hand_quantity,0),0)
-               FROM atlas.seed_allocation_coverage_v1 c
-               JOIN atlas.seed_inventory_position_v1 p
-                 ON p.seed_lot_id=c.seed_lot_id
-               WHERE c.seed_lot_id=j.source_id
-                  AND p.count_trusted)
+                 coalesce((
+                   SELECT sum(c.outstanding_quantity)
+                   FROM atlas.seed_allocation_coverage_v1 c
+                   WHERE c.seed_lot_id=p.seed_lot_id),0)-
+                 coalesce(p.projected_on_hand_quantity,0),0)
+               FROM atlas.seed_inventory_position_v1 p
+               WHERE p.seed_lot_id=j.source_id AND p.count_trusted)
            ELSE NULL
           END AS current_verified_shortfall
    FROM atlas.journal_event_index j
