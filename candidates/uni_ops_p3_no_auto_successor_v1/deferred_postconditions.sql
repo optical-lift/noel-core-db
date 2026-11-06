@@ -144,6 +144,19 @@ BEGIN
   RAISE EXCEPTION 'Shared independent source signal has drifted; review before cutover';
  END IF;
 
+ IF position('governed_rhythm_clock_signal_held' IN
+  pg_catalog.pg_get_functiondef(
+   'atlas.signal_work_occurrence_v1(uuid,text,jsonb)'::regprocedure)
+ )=0 OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
+  pg_catalog.pg_get_functiondef(
+   'atlas.ensure_rhythm_task_v1_base(uuid,text,timestamptz)'::regprocedure)
+ )=0 OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
+  pg_catalog.pg_get_functiondef(
+   'atlas.ensure_rhythm_task_without_physical_gate_v1(uuid,text,timestamptz)'::regprocedure)
+ )=0 THEN
+   RAISE EXCEPTION 'Governed clock signal or direct old rhythm writer bypass remains';
+ END IF;
+
  RAISE NOTICE 'P3 source contract structurally present; signed outcome/ACL/collision and no-DML verification remain HELD';
 END;
 $post$;
