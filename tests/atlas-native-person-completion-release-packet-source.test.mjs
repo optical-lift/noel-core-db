@@ -12,8 +12,8 @@ const postconditions=readFileSync(resolve(ROOT,'postconditions.sql'),'utf8');
 
 test('immutable source-linked candidate exactly equals seven owner files in fixed order',()=>{
   assert.equal(buildReleasePacket(parts),committed);
-  assert.equal(verifyFromRepository().gitBlob,'49eab6550a001726faaadd8f8123c0b278ba8867');
-  assert.equal(Buffer.byteLength(committed,'utf8'),66562);
+  assert.equal(verifyFromRepository().gitBlob,'0e7c8581e6656b218bdc1ff2c13152201e3e03f5');
+  assert.equal(Buffer.byteLength(committed,'utf8'),67881);
   assert.equal(parts.length,7);
   assert.ok(INPUTS.every((x,k)=>gitBlob(parts[k])===x.git));
 });
@@ -49,6 +49,12 @@ test('existing Event checklist response projects one Done without claiming perfo
   assert.match(shared,/'physicalPerformerAsserted',false/);
   assert.match(shared,/'eventReceipt',v_universal_receipt/);
   assert.match(shared,/personalPerformanceNotClaimed',true/);
+  assert.match(shared,/'historicalRecordedCompletion',false,'newTransitionApplied',false/);
+  assert.match(shared,/e.event_kind='work_transition_applied'/);
+  assert.match(shared,/e.to_state='completed'/);
+  assert.match(shared,/e.event_kind='historical_state_snapshot'/);
+  assert.match(shared,/e.to_state='completed'/);
+  assert.match(shared,/Completed Event Work has no qualifying historical Done or authoritative lifecycle event/);
   assert.doesNotMatch(shared,/update atlas.work_items|set work_state='completed'/i);
 });
 test('must preserve old originals as historical observations before installing writers',()=>{
