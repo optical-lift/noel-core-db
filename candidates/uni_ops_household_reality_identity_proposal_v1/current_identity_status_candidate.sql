@@ -89,6 +89,7 @@ BEGIN
       AND source_ev.scope_kind='household'
       AND source_ev.scope_id=l.household_id
       AND source_ev.subject_domain='household'
+      AND source_ev.subject_kind='household_kernel_instance'
       AND source_ev.subject_id=l.kernel_instance_id::text
       AND source_ev.effective_until IS NULL
       AND source_ev.actor_user_id IS NOT NULL
