@@ -58,6 +58,16 @@ jobs:
           for key in ('diagnostic_scope','production_target','universal_head','p3_head'):
              assert re.fullmatch(r'([a-z0-9_]+):\s*([a-zA-Z0-9_-]+)\s*', key+': abc_123'), key
           print('PASS validated numeric key p3_head along with exact owner issue source fields')
+          # Compile the later allowlisted reporter in the UNPRIVILEGED PR job.
+          # This catches Python syntax errors before an owner issue can run.
+          import textwrap
+          reporter=w.split('      - name: Report allowlisted local failure phase without private diagnostics',1)[1]
+          block=reporter.split("          python3 - <<'PY'\n",1)[1].split("\n          PY",1)[0]
+          compile(textwrap.dedent(block),'<redacted-protected-clone-classifier>','exec')
+          assert "first_sql_source={first_source}" in reporter
+          assert "first_sql_class={first_class}" in reporter
+          assert "print(raw)" not in reporter and "print(message)" not in reporter
+          print('PASS redacted SQL classifier compiles; no raw error text printed')
           print('PASS owner issue protected test gate and no production mutation path')
           PY
 
