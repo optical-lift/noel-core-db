@@ -17,6 +17,8 @@ INSERT INTO atlas.organizations(id,status)
 INSERT INTO atlas.ledgers(id,organization_id,status)
  VALUES ('00000000-0000-4000-8000-000000000002',
  '00000000-0000-4000-8000-000000000001','active');
+INSERT INTO ledger.ledgers(id,ledger_state,retired_at)
+ VALUES ('00000000-0000-4000-8000-000000000002','active',NULL);
 INSERT INTO atlas.ledger_organization_participations
  VALUES ('00000000-0000-4000-8000-000000000002',
  '00000000-0000-4000-8000-000000000001','active',
@@ -279,6 +281,26 @@ BEGIN
  END;
 END;
 $revoked$;
+
+-- Native and Company Ledger share an ID only because the legitimate
+-- source explicitly bridges them. A paused NATIVE Ledger denies admission
+-- even if the Company record and synthetic root appear active.
+UPDATE ledger.ledgers SET ledger_state='paused'
+WHERE id='00000000-0000-4000-8000-000000000002';
+DO $paused_native$
+BEGIN
+ BEGIN
+  PERFORM atlas.uni_ops_farm_current_attention_attestation_self_held_v1(
+   '00000000-0000-4000-8000-000000000024'::uuid,
+   '00000000-0000-4000-8000-000000000002'::uuid);
+  RAISE EXCEPTION 'Paused native Ledger incorrectly admitted';
+ EXCEPTION WHEN SQLSTATE '42501' THEN
+  RAISE NOTICE 'PASS native Ledger pause denies farm to Company source authority';
+ END;
+END;
+$paused_native$;
+UPDATE ledger.ledgers SET ledger_state='active'
+WHERE id='00000000-0000-4000-8000-000000000002';
 
 -- No one except a legitimate current governor; wrong synthetic identity
 -- cannot use the exact trusted source case. NOT genuine GoTrue proof.
