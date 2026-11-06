@@ -252,6 +252,7 @@ BEGIN
            AND ev.scope_kind='household'
            AND ev.scope_id=v_proposal.household_id
            AND ev.subject_domain='household'
+           AND ev.subject_kind='household_kernel_instance'
            AND ev.subject_id=v_proposal.kernel_instance_id::text
            AND ev.actor_user_id IS NOT NULL
            AND ev.observed_at IS NOT NULL
