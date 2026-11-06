@@ -125,7 +125,8 @@ BEGIN
  -- Source-specific historical search, including completed/cancelled and
  -- all exact native Subject context Work. A "closed" Work is still a real
  -- historical original. A later new Work may not erase its existence.
- SELECT pg_catalog.count(DISTINCT w.id)::integer,pg_catalog.min(w.id)
+ SELECT pg_catalog.count(DISTINCT w.id)::integer,
+        (pg_catalog.array_agg(DISTINCT w.id ORDER BY w.id))[1]
  INTO v_scope_work_count,v_scope_work_id
  FROM atlas.work_items w
  WHERE w.organization_id=v_report.organization_id AND w.household_id IS NULL
