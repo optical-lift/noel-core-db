@@ -1,0 +1,95 @@
+{
+  "contractVersion": 1,
+  "title": "UNI-OPS-01 U1A genuine signed immutable Rulebook acceptance receipt",
+  "asOf": "2026-11-06",
+  "owner": "Noel source #2465, Atlas UNI-OPS-01 #532",
+  "status": "SIGNED_DISPOSABLE_U1A_ACCEPTANCE_PASSED__CANONICAL_AND_PRODUCTION_RELEASE_HELD",
+  "source": {
+    "heldPr": 2465,
+    "immutableHead": "f9c372d3487ea6af4d29a4ee3b22579b9d94c5ae",
+    "candidate": {
+      "path": "candidates/atlas_governed_rulebook_u1a_v1/candidate.sql",
+      "gitBlobSha1": "c7df9269a0726732b27e88764b04fabe0039aee5"
+    },
+    "postconditions": {
+      "path": "candidates/atlas_governed_rulebook_u1a_v1/postconditions.sql",
+      "gitBlobSha1": "4d963512b8f586cf4bd156eadcacac08aaeb2821"
+    },
+    "fictionalAddon": {
+      "path": "candidates/atlas_governed_rulebook_u1a_v1/signed_u1a_fictional_fixture_v1.sql",
+      "gitBlobSha1": "66bf4750d2e7554210e81f1c1893be0efa2288b4"
+    },
+    "staticTest": {
+      "path": "tests/atlas-u1a-governed-rulebook-source.test.mjs",
+      "gitBlobSha1": "4acd9c52b7af04c1ce61d369548d823c1c249d78"
+    },
+    "originalSignedTest": "candidates/atlas_governed_rulebook_u1a_v1/validate_signed_u1a_local_clone_v1.py",
+    "sourceFixture": {
+      "heldPr": 2487,
+      "immutableHead": "9af4ab9b203877f048af09e23bac58bf86cd58fe",
+      "path": "validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql",
+      "gitBlobSha1": "e877d93323ddc67d8778be8bea1dfa34319cc85c"
+    }
+  },
+  "testCarrier": {
+    "mergedTestOnlyPrs": [
+      2551,
+      2553
+    ],
+    "canonicalHeadAtTest": "a19ce51b0639e9feffe74f648192a46d7e37ca84",
+    "ownerRequestIssue": 2552,
+    "sourceContractRun": 42246940912,
+    "databaseCustodyRun": 42246940868,
+    "signedRun": 42247086407,
+    "signedRunConclusion": "success",
+    "artifactId": 13518852616,
+    "artifactZipSha256": "015075ee15da6d59ed3783b65b9633099c81bdc56b86d13cbef6ae0f5dec5356",
+    "signedSummarySha256": "582a8576e112096e08be463b0efd94e7b932fba53605b3586cd8bbf81d8d156b",
+    "signedLogSha256": "be91b4fa64dd27afb118a49f2c35aa82da3efe5ef02e54b8bef058fac193e833",
+    "sqlPostconditionsSha256": "8944df82bb4712e4ddcb96449f7386e6bdcb3885f18a5094f844fa7e6e5923a7",
+    "lintDeltaSha256": "b14805de091822bcbffc724e3794fef5dd73d3722eeb136b17a38a24879b4882",
+    "cleanupSha256": "8eaee8c00f04592d00bcde372bf94e4e4a3a5237a6b848311e58612736819d89"
+  },
+  "verifiedAcceptance": [
+    "original U1A SQL compiled and private RLS/ACL immutable postconditions passed",
+    "four independent genuine local GoTrue sessions and source-authoritative Ledger root",
+    "worker user-editable owner metadata spoof denied as authority",
+    "owner cannot independently review own Foundry input",
+    "exact independent reviewer approved specific source Event without blanket workspace elevation",
+    "pending original custody, wrong source, ordinary worker, outsider and anonymous adoption denied",
+    "root adopted one new immutable active Rulebook version and identical same-action replay returned same version",
+    "modified same-action replay rejected",
+    "two competing signed version-2 pause operations serialized: one accepted, one stale-source denial",
+    "explicit version-3 retirement remained current and historical versions immutable",
+    "withdrawn source review barred later mutation while history remains",
+    "deleted signed GoTrue session denied further root read",
+    "three immutable Rulebook versions and three bindings, zero new or changed original Work or Need",
+    "local Supabase services stopped",
+    "schema lint baseline 14, candidate 14, introduced 0"
+  ],
+  "notProven": [
+    "two independent racing INITIAL first active approvals were not separately exercised",
+    "Ledger seat withdrawal after approval was not separately exercised",
+    "U1B property/class lineage and U1A effective arbiter compatibility",
+    "native Rulebook source migration, genuine live Elm adoption, farm-wide canonical Subject audit",
+    "U2 offer/accepted first original and independently registered issuer; campaign P3",
+    "second nonfarm domain, real app/phone use, Event identity access, production release"
+  ],
+  "liveReadOnlyAsOf": "2026-11-06",
+  "liveFindings": {
+    "dependencyRelationsAndFunctionsPresent": "26/26",
+    "pinnedAuthorityDefinitionsExactlyMatching": "9/9",
+    "activeRequirements": 77,
+    "legacyTask": 70,
+    "productionBedAssignment": 6,
+    "plannedOccurrence": 1,
+    "sourceLinkedToCanonicalRealityEntity": 0,
+    "originalFoundryInputEvents": 0,
+    "rhythmRuleRows": 107,
+    "nativeGrowingObjects": 176,
+    "sameIdCanonicalRealityTwins": 0,
+    "sameIdCaution": "Exact-ID absence does not exclude separately evidenced other-identifier associations",
+    "U1aTablesInstalled": false
+  },
+  "releaseDisposition": "No product SQL, live Person, original Work, Need, Foundry event, identities, grants, service-role, historical cancellation or production deployment altered. Test-only CI and evidence are mergeable; held U1A SQL requires independent source-owner approval and canonical CLI versioned migration/exact release authority."
+}
