@@ -9,6 +9,7 @@ SET request.jwt.claims='{"sub":"00000000-0000-4000-8000-000000000101","session_i
 SET ROLE authenticated;
 DO $replay$ DECLARE u uuid:=current_setting('test.unit_a')::uuid;
  c uuid:=current_setting('test.course_a')::uuid;j jsonb;
+ other_course uuid;original_outline jsonb;
 BEGIN
  j:=public.titus_customer_unit_save_self_api_v1(
   u,'00000000-0000-4000-8000-000000000321',0,'First class');
@@ -46,6 +47,22 @@ BEGIN
    u,'00000000-0000-4000-8000-000000000325',2,repeat('x',20001));
   RAISE EXCEPTION 'Overlong class accepted';
  EXCEPTION WHEN invalid_parameter_value THEN NULL; END;
+ -- An owner may own two Courses; a matching Unit UUID must not allow a
+ -- reorder through the *wrong* Course's browser URL, even for that owner.
+ j:=public.titus_customer_create_course_self_api_v1(
+  '00000000-0000-4000-8000-000000000399','Separate Course');
+ other_course:=(j->'courses'->1->>'courseId')::uuid;
+ IF other_course IS NULL OR other_course=c THEN
+  RAISE EXCEPTION 'Separate Course setup failed';
+ END IF;
+ original_outline:=public.titus_customer_outline_read_self_api_v1(c);
+ BEGIN
+  PERFORM public.titus_customer_unit_move_self_api_v1(other_course,u,'up');
+  RAISE EXCEPTION 'Wrong-Course reorder modified owner Course';
+ EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ IF public.titus_customer_outline_read_self_api_v1(c)<>original_outline THEN
+  RAISE EXCEPTION 'Wrong-Course reorder changed unit order';
+ END IF;
 END $replay$;
 RESET ROLE;
 
