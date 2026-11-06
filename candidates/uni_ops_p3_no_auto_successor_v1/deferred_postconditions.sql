@@ -124,6 +124,26 @@ BEGIN
   RAISE EXCEPTION 'An explicit known legacy Done/event/dependency source still automatically releases Work';
  END IF;
 
+
+ IF position('independent_new_work_authorization_required' IN
+  pg_catalog.pg_get_functiondef(
+    'atlas.release_next_task_in_queue_v1(uuid,text,date)'::regprocedure)
+ )=0 THEN
+  RAISE EXCEPTION 'Completion-gated direct old queue release bypass still present';
+ END IF;
+ IF position('owner_direction_pending_without_auto_work' IN
+  pg_catalog.pg_get_functiondef(
+   'atlas.ensure_weekly_harvest_owner_review_handoff_v1(uuid,uuid)'::regprocedure)
+ )=0 THEN
+  RAISE EXCEPTION 'Thursday Harvest Done-to-owner automatic successor not yet staged';
+ END IF;
+ IF pg_catalog.md5(pg_catalog.pg_get_functiondef(
+   'atlas.signal_work_occurrence_v1(uuid,text,jsonb)'::regprocedure
+ )) IS DISTINCT FROM '44878fb25c583320a0af033e4266d25b'
+ THEN
+  RAISE EXCEPTION 'Shared independent source signal has drifted; review before cutover';
+ END IF;
+
  RAISE NOTICE 'P3 source contract structurally present; signed outcome/ACL/collision and no-DML verification remain HELD';
 END;
 $post$;
