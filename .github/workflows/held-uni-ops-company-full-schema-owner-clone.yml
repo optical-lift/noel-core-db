@@ -43,7 +43,7 @@ jobs:
              "supabase db dump",
              "scripts/validate-production-schema-clone.sh",
              "prepare_protected_clone_candidate_held.py",
-             "refs/heads/candidate/uni-ops-universal-decision-boundary-20261106",
+             "candidate/uni-ops-universal-decision-boundary-20261106",
           ):
              assert required in w,required
           for forbidden in ('supabase db push', 'supabase migration up',
