@@ -36,10 +36,12 @@ jobs:
           workflow=Path('.github/workflows/held-native-person-completion-release-packet.yml').read_text()
           assert packet.startswith('BEGIN;\n') and packet.endswith('\nCOMMIT;\n')
           assert not list(Path('supabase/migrations').glob('*_atlas_native_person_completion*'))
-          assert not any(item in workflow for item in (
-            'secrets.', 'environment: production', 'supabase db push',
-            'apply_migration', 'github.event_name == "issues"'
-          ))
+          header=workflow.split('jobs:',1)[0]
+          assert 'permissions:\n  contents: read' in header
+          assert 'pull_request:' in header
+          assert not any(line.lstrip().startswith(('environment:', 'secrets:', 'env:', 'workflow_dispatch:'))
+                         for line in workflow.splitlines())
+          assert sum(line.strip()=='- uses: actions/checkout@v4' for line in workflow.splitlines())==1
           assert 'current_database()' not in packet
           assert 'historical_self_adoption_review_events_v1' not in packet
           assert 'e5200000' not in packet
