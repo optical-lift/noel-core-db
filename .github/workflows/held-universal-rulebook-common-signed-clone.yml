@@ -1,0 +1,429 @@
+name: HELD universal common Rulebook plus U1A signed clone (test only)
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request:
+    paths:
+      - '.github/workflows/held-universal-rulebook-common-signed-clone.yml'
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read  # pins three already held, draft sources read-only
+
+concurrency:
+  group: noel-core-held-universal-common-root
+  cancel-in-progress: false
+
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check owner-only U1A source and test custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-universal-rulebook-common-signed-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path(".github/workflows/held-universal-rulebook-common-signed-clone.yml").read_text()
+          assert sum(line.strip()=="github.actor == github.repository_owner &&" for line in w.splitlines())==2
+          assert sum(line.strip()=="environment: production" for line in w.splitlines())==1
+          assert "github.event.issue.title == 'UNI-OPS-01 universal common Rulebook signed clone request'" in w
+          assert w.index("Snapshot production user schemas read-only") < w.index("Checkout immutable held U1A source")
+          assert w.index("Checkout immutable held U1A source") < w.index("Checkout immutable held universal common source") < w.index("Validate U1A through canonical disposable signed clone")
+          for key in ("universal_common_rulebook_plus_u1a_v1","U1A_SIGNED_TEST_ONLY",
+                      "signed-universal-common-summary.txt","9e3dd3c9edda725aeb2c8d480996d64ec272486c",
+                      "c7df9269a0726732b27e88764b04fabe0039aee5"):
+              assert key in w,key
+          assert "supabase db "+"push" not in w
+          print("PASS owner-only issue gate and source-held U1A proof; no release")
+          PY
+
+
+      - name: Offline parse generated U1A disposable bash harness before any protected snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+          w=Path(".github/workflows/held-universal-rulebook-common-signed-clone.yml").read_text()
+          marker="      - name: Attach U1A genuine signed test to disposable harness copy only\n"
+          block=w.split(marker,1)[1].split("      - name: Validate U1A through canonical disposable signed clone",1)[0]
+          script=block.split("          python3 - <<'PY'\n",1)[1].split("\n          PY",1)[0]
+          source="\n".join(x[10:] if x.startswith("          ") else x for x in script.splitlines())+"\n"
+          subprocess.run([sys.executable,"-c",source],check=True)
+          print("PASS safely prepared canonical harness COPY for pure syntax validation")
+          PY
+          bash -n scripts/validate-production-schema-clone.sh
+          echo 'PASS generated U1A signed test harness Bash syntax; no database or permission touched'
+
+  validate:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS-01 universal common Rulebook signed clone request'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 40
+    # Use pinned Supabase CLI's image-registry fallback when a registry throttles.
+    # Read-only GHCR authentication remains in the protected workflow.
+    steps:
+      - name: Resolve governed validation request
+        id: request
+        shell: bash
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          title = os.environ.get('ISSUE_TITLE', '')
+          body = os.environ.get('ISSUE_BODY', '')
+          fields = {}
+          for raw in body.splitlines():
+              match = re.fullmatch(r'([a-z_]+):\s*([^\s]+)\s*', raw)
+              if match:
+                  key, value = match.groups()
+                  if key in fields and fields[key] != value:
+                      raise SystemExit(f'duplicate conflicting field: {key}')
+                  fields[key] = value
+
+          required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha', 'common_sha', 'diagnostic_scope')
+          missing = [key for key in required if key not in fields]
+          if missing:
+              raise SystemExit('missing required validation field(s): ' + ', '.join(missing))
+
+          version = fields['migration_version']
+          lane = fields['release_lane']
+          target = fields['production_target']
+          candidate_sha = fields['candidate_sha'].lower()
+          common_sha = fields['common_sha'].lower()
+
+          if not re.fullmatch(r'\d{14}', version):
+              raise SystemExit('migration_version must be exactly 14 digits')
+          if lane not in {'atlas', 'wnph', 'titus', 'noel', 'shared'}:
+              raise SystemExit('release_lane must be atlas, wnph, titus, noel, or shared')
+          if target != 'zirqkouammpwxlqfbsvf':
+              raise SystemExit('production_target does not match noel-core production')
+          if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha) or not re.fullmatch(r'[0-9a-f]{40}', common_sha):
+              raise SystemExit('Both source heads must be exact 40-character Git commits')
+
+          title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'titus': 'Titus', 'noel': 'Noel', 'shared': 'Shared'}[lane]
+          if version != '20261028235811' or lane != 'atlas' or fields.get('diagnostic_scope') != 'universal_common_rulebook_plus_u1a_v1':
+              raise SystemExit('U1A signed test admits exact held disposable Atlas test-cohort ID only')
+          expected_title = 'UNI-OPS-01 universal common Rulebook signed clone request'
+          if title != expected_title:
+              raise SystemExit(f'issue title must be exactly: {expected_title}')
+
+          output = Path(os.environ['GITHUB_OUTPUT'])
+          with output.open('a', encoding='utf-8') as handle:
+              handle.write(f'migration_version={version}\n')
+              handle.write(f'release_lane={lane}\n')
+              handle.write(f'candidate_sha={candidate_sha}\n')
+              handle.write(f'common_sha={common_sha}\n')
+          PY
+
+      - name: Checkout canonical main validator
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Verify custody and schema-validation contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+
+      - name: Install pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+          supabase db dump --help >/dev/null
+          supabase db start --help >/dev/null
+          supabase db lint --help >/dev/null
+
+      - name: Authenticate read-only GHCR image pulls
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      - name: Confirm exact source-owned held U1A and existing C1 fixture
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ steps.request.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          u1a="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2465" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+          test "$u1a" = "open|true|candidate/atlas-u1a-governed-rulebook-adoption-20261103|$EXPECTED_HEAD" ||
+            { echo "::error::U1A draft source changed"; exit 1; }
+          c1="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2487" --jq '.state + "|" + (.draft|tostring) + "|" + .head.sha')"
+          test "$c1" = 'open|true|9af4ab9b203877f048af09e23bac58bf86cd58fe' ||
+            { echo "::error::Fictional C1 original source changed"; exit 1; }
+          common="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2555" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+          test "$common" = "open|true|candidate/universal-rulebook-common-source-preflight-20261106|${{ steps.request.outputs.common_sha }}" ||
+            { echo "::error::Universal common draft source changed or unheld"; exit 1; }
+          echo "PASS immutable U1A, universal common and fictional C1 sources"
+
+      - name: Snapshot production user schemas read-only
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NOEL_CORE_DATABASE_URL:-}" ]]; then
+            echo '::error::The protected production environment is missing NOEL_CORE_DATABASE_URL.'
+            exit 1
+          fi
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only \
+            --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump \
+            --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          sha256sum "$RUNNER_TEMP/production-custom-roles.sql"
+          sha256sum "$RUNNER_TEMP/production-user-schema.sql"
+
+      - name: Checkout immutable held U1A source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.candidate_sha }}
+          path: held
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout immutable fictional C1 fixture source
+        uses: actions/checkout@v4
+        with:
+          ref: 9af4ab9b203877f048af09e23bac58bf86cd58fe
+          path: c1fixture
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout immutable held universal common source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.common_sha }}
+          path: universal
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Assemble original U1A SQL, genuine C1 fixture and exact source postconditions
+        id: migration
+        shell: bash
+        env:
+          MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+        run: |
+          set -euo pipefail
+          test "$MIGRATION_VERSION" = 20261028235811
+          test "$RELEASE_LANE" = atlas
+          d=held/candidates/atlas_governed_rulebook_u1a_v1
+          test "$(git -C held hash-object candidates/atlas_governed_rulebook_u1a_v1/candidate.sql)" = c7df9269a0726732b27e88764b04fabe0039aee5
+          test "$(git -C held hash-object candidates/atlas_governed_rulebook_u1a_v1/postconditions.sql)" = 4d963512b8f586cf4bd156eadcacac08aaeb2821
+          test "$(git -C held hash-object candidates/atlas_governed_rulebook_u1a_v1/signed_u1a_fictional_fixture_v1.sql)" = 66bf4750d2e7554210e81f1c1893be0efa2288b4
+          test "$(git -C held hash-object tests/atlas-u1a-governed-rulebook-source.test.mjs)" = 4acd9c52b7af04c1ce61d369548d823c1c249d78
+          test "$(git -C c1fixture hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = e877d93323ddc67d8778be8bea1dfa34319cc85c
+          test "$(git -C universal hash-object candidates/atlas_universal_rulebook_common_source_v1/candidate.sql)" = 9e3dd3c9edda725aeb2c8d480996d64ec272486c
+          test "$(git -C universal hash-object candidates/atlas_universal_rulebook_common_source_v1/postconditions.sql)" = 97b240bc19b35fc1aaad301a04f529f3100f5f56
+          test "$(git -C universal hash-object tests/atlas-universal-rulebook-common-source.test.mjs)" = 11a3fb41c2cbd878c1f1a19f6c3125d20651c439
+          test "$(git hash-object validation/fixtures/atlas_universal_rulebook_common_signed_probe_disposable_v1.sql)" = 8617455228081427b00d8e26f20bce1b0cc9cb77
+          (cd universal && node --test tests/atlas-universal-rulebook-common-source.test.mjs)
+          python3 -m py_compile scripts/validate-universal-rulebook-common-signed-http.py
+          (cd held && node --test tests/atlas-u1a-governed-rulebook-source.test.mjs)
+          python3 -m py_compile "$d/validate_signed_u1a_local_clone_v1.py"
+          scratch="$RUNNER_TEMP/20261028235811_atlas_u1a_signed_clone_only_v1.sql"
+          fixture="$RUNNER_TEMP/u1a-original-c1-fixture-dml-only.sql"
+          validation="$RUNNER_TEMP/u1a-original-signed-source-postconditions.sql"
+          cp "$d/candidate.sql" "$scratch"
+          cat universal/candidates/atlas_universal_rulebook_common_source_v1/candidate.sql >> "$scratch"
+          cp c1fixture/validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql "$fixture"
+          {
+            printf "SET u1a.disposable_clone = 'true';\n"
+            cat "$d/signed_u1a_fictional_fixture_v1.sql"
+            cat "$d/postconditions.sql"
+            cat universal/candidates/atlas_universal_rulebook_common_source_v1/postconditions.sql
+            cat validation/fixtures/atlas_universal_rulebook_common_signed_probe_disposable_v1.sql
+            printf "\nNOTIFY pgrst, 'reload schema';\n"
+          } > "$validation"
+          test -s "$scratch" && test -s "$fixture" && test -s "$validation"
+          test ! -e held/supabase/migrations/20261028235811_atlas_u1a_signed_clone_only_v1.sql
+          cmp "$scratch" <(cat "$d/candidate.sql" universal/candidates/atlas_universal_rulebook_common_source_v1/candidate.sql)
+          bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$scratch"
+          sha256sum "$scratch" "$fixture" "$validation"
+          echo "path=$scratch" >> "$GITHUB_OUTPUT"
+          echo "fixture_path=$fixture" >> "$GITHUB_OUTPUT"
+          echo "validation_path=$validation" >> "$GITHUB_OUTPUT"
+          echo "PASS exact original U1A plus separate HELD universal common; test wrapper disposable ONLY"
+
+      - name: Attach U1A genuine signed test to disposable harness copy only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path("scripts/validate-production-schema-clone.sh")
+          s=f.read_text()
+          full='if [ "$signed_http_probe" = true ] ||'
+          lean='    if [ "$signed_care_single_done_probe" = true ] ||'
+          stage='phase="candidate domain schema lint"\n'
+          assert s.count(full)==s.count(lean)==s.count(stage)==1, "Trusted harness drift"
+          s=s.replace(full,'if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] || '+full[3:])
+          s=s.replace(lean,'    if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] ||\n'+lean.replace('    if ', '    ', 1))
+          proof='''# This hook is added to the disposable harness COPY only.
+          if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ]; then
+            phase="signed U1A root and independent source-reviewer approval"
+            test -s "$U1A_SIGNED_TEST_SCRIPT"
+            export U1A_DISPOSABLE_DB_PORT="$local_database_port"
+            export U1A_DISPOSABLE_PROJECT_DIR="$project_dir"
+            cd "$project_dir"
+            python3 "$U1A_SIGNED_TEST_SCRIPT" --db-url "$database_url" \\
+                --output "$artifacts_dir/signed-u1a-rulebook-summary.txt" \\
+                > "$artifacts_dir/signed-u1a-rulebook.log" 2>&1
+            test -s "$artifacts_dir/signed-u1a-rulebook-summary.txt"
+            grep -q "^PASS: genuine independent GoTrue custody review and U1A root authority" \\
+                 "$artifacts_dir/signed-u1a-rulebook-summary.txt"
+            phase="genuinely signed universal common source authority negative/positive"
+            python3 "$UNIVERSAL_COMMON_SIGNED_TEST_SCRIPT" --db-url "$database_url" --u1a-helper "$U1A_SIGNED_TEST_SCRIPT" --output "$artifacts_dir/signed-universal-common-summary.txt" > "$artifacts_dir/signed-universal-common.log" 2>&1
+            test -s "$artifacts_dir/signed-universal-common-summary.txt"
+            grep -q '^PASS universal COMMON exact source:' "$artifacts_dir/signed-universal-common-summary.txt"
+          fi
+          
+          '''
+          s=s.replace(stage,proof+stage)
+          f.write_text(s)
+          assert s.count("U1A_SIGNED_TEST_ONLY")==3
+          print("PASS one strictly disposable U1A signed hook, no release mutation")
+          PY
+          bash -n scripts/validate-production-schema-clone.sh
+
+      - name: Validate U1A through canonical disposable signed clone
+        id: validation
+        shell: bash
+        env:
+          MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
+          RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
+          CANDIDATE_MIGRATION: ${{ steps.migration.outputs.path }}
+          CANDIDATE_FIXTURE: ${{ steps.migration.outputs.fixture_path }}
+          CANDIDATE_VALIDATION: ${{ steps.migration.outputs.validation_path }}
+          U1A_SIGNED_TEST_ONLY: signed
+          U1A_SIGNED_TEST_SCRIPT: ${{ github.workspace }}/held/candidates/atlas_governed_rulebook_u1a_v1/validate_signed_u1a_local_clone_v1.py
+          UNIVERSAL_COMMON_SIGNED_TEST_SCRIPT: ${{ github.workspace }}/scripts/validate-universal-rulebook-common-signed-http.py
+        run: |
+          set -euo pipefail
+          args=(
+            --migration-version "$MIGRATION_VERSION"
+            --release-lane "$RELEASE_LANE"
+            --candidate-migration "$CANDIDATE_MIGRATION"
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql"
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql"
+            --artifacts-dir "$RUNNER_TEMP/production-schema-validation-artifacts"
+          )
+          if [[ -n "${CANDIDATE_FIXTURE:-}" ]]; then
+            args+=(--candidate-fixture "$CANDIDATE_FIXTURE")
+          fi
+          if [[ -n "${CANDIDATE_VALIDATION:-}" ]]; then
+            args+=(--candidate-validation "$CANDIDATE_VALIDATION")
+          fi
+          bash scripts/validate-production-schema-clone.sh "${args[@]}"
+
+      - name: Assert U1A owner/reviewer signed acceptance and no Work admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/production-schema-validation-artifacts"
+          test -s "$dir/signed-u1a-rulebook-summary.txt"
+          grep -q "^PASS: genuine independent GoTrue custody review and U1A root authority" "$dir/signed-u1a-rulebook-summary.txt"
+          grep -q 'zero Work/Need side effects' "$dir/signed-u1a-rulebook-summary.txt"
+          grep -q '^PASS universal COMMON exact source:' "$dir/signed-universal-common-summary.txt"
+          grep -q 'zero policy or Work rights' "$dir/signed-universal-common-summary.txt"
+          printf "\nU1A signed independent root/Reviewer policy version acceptance, no Work/Need. Production release HELD.\n" >> "$dir/summary.md"
+
+      - name: Publish validation summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/production-schema-validation-artifacts/summary.md"
+          if [[ -s "$summary" ]]; then
+            cat "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '::error::The validation harness did not produce its required summary artifact.'
+            exit 1
+          fi
+
+      - name: Upload validation diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: held-universal-common-signed-disposable-${{ steps.request.outputs.migration_version }}
+          path: ${{ runner.temp }}/production-schema-validation-artifacts
+          if-no-files-found: error
+          retention-days: 30
+
+  report-result:
+    name: Report clone outcome to request
+    needs: [validate]
+    if: >-
+      always() &&
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS-01 universal common Rulebook signed clone request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    # This separate job has no protected environment and no database secrets.
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Publish non-sensitive result and run link
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REQUEST_NUMBER: ${{ github.event.issue.number }}
+          RESULT: ${{ needs.validate.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$RESULT" in
+            success|failure|cancelled|skipped) ;;
+            *) echo 'Unexpected validation status; refusing report.' >&2; exit 1 ;;
+          esac
+          gh issue comment "$REQUEST_NUMBER" --body "HELD universal common source plus U1A signed clone result: **$RESULT**.
+
+          [View the full GitHub Actions run]($RUN_URL) to inspect the validation summary, migration diagnostics, lint delta, and any failed steps.
+
+          This status report does not authorize a database release or attest to untested two-person permission and concurrency requirements."
