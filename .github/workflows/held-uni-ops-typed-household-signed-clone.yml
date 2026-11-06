@@ -271,6 +271,12 @@ jobs:
           test "$(git -C universal hash-object candidates/atlas_universal_rulebook_common_source_v1/postconditions.sql)" = 97b240bc19b35fc1aaad301a04f529f3100f5f56
           test "$(git -C universal hash-object tests/atlas-universal-rulebook-common-source.test.mjs)" = 11a3fb41c2cbd878c1f1a19f6c3125d20651c439
           test "$(git hash-object validation/fixtures/atlas_universal_rulebook_common_signed_probe_disposable_v1.sql)" = 8617455228081427b00d8e26f20bce1b0cc9cb77
+          test "$(git -C household hash-object candidates/atlas_uni_ops_universal_typed_household_evidence_v1/candidate.sql)" = 392f42dc9c3866b5649c181c3a32f412f47924d6
+          test "$(git -C household hash-object candidates/atlas_uni_ops_universal_typed_household_evidence_v1/postconditions.sql)" = 1ffcef69a6f27b71b55a58996e874b68d41c5a8a
+          test "$(git -C household hash-object tests/atlas-uni-ops-typed-household-native-source.test.mjs)" = da767085903abdb100e506cabd53e33465b0e4bd
+          test "$(git hash-object validation/fixtures/atlas_universal_typed_household_signed_only_wrapper_v1.sql)" = be75d5e2236e7ebfcd2114d1bcaf1a4b10574ff6
+          (cd household && node --test tests/atlas-uni-ops-typed-household-native-source.test.mjs)
+          python3 -m py_compile scripts/validate-universal-typed-household-signed-http.py
           (cd universal && node --test tests/atlas-universal-rulebook-common-source.test.mjs)
           python3 -m py_compile scripts/validate-universal-rulebook-common-signed-http.py
           (cd held && node --test tests/atlas-u1a-governed-rulebook-source.test.mjs)
@@ -280,18 +286,21 @@ jobs:
           validation="$RUNNER_TEMP/u1a-original-signed-source-postconditions.sql"
           cp "$d/candidate.sql" "$scratch"
           cat universal/candidates/atlas_universal_rulebook_common_source_v1/candidate.sql >> "$scratch"
+          cat household/candidates/atlas_uni_ops_universal_typed_household_evidence_v1/candidate.sql >> "$scratch"
           cp c1fixture/validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql "$fixture"
           {
             printf "SET u1a.disposable_clone = 'true';\n"
             cat "$d/signed_u1a_fictional_fixture_v1.sql"
             cat "$d/postconditions.sql"
             cat universal/candidates/atlas_universal_rulebook_common_source_v1/postconditions.sql
+            cat household/candidates/atlas_uni_ops_universal_typed_household_evidence_v1/postconditions.sql
+            cat validation/fixtures/atlas_universal_typed_household_signed_only_wrapper_v1.sql
             cat validation/fixtures/atlas_universal_rulebook_common_signed_probe_disposable_v1.sql
             printf "\nNOTIFY pgrst, 'reload schema';\n"
           } > "$validation"
           test -s "$scratch" && test -s "$fixture" && test -s "$validation"
           test ! -e held/supabase/migrations/20261028235811_atlas_u1a_signed_clone_only_v1.sql
-          cmp "$scratch" <(cat "$d/candidate.sql" universal/candidates/atlas_universal_rulebook_common_source_v1/candidate.sql)
+          cmp "$scratch" <(cat "$d/candidate.sql" universal/candidates/atlas_universal_rulebook_common_source_v1/candidate.sql household/candidates/atlas_uni_ops_universal_typed_household_evidence_v1/candidate.sql)
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$scratch"
           sha256sum "$scratch" "$fixture" "$validation"
           echo "path=$scratch" >> "$GITHUB_OUTPUT"
