@@ -12,8 +12,8 @@ const postconditions=readFileSync(resolve(ROOT,'postconditions.sql'),'utf8');
 
 test('immutable source-linked candidate exactly equals seven owner files in fixed order',()=>{
   assert.equal(buildReleasePacket(parts),committed);
-  assert.equal(verifyFromRepository().gitBlob,'2787753e39b3a6fceae37dc691c2af9845a4188e');
-  assert.equal(Buffer.byteLength(committed,'utf8'),64057);
+  assert.equal(verifyFromRepository().gitBlob,'203a4fb9309a3ff2af40dbb9df3e9d458e65ec82');
+  assert.equal(Buffer.byteLength(committed,'utf8'),65916);
   assert.equal(parts.length,7);
   assert.ok(INPUTS.every((x,k)=>gitBlob(parts[k])===x.git));
 });
@@ -27,6 +27,18 @@ test('native-Person-only core and original three writers, no new public entrypoi
   assert.doesNotMatch(committed,/CREATE OR REPLACE FUNCTION public\./);
   assert.doesNotMatch(committed,/historical_self_adoption_review_events_v1|IF p_transition_kind='cancel' THEN/);
   assert.doesNotMatch(committed,/e5200000|CLONE TEST ONLY|recognize_assigned_care_activity_self_api_v1/);
+});
+test('existing connected-Person result fields survive terminal Done and exact replay',()=>{
+  const linked=parts[4];
+  assert.match(linked,/'contractVersion','connected_person_company_work_result_v1'/);
+  assert.match(linked,/'lifecycleContractVersion','universal_work_lifecycle_transition_v1'/);
+  assert.match(linked,/'lifecycleReceipt',v_universal_receipt/);
+  assert.match(linked,/'resultId',v_result.id,'resultKind',v_kind/);
+  assert.match(linked,/'resultId',v_existing.id,'resultKind',v_kind/);
+  assert.match(linked,/'acceptanceDecision','accepted'/);
+  assert.match(linked,/historicalRecordedCompletion',true/);
+  assert.equal((linked.match(/apply_work_lifecycle_transition_internal_v1\(/g)||[]).length,2);
+  assert.doesNotMatch(linked,/update atlas.work_items|set work_state='completed'/i);
 });
 test('must preserve old originals as historical observations before installing writers',()=>{
   const lock=committed.indexOf('LOCK TABLE atlas.work_items,atlas.work_allocations,');
