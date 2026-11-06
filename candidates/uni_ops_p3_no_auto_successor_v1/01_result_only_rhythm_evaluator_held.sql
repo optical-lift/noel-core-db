@@ -261,7 +261,8 @@ begin
     if v_next_state in ('due','fallen_out_of_rhythm') then
       if coalesce(p_trigger_kind,'clock') in
          ('workflow_precheck','workflow_result',
-          'game_master_precheck','game_master_satisfaction')
+          'game_master_precheck','game_master_satisfaction',
+          'activation_prerequisite_completed')
       then
         -- 2026-11-04 decision 6A. A Result is allowed to QUALIFY existing
         -- state and next eligibility, but may not issue a legacy task, a
