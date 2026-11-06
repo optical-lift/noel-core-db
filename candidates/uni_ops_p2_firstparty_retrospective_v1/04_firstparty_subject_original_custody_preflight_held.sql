@@ -19,6 +19,11 @@ DECLARE
  v_root uuid;
  v_uid uuid:=auth.uid();
  v_object_links integer;
+ v_native_subject_links integer;
+ v_native_link_recorded_at timestamptz;
+ v_claim atlas.uni_ops_p2_later_worker_subject_attributions_v1%ROWTYPE;
+ v_subject_attribution_basis text;
+ v_subject_attributed_at timestamptz;
  v_scope_work_count integer:=0;
  v_direct_work_count integer:=0;
  v_ledger_work_count integer:=0;
@@ -81,45 +86,80 @@ BEGIN
     USING ERRCODE='42501';
  END IF;
 
- -- Source object must be first-party linked by the actual field_log_objects
- -- provider and belong to the same physical farm. A text mention of a bed,
- -- plant, zone or generic task is NOT a canonical Subject equivalent.
+ -- Live atlas.record_worker_activity_log_v1 stores source=worker_manual_log
+ -- WITHOUT any field_log_objects row. The sentence is not a physical
+ -- Subject reference. Require either a real native log-object link OR a
+ -- separate signed LATER worker Subject attribution, never retrofitted
+ -- into the log's earlier timestamp or inferred from prose.
  SELECT * INTO v_state FROM atlas.rhythm_state s
  WHERE s.id=p_native_rhythm_state_id
    AND s.organization_id=v_report.organization_id
    AND s.farm_id=v_report.farm_id
    AND s.subject_kind='growing_object';
  IF v_state.id IS NULL OR NOT EXISTS (
-    SELECT 1 FROM atlas.field_log_objects flo
-    JOIN atlas.growing_objects g ON g.id=flo.object_id
-    WHERE flo.field_log_id=v_log.id AND flo.object_id=v_state.subject_id
-      AND flo.role='touched' AND g.farm_id=v_report.farm_id)
- THEN RAISE EXCEPTION 'Exact firsthand linked growing Subject required'
-    USING ERRCODE='42501';
- END IF;
+   SELECT 1 FROM atlas.growing_objects g
+   WHERE g.id=v_state.subject_id AND g.farm_id=v_report.farm_id
+ ) THEN RAISE EXCEPTION 'Exact native growing Subject unavailable'
+   USING ERRCODE='42501'; END IF;
 
- -- Both identity and condition must independently be disclosed to this
- -- governor before any original Work identity is even considered.
+ -- The governor must independently have BOTH currently disclosed
+ -- Subject information types. Neither a subject claim nor a Work ID
+ -- grants disclosure or Person responsibility.
  IF NOT coalesce(atlas.has_current_subject_disclosure_v1(
     p_ledger_id,v_root,'spatial','growing_object',v_state.subject_id,'identity'),false)
  OR NOT coalesce(atlas.has_current_subject_disclosure_v1(
     p_ledger_id,v_root,'spatial','growing_object',v_state.subject_id,'condition'),false)
- THEN RAISE EXCEPTION 'Independent current Subject information disclosures required'
-    USING ERRCODE='42501';
- END IF;
+ THEN RAISE EXCEPTION 'Independent current Subject identity and condition disclosures required'
+    USING ERRCODE='42501'; END IF;
 
- SELECT pg_catalog.count(DISTINCT flo.object_id)::integer INTO v_object_links
+ SELECT pg_catalog.count(DISTINCT flo.object_id)::integer,
+   pg_catalog.count(DISTINCT flo.object_id)
+      FILTER(WHERE flo.object_id=v_state.subject_id)::integer,
+   pg_catalog.min(flo.created_at)
+      FILTER(WHERE flo.object_id=v_state.subject_id AND flo.role='touched')
+ INTO v_object_links,v_native_subject_links,v_native_link_recorded_at
  FROM atlas.field_log_objects flo
  WHERE flo.field_log_id=v_log.id AND flo.object_id IS NOT NULL;
- IF v_object_links IS DISTINCT FROM 1 THEN
+
+ IF v_object_links>1 THEN
    RETURN pg_catalog.jsonb_build_object(
     'ok',true,'contractVersion','p2_original_source_preflight_held_v1',
     'state','multiple_original_subjects_need_independent_evidence',
-    'firstPartySubjectLinkCurrent',true,
+    'subjectAttributionCurrent',false,
     'fieldLogObjectCount',v_object_links,
     'oneOriginalFound',false,'noOriginalExistsProven',false,
     'laterOriginalAuthorized',false,'actualAccepted',false,
     'newWorkCreated',false,'historicalAssignmentEstablished',false);
+ END IF;
+
+ IF v_object_links=1 THEN
+   IF v_native_subject_links<>1 OR v_native_link_recorded_at IS NULL
+   THEN RAISE EXCEPTION 'Native log Object link conflicts with selected Subject'
+      USING ERRCODE='42501'; END IF;
+   v_subject_attribution_basis:='native_field_log_object_link';
+   v_subject_attributed_at:=v_native_link_recorded_at;
+ ELSE
+   -- This later claim is personally attested at CURRENT recorded_at,
+   -- not evidence that the Object was linked when the manual log was made.
+   SELECT * INTO v_claim
+   FROM atlas.uni_ops_p2_later_worker_subject_attributions_v1 c
+   WHERE c.report_id=v_report.id;
+   IF v_claim.id IS NULL
+      OR v_claim.organization_id IS DISTINCT FROM v_report.organization_id
+      OR v_claim.farm_id IS DISTINCT FROM v_report.farm_id
+      OR v_claim.ledger_id IS DISTINCT FROM p_ledger_id
+      OR v_claim.reporter_user_id IS DISTINCT FROM v_report.reporter_user_id
+      OR v_claim.reporter_person_id IS DISTINCT FROM v_report.reporter_person_id
+      OR v_claim.attributed_growing_object_id IS DISTINCT FROM v_state.subject_id
+      OR v_claim.source_log_snapshot_md5 IS DISTINCT FROM
+        v_report.source_summary_snapshot_md5
+      OR v_claim.claim_is_contemporaneous_observation IS DISTINCT FROM false
+      OR v_claim.condition_was_verified IS DISTINCT FROM false
+      OR v_claim.recorded_at<=v_report.source_log_recorded_at
+   THEN RAISE EXCEPTION 'Separate later signed worker Subject claim required'
+      USING ERRCODE='42501'; END IF;
+   v_subject_attribution_basis:='later_signed_worker_subject_claim';
+   v_subject_attributed_at:=v_claim.recorded_at;
  END IF;
 
  -- Source-specific historical search, including completed/cancelled and
@@ -158,7 +198,12 @@ BEGIN
    END,
    'currentRelevantOriginalCount',v_scope_work_count,
    'currentExactRhythmCareOriginalCount',v_direct_work_count,
-   'firstPartySubjectLinkCurrent',true,
+   'subjectAttributionCurrent',true,
+   'subjectAttributionBasis',v_subject_attribution_basis,
+   'subjectAttributionRecordedAt',v_subject_attributed_at,
+   'attributionIsLaterThanLogRecord',
+     v_subject_attributed_at>v_report.source_log_recorded_at,
+   'attributionIsNotProofOfPhysicalExecution',true,
    'workerActivityIsNotAcceptedActual',true,
    'noOriginalExistsProven',false,
    'laterOriginalAuthorized',false,
@@ -207,7 +252,7 @@ BEGIN
 
  RETURN pg_catalog.jsonb_build_object(
   'ok',true,'contractVersion','p2_original_source_preflight_held_v1',
-  'state','one_exact_existing_source_original_for_separate_adjudication',
+  'state','one_existing_original_for_attested_subject_requires_adjudication',
   'sourceRhythmStateId',v_state.id,
   'sourceSubjectId',v_state.subject_id,
   'matchedWorkItemId',v_work.id,
@@ -218,7 +263,12 @@ BEGIN
     v_work.created_at<=v_report.source_log_recorded_at,
   'reporterHadResponsibleAllocationBeforeLogRecord',v_alloc_preexisting,
   'chronologyIsNotProofOfActualExecution',true,
-  'firstPartySubjectLinkCurrent',true,
+  'subjectAttributionCurrent',true,
+   'subjectAttributionBasis',v_subject_attribution_basis,
+   'subjectAttributionRecordedAt',v_subject_attributed_at,
+   'attributionIsLaterThanLogRecord',
+     v_subject_attributed_at>v_report.source_log_recorded_at,
+   'attributionIsNotProofOfPhysicalExecution',true,
   'existingOriginalWorkState',v_work.work_state,
   'workerActivityIsNotAcceptedActual',true,
   'noOriginalExistsProven',false,'laterOriginalAuthorized',false,
