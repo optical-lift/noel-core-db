@@ -103,7 +103,7 @@ jobs:
                       raise SystemExit(f'duplicate conflicting field: {key}')
                   fields[key] = value
 
-          required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha', 'common_sha', 'diagnostic_scope')
+          required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha', 'common_sha', 'household_sha', 'diagnostic_scope')
           missing = [key for key in required if key not in fields]
           if missing:
               raise SystemExit('missing required validation field(s): ' + ', '.join(missing))
@@ -113,6 +113,7 @@ jobs:
           target = fields['production_target']
           candidate_sha = fields['candidate_sha'].lower()
           common_sha = fields['common_sha'].lower()
+          household_sha = fields['household_sha'].lower()
 
           if not re.fullmatch(r'\d{14}', version):
               raise SystemExit('migration_version must be exactly 14 digits')
@@ -120,7 +121,7 @@ jobs:
               raise SystemExit('release_lane must be atlas, wnph, titus, noel, or shared')
           if target != 'zirqkouammpwxlqfbsvf':
               raise SystemExit('production_target does not match noel-core production')
-          if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha) or not re.fullmatch(r'[0-9a-f]{40}', common_sha):
+          if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha) or not re.fullmatch(r'[0-9a-f]{40}', common_sha) or not re.fullmatch(r'[0-9a-f]{40}', household_sha):
               raise SystemExit('Both source heads must be exact 40-character Git commits')
 
           title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'titus': 'Titus', 'noel': 'Noel', 'shared': 'Shared'}[lane]
@@ -136,6 +137,7 @@ jobs:
               handle.write(f'release_lane={lane}\n')
               handle.write(f'candidate_sha={candidate_sha}\n')
               handle.write(f'common_sha={common_sha}\n')
+              handle.write(f'household_sha={household_sha}\n')
           PY
 
       - name: Checkout canonical main validator
@@ -190,7 +192,10 @@ jobs:
           common="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2555" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
           test "$common" = "open|true|candidate/universal-rulebook-common-source-preflight-20261106|${{ steps.request.outputs.common_sha }}" ||
             { echo "::error::Universal common draft source changed or unheld"; exit 1; }
-          echo "PASS immutable U1A, universal common and fictional C1 sources"
+          household="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2559" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+          test "$household" = "open|true|candidate/uni-ops-typed-household-source-evidence-20261106|${{ steps.request.outputs.household_sha }}" ||
+            { echo "::error::Household typed source PR moved or lost HELD status"; exit 1; }
+          echo "PASS immutable U1A, common, typed Household and fictional C1 sources"
 
       - name: Snapshot production user schemas read-only
         shell: bash
@@ -235,6 +240,14 @@ jobs:
         with:
           ref: ${{ steps.request.outputs.common_sha }}
           path: universal
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout immutable held typed Household source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.household_sha }}
+          path: household
           persist-credentials: false
           fetch-depth: 1
 
