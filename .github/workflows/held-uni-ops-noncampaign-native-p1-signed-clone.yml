@@ -294,7 +294,7 @@ jobs:
           for item in ('ThreadPoolExecutor(max_workers=2)','record_worker_activity_log_v1','retract_worker_activity_log_v1','recognitionLinkId','noClockAdmission'):
               assert item in helper,item
           assert 'https://' not in helper and 'http://' not in helper
-          assert 'p_transition_kind IS DISTINCT FROM ''complete''' in held
+          assert "p_transition_kind IS DISTINCT FROM 'complete'" in held
           assert 'Campaign-linked Actual requires no-successor source cutover' in held
           assert 'historical_self_adoption_review_events_v1' not in held
           print('PASS exact held P1 opt-in and native-only source; no cancelled/historical Work authority')
