@@ -36,9 +36,9 @@ jobs:
           assert "'policyAdoptable',false" in sql
           assert "'domainAdapterAccepted',false" in sql
           assert "GRANT EXECUTE" not in sql
-          assert 'secrets.' not in workflow
-          assert 'environment: production' not in workflow
-          assert 'workflow_dispatch:' not in workflow
-          assert 'supabase db push' not in workflow
+          assert 'secrets'+'.' not in workflow
+          assert 'environment:'+' production' not in workflow
+          assert 'workflow_'+'dispatch:' not in workflow
+          assert 'supabase db '+'push' not in workflow
           print('PASS candidate held: no credentials, release or acquired domain authority')
           PY
