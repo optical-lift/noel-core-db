@@ -58,3 +58,38 @@ jobs:
         run: |
           echo 'This job never uses production secrets or genuine GoTrue sessions.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Synthetic PG17 is not the protected RiverSong full-schema signed-clone gate.' >> "$GITHUB_STEP_SUMMARY"
+
+
+  assembly-source:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact current universal candidate (no credentials persisted)
+        uses: actions/checkout@v4
+        with:
+          path: universal
+          persist-credentials: false
+      - name: Checkout canonical main for exact already-reviewed custody blob
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: canonical
+          persist-credentials: false
+      - name: Checkout exact held P3 source SHA (no second governor)
+        uses: actions/checkout@v4
+        with:
+          ref: f9ca3c44065a0d2f8a23821a583fcc0571d2d0fc
+          path: p3
+          persist-credentials: false
+      - name: Verify isolated full-schema test SQL input without any database or credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py
+          python3 universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py \
+            --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
+            --output "$RUNNER_TEMP/held-uni-ops-universal-full-schema-test-only.sql"
+          test -s "$RUNNER_TEMP/held-uni-ops-universal-full-schema-test-only.sql"
+          ! grep -F 'uni_ops_p3_owner_attention_decision_events_v1 (' "$RUNNER_TEMP/held-uni-ops-universal-full-schema-test-only.sql"
+          echo 'PASS: pinned source assembly input only, never SQL execution or release'
