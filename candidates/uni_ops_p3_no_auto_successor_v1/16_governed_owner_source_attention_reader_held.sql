@@ -194,6 +194,7 @@ BEGIN
       'workAlreadyAuthorizedByAttention',false,
       'workerAlreadyAssignedByAttention',false,
       'clockAdmissionGranted',false,
+      'principalClockCandidateCreated',false,
       'operationalOwnerAttentionOnly',true,
       'principalEscalationQualified',false,
       'universalCompanyDecisionCreated',false
