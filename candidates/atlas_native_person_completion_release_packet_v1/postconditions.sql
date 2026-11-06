@@ -86,6 +86,11 @@ BEGIN
     AND p.pronargs=5;
   IF v_worker IS NULL OR v_legacy IS NULL OR v_event IS NULL
     OR v_worker NOT LIKE '%apply_work_lifecycle_transition_internal_v1%'
+    OR v_worker NOT LIKE '%connected_person_company_work_result_v1%'
+    OR v_worker NOT LIKE '%''resultId'',v_result.id%'
+    OR v_worker NOT LIKE '%''resultKind'',''completed''%'
+    OR v_worker NOT LIKE '%''oneLifecycleDone'',v_universal_receipt%'
+    OR v_worker NOT LIKE '%''historicalRecordedCompletion'',true%'
     OR v_event NOT LIKE '%apply_work_lifecycle_transition_internal_v1%'
     OR v_event NOT LIKE '%personalPerformanceNotClaimed%'
     OR v_legacy NOT LIKE '%Historical self-adopted Work is reference only%'
