@@ -1,0 +1,95 @@
+{
+  "contract": "UNI_OPS_UNIVERSAL_RULEBOOK_COMMON_SIGNED_ACCEPTANCE_20261106",
+  "status": "DISPOSABLE_SIGNED_COMMON_SOURCE_ACCEPTANCE_PASSED__DOMAIN_AND_PRODUCTION_AUTHORITY_HELD",
+  "source_owner": "Noel",
+  "orchestrator_issue": "optical-lift/atlas#532",
+  "as_of": "2026-11-06",
+  "held_common_source": {
+    "pr": 2555,
+    "state": "DRAFT_UNMERGED",
+    "head": "848f14c6b96a4745eb28c97c413b2d0e7cbb2c4f",
+    "candidate_sql_blob": "9e3dd3c9edda725aeb2c8d480996d64ec272486c",
+    "postconditions_blob": "97b240bc19b35fc1aaad301a04f529f3100f5f56",
+    "read_only_coverage_blob": "66d51f39ae6e8d1648f12135368ead05ed64100a",
+    "static_test_blob": "11a3fb41c2cbd878c1f1a19f6c3125d20651c439"
+  },
+  "unchanged_u1a": {
+    "pr": 2465,
+    "head": "f9c372d3487ea6af4d29a4ee3b22579b9d94c5ae",
+    "source_sql_blob": "c7df9269a0726732b27e88764b04fabe0039aee5"
+  },
+  "fictional_c1_source": {
+    "pr": 2487,
+    "head": "9af4ab9b203877f048af09e23bac58bf86cd58fe",
+    "fixture_sql_blob": "e877d93323ddc67d8778be8bea1dfa34319cc85c"
+  },
+  "test_only_carrier": {
+    "pr": 2556,
+    "merged_main_sha": "1a5d23b6dfa03120ebaa8abae230d0a43939a23f",
+    "owner_request_issue": 2557,
+    "source_contract_ci": 42258305523,
+    "database_custody_ci": 42258305166,
+    "probe_wrapper_blob": "8617455228081427b00d8e26f20bce1b0cc9cb77",
+    "wrapper_scope": "DISPOSABLE_ONLY_AUTHENTICATED_GOTRUE_NO_PRODUCT_TRANSPORT"
+  },
+  "source_static_proof": {
+    "node_source_ci": 42256878912,
+    "db_custody_ci": 42256878949,
+    "conclusions": "SUCCESS"
+  },
+  "signed_proof": {
+    "run_id": 42258546856,
+    "conclusion": "success",
+    "artifact_id": 13524251613,
+    "archive_sha256": "5a3da72b6e3d5a789f6f81e6a5d6efa2a76fbf08fe0d73eff204957363de8211",
+    "signed_common_summary_sha256": "b50f97aaa0e75b330c99a4a9547e3e48117ad723ec44c9bf4998b4c166f652a5",
+    "signed_common_log_sha256": "831f978ae8d895f3886d8918224a8aee428e09df1da905429572719936d1391a",
+    "original_u1a_summary_sha256": "582a8576e112096e08be463b0efd94e7b932fba53605b3586cd8bbf81d8d156b",
+    "postconditions_sha256": "d6ee7c5f89894bc4f7e8426dbeb3fc867d8f38898d7f5f5528e2a99e441fa1c8",
+    "schema_lint_delta_sha256": "b14805de091822bcbffc724e3794fef5dd73d3722eeb136b17a38a24879b4882",
+    "cleanup_sha256": "8eaee8c00f04592d00bcde372bf94e4e4a3a5237a6b848311e58612736819d89",
+    "baseline_lint_errors": 14,
+    "candidate_lint_errors": 14,
+    "new_lint_errors": 0,
+    "proven": [
+      "new universal common-only SQL compiled in a fresh production-schema-shaped disposable PostgreSQL clone alongside exact unchanged original U1A SQL",
+      "original independently approved Foundry U1A signed root/reviewer source and versioning/denials passed unchanged",
+      "genuine fresh local signed GoTrue root passes exact existing Requirement and canonical Reality Subject with current identity and condition disclosures",
+      "genuine signed worker, outsider, no-seat, anonymous, wrong Requirement, wrong Ledger and deleted-session attempts denied",
+      "private common function has no direct authenticated/anon/service_role EXECUTE",
+      "only disposable test wrapper was authenticated and never installed on production",
+      "seven flags deny domain adapter, independent source review, policy adoption, executable policy, Work, Clock and successor Work",
+      "no new or modified original Work/Requirement/policy created by the common probe",
+      "original U1A still retains three immutable decisions from its separate synthetic signed test",
+      "local Supabase services stopped"
+    ]
+  },
+  "live_read_only_coverage": {
+    "as_of": "2026-11-06",
+    "active_requirements": 77,
+    "source_families": {
+      "legacy_task": 70,
+      "production_bed_assignment": 6,
+      "planned_work_occurrence": 1
+    },
+    "canonical_reality_linked_common_candidates": 0,
+    "atlas_identity_subjects": 212,
+    "source_subject_assertions": 127,
+    "identity_reconciliation_reviews": 3,
+    "identity_reconciliation_adjudications": 0,
+    "original_foundry_input_events": 0,
+    "current_independent_foundry_review_cases": 0,
+    "note": "Identity Subjects and their assertions are not automatically canonical Reality Subjects; same-ID absence does not disprove independently verified other-ID links."
+  },
+  "explicit_holds": [
+    "held universal source #2555 not merged, migrated, or installed",
+    "U1A currently admits only its existing explicitly verified spatial growing-object domain and is unchanged",
+    "no independently source-positive nonfarm Subject-domain adapter or original Foundry review exists in this packet",
+    "one effective U1A/U1B Rulebook arbiter and U2 lawful first worker-accepted original are unproven",
+    "U2E independent scheduler/carrier is unbound and P3 campaign-Result law remains held",
+    "no Root/Person/Subject/Requirement/Rulebook/Work/Result/Clock/ACL changes on live",
+    "no automatic successor Work after Actual or Done, November 4 6A",
+    "real Atlas multi-actor/desktop/iPhone, second independent nonfarm domain, canonical production migration and exact release authorization are unproven"
+  ],
+  "next_source_owned_gate": "Source-reviewed identity/Need evidence and one domain adapter independent from spatial, preserving existing signed U1A behavior, then single Rulebook arbitration and U2 signed first original. No blanket source conversion."
+}
