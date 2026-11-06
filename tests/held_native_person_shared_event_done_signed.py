@@ -161,6 +161,44 @@ def main():
        "Fixture must never fabricate source Result or accepted Done")
     print("PASS original shared Event Work exists only as source-shaped disposable fixture; live create ACL remains DENIED")
 
+    # TEST-ONLY DATA CUSTODY: current-schema dumps are deliberately schema-only;
+    # they do not carry production policy ROWS. The exact policy was independently
+    # confirmed read-only in Noel production on 2026-11-05. Rehydrate ONLY this
+    # source-owned existing policy in disposable PG17; no grants, no new policy
+    # decision, no application SQL, and no real Event Work/Result/Done imported.
+    policy="ledger_occurrence_shared_confirmation_v1"
+    policy_rows=scalar(args.db_url,
+        f"SELECT count(*) FROM atlas.work_result_contract_policies "
+        f"WHERE contract_key='{policy}'")
+    check(policy_rows in ("0","1"),"Invalid shared Event policy duplicate count")
+    if policy_rows == "0":
+        scalar(args.db_url,"""
+          INSERT INTO atlas.work_result_contract_policies
+            (contract_key,source_domain,acceptance_mode,active,description,metadata)
+          VALUES (
+            'ledger_occurrence_shared_confirmation_v1',
+            'organization','domain_adapter',true,
+            'Authorized Ledger collaborator confirms an ordinary Event checklist state; performer not inferred.',
+            jsonb_build_object(
+              'source','ledger_occurrence_shared_work_v1',
+              'workerDayRequired',false,
+              'physicalPerformerAsserted',false,
+              'responsibleAllocationRequired',false)
+          )
+        """)
+    check(scalar(args.db_url,"""
+       SELECT count(*) FROM atlas.work_result_contract_policies
+       WHERE contract_key='ledger_occurrence_shared_confirmation_v1'
+         AND source_domain='organization'
+         AND acceptance_mode='domain_adapter'
+         AND active
+         AND metadata->>'source'='ledger_occurrence_shared_work_v1'
+         AND metadata->>'workerDayRequired'='false'
+         AND metadata->>'physicalPerformerAsserted'='false'
+         AND metadata->>'responsibleAllocationRequired'='false'
+    """)=="1","Shared Event policy must match current existing source")
+    print("PASS existing active source policy restored in schema-only disposable fixture")
+
     action="signed-event-state-confirmed-once-20261105"
     mark=dict(p_organization_id=ORG,p_ledger_id=LEDGER,
               p_occurrence_id=OCC,p_work_item_id=work,
