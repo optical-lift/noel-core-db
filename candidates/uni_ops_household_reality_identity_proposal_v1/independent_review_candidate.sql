@@ -6,6 +6,7 @@ BEGIN;
 
 CREATE TABLE atlas.uni_ops_household_reality_identity_reviews_v1 (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  event_sequence bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
   proposal_id uuid NOT NULL REFERENCES
     atlas.uni_ops_household_reality_identity_proposals_v1(id) ON DELETE RESTRICT,
   event_kind text NOT NULL CHECK
@@ -36,7 +37,7 @@ CREATE TABLE atlas.uni_ops_household_reality_identity_reviews_v1 (
 );
 CREATE INDEX uni_ops_household_review_by_proposal_v1
   ON atlas.uni_ops_household_reality_identity_reviews_v1
-  (proposal_id,decided_at DESC,id DESC);
+  (proposal_id,event_sequence DESC);
 
 ALTER TABLE atlas.uni_ops_household_reality_identity_reviews_v1
   ENABLE ROW LEVEL SECURITY;
@@ -77,6 +78,7 @@ DECLARE
   v_governor_person_id uuid;
 BEGIN
   IF p_proposal_id IS NULL OR p_source_action_id IS NULL
+     OR p_event_kind IS NULL
      OR p_event_kind NOT IN ('approved','rejected','revoked')
      OR coalesce(p_reviewed_evidence_sha256,'') !~ '^[0-9a-f]{64}$'
      OR length(btrim(coalesce(p_decision_basis,''))) NOT BETWEEN 20 AND 4000
@@ -199,7 +201,7 @@ BEGIN
   SELECT * INTO v_latest
   FROM atlas.uni_ops_household_reality_identity_reviews_v1 e
   WHERE e.proposal_id=p_proposal_id
-  ORDER BY e.decided_at DESC,e.id DESC LIMIT 1;
+  ORDER BY e.event_sequence DESC LIMIT 1;
 
   IF p_event_kind='revoked' THEN
     IF v_latest.id IS NULL OR v_latest.event_kind<>'approved' THEN
@@ -241,7 +243,7 @@ BEGIN
         SELECT event_kind
         FROM atlas.uni_ops_household_reality_identity_reviews_v1 e
         WHERE e.proposal_id=other.id
-        ORDER BY e.decided_at DESC,e.id DESC LIMIT 1
+        ORDER BY e.event_sequence DESC LIMIT 1
       ) last_e ON true
       WHERE other.id<>v_proposal.id AND last_e.event_kind='approved'
         AND (
