@@ -37,9 +37,10 @@ jobs:
           assert sum(line.strip()=="environment: production" for line in w.splitlines())==1
           assert "github.event.issue.title == 'UNI-OPS-01 universal common Rulebook signed clone request'" in w
           assert w.index("Snapshot production user schemas read-only") < w.index("Checkout immutable held U1A source")
-          assert w.index("Checkout immutable held U1A source") < w.index("Validate U1A through canonical disposable signed clone")
+          assert w.index("Checkout immutable held U1A source") < w.index("Checkout immutable held universal common source") < w.index("Validate U1A through canonical disposable signed clone")
           for key in ("universal_common_rulebook_plus_u1a_v1","U1A_SIGNED_TEST_ONLY",
-                      "signed-u1a-rulebook-summary.txt","c7df9269a0726732b27e88764b04fabe0039aee5"):
+                      "signed-universal-common-summary.txt","9e3dd3c9edda725aeb2c8d480996d64ec272486c",
+                      "c7df9269a0726732b27e88764b04fabe0039aee5"):
               assert key in w,key
           assert "supabase db "+"push" not in w
           print("PASS owner-only issue gate and source-held U1A proof; no release")
@@ -102,7 +103,7 @@ jobs:
                       raise SystemExit(f'duplicate conflicting field: {key}')
                   fields[key] = value
 
-          required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha', 'diagnostic_scope')
+          required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha', 'common_sha', 'diagnostic_scope')
           missing = [key for key in required if key not in fields]
           if missing:
               raise SystemExit('missing required validation field(s): ' + ', '.join(missing))
@@ -111,6 +112,7 @@ jobs:
           lane = fields['release_lane']
           target = fields['production_target']
           candidate_sha = fields['candidate_sha'].lower()
+          common_sha = fields['common_sha'].lower()
 
           if not re.fullmatch(r'\d{14}', version):
               raise SystemExit('migration_version must be exactly 14 digits')
@@ -118,8 +120,8 @@ jobs:
               raise SystemExit('release_lane must be atlas, wnph, titus, noel, or shared')
           if target != 'zirqkouammpwxlqfbsvf':
               raise SystemExit('production_target does not match noel-core production')
-          if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha):
-              raise SystemExit('candidate_sha must be an immutable 40-character commit SHA')
+          if not re.fullmatch(r'[0-9a-f]{40}', candidate_sha) or not re.fullmatch(r'[0-9a-f]{40}', common_sha):
+              raise SystemExit('Both source heads must be exact 40-character Git commits')
 
           title_lane = {'atlas': 'Atlas', 'wnph': 'WNPH', 'titus': 'Titus', 'noel': 'Noel', 'shared': 'Shared'}[lane]
           if version != '20261028235811' or lane != 'atlas' or fields.get('diagnostic_scope') != 'universal_common_rulebook_plus_u1a_v1':
@@ -133,6 +135,7 @@ jobs:
               handle.write(f'migration_version={version}\n')
               handle.write(f'release_lane={lane}\n')
               handle.write(f'candidate_sha={candidate_sha}\n')
+              handle.write(f'common_sha={common_sha}\n')
           PY
 
       - name: Checkout canonical main validator
@@ -184,7 +187,10 @@ jobs:
           c1="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2487" --jq '.state + "|" + (.draft|tostring) + "|" + .head.sha')"
           test "$c1" = 'open|true|9af4ab9b203877f048af09e23bac58bf86cd58fe' ||
             { echo "::error::Fictional C1 original source changed"; exit 1; }
-          echo "PASS immutable draft head and unchanged synthetic C1 source"
+          common="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2555" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+          test "$common" = "open|true|candidate/universal-rulebook-common-source-preflight-20261106|${{ steps.request.outputs.common_sha }}" ||
+            { echo "::error::Universal common draft source changed or unheld"; exit 1; }
+          echo "PASS immutable U1A, universal common and fictional C1 sources"
 
       - name: Snapshot production user schemas read-only
         shell: bash
@@ -221,6 +227,14 @@ jobs:
         with:
           ref: 9af4ab9b203877f048af09e23bac58bf86cd58fe
           path: c1fixture
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout immutable held universal common source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.common_sha }}
+          path: universal
           persist-credentials: false
           fetch-depth: 1
 
