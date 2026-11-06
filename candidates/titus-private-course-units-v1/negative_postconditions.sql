@@ -69,7 +69,7 @@ BEGIN
   RAISE EXCEPTION 'Foreign class writable';
  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  BEGIN
-  PERFORM public.titus_customer_unit_move_self_api_v1(u,'up');
+  PERFORM public.titus_customer_unit_move_self_api_v1(c,u,'up');
   RAISE EXCEPTION 'Foreign class movable';
  EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $outsider$;
