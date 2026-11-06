@@ -47,7 +47,12 @@ CREATE TABLE atlas.uni_ops_p2_independent_current_actual_links_v1(
     AND independent_worker_accepted_at<=independent_original_established_at
     AND independent_original_established_at<independent_physical_observed_at
     AND independent_original_established_at<independent_actual_reported_at
-    AND independent_actual_reported_at<=independent_actual_accepted_at)
+    -- C1 source stamps reported_at with clock_timestamp(), while the
+    -- accepted_at default uses now() (transaction start). The temporal
+    -- SQL defaults may put accepted_at numerically BEFORE reported_at.
+    -- The exact Result FK/acceptance row proves authority, not an
+    -- invented chronological order between differing PG clock functions.
+    )
 );
 ALTER TABLE atlas.uni_ops_p2_independent_current_actual_links_v1
  ENABLE ROW LEVEL SECURITY;
@@ -177,7 +182,7 @@ BEGIN
    AND a.acceptance_kind='source_qualified_physical_actual'
    AND a.accepted_by_domain='continuing_care_actual'
  ORDER BY a.accepted_at,a.id LIMIT 1;
- IF v_accept.id IS NULL OR v_accept.accepted_at<v_result.reported_at
+ IF v_accept.id IS NULL
  THEN RAISE EXCEPTION 'Only existing accepted native C1 physical Result may link'
    USING ERRCODE='42501'; END IF;
 
@@ -197,7 +202,6 @@ BEGIN
    AND e.condition_state=v_result.payload->>'conditionAfter';
  IF v_obs.id IS NULL OR v_obs.observed_at<=v_work.created_at
     OR v_obs.observed_at<=v_review.reviewer_recorded_at
-    OR v_obs.observed_at>v_accept.accepted_at
  THEN RAISE EXCEPTION 'Independent physical C1 observation provenance mismatch'
    USING ERRCODE='42501'; END IF;
 
