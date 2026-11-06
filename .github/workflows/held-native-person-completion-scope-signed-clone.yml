@@ -291,24 +291,24 @@ jobs:
           anchor='    print("PASS signed undated original Work responsibility, disclosure and no plan")\n'
           assert source.count(anchor)==1, 'Trusted signed original Work test changed'
           insert='''
-    # Current source law: an accepted responsible Person is NOT automatically
-    # the governing scheduler. Prove the governor-only scheduling refusal.
-    current_day=dict(p_work_item_id=bed4,p_service_date="2030-10-31",
-                     p_reason="Responsible Person seeks to place this Work.")
-    status,blocked=rpc(api,key,worker,"connected_person_place_work_self_api_v1",current_day)
-    check(status==403 and isinstance(blocked,dict)
-          and blocked.get("code")=="42501"
-          and blocked.get("message")=="Root governing authority over Ledger required.",
-          "Current governor-only scheduling authority did not refuse worker placement")
-    check(sql(args.db_url,f"select count(*) from atlas.work_execution_plans where work_item_id='{bed4}'::uuid")=="0",
-          "Denied worker date placement must create no plan")
-    print("PASS signed non-governor responsible Person cannot place Work on a date")
-    Path(args.output).write_text(
-       "PASS signed native original Work completion and governor-only scheduling denial\\n"
-       "NOT TESTED: outdated worker-schedules-own-Work sequence, ordinary third Work, "
-       "Household Laundry, shared Event checklist Done or production\\n")
-    return
-'''
+              # Current source law: an accepted responsible Person is NOT automatically
+              # the governing scheduler. Prove the governor-only scheduling refusal.
+              current_day=dict(p_work_item_id=bed4,p_service_date="2030-10-31",
+                               p_reason="Responsible Person seeks to place this Work.")
+              status,blocked=rpc(api,key,worker,"connected_person_place_work_self_api_v1",current_day)
+              check(status==403 and isinstance(blocked,dict)
+                    and blocked.get("code")=="42501"
+                    and blocked.get("message")=="Root governing authority over Ledger required.",
+                    "Current governor-only scheduling authority did not refuse worker placement")
+              check(sql(args.db_url,f"select count(*) from atlas.work_execution_plans where work_item_id='{bed4}'::uuid")=="0",
+                    "Denied worker date placement must create no plan")
+              print("PASS signed non-governor responsible Person cannot place Work on a date")
+              Path(args.output).write_text(
+                 "PASS signed native original Work completion and governor-only scheduling denial\\n"
+                 "NOT TESTED: outdated worker-schedules-own-Work sequence, ordinary third Work, "
+                 "Household Laundry, shared Event checklist Done or production\\n")
+              return
+          '''
           changed=source.replace(anchor,anchor+insert)
           assert changed.count('PASS signed native original Work completion and governor-only scheduling denial')==1
           path.write_text(changed)
