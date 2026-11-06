@@ -48,6 +48,12 @@ BEGIN
     'atlas.uni_ops_company_governor_decide_source_case_self_held_v1(uuid,text,text,uuid,uuid)'::regprocedure))=0
  THEN RAISE EXCEPTION 'Company governing Person/source proof removed'; END IF;
 
+ IF pg_catalog.to_regclass(
+    'atlas.uni_ops_p3_owner_attention_decision_events_v1'
+  ) IS NOT NULL THEN
+   RAISE EXCEPTION 'Parallel farm-local and Company-neutral governor histories forbidden';
+ END IF;
+
  RAISE NOTICE 'Source contract structurally present only; no first-party source-adapter proof or human signed acceptance run';
 END;
 $structure$;
