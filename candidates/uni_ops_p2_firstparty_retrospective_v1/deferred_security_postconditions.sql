@@ -106,6 +106,33 @@ BEGIN
  )=0
  THEN RAISE EXCEPTION 'P2 original review would falsely require native object link absent from live worker logs'; END IF;
 
+
+ IF pg_catalog.to_regprocedure(
+ 'atlas.uni_ops_p2_later_physical_actual_admission_self_held_v1(uuid,uuid,uuid,uuid,text)'
+ ) IS NULL OR pg_catalog.to_regprocedure(
+ 'atlas.uni_ops_p2_link_separately_accepted_current_actual_held_v1(uuid,uuid,uuid,uuid)'
+ ) IS NULL OR pg_catalog.to_regclass(
+ 'atlas.uni_ops_p2_independent_current_actual_links_v1'
+ ) IS NULL THEN
+  RAISE EXCEPTION 'P2 prospective current physical-source or immutable C1 correlation absent';
+ END IF;
+ IF NOT EXISTS (
+  SELECT 1 FROM pg_catalog.pg_trigger t
+  WHERE t.tgrelid='atlas.uni_ops_p2_independent_current_actual_links_v1'::regclass
+    AND t.tgname='uni_ops_p2_independent_current_actual_append_only_v1'
+    AND t.tgenabled<>'D'
+ ) THEN RAISE EXCEPTION 'P2 historical/current Actual correlation not immutable'; END IF;
+ IF pg_catalog.has_function_privilege('authenticated',
+  'atlas.uni_ops_p2_link_separately_accepted_current_actual_held_v1(uuid,uuid,uuid,uuid)'::regprocedure,'EXECUTE')
+ OR pg_catalog.has_function_privilege('service_role',
+  'atlas.uni_ops_p2_later_physical_actual_admission_self_held_v1(uuid,uuid,uuid,uuid,text)'::regprocedure,'EXECUTE')
+ THEN RAISE EXCEPTION 'P2 present source/Actual link exposed to API roles'; END IF;
+ IF position('source_qualified_physical_actual' IN
+   pg_catalog.pg_get_functiondef(
+    'atlas.uni_ops_p2_link_separately_accepted_current_actual_held_v1(uuid,uuid,uuid,uuid)'::regprocedure)
+ )=0
+ THEN RAISE EXCEPTION 'P2 link stopped checking existing native accepted C1 Result'; END IF;
+
  RAISE NOTICE 'P2 structural ownership/ACL only; signed source evidence/Work non-creation remains DEFERRED';
 END;
 $post$;
