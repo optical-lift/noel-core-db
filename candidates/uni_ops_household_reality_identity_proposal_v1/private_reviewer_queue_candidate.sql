@@ -63,6 +63,9 @@ BEGIN
     FROM atlas.uni_ops_household_reality_identity_proposals_v1 p
     JOIN atlas.households h ON h.id=p.household_id
       AND h.status='active' AND h.principal_id=p.proposed_by_principal_id
+    JOIN atlas.principals governor ON governor.id=h.principal_id
+      AND governor.status='active'
+      AND governor.person_id<>v_reviewer_person_entity_id
     JOIN atlas.household_kernel_instances k ON k.id=p.kernel_instance_id
       AND k.household_id=p.household_id AND k.state='active'
     JOIN atlas.world_kernel_definitions d ON d.kernel_key=k.kernel_key
