@@ -109,8 +109,15 @@ BEGIN
       v_f.organization_id,p_ledger_id) IS DISTINCT FROM v_person
     OR NOT EXISTS(
       SELECT 1 FROM atlas.farm_crop_ledger_custody_v1 c
+      JOIN ledger.ledgers nl
+        ON nl.id=c.ledger_id
+       AND nl.ledger_state='active' AND nl.retired_at IS NULL
+      JOIN atlas.ledgers al
+        ON al.id=nl.id
+       AND al.status='active'
+       AND al.organization_id=v_f.organization_id
       JOIN atlas.ledger_organization_participations lop
-        ON lop.ledger_id=c.ledger_id
+        ON lop.ledger_id=al.id
        AND lop.organization_id=v_f.organization_id
        AND lop.status='active' AND lop.ended_at IS NULL
        AND lop.participation_kind='governing'
