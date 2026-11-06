@@ -37,8 +37,9 @@ jobs:
           assert sum(line.strip()=="environment: production" for line in w.splitlines())==1
           assert "github.event.issue.title == 'UNI-OPS-01 typed Household native source signed clone request'" in w
           assert w.index("Snapshot production user schemas read-only") < w.index("Checkout immutable held U1A source")
-          assert w.index("Checkout immutable held U1A source") < w.index("Checkout immutable held universal common source") < w.index("Validate U1A through canonical disposable signed clone")
+          assert w.index("Checkout immutable held U1A source") < w.index("Checkout immutable held universal common source") < w.index("Checkout immutable held typed Household source") < w.index("Validate U1A through canonical disposable signed clone")
           for key in ("universal_typed_household_native_source_v1","U1A_SIGNED_TEST_ONLY",
+                      "signed-household-native-summary.txt","392f42dc9c3866b5649c181c3a32f412f47924d6",
                       "signed-universal-common-summary.txt","9e3dd3c9edda725aeb2c8d480996d64ec272486c",
                       "c7df9269a0726732b27e88764b04fabe0039aee5"):
               assert key in w,key
@@ -339,6 +340,10 @@ jobs:
             python3 "$UNIVERSAL_COMMON_SIGNED_TEST_SCRIPT" --db-url "$database_url" --u1a-helper "$U1A_SIGNED_TEST_SCRIPT" --output "$artifacts_dir/signed-universal-common-summary.txt" > "$artifacts_dir/signed-universal-common.log" 2>&1
             test -s "$artifacts_dir/signed-universal-common-summary.txt"
             grep -q '^PASS universal COMMON exact source:' "$artifacts_dir/signed-universal-common-summary.txt"
+            phase="genuine signed independent nonfarm native Household governor"
+            python3 "$UNIVERSAL_HOUSEHOLD_SIGNED_TEST_SCRIPT" --db-url "$database_url" --u1a-helper "$U1A_SIGNED_TEST_SCRIPT" --output "$artifacts_dir/signed-household-native-summary.txt" > "$artifacts_dir/signed-household-native.log" 2>&1
+            test -s "$artifacts_dir/signed-household-native-summary.txt"
+            grep -q '^PASS signed Household typed NATIVE source' "$artifacts_dir/signed-household-native-summary.txt"
           fi
           
           '''
@@ -361,6 +366,7 @@ jobs:
           U1A_SIGNED_TEST_ONLY: signed
           U1A_SIGNED_TEST_SCRIPT: ${{ github.workspace }}/held/candidates/atlas_governed_rulebook_u1a_v1/validate_signed_u1a_local_clone_v1.py
           UNIVERSAL_COMMON_SIGNED_TEST_SCRIPT: ${{ github.workspace }}/scripts/validate-universal-rulebook-common-signed-http.py
+          UNIVERSAL_HOUSEHOLD_SIGNED_TEST_SCRIPT: ${{ github.workspace }}/scripts/validate-universal-typed-household-signed-http.py
         run: |
           set -euo pipefail
           args=(
@@ -389,7 +395,9 @@ jobs:
           grep -q 'zero Work/Need side effects' "$dir/signed-u1a-rulebook-summary.txt"
           grep -q '^PASS universal COMMON exact source:' "$dir/signed-universal-common-summary.txt"
           grep -q 'zero policy or Work rights' "$dir/signed-universal-common-summary.txt"
-          printf "\nU1A signed independent root/Reviewer policy version acceptance, no Work/Need. Production release HELD.\n" >> "$dir/summary.md"
+          grep -q '^PASS signed Household typed NATIVE source' "$dir/signed-household-native-summary.txt"
+          grep -q 'zero observed condition, zero native Need' "$dir/signed-household-native-summary.txt"
+          printf "\nU1A signed, universal common signed and independent Household typed native source signed tests passed. No live crossdomain admission or Work issued. Production release HELD.\n" >> "$dir/summary.md"
 
       - name: Publish validation summary
         if: always()
