@@ -169,7 +169,21 @@ def main():
            "unconnected signed outsider cannot confirm exact Event Work")
     denied(api,key,member,mark_fn,{**mark,"p_occurrence_id":OTHER},
            "other canonical Event must not control original Work")
-    recorded=permitted(api,key,member,mark_fn,mark)
+    denied(api,key,member,mark_fn,mark,
+           "native Ledger seat alone does not disclose private Event identity")
+    # The canonical Event scheduling oracle revoked its old signed governor
+    # session after restoring the root seat. A NEW genuine GoTrue login is
+    # necessary; reusing its revoked bearer would falsely test authorization.
+    root,root_claims=schedule.signed_session(
+        api,key,"atlas-write-root@example.invalid")
+    check(root_claims.get("sub")==schedule.ROOT and root_claims.get("session_id"),
+          "Genuine source-governing Person reauthentication required")
+    check(scalar(args.db_url,
+        f"SELECT count(*) FROM auth.sessions "
+        f"WHERE id='{root_claims['session_id']}'::uuid "
+        f"AND user_id='{schedule.ROOT}'::uuid")=="1",
+        "Governor must have a new valid signed session")
+    recorded=permitted(api,key,root,mark_fn,mark)
     result_id=qid(recorded.get("resultId"))
     receipt_id=qid(recorded.get("acceptanceId"))
     event_id=qid(recorded.get("eventId"))
@@ -178,7 +192,7 @@ def main():
        and recorded.get("idempotent") is False
        and recorded.get("physicalPerformerAsserted") is False
        and recorded.get("personalPerformanceNotClaimed") is True
-       and recorded.get("markedByPersonId")==PERSON
+       and recorded.get("markedByPersonId")==schedule.ROOT_PERSON
        and recorded.get("originalResultId")==result_id
        and recorded.get("acceptedEvidenceId")==receipt_id,
        "One signed shared Event Done must preserve Result/Acceptance and no-physical-performer receipt")
@@ -189,7 +203,7 @@ def main():
        JOIN atlas.work_result_acceptances accepted
          ON accepted.execution_result_id=result.id
        WHERE result.id='{result_id}'::uuid AND result.work_item_id='{work}'::uuid
-         AND result.reported_by_user_id='{MEMBER}'::uuid
+         AND result.reported_by_user_id='{schedule.ROOT}'::uuid
          AND result.result_kind='completed'
          AND result.responsible_allocation_id IS NULL
          AND result.payload->>'stateAssertion'='ordinary_shared_work_marked_done'
@@ -206,18 +220,18 @@ def main():
          AND event_kind='work_transition_applied'
          AND source_row_id='{receipt_id}'::uuid
          AND from_state='open' AND to_state='completed'
-         AND actor_user_id='{MEMBER}'::uuid
+         AND actor_user_id='{schedule.ROOT}'::uuid
          AND evidence_refs->>'personalPerformanceNotClaimed'='true'
      """)=="1","Must have exactly one source-backed authoritative transition")
-    print("PASS signed Person marked exact shared Event state with one accepted Result and one non-performance Done")
+    print("PASS signed governing Person marked exact shared Event state with one accepted Result and one non-performance Done")
 
-    again=permitted(api,key,member,mark_fn,mark)
+    again=permitted(api,key,root,mark_fn,mark)
     check(again.get("idempotent") is True and again.get("eventId")==event_id
           and again.get("resultId")==result_id
-          and again.get("markedByPersonId")==PERSON
+          and again.get("markedByPersonId")==schedule.ROOT_PERSON
           and again.get("physicalPerformerAsserted") is False,
           "Same signed action replay must preserve first actor and same one Done")
-    second=permitted(api,key,member,mark_fn,
+    second=permitted(api,key,root,mark_fn,
         {**mark,"p_source_action_id":"distinct-event-action-after-done-20261105"})
     check(second.get("alreadyDone") is True
           and second.get("newTransitionApplied") is False
@@ -234,13 +248,13 @@ def main():
         "Second action or replay caused duplicate immutable Done")
     print("PASS exact action replay and distinct action leave one Done and one original Result")
 
-    # The state-confirming Person's Ledger participation can be withdrawn.
+    # The exact root-governing Person's Ledger participation can be withdrawn.
     scalar(args.db_url,
         f"UPDATE ledger.seats SET seat_state='ended',ended_at=now() "
-        f"WHERE ledger_id='{LEDGER}'::uuid AND person_entity_id='{PERSON}'::uuid "
+        f"WHERE ledger_id='{LEDGER}'::uuid AND person_entity_id='{schedule.ROOT_PERSON}'::uuid "
         "AND seat_state='active'")
-    denied(api,key,member,mark_fn,mark,
-           "revoked Ledger connection must close even prior signed Event action")
+    denied(api,key,root,mark_fn,mark,
+           "revoked governor Ledger seat must close even prior signed Event action")
     check(scalar(args.db_url,
         f"SELECT count(*) FROM atlas.work_lifecycle_events_v1 "
         f"WHERE work_item_id='{work}'::uuid AND event_kind='work_transition_applied'")=="1",
@@ -249,9 +263,9 @@ def main():
         f"SELECT work_state FROM atlas.work_items WHERE id='{work}'::uuid")=="completed",
         "Revoking a connection cannot erase prior historical Work state")
     Path(args.output).write_text(
-       "PASS independently signed *preexisting* shared Event checklist Work Done, state-only Result, "
-       "one universal Done, legacy receipt, two replay modes, outsider/wrong Event/revoked denials\n"
-       "BLOCKED: native signed Person Event creation by existing current ACL. NOT PROVEN: live Event UI, historical cancellation, production, concurrent sessions\n",
+       "PASS independently signed root-governor *preexisting* shared Event checklist Work Done, state-only Result, "
+       "one universal Done, legacy receipt, two replay modes, member-without-event-disclosure/outsider/wrong Event/revoked denials\n"
+       "BLOCKED: native signed Person Event creation and ordinary Person Event identity disclosure by current ACL/source. Signed root-governor-only completion is not broad Event authorization. NOT PROVEN: live Event UI, historical cancellation, production, concurrent sessions\n",
        encoding="utf-8")
     print("PASS signed shared Event checklist completion, same-action replay and current permission withdrawal")
 
