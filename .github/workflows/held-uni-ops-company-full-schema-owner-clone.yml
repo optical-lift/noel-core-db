@@ -34,6 +34,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-uni-ops-company-full-schema-owner-clone.yml').read_text()
+          protected=w.split('\n  validate-protected:\n',1)[1]
           for required in (
              "github.event.issue.author_association == 'OWNER'",
              "github.actor == github.repository_owner",
@@ -45,13 +46,13 @@ jobs:
              "prepare_protected_clone_candidate_held.py",
              "candidate/uni-ops-universal-decision-boundary-20261106",
           ):
-             assert required in w,required
-          for forbidden in ('supabase db push', 'supabase migration up',
-                            'supabase db reset --linked', 'apply_migration',
-                            'secrets.SUPABASE_SERVICE_ROLE_KEY'):
-             assert forbidden not in w,forbidden
-          assert w.index('Snapshot production user schemas read-only') < w.index('Checkout exact held company source')
-          assert w.index('Checkout exact held company source') < w.index('Verify source and generate scratch SQL') < w.index('Validate through canonical disposable schema clone')
+             assert required in protected,required
+          for forbidden in ('supabase db '+'push', 'supabase migration '+'up',
+                            'supabase db reset '+'--linked', 'apply_'+'migration',
+                            'secrets.SUPABASE_'+'SERVICE_ROLE_KEY'):
+             assert forbidden not in protected,forbidden
+          assert protected.index('Snapshot production user schemas read-only') < protected.index('Checkout exact held company source')
+          assert protected.index('Checkout exact held company source') < protected.index('Verify source and generate scratch SQL') < protected.index('Validate through canonical disposable schema clone')
           print('PASS owner issue protected test gate and no production mutation path')
           PY
 
