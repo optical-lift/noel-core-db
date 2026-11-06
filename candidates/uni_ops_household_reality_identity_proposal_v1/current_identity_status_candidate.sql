@@ -103,6 +103,28 @@ BEGIN
       AND 'household_native_identity.adjudicate'=ANY(rr.permitted_operations)
       AND rr.relation_state='active' AND rr.ended_at IS NULL
       AND rr.began_at<=now()
+    -- Disclosure is actor-specific, class-specific and independently current.
+    -- Withdrawing either class immediately removes this positive source status.
+    JOIN LATERAL (
+      SELECT ev.decision_kind
+      FROM atlas.uni_ops_household_disclosure_decision_events_v1 ev
+      WHERE ev.household_id=l.household_id
+        AND ev.kernel_instance_id=l.kernel_instance_id
+        AND ev.target_person_entity_id=l.reviewer_person_entity_id
+        AND ev.decided_by_principal_id=l.proposed_by_principal_id
+        AND ev.disclosure_class='subject_identity'
+      ORDER BY ev.event_sequence DESC LIMIT 1
+    ) identity_release ON identity_release.decision_kind='authorize'
+    JOIN LATERAL (
+      SELECT ev.decision_kind
+      FROM atlas.uni_ops_household_disclosure_decision_events_v1 ev
+      WHERE ev.household_id=l.household_id
+        AND ev.kernel_instance_id=l.kernel_instance_id
+        AND ev.target_person_entity_id=l.reviewer_person_entity_id
+        AND ev.decided_by_principal_id=l.proposed_by_principal_id
+        AND ev.disclosure_class='subject_condition'
+      ORDER BY ev.event_sequence DESC LIMIT 1
+    ) condition_release ON condition_release.decision_kind='authorize'
     WHERE l.reviewed_evidence_sha256=l.claimed_evidence_sha256
       AND l.reviewer_person_entity_id<>(
         SELECT proposer.person_id
