@@ -12,8 +12,8 @@ const postconditions=readFileSync(resolve(ROOT,'postconditions.sql'),'utf8');
 
 test('immutable source-linked candidate exactly equals seven owner files in fixed order',()=>{
   assert.equal(buildReleasePacket(parts),committed);
-  assert.equal(verifyFromRepository().gitBlob,'2787753e39b3a6fceae37dc691c2af9845a4188e');
-  assert.equal(Buffer.byteLength(committed,'utf8'),64057);
+  assert.equal(verifyFromRepository().gitBlob,'2ee49072aee9e6d7ab9180c21ce8463f7e713994');
+  assert.equal(Buffer.byteLength(committed,'utf8'),66571);
   assert.equal(parts.length,7);
   assert.ok(INPUTS.every((x,k)=>gitBlob(parts[k])===x.git));
 });
@@ -24,6 +24,11 @@ test('native-Person-only core and original three writers, no new public entrypoi
   assert.match(committed,/Current native responsible Person required/);
   assert.match(committed,/p_transition_kind IS DISTINCT FROM 'complete'/);
   assert.match(committed,/personalPerformanceNotClaimed/);
+  assert.match(committed,/'contractVersion','connected_person_company_work_result_v1'/);
+  assert.match(committed,/'resultId',v_result.id/);
+  assert.match(committed,/'resultKind','completed'/);
+  assert.match(committed,/'oneLifecycleDone',v_universal_receipt/);
+  assert.equal((committed.match(/apply_work_lifecycle_transition_internal_v1\(/g)||[]).length,4);
   assert.doesNotMatch(committed,/CREATE OR REPLACE FUNCTION public\./);
   assert.doesNotMatch(committed,/historical_self_adoption_review_events_v1|IF p_transition_kind='cancel' THEN/);
   assert.doesNotMatch(committed,/e5200000|CLONE TEST ONLY|recognize_assigned_care_activity_self_api_v1/);
