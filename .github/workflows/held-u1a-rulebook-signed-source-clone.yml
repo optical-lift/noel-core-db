@@ -33,8 +33,8 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           w=Path(".github/workflows/held-u1a-rulebook-signed-source-clone.yml").read_text()
-          assert w.count("github.actor == github.repository_owner &&")==2
-          assert w.count("environment: production")==1
+          assert sum(line.strip()=="github.actor == github.repository_owner &&" for line in w.splitlines())==2
+          assert sum(line.strip()=="environment: production" for line in w.splitlines())==1
           assert "github.event.issue.title == 'UNI-OPS-01 U1A signed immutable Rulebook clone request'" in w
           assert w.index("Snapshot production user schemas read-only") < w.index("Checkout immutable held U1A source")
           assert w.index("Checkout immutable held U1A source") < w.index("Validate U1A through canonical disposable signed clone")
