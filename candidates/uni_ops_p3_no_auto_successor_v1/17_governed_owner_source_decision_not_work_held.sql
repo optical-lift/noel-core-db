@@ -4,6 +4,21 @@
 -- authority, accepted Result, physical repair or scheduled successor.
 -- Exact U1B farm->governing Company Ledger source is REQUIRED.
 -- Existing U2A only supports native mowing Rhythm, NOT this source.
+-- P3 17 is a FARM adapter draft, NOT universal governor authority.
+-- Never install parallel independent decision writers. Preserve history
+-- for a separately approved one-source adapter migration, not erasure.
+DO $no_parallel_authority$
+BEGIN
+ IF pg_catalog.to_regclass(
+   'atlas.uni_ops_governed_case_decision_events_v1'
+ ) IS NOT NULL THEN
+  RAISE EXCEPTION
+   'Universal Company decision history exists; farm-local governor writer requires adapter reconciliation'
+   USING ERRCODE='55000';
+ END IF;
+END;
+$no_parallel_authority$;
+
 CREATE TABLE atlas.uni_ops_p3_owner_attention_decision_events_v1(
  id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
  attention_id uuid NOT NULL
