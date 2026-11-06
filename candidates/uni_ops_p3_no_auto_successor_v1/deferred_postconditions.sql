@@ -183,6 +183,32 @@ BEGIN
  ) ~* 'atlas[.]sync_seed_inventory_dependency_tasks_v1[[:space:]]*[(]'
  THEN RAISE EXCEPTION 'Seed Result still automatically births dependency Task'; END IF;
 
+
+ IF position('harvest-preparation-needs-owner-direction:' IN
+   pg_catalog.pg_get_functiondef(
+    'atlas.queue_flower_preparation_after_harvest_v1()'::regprocedure)
+ )=0 THEN
+   RAISE EXCEPTION 'P3 Harvest Result no-auto Work has no owner attention replacement';
+ END IF;
+ IF position('seed-shortfall-needs-owner-decision:' IN
+   pg_catalog.pg_get_functiondef(
+     'atlas.record_seed_inventory_result_core_v1(uuid,uuid,text,text,numeric,numeric,text,text,date,text,text,boolean)'::regprocedure)
+ )=0 THEN
+   RAISE EXCEPTION 'P3 seed shortfall missing source-qualified owner attention';
+ END IF;
+ IF pg_catalog.to_regprocedure(
+  'atlas.uni_ops_p3_owner_pending_decisions_self_held_v1(uuid,uuid,date,date)'
+ ) IS NULL THEN
+   RAISE EXCEPTION 'P3 true Ledger-governor-only attention reader missing';
+ END IF;
+ IF pg_catalog.has_function_privilege('authenticated',
+  'atlas.uni_ops_p3_owner_pending_decisions_self_held_v1(uuid,uuid,date,date)'::regprocedure,
+  'EXECUTE') OR pg_catalog.has_function_privilege('service_role',
+  'atlas.uni_ops_p3_owner_pending_decisions_self_held_v1(uuid,uuid,date,date)'::regprocedure,
+  'EXECUTE') THEN
+   RAISE EXCEPTION 'Private P3 governed owner attention exposed to an API role';
+ END IF;
+
  RAISE NOTICE 'P3 source contract structurally present; signed outcome/ACL/collision and no-DML verification remain HELD';
 END;
 $post$;
