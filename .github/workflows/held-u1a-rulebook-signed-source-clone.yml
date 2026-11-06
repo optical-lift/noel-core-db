@@ -258,21 +258,21 @@ jobs:
           s=s.replace(full,'if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] || '+full)
           s=s.replace(lean,'    if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] ||\n'+lean)
           proof='''# This hook is added to the disposable harness COPY only.
-if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ]; then
-  phase="signed U1A root and independent source-reviewer approval"
-  test -s "$U1A_SIGNED_TEST_SCRIPT"
-  export U1A_DISPOSABLE_DB_PORT="$local_database_port"
-  export U1A_DISPOSABLE_PROJECT_DIR="$project_dir"
-  cd "$project_dir"
-  python3 "$U1A_SIGNED_TEST_SCRIPT" --db-url "$database_url" \\
-      --output "$artifacts_dir/signed-u1a-rulebook-summary.txt" \\
-      > "$artifacts_dir/signed-u1a-rulebook.log" 2>&1
-  test -s "$artifacts_dir/signed-u1a-rulebook-summary.txt"
-  grep -q "^PASS: genuine independent GoTrue custody review and U1A root authority" \\
-       "$artifacts_dir/signed-u1a-rulebook-summary.txt"
-fi
-
-'''
+          if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ]; then
+            phase="signed U1A root and independent source-reviewer approval"
+            test -s "$U1A_SIGNED_TEST_SCRIPT"
+            export U1A_DISPOSABLE_DB_PORT="$local_database_port"
+            export U1A_DISPOSABLE_PROJECT_DIR="$project_dir"
+            cd "$project_dir"
+            python3 "$U1A_SIGNED_TEST_SCRIPT" --db-url "$database_url" \\
+                --output "$artifacts_dir/signed-u1a-rulebook-summary.txt" \\
+                > "$artifacts_dir/signed-u1a-rulebook.log" 2>&1
+            test -s "$artifacts_dir/signed-u1a-rulebook-summary.txt"
+            grep -q "^PASS: genuine independent GoTrue custody review and U1A root authority" \\
+                 "$artifacts_dir/signed-u1a-rulebook-summary.txt"
+          fi
+          
+          '''
           s=s.replace(stage,proof+stage)
           f.write_text(s)
           assert s.count("U1A_SIGNED_TEST_ONLY")==3
