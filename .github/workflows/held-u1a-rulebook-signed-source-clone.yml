@@ -41,7 +41,7 @@ jobs:
           for key in ("u1a_signed_immutable_rulebook_v1","U1A_SIGNED_TEST_ONLY",
                       "signed-u1a-rulebook-summary.txt","c7df9269a0726732b27e88764b04fabe0039aee5"):
               assert key in w,key
-          assert "supabase db push" not in w
+          assert "supabase db "+"push" not in w
           print("PASS owner-only issue gate and source-held U1A proof; no release")
           PY
 
