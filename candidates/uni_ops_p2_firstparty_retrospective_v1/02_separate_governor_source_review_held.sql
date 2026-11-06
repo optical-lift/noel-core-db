@@ -50,6 +50,13 @@ CREATE TABLE atlas.uni_ops_p2_governor_activity_review_events_v1 (
  matched_original_established_at timestamptz,
  matched_original_created_before_log_record boolean,
  matched_original_source_checked_at timestamptz,
+ -- Either a native log object-link recorded at its true source time,
+ -- or an independently signed later first-person Subject CLAIM. Neither
+ -- establishes executed condition, contemporaneous proof or past Work.
+ matched_subject_attribution_basis text CHECK(
+  matched_subject_attribution_basis IN (
+   'native_field_log_object_link','later_signed_worker_subject_claim')),
+ matched_subject_attribution_recorded_at timestamptz,
  reason text NOT NULL CHECK(pg_catalog.char_length(reason) BETWEEN 12 AND 2000),
  source_report_snapshot_md5 text NOT NULL
    CHECK(source_report_snapshot_md5 ~ '^[0-9a-f]{32}$'),
@@ -60,14 +67,18 @@ CREATE TABLE atlas.uni_ops_p2_governor_activity_review_events_v1 (
      AND matched_source_rhythm_state_id IS NOT NULL
      AND matched_original_established_at IS NOT NULL
      AND matched_original_created_before_log_record IS NOT NULL
-     AND matched_original_source_checked_at IS NOT NULL)
+     AND matched_original_source_checked_at IS NOT NULL
+     AND matched_subject_attribution_basis IS NOT NULL
+     AND matched_subject_attribution_recorded_at IS NOT NULL)
    OR
    (outcome<>'existing_original_needs_separate_adjudication'
      AND matched_original_work_item_id IS NULL
      AND matched_source_rhythm_state_id IS NULL
      AND matched_original_established_at IS NULL
      AND matched_original_created_before_log_record IS NULL
-     AND matched_original_source_checked_at IS NULL))
+     AND matched_original_source_checked_at IS NULL
+     AND matched_subject_attribution_basis IS NULL
+     AND matched_subject_attribution_recorded_at IS NULL))
 );
 CREATE INDEX uni_ops_p2_review_by_report_v1
  ON atlas.uni_ops_p2_governor_activity_review_events_v1(
@@ -208,10 +219,10 @@ BEGIN
    atlas.uni_ops_p2_governor_original_custody_preflight_held_v1(
     v_report.id,p_ledger_id,v_subject.id);
   IF v_original_source_recheck->>'state' IS DISTINCT FROM
-       'one_exact_existing_source_original_for_separate_adjudication'
+       'one_existing_original_for_attested_subject_requires_adjudication'
      OR v_original_source_recheck->>'matchedWorkItemId'
        IS DISTINCT FROM v_existing.id::text
-     OR v_original_source_recheck->>'firstPartySubjectLinkCurrent'
+     OR v_original_source_recheck->>'subjectAttributionCurrent'
        IS DISTINCT FROM 'true'
   THEN
    RAISE EXCEPTION
@@ -243,6 +254,10 @@ BEGIN
       v_existing.created_at
     OR v_review.matched_source_rhythm_state_id IS DISTINCT FROM
       v_subject.id
+    OR v_review.matched_subject_attribution_basis IS DISTINCT FROM
+       v_original_source_recheck->>'subjectAttributionBasis'
+    OR v_review.matched_subject_attribution_recorded_at IS DISTINCT FROM
+       (v_original_source_recheck->>'subjectAttributionRecordedAt')::timestamptz
   THEN RAISE EXCEPTION 'Immutable retrospective review replay conflicts with source'
    USING ERRCODE='23505';
   END IF;
@@ -264,7 +279,10 @@ BEGIN
   outcome,matched_original_work_item_id,
   matched_source_rhythm_state_id,matched_original_established_at,
   matched_original_created_before_log_record,
-  matched_original_source_checked_at,reason,source_report_snapshot_md5)
+  matched_original_source_checked_at,
+  matched_subject_attribution_basis,
+  matched_subject_attribution_recorded_at,
+  reason,source_report_snapshot_md5)
  VALUES(
   v_report.id,v_report.organization_id,p_ledger_id,v_report.farm_id,
   p_action_id,p_expected_previous_review_id,v_root,v_uid,
@@ -274,6 +292,8 @@ BEGIN
        ELSE v_existing.created_at<=v_report.source_log_recorded_at END,
   CASE WHEN v_existing.id IS NULL THEN NULL
        ELSE pg_catalog.clock_timestamp() END,
+  v_original_source_recheck->>'subjectAttributionBasis',
+  (v_original_source_recheck->>'subjectAttributionRecordedAt')::timestamptz,
   v_reason,v_report.source_summary_snapshot_md5)
  RETURNING * INTO v_review;
  RETURN jsonb_build_object(
