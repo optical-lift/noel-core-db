@@ -79,6 +79,8 @@ BEGIN
           coalesce(d.decision,'pending_owner_decision') current_decision,
           d.id latest_source_decision_id,
           d.recorded_at latest_source_decision_at,
+          coalesce(d.applies_to_current_evidence,false)
+             latest_decision_applies_to_current_evidence,
           CASE
            WHEN j.source_kind='flower_harvest_batch'
              THEN 'harvest_preparation_owner_direction'
@@ -108,13 +110,17 @@ BEGIN
           END AS current_verified_shortfall
    FROM atlas.journal_event_index j
    LEFT JOIN LATERAL (
-     SELECT e.id,e.decision,e.recorded_at
+     SELECT e.id,e.recorded_at,
+            e.source_evidence_event_recorded_at=j.occurred_at
+               AS applies_to_current_evidence,
+            CASE WHEN e.source_evidence_event_recorded_at=j.occurred_at
+                 THEN e.decision ELSE NULL END AS decision
      FROM atlas.uni_ops_p3_owner_attention_decision_events_v1 e
      WHERE e.attention_id=j.id
        AND e.ledger_id=p_ledger_id
-       -- A new source event after a previous governor decision reopens
-       -- review; the old decision remains immutable historical evidence.
-       AND e.source_evidence_event_recorded_at=j.occurred_at
+       -- Keep the true latest decision as the required CAS predecessor
+       -- EVEN WHEN a new physical event reopens currently pending review.
+       -- Only its present-source validity affects the display state.
      ORDER BY e.recorded_at DESC,e.id DESC
      LIMIT 1
    ) d ON TRUE
@@ -175,6 +181,9 @@ BEGIN
       'currentVerifiedSeedShortfall',current_verified_shortfall,
       'latestOwnerDecisionId',latest_source_decision_id,
       'latestOwnerDecisionAt',latest_source_decision_at,
+      'latestOwnerDecisionAppliesToCurrentEvidence',
+          latest_decision_applies_to_current_evidence,
+      'expectedPreviousDecisionIdForNextChoice',latest_source_decision_id,
       'currentOwnerDecisionState',current_decision,
       'ownerDecisionStillRequired',
          current_decision='pending_owner_decision',
