@@ -53,7 +53,9 @@ BEGIN
     'atlas.uni_ops_review_household_reality_identity_internal_v1(uuid,text,uuid,text,text,uuid)',
     'atlas.uni_ops_resolve_household_reality_identity_internal_v1(uuid,uuid,uuid)',
     'atlas.uni_ops_household_identity_review_queue_internal_v1(integer,timestamptz,uuid)',
-    'atlas.uni_ops_household_source_composition_internal_v1(uuid,uuid,uuid)'
+    'atlas.uni_ops_household_source_composition_internal_v1(uuid,uuid,uuid)',
+    'atlas.uni_ops_original_household_need_receipt_internal_v1(uuid,uuid,uuid)',
+    'atlas.uni_ops_household_typed_requirement_source_packet_internal_v1(uuid,uuid,uuid,uuid)'
   ] LOOP
     v_function:=to_regprocedure(v_function_name);
     IF v_function IS NULL THEN
