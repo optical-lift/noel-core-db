@@ -11,7 +11,8 @@ for f in \
   candidates/titus-first-draft-material-v1/candidate.sql \
   candidates/titus-private-course-units-v1/candidate.sql \
   candidates/titus-private-course-units-v1/clone_validation.sql \
-  candidates/titus-private-course-units-v1/postconditions.sql; do
+  candidates/titus-private-course-units-v1/postconditions.sql \
+  candidates/titus-private-course-units-v1/negative_postconditions.sql; do
   test -s "$root/$f" || { echo "Source not present: $f" >&2; exit 2; }
 done
 scratch="$(mktemp -d /tmp/titus-units-hosted.XXXXXXXX)"
@@ -51,7 +52,8 @@ for f in \
   candidates/titus-first-draft-material-v1/candidate.sql \
   candidates/titus-private-course-units-v1/candidate.sql \
   candidates/titus-private-course-units-v1/clone_validation.sql \
-  candidates/titus-private-course-units-v1/postconditions.sql; do
+  candidates/titus-private-course-units-v1/postconditions.sql \
+  candidates/titus-private-course-units-v1/negative_postconditions.sql; do
   psql_local -f "/source/$f" >/dev/null
   echo "PASS: $f"
 done
