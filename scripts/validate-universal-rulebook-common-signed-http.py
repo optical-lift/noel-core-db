@@ -66,12 +66,9 @@ def main():
     check(sql(f"select (to_regprocedure('{wrapper_sig}') is not null)::text") == "true",
           "Exact transient signed-only RPC wrapper not installed")
 
+    # Original signed U1A test already configured the four synthetic users;
+    # re-insertion would duplicate auth.identities, so only sign in again.
     signed = {}
-    for identity, uid in u1a.base.setup_auth(args.db_url):
-        # setup_auth of the original test has already provisioned the four
-        # synthetic actors. Do not reinsert those users on this pass.
-        pass
-
     for name, uid in (("owner", c1.OWNER),
                       ("worker", c1.WORKER),
                       ("outsider", c1.OUTSIDER),
