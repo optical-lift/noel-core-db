@@ -79,14 +79,14 @@ CREATE TABLE atlas._synthetic_connection(
 );
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE
  AS $$ SELECT NULLIF(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+CREATE TABLE atlas._synthetic_actor(user_id uuid,person_id uuid);
 CREATE FUNCTION atlas.current_person_id_v1() RETURNS uuid
- LANGUAGE sql STABLE AS $$
+ LANGUAGE sql STABLE AS $
   SELECT r.person_id FROM atlas._synthetic_root r WHERE r.user_id=auth.uid()
   UNION ALL
   SELECT c.person_id FROM atlas._synthetic_actor c WHERE c.user_id=auth.uid()
   LIMIT 1
- $$;
-CREATE TABLE atlas._synthetic_actor(user_id uuid,person_id uuid);
+ $;
 CREATE FUNCTION atlas.company_work_native_ledger_owner_self_v1(
  p_organization_id uuid,p_ledger_id uuid
 ) RETURNS uuid LANGUAGE sql STABLE AS $$
