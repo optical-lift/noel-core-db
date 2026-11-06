@@ -92,7 +92,7 @@ DECLARE
 BEGIN
  IF p_report_id IS NULL OR p_ledger_id IS NULL OR p_action_id IS NULL
    OR v_uid IS NULL OR v_person IS NULL
-   OR p_outcome NOT IN (
+   OR p_outcome IS NULL OR p_outcome NOT IN (
      'needs_more_firstparty_source',
      'historical_testimony_acknowledged_without_actual',
      'existing_original_needs_separate_adjudication',
