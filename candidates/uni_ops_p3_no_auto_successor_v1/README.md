@@ -68,3 +68,11 @@ On ONE isolated current-schema RiverSong PG17/GoTrue/PostgREST test assembly aft
 ### Completion register / next step
 
 This is a bounded **build source**, not end-to-end completion. The next build should reconcile the clock-side legacy issuer and U2C **single accepted-first Work cutover** under one source-owner decision. Do not create a new adapter, Foundry, Work store, cadence engine, task table, agent grant, service-role impersonator or migration. Keep Atlas completion register, November 4 P2/P3 decision, native nonfarm U5 hold and legacy private Event disclosure obligations open.
+
+### November 6 last governed direct signal and old rhythm writer cutover (HELD)
+
+P3 file 11_governed_rhythm_clock_signal_specific_hold_held.sql updates exactly the current atlas.signal_work_occurrence_v1 function (MD5 44878fb25c583320a0af033e4266d25b). Source-qualified rhythm_clock: signals to a real rhythm_state ID already governed by U1A/U1B only record a signal. No old planned occurrence eligibility, farm-wide release sweep, new Task, original Work or Clock. Existing historical Task IDs preserved; sale, flower output and seed shortfall source signals not blanket-disabled.
+
+P3 file 12_direct_rhythm_base_writers_governed_hold_held.sql exact-original-overlays both atlas.ensure_rhythm_task_v1_base (MD5 3de2d9dd8a0a843480b8a5ab8ef11488) and atlas.ensure_rhythm_task_without_physical_gate_v1 (MD5 6ebb993052cc226691d933d20a17a7e2). For an actually governed U1A/U1B native Rhythm, these direct lower-level writer calls now return hold before any old Task/occurrence updates, independent of the shared signal function. Unrelated ungoverned clocks remain unchanged. Both 11 and 12 depend on the ONE existing P3 03 U1A/U1B source helper, not an alternative Rulebook.
+
+Still NOT a global 6A proof: the old goal and farm-wide release services and independently sourced sale/flower/seed Work require source-authorized classification. All P3 SQL 01–12 is HELD uncompiled and unexecuted, not a migration, public grant, merge or deployment.
