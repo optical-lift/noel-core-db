@@ -1,0 +1,90 @@
+{
+  "contract": "ATLAS_UNI_OPS_01_NONCAMPAIGN_SIGNED_ACCEPTANCE_RECEIPT_20261106",
+  "status": "DISPOSABLE_SIGNED_ACCEPTANCE_PASSED__PRODUCTION_RELEASE_HELD",
+  "as_of": "2026-11-06",
+  "source_owner": "Noel",
+  "atlas_coordination_issue": 532,
+  "noel_source_issue": 2505,
+  "immutable_source": {
+    "native_completion_only": {
+      "pr": 2522,
+      "held_pr_head": "a37d37682137b45e10a021f3c602b7f2dc386397",
+      "path": "candidates/atlas_native_person_completion_release_packet_v1/candidate.sql",
+      "git_blob_sha1": "0e7c8581e6656b218bdc1ff2c13152201e3e03f5",
+      "sha256": "7394ae24dd1780fb9dcf2726280e3ad88fb5ffc03bb646ae7b60f1912291a453",
+      "bytes": 67881,
+      "release": "HELD_DRAFT_UNMERGED"
+    },
+    "p1_existing_signed_composite": {
+      "pr": 2487,
+      "held_pr_head": "9af4ab9b203877f048af09e23bac58bf86cd58fe",
+      "path": "candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql",
+      "git_blob_sha1": "a59bd0053b68629bf8a31b8eda2f5d072e2b890e",
+      "status": "OLDER_DIAGNOSTIC_INPUT_NOT_RELEASABLE"
+    },
+    "noncampaign_synthetic_integrated": {
+      "pr": 2545,
+      "held_pr_head": "6e5e1f07e1cd80cb6f9eb11a9c0e25b99b1060b6",
+      "path": "candidates/atlas_uni_ops_noncampaign_integrated_signed_clone_v1/held_combined.sql",
+      "git_blob_sha1": "fde5a93111e3ba46c217c2d3baf29619fd463b0f",
+      "bytes": 294876,
+      "status": "SYNTHETIC_CLONE_CANARY_ONLY_NOT_RELEASE_SOURCE"
+    }
+  },
+  "signed_acceptance": [
+    {
+      "gate": "native_person_original_work_done_race_and_existing_shared_event_regression",
+      "run": 42236494993,
+      "conclusion": "success",
+      "artifact_id": 13513017233,
+      "artifact_zip_sha256": "af071ba3fce8a4ebe2507ef9b009cfa32676f55881b6e4ac859e33e6bd576bc5",
+      "summary_sha256": "66a148dd897b4ce96a8bbc6e48b1ec10b57c607ff9ababf1ddadf7ca681e61f5",
+      "signed_result_summary_sha256": "1fd5d5c51852591cfc466db97644a405434f2981070bfc4f3510550391133f3f",
+      "signed_event_summary_sha256": "5f8d5f4ff69a184f3cadd30d04d8fdf62364548b58e754ca98c724d33dd502a7",
+      "source": "exact_held_native_only_packet",
+      "proven": [
+        "two separate current signed GoTrue worker sessions raced on one original",
+        "one accepted Result and one immutable Done",
+        "winning action replay from separate signed session",
+        "native governor Result readback",
+        "13 older privacy-reader denials",
+        "existing canonical Event scheduling and state-only shared Event checklist Done, no asserted performer",
+        "wrong Event, outsider, identity withheld, revoked governor denials",
+        "14 inherited lint errors, 0 introduced",
+        "disposable Supabase services stopped"
+      ]
+    },
+    {
+      "gate": "noncampaign_assigned_activity_to_source_qualified_actual_and_single_done",
+      "run": 42236842501,
+      "conclusion": "success",
+      "artifact_id": 13512073046,
+      "artifact_zip_sha256": "3f7e4cc959abc6e19c9779c219983aa462fe26a7eacb32ba1294efff307ac13a",
+      "summary_sha256": "56791d14cea22c99dc80b03cb75cb4b5425b5985a75a209dcfdb394ecb9b1558",
+      "signed_result_summary_sha256": "2c15ab29ec6baeee21bed4e3de66a770187872fad8a745a8f5d9ea97039bf0bb",
+      "source": "exact_native_only_packet_plus_older_C1_and_current_P1_held_noncampaign",
+      "proven": [
+        "genuine signed first-party worker Activity",
+        "preexisting specifically assigned canonical original",
+        "qualified physical Actual Result and accepted source evidence",
+        "one Result, one acceptance, one P1 link, one immutable Done",
+        "concurrent recognition, exact replay, wrong actor, wrong Work, withdrawn and revoked denials",
+        "zero new Work or Clock admission",
+        "native-only and P1 postconditions",
+        "14 inherited lint errors, 0 introduced",
+        "disposable Supabase services stopped"
+      ]
+    }
+  ],
+  "explicit_holds": {
+    "production_sql_migration": "NO_EXACT_VERSION_OR_RELEASE_AUTHORIZATION",
+    "historical_cancel_retirement": "HELD",
+    "campaign_original_P1": "EXPECTED_DENIAL_PENDING_P3_NO_AUTOMATIC_SUCCESSOR_SOURCE",
+    "issuer": "UNBOUND",
+    "general_Event_create_and_identity_disclosure": "ACL_SOURCE_DENIED",
+    "retroactive_governor_P2": "HELD",
+    "complete_U1_U7_human_operating_cycle": "UNPROVEN",
+    "independent_nonfarm_domain_and_farm_subject_audit": "NOT_DONE"
+  },
+  "next_owner_action": "Source-owner review exact native completion-only release as independent source cohort; canonical CLI-generated versioned migration plus fresh isolated schema/locks/ACL and separate exact production authorization. Preserve independently approved P3 and U1/U2 path, do not substitute synthetic clone."
+}
