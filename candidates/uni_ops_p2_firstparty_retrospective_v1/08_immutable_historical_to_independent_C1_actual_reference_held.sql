@@ -268,6 +268,20 @@ BEGIN
    AND rel.ledger_id=p_ledger_id AND rel.work_item_id=v_work.id
    AND rel.attribution_state='active';
  IF v_ledger_links<>1
+    OR NOT EXISTS(
+      SELECT 1 FROM atlas.farms f
+      JOIN atlas.farm_crop_ledger_custody_v1 c
+        ON c.farm_id=f.id AND c.ledger_id=p_ledger_id
+       AND c.custody_state='active' AND c.ended_at IS NULL
+      JOIN atlas.ledger_organization_participations lop
+        ON lop.ledger_id=c.ledger_id
+       AND lop.organization_id=f.organization_id
+       AND lop.status='active' AND lop.ended_at IS NULL
+       AND lop.participation_kind='governing'
+       AND lop.is_compatibility_primary=true
+      WHERE f.id=v_report.farm_id
+        AND f.organization_id=v_report.organization_id
+        AND f.status='active')
     OR NOT atlas.person_has_native_ledger_connection_v1(
          v_work.organization_id,p_ledger_id,v_person)
     OR NOT COALESCE(atlas.has_current_subject_disclosure_v1(
