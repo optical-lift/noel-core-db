@@ -44,6 +44,7 @@ jobs:
              "supabase db dump",
              "scripts/validate-production-schema-clone.sh",
              "prepare_protected_clone_candidate_held.py",
+             "6365371342b021406154f3646424497cc6f47f7e",
              "candidate/uni-ops-universal-decision-boundary-20261106",
           ):
              assert required in protected,required
@@ -180,6 +181,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git -C universal hash-object --no-filters candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py)" = '6365371342b021406154f3646424497cc6f47f7e'
           python3 -m py_compile universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py
           python3 universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py \
             --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
