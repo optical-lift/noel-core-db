@@ -21,6 +21,7 @@ BEGIN
     WHERE tgrelid=v_table AND tgisinternal=false
       AND tgname='uni_ops_household_reality_proposal_history_v1'
       AND (tgtype::int & 2)=2 AND (tgtype::int & 8)=8
+      AND (tgtype::int & 16)=16
   ) THEN
     RAISE EXCEPTION 'Append-only update/delete trigger absent';
   END IF;
@@ -40,7 +41,11 @@ BEGIN
       RAISE EXCEPTION 'Candidate source unexpectedly public to role %',v_role;
     END IF;
   END LOOP;
-  IF has_function_privilege('public',v_writer,'EXECUTE') THEN
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p
+    CROSS JOIN LATERAL aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) x
+    WHERE p.oid=v_writer AND x.grantee=0 AND x.privilege_type='EXECUTE'
+  ) THEN
     RAISE EXCEPTION 'PUBLIC has EXECUTE on private writer';
   END IF;
 END;
