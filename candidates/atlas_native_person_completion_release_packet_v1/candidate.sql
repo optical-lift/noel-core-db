@@ -1145,7 +1145,7 @@ BEGIN
 END;
 $function$;
 
--- EXACT HELD SOURCE: 07_existing_event_shared_writer_cutover; Git blob 8f24ee85ffa841b8d1ab91da2289365d1713bec3
+-- EXACT HELD SOURCE: 07_existing_event_shared_writer_cutover; Git blob 7ea2a6acc4dde99c556b51e787614ba9b1073b51
 -- CUTOVER CANDIDATE ONLY: existing native connected-Person Event
 -- shared checklist Result/Acceptance writer delegates terminal state to
 -- the SAME universal event-sourced Work transition. Marking the checklist
@@ -1223,8 +1223,14 @@ begin
       WHERE e.work_item_id=v_work.id
         AND e.event_kind='work_transition_applied'
         AND e.source_idempotency_key=v_key) THEN
-      RETURN atlas.apply_work_lifecycle_transition_internal_v1(
+      v_universal_receipt:=atlas.apply_work_lifecycle_transition_internal_v1(
         v_work.id,'complete',v_result.id,v_key);
+      RETURN v_universal_receipt||jsonb_build_object(
+        'resultId',v_result.id,
+        'acceptanceId',v_universal_receipt->>'acceptedEvidenceId',
+        'markedByPersonId',v_actor,
+        'physicalPerformerAsserted',false,
+        'eventReceipt',v_universal_receipt);
     END IF;
     IF v_work.work_state='completed' THEN
       SELECT e.id INTO v_history_event FROM atlas.work_lifecycle_events_v1 e
@@ -1296,7 +1302,12 @@ begin
   IF v_universal_receipt->>'ok' IS DISTINCT FROM 'true' THEN
      RAISE EXCEPTION 'Shared Event lifecycle completion was not accepted'
        USING ERRCODE='23514'; END IF;
-  RETURN v_universal_receipt;
+  -- Keep the released checklist response; the only Done is the shared lifecycle.
+  -- A state confirmation never claims who physically performed Work.
+  RETURN v_universal_receipt||jsonb_build_object(
+    'alreadyDone',false,'resultId',v_result.id,
+    'acceptanceId',v_receipt.id,'markedByPersonId',v_actor,
+    'physicalPerformerAsserted',false,'eventReceipt',v_universal_receipt);
 end
 $function$;
 
