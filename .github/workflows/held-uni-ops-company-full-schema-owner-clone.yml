@@ -61,7 +61,7 @@ jobs:
           # Compile the later allowlisted reporter in the UNPRIVILEGED PR job.
           # This catches Python syntax errors before an owner issue can run.
           import textwrap
-          reporter=w.split('      - name: Report allowlisted local failure phase without private diagnostics',1)[1]
+          reporter=w.rsplit('      - name: Report allowlisted local failure phase without private diagnostics\n',1)[1]
           block=reporter.split("          python3 - <<'PY'\n",1)[1].split("\n          PY",1)[0]
           compile(textwrap.dedent(block),'<redacted-protected-clone-classifier>','exec')
           assert "first_sql_source={first_source}" in reporter
