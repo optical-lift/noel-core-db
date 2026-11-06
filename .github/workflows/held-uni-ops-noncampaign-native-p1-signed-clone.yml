@@ -6,17 +6,14 @@ on:
   pull_request:
     paths:
       - '.github/workflows/held-uni-ops-noncampaign-native-p1-signed-clone.yml'
-      - 'scripts/validate-atlas-care-single-done-signed-http.py'
-      - 'scripts/validate-atlas-actual-first-p1-signed-http.py'
-      - 'tests/atlas-actual-first-p1-source.test.mjs'
 
 permissions:
   contents: read
   packages: read
-  pull-requests: read  # exact draft PR #2487 head preflight is read-only
+  pull-requests: read  # pins three already held, draft sources read-only
 
 concurrency:
-  group: noel-core-held-p1-signed-clone
+  group: noel-core-held-uni-ops-noncampaign-native-p1
   cancel-in-progress: false
 
 jobs:
