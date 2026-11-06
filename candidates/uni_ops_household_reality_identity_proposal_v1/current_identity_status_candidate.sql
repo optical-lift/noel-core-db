@@ -63,6 +63,7 @@ BEGIN
       p.claimed_evidence_sha256,
       ev.id AS review_event_id, ev.event_kind,ev.reviewed_source_evidence_id,
       ev.reviewed_evidence_sha256,ev.reviewer_person_entity_id,
+      ev.identity_disclosure_event_id,ev.condition_disclosure_event_id,
       ev.reviewer_responsibility_relation_id
     FROM atlas.uni_ops_household_reality_identity_proposals_v1 p
     JOIN LATERAL (
@@ -107,7 +108,7 @@ BEGIN
     -- Disclosure is actor-specific, class-specific and independently current.
     -- Withdrawing either class immediately removes this positive source status.
     JOIN LATERAL (
-      SELECT ev.decision_kind
+      SELECT ev.id,ev.decision_kind
       FROM atlas.uni_ops_household_disclosure_decision_events_v1 ev
       WHERE ev.household_id=l.household_id
         AND ev.kernel_instance_id=l.kernel_instance_id
@@ -116,8 +117,9 @@ BEGIN
         AND ev.disclosure_class='subject_identity'
       ORDER BY ev.event_sequence DESC LIMIT 1
     ) identity_release ON identity_release.decision_kind='authorize'
+      AND identity_release.id=l.identity_disclosure_event_id
     JOIN LATERAL (
-      SELECT ev.decision_kind
+      SELECT ev.id,ev.decision_kind
       FROM atlas.uni_ops_household_disclosure_decision_events_v1 ev
       WHERE ev.household_id=l.household_id
         AND ev.kernel_instance_id=l.kernel_instance_id
@@ -126,6 +128,7 @@ BEGIN
         AND ev.disclosure_class='subject_condition'
       ORDER BY ev.event_sequence DESC LIMIT 1
     ) condition_release ON condition_release.decision_kind='authorize'
+      AND condition_release.id=l.condition_disclosure_event_id
     WHERE l.reviewed_evidence_sha256=l.claimed_evidence_sha256
       AND l.reviewer_person_entity_id<>(
         SELECT proposer.person_id
