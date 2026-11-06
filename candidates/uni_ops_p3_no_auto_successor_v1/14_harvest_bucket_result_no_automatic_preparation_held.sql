@@ -106,6 +106,9 @@ begin
       'sourceHarvestTaskId',v_task.id,
       'sourceObservationCount',v_observation_count,
       'ownerDirectionStillRequired',true,
+      'operationalOwnerReviewOnly',true,
+      'principalEscalationQualified',false,
+      'principalClockCandidateCreated',false,
       'originalWorkOffered',false,
       'workerAccepted',false,
       'preparationTaskCreated',false
