@@ -15,12 +15,12 @@ export const INPUTS=Object.freeze([
   {name:'04_current_native_person_single_done',path:resolve(NATIVE,'06_single_transition_native_person_completion_only_held.sql'),git:'3178e11863f1c6de89e07724c3b209923fd825d3'},
   {name:'05_existing_connected_person_result_writer_cutover',path:resolve(HERE,'05_connected_person_compatibility_cutover.sql'),git:'b7b3cd83347d9aa1ec52d392d5983bc9345ab1cd'},
   {name:'06_disable_legacy_self_adopted_writer',path:resolve(ORIGINAL,'12_self_adopted_original_writer_single_done_cutover_candidate.sql'),git:'e6f6dd4367ad84b57ff0fb65915a9b8785e941b7'},
-  {name:'07_existing_event_shared_writer_cutover',path:resolve(ORIGINAL,'14_event_shared_original_writer_single_done_cutover_candidate.sql'),git:'8f24ee85ffa841b8d1ab91da2289365d1713bec3'}
+  {name:'07_existing_event_shared_writer_cutover',path:resolve(HERE,'07_event_shared_response_compatibility_cutover.sql'),git:'7ea2a6acc4dde99c556b51e787614ba9b1073b51'}
 ]);
 const HEADER="BEGIN;\n-- HELD ATLAS NATIVE PERSON COMPLETION RELEASE SOURCE PACKET (UNVERSIONED).\n-- Source-only candidate; NOT an executable migration or production approval.\n-- Release target: existing Atlas original Work lifecycle only.\n-- Historical review/cancellation and standing farm-care/P1 bridge are excluded.\nSET LOCAL statement_timeout='75s';\n\n";
 const BASELINE="-- Preserve old state as un-attributed historical observations, never fabricating Done.\n-- Lock original writers before one-time source baseline; then install observers.\nLOCK TABLE atlas.work_items,atlas.work_allocations,\n atlas.work_execution_results,atlas.work_result_acceptances,\n atlas.work_execution_plan_events IN SHARE ROW EXCLUSIVE MODE;\nSELECT atlas.seed_work_lifecycle_shadow_baseline_internal_v1();\n\n";
 const TAIL="-- Public RPC signatures remain unchanged; no new client or role EXECUTE.\nCOMMIT;\n";
-export const CANDIDATE_GIT_BLOB='203a4fb9309a3ff2af40dbb9df3e9d458e65ec82';
+export const CANDIDATE_GIT_BLOB='49eab6550a001726faaadd8f8123c0b278ba8867';
 export function gitBlob(s){
   return createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');
 }
