@@ -209,9 +209,9 @@ BEGIN
    THEN RAISE EXCEPTION
       'Seed source event not the latest trusted current position'
       USING ERRCODE='42501'; END IF;
-   SELECT pg_catalog.greatest(
-       pg_catalog.coalesce(pg_catalog.sum(c.outstanding_quantity),0)
-       -pg_catalog.coalesce(v_pos.projected_on_hand_quantity,0),0)
+   SELECT GREATEST(
+       COALESCE(pg_catalog.sum(c.outstanding_quantity),0)
+       -COALESCE(v_pos.projected_on_hand_quantity,0),0)
      INTO v_shortfall
    FROM atlas.seed_allocation_coverage_v1 c
    WHERE c.seed_lot_id=v_lot.id;
