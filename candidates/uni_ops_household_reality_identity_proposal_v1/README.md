@@ -35,4 +35,6 @@ The real Household still has no observed current physical condition or open nati
 
 ## Source governance
 
+Because this carrier references the existing `reality.entities` canonical namespace from an Atlas-native Household Subject, its eventual **structural release is a cross-domain/shared contract** and requires the reviewed `shared_` migration lane (and its security/privacy checks) under Noel's single physical migration authority. A path under `atlas` does not silently narrow shared-custody review.
+
 No migration number, approved CLI-generated source, public API grant, production project change, identity-review writer or deploy in this draft. Structural/source authority for independent review must be adjudicated separately under Noel source ownership and Atlas delegated governance. This candidate must not be combined into or treated as a silent replacement for held U1A, universal common, or U2 code.
