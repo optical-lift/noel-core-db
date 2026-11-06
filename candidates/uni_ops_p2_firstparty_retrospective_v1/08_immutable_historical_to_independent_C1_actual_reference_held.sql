@@ -86,6 +86,11 @@ DECLARE
  v_link atlas.uni_ops_p2_independent_current_actual_links_v1%ROWTYPE;
  v_ledger_links integer;
  v_source_log atlas.field_logs%ROWTYPE;
+ v_subject_claim atlas.uni_ops_p2_later_worker_subject_attributions_v1%ROWTYPE;
+ v_native_subject_links integer;
+ v_native_selected integer;
+ v_attribution_recorded_at timestamptz;
+ v_attribution_basis text;
 BEGIN
  IF v_uid IS NULL OR v_person IS NULL
    OR p_report_id IS NULL OR p_ledger_id IS NULL
@@ -155,6 +160,58 @@ BEGIN
        ('continuing-care-actual:'||v_work.id::text||':'||
         v_report.activity_log_id::text)
  THEN RAISE EXCEPTION 'Only a separate later original and independently reported Result may link'
+   USING ERRCODE='42501'; END IF;
+
+ -- A historical worker log is NOT automatically about the Subject in a
+ -- later Result merely because the same Person performed both. Require
+ -- exact genuine native Object link, or one separate signed worker later
+ -- Object claim with its OWN recorded_at (never free-text interpretation).
+ SELECT count(DISTINCT flo.object_id)::integer,
+   count(DISTINCT flo.object_id)
+       FILTER(WHERE flo.object_id=v_state.subject_id)::integer
+ INTO v_native_subject_links,v_native_selected
+ FROM atlas.field_log_objects flo
+ WHERE flo.field_log_id=v_report.activity_log_id
+   AND flo.object_id IS NOT NULL;
+ IF v_native_subject_links>1 OR
+   (v_native_subject_links=1 AND v_native_selected<>1)
+ THEN RAISE EXCEPTION 'Historical Subject has ambiguous or conflicting real source'
+   USING ERRCODE='42501'; END IF;
+ IF v_native_subject_links=1 THEN
+   SELECT min(flo.created_at) INTO v_attribution_recorded_at
+   FROM atlas.field_log_objects flo
+   WHERE flo.field_log_id=v_report.activity_log_id
+     AND flo.object_id=v_state.subject_id AND flo.role='touched';
+   IF v_attribution_recorded_at IS NULL THEN
+     RAISE EXCEPTION 'Original field-log Subject source invalid'
+       USING ERRCODE='42501'; END IF;
+   v_attribution_basis:='native_field_log_object_link';
+ ELSE
+   SELECT * INTO v_subject_claim
+   FROM atlas.uni_ops_p2_later_worker_subject_attributions_v1 a
+   WHERE a.report_id=v_report.id;
+   IF v_subject_claim.id IS NULL
+      OR v_subject_claim.organization_id IS DISTINCT FROM
+         v_report.organization_id
+      OR v_subject_claim.farm_id IS DISTINCT FROM v_report.farm_id
+      OR v_subject_claim.ledger_id IS DISTINCT FROM p_ledger_id
+      OR v_subject_claim.reporter_user_id IS DISTINCT FROM v_uid
+      OR v_subject_claim.reporter_person_id IS DISTINCT FROM v_person
+      OR v_subject_claim.attributed_growing_object_id IS DISTINCT FROM
+         v_state.subject_id
+      OR v_subject_claim.source_log_snapshot_md5 IS DISTINCT FROM
+         v_report.source_summary_snapshot_md5
+      OR v_subject_claim.claim_is_contemporaneous_observation
+           IS DISTINCT FROM false
+      OR v_subject_claim.condition_was_verified IS DISTINCT FROM false
+   THEN RAISE EXCEPTION 'Separate signed later worker Subject attribution required'
+     USING ERRCODE='42501'; END IF;
+   v_attribution_recorded_at:=v_subject_claim.recorded_at;
+   v_attribution_basis:='later_signed_worker_subject_claim';
+ END IF;
+ IF v_attribution_recorded_at IS NULL
+    OR v_attribution_recorded_at>v_result.reported_at
+ THEN RAISE EXCEPTION 'Retrospective Subject identity cannot be claimed after current accepted Result'
    USING ERRCODE='42501'; END IF;
 
  SELECT * INTO v_offer FROM atlas.governed_prework_candidate_offers_v1 o
@@ -277,6 +334,9 @@ BEGIN
   'historicalReportId',v_report.id,
   'historicalLogRecordedAt',v_report.source_log_recorded_at,
   'historicalReportReceivedAt',v_report.report_received_at,
+  'subjectAttributionBasis',v_attribution_basis,
+  'subjectAttributionRecordedAt',v_attribution_recorded_at,
+  'subjectAttributionIsNotHistoricalPhysicalProof',true,
   'governorHistoricalReviewedAt',v_review.reviewer_recorded_at,
   'independentOriginalWorkItemId',v_work.id,
   'independentOriginalEstablishedAt',v_work.created_at,
