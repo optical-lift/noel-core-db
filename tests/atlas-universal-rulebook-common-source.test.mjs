@@ -104,7 +104,7 @@ test('the common reader is stable, security-defined, private, and nonexecuting',
 });
 test('coverage is an aggregate-only SELECT with source-family grouping',()=>{
   assert.match(readOnly,/^\s*WITH\s/i);
-  assert.match(readOnly,/^WITH[\s\S]+SELECT jsonb_build_object\s*\(/i);
+  assert.match(readOnly,/^\s*WITH[\s\S]+SELECT jsonb_build_object\s*\(/i);
   assert.doesNotMatch(readOnly,/\bINSERT\b|\bUPDATE\b|\bDELETE\b|\bCREATE\b|\bDROP\b|\bALTER\b|\bGRANT\b|\bREVOKE\b|\bCOPY\b|\bEXECUTE\b|\bCALL\b/i);
   assert.match(readOnly,/w\.source_object_type/);
   assert.match(readOnly,/GROUP BY w\.source_object_type/);
