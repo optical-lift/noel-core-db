@@ -89,6 +89,7 @@ DECLARE
  v_subject atlas.rhythm_state%ROWTYPE;
  v_reason text:=nullif(pg_catalog.btrim(p_reason),'');
  v_source_md5 text;
+ v_original_source_recheck jsonb;
 BEGIN
  IF p_report_id IS NULL OR p_ledger_id IS NULL OR p_action_id IS NULL
    OR v_uid IS NULL OR v_person IS NULL
@@ -182,9 +183,31 @@ BEGIN
   THEN RAISE EXCEPTION 'Independent current Subject identity and condition disclosure required'
      USING ERRCODE='42501';
   END IF;
+
+  -- The governor's nominated Work ID is NEVER itself proof that this
+  -- worker's exact firsthand field log implicated its canonical Subject.
+  -- Recheck the independently source-owned field_log_objects object link,
+  -- the native rhythm State, all relevant original/context alternatives,
+  -- current Ledger attribution and two separate disclosures. This receipt
+  -- does not accept a physical Actual, infer performed_at, or reserve Work.
+  v_original_source_recheck:=
+   atlas.uni_ops_p2_governor_original_custody_preflight_held_v1(
+    v_report.id,p_ledger_id,v_subject.id);
+  IF v_original_source_recheck->>'state' IS DISTINCT FROM
+       'one_exact_existing_source_original_for_separate_adjudication'
+     OR v_original_source_recheck->>'matchedWorkItemId'
+       IS DISTINCT FROM v_existing.id::text
+     OR v_original_source_recheck->>'firstPartySubjectLinkCurrent'
+       IS DISTINCT FROM 'true'
+  THEN
+   RAISE EXCEPTION
+     'Original Work and firsthand Subject are not uniquely source-reconciled'
+     USING ERRCODE='42501';
+  END IF;
  END IF;
 
  SELECT * INTO v_latest
+
  FROM atlas.uni_ops_p2_governor_activity_review_events_v1 e
  WHERE e.report_id=v_report.id
  ORDER BY e.reviewer_recorded_at DESC,e.id DESC LIMIT 1 FOR UPDATE;
