@@ -54,6 +54,10 @@ jobs:
              assert forbidden not in protected,forbidden
           assert protected.index('Snapshot production user schemas read-only') < protected.index('Checkout exact held company source')
           assert protected.index('Checkout exact held company source') < protected.index('Verify source and generate scratch SQL') < protected.index('Validate through canonical disposable schema clone')
+          import re
+          for key in ('diagnostic_scope','production_target','universal_head','p3_head'):
+             assert re.fullmatch(r'([a-z0-9_]+):\\s*([a-zA-Z0-9_-]+)\\s*', key+': abc_123'), key
+          print('PASS validated numeric key p3_head along with exact owner issue source fields')
           print('PASS owner issue protected test gate and no production mutation path')
           PY
 
@@ -80,7 +84,7 @@ jobs:
           import os,re
           fields={}
           for raw in os.environ.get('ISSUE_BODY','').splitlines():
-              m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
+              m=re.fullmatch(r'([a-z0-9_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
               if m:
                   k,v=m.groups()
                   if k in fields and fields[k]!=v: raise SystemExit('conflicting source ID')
