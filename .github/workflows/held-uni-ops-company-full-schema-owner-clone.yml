@@ -58,6 +58,16 @@ jobs:
           for key in ('diagnostic_scope','production_target','universal_head','p3_head'):
              assert re.fullmatch(r'([a-z0-9_]+):\s*([a-zA-Z0-9_-]+)\s*', key+': abc_123'), key
           print('PASS validated numeric key p3_head along with exact owner issue source fields')
+          # Compile the later allowlisted reporter in the UNPRIVILEGED PR job.
+          # This catches Python syntax errors before an owner issue can run.
+          import textwrap
+          reporter=w.rsplit('      - name: Report allowlisted local failure phase without private diagnostics\n',1)[1]
+          block=reporter.split("          python3 - <<'PY'\n",1)[1].split("\n          PY",1)[0]
+          compile(textwrap.dedent(block),'<redacted-protected-clone-classifier>','exec')
+          assert "first_sql_source={first_source}" in reporter
+          assert "first_sql_class={first_class}" in reporter
+          assert "print(raw)" not in reporter and "print(message)" not in reporter
+          print('PASS redacted SQL classifier compiles; no raw error text printed')
           print('PASS owner issue protected test gate and no production mutation path')
           PY
 
@@ -261,9 +271,62 @@ jobs:
                           category=label
                           break
 
+          # Classify FIRST candidate SQL failure by reviewed source segment,
+          # never emit raw psql errors, table/column names, SQL or personal data.
+          first_source='not_applicable'
+          first_class='not_applicable'
+          if phase=='candidate migration application':
+              first_source='unlocated'
+              first_class='unclassified_candidate_sql'
+              log=base/'candidate-migration.log'
+              candidate=Path(os.environ['RUNNER_TEMP'])/'20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql'
+              if log.is_file():
+                  raw=log.read_text(encoding='utf-8',errors='replace')[:300000]
+                  line_match=re.search(r'(?m)^psql:.*?:(\d+):\s+(?:ERROR|FATAL):\s*(.*)$',raw)
+                  if line_match:
+                      line_number=int(line_match.group(1))
+                      message=line_match.group(2).lower()
+                      classes=(
+                          ('missing_relation',r'relation .+ does not exist'),
+                          ('missing_column',r'column .+ does not exist'),
+                          ('missing_function',r'function .+ does not exist'),
+                          ('missing_constraint',r'constraint .+ does not exist'),
+                          ('missing_type',r'type .+ does not exist'),
+                          ('source_syntax_error',r'syntax error'),
+                          ('duplicate_existing_object',r'already exists'),
+                          ('ownership_or_privilege_denial',r'permission denied|must be owner of'),
+                          ('constraint_or_index_conflict',r'violates .* constraint|could not create unique index|duplicate key value'),
+                          ('source_drift_guard',r'changed|must not|source|ledger|governor|unsupported|refus'),
+                          ('wrong_type_or_operator',r'operator does not exist|cannot cast|invalid input syntax'),
+                      )
+                      for label,pattern in classes:
+                          if re.search(pattern,message):
+                              first_class=label
+                              break
+                      if candidate.is_file():
+                          markers={}
+                          safe_names={
+                              '20261026010327_atlas_farm_crop_custody_and_work_growing_object_link_v1.sql':'native_farm_custody',
+                              '14_harvest_bucket_result_no_automatic_preparation_held.sql':'nonweekly_harvest',
+                              '15_seed_inventory_result_no_auto_shortfall_task_held.sql':'seed_inventory',
+                              '01_domain_neutral_source_and_decision_records_held.sql':'company_case_schema',
+                              '02_private_company_governor_decision_writer_held.sql':'company_decision_writer',
+                              '03_private_current_governor_case_receipt_held.sql':'company_case_receipt',
+                              '06_bounded_existing_subject_disclosure_extension_held.sql':'native_subject_disclosure',
+                              '04_verified_farm_source_to_company_case_adapter_held.sql':'farm_source_adapter',
+                              '05_farm_to_one_company_governor_decision_wrapper_held.sql':'farm_governor_wrapper'
+                          }
+                          for ix,line in enumerate(candidate.read_text(encoding='utf-8',errors='replace').splitlines(),1):
+                              if line.startswith('-- BEGIN HELD EXACT SOURCE '):
+                                  name=line.rsplit('/',1)[-1]
+                                  if name in safe_names: markers[ix]=safe_names[name]
+                          for position in sorted(markers):
+                              if position<=line_number: first_source=markers[position]
+                              else: break
+          # Printed fields consist exclusively of ENUMS, not source text.
           outcome=os.environ.get('CLONE_VALIDATION_OUTCOME','unknown')
           if outcome not in ('success','failure','cancelled','skipped'): outcome='unknown'
-          report=f'HELD schema-clone outcome={outcome}; sanitized_phase={phase}; startup_class={category}'
+          report=f'HELD schema-clone outcome={outcome}; sanitized_phase={phase}; startup_class={category}; first_sql_source={first_source}; first_sql_class={first_class}'
           print(report)
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
               out.write(report+'\n')
