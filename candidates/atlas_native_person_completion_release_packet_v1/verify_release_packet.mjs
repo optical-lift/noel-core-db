@@ -13,7 +13,7 @@ export const INPUTS=Object.freeze([
   {name:'02_baseline_and_shadow_observers',path:resolve(ORIGINAL,'02_baseline_and_shadow_observers.sql'),git:'0ca69e0a604f43cf3eee442cb1edeb4ae6c1672b'},
   {name:'03_shadow_projection_and_observers',path:resolve(ORIGINAL,'03_shadow_projection_and_observers.sql'),git:'4113d95c1d8ae3b1161ca5a43e344100b6120c1b'},
   {name:'04_current_native_person_single_done',path:resolve(NATIVE,'06_single_transition_native_person_completion_only_held.sql'),git:'3178e11863f1c6de89e07724c3b209923fd825d3'},
-  {name:'05_existing_connected_person_result_writer_cutover',path:resolve(ORIGINAL,'10_connected_person_result_writer_single_done_cutover_candidate.sql'),git:'b7b3cd83347d9aa1ec52d392d5983bc9345ab1cd'},
+  {name:'05_existing_connected_person_result_writer_cutover',path:resolve(HERE,'05_connected_person_compatibility_cutover.sql'),git:'b7b3cd83347d9aa1ec52d392d5983bc9345ab1cd'},
   {name:'06_disable_legacy_self_adopted_writer',path:resolve(ORIGINAL,'12_self_adopted_original_writer_single_done_cutover_candidate.sql'),git:'e6f6dd4367ad84b57ff0fb65915a9b8785e941b7'},
   {name:'07_existing_event_shared_writer_cutover',path:resolve(ORIGINAL,'14_event_shared_original_writer_single_done_cutover_candidate.sql'),git:'8f24ee85ffa841b8d1ab91da2289365d1713bec3'}
 ]);
