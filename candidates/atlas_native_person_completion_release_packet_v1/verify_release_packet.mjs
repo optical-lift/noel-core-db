@@ -13,14 +13,14 @@ export const INPUTS=Object.freeze([
   {name:'02_baseline_and_shadow_observers',path:resolve(ORIGINAL,'02_baseline_and_shadow_observers.sql'),git:'0ca69e0a604f43cf3eee442cb1edeb4ae6c1672b'},
   {name:'03_shadow_projection_and_observers',path:resolve(ORIGINAL,'03_shadow_projection_and_observers.sql'),git:'4113d95c1d8ae3b1161ca5a43e344100b6120c1b'},
   {name:'04_current_native_person_single_done',path:resolve(NATIVE,'06_single_transition_native_person_completion_only_held.sql'),git:'3178e11863f1c6de89e07724c3b209923fd825d3'},
-  {name:'05_existing_connected_person_result_writer_cutover',path:resolve(ORIGINAL,'10_connected_person_result_writer_single_done_cutover_candidate.sql'),git:'3fba08b42c4d6d9b8d8f65656ba279ce720bd7dc'},
+  {name:'05_existing_connected_person_result_writer_cutover',path:resolve(ORIGINAL,'10_connected_person_result_writer_single_done_receipt_compat_held.sql'),git:'8ef030b100e983f36fb7c59217a193876527a720'},
   {name:'06_disable_legacy_self_adopted_writer',path:resolve(ORIGINAL,'12_self_adopted_original_writer_single_done_cutover_candidate.sql'),git:'e6f6dd4367ad84b57ff0fb65915a9b8785e941b7'},
   {name:'07_existing_event_shared_writer_cutover',path:resolve(ORIGINAL,'14_event_shared_original_writer_single_done_cutover_candidate.sql'),git:'8f24ee85ffa841b8d1ab91da2289365d1713bec3'}
 ]);
 const HEADER="BEGIN;\n-- HELD ATLAS NATIVE PERSON COMPLETION RELEASE SOURCE PACKET (UNVERSIONED).\n-- Source-only candidate; NOT an executable migration or production approval.\n-- Release target: existing Atlas original Work lifecycle only.\n-- Historical review/cancellation and standing farm-care/P1 bridge are excluded.\nSET LOCAL statement_timeout='75s';\n\n";
 const BASELINE="-- Preserve old state as un-attributed historical observations, never fabricating Done.\n-- Lock original writers before one-time source baseline; then install observers.\nLOCK TABLE atlas.work_items,atlas.work_allocations,\n atlas.work_execution_results,atlas.work_result_acceptances,\n atlas.work_execution_plan_events IN SHARE ROW EXCLUSIVE MODE;\nSELECT atlas.seed_work_lifecycle_shadow_baseline_internal_v1();\n\n";
 const TAIL="-- Public RPC signatures remain unchanged; no new client or role EXECUTE.\nCOMMIT;\n";
-export const CANDIDATE_GIT_BLOB='2787753e39b3a6fceae37dc691c2af9845a4188e';
+export const CANDIDATE_GIT_BLOB='2ee49072aee9e6d7ab9180c21ce8463f7e713994';
 export function gitBlob(s){
   return createHash('sha1').update('blob '+Buffer.byteLength(s)+'\0').update(s).digest('hex');
 }
@@ -56,7 +56,13 @@ export function assertSourceSecurity(sql){
     'mark_ledger_occurrence_shared_work_done_self_api_v1',
     'report_connected_person_company_work_internal_v1',
     'report_self_responsible_company_work_self_api_v1',
-    'Current native responsible Person required'
+    'Current native responsible Person required',
+    "'contractVersion','connected_person_company_work_result_v1'",
+    "'resultId',v_result.id",
+    "'resultKind','completed'",
+    "'oneLifecycleDone',v_universal_receipt",
+    "'historicalRecordedCompletion',true",
+    "'newTransitionApplied',false"
   ])assertSame(sql.includes(need),'missing '+need);
   for(const forbidden of [
     'CLONE TEST ONLY','e5200000','current_database()',
