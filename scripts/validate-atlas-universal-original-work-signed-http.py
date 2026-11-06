@@ -343,10 +343,84 @@ def main():
         deny_internal_legacy(args.db_url,api,key,worker,old_reader,old_args)
     print("PASS thirteen signed internal broad-farm source denials")
 
-    actual=ok(api,key,worker,"report_connected_person_company_work_self_api_v1",
-          dict(p_work_item_id=bed3,p_result_kind="completed",
-               p_idempotency_key="clone-universal-bed3-physical-actual",
-               p_payload={"physicalActual":"Stakes installed on fictional Bed 3"}))
+    # This is the source path the protected #2522 signed packet actually runs.
+    # Two separate real local GoTrue worker sessions compete for the SAME
+    # existing Bed 3 original; never broaden completion authority to a peer.
+    bed3_args=dict(
+      p_work_item_id=bed3,p_result_kind="completed",
+      p_idempotency_key="clone-universal-bed3-physical-actual",
+      p_payload={"physicalActual":"Stakes installed on fictional Bed 3"})
+    native_lifecycle=sql(args.db_url,
+       "SELECT to_regclass('atlas.work_lifecycle_events_v1') IS NOT NULL")=="t"
+    if native_lifecycle:
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        other_worker,other_claims=c1.sign_in(api,key,"worker")
+        original_claims=c1.jwt_payload(worker)
+        check(other_claims.get("sub")==c1.WORKER and
+              other_claims.get("session_id") and
+              other_claims.get("session_id")!=original_claims.get("session_id") and
+              sql(args.db_url,"SELECT count(*) FROM auth.sessions WHERE "
+                  f"id='{other_claims['session_id']}'::uuid "
+                  f"AND user_id='{c1.WORKER}'::uuid")=="1",
+              "Two distinct current signed GoTrue worker sessions required")
+        barrier=Barrier(2)
+        def compete(bearer,identity):
+            barrier.wait(timeout=15)
+            return rpc(api,key,bearer,
+              "report_connected_person_company_work_self_api_v1",
+              dict(bed3_args,p_idempotency_key=identity))
+        actions=("clone-universal-bed3-physical-actual",
+                 "clone-universal-bed3-competing-actual")
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            jobs=[pool.submit(compete,tok,key_id) for tok,key_id
+                  in ((worker,actions[0]),(other_worker,actions[1]))]
+            outcomes=[j.result(timeout=35) for j in jobs]
+        succeeded=[(idx,data) for idx,(status,data) in enumerate(outcomes)
+                   if status==200 and isinstance(data,dict) and
+                   data.get("ok") is True and data.get("workState")=="completed"]
+        check(bool(succeeded),"One genuine signed worker must complete Bed 3")
+        for status,data in outcomes:
+            check((status==200 and any(data is item for _,item in succeeded))
+                  or (status in (400,403,409) and isinstance(data,dict)
+                      and data.get("code") in ("23514","23505","42501")),
+                  "Concurrent source behavior must be an accepted receipt "
+                  f"or explicit denial, not a server error: {status}: {str(data)[:160]}")
+        result_id=sql(args.db_url,
+           f"SELECT id::text FROM atlas.work_execution_results "
+           f"WHERE work_item_id='{bed3}'::uuid")
+        check(bool(result_id) and
+              sql(args.db_url,f"SELECT count(*) FROM atlas.work_execution_results "
+                 f"WHERE work_item_id='{bed3}'::uuid")=="1" and
+              sql(args.db_url,f"SELECT count(*) FROM atlas.work_result_acceptances "
+                 f"WHERE work_item_id='{bed3}'::uuid AND decision='accepted'")=="1" and
+              sql(args.db_url,f"SELECT count(*) FROM atlas.work_lifecycle_events_v1 "
+                 f"WHERE work_item_id='{bed3}'::uuid AND "
+                 "event_kind='work_transition_applied' AND from_state='open' "
+                 "AND to_state='completed'")=="1",
+              "Concurrent original Bed 3 generated more than one Result, acceptance or Done")
+        winners=[(i,data) for i,data in succeeded
+                 if data.get("resultId")==result_id]
+        check(len(winners)>=1,"Source Result ID absent from signed accepted receipt")
+        winning_index,actual=winners[0]
+        replay_status,replay=rpc(api,key,other_worker,
+           "report_connected_person_company_work_self_api_v1",
+           dict(bed3_args,p_idempotency_key=actions[winning_index]))
+        check(replay_status==200 and isinstance(replay,dict) and
+              replay.get("resultId")==result_id and
+              replay.get("workState")=="completed",
+              "Same winning Result action must replay across signed sessions")
+        check(sql(args.db_url,f"SELECT count(*) FROM atlas.work_execution_results "
+                  f"WHERE work_item_id='{bed3}'::uuid")=="1" and
+              sql(args.db_url,f"SELECT count(*) FROM atlas.work_lifecycle_events_v1 "
+                  f"WHERE work_item_id='{bed3}'::uuid AND "
+                  "event_kind='work_transition_applied'")=="1",
+              "Replay created second Result or lifecycle Done")
+        print("PASS two signed Bed 3 sessions racing: one original Result, "
+              "accepted evidence and universal Done, exact cross-session replay")
+    else:
+        actual=ok(api,key,worker,
+                  "report_connected_person_company_work_self_api_v1",bed3_args)
     check(actual.get("workItemId")==bed3 and
           sql(args.db_url,f"select work_state from atlas.work_items where id='{bed3}'")
           =="completed" and
@@ -655,105 +729,11 @@ def main():
               p_idempotency_key="clone-unconnected-mow-cannot-complete",
               p_payload={"physicalActual":"Unconnected outsider falsely claims mowing"}),
          "Outsider cannot complete assigned original ordinary Work")
-    # For the held native-only L1/L2 packet, prove a genuine two-session race
-    # on the SAME source-governed original. The old legacy/Household validation
-    # runs may not have this lifecycle installed: preserve their older single
-    # signed-human regression in that separate source cohort.
-    native_lifecycle=sql(args.db_url,
-      "SELECT to_regclass('atlas.work_lifecycle_events_v1') IS NOT NULL")=="t"
-    ordinary_result_args=dict(
-      p_work_item_id=ordinary,p_result_kind="completed",
-      p_idempotency_key="clone-existing-legacy-mow-actual",
-      p_payload={"physicalActual":"Original synthetic walkways mowed."})
-    if native_lifecycle:
-        from concurrent.futures import ThreadPoolExecutor
-        from threading import Barrier
-        second_worker,second_claims=c1.sign_in(api,key,"worker")
-        check(second_claims.get("sub")==c1.WORKER and
-              second_claims.get("session_id") and
-              second_claims.get("session_id")!=
-                c1.jwt_payload(worker).get("session_id") and
-              sql(args.db_url,"SELECT count(*) FROM auth.sessions WHERE "
-                 f"id='{second_claims['session_id']}'::uuid "
-                 f"AND user_id='{c1.WORKER}'::uuid")=="1",
-              "Independent second genuine GoTrue worker session required")
-        barrier=Barrier(2)
-        def competing_done(bearer,action_key):
-            barrier.wait(timeout=15)
-            return rpc(api,key,bearer,
-              "report_connected_person_company_work_self_api_v1",
-              dict(ordinary_result_args,p_idempotency_key=action_key))
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            attempts=[
-              pool.submit(competing_done,worker,
-                          "clone-existing-legacy-mow-actual"),
-              pool.submit(competing_done,second_worker,
-                          "clone-existing-legacy-mow-competing-actual")]
-            outcomes=[job.result(timeout=35) for job in attempts]
-        successes=[data for status,data in outcomes
-                   if status==200 and isinstance(data,dict)
-                   and data.get("ok") is True
-                   and data.get("workState")=="completed"]
-        for status,data in outcomes:
-            check((status==200 and data in successes)
-                  or (status in (400,403,409) and isinstance(data,dict)
-                      and data.get("code") in ("23514","23505","42501")),
-                  "Concurrent signed complete returned unexpected authority "
-                  f"or transient error: HTTP {status}, {str(data)[:180]}")
-        check(bool(successes),
-              "No signed original Work completion succeeded in two-session race")
-        check(sql(args.db_url,
-              f"SELECT count(*) FROM atlas.work_execution_results "
-              f"WHERE work_item_id='{ordinary}'::uuid")=="1",
-              "Concurrent signed reporters created duplicate Result")
-        check(sql(args.db_url,
-              f"SELECT count(*) FROM atlas.work_result_acceptances "
-              f"WHERE work_item_id='{ordinary}'::uuid AND decision='accepted'")=="1",
-              "Concurrent signed reporters created duplicate accepted Result")
-        check(sql(args.db_url,
-              f"SELECT count(*) FROM atlas.work_lifecycle_events_v1 "
-              f"WHERE work_item_id='{ordinary}'::uuid "
-              "AND event_kind='work_transition_applied' "
-              "AND from_state='open' AND to_state='completed'")=="1",
-              "Concurrent signed reporters created duplicate universal Done")
-        check(sql(args.db_url,
-              f"SELECT count(*) FROM atlas.work_items WHERE id='{ordinary}'::uuid "
-              "AND work_state='completed'")=="1",
-              "Concurrent signed Done lost the original terminal projection")
-        first_id=sql(args.db_url,
-              f"SELECT id::text FROM atlas.work_execution_results "
-              f"WHERE work_item_id='{ordinary}'::uuid")
-        # Reusing the actually winning action must remain one Result/Done,
-        # including when two distinct signed Person sessions raced.
-        winning_action=next(
-          (ordinary_result_args["p_idempotency_key"] if i==0 else
-           "clone-existing-legacy-mow-competing-actual")
-          for i,(status,data) in enumerate(outcomes)
-          if status==200 and isinstance(data,dict)
-             and data.get("resultId")==first_id)
-        replay_status,replay=rpc(api,key,second_worker,
-           "report_connected_person_company_work_self_api_v1",
-           dict(ordinary_result_args,p_idempotency_key=winning_action))
-        check(replay_status==200 and isinstance(replay,dict)
-              and replay.get("resultId")==first_id
-              and replay.get("workState")=="completed",
-              "Winning action replay must return first immutable Result")
-        ordinary_actual=next(data for data in successes
-                             if data.get("resultId")==first_id)
-        check(sql(args.db_url,
-              f"SELECT count(*) FROM atlas.work_execution_results "
-              f"WHERE work_item_id='{ordinary}'::uuid")=="1"
-              and sql(args.db_url,
-              f"SELECT count(*) FROM atlas.work_lifecycle_events_v1 "
-              f"WHERE work_item_id='{ordinary}'::uuid "
-              "AND event_kind='work_transition_applied'")=="1",
-              "Winning replay created an extra Result or lifecycle transition")
-        print("PASS two independently signed worker sessions: concurrent "
-              "same-original completion, one accepted Result/Done and replay")
-    else:
-        ordinary_actual=ok(api,key,worker,
-          "report_connected_person_company_work_self_api_v1",
-          ordinary_result_args)
+    ordinary_actual=ok(api,key,worker,
+      "report_connected_person_company_work_self_api_v1",
+      dict(p_work_item_id=ordinary,p_result_kind="completed",
+           p_idempotency_key="clone-existing-legacy-mow-actual",
+           p_payload={"physicalActual":"Original synthetic walkways mowed."}))
     check(ordinary_actual.get("workItemId")==ordinary and
           ordinary_actual.get("resultKind")=="completed" and
           ordinary_actual.get("workState")=="completed" and
