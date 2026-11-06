@@ -45,6 +45,26 @@ jobs:
           print("PASS owner-only issue gate and source-held U1A proof; no release")
           PY
 
+
+      - name: Offline parse generated U1A disposable bash harness before any protected snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import subprocess
+          import sys
+          w=Path(".github/workflows/held-u1a-rulebook-signed-source-clone.yml").read_text()
+          marker="      - name: Attach U1A genuine signed test to disposable harness copy only\n"
+          block=w.split(marker,1)[1].split("      - name: Validate U1A through canonical disposable signed clone",1)[0]
+          script=block.split("          python3 - <<'PY'\n",1)[1].split("\n          PY",1)[0]
+          source="\n".join(x[10:] if x.startswith("          ") else x for x in script.splitlines())+"\n"
+          subprocess.run([sys.executable,"-c",source],check=True)
+          print("PASS safely prepared canonical harness COPY for pure syntax validation")
+          PY
+          bash -n scripts/validate-production-schema-clone.sh
+          echo 'PASS generated U1A signed test harness Bash syntax; no database or permission touched'
+
   validate:
     if: >-
       github.event_name == 'issues' &&
@@ -255,8 +275,8 @@ jobs:
           lean='    if [ "$signed_care_single_done_probe" = true ] ||'
           stage='phase="candidate domain schema lint"\n'
           assert s.count(full)==s.count(lean)==s.count(stage)==1, "Trusted harness drift"
-          s=s.replace(full,'if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] || '+full)
-          s=s.replace(lean,'    if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] ||\n'+lean)
+          s=s.replace(full,'if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] || '+full[3:])
+          s=s.replace(lean,'    if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ] ||\n'+lean.replace('    if ', '    ', 1))
           proof='''# This hook is added to the disposable harness COPY only.
           if [ "${U1A_SIGNED_TEST_ONLY:-}" = signed ]; then
             phase="signed U1A root and independent source-reviewer approval"
