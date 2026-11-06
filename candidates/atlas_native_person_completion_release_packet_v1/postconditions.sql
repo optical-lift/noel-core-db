@@ -91,6 +91,10 @@ BEGIN
     OR v_event NOT LIKE '%personalPerformanceNotClaimed%'
     OR v_event NOT LIKE '%eventReceipt%'
     OR v_event NOT LIKE '%physicalPerformerAsserted%'
+    OR v_event NOT LIKE '%historicalRecordedCompletion%'
+    OR v_event NOT LIKE '%e.event_kind=''work_transition_applied''%'
+    OR v_event NOT LIKE '%e.to_state=''completed''%'
+    OR v_event NOT LIKE '%Completed Event Work has no qualifying historical Done or authoritative lifecycle event%'
     OR v_legacy NOT LIKE '%Historical self-adopted Work is reference only%'
   THEN RAISE EXCEPTION 'Existing original-Work writer cutovers incomplete or reauthorized legacy'; END IF;
 

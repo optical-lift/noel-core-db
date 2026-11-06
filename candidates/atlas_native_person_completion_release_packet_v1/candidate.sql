@@ -1145,7 +1145,7 @@ BEGIN
 END;
 $function$;
 
--- EXACT HELD SOURCE: 07_existing_event_shared_writer_cutover; Git blob 7ea2a6acc4dde99c556b51e787614ba9b1073b51
+-- EXACT HELD SOURCE: 07_existing_event_shared_writer_cutover; Git blob ddb32dd0db808dfc47d071d5abfabc3b1ef6da23
 -- CUTOVER CANDIDATE ONLY: existing native connected-Person Event
 -- shared checklist Result/Acceptance writer delegates terminal state to
 -- the SAME universal event-sourced Work transition. Marking the checklist
@@ -1236,7 +1236,12 @@ begin
       SELECT e.id INTO v_history_event FROM atlas.work_lifecycle_events_v1 e
       WHERE e.work_item_id=v_work.id
         AND e.event_kind='historical_state_snapshot'
+        AND e.to_state='completed'
       ORDER BY e.sequence_no DESC LIMIT 1;
+      IF v_history_event IS NULL THEN
+        RAISE EXCEPTION 'Existing Event Result has no qualifying historical Done or accepted lifecycle event'
+          USING ERRCODE='23514';
+      END IF;
       RETURN jsonb_build_object('ok',true,
         'contractVersion','universal_work_lifecycle_transition_v1',
         'idempotent',true,'historicalRecordedCompletion',true,
@@ -1249,18 +1254,40 @@ begin
       USING ERRCODE='23514';
   end if;
   if v_work.work_state='completed' then
-    -- Existing prior completion belongs to its original actor. Do not
-    -- relabel that action as the current caller or fabricate a new Done.
+    -- A second source action may observe Done, but may NEVER claim to have
+    -- performed it. Prefer the actual original authoritative native event.
+    -- Only a genuinely completed pre-cutover snapshot is historical.
+    SELECT e.id INTO v_history_event FROM atlas.work_lifecycle_events_v1 e
+    WHERE e.work_item_id=v_work.id
+      AND e.event_kind='work_transition_applied'
+      AND e.from_state='open' AND e.to_state='completed'
+    ORDER BY e.sequence_no DESC LIMIT 1;
+    IF v_history_event IS NOT NULL THEN
+      RETURN jsonb_build_object('ok',true,
+        'contractVersion','universal_work_lifecycle_transition_v1',
+        'idempotent',false,'alreadyDone',true,
+        'historicalRecordedCompletion',false,'newTransitionApplied',false,
+        'eventId',v_history_event,
+        'workItemId',v_work.id,'workState','completed',
+        'markedByPersonId',null,'physicalPerformerAsserted',false,
+        'personalPerformanceNotClaimed',true);
+    END IF;
     SELECT e.id INTO v_history_event FROM atlas.work_lifecycle_events_v1 e
     WHERE e.work_item_id=v_work.id
       AND e.event_kind='historical_state_snapshot'
+      AND e.to_state='completed'
     ORDER BY e.sequence_no DESC LIMIT 1;
+    IF v_history_event IS NULL THEN
+      RAISE EXCEPTION 'Completed Event Work has no qualifying historical Done or authoritative lifecycle event'
+        USING ERRCODE='23514';
+    END IF;
     RETURN jsonb_build_object('ok',true,
       'contractVersion','universal_work_lifecycle_transition_v1',
       'idempotent',false,'alreadyDone',true,'historicalRecordedCompletion',true,
       'newTransitionApplied',false,'eventId',v_history_event,
       'workItemId',v_work.id,'workState','completed',
-      'markedByPersonId',null,'personalPerformanceNotClaimed',true);
+      'markedByPersonId',null,'physicalPerformerAsserted',false,
+      'personalPerformanceNotClaimed',true);
   end if;
   if v_work.work_state<>'open' then
     raise exception 'Only outstanding ordinary Event Work may be marked done.'
