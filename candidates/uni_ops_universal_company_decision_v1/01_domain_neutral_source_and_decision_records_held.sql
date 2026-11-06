@@ -15,6 +15,22 @@
 -- row must ONLY be inserted by a separately audited bounded adapter.
 -- No data API role receives INSERT, SELECT or RPC access from this file.
 
+-- Do not build two independent governing decision writers in either order.
+-- Existing P3 17 is a FARM ADAPTER draft, NOT a second universal root.
+-- Preserve its source history until a truthful one-time adapter migration
+-- and shared source verification have been independently approved.
+DO $no_parallel_authority$
+BEGIN
+ IF pg_catalog.to_regclass(
+     'atlas.uni_ops_p3_owner_attention_decision_events_v1'
+ ) IS NOT NULL
+ THEN RAISE EXCEPTION
+   'Farm P3 17 independent governor decisions must be reconciled into one universal source before assembly'
+   USING ERRCODE='55000';
+ END IF;
+END;
+$no_parallel_authority$;
+
 CREATE TABLE atlas.uni_ops_governed_source_cases_v1 (
  id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
  organization_id uuid NOT NULL
