@@ -877,7 +877,7 @@ REVOKE ALL ON FUNCTION atlas.apply_work_lifecycle_transition_internal_v1(
 -- No public wrapper or authenticated EXECUTE. This cannot become an
 -- alternate Done button while old completion writers are running.
 
--- EXACT HELD SOURCE: 05_existing_connected_person_result_writer_cutover; Git blob 3fba08b42c4d6d9b8d8f65656ba279ce720bd7dc
+-- EXACT HELD SOURCE: 05_existing_connected_person_result_writer_cutover; Git blob 8ef030b100e983f36fb7c59217a193876527a720
 -- CUTOVER-ONLY, NO PRODUCTION RELEASE. Same existing evidence writer;
 -- its terminal Work updates are removed and routed through the sole
 -- private lifecycle authority. Source-specific partial/blocked reporting
@@ -970,8 +970,23 @@ begin
           AND e.event_kind='work_transition_applied'
           AND e.source_idempotency_key=v_key)
       THEN
-        RETURN atlas.apply_work_lifecycle_transition_internal_v1(
+        -- Preserve the established public Result receipt on same-action replay.
+        -- Only the common lifecycle function can acknowledge the existing Done.
+        v_universal_receipt:=atlas.apply_work_lifecycle_transition_internal_v1(
           v_work.id,'complete',v_existing.id,v_key);
+        IF v_universal_receipt->>'ok' IS DISTINCT FROM 'true'
+          OR v_universal_receipt->>'originalResultId' IS DISTINCT FROM v_existing.id::text
+          OR v_universal_receipt->>'workState' IS DISTINCT FROM 'completed'
+        THEN RAISE EXCEPTION 'Exact immutable Work replay source mismatch'
+          USING ERRCODE='23514'; END IF;
+        RETURN jsonb_build_object('ok',true,'idempotent',true,
+          'contractVersion','connected_person_company_work_result_v1',
+          'workItemId',v_work.id,'resultId',v_existing.id,
+          'resultKind',v_kind,'workState','completed',
+          'acceptanceDecision','accepted','reportMode',v_mode,
+          'responsiblePersonId',v_allocation.assignee_canonical_person_id,
+          'reporterPersonId',v_actor,'sourceHistoryPreserved',true,
+          'oneLifecycleDone',v_universal_receipt);
       END IF;
       IF v_work.work_state='completed' AND EXISTS(
         SELECT 1 FROM atlas.work_result_acceptances a
@@ -983,12 +998,19 @@ begin
         WHERE e.work_item_id=v_work.id
           AND e.event_kind='historical_state_snapshot'
         ORDER BY e.sequence_no DESC LIMIT 1;
+        -- A pre-cutover accepted original stays historical source; it is NOT
+        -- a newly applied lifecycle transition or current physical Result.
         RETURN jsonb_build_object(
-          'ok',true,'contractVersion','universal_work_lifecycle_transition_v1',
+          'ok',true,'contractVersion','connected_person_company_work_result_v1',
           'idempotent',true,'historicalRecordedCompletion',true,
-          'eventId',v_history_event,'workItemId',v_work.id,
-          'workState','completed','originalResultId',v_existing.id,
-          'sourceAccepted',true,'newTransitionApplied',false);
+          'newTransitionApplied',false,'eventId',v_history_event,
+          'workItemId',v_work.id,'workState','completed',
+          'resultId',v_existing.id,'originalResultId',v_existing.id,
+          'resultKind',v_kind,'acceptanceDecision','accepted',
+          'reportMode',v_mode,
+          'responsiblePersonId',v_allocation.assignee_canonical_person_id,
+          'reporterPersonId',v_actor,'sourceHistoryPreserved',true,
+          'sourceAccepted',true);
       END IF;
       RAISE EXCEPTION 'Existing completion has no accepted lifecycle authority'
         USING ERRCODE='23514';
@@ -1062,7 +1084,23 @@ begin
     END IF;
   end if;
   IF v_kind='completed' THEN
-    RETURN v_universal_receipt;
+    -- Preserve the public connected-Person Result contract for existing
+    -- signed consumers while the immutable lifecycle receipt remains nested.
+    -- Neither this projection nor the old RPC can mint a second Work Done.
+    IF v_universal_receipt->>'originalResultId' IS DISTINCT FROM v_result.id::text
+      OR v_universal_receipt->>'acceptedEvidenceId' IS DISTINCT FROM v_acceptance.id::text
+      OR v_universal_receipt->>'workState' IS DISTINCT FROM 'completed'
+    THEN RAISE EXCEPTION 'Completed original Work must match its one lifecycle Result'
+      USING ERRCODE='23514'; END IF;
+    RETURN jsonb_build_object('ok',true,'idempotent',false,
+      'contractVersion','connected_person_company_work_result_v1',
+      'workItemId',v_work.id,'resultId',v_result.id,
+      'resultKind','completed','workState','completed',
+      'acceptanceDecision',v_acceptance.decision,
+      'reportMode',v_mode,'responsiblePersonId',
+      v_allocation.assignee_canonical_person_id,
+      'reporterPersonId',v_actor,'sourceHistoryPreserved',true,
+      'oneLifecycleDone',v_universal_receipt);
   END IF;
   return jsonb_build_object('ok',true,'idempotent',false,
     'contractVersion','connected_person_company_work_result_v1',
