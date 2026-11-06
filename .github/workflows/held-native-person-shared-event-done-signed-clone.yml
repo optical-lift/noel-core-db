@@ -217,9 +217,9 @@ jobs:
           post=candidate/candidates/atlas_native_person_completion_release_packet_v1/postconditions.sql
           test -s "$source" && test -s "$post"
           test "$(git -C candidate hash-object candidates/atlas_native_person_completion_release_packet_v1/candidate.sql)" = \
-            "49eab6550a001726faaadd8f8123c0b278ba8867"
+            "0e7c8581e6656b218bdc1ff2c13152201e3e03f5"
           test "$(sha256sum "$source" | cut -d' ' -f1)" = \
-            "2119bfb444723b13300908825cc4b936ffa3c27b7e983e337d1c98a128e13bf2"
+            "7394ae24dd1780fb9dcf2726280e3ad88fb5ffc03bb646ae7b60f1912291a453"
           candidate_migration="$RUNNER_TEMP/20261028235811_atlas_universal_original_work_integrated_v1.sql"
           cp "$source" "$candidate_migration"
           chmod 600 "$candidate_migration"
