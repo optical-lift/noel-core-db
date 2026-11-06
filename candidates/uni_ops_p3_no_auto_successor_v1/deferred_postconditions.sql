@@ -157,6 +157,32 @@ BEGIN
    RAISE EXCEPTION 'Governed clock signal or direct old rhythm writer bypass remains';
  END IF;
 
+
+ IF position('evaluate_goal_unlocks_v1' IN
+   pg_catalog.pg_get_functiondef(
+     'atlas.goal_source_changed_v1()'::regprocedure)
+ )=0 OR position('::date,false)' IN
+   pg_catalog.pg_get_functiondef(
+     'atlas.goal_source_changed_v1()'::regprocedure)
+ )=0 OR position('::date,false)' IN
+   pg_catalog.pg_get_functiondef(
+     'atlas.goal_clock_tick_v1()'::regprocedure)
+ )=0 THEN
+  RAISE EXCEPTION 'Goal trigger or Clock still releases a Task automatically';
+ END IF;
+ IF position('ensure_flower_preparation_task_v1' IN
+   pg_catalog.pg_get_functiondef(
+     'atlas.queue_flower_preparation_after_harvest_v1()'::regprocedure)
+ )>0 AND
+   pg_catalog.pg_get_functiondef(
+     'atlas.queue_flower_preparation_after_harvest_v1()'::regprocedure)
+       ~* 'perform[[:space:]]+atlas[.]ensure_flower_preparation_task_v1'
+ THEN RAISE EXCEPTION 'Harvest output still automatically creates next prep Task'; END IF;
+ IF pg_catalog.pg_get_functiondef(
+   'atlas.record_seed_inventory_result_core_v1(uuid,uuid,text,text,numeric,numeric,text,text,date,text,text,boolean)'::regprocedure
+ ) ~* 'atlas[.]sync_seed_inventory_dependency_tasks_v1[[:space:]]*[(]'
+ THEN RAISE EXCEPTION 'Seed Result still automatically births dependency Task'; END IF;
+
  RAISE NOTICE 'P3 source contract structurally present; signed outcome/ACL/collision and no-DML verification remain HELD';
 END;
 $post$;
