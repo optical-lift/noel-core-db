@@ -392,10 +392,10 @@ jobs:
           test -s "$dir/signed-universal-original-work-event-regression.txt"
           grep -q '^PASS' "$dir/signed-universal-original-work-event-regression.txt"
           test -s "$dir/signed-shared-event-done-summary.txt"
-          grep -q '^PASS independently signed \*preexisting\* shared Event checklist Work Done' "$dir/signed-shared-event-done-summary.txt"
+          grep -q '^PASS independently signed root-governor \*preexisting\* shared Event checklist Work Done' "$dir/signed-shared-event-done-summary.txt"
           test -s "$dir/schema-lint-delta.json"
           test -s "$dir/summary.md"
-          printf '\nPASS scoped original Work + signed completion of synthetic preexisting Event checklist state, without claimed performer; original Event-create RPC remains ACL-denied, hence full Event creation is BLOCKED. NOT TESTED: full obsolete Work-day suite or production. No release was performed.\n' >> "$dir/summary.md"
+          printf '\nPASS scoped original Work + genuinely signed root governor completion of synthetic preexisting Event checklist state, without claimed performer; ordinary Person identity disclosure and Event-create RPC remain BLOCKED, so full Event path is NOT accepted. NOT TESTED: full obsolete Work-day suite or production. No release was performed.\n' >> "$dir/summary.md"
 
       - name: Publish validation summary
         if: always()
