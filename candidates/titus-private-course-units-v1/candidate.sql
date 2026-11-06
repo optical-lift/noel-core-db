@@ -116,23 +116,24 @@ END $create$;
 -- Bounded one-place up/down motion, never a caller-written global position.
 -- No new units or body changes. Same workspace lock as create/write.
 CREATE FUNCTION public.titus_customer_unit_move_self_api_v1(
- p_unit_id uuid,p_direction text)
+ p_course_id uuid,p_unit_id uuid,p_direction text)
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog
 AS $move$
 DECLARE v_user uuid;v_unit titus.customer_course_units_v1%ROWTYPE;
  v_neighbor titus.customer_course_units_v1%ROWTYPE;v_course uuid;
 BEGIN
  v_user:=titus.customer_current_auth_user_v1();
- IF p_unit_id IS NULL OR p_direction NOT IN ('up','down') THEN
+ IF p_course_id IS NULL OR p_unit_id IS NULL OR p_direction NOT IN ('up','down') THEN
   RAISE EXCEPTION 'Invalid unit move' USING ERRCODE='22023';
  END IF;
  PERFORM 1 FROM titus.customer_workspaces_v1 w
  WHERE w.owner_auth_user_id=v_user AND w.state='active' FOR UPDATE;
- SELECT * INTO v_unit FROM titus.customer_course_units_v1 WHERE unit_id=p_unit_id;
+ v_course:=titus.customer_owned_course_for_units_v1(p_course_id);
+ SELECT * INTO v_unit FROM titus.customer_course_units_v1
+ WHERE unit_id=p_unit_id AND course_id=v_course;
  IF v_unit.unit_id IS NULL THEN
   RAISE EXCEPTION 'Owned Course required' USING ERRCODE='42501';
  END IF;
- v_course:=titus.customer_owned_course_for_units_v1(v_unit.course_id);
  IF p_direction='up' THEN
   SELECT * INTO v_neighbor FROM titus.customer_course_units_v1
   WHERE course_id=v_course AND display_position<v_unit.display_position
@@ -225,14 +226,14 @@ END $save$;
 REVOKE ALL ON FUNCTION
  public.titus_customer_outline_read_self_api_v1(uuid),
  public.titus_customer_unit_create_self_api_v1(uuid,uuid,text,text),
- public.titus_customer_unit_move_self_api_v1(uuid,text),
+ public.titus_customer_unit_move_self_api_v1(uuid,uuid,text),
  public.titus_customer_unit_read_self_api_v1(uuid),
  public.titus_customer_unit_save_self_api_v1(uuid,uuid,integer,text)
  FROM PUBLIC,anon,service_role,authenticated;
 GRANT EXECUTE ON FUNCTION
  public.titus_customer_outline_read_self_api_v1(uuid),
  public.titus_customer_unit_create_self_api_v1(uuid,uuid,text,text),
- public.titus_customer_unit_move_self_api_v1(uuid,text),
+ public.titus_customer_unit_move_self_api_v1(uuid,uuid,text),
  public.titus_customer_unit_read_self_api_v1(uuid),
  public.titus_customer_unit_save_self_api_v1(uuid,uuid,integer,text)
  TO authenticated;
