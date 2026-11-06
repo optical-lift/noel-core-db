@@ -85,6 +85,7 @@ BEGIN
   WHERE n.nspname='atlas' AND p.proname='mark_ledger_occurrence_shared_work_done_self_api_v1'
     AND p.pronargs=5;
   IF v_worker IS NULL OR v_legacy IS NULL OR v_event IS NULL
+    OR v_worker NOT LIKE '%lifecycleContractVersion%'
     OR v_worker NOT LIKE '%apply_work_lifecycle_transition_internal_v1%'
     OR v_event NOT LIKE '%apply_work_lifecycle_transition_internal_v1%'
     OR v_event NOT LIKE '%personalPerformanceNotClaimed%'
