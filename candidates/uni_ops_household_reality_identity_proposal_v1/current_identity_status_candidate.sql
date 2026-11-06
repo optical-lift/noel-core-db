@@ -68,7 +68,7 @@ BEGIN
     JOIN LATERAL (
       SELECT r.* FROM atlas.uni_ops_household_reality_identity_reviews_v1 r
       WHERE r.proposal_id=p.id
-      ORDER BY r.decided_at DESC,r.id DESC LIMIT 1
+      ORDER BY r.event_sequence DESC LIMIT 1
     ) ev ON true
     WHERE ev.event_kind='approved'
   ), active_verified AS (
