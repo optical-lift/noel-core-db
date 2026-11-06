@@ -284,13 +284,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git hash-object scripts/validate-atlas-universal-original-work-signed-http.py)" = "1e6a739e4e39717aabdcb82d1b7bb33852965e81"
+          test "$(git hash-object scripts/validate-atlas-universal-original-work-signed-http.py)" = "057a03749d97df0e2a698adc5d358866a337dfd3"
           python3 - <<'PY'
           from pathlib import Path
           path=Path('scripts/validate-atlas-universal-original-work-signed-http.py')
           source=path.read_text()
           anchor='    print("PASS signed undated original Work responsibility, disclosure and no plan")\n'
           assert source.count(anchor)==1, 'Trusted signed original Work test changed'
+          assert source.count('PASS two signed Bed 3 sessions racing')==1
+          assert 'ThreadPoolExecutor(max_workers=2)' in source
+          assert 'Barrier(2)' in source
+          assert 'auth.sessions' in source
+          assert 'work_lifecycle_events_v1' in source
+          print('PASS pinned authentic Bed 3 two-session concurrency source')
+
           insert='''
               # Current source law: an accepted responsible Person is NOT automatically
               # the governing scheduler. Prove the governor-only scheduling refusal.
