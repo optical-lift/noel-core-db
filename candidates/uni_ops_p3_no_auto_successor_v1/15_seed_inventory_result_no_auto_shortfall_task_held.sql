@@ -37,6 +37,10 @@ declare
   v_transition jsonb;
   v_clock jsonb;
   v_dependency jsonb;
+  v_current_position atlas.seed_inventory_position_v1%rowtype;
+  v_shortfall_quantity numeric:=0;
+  v_uncovered_count integer:=0;
+  v_owner_attention_id uuid;
   v_role text:=lower(coalesce(p_effective_role,''));
   v_note text:=nullif(btrim(coalesce(p_note,'')),'');
   v_source text:=nullif(btrim(coalesce(p_source,'')),'');
@@ -283,14 +287,82 @@ begin
   -- Preserve true inventory event, current source state, rhythm, linked
   -- existing task closeout, and owner-facing seed Journal.
   -- A separately source-authorized issuer may consider later Work.
+  -- Re-evaluate trusted position AFTER this true inventory Result/state
+  -- was recorded. A mere "problem_found" or "depleted" label alone is
+  -- not a source-qualified uncovered production commitment.
+  select * into v_current_position
+  from atlas.seed_inventory_position_v1 p
+  where p.seed_lot_id=v_lot.id;
+  if coalesce(v_current_position.count_trusted,false) then
+    select greatest(coalesce(sum(c.outstanding_quantity),0)-
+                      coalesce(v_current_position.projected_on_hand_quantity,0),0),
+           count(*) filter(where not c.covered_by_trusted_inventory)::integer
+    into v_shortfall_quantity,v_uncovered_count
+    from atlas.seed_allocation_coverage_v1 c
+    where c.seed_lot_id=v_lot.id;
+  end if;
   v_dependency:=jsonb_build_object(
     'action','seed_result_source_qualified_no_auto_work',
     'seedInventoryEventId',v_event_id,
     'seedLotId',v_lot.id,
     'observedOutcome',p_outcome,
-    'shortfallMustBeAdjudicatedIndependently',true,
+    'countTrusted',coalesce(v_current_position.count_trusted,false),
+    'verifiedUncoveredQuantity',v_shortfall_quantity,
+    'uncoveredDependencyCount',v_uncovered_count,
+    'shortfallMustBeAdjudicatedIndependently',
+        coalesce(v_current_position.count_trusted,false) and v_shortfall_quantity>0,
     'autoTaskOrOccurrenceIssued',false,
-    'requiresSeparateNewWorkDecision',true);
+    'requiresSeparateNewWorkDecision',
+        coalesce(v_current_position.count_trusted,false) and v_shortfall_quantity>0);
+
+  if coalesce(v_current_position.count_trusted,false)
+      and v_shortfall_quantity>0 then
+    -- One source-keyed owner-only attention for the current seed Lot,
+    -- not a Work offer, purchase order, roster or agent assignment.
+    -- Reader must re-evaluate actual current coverage because a later
+    -- count/restock may resolve the shortfall.
+    v_owner_attention_id:=atlas.upsert_journal_event_v1(
+      p_organization_id=>v_state.organization_id,
+      p_farm_id=>v_state.farm_id,
+      p_event_key=>'seed-shortfall-needs-owner-decision:'||v_lot.id::text,
+      p_event_kind=>'owner_decision',
+      p_source_kind=>'seed_lot',
+      p_source_id=>v_lot.id,
+      p_source_event=>'verified_shortfall',
+      p_occurred_at=>v_now,
+      p_journal_date=>v_today,
+      p_title=>'Review verified seed shortfall',
+      p_detail=>'A trusted current physical count does not cover committed production needs. Independent owner direction and accepted Work are required.',
+      p_visibility_scope=>'owner',
+      p_importance=>'attention',
+      p_actor_user_id=>auth.uid(),
+      p_assigned_user_id=>null,
+      p_task_id=>null,
+      p_payload=>jsonb_build_object(
+        'contractVersion','seed_shortfall_owner_attention_6a_v1',
+        'seedInventoryEventId',v_event_id,
+        'seedLotId',v_lot.id,
+        'trustedUncoveredQuantity',v_shortfall_quantity,
+        'unit',v_lot.quantity_unit,
+        'uncoveredDependencyCount',v_uncovered_count,
+        'ownerDecisionStillRequired',true,
+        'purchaseOrOtherWorkAuthorized',false,
+        'newTaskCreated',false
+      ),
+      p_provenance=>jsonb_build_object(
+        'sourceTable','atlas.seed_inventory_events',
+        'sourceEventId',v_event_id,
+        'originalTaskId',v_task.id,
+        'physicalResultRecordedAt',v_now,
+        'truthBoundary','trusted_shortfall_is_not_purchase_work_authority',
+        'noAutomaticSuccessorWork',true
+      )
+    );
+    if v_owner_attention_id is null then
+      raise exception 'Seed shortfall owner attention missing true source'
+        using errcode='23514';
+    end if;
+  end if;
 
   v_journal_id:=atlas.upsert_journal_event_v1(
     p_organization_id=>v_state.organization_id,
@@ -324,7 +396,7 @@ begin
     'contractVersion','seed_inventory_result_v1','eventId',v_event_id,'taskId',v_task.id,
     'seedLotId',v_lot.id,'outcome',p_outcome,'expectedBeforeObservation',v_expected,
     'observedQuantity',case when p_outcome='depleted' then 0 else p_observed_quantity end,
-    'journalEventId',v_journal_id,'clock',v_clock,'dependencyEffect',v_dependency,'deduplicated',false
+    'journalEventId',v_journal_id,'ownerAttentionId',v_owner_attention_id,'clock',v_clock,'dependencyEffect',v_dependency,'deduplicated',false
   );
 end;
 $function$
