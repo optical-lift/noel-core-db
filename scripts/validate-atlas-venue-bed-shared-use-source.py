@@ -136,5 +136,54 @@ class SourceGuardTests(unittest.TestCase):
         with self.assertRaises(AssertionError):
             assert_source_only(self.source.replace("COMMIT;", "CREATE OR REPLACE FUNCTION atlas.guard_work_growing_object_context_v1() RETURNS trigger; COMMIT;"))
 
+
+
+class IndependentOriginalBedReferenceCloneTests(unittest.TestCase):
+    """Static mirror contract before owner-only disposable signed clone run."""
+
+    def test_exact_held_source_mirror_and_clone_only_wrapper(self) -> None:
+        source_dir=ROOT / "candidates/atlas/ledger_work_existing_object_reference_v1"
+        source=(source_dir/"HELD_source_candidate.sql").read_text(encoding="utf-8")
+        wrapper=(source_dir/"clone_test_api_DISPOSABLE_ONLY.sql").read_text(
+            encoding="utf-8")
+        transport=(ROOT/"candidates/atlas/venue_bed_shared_use_v1/"
+                   "clone_signed_transport_DISPOSABLE_ONLY.sql").read_text(
+                       encoding="utf-8")
+        marker="-- BEGIN CLONE-ONLY MIRROR: independent Ledger same-original-Bed reference v1"
+        end="-- END CLONE-ONLY MIRROR: independent Ledger same-original-Bed reference v1"
+        expected=(marker+"\n"+source.rstrip()+"\n\n"+wrapper.rstrip()+"\n"+end+"\n")
+        self.assertTrue(transport.endswith(expected),
+                        "Only exact independently held source + guarded clone transport is admissible")
+        self.assertIn("CREATE TABLE atlas.ledger_work_existing_bed_references_v1",source)
+        self.assertIn("ENABLE ROW LEVEL SECURITY",source)
+        self.assertIn("REVOKE ALL ON TABLE atlas.ledger_work_existing_bed_references_v1",source)
+        self.assertIn("REVOKE ALL ON FUNCTION",source)
+        self.assertIn("person_has_native_ledger_connection_v1",source)
+        self.assertIn("company_work_native_ledger_relevance",source)
+        self.assertIn("principal_has_ledger_authority_v1",source)
+        self.assertIn("ledger_occurrence_shared_work_actor_self_v1",source)
+        self.assertNotIn("offer_venue_bed_shared_use_self_v1",source)
+        self.assertNotIn("accept_venue_bed_shared_use_self_v1",source)
+        self.assertNotRegex(source,re.compile(r"\bINSERT\s+INTO\s+atlas\."
+                                             r"(?:growing_objects|work_items)\b",re.I))
+        self.assertNotIn("GRANT EXECUTE",source)
+        self.assertIn("current_database() <> 'postgres'",wrapper)
+        self.assertIn("clone-upick-bed-3",wrapper)
+        self.assertIn("SECURITY DEFINER",wrapper)
+        self.assertNotRegex(wrapper,re.compile(
+           r"\bGRANT\s+EXECUTE\s+ON\s+FUNCTION\s+atlas\.",re.I))
+
+    def test_true_signed_proof_runs_before_old_offer(self) -> None:
+        signed=(ROOT/"scripts/validate-atlas-venue-bed-signed-http.py").read_text(
+            encoding="utf-8")
+        self.assertIn("def prove_independent_bed_reference(",signed)
+        invoke="venue=prove_independent_bed_reference(api,key,db,actors)"
+        self.assertIn(invoke,signed)
+        self.assertLess(signed.index(invoke),signed.index(
+            'offer=accepted(api,key,owner,"offer",offer_args())'))
+        self.assertIn("DELETE FROM auth.sessions",signed)
+        self.assertIn("PASS genuine signed independent Venue original Work",signed)
+        self.assertIn("No Flower offer may exist before independent Venue link proof",signed)
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
