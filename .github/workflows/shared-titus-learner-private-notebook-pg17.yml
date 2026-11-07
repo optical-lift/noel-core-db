@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: held-titus-learner-notebook-\${{ github.ref }}
+  group: held-titus-learner-notebook-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   isolate:
@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "$(git rev-parse HEAD)" == "\${GITHUB_SHA}" ]]
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]]
           [[ "$GITHUB_REPOSITORY" == 'optical-lift/noel-core-db' ]]
           bash -n scripts/test-shared-titus-learner-private-notebook-hosted-pg17.sh
           python3 -m unittest discover -s candidates/shared-titus-learner-private-notebook-v1 -p 'test_static_contract.py' -v
