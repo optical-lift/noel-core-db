@@ -1,5 +1,7 @@
 # HELD — existing Venue Event Work ordinary Result/Done source-authority review
 
+> **Same-day product correction:** The owner now directs that **an authorized target-Ledger Work author may refer to an existing canonical Object used by another Ledger without duplicating it or receiving the other Ledger's governor's approval merely to author/reference Work**. The actual source denial tests in this document are still true of the *current* code, but are now evidence of a **product gap**, NOT a desired universal authorization rule. Source-disclosure and canonical physical-state mutation remain separate. See the [superseding owner decision](https://github.com/optical-lift/atlas/blob/docs/uni-ops-native-canonical-bridge-hold-20261106/docs/integration/SHARED_REAL_WORLD_OBJECT_MULTI_LEDGER_WORK_AUTHORITY_20261107.md). No code released; redesign and positive signed proof still required.
+
 **Status:** 2026-11-07 source audit and test-only denial regression. **NO positive Event Person Result/Done verified.** Original Flower Person Result/Done signed success is separate: protected local clone [#42423006780](https://github.com/optical-lift/noel-core-db/actions/runs/42423006780). Venue/Event linkage separately proved in the same earlier held matrix. Do not merge or deploy.
 
 ## Requested bounded result
