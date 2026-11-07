@@ -46,6 +46,40 @@ python3 candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_com
 
 The arguments describe a local test harness, not production connectivity. It must **fail closed** if any precondition/source row is missing; a failed fixture is not automatically a SQL defect.
 
+## Verified fictional Harvest fixture and actual native custody
+
+A read-only production catalog inspection (columns, non-null constraints, FKs and bucket-band checks; **no user records**) established the current native shape. The existing C1 fictional Work fixture already provides the authentic test-owned Organization/Company Ledger/native Ledger, real source-shaped Root, Farm, Worker membership and growing object. The separate file `farm_company_harvest_disposable_fixture.sql` adds **only** one nonweekly historical Farm task, crop cycle, original harvest batch and observation. The *original P3 14 trigger* must create exactly one first-party owner-attention Journal event itself. No SQL fixture inserts a Company case, Subject disclosure, Company decision or farm-crop Ledger custody.
+
+The Python harness now calls the **existing genuinely signed** `public.establish_farm_crop_ledger_custody_self_api_v1` with a GoTrue root session, proves worker/outsider/no-seat denial and independently rereads the native custody source. It then checks separate private-source Subject grants and the one Company decision chain. The Company method remains ungranted over REST. This is a local SQL test using genuine identities and still **does not** establish signed public API access to the Company decision.
+
+After an independently authorized disposable test controller has installed the exact nine-source package and original C1 fixture in a fresh local PG17 clone, the same controller may apply this **fictional** fixture only under its trusted local clone session:
+
+```sh
+psql 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' \
+  -X -v ON_ERROR_STOP=1 \
+  -c "SET uni_ops.disposable_clone = 'true'" \
+  -f candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql
+```
+
+**The following is a manifest-generation query, not a source insertion or authorization.** The journal UUID must be read from the trigger's actual single record, never chosen for convenience. The protected controller writes that returned one-line JSON to a scratch manifest, checks exactly one match, and stops on zero/multiple rows:
+
+```sql
+SELECT jsonb_build_object(
+ 'kind','uni_ops_farm_company_source_test_only_v1',
+ 'organizationId','e5200000-0000-4000-8000-000000000801',
+ 'governingLedgerId','e5200000-0000-4000-8000-000000000401',
+ 'farmId','e5200000-0000-4000-8000-000000000b01',
+ 'attentionJournalId',j.id,
+ 'nativeSubjectId',j.source_id,
+ 'governorPersonId','e5200000-0000-4000-8000-000000000101'
+)
+FROM atlas.journal_event_index j
+WHERE j.event_key='harvest-preparation-needs-owner-direction:fa510000-0000-4000-8000-000000000003'
+ AND j.provenance->>'sourceObservationId'='fa510000-0000-4000-8000-000000000004';
+```
+
+The shell command, generated fixture and signed probe **have not been executed** here. Never publish credentials, genuine JWTs, protected schema dump, underlying private source, or output manifest outside test custody. A literal guessed JSON object is not source proof.
+
 ## Acceptance matrix
 
 | Case | Required result |
