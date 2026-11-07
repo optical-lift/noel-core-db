@@ -34,7 +34,7 @@ def main():
         "require local GoTrue and REST")
     text = one(
         text,
-        '     if [ "$signed_care_single_done_probe" = true ] ||\n',
+        '    if [ "$signed_care_single_done_probe" = true ] ||\n',
         '     if [ "$signed_company_probe" = true ] ||\n'
         '        [ "$signed_care_single_done_probe" = true ] ||\n',
         "use existing minimum GoTrue/REST local services")
