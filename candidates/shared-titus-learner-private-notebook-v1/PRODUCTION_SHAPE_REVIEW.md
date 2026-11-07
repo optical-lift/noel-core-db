@@ -44,3 +44,9 @@ This is **not** the canonical production-shaped test. Noel main's .github/workfl
 5. Review the resulting clone evidence before any separately authorized migration, academic Offering, Enrollment or Titus UI release.
 
 [Review-only issue #2591](https://github.com/optical-lift/noel-core-db/issues/2591) intentionally does not trigger protected production access. Both Noel PR #2580 and Titus PR #72 remain drafts.
+
+## Solo-owner release review and signed synthetic positive adapter receipt
+
+Per [`docs/release/SOLO_OWNER_RELEASE_REVIEW_20261024.md`](../../docs/release/SOLO_OWNER_RELEASE_REVIEW_20261024.md) and `AGENTS.md`, **a second reviewer is not a required release gate**. Earlier language about an independent source reviewer is superseded by the owner's own source/security/custody review with verified tests. Protected production access, exact source custody, and a separately authorized release remain mandatory.
+
+Executable SHA `0948e15f10e59376ee06a4ddc855693f51ac6437`: [signed-local run #42412042366](https://github.com/optical-lift/noel-core-db/actions/runs/42412042366) passed. A real local PostgreSQL test first refused the reduced Teaching schema with no Auth-user or learner-note writes; a *synthetic* extension then supplied organization and Ledger foreign-key shape, and the same adapter ran genuinely signed OAuth private-note and negative-access tests successfully. This positive local test does **not** attest to the full production-schema-and-role clone. Protected owner-only clone, mainline harness integration, actual academic Course admission and product deployment remain open.

@@ -1,5 +1,16 @@
 # Shared Titus learner-private Course notebook v1 — source candidate
 
+## Governing correction — solo-owner code/security/custody review (November 7, 2026)
+
+**No independent human source reviewer is required for this release process.** Canonical `AGENTS.md` expressly delegates to [`docs/release/SOLO_OWNER_RELEASE_REVIEW_20261024.md`](../../docs/release/SOLO_OWNER_RELEASE_REVIEW_20261024.md), which supersedes older handoffs requiring a second GitHub reviewer. Any historical "independent code reviewer" or "external security/custody sign-off" instructions in this file below are now read as **solo-owner source/security/custody inspection with verified tests**. They do not block further technical implementation. Do not invent another person's approval; explicit owner authorization for a particular protected clone or production release is still separate and required.
+
+**Verified technical increment, executable SHA `0948e15f10e59376ee06a4ddc855693f51ac6437`:** [genuine local OAuth and adapter tests #42412042366](https://github.com/optical-lift/noel-core-db/actions/runs/42412042366) **PASS** (8 source + 8 clone preflight tests, exact scratch CLI package, real PostgreSQL refusal with unchanged `auth.users` and notebook row counts, *positive* signed OAuth/PKCE private-note and cross-Person test on an explicitly **synthetic extended organization/ledger shape**). [Network-isolated PostgreSQL #42412042424](https://github.com/optical-lift/noel-core-db/actions/runs/42412042424) **PASS**. The existing original source SQL blob `d1a00f02b8673e8b016ab8ef124a52dbe40c8101` was unchanged. The held clone harness config adds source-specific local OAuth server enablement; it is not deployed to canonical main.
+
+**Current truthful acceptance:** The synthetic positive check proves the proposed adapter can execute genuine local signed learner privacy tests after the structural preflight, whereas the earlier test proved only refusal on incomplete tables. Neither is the full canonical production-shaped schema-and-role clone. The remaining technical release test is the owner-authorized protected disposable clone with exact source, positive signed learner/outsider/concurrent/withdrawal/revocation evidence and scoped grants/ACL checks. No outside code reviewer; no live migration, user, Offering, enrollment, Titus UI change or release. [Solo-owner preflight issue #2591](https://github.com/optical-lift/noel-core-db/issues/2591) remains non-triggering.
+
+---
+
+
 **Status:** Source-only, HELD / no live migration, no real access, no release.
 **Custody:** Noel `shared_` source lane (Titus notebook records + Atlas Teaching enrollment + Reality Person + Auth). No duplicated enrollment, no new identity or private customer Course publication.
 
