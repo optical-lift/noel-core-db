@@ -328,4 +328,46 @@ check("blocked before execution" in notes and
       "production_catalog_compatibility_readonly_20261026.sql" in notes,
       "Release notes must not claim blocked rollback compile or signed access pass")
 
+# Nov 7 checkpoint replaces *current* hosting status, not historical source
+# evidence. A deleted Vercel app never means that SQL readers are retired.
+latest_catalog=read("production_alternate_reader_catalog_readonly_20261107.sql")
+latest_body=sql_statements_only(latest_catalog)
+latest_notes=read("GATE0_LEGACY_HOST_SHUTDOWN_AND_READER_AUDIT_20261107.md")
+for required in (
+    "zone_registry_source_v1", "object_crop_bed_map_v1",
+    "farm_care_zone_v1", "farm_snapshot_for_member_v1",
+    "universal_home_v1", "connected_person_my_work_self_api_v1",
+    "connected_person_company_work_today_self_api_v1",
+    "connected_person_company_work_day_self_api_v1",
+    "company_work_worker_day_self_api_v1",
+    "company_work_worker_day_refresh_self_api_v1",
+    "worker_report_company_work_projection_self_api_v1",
+    "company_work_employee_home_self_api_v1",
+    "connected_person_work_approved_fields_self_api_v1",
+    "governor_decide_connected_person_work_field_self_api_v1",
+    "has_function_privilege", "has_table_privilege",
+    "schema_migrations", "source_object_type='legacy_task_slice'",
+):
+    check(required in latest_catalog,
+          f"Current live reader inventory omitted important source: {required}")
+check(latest_body.upper().count("SELECT ")>=3 and
+      "pg_get_functiondef" in latest_body and
+      "pg_namespace" in latest_body and
+      "pg_class" in latest_body,
+      "Latest source metadata inventory must include definer/ACL/table audit")
+check(not re.search(r"\b(?:INSERT|UPDATE|DELETE|MERGE|TRUNCATE|CREATE|"
+                    r"ALTER|DROP|GRANT|REVOKE|BEGIN|COMMIT|CALL|DO|COPY)\b",
+                    latest_body,re.I),
+      "Latest catalog checkpoint must remain SELECT-only without mutation")
+for required in (
+    "404 not_found", "zero projects", "atlas.opticallift.com",
+    "SQL-level", "signed", "not", "Worker Day",
+):
+    check(required in latest_notes,
+          f"Legacy-host shutdown checkpoint missing boundary: {required}")
+check("retire" in latest_notes.lower() and
+      "positive" in latest_notes.lower() and
+      "no" in latest_notes.lower(),
+      "Must preserve valid worker read/write paths before retire/revoke")
+
 print("PASS Gate 0 static source guards (NOT clone/signed privacy acceptance)")
