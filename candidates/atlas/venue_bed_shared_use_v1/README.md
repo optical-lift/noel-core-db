@@ -1,5 +1,7 @@
 # HELD: Venue uses an existing Flower Bed
 
+> **OWNER CORRECTION — 2026-11-07:** The earlier Flower root offer → Venue root accept → Venue Work–Bed reference **is superseded as the general requirement for referring to an existing real-world Object in another Ledger's Work**. An actor who is actually authorized to author Work on their target Ledger may reference the same canonical Object without a copy or a second Ledger governor's approval solely for authoring/reference. Referencing does NOT confer source-domain mutation, restricted data access, custody or automatic Work completion. The present SQL and signed-PASS tests below remain unchanged historical evidence for the older candidate, **not** acceptance of the new target behavior. See [owner decision](https://github.com/optical-lift/atlas/blob/docs/uni-ops-native-canonical-bridge-hold-20261106/docs/integration/SHARED_REAL_WORLD_OBJECT_MULTI_LEDGER_WORK_AUTHORITY_20261107.md). Revised reference-only source/negative signed tests are UNBUILT; no release or migration.
+
 **Status: source-only draft, NOT a migration or released permission.**
 Ownership: Noel source design branch PR #2254, Flower access issue #2255, active reader audit PR #2263, Atlas notebook issue #437.
 
