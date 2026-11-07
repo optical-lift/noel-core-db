@@ -66,6 +66,29 @@ db_identity="$(psql "$db_url" -XAtq -v ON_ERROR_STOP=1 -c \
 psql "$db_url" -Xq -v ON_ERROR_STOP=1 -f "$lane/signed_local_fixture.sql"
 psql "$db_url" -Xq -v ON_ERROR_STOP=1 -f "$lane/candidate.sql"
 psql "$db_url" -Xq -v ON_ERROR_STOP=1 -f "$lane/structural_postconditions.sql"
+
+# The canonical-clone adapter must REFUSE this source-shaped but reduced
+# academic schema before creating even one local GoTrue Person or notebook row.
+# The refusal is expected and checked against real local PostgreSQL catalog
+# state. This proves that the mock-only preflight is also enforced at runtime.
+before_refusal="$(psql "$db_url" -XAtq -v ON_ERROR_STOP=1 -c  "SELECT (SELECT count(*) FROM auth.users)::text || ':' ||          (SELECT count(*) FROM titus.learner_private_course_note_events_v1)::text")"
+if python3 "$root/scripts/validate-titus-learner-private-notebook-clone-signed-http.py"  --db-url "$db_url" --output "$scratch/clone-refusal-summary.txt"  >"$scratch/clone-refusal.log" 2>&1; then
+ echo 'Unsafe success: full-schema clone adapter admitted reduced local fixture' >&2
+ exit 4
+fi
+if ! grep -Fq 'Clone preflight refused:' "$scratch/clone-refusal.log"; then
+ echo 'Clone adapter failed for an unexpected reason (not accepted as privacy denial)' >&2
+ exit 4
+fi
+after_refusal="$(psql "$db_url" -XAtq -v ON_ERROR_STOP=1 -c  "SELECT (SELECT count(*) FROM auth.users)::text || ':' ||          (SELECT count(*) FROM titus.learner_private_course_note_events_v1)::text")"
+[[ "$before_refusal" == "$after_refusal" && ! -e "$scratch/clone-refusal-summary.txt" ]] || {
+ echo 'Fail-closed clone adapter changed local Auth or learner note state' >&2
+ exit 4
+}
+echo 'PASS canonical-clone adapter refused reduced local schema; no Auth users or notes created.'
+
+# Separate purpose: source-shaped fictional course acceptance on *local*
+# signed GoTrue only. This is not a canonical production-schema clone.
 python3 "$lane/validate_signed_local_http.py" \
  --db-url "$db_url" --output "$scratch/signed-summary.txt"
 test -s "$scratch/signed-summary.txt"
