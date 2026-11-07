@@ -67,7 +67,14 @@ jobs:
           assert "first_sql_source={first_source}" in reporter
           assert "first_sql_class={first_class}" in reporter
           assert "print(raw)" not in reporter and "print(message)" not in reporter
-          print('PASS redacted SQL classifier compiles; no raw error text printed')
+          assert "print(private_log)" not in reporter and "print(fixture)" not in reporter
+          for exact in ("fixture_step={fixture_step}",
+                        "fixture_sqlstate={fixture_sqlstate}",
+                        "fixture_sqlstate=code if code in allowed_states else 'other'",
+                        "('guard','DO $fixture_guard$')",
+                        "('source_postcondition','DO $verify_native_source$')"):
+              assert exact in reporter,exact
+          print('PASS redacted SQL classifier compiles; only allowlisted Harvest fixture step and SQLSTATE')
           print('PASS owner issue protected test gate and no production mutation path')
           PY
 
