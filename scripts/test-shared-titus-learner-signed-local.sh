@@ -41,13 +41,13 @@ target="[auth.oauth_server]"
 settings=('enabled = true','authorization_url_path = "/oauth/consent"')
 if target in src:
     before,after=src.split(target,1)
-    next_section=re.search(r"(?m)^\\[[^\\n]+\\]",after)
+    next_section=re.search(r"(?m)^\[[^\n]+\]",after)
     section=after[:next_section.start()] if next_section else after
     tail=after[next_section.start():] if next_section else ""
-    section=re.sub(r"(?m)^\\s*(?:enabled|authorization_url_path|allow_dynamic_registration)\\s*=.*(?:\\n|$)","",section)
-    src=before+target+"\\n"+"\\n".join(settings)+"\\n"+section+tail
+    section=re.sub(r"(?m)^\s*(?:enabled|authorization_url_path|allow_dynamic_registration)\s*=.*(?:\n|$)","",section)
+    src=before+target+"\n"+"\n".join(settings)+"\n"+section+tail
 else:
-    src=src.rstrip()+"\\n\\n"+target+"\\n"+"\\n".join(settings)+"\\n"
+    src=src.rstrip()+"\n\n"+target+"\n"+"\n".join(settings)+"\n"
 path.write_text(src)
 assert src.count(target)==1
 PY
