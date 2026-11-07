@@ -387,6 +387,51 @@ def main():
     check(sql(db,"SELECT work_state FROM atlas.work_items WHERE "
       "id="+lit(VENUE_WORK)+"::uuid")=="open",
       "Rejected checklist Done must preserve ordinary existing Work as open")
+    # HELD EVENT RESULT GATE — no inferred cross-Ledger institutional owner.
+    # The native Venue governor differs from the organization's compatibility-
+    # primary Flower governor. Both existing Event assignment and generic
+    # connected-Person offer independently require the exact native AND
+    # institutional root. Never add synthetic authority, employee seats, or
+    # an unaccepted receiver merely to manufacture an Event Done.
+    event_offer_args={
+       "p_organization_id":c1.ORG,"p_ledger_id":VENUE,
+       "p_work_item_id":VENUE_WORK,
+       "p_target_canonical_person_id":"e5200000-0000-4000-8000-000000000102",
+       "p_reason":"Fictional Event original Work responsibility authority boundary probe"
+    }
+    event_assignment_args={
+       "p_organization_id":c1.ORG,"p_ledger_id":VENUE,
+       "p_occurrence_id":VENUE_EVENT,"p_work_item_id":VENUE_WORK,
+       "p_expected_allocation_id":None,
+       "p_target_person_id":"e5200000-0000-4000-8000-000000000102",
+       "p_reason":"Fictional Event exact original Person assignment authority boundary",
+       "p_source_action_id":"held-venue-event-direct-assignment-denied"
+    }
+    for caller,token in (("Venue-only governor",venue),
+                         ("Flower institutional governor",owner),
+                         ("Flower connected worker",worker),
+                         ("no-seat actor",noseat)):
+        for fn,payload in (
+          ("offer_connected_person_company_work_owner_self_api_v1",event_offer_args),
+          ("event_work_owner_assign_connected_self_api_v1",event_assignment_args)
+        ):
+            st,body=c1.rpc(api,key,fn,payload,token)
+            check(st in (401,403) and isinstance(body,dict)
+                  and body.get("code")=="42501",
+                  f"{caller}: {fn} must deny without BOTH current roots; HTTP {st}, {str(body)[:280]}")
+    check(sql(db,"SELECT count(*) FROM atlas.company_work_initial_responsibility_offers "
+      "WHERE work_item_id="+lit(VENUE_WORK)+"::uuid")=="0"
+      and sql(db,"SELECT count(*) FROM atlas.work_allocations "
+      "WHERE work_item_id="+lit(VENUE_WORK)+"::uuid")=="0"
+      and sql(db,"SELECT count(*) FROM atlas.work_execution_results "
+      "WHERE work_item_id="+lit(VENUE_WORK)+"::uuid")=="0"
+      and sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+      "id="+lit(VENUE_WORK)+"::uuid")=="open",
+      "Denied Event offers/assignments must leave the SAME original Venue Work untouched")
+    check(sql(db,"SELECT result_contract_key IS NULL FROM atlas.work_items "
+      "WHERE id="+lit(VENUE_WORK)+"::uuid")=="t",
+      "Existing synthetic Venue Work has no independently source-issued ordinary result contract")
+    print("PASS HELD Event Work assignment denial for split native/institutional governors; no fake completion")
     print("PASS signed native Event existing Work link/replay; checklist Done cannot substitute for Work result")
 
     # The actual connected canonical Person reports an ordinary result on
