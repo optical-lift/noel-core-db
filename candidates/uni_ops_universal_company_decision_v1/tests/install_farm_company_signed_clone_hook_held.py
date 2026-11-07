@@ -47,6 +47,7 @@ if [ "$signed_company_probe" = true ]; then
   test -n "${SIGNED_COMPANY_HARVEST_FIXTURE:-}"
   test -n "${SIGNED_COMPANY_PROBE_SCRIPT:-}"
   test -n "${SIGNED_COMPANY_TRANSPORT_SQL:-}"
+  test -n "${SIGNED_COMPANY_WORK_BED_FIXTURE:-}"
   phase="signed Farm-to-Company original C1 fixture"
   psql "$database_url" -X -v ON_ERROR_STOP=1 \
     -f "$SIGNED_COMPANY_C1_FIXTURE" \
@@ -56,6 +57,11 @@ if [ "$signed_company_probe" = true ]; then
     psql "$database_url" -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose \
     -f "$SIGNED_COMPANY_HARVEST_FIXTURE" \
     >"$artifacts_dir/uniops-signed-harvest-fixture.log" 2>&1
+  phase="source-guarded fictional Work-to-Bed prerequisites"
+  PGOPTIONS='-c uni_ops.disposable_clone=true' \
+    psql "$database_url" -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose \
+    -f "$SIGNED_COMPANY_WORK_BED_FIXTURE" \
+    >"$artifacts_dir/uniops-physical-work-source-private.log" 2>&1
   phase="exact original Harvest Journal manifest"
   psql "$database_url" -X -A -t -v ON_ERROR_STOP=1 \
     -c "SELECT jsonb_build_object(
