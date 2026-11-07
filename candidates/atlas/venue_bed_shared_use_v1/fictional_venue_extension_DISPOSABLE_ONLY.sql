@@ -99,7 +99,9 @@ INSERT INTO atlas.work_allocations(
  'e5200000-0000-4000-8000-000000000801',
  'e5200000-0000-4000-8000-000000000901',
  'e5200000-0000-4000-8000-000000000a22',
- 'responsible','active','{"cloneOnly":true,"originalResponsibility":true}'::jsonb
+ 'responsible','active',
+ '{"cloneOnly":true,"source":"explicit_worker_task_company_work_adoption_v2",
+   "legacyTaskId":"e5200000-0000-4000-8000-000000000a11"}'::jsonb
 );
 INSERT INTO atlas.company_work_native_ledger_relevance(
  organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
