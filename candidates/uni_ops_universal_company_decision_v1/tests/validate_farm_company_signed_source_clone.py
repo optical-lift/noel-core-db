@@ -14,6 +14,7 @@ import json
 import re
 import subprocess
 import threading
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -312,6 +313,90 @@ def run(db_url, manifest_path, output):
         private_signed(db_url, tokens[label], "receipt",
                        receipt_arg, want_error="42501")
 
+    # Public wrapper is source-pinned and installed DEFAULT-CLOSED only on
+    # this source-verified, loopback-only fictional PG17 database. The grant
+    # below is an explicitly authorized TEMPORARY TEST GRANT, never migration
+    # source or a production authorization.
+    rest_path = "/rest/v1/rpc/uni_ops_company_governed_case_receipt_self_api_v1"
+    rest_body = {"p_case_id": case}
+    wrapper = "public.uni_ops_company_governed_case_receipt_self_api_v1(uuid)"
+    for role in ("authenticated", "anon", "service_role"):
+        check(sql(db_url, "SELECT has_function_privilege("
+                  + literal(role) + "," + literal(wrapper)
+                  + ",'EXECUTE')") == "f",
+              "Source must remain ungranted before local test")
+    before_status, before_obj = c1.request(api, key, rest_path, rest_body, owner)
+    check(before_status in (401, 403, 404)
+          and not (isinstance(before_obj, dict) and before_obj.get("ok") is True),
+          "Default-closed transport unexpectedly granted before clone-only test")
+
+    # This is never executed outside the four-user fictional source test,
+    # and the exact database URL was independently constrained to local
+    # 127.0.0.1 / postgres / PG17 at the start of this probe.
+    sql(db_url, """
+        DO $clone_only_grant$
+        BEGIN
+          IF current_database()<>'postgres'
+             OR current_setting('server_version_num')::integer/10000<>17
+             OR (SELECT count(*) FROM auth.users WHERE id IN (
+                 'e5200000-0000-4000-8000-000000000001'::uuid,
+                 'e5200000-0000-4000-8000-000000000002'::uuid,
+                 'e5200000-0000-4000-8000-000000000003'::uuid,
+                 'e5200000-0000-4000-8000-000000000004'::uuid))<>4
+             OR (SELECT count(*) FROM atlas.uni_ops_governed_source_cases_v1)<>1
+             OR (SELECT count(*) FROM atlas.uni_ops_governed_case_decision_events_v1)<>0
+          THEN
+            RAISE EXCEPTION 'Not the exact disposable signed Company source'
+              USING ERRCODE='42501';
+          END IF;
+        END;
+        $clone_only_grant$;
+        GRANT EXECUTE ON FUNCTION
+          public.uni_ops_company_governed_case_receipt_self_api_v1(uuid)
+          TO authenticated;
+        SELECT pg_notify('pgrst','reload schema');
+    """)
+    check(sql(db_url,"SELECT has_function_privilege('authenticated',"
+              +literal(wrapper)+",'EXECUTE')") == "t"
+          and sql(db_url,"SELECT has_function_privilege('anon',"
+              +literal(wrapper)+",'EXECUTE')") == "f"
+          and sql(db_url,"SELECT has_function_privilege('service_role',"
+              +literal(wrapper)+",'EXECUTE')") == "f",
+          "Temporary clone grant widened beyond authenticated")
+    def rest_receipt(token, expected_decision):
+        # PostgREST may reload its schema cache asynchronously, but the
+        # exact case/actor/source checks must pass after the reload.
+        code, result = 0, None
+        for attempt in range(12):
+            code, result = c1.request(api, key, rest_path, rest_body, token)
+            if code == 200:
+                break
+            if attempt < 11:
+                time.sleep(0.45)
+        check(code == 200 and isinstance(result, dict),
+              "Real signed governor HTTP receipt did not succeed")
+        direct = bounded_receipt(token, expected_decision)
+        check(result == direct,
+              "PostgREST receipt differs from proven bounded private source")
+        return result
+    def rest_denial(token, request_body, label):
+        code, data = c1.request(api, key, rest_path, request_body, token)
+        check(code in (401, 403)
+              and isinstance(data, dict)
+              and data.get("code") == "42501"
+              and not data.get("ok"),
+              "Genuine signed HTTP authorization did not deny: " + label)
+    rest_receipt(owner, None)
+    for label in ("worker", "outsider", "no-seat"):
+        rest_denial(tokens[label], rest_body, label)
+    rest_denial(owner, {"p_case_id": str(uuid.uuid4())},
+                "known governor / unknown source case")
+    rest_denial(owner, {"p_case_id": None}, "known governor / null case")
+    code, data = c1.request(api, key, rest_path, rest_body, None)
+    check(code in (401, 403, 404)
+          and not (isinstance(data, dict) and data.get("ok") is True),
+          "Anonymous user unexpectedly read known Company case")
+
     def decision(token, action, reason, expected=None, outcome="hold_for_more_source",
                  error=None):
         params = [literal(case) + "::uuid", literal(attention) + "::uuid",
@@ -329,6 +414,7 @@ def run(db_url, manifest_path, output):
     first = decision(owner, first_action, reason)
     first_event = identifier(first["decisionEventId"])
     first_receipt = bounded_receipt(owner, first_event)
+    rest_receipt(owner, first_event)
     check(first_receipt["latestGovernorDecisionOutcome"] == "hold_for_more_source",
           "Receipt mutated governor choice or disclosed another outcome")
     check(first.get("newWorkCreated") is False
@@ -374,6 +460,8 @@ def run(db_url, manifest_path, output):
                          else results[1][1])["decisionEventId"]
     bounded_receipt(owner, race_winner_event)
     bounded_receipt(owner2, race_winner_event)
+    rest_receipt(owner, race_winner_event)
+    rest_receipt(owner2, race_winner_event)
     # Withholding one class must deny even a CURRENT governor after admission.
     disclosure("condition", "withhold")
     decision(owner, str(uuid.uuid4()),
@@ -388,6 +476,7 @@ def run(db_url, manifest_path, output):
     # disclosure is currently WITHHELD; it does NOT claim fresh Subject
     # visibility or right to decide a new source action.
     bounded_receipt(owner, race_winner_event)
+    rest_receipt(owner, race_winner_event)
     # Re-establish the information class, then revoke the *native* root:
     # this denial must be about actual current authority, not the prior
     # independent withheld-Subject denial. Only this disposable clone changes.
@@ -409,6 +498,11 @@ def run(db_url, manifest_path, output):
                    receipt_arg, want_error="42501")
     private_signed(db_url, owner2, "receipt",
                    receipt_arg, want_error="42501")
+    rest_denial(owner, rest_body, "revoked native root first session")
+    rest_denial(owner2, rest_body, "revoked native root second session")
+    check(sql(db_url,"SELECT has_function_privilege('anon',"
+              +literal(wrapper)+",'EXECUTE')") == "f",
+          "Temporary signed test unexpectedly widened anonymous grant")
 
     check(count(db_url, "atlas.work_items") == before_work,
           "Company source decision unexpectedly produced canonical Work")
@@ -424,7 +518,10 @@ def run(db_url, manifest_path, output):
         "one immutable Company decision chain; bounded governor-only "
         "private case receipt before/after decision, concurrent decision, "
         "Subject withholding and native root revocation; "
-        "zero new Work; NO public REST grants or production approval\n",
+        "temporary authenticated PostgREST GRANT only in disposable PG17; "
+        "signed governor one-case HTTP positive/negative/unknown/revoked "
+        "and precise 17-field safe source read; "
+        "zero new Work; NO production grant or release approval\n",
         encoding="utf-8"
     )
 
