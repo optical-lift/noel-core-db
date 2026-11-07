@@ -74,7 +74,7 @@ jobs:
       - name: Checkout exact held signed-test sources without protected credentials
         uses: actions/checkout@v4
         with:
-          ref: 90951401ac3c5804c0dba44e84c38ed666e0d1bb
+          ref: 5365a137407ce7235ba7aa476f583f7d7bcb3b9d
           path: signed
           persist-credentials: false
 
@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'e63b6229e29b37185d759bdc4630e70b5442777a'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = '483a8b23ce4b9965812c6327b3dc005cdad0019a'
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '0674036ad8c1220bf70b9983d455b03dfbde384c'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '4032f1a681d9867563c7f46dfdc8809572e2d761'
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py
           cp scripts/validate-production-schema-clone.sh "$RUNNER_TEMP/held-uniops-local-only.sh"
@@ -145,7 +145,7 @@ jobs:
               raise SystemExit('universal source must be an immutable Git commit')
           if fields['p3_head']!='d608391b3374d8113d869a6338dffab299be1b1e':
               raise SystemExit('P3 source head changed')
-          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='90951401ac3c5804c0dba44e84c38ed666e0d1bb':
+          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='5365a137407ce7235ba7aa476f583f7d7bcb3b9d':
               raise SystemExit('Exact Company and test source changed')
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
               f.write('signed_test_head='+fields['signed_test_head']+'\n')
@@ -183,7 +183,7 @@ jobs:
           test "$u" = "open|true|candidate/uni-ops-universal-decision-boundary-20261106|$EXPECTED_UNIVERSAL"
           test "$p" = "open|true|candidate/uni-ops-p3-result-no-successor-20261106|$EXPECTED_P3"
           t="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2575" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
-          test "$t" = 'open|true|test/uni-ops-farm-company-signed-acceptance-20261106|90951401ac3c5804c0dba44e84c38ed666e0d1bb'
+          test "$t" = 'open|true|test/uni-ops-farm-company-signed-acceptance-20261106|5365a137407ce7235ba7aa476f583f7d7bcb3b9d'
           echo 'PASS three draft held sources unchanged'
 
       - name: Install pinned schema-clone CLI
@@ -257,7 +257,7 @@ jobs:
           test -s "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'e63b6229e29b37185d759bdc4630e70b5442777a'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = '483a8b23ce4b9965812c6327b3dc005cdad0019a'
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '0674036ad8c1220bf70b9983d455b03dfbde384c'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '4032f1a681d9867563c7f46dfdc8809572e2d761'
           test "$(git -C c1fixture hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = 'e877d93323ddc67d8778be8bea1dfa34319cc85c'
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py
           test ! -e "canonical/supabase/migrations/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
