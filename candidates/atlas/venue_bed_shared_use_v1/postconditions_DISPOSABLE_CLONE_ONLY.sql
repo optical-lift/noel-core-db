@@ -99,5 +99,8 @@ WITH assertions(check_name, passed) AS (
         AND pg_get_indexdef(i.indexrelid) ILIKE '%(farm_id)%'
     )
 )
-SELECT check_name, coalesce(passed,false) AS passed
+-- A false postcondition must fail the clone job, never merely print a row.
+-- Zero denominator is evaluated only for failed source-dependent checks.
+SELECT check_name,
+  (1 / CASE WHEN coalesce(passed,false) THEN 1 ELSE 0 END) = 1 AS passed
 FROM assertions ORDER BY check_name;
