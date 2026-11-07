@@ -1,0 +1,222 @@
+name: Atlas Venue Bed owner-protected SIGNED clone
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-venue-bed-owner-protected-signed-clone.yml'
+      - 'scripts/validate-production-schema-clone.sh'
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: atlas-venue-bed-owner-protected-signed-clone
+  cancel-in-progress: false
+jobs:
+  review-source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Review owner authorization and signed-clone credential separation
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-venue-bed-owner-protected-signed-clone.yml")'
+          bash -n scripts/validate-production-schema-clone.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('.github/workflows/atlas-venue-bed-owner-protected-signed-clone.yml').read_text()
+          v=Path('scripts/validate-production-schema-clone.sh').read_text()
+          section=s.split('\n  validate-owner-protected-signed:\n',1)[1]
+          required=(
+            "github.event.issue.author_association == 'OWNER'",
+            "github.actor == github.repository_owner",
+            "environment: production",
+            "candidate_sha:",
+            "NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}",
+            "Snapshot production schema and roles READ ONLY",
+            "Checkout immutable held candidate",
+            "Checkout immutable C1 fictional fixture",
+            "Verify exact held and fixture commit identities",
+            "atlas_venue_bed_shared_use_signed_clone_only_v1",
+            "validate-production-schema-clone.sh",
+            "signed-venue-bed-summary.txt",
+          )
+          for p in required:
+            assert p in section,p
+          assert section.count("NOEL_CORE_DATABASE_URL:") == 1
+          assert section.index('Snapshot production schema and roles READ ONLY') < section.index('Checkout immutable held candidate')
+          assert section.index('Checkout immutable held candidate') < section.index('Assemble disposable fixture and source')
+          assert 'signed_venue_bed_probe=true' in v
+          assert 'validate-atlas-venue-bed-signed-http.py' in v
+          for forbidden in ('supabase db push','supabase migration up','db reset --linked',
+                            'apply_migration','SUPABASE_SERVICE_ROLE_KEY','gh pr merge'):
+            assert forbidden not in section,forbidden
+          print('PASS owner-only signed clone, fixed C1, local-only test and credential separation')
+          PY
+  validate-owner-protected-signed:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Venue Bed: protected signed clone approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Parse immutable owner-selected source
+        id: selection
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          matches=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',
+                             os.environ.get('ISSUE_BODY',''),re.M)
+          if len(matches)!=1: raise SystemExit('Exactly one immutable candidate_sha required')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+            out.write('sha='+matches[0]+'\n')
+          PY
+      - name: Checkout trusted main validator
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check canonical custody and test harness contract
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Install pinned CLI and local container registry authentication
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/cli.tgz"
+          tar -xzf "$RUNNER_TEMP/cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      # ONLY this step sees a production DB URL. It performs schema/roles dumps,
+      # never production DDL/DML or data dump. Candidate checkout is later.
+      - name: Snapshot production schema and roles READ ONLY
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/venue-signed-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/venue-signed-schema.sql"
+          test -s "$RUNNER_TEMP/venue-signed-roles.sql"
+          test -s "$RUNNER_TEMP/venue-signed-schema.sql"
+      # From this point forward NO production database credential in any step.
+      - name: Checkout immutable held candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.selection.outputs.sha }}
+          path: held
+          persist-credentials: false
+      - name: Checkout immutable C1 fictional fixture
+        uses: actions/checkout@v4
+        with:
+          ref: 83833e3efbb2e18c6376b56eb3982df5b8c000b3
+          path: c1
+          persist-credentials: false
+      - name: Verify exact held and fixture commit identities
+        env:
+          EXPECTED_SHA: ${{ steps.selection.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git -C c1 rev-parse HEAD)" = "83833e3efbb2e18c6376b56eb3982df5b8c000b3"
+          dir=held/candidates/atlas/venue_bed_shared_use_v1
+          for f in HELD_source_candidate.sql postconditions_DISPOSABLE_CLONE_ONLY.sql fictional_venue_extension_DISPOSABLE_ONLY.sql clone_signed_transport_DISPOSABLE_ONLY.sql; do
+            test -s "$dir/$f"
+          done
+          test -s c1/validation/fixtures/20261019201528_atlas_company_work_operating_register_v1.sql
+          test -s held/scripts/validate-atlas-venue-bed-signed-http.py
+          python3 held/scripts/validate-atlas-venue-bed-shared-use-source.py
+          python3 -m py_compile held/scripts/validate-atlas-venue-bed-signed-http.py
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('held/candidates/atlas/venue_bed_shared_use_v1/HELD_source_candidate.sql').read_text()
+          fixture=Path('held/candidates/atlas/venue_bed_shared_use_v1/fictional_venue_extension_DISPOSABLE_ONLY.sql').read_text()
+          post=Path('held/candidates/atlas/venue_bed_shared_use_v1/postconditions_DISPOSABLE_CLONE_ONLY.sql').read_text()
+          transport=Path('held/candidates/atlas/venue_bed_shared_use_v1/clone_signed_transport_DISPOSABLE_ONLY.sql').read_text()
+          assert src.rstrip().endswith('COMMIT;') and 'CREATE FUNCTION public.' not in src
+          assert 'clone-upick-bed-3' in fixture and 'clone-flower-original-work-901' in fixture
+          assert '1 / CASE WHEN coalesce(passed,false)' in post
+          assert 'DISPOSABLE CLONE ONLY' in transport and 'CREATE FUNCTION public.clone_test_venue_bed_offer_v1' in transport
+          assert 'GRANT EXECUTE' in transport and 'GRANT EXECUTE' not in src
+          PY
+      - name: Assemble disposable fixture and source
+        id: scratch
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/venue-signed-input"
+          cd "$RUNNER_TEMP/venue-signed-input"
+          supabase init --force
+          supabase migration new atlas_venue_bed_shared_use_signed_clone_only_v1
+          count=$(find supabase/migrations -type f -name '*_atlas_venue_bed_shared_use_signed_clone_only_v1.sql' | wc -l)
+          test "$count" -eq 1
+          file=$(find supabase/migrations -type f -name '*_atlas_venue_bed_shared_use_signed_clone_only_v1.sql')
+          file="$PWD/$file"
+          version=$(basename "$file" | cut -d_ -f1)
+          [[ "$version" =~ ^[0-9]{14}$ ]]
+          cat "$GITHUB_WORKSPACE/held/candidates/atlas/venue_bed_shared_use_v1/HELD_source_candidate.sql" > "$file"
+          printf '\n' >> "$file"
+          cat "$GITHUB_WORKSPACE/held/candidates/atlas/venue_bed_shared_use_v1/clone_signed_transport_DISPOSABLE_ONLY.sql" >> "$file"
+          fixture="$PWD/fixture.sql"
+          cat "$GITHUB_WORKSPACE/c1/validation/fixtures/20261019201528_atlas_company_work_operating_register_v1.sql" > "$fixture"
+          printf '\n' >> "$fixture"
+          cat "$GITHUB_WORKSPACE/held/candidates/atlas/venue_bed_shared_use_v1/fictional_venue_extension_DISPOSABLE_ONLY.sql" >> "$fixture"
+          # The canonical validator rejects DDL, procedural and non-DML
+          # statements in this fictional fixture before local execution.
+          cp "$GITHUB_WORKSPACE/held/scripts/validate-atlas-venue-bed-signed-http.py" "$GITHUB_WORKSPACE/scripts/validate-atlas-venue-bed-signed-http.py"
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "fixture=$fixture" >> "$GITHUB_OUTPUT"
+      - name: Validate on disposable PostgreSQL plus real local GoTrue and REST
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.file }}" \
+            --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+            --candidate-validation "$GITHUB_WORKSPACE/held/candidates/atlas/venue_bed_shared_use_v1/postconditions_DISPOSABLE_CLONE_ONLY.sql" \
+            --roles-dump "$RUNNER_TEMP/venue-signed-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/venue-signed-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/venue-signed-artifacts"
+          test -s "$RUNNER_TEMP/venue-signed-artifacts/signed-venue-bed-summary.txt"
+          grep -q '^PASS' "$RUNNER_TEMP/venue-signed-artifacts/signed-venue-bed-summary.txt"
+          echo "Genuine signed local Flower/Venue matrix PASS on disposable clone only. No production SQL, access grant, or feature release." >> "$GITHUB_STEP_SUMMARY"
+      - name: Report bounded summary
+        if: always()
+        run: |
+          if test -s "$RUNNER_TEMP/venue-signed-artifacts/summary.md"; then
+            cat "$RUNNER_TEMP/venue-signed-artifacts/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Signed clone not completed. Inspect protected local diagnostics." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload local-only diagnostics, never roles or raw schema
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: venue-bed-signed-clone
+          path: ${{ runner.temp }}/venue-signed-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
