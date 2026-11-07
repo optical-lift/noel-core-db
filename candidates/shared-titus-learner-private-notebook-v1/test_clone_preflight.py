@@ -83,6 +83,22 @@ class ClonePreflight(unittest.TestCase):
   # The *main* workflow is still owner-only. Draft runner changes alone cannot
   # be used in the protected job, which checks out main and not this PR's script.
   self.assertIn("ref: main",PROTECTED.read_text())
+ def test_real_local_adapter_refusal_has_zero_auth_and_note_writes(self):
+  runner=(ROOT/"scripts/test-shared-titus-learner-signed-local.sh").read_text()
+  for fragment in (
+   'before_refusal="$(psql "$db_url"',
+   'validate-titus-learner-private-notebook-clone-signed-http.py',
+   "'Clone preflight refused:'",
+   'after_refusal="$(psql "$db_url"',
+   'SELECT count(*) FROM auth.users',
+   'SELECT count(*) FROM titus.learner_private_course_note_events_v1',
+   '! -e "$scratch/clone-refusal-summary.txt"',
+   'PASS canonical-clone adapter refused reduced local schema',
+  ):
+   self.assertIn(fragment,runner,fragment)
+  self.assertLess(runner.index('before_refusal='),runner.index('after_refusal='))
+  self.assertLess(runner.index('after_refusal='),runner.index('python3 "$lane/validate_signed_local_http.py"'))
+
  def test_clone_preflight_fails_closed_when_catalog_missing(self):
   import importlib.util
   from unittest.mock import patch
