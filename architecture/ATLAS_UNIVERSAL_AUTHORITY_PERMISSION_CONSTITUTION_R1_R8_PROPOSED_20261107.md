@@ -137,3 +137,21 @@ This section distinguishes verified **present production source** from proposed 
 **Acceptance prior to release:** Flower original Bed unchanged; Venue real original Work may link only a permitted existing Bed; success creates neither custody nor duplicate Bed; exact Venue/Flower source proof; other Bed/Zone, unrelated Ledger/Organization and forged Flower principal denied; worker cannot self-authorize; revoked Venue relationship denies subsequent reads/actions; Flower `acts_on` and worker Work/Done still function; co-root actions attributable; hidden Work titles/instructions, finance and personal fields remain hidden; same JWT after genuine session revoke denied; independent real GoTrue/PostgREST signed tests on protected disposable full-schema clone. Only separately approved source migration and Atlas notebook release could change production.
 
 **Current reality:** Venue use of Flower's Bed through the current custody command is **not implemented**. The constraint is a source guard to preserve, not bypass. The previously signed-live Flower Bed 3/4 associations remain unchanged.
+
+
+## F. 2026-11-07 HELD Venue Bed-use source implementation candidate
+
+The owner explicitly authorized moving from design to a bounded source build. On this **same** Noel design draft branch, a held and unreleased source candidate was added at:
+- `candidates/atlas/venue_bed_shared_use_v1/HELD_source_candidate.sql`
+- `candidates/atlas/venue_bed_shared_use_v1/README.md`
+- `candidates/atlas/venue_bed_shared_use_v1/postconditions_DISPOSABLE_CLONE_ONLY.sql`
+- `scripts/validate-atlas-venue-bed-shared-use-source.py`
+- `.github/workflows/atlas-venue-bed-shared-use-source.yml`
+
+The source implements two non-public, RLS-protected source relations and four distinct held internal operations: exact Flower governor offer, exact Venue governor acceptance, authorized original Venue Work → original Flower Bed use-reference, and withdrawal. A composite FK requires each Work reference to point to the **same Bed and Venue Ledger** as the accepted use. It reuses `atlas.reality_access_self_api_v1()` for current live-session checks, per-Ledger root authority and native Seats; current Flower Farm crop custody; and existing exact Venue Work-to-Ledger relevance. It does **not** create/copy Work or Beds; modify the original Flower Work-context trigger; grant crop content reads; change RLS of existing tables; release a migration; or expose public/internal functions to authenticated browser users.
+
+**Different current source semantics:** A Venue-use reference remains in its narrow Venue source-owned relation. It has **not yet converged with the released universal `work_item_context_links` Work reader**; that integration is an explicit next proof gate, not license to weaken original Flower source guards. Current Venue Work relevance can be source-verified or lawful attested (source vocabulary); the new candidate does not magically upgrade attestation to direct source proof.
+
+The unprivileged static safety test is evidence of source containment only. The clone-only structural checks fingerprint unchanged original Flower `guard_work_growing_object_context_v1()` (MD5 `2c7de5ef8fa2519a5afec4feecf28f4a`) and original Flower link writer (MD5 `d430424f04b3e27a09be3bae00f7d821`). Those are **read-only production catalog baselines**, not signed proof or evidence of a clone execution.
+
+**Required before executable release:** protected disposable *full-schema* clone, Postgres SQL syntax/ACL check, exact signed Flower/Venue/root/worker/outsider/ended Seat/revoked-session tests, dynamic source withdrawal, concurrent root and action-ID replay, original Flower Work/Done and Event Work positive parity, information-field leakage audit, source-reviewed production migration and explicitly authorized deployment. The nine constitutional holds remain unpromoted. The single existing Atlas completion register is on draft Atlas PR #543.
