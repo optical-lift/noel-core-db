@@ -644,6 +644,7 @@ def main():
       " no employee-seat credential or Worker Day dependency;"
       "PASS real signed native Event already-existing Work positive link/replay;"
       " ordinary Event checklist Done unable to complete unrelated original Work;"
+      " HELD Event ordinary Person Result/Done not proven: split-root offers and direct assignment denied;"
       "PASS genuine signed ORIGINAL Flower Work-to-Bed positive parity after Venue link;"
       " authorized Flower-only canonical context/replay;" 
       " no duplicate originals or Venue crop-custody transfer;"
