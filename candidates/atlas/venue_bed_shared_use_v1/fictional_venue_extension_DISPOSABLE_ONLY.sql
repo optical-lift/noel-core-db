@@ -31,7 +31,7 @@ INSERT INTO atlas.farms(
 -- Source-backed Flower physical-context positive parity: these zones,
 -- task and responsibility are synthetic C1 prerequisite facts, not a new
 -- Work/Bed issued by the Venue permission.
-INSERT INTO atlas.zones(id,farm_id,stable_key,name)
+INSERT INTO atlas.zones(id,farm_id,stable_key,label)
 VALUES
  ('e5200000-0000-4000-8000-000000000a01',
   'e5200000-0000-4000-8000-000000000b01',
