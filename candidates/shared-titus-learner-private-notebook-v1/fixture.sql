@@ -10,7 +10,7 @@ GRANT USAGE ON SCHEMA public TO authenticated;
 CREATE TABLE auth.users(id uuid PRIMARY KEY,email_confirmed_at timestamptz,phone_confirmed_at timestamptz,deleted_at timestamptz,banned_until timestamptz,is_anonymous boolean DEFAULT false);
 CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid REFERENCES auth.users(id),not_after timestamptz);
 CREATE TABLE reality.entities(id uuid PRIMARY KEY,entity_kind text,identity_state text);
-CREATE TABLE reality.auth_person_bindings(id uuid PRIMARY KEY,auth_user_id uuid,person_entity_id uuid REFERENCES reality.entities(id),binding_state text,retired_at timestamptz);
+CREATE TABLE reality.auth_person_bindings(id uuid PRIMARY KEY,auth_user_id uuid,person_entity_id uuid REFERENCES reality.entities(id),binding_state text,bound_at timestamptz DEFAULT now(),retired_at timestamptz);
 CREATE TABLE atlas.people(id uuid PRIMARY KEY,status text);
 CREATE TABLE atlas.person_auth_credentials(id uuid PRIMARY KEY,person_id uuid REFERENCES atlas.people(id),credential_kind text,auth_user_id uuid,status text,retired_at timestamptz);
 CREATE TABLE atlas.teaching_courses(id uuid PRIMARY KEY,ledger_id uuid,capability_activation_id uuid,status text,retired_at timestamptz);
