@@ -1,0 +1,344 @@
+name: HELD UNI-OPS Farm-Company signed source local clone (owner issue only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-uni-ops-farm-company-signed-clone.yml'
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  packages: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: held-uni-ops-farm-company-signed-owner
+  cancel-in-progress: false
+
+jobs:
+  review-source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify owner gate and absence of production mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-farm-company-signed-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path('.github/workflows/held-uni-ops-farm-company-signed-clone.yml').read_text()
+          protected=w.split('\n  validate-protected:\n',1)[1]
+          for required in (
+             "github.event.issue.author_association == 'OWNER'",
+             "github.actor == github.repository_owner",
+             "environment: production",
+             "diagnostic_scope",
+             "NOEL_CORE_DATABASE_URL",
+             "supabase db dump",
+             "scripts/validate-production-schema-clone.sh",
+             "prepare_protected_clone_candidate_held.py",
+             "3f5fc0a705313745d5b5e5232726598f5d75fae8",
+             "candidate/uni-ops-universal-decision-boundary-20261106",
+          ):
+             assert required in protected,required
+          for forbidden in ('supabase db '+'push', 'supabase migration '+'up',
+                            'supabase db reset '+'--linked', 'apply_'+'migration',
+                            'secrets.SUPABASE_'+'SERVICE_ROLE_KEY'):
+             assert forbidden not in protected,forbidden
+          assert protected.index('Snapshot production user schemas read-only') < protected.index('Checkout exact held company source')
+          assert protected.index('Checkout exact held company source') < protected.index('Verify source and generate scratch SQL') < protected.index('Validate through canonical disposable schema clone')
+          import re
+          for key in ('diagnostic_scope','production_target','universal_head','p3_head'):
+             assert re.fullmatch(r'([a-z0-9_]+):\s*([a-zA-Z0-9_-]+)\s*', key+': abc_123'), key
+          print('PASS validated numeric key p3_head along with exact owner issue source fields')
+          # Compile the later allowlisted reporter in the UNPRIVILEGED PR job.
+          # This catches Python syntax errors before an owner issue can run.
+          import textwrap
+          reporter=w.rsplit('      - name: Report allowlisted local failure phase without private diagnostics\n',1)[1]
+          block=reporter.split("          python3 - <<'PY'\n",1)[1].split("\n          PY",1)[0]
+          compile(textwrap.dedent(block),'<redacted-protected-clone-classifier>','exec')
+          assert "first_sql_source={first_source}" in reporter
+          assert "first_sql_class={first_class}" in reporter
+          assert "print(raw)" not in reporter and "print(message)" not in reporter
+          print('PASS redacted SQL classifier compiles; no raw error text printed')
+          print('PASS owner issue protected test gate and no production mutation path')
+          PY
+
+  validate-protected:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS-01 farm company signed source held test request'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Pin exact owner test request before accessing protected schema
+        id: request
+        shell: bash
+        env:
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          fields={}
+          for raw in os.environ.get('ISSUE_BODY','').splitlines():
+              m=re.fullmatch(r'([a-z0-9_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
+              if m:
+                  k,v=m.groups()
+                  if k in fields and fields[k]!=v: raise SystemExit('conflicting source ID')
+                  fields[k]=v
+          required=('diagnostic_scope','production_target','universal_head','p3_head','signed_test_head')
+          if not all(x in fields for x in required):
+              raise SystemExit('missing exact owner-approved test source IDs')
+          if fields['diagnostic_scope']!='uni_ops_farm_company_signed_held_v1':
+              raise SystemExit('this workflow does not admit any other release/diagnostic scope')
+          if fields['production_target']!='zirqkouammpwxlqfbsvf':
+              raise SystemExit('not the exact production READ-ONLY schema source')
+          if not re.fullmatch(r'[0-9a-f]{40}',fields['universal_head']):
+              raise SystemExit('universal source must be an immutable Git commit')
+          if fields['p3_head']!='d608391b3374d8113d869a6338dffab299be1b1e':
+              raise SystemExit('P3 source head changed')
+          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='90951401ac3c5804c0dba44e84c38ed666e0d1bb':
+              raise SystemExit('Exact Company and test source changed')
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
+              f.write('signed_test_head='+fields['signed_test_head']+'\n')
+              f.write('universal_head='+fields['universal_head']+'\n')
+              f.write('p3_head='+fields['p3_head']+'\n')
+          print('PASS owner submitted only the required HELD test scope')
+          PY
+
+      - name: Checkout canonical main validator
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: canonical
+          persist-credentials: false
+
+      - name: Verify original guarded schema-clone custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+
+      - name: Check all three exact source PRs remain held
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_UNIVERSAL: ${{ steps.request.outputs.universal_head }}
+          EXPECTED_P3: ${{ steps.request.outputs.p3_head }}
+        run: |
+          set -euo pipefail
+          u="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2567" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
+          p="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2565" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
+          test "$u" = "open|true|candidate/uni-ops-universal-decision-boundary-20261106|$EXPECTED_UNIVERSAL"
+          test "$p" = "open|true|candidate/uni-ops-p3-result-no-successor-20261106|$EXPECTED_P3"
+          t="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2575" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
+          test "$t" = 'open|true|test/uni-ops-farm-company-signed-acceptance-20261106|90951401ac3c5804c0dba44e84c38ed666e0d1bb'
+          echo 'PASS three draft held sources unchanged'
+
+      - name: Install pinned schema-clone CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -1)" = '2.116.0'
+
+      - name: Authenticate read-only container image pulls
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      - name: Snapshot production user schemas read-only
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/production-custom-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/production-user-schema.sql"
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          echo 'Read-only schema/roles dump completed; never publish contents as artifact'
+
+      - name: Checkout exact held company source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.universal_head }}
+          path: universal
+          persist-credentials: false
+
+      - name: Checkout exact held Farm source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.p3_head }}
+          path: p3
+          persist-credentials: false
+
+      - name: Verify source and generate scratch SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C universal hash-object --no-filters candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py)" = '3f5fc0a705313745d5b5e5232726598f5d75fae8'
+          python3 -m py_compile universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py
+          python3 universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py \
+            --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
+            --output "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
+          test -s "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
+          test ! -e "canonical/supabase/migrations/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
+          echo 'PASS fixed nine-source scratch candidate; never generated a releasable migration'
+
+      - name: Validate through canonical disposable schema clone
+        id: clone_validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash canonical/scripts/validate-production-schema-clone.sh \
+            --migration-version 20261106235959 \
+            --release-lane atlas \
+            --candidate-migration "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql" \
+            --candidate-validation universal/candidates/uni_ops_universal_company_decision_v1/deferred_postconditions.sql \
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/uniops-company-clone-artifacts"
+
+      - name: Report allowlisted local failure phase without private diagnostics
+        if: always()
+        shell: bash
+        env:
+          CLONE_VALIDATION_OUTCOME: ${{ steps.clone_validation.outcome }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+
+          base=Path(os.environ['RUNNER_TEMP'])/'uniops-company-clone-artifacts'
+          summary=base/'summary.md'
+          content=summary.read_text(encoding='utf-8',errors='replace')[:16000] if summary.is_file() else ''
+          # Only known phase IDENTIFIERS may escape a protected runner; never
+          # print a source dump, SQL error body, role, credential, or path.
+          allowed={
+              'release-lane custody check','validation fixture safety check',
+              'schema dump sanitation','disposable database startup',
+              'production custom-role restore','production user-schema restore',
+              'baseline domain schema lint','candidate validation fixture application',
+              'candidate migration application','candidate migration postconditions',
+              'candidate domain schema lint','candidate lint delta comparison',
+              'local database advisors','complete',
+              'signed Farm-to-Company original C1 fixture',
+              'native nonweekly Harvest generated source witness',
+              'exact original Harvest Journal manifest',
+              'genuine signed Farm-to-Company private source matrix'
+          }
+          phase='not_reported'
+          for tag in ('FAILED during ','Validation command exited during `'):
+              pos=content.rfind(tag)
+              if pos>=0:
+                  line=content[pos+len(tag):].splitlines()[0].strip().strip('*.` ')
+                  if line in allowed: phase=line
+                  break
+
+          category='none'
+          if os.environ.get('CLONE_VALIDATION_OUTCOME')=='failure':
+              category='unclassified_local_failure'
+              if phase=='disposable database startup':
+                  candidates=sorted(base.glob('disposable-database-startup-attempt-*.log'))
+                  # Categorization is fixed vocabulary; no diagnostic text echoed.
+                  body='\n'.join(x.read_text(encoding='utf-8',errors='replace')[-150000:] for x in candidates if x.is_file()).lower()
+                  patterns=(
+                     ('registry_throttling',r'toomanyrequests|too many requests|rate[ -]?limit|rate exceeded|\b429\b'),
+                     ('local_port_conflict',r'address already in use|port is already allocated|port is in use'),
+                     ('container_health_failure',r'container is not healthy|failed health check|health check failed|container .* unhealthy'),
+                     ('local_role_or_auth_failure',r'password authentication failed|fatal: +role .* does not exist'),
+                     ('local_docker_failure',r'cannot connect to the docker daemon|error response from daemon'),
+                     ('local_initdb_failure',r'initdb: error|database system is shut down')
+                  )
+                  for label,pattern in patterns:
+                      if re.search(pattern,body):
+                          category=label
+                          break
+
+          # Classify FIRST candidate SQL failure by reviewed source segment,
+          # never emit raw psql errors, table/column names, SQL or personal data.
+          first_source='not_applicable'
+          first_class='not_applicable'
+          if phase=='candidate migration application':
+              first_source='unlocated'
+              first_class='unclassified_candidate_sql'
+              log=base/'candidate-migration.log'
+              candidate=Path(os.environ['RUNNER_TEMP'])/'20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql'
+              if log.is_file():
+                  raw=log.read_text(encoding='utf-8',errors='replace')[:300000]
+                  line_match=re.search(r'(?m)^psql:.*?:(\d+):\s+(?:ERROR|FATAL):\s*(.*)$',raw)
+                  if line_match:
+                      line_number=int(line_match.group(1))
+                      message=line_match.group(2).lower()
+                      classes=(
+                          ('missing_relation',r'relation .+ does not exist'),
+                          ('missing_column',r'column .+ does not exist'),
+                          ('missing_function',r'function .+ does not exist'),
+                          ('missing_constraint',r'constraint .+ does not exist'),
+                          ('missing_type',r'type .+ does not exist'),
+                          ('source_syntax_error',r'syntax error'),
+                          ('duplicate_existing_object',r'already exists'),
+                          ('ownership_or_privilege_denial',r'permission denied|must be owner of'),
+                          ('constraint_or_index_conflict',r'violates .* constraint|could not create unique index|duplicate key value'),
+                          ('source_drift_guard',r'changed|must not|source|ledger|governor|unsupported|refus'),
+                          ('wrong_type_or_operator',r'operator does not exist|cannot cast|invalid input syntax'),
+                      )
+                      for label,pattern in classes:
+                          if re.search(pattern,message):
+                              first_class=label
+                              break
+                      if candidate.is_file():
+                          markers={}
+                          safe_names={
+                              '20261026010327_atlas_farm_crop_custody_and_work_growing_object_link_v1.sql':'native_farm_custody',
+                              '14_harvest_bucket_result_no_automatic_preparation_held.sql':'nonweekly_harvest',
+                              '15_seed_inventory_result_no_auto_shortfall_task_held.sql':'seed_inventory',
+                              '01_domain_neutral_source_and_decision_records_held.sql':'company_case_schema',
+                              '02_private_company_governor_decision_writer_held.sql':'company_decision_writer',
+                              '03_private_current_governor_case_receipt_held.sql':'company_case_receipt',
+                              '06_bounded_existing_subject_disclosure_extension_held.sql':'native_subject_disclosure',
+                              '04_verified_farm_source_to_company_case_adapter_held.sql':'farm_source_adapter',
+                              '05_farm_to_one_company_governor_decision_wrapper_held.sql':'farm_governor_wrapper'
+                          }
+                          for ix,line in enumerate(candidate.read_text(encoding='utf-8',errors='replace').splitlines(),1):
+                              if line.startswith('-- BEGIN HELD EXACT SOURCE '):
+                                  name=line.rsplit('/',1)[-1]
+                                  if name in safe_names: markers[ix]=safe_names[name]
+                          for position in sorted(markers):
+                              if position<=line_number: first_source=markers[position]
+                              else: break
+          # Printed fields consist exclusively of ENUMS, not source text.
+          outcome=os.environ.get('CLONE_VALIDATION_OUTCOME','unknown')
+          if outcome not in ('success','failure','cancelled','skipped'): outcome='unknown'
+          report=f'HELD schema-clone outcome={outcome}; sanitized_phase={phase}; startup_class={category}; first_sql_source={first_source}; first_sql_class={first_class}'
+          print(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
+              out.write(report+'\n')
+              out.write('No raw production schema, SQL, role, user identity, or secret diagnostics published.\n')
+              out.write('No production write or release, no Person Work/Clock; protected private source methods remain ungranted to REST.\n')
+          PY
