@@ -187,3 +187,40 @@ INSERT INTO atlas.company_work_native_ledger_relevance(
  'Fictional existing Venue Work only - not a new Work command',
  'e5200000-0000-4000-8000-000000000103'
 );
+
+
+-- The production-only schema dump has no reference policy rows. This
+-- fictional policy permits the rightful Event checklist writer in this
+-- clone, so a denial on ordinary already-existing Work means source mismatch
+-- rather than a missing contract policy.
+INSERT INTO atlas.work_result_contract_policies(
+ contract_key,source_domain,acceptance_mode,active
+) VALUES (
+ 'ledger_occurrence_shared_confirmation_v1',
+ 'organization','domain_adapter',true
+);
+
+-- Synthetic original Event binding positive prerequisite. This native
+-- Occurrence is ALREADY a source of the Venue Ledger; signed link later
+-- associates an existing original Venue Work with it, without Work creation.
+INSERT INTO local_intel.occurrences(
+ id,stable_key,title,occurrence_type,start_at,end_at,status
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000b40',
+ 'clone-venue-existing-work-event',
+ 'Fictional Venue original Event','community_event',
+ '2030-10-30 16:00+00','2030-10-30 19:00+00','scheduled'
+);
+INSERT INTO ledger.occurrence_calendar_bindings(
+ ledger_id,occurrence_id,binding_state
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000402',
+ 'e5200000-0000-4000-8000-000000000b40','active'
+);
+INSERT INTO atlas.organization_occurrence_bindings(
+ id,organization_id,occurrence_id,binding_state
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000b41',
+ 'e5200000-0000-4000-8000-000000000801',
+ 'e5200000-0000-4000-8000-000000000b40','active'
+);
