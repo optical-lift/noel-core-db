@@ -402,6 +402,6 @@ begin
     'journalEventId',v_journal_id,'ownerAttentionId',v_owner_attention_id,'clock',v_clock,'dependencyEffect',v_dependency,'deduplicated',false
   );
 end;
-$function$
+$function$;
 
 COMMIT;
