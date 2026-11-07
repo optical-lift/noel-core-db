@@ -88,6 +88,108 @@ def link_args(use,work=VENUE_WORK,action="venue-work-link-a",
       }
     }
 
+def prove_independent_bed_reference(api,key,db,actors):
+    """Signed target Ledger Work reference without Flower permission ceremony."""
+    name="clone_test_ledger_work_existing_bed_reference_v1"
+    venue,claims=actors["outsider"]
+    def rpc_ref(token,work=VENUE_WORK,bed=BED,action="independent-venue-bed-3",org=c1.ORG):
+        return c1.rpc(api,key,name,{
+            "p_organization_id":org,"p_ledger_id":VENUE,
+            "p_work_item_id":work,"p_bed_id":bed,
+            "p_source_action_id":action},token)
+    def deny_ref(token,label,**kw):
+        status,body=rpc_ref(token,**kw)
+        check(status in (401,403) and isinstance(body,dict) and body.get("code")=="42501",
+              f"{label}: actual source authorization denial required; got {status}, {str(body)[:180]}")
+        print("PASS",label)
+
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_shared_use_authorizations_v1")=="0",
+          "No Flower offer may exist before independent Venue link proof")
+    check(sql(db,"SELECT count(*) FROM atlas.ledger_work_existing_bed_references_v1")=="0",
+          "Independent reference fixture must start empty")
+    check(sql(db,"SELECT has_table_privilege('authenticated',"
+          "'atlas.ledger_work_existing_bed_references_v1','SELECT')")=="f",
+          "Private reference table cannot be read directly by authenticated")
+    check(sql(db,"SELECT has_function_privilege('authenticated',"
+          "'atlas.establish_ledger_work_existing_bed_reference_self_v1(uuid,uuid,uuid,uuid,text)',"
+          "'EXECUTE')")=="f",
+          "Held source function has no ordinary authenticated EXECUTE")
+    before=[sql(db,"SELECT count(*) FROM "+table) for table in (
+        "atlas.work_items","atlas.growing_objects","atlas.work_item_context_links")]
+    custody=sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+       "WHERE ledger_id="+lit(FLOWER)+"::uuid AND custody_state='active'")
+
+    deny_ref(actors["owner"][0],"Flower root cannot author Venue reference")
+    deny_ref(actors["worker"][0],"Flower worker cannot author Venue reference")
+    deny_ref(actors["no-seat"][0],"Unseated Person cannot author Venue reference")
+    deny_ref(venue,"Venue root cannot reference Flower-only original Work",
+             work=WRONG_WORK,action="independent-wrong-work")
+    deny_ref(venue,"Venue root cannot reference a nonexistent physical Bed",
+             bed="e5200000-0000-4000-8000-00000000dead",
+             action="independent-no-bed")
+    deny_ref(venue,"Venue root cannot reference Bed from wrong Organization",
+             org="e5200000-0000-4000-8000-00000000dead",
+             action="independent-wrong-org")
+
+    status,data=rpc_ref(venue)
+    check(status==200 and isinstance(data,dict) and data.get("ok") is True
+          and data.get("idempotent") is False,
+          f"Venue independent original Bed reference not admitted: {status}, {str(data)[:250]}")
+    reference=str(uuid.UUID(data["referenceId"]))
+    check(data.get("workItemId")==VENUE_WORK and data.get("bedId")==BED
+          and data.get("ledgerId")==VENUE,
+          "Reference returns exact original Work, Bed, and target Ledger")
+    check(set(data)=={"ok","referenceId","idempotent","ledgerId","workItemId",
+          "bedId","newWorkCreated","newObjectCreated","physicalCustodyChanged",
+          "otherLedgerReadGranted"}
+          and data["newWorkCreated"] is False and data["newObjectCreated"] is False
+          and data["physicalCustodyChanged"] is False
+          and data["otherLedgerReadGranted"] is False,
+          "No Bed metadata, copy, crop mutation, or foreign-Ledger rights")
+    status,replay=rpc_ref(venue)
+    check(status==200 and replay.get("idempotent") is True
+          and replay.get("referenceId")==reference,
+          "Source action replay must reuse original reference")
+    status,collision=rpc_ref(venue,bed="e5200000-0000-4000-8000-000000000b04")
+    check(status==409 and isinstance(collision,dict)
+          and collision.get("code")=="23505",
+          "Cross-Bed action reuse must fail with source collision")
+    check(sql(db,"SELECT count(*) FROM atlas.ledger_work_existing_bed_references_v1")=="1",
+          "One reference to original object must exist")
+    check(sql(db,"SELECT recorded_by_person_id FROM "
+          "atlas.ledger_work_existing_bed_references_v1 WHERE id="+
+          lit(reference)+"::uuid")==VENUE_PERSON,
+          "Actual Venue signer must be attributed to new reference")
+    check(before==[sql(db,"SELECT count(*) FROM "+table) for table in (
+        "atlas.work_items","atlas.growing_objects","atlas.work_item_context_links")],
+          "Reference must not copy Work/Bed or bypass Flower spatial guard")
+    check(custody==sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+          "WHERE ledger_id="+lit(FLOWER)+"::uuid AND custody_state='active'"),
+          "Flower Bed custody remains separate and untouched")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_shared_use_authorizations_v1")=="0",
+          "Flower offer must remain absent after successful independent reference")
+
+    # Revocation of real local GoTrue session must deny SAME JWT. Restore only
+    # by signing in again with GoTrue, never synthetic JWT or SQL Session insert.
+    prior=claims["session_id"]
+    sql(db,"DELETE FROM auth.sessions WHERE id="+lit(prior)+"::uuid AND "
+          "user_id="+lit(c1.OUTSIDER)+"::uuid")
+    deny_ref(venue,"Revoked same signed Venue session denies next source reference",
+             action="independent-after-session-revoke")
+    renewed,newclaims=c1.sign_in(api,key,"outsider")
+    check(newclaims.get("sub")==c1.OUTSIDER
+          and newclaims.get("session_id")!=prior
+          and bool(newclaims.get("session_id")),
+          "Historical old-path test requires a genuinely renewed Venue session")
+    check(sql(db,"SELECT count(*) FROM auth.sessions WHERE id="+
+          lit(newclaims["session_id"])+"::uuid AND user_id="+
+          lit(c1.OUTSIDER)+"::uuid")=="1",
+          "New Venue JWT must have genuine persisted GoTrue session")
+    actors["outsider"]=(renewed,newclaims)
+    print("PASS independent signed Venue Work to SAME Flower Bed, no Flower offer")
+    return renewed
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--db-url",required=True)
