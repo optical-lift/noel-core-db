@@ -107,7 +107,7 @@ def assert_source_only(sql: str) -> None:
     assert "work_item_id uuid NOT NULL REFERENCES atlas.work_items(id) ON DELETE RESTRICT" in src
     assert "bed_id uuid NOT NULL REFERENCES atlas.growing_objects(id) ON DELETE RESTRICT" in src
     assert "venue_ledger_id uuid NOT NULL REFERENCES ledger.ledgers(id) ON DELETE RESTRICT" in src
-    assert "UNIQUE (venue_ledger_id, work_item_id, bed_id)" in src
+    assert "UNIQUE (use_authorization_id, work_item_id)" in src
     assert "UNIQUE (id, venue_ledger_id, bed_id)" in src
     assert "FOREIGN KEY (use_authorization_id, venue_ledger_id, bed_id)" in src
     assert "(id, venue_ledger_id, bed_id) ON DELETE RESTRICT" in src
