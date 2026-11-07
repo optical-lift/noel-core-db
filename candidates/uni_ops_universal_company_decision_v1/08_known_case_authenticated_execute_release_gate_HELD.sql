@@ -79,16 +79,16 @@ BEGIN
   END IF;
 
   v_def := pg_catalog.pg_get_functiondef(v_public);
-  IF pg_catalog.position('auth.uid() IS NULL' IN v_def)=0
-     OR pg_catalog.position('atlas.current_person_id_v1()' IN v_def)=0
-     OR pg_catalog.position(
-       'atlas.uni_ops_company_governed_case_receipt_self_held_v1' IN v_def)=0
-     OR pg_catalog.position(
-       'realSourceSubjectDisclosureWasNotGrantedByThisReader' IN v_def)=0
-     OR pg_catalog.position(
-       'permissionToCreateOriginalWork' IN v_def)=0
-     OR pg_catalog.position(
-       'permissionToAutoCreateNextWork' IN v_def)=0
+  IF pg_catalog.strpos(v_def,'auth.uid() IS NULL')=0
+     OR pg_catalog.strpos(v_def,'atlas.current_person_id_v1()')=0
+     OR pg_catalog.strpos(v_def,
+       'atlas.uni_ops_company_governed_case_receipt_self_held_v1')=0
+     OR pg_catalog.strpos(v_def,
+       'realSourceSubjectDisclosureWasNotGrantedByThisReader')=0
+     OR pg_catalog.strpos(v_def,
+       'permissionToCreateOriginalWork')=0
+     OR pg_catalog.strpos(v_def,
+       'permissionToAutoCreateNextWork')=0
   THEN
     RAISE EXCEPTION 'Known governor/private receipt membrane changed'
       USING ERRCODE='42501';
