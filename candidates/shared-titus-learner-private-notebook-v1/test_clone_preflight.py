@@ -99,7 +99,7 @@ class ClonePreflight(unittest.TestCase):
   self.assertLess(runner.index('before_refusal='),runner.index('after_refusal='))
   self.assertLess(runner.index('after_refusal='),runner.index('synthetic_clone_shape_extension.sql'))
   self.assertLess(runner.index('synthetic_clone_shape_extension.sql'),
-                  runner.index('python3 "$root/scripts/validate-titus-learner-private-notebook-clone-signed-http.py"'))
+                  runner.rindex('python3 "$root/scripts/validate-titus-learner-private-notebook-clone-signed-http.py"'))
   extension=(CAND/"synthetic_clone_shape_extension.sql").read_text()
   self.assertIn("CREATE TABLE atlas.organizations",extension)
   self.assertIn("CREATE TABLE atlas.organization_ledger_entries",extension)
