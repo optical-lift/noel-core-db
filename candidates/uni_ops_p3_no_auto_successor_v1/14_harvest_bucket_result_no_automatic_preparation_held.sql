@@ -128,5 +128,5 @@ begin
   end if;
   return new;
 end;
-$function$
+$function$;
 COMMIT;
