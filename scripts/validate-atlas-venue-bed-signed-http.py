@@ -752,6 +752,9 @@ def main():
       " authorized Flower-only canonical context/replay;" 
       " no duplicate originals or Venue crop-custody transfer;"
       " independent local Flower/Venue/worker/outsider/no-seat denial;"
+      "PASS genuine signed independent Venue original Work to original Flower Bed WITHOUT Flower offer;"
+      " one Bed, one Work, no custody, private crop data or unauthorized Ledger access;"
+      " revoked real Venue GoTrue session denied;"
       " two-party offer-accept-link-withdraw/reapproval;"
       " Work/Bed original identity unchanged;"
       " ended Seat and same-JWT GoTrue revocation.\n",
