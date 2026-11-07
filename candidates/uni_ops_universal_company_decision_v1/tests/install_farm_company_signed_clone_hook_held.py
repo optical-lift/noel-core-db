@@ -52,7 +52,7 @@ if [ "$signed_company_probe" = true ]; then
     >"$artifacts_dir/uniops-signed-c1-fixture.log" 2>&1
   phase="native nonweekly Harvest generated source witness"
   PGOPTIONS='-c uni_ops.disposable_clone=true' \
-    psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    psql "$database_url" -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose \
     -f "$SIGNED_COMPANY_HARVEST_FIXTURE" \
     >"$artifacts_dir/uniops-signed-harvest-fixture.log" 2>&1
   phase="exact original Harvest Journal manifest"
