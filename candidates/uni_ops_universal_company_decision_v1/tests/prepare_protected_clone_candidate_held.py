@@ -13,12 +13,12 @@ from pathlib import Path
 import subprocess
 import sys
 
-P3_SHA = "f9ca3c44065a0d2f8a23821a583fcc0571d2d0fc"
+P3_SHA = "d608391b3374d8113d869a6338dffab299be1b1e"
 # Each source SHA is the exact Git blob (not the moving head branch).
 SOURCE = (
     ("main", "supabase/migrations/20261026010327_atlas_farm_crop_custody_and_work_growing_object_link_v1.sql", "53610c2de7592813a54b31bd5b2055fad61a82a9"),
-    ("p3", "candidates/uni_ops_p3_no_auto_successor_v1/14_harvest_bucket_result_no_automatic_preparation_held.sql", "997cc38fc81f0f32249eeea88b1096d61e53b0bb"),
-    ("p3", "candidates/uni_ops_p3_no_auto_successor_v1/15_seed_inventory_result_no_auto_shortfall_task_held.sql", "5e5415ea94f8f8309645f2afd66d5ae47e60fbd5"),
+    ("p3", "candidates/uni_ops_p3_no_auto_successor_v1/14_harvest_bucket_result_no_automatic_preparation_held.sql", "c9f46e5893fa09302608e46280c17b0ac6f7fe38"),
+    ("p3", "candidates/uni_ops_p3_no_auto_successor_v1/15_seed_inventory_result_no_auto_shortfall_task_held.sql", "ebcc43f9c91e0dbd4b94cbef56831e4aa078df3f"),
     ("univ", "candidates/uni_ops_universal_company_decision_v1/01_domain_neutral_source_and_decision_records_held.sql", "41b4dbe53ca71a6f816a99d3944da4ecb8ada443"),
     ("univ", "candidates/uni_ops_universal_company_decision_v1/02_private_company_governor_decision_writer_held.sql", "54c5a4201ba07c753ee7714a520f05f569be366d"),
     ("univ", "candidates/uni_ops_universal_company_decision_v1/03_private_current_governor_case_receipt_held.sql", "efa708c308378acb40aeb427ad821478a34108f7"),
