@@ -18,7 +18,7 @@ The released trigger guard_work_growing_object_context_v1 still requires Flower 
 - An accepted use row can become ineffective when crop custody, Ledger participation or source conditions change, even without an explicit withdrawal event; future readers must reevaluate current source, exact grant state, and current session.
 - Accepted role or Organization names alone never prove Venue Work relevance; the candidate requires current exact-ledger native Work relevance, and that evidence MAY be owner-attested under existing law. Independent Venue Event/source proof remains open.
 
-## Security and factual acceptance cases -- ALL STILL UNRUN
+## Security and factual acceptance matrix -- partially signed-tested, release still HELD
 
 | Scenario | Required result |
 | --- | --- |
@@ -37,6 +37,14 @@ The released trigger guard_work_growing_object_context_v1 still requires Flower 
 | Existing GoTrue JWT after session revocation | Denied at next source operation |
 
 **Do NOT confuse the unprivileged GitHub static source guard with these signed tests.**
+
+
+## First real independent signed acceptance — PASSED, 2026-11-07
+
+- Immutable owner request [#2605](https://github.com/optical-lift/noel-core-db/issues/2605) pinned HELD source+fixture commit `6a345d983792a6295f10ab8b25dd9454f0b678b7`. Owner-gated [signed clone #42412583641](https://github.com/optical-lift/noel-core-db/actions/runs/42412583641) **SUCCESS**. Existing trusted main CI controller `5519b3cbb9f97bb54eb65c2312fae75dcb44bafd` checked out held test source only *after* a read-only production ROLES+SCHEMA snapshot; the exact original held SQL blob `19e6cd0ac886bc51a1ad5682e38a14195737d2f9` is **byte-identical** to the source that passed the earlier structural clone #42407642956.
+- This was a real **local PostgreSQL17 + GoTrue/Auth + PostgREST** execution, not a role-spoofed SQL simulation or a static test. The signed script's final PASS receipt was required by the controller; authorized Flower offer, independent Venue acceptance, existing Venue-original Work reference, idempotency/cross-Bed action-ID conflict, two-direction withdrawal, new approval after withdrawal with historical reference intact, wrong-Ledger Work/Bed, ordinary worker/no-seat/other-Ledger authority denials, ended native Venue Seat, and the same JWT after GoTrue session deletion all passed against purely synthetic local identities and subjects. Postconditions checked RLS/private function ACL and unchanged original Flower guard/writer. Baseline Atlas lint **14**, candidate **14**, introduced **0**.
+- Earlier [signed attempt #42411735202](https://github.com/optical-lift/noel-core-db/actions/runs/42411735202) correctly failed **before local DB/real signed testing** on a fictional fixture-safety token/semicolon. Those two fictional strings were repaired in held commit `6a345d9`. Pending [attempt #42411937073](https://github.com/optical-lift/noel-core-db/actions/runs/42411937073) was **cancelled without execution** because unrelated GitHub issues displaced workflow-level concurrency. CI-only [#2604](https://github.com/optical-lift/noel-core-db/pull/2604) corrected job-only queue admission before the passing rerun. These failures remain preserved, not erased.
+- **What this does NOT prove:** other concurrent current roots on the same Ledger; changed source-relevance/crop custody after active authorization; original authorized Flower Work context, worker Result/Done and Event Work context **positive parity**; independent Venue Event/source provenance versus the fictional owner-attested Work relevance; content/field disclosure, alternate public readers/exports/media/caches and connected Person notebook; canonical Work-context integration; actual production user permission. No production SQL/ACL or feature migration was applied, and the draft SQL has **no public user grant**. **The feature PR remains unmerged; release requires separate explicit source/security and production approval.**
 
 ## Next mandatory gates
 
