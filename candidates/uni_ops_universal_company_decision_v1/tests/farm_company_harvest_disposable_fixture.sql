@@ -34,6 +34,8 @@ BEGIN
  OR EXISTS(SELECT 1 FROM atlas.uni_ops_governed_case_decision_events_v1)
  OR pg_catalog.to_regclass(
       'atlas.uni_ops_p3_owner_attention_decision_events_v1') IS NOT NULL
+ OR EXISTS(SELECT 1 FROM atlas.operation_classes WHERE
+      stable_key='harvest_aboveground')
  OR EXISTS(SELECT 1 FROM atlas.flower_harvest_batches WHERE
       id='fa510000-0000-4000-8000-000000000003'::uuid)
  OR EXISTS(SELECT 1 FROM atlas.journal_event_index WHERE
@@ -43,6 +45,36 @@ BEGIN
  END IF;
 END;
 $fixture_guard$;
+
+-- The original Task BEFORE INSERT resolver maps a flower Harvest task
+-- to exactly this pre-existing native operation class. A schema-only clone
+-- has its table definition, not its production REFERENCE ROWS, and the
+-- baseline C1 fictional fixture does not seed this class. This row was
+-- independently matched by read-only production catalog/reference inspection.
+-- It is static reference semantics, NOT a source case, Person, Work grant,
+-- new authorizing act, preparation directive or governing decision.
+INSERT INTO atlas.operation_classes(
+ stable_key,label,operation_domain,definition,active,metadata
+) VALUES (
+ 'harvest_aboveground','Harvest aboveground','harvest',
+ 'Remove flowers, foliage, fruit, seed heads, or other primarily aboveground harvest material.',
+ true,'{}'::jsonb
+);
+
+DO $verify_reference$
+DECLARE v_class text;
+BEGIN
+ SELECT r.operation_class INTO v_class FROM atlas.task_operation_class_v1(
+   'Fictional historical harvest source, not a new Company original',
+   NULL::text,'harvest',
+   '{"cloneFixture":true,"notCompanyWork":true}'::jsonb
+ ) r LIMIT 1;
+ IF v_class IS DISTINCT FROM 'harvest_aboveground' THEN
+   RAISE EXCEPTION 'Canonical Harvest operation class is not resolved'
+     USING ERRCODE='23514';
+ END IF;
+END;
+$verify_reference$;
 
 -- An original nonweekly Farm task is a SOURCE pointer for the physical
 -- observation. It is NOT an authorized new Company Work or assignment.
