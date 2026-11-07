@@ -57,3 +57,14 @@ M5 Protected negative tests and separately authorized production release. Full-s
 ## Current source delivery and blockers
 
 This candidate contains an executable READ-ONLY preflight for database introspection and clone checks, plus structural postconditions. These are not schema migrations and do not authorize any deletion. Still open: complete Person-first replacement source writer/schema, source-covered exact copy, ALL affected application consumers, full private backup+restore, protected clone tests and explicit owner approval for the final release. The next coherent structural implementation batch must produce a real reviewed shared_ candidate plus signed test harness; PR does not merge or deploy until those gates pass.
+
+
+## M1 source implementation now present (HELD; not a tested migration)
+
+The same draft PR includes a guarded, non-generated source candidate at person_first_candidate.sql and read-only person_first_clone_postconditions.sql. This M1 source adapts the **existing empty atlas.teaching_courses root**, creates canonical manuscript/Unit revision tables as facets of that same Course, and defines a first Person-authenticated idempotent Course creator. Its actor is resolved only through exactly one current Reality Auth→Person binding. A supplied Course UUID is never authority. The old mandatory Ledger, activation and Principal columns become nullable in this **staged clone-only candidate**; a separate future reviewed cutover must remove obsolete columns, replace older institutional APIs/guards, add optional institutional operating standing, copy the SK 101 original exactly, and delete all old tables/functions. **M1 does not yet satisfy the no-legacy end-state.**
+
+The M1 candidate refuses to run unless an independently controlled clone transaction sets app.shared_course_clone to approved. It DOES NOT open or commit its own transaction. Static source is not signed security acceptance: the M1 candidate has not passed a protected full-schema clone or independent GoTrue owner/outsider/revoked tests and must never be used as live SQL. Future migrations must be generated under the governed release workflow, not by renaming the candidate.
+
+Additional source: RETIREMENT_MANIFEST.md enumerates the nonzero descendants, ambiguous source libraries, old public views/RPCs, and DROP RESTRICT gates. A deletion set is not approved by table-name similarity; use direct and recursive FK evidence and protected backup restores.
+
+**Next M2 engineering:** source-owned copy/adoption operation using the existing SK 101 Course UUID; exact old/new row equality within protected clone; author/Unit read/write and replay permission APIs; one source-only institutional standing without duplicate Course. Then M3 app source cutover, M4 explicit scoped retirement, M5 full integrated signed tests and owner-controlled production release.
