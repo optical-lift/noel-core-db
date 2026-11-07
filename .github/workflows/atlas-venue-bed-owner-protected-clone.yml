@@ -1,0 +1,183 @@
+name: Atlas Venue Bed owner-protected schema clone
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-venue-bed-owner-protected-clone.yml'
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: atlas-venue-bed-owner-protected-schema
+  cancel-in-progress: false
+jobs:
+  review-source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Review owner gate and credential separation
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-venue-bed-owner-protected-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('.github/workflows/atlas-venue-bed-owner-protected-clone.yml').read_text()
+          section=s.split('\n  validate-owner-protected:\n',1)[1]
+          for key in ("github.event.issue.author_association == 'OWNER'",
+                      "github.actor == github.repository_owner",
+                      "environment: production", "candidate_sha:",
+                      "NOEL_CORE_DATABASE_URL", "supabase db dump",
+                      "validate-production-schema-clone.sh"):
+              assert key in section,key
+          assert section.index("name: Snapshot production schema and roles READ ONLY") < section.index("name: Checkout owner-pinned candidate")
+          assert section.index("name: Checkout owner-pinned candidate") < section.index("name: Validate on disposable schema clone")
+          for forbidden in ("supabase db push", "supabase migration up",
+                            "supabase db reset --linked", "apply_migration",
+                            "secrets.SUPABASE_SERVICE_ROLE_KEY", "gh pr merge"):
+              assert forbidden not in section,forbidden
+          print("PASS reviewer sees owner-only source/credential separation")
+          PY
+
+  validate-owner-protected:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Venue Bed: protected schema clone approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Parse immutable owner-selected source
+        id: selection
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          values=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',os.environ.get('ISSUE_BODY',''),re.M)
+          if len(values)!=1: raise SystemExit('Exactly one candidate_sha: 40-hex value required')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as o: o.write('sha='+values[0]+'\n')
+          PY
+      - name: Checkout trusted main clone controller
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Review canonical custody and release contract
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Install pinned CLI and authenticate container registry
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/cli.tgz"
+          tar -xzf "$RUNNER_TEMP/cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      # Only this step has a production DB URL. No candidate code is checked out.
+      # Export ROLES and DDL only, never data, never SQL mutations.
+      - name: Snapshot production schema and roles READ ONLY
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/venue-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/venue-schema.sql"
+          test -s "$RUNNER_TEMP/venue-roles.sql"
+          test -s "$RUNNER_TEMP/venue-schema.sql"
+
+      # No DB credential present from here onward.
+      - name: Checkout owner-pinned candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.selection.outputs.sha }}
+          path: held
+          persist-credentials: false
+      - name: Verify exact private candidate and postcondition source
+        env:
+          EXPECTED_SHA: ${{ steps.selection.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "$EXPECTED_SHA"
+          dir=held/candidates/atlas/venue_bed_shared_use_v1
+          test -s "$dir/HELD_source_candidate.sql"
+          test -s "$dir/postconditions_DISPOSABLE_CLONE_ONLY.sql"
+          python3 held/scripts/validate-atlas-venue-bed-shared-use-source.py
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('held/candidates/atlas/venue_bed_shared_use_v1/HELD_source_candidate.sql').read_text()
+          post=Path('held/candidates/atlas/venue_bed_shared_use_v1/postconditions_DISPOSABLE_CLONE_ONLY.sql').read_text()
+          assert src.rstrip().endswith('COMMIT;')
+          assert 'FOREIGN KEY (use_authorization_id, venue_ledger_id, bed_id)' in src
+          assert '1 / CASE WHEN coalesce(passed,false)' in post
+          assert 'CREATE FUNCTION public.' not in src and 'GRANT EXECUTE' not in src
+          PY
+
+      - name: Prepare scratch clone candidate
+        id: scratch
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/venue-scratch"
+          cd "$RUNNER_TEMP/venue-scratch"
+          supabase init --force
+          supabase migration new atlas_venue_bed_shared_use_clone_only_v1
+          mapfile -t files < <(find supabase/migrations -name '*_atlas_venue_bed_shared_use_clone_only_v1.sql')
+          test "${#files[@]}" = 1
+          file="$PWD/${files[0]}"
+          cp "$GITHUB_WORKSPACE/held/candidates/atlas/venue_bed_shared_use_v1/HELD_source_candidate.sql" "$file"
+          basename="$(basename "$file")"
+          version="${basename%%_*}"
+          [[ "$version" =~ ^[0-9]{14}$ ]]
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate on disposable schema clone
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.file }}" \
+            --candidate-validation "$GITHUB_WORKSPACE/held/candidates/atlas/venue_bed_shared_use_v1/postconditions_DISPOSABLE_CLONE_ONLY.sql" \
+            --roles-dump "$RUNNER_TEMP/venue-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/venue-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/venue-clone-artifacts"
+          echo "Structural clone and ACL checks only; signed user authorization remains UNTESTED." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report non-sensitive summary only
+        if: always()
+        run: |
+          if test -s "$RUNNER_TEMP/venue-clone-artifacts/summary.md"; then
+            cat "$RUNNER_TEMP/venue-clone-artifacts/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Clone not completed. Inspect failing phase." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save local-only diagnostics without raw schema snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: venue-bed-structural-clone
+          path: ${{ runner.temp }}/venue-clone-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
