@@ -108,6 +108,9 @@ def assert_source_only(sql: str) -> None:
     assert "bed_id uuid NOT NULL REFERENCES atlas.growing_objects(id) ON DELETE RESTRICT" in src
     assert "venue_ledger_id uuid NOT NULL REFERENCES ledger.ledgers(id) ON DELETE RESTRICT" in src
     assert "UNIQUE (venue_ledger_id, work_item_id, bed_id)" in src
+    assert "UNIQUE (id, venue_ledger_id, bed_id)" in src
+    assert "FOREIGN KEY (use_authorization_id, venue_ledger_id, bed_id)" in src
+    assert "(id, venue_ledger_id, bed_id) ON DELETE RESTRICT" in src
 
 class SourceGuardTests(unittest.TestCase):
     @classmethod
