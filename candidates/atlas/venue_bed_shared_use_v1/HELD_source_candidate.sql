@@ -60,7 +60,7 @@ CREATE TABLE atlas.venue_bed_work_references_v1 (
   -- This is a Venue source reference, NOT a copy of Work or a replacement
   -- for the canonical work_item_context_links table / source Work engine.
   CONSTRAINT venue_bed_work_one_reference_v1
-    UNIQUE (venue_ledger_id, work_item_id, bed_id),
+    UNIQUE (use_authorization_id, work_item_id),
   CONSTRAINT venue_bed_work_action_idempotent_v1
     UNIQUE (venue_ledger_id, source_action_id),
   CONSTRAINT venue_bed_work_ref_exact_authorization_v1
