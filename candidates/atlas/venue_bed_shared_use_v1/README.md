@@ -1,0 +1,50 @@
+# HELD: Venue uses an existing Flower Bed
+
+**Status: source-only draft, NOT a migration or released permission.**
+Ownership: Noel source design branch PR #2254, Flower access issue #2255, active reader audit PR #2263, Atlas notebook issue #437.
+
+## Exact intended outcome
+
+One original Bed identity remains under source-proven Flower crop custody. A signed Flower root may offer permission for a separate Venue Ledger to USE/REFERENCE that exact Bed. A signed Venue root must accept. Only then may a signed Venue root associate an ALREADY EXISTING original Venue Work with the same Bed. No second Work, second Bed, physical custody transfer, or content disclosure follows merely from a link.
+
+The released trigger guard_work_growing_object_context_v1 still requires Flower custody for every canonical spatial/growing_object Work-context link. This candidate does not alter or use that path. A separate Venue-owned reference relation provides the missing jurisdiction; a future reviewed adapter must converge it with ordinary Work presentation without building a second task engine.
+
+## Held source
+
+- HELD_source_candidate.sql defines two private source-owned tables: venue_bed_shared_use_authorizations_v1 and venue_bed_work_references_v1. Both have RLS enabled and no direct authenticated or anonymous table access.
+- One internal source-current predicate verifies an exact current Flower farm crop custodian, real Bed and two currently active native Ledgers.
+- Four internal callable candidates implement: Flower offer; Venue root acceptance; Venue Work-to-existing-Bed reference; and withdrawal by a current governor of either Ledger. They all require an actual current signed GoTrue session and current individual Principal/seat authority; no public wrapper or authenticated EXECUTE is granted.
+- A Venue Work reference is only a bounded relationship to the ORIGINAL Work item in work_items. It does NOT create Work, assign responsibility, execute Work, approve its result, or reveal its title/instructions.
+- An accepted use row can become ineffective when crop custody, Ledger participation or source conditions change, even without an explicit withdrawal event; future readers must reevaluate current source, exact grant state, and current session.
+- Accepted role or Organization names alone never prove Venue Work relevance; the candidate requires current exact-ledger native Work relevance, and that evidence MAY be owner-attested under existing law. Independent Venue Event/source proof remains open.
+
+## Security and factual acceptance cases -- ALL STILL UNRUN
+
+| Scenario | Required result |
+| --- | --- |
+| Flower root, live session and exact active native Flower Bed custody | Can offer one Bed, no crop finance disclosed |
+| Other Ledger, stranger, guessed Bed ID, unsigned, or revoked session | Denied; no existence disclosure |
+| Venue root with live Seat and current Flower-approved use | Can accept exact offer |
+| Wrong Venue root, missing Seat, inactive or changed custody, forged offer | Denied |
+| Venue root with accepted use, open original Work, current exact Venue-ledger relevance and reviewed stable keys | Can establish a single Venue Work-Bed reference |
+| Wrong original Work, wrong Organization, withdrawn Work relevance, other Bed | Denied |
+| Duplicate same source action/actor/subject | Idempotent; reuse for another subject denied |
+| One Ledger with two distinct current roots | Both can independently exercise only their current lawful powers |
+| Withdrawal by Flower or Venue root | Further effective reference/use denied; previous source receipt kept |
+| Protected Work title, instructions, financial/employee/other-Ledger private data | Never returned by these candidate procedures |
+| Existing original Flower Work-to-Bed, Flower Work result/Done and Event Work links | Must remain functional for authorized signed participants |
+| Anonymous, normal authenticated role direct table access, unreviewed public API | Denied |
+| Existing GoTrue JWT after session revocation | Denied at next source operation |
+
+**Do NOT confuse the unprivileged GitHub static source guard with these signed tests.**
+
+## Next mandatory gates
+
+1. Full-schema disposable Postgres clone sourced through existing protected Noel procedure. Run this held SQL ONLY there and verify Postgres syntax, RLS, table ACLs, function ACLs, and existing original Flower function fingerprints.
+2. Grant temporary authenticated access to the precise candidate test interface IN THE CLONE ONLY; execute real signed independent Flower root, Venue root, wrong-Ledger governor, connected worker, outsider, ended-Seat and revoked-session positive/negative tests, including replay/concurrency and withdrawal.
+3. Reprove authorized original Flower Work/Done and Event Work Work-context parity. A new Venue reference must not impair either existing path.
+4. Decide how Venue Work source attestation earns source authority and how the new Venue reference enters canonical Work context and notebook without creating a competing Work system.
+5. Audit disclosure fields, search, exports and caches before any Bed identity reader for connected Persons.
+6. Source-owner review, generated exact migration, explicit protected release approval and Atlas notebook work are separate future steps. The Rounds 1-8 constitutional conflicts (including position-auto-disclosure and decision-history erasure) remain HELD.
+
+No production SQL, ACL, data, release, or human permission is authorized by this source document. Existing Atlas Authority Graph, authority_dimensions, and Noel security rules remain effective.
