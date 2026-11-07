@@ -1,0 +1,43 @@
+name: Titus private Course Units — disposable PG17 contract
+
+on:
+  push:
+    branches:
+      - candidate/titus-private-course-units-v1-20261105
+    paths:
+      - 'candidates/titus-private-course-units-v1/**'
+      - 'scripts/test-titus-private-course-units-hosted-pg17.sh'
+      - '.github/workflows/titus-private-course-units-pg17.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: titus-private-course-units-pg17-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/candidate/titus-private-course-units-v1-20261105'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact immutable candidate with no write credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Check source-only scope and no migration or live connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/test-titus-private-course-units-hosted-pg17.sh
+          test -s candidates/titus-private-course-units-v1/candidate.sql
+          test -s candidates/titus-private-course-units-v1/clone_validation.sql
+          test -s candidates/titus-private-course-units-v1/postconditions.sql
+          test ! -e supabase/migrations/20261105235555_titus_private_units_v1.sql
+          ! grep -E -i 'supabase db push|NOEL_CORE_DATABASE_URL=|production_database_url|service_role.*authorization' scripts/test-titus-private-course-units-hosted-pg17.sh
+          echo "PASS candidate-only and no-production controls"
+      - name: Verify isolated source and behavioral postconditions
+        shell: bash
+        run: bash scripts/test-titus-private-course-units-hosted-pg17.sh
