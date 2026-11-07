@@ -26,6 +26,7 @@ VENUE=c1.LEDGER_B
 BED="e5200000-0000-4000-8000-000000000b03"
 OTHER_BED="e5200000-0000-4000-8000-000000000b05"
 VENUE_WORK="e5200000-0000-4000-8000-000000000b20"
+VENUE_EVENT="e5200000-0000-4000-8000-000000000b40"
 WRONG_WORK="e5200000-0000-4000-8000-000000000901"
 VENUE_PERSON="e5200000-0000-4000-8000-000000000103"
 FLOWER_PERSON="e5200000-0000-4000-8000-000000000101"
@@ -260,6 +261,78 @@ def main():
       "Independent original Flower link must not transfer crop custody to Venue")
     print("PASS genuine signed Flower original Work-to-same-Bed link and replay after Venue")
 
+    # Native Event positive parity: the Venue's ALREADY-EXISTING canonical
+    # Work is independently source-relevant and the Event already has exact
+    # Ledger plus Organization Occurrence bindings. Link it through the
+    # RELEASED public ordinary Event-Work source rather than the temporary
+    # Venue Bed-use permission. No Event checklist work is issued.
+    event_args={
+      "p_organization_id":c1.ORG,"p_ledger_id":VENUE,
+      "p_occurrence_id":VENUE_EVENT,"p_work_item_id":VENUE_WORK,
+      "p_source_action_id":"clone-event-existing-work-link-a",
+    }
+    check(sql(db,"SELECT count(*) FROM ledger.occurrence_calendar_bindings WHERE "
+       "ledger_id="+lit(VENUE)+"::uuid AND occurrence_id="+lit(VENUE_EVENT)
+       +"::uuid AND binding_state='active'")=="1",
+       "Exact original native Venue Event source binding absent")
+    for name,token in (("Flower root",owner),
+                       ("ordinary Flower worker",worker),
+                       ("no native seat",noseat)):
+        code,result=c1.rpc(api,key,
+          "link_existing_ledger_event_work_self_api_v1",event_args,token)
+        check(code in (401,403) and isinstance(result,dict)
+              and result.get("code")=="42501",
+              f"{name} must not link another Ledger's original Event Work")
+    code,linked=c1.rpc(api,key,
+          "link_existing_ledger_event_work_self_api_v1",event_args,venue)
+    check(code==200 and isinstance(linked,dict)
+          and linked.get("ok") is True
+          and linked.get("workItemId")==VENUE_WORK
+          and linked.get("idempotent") is False
+          and linked.get("workCustodyChanged") is False,
+          f"Real signed Venue native Event Work link failed: {code}, {str(linked)[:500]}")
+    event_link=str(uuid.UUID(linked["contextLinkId"]))
+    code,replayed=c1.rpc(api,key,
+          "link_existing_ledger_event_work_self_api_v1",event_args,venue)
+    check(code==200 and isinstance(replayed,dict)
+          and replayed.get("ok") is True
+          and replayed.get("idempotent") is True
+          and replayed.get("contextLinkId")==event_link,
+          "Native Event existing Work source replay must be idempotent")
+    check(sql(db,"SELECT count(*) FROM atlas.work_item_context_links WHERE "
+      "id="+lit(event_link)+"::uuid AND work_item_id="+lit(VENUE_WORK)+"::uuid "
+      "AND subject_domain='temporal' AND subject_kind='occurrence' "
+      "AND subject_id="+lit(VENUE_EVENT)+"::uuid AND relation_kind='for'")=="1",
+      "Native original Venue Event Work must occupy the canonical temporal context")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_work_references_v1 WHERE "
+      "id="+lit(ref)+"::uuid AND bed_id="+lit(BED)+"::uuid "
+      "AND work_item_id="+lit(VENUE_WORK)+"::uuid")=="1",
+      "Original independent Venue-Bed receipt must survive Event link")
+    check(sql(db,"SELECT count(*) FROM atlas.work_item_context_links WHERE "
+      "id="+lit(context_id)+"::uuid AND subject_id="+lit(BED)+"::uuid "
+      "AND work_item_id="+lit(WRONG_WORK)+"::uuid")=="1",
+      "Original independent Flower physical link must survive Venue Event link")
+    check(int(sql(db,"SELECT count(*) FROM atlas.work_items"))==baseline_work
+          and int(sql(db,"SELECT count(*) FROM atlas.growing_objects"))==baseline_bed,
+          "Native Event may not copy existing Work or Flower Bed")
+    check(sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+      "id="+lit(VENUE_WORK)+"::uuid")=="open",
+      "Event link does not complete ordinary existing Venue Work")
+    # The ordinary Event shared-checklist Done operation has a DISTINCT
+    # source contract. It MUST NOT complete an Event-linked pre-existing Work
+    # merely because both share the same Occurrence.
+    done_args=dict(event_args)
+    done_args["p_source_action_id"]="clone-event-checklist-forged-done"
+    code,result=c1.rpc(api,key,
+         "mark_ledger_occurrence_shared_work_done_self_api_v1",done_args,venue)
+    check(code in (401,403) and isinstance(result,dict)
+          and result.get("code")=="42501",
+          "Event checklist Done cannot launder ordinary existing Venue Work completion")
+    check(sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+      "id="+lit(VENUE_WORK)+"::uuid")=="open",
+      "Rejected checklist Done must preserve ordinary existing Work as open")
+    print("PASS signed native Event existing Work link/replay; checklist Done cannot substitute for Work result")
+
     accepted(api,key,owner,"withdraw",{"p_use_id":offer},expect="bool")
     check(sql(db,"SELECT use_state FROM atlas.venue_bed_shared_use_authorizations_v1 "
        "WHERE id="+lit(offer)+"::uuid")=="withdrawn","Flower root withdrawal did not terminate use")
@@ -313,6 +386,8 @@ def main():
 
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
+      "PASS real signed native Event already-existing Work positive link/replay;"
+      " ordinary Event checklist Done unable to complete unrelated original Work;"
       "PASS genuine signed ORIGINAL Flower Work-to-Bed positive parity after Venue link;"
       " authorized Flower-only canonical context/replay;" 
       " no duplicate originals or Venue crop-custody transfer;"
