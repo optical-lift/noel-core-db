@@ -122,6 +122,7 @@ signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
+signed_titus_learner_private_probe=false
 # One exact generated mail permission candidate needs true signed Auth+REST.
 if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_communication_person_mail_read_window_v2[.]sql$ ]]; then
@@ -295,6 +296,22 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_connected_work_prerequisite_probe=true
+fi
+
+# Reviewer-held shared Titus notebook: exact SQL source, explicitly synthetic
+# fixture/postconditions and real local signed HTTP against restored schema.
+# This proposal is ONLY on the held branch; canonical main and owner gate remain.
+if [ "$lane" = "shared" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_titus_learner_private_notebook_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_validation" ]; then
+    echo "Private learner notebook requires source structural postconditions." >&2
+    exit 2
+  fi
+  if [ "$(git hash-object "$candidate_migration")" != "d1a00f02b8673e8b016ab8ef124a52dbe40c8101" ]; then
+    echo "Private learner notebook candidate does not match immutable source." >&2
+    exit 2
+  fi
+  signed_titus_learner_private_probe=true
 fi
 
 # Build 1 verified account binding requires real disposable signed claimant and
@@ -585,7 +602,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   fi
 
   set +e
-  if [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
+  if [ "$signed_titus_learner_private_probe" = true ] ||
+       [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
      [ "$signed_schedule_preflight_probe" = true ] ||
       [ "$signed_event_writer_probe" = true ] ||
       [ "$signed_calendar_reader_probe" = true ] ||
@@ -979,6 +997,14 @@ if [ "$signed_program_author_probe" = true ]; then
     --db-url "$database_url" \
     --output "$artifacts_dir/signed-program-author-summary.txt" \
     >"$artifacts_dir/signed-program-author.log" 2>&1
+fi
+
+if [ "$signed_titus_learner_private_probe" = true ]; then
+  phase="genuine signed local private learner notes on canonical restored schema"
+  python3 "$repo_root/scripts/validate-titus-learner-private-notebook-clone-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-titus-learner-notebook-summary.txt" \
+    >"$artifacts_dir/signed-titus-learner-notebook.log" 2>&1
 fi
 
 phase="candidate domain schema lint"

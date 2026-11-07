@@ -1,0 +1,61 @@
+name: HELD Titus learner-private notebook — genuine local OAuth signed HTTP
+on:
+  push:
+    branches:
+      - candidate/shared-titus-learner-private-notebook-v1-20261106
+    paths:
+      - 'candidates/shared-titus-learner-private-notebook-v1/**'
+      - 'scripts/test-shared-titus-learner-signed-local.sh'
+      - 'scripts/stage-held-titus-learner-clone-source.sh'
+      - 'scripts/validate-titus-learner-private-notebook-clone-signed-http.py'
+      - 'scripts/validate-production-schema-clone.sh'
+      - '.github/workflows/shared-titus-learner-private-signed-local.yml'
+permissions:
+  contents: read
+concurrency:
+  group: held-titus-local-oauth-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  local-auth:
+    if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/candidate/shared-titus-learner-private-notebook-v1-20261106'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Exact held source, no persistent credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify unprivileged source and static contract
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
+          bash -n scripts/test-shared-titus-learner-signed-local.sh
+          python3 -m py_compile candidates/shared-titus-learner-private-notebook-v1/validate_signed_local_http.py
+          python3 -m py_compile scripts/validate-titus-learner-private-notebook-clone-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          python3 -m unittest discover -s candidates/shared-titus-learner-private-notebook-v1 -p 'test_static_contract.py' -v
+          python3 -m unittest discover -s candidates/shared-titus-learner-private-notebook-v1 -p 'test_clone_preflight.py' -v
+          bash -n scripts/stage-held-titus-learner-clone-source.sh
+          ! grep -Eq 'supabase db (push|reset --linked)|NOEL_CORE_DATABASE_URL=|secrets\.' scripts/test-shared-titus-learner-signed-local.sh
+          echo 'Held signed local test source verified; no protected DB env.'
+      - name: Install pinned local Supabase CLI and PostgreSQL client
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          [[ "$(supabase --version | tail -n1)" == '2.116.0' ]]
+          if ! command -v psql >/dev/null;then
+            sudo apt-get update -q
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql-client
+          fi
+          docker version >/dev/null
+      - name: Rehearse exact held shared source in disposable CLI scratch (no DB)
+        shell: bash
+        run: bash scripts/stage-held-titus-learner-clone-source.sh
+      - name: Genuine local GoTrue OAuth authorization-code and PostgREST matrix
+        shell: bash
+        run: bash scripts/test-shared-titus-learner-signed-local.sh
