@@ -97,7 +97,29 @@ class ClonePreflight(unittest.TestCase):
   ):
    self.assertIn(fragment,runner,fragment)
   self.assertLess(runner.index('before_refusal='),runner.index('after_refusal='))
-  self.assertLess(runner.index('after_refusal='),runner.index('python3 "$lane/validate_signed_local_http.py"'))
+  self.assertLess(runner.index('after_refusal='),runner.index('synthetic_clone_shape_extension.sql'))
+  self.assertLess(runner.index('synthetic_clone_shape_extension.sql'),
+                  runner.index('python3 "$root/scripts/validate-titus-learner-private-notebook-clone-signed-http.py"'))
+  extension=(CAND/"synthetic_clone_shape_extension.sql").read_text()
+  self.assertIn("CREATE TABLE atlas.organizations",extension)
+  self.assertIn("CREATE TABLE atlas.organization_ledger_entries",extension)
+  self.assertIn("ALTER TABLE atlas.ledgers",extension)
+  self.assertNotIn("auth.users",extension)
+  probe=(CAND/"validate_signed_local_http.py").read_text()
+  self.assertIn('if ARGS.require_canonical_clone:',probe)
+  self.assertIn("INSERT INTO atlas.organizations",probe)
+  self.assertIn('org_columns=",organization_id"',probe)
+
+ def test_clone_runner_oauth_config_is_limited_to_held_titus_probe(self):
+  source=(ROOT/"scripts/validate-production-schema-clone.sh").read_text()
+  selector='if [ "$signed_titus_learner_private_probe" = true ]; then'
+  self.assertIn(selector,source)
+  self.assertIn('authorization_url_path = "/oauth/consent"',source)
+  self.assertIn('section = "[auth.oauth_server]"',source)
+  self.assertIn('assert source.count(section) == 1',source)
+  self.assertLess(source.index('section = "[auth.oauth_server]"'),source.index("local_started=true"))
+  self.assertIn('ref: main',PROTECTED.read_text())
+  self.assertNotIn('authorization_url_path = "/oauth/consent"',PROTECTED.read_text())
 
  def test_clone_preflight_fails_closed_when_catalog_missing(self):
   import importlib.util

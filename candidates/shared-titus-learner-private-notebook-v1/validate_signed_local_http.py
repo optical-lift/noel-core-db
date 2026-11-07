@@ -181,9 +181,20 @@ def seed_enrollment(people):
  # NOT the actual protected Noel production schema/trigger/release test.
  principal="31000000-0000-4000-8000-000000000003"
  governor=people[2]
- db(f"""INSERT INTO atlas.ledgers(id,stable_key,name,ledger_kind,status)
+ # In source-specific clone mode the full schema already exists, so this
+ # function writes ONLY fictional DML and includes a canonical Organization
+ # relation. Ordinary local source-shaped tests retain their older subset.
+ org_columns=""
+ org_values=""
+ if ARGS.require_canonical_clone:
+  org="61000000-0000-4000-8000-000000000001"
+  db(f"""INSERT INTO atlas.organizations (id,stable_key,name,status)
+       VALUES ('{org}','held_titus_clone_local_org','Fictional Local Teaching Organization','active');""")
+  org_columns=",organization_id"
+  org_values=f",'{org}'"
+ db(f"""INSERT INTO atlas.ledgers(id,stable_key,name,ledger_kind,status{org_columns})
    VALUES ('{LEDGER}','held_titus_fictional_ledger','Held Titus Fictional Teaching Ledger',
-           'governed_reality','active');
+           'governed_reality','active'{org_values});
  INSERT INTO atlas.principal_ledger_authorities
    (id,principal_id,ledger_id,authority_kind,status,basis)
  VALUES ('32000000-0000-4000-8000-000000000003','{principal}','{LEDGER}',

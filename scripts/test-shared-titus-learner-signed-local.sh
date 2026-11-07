@@ -87,11 +87,15 @@ after_refusal="$(psql "$db_url" -XAtq -v ON_ERROR_STOP=1 -c  "SELECT (SELECT cou
 }
 echo 'PASS canonical-clone adapter refused reduced local schema; no Auth users or notes created.'
 
-# Separate purpose: source-shaped fictional course acceptance on *local*
-# signed GoTrue only. This is not a canonical production-schema clone.
-python3 "$lane/validate_signed_local_http.py" \
+# Separate purpose: extend the disposable, fictional local schema with
+# organization/ledger structure and exercise the adapter's *positive* path.
+# This is NOT a restored production schema: the full canonical clone is still
+# owner-gated. The SQL below is LOCAL SYNTHETIC DDL, not a migration.
+psql "$db_url" -Xq -v ON_ERROR_STOP=1 \
+ -f "$lane/synthetic_clone_shape_extension.sql"
+python3 "$root/scripts/validate-titus-learner-private-notebook-clone-signed-http.py" \
  --db-url "$db_url" --output "$scratch/signed-summary.txt"
 test -s "$scratch/signed-summary.txt"
 grep -q '^PASS genuine LOCAL OAuth' "$scratch/signed-summary.txt"
 cat "$scratch/signed-summary.txt"
-echo 'PASS local signed OAuth/REST proof; independent production-shaped protected clone remains HELD.'
+echo 'PASS genuine local OAuth/REST on SYNTHETIC extended organization/Teaching shape; canonical protected clone remains untested.'

@@ -591,6 +591,34 @@ config_path.write_text("".join(out), encoding="utf-8")
 print(f"Disposable local validation DB port: {port}")
 PY
 database_url="postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres"
+# Only the exact held Titus source-specific signed probe needs OAuth2.1 PKCE.
+# Source-neutral clones and other signed tests keep their existing defaults.
+# This modifies only the disposable local test project's config.toml.
+if [ "$signed_titus_learner_private_probe" = true ]; then
+  python3 - "$project_dir/supabase/config.toml" <<'PY'
+from pathlib import Path
+import re
+import sys
+path = Path(sys.argv[1])
+source = path.read_text(encoding="utf8")
+section = "[auth.oauth_server]"
+required = ('enabled = true', 'authorization_url_path = "/oauth/consent"')
+if section in source:
+    before, after = source.split(section, 1)
+    following = re.search(r"(?m)^\[[^\n]+\]", after)
+    existing = after[:following.start()] if following else after
+    tail = after[following.start():] if following else ""
+    existing = re.sub(
+        r"(?m)^\s*(?:enabled|authorization_url_path|allow_dynamic_registration)\s*=.*(?:\n|$)",
+        "", existing,
+    )
+    source = before + section + "\n" + "\n".join(required) + "\n" + existing + tail
+else:
+    source = source.rstrip() + "\n\n" + section + "\n" + "\n".join(required) + "\n"
+path.write_text(source, encoding="utf8")
+assert source.count(section) == 1
+PY
+fi
 local_started=true
 startup_attempt=1
 startup_max_attempts=4
