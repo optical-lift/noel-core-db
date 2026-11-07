@@ -319,6 +319,24 @@ def run(db_url, manifest_path, output):
              error="42501")
     check(count(db_url, "atlas.uni_ops_governed_case_decision_events_v1") == 2,
           "Withheld Subject disclosure did not freeze decisions")
+    # Re-establish the information class, then revoke the *native* root:
+    # this denial must be about actual current authority, not the prior
+    # independent withheld-Subject denial. Only this disposable clone changes.
+    disclosure("condition", "grant")
+    sql(db_url, "UPDATE atlas.principal_ledger_authorities "
+        "SET status='ended',ended_at=now() WHERE id="
+        + literal(c1.ROOT_AUTHORITY) + "::uuid")
+    check(sql(db_url, "SELECT status FROM atlas.principal_ledger_authorities "
+              "WHERE id=" + literal(c1.ROOT_AUTHORITY) + "::uuid") == "ended",
+          "Native governing authority did not actually end in local clone")
+    latest = (results[0][1] if results[0][0] == "ok"
+              else results[1][1])["decisionEventId"]
+    decision(owner, str(uuid.uuid4()),
+             "Revoked governing root must not decide admitted source.",
+             expected=identifier(latest), error="42501")
+    check(count(db_url, "atlas.uni_ops_governed_case_decision_events_v1") == 2,
+          "Revoked governing authority wrote another decision")
+
     check(count(db_url, "atlas.work_items") == before_work,
           "Company source decision unexpectedly produced canonical Work")
     check(sql(db_url, "SELECT to_regclass("
