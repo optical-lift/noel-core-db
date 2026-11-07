@@ -175,6 +175,38 @@ def run(db_url, manifest_path, output):
     check(set(tokens) == {"owner", "worker", "outsider", "no-seat"},
           "Four independent local GoTrue signer identities required")
 
+    # Native Farm custody must be established through the EXISTING
+    # genuine signed public source writer, never direct fixture SQL.
+    check(sql(db_url, "SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+              "WHERE farm_id=" + literal(farm) + "::uuid") == "0",
+          "Fictional source fixture must not pregrant Farm custody")
+    custody_body = {
+        "p_farm_id": farm, "p_ledger_id": ledger,
+        "p_review": {"cropLedgerBoundaryReviewed": True,
+                     "authorityDomain": "farm_crop_operations"}
+    }
+    custody_rpc = "/rest/v1/rpc/establish_farm_crop_ledger_custody_self_api_v1"
+    for label in ("worker", "outsider", "no-seat"):
+        code, obj = c1.request(api, key, custody_rpc,
+                               custody_body, tokens[label])
+        check(code in (200, 401, 403) and
+              (code != 200 or not isinstance(obj, dict) or
+               obj.get("ok") is not True),
+              "Non-root signed person established Farm custody")
+    code, custody_receipt = c1.request(
+        api, key, custody_rpc, custody_body, tokens["owner"])
+    check(code == 200 and isinstance(custody_receipt, dict)
+          and custody_receipt.get("ok") is True
+          and custody_receipt.get("created") is True,
+          "Current signed native Ledger root did not establish Farm custody")
+    check(sql(db_url, "SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+              "WHERE farm_id=" + literal(farm) + "::uuid AND ledger_id="
+              + literal(ledger) + "::uuid AND custody_state='active' "
+              "AND established_by_principal_id="
+              "(SELECT principal_id FROM atlas.principal_ledger_authorities "
+              "WHERE id=" + literal(c1.ROOT_AUTHORITY) + "::uuid)") == "1",
+          "Signed native custody receipt does not match established root")
+
     # These methods are deliberately private and NOT an application RPC.
     # 404 means absent public transport, NOT a native actor denial.
     for label in ("owner", "worker", "outsider"):
