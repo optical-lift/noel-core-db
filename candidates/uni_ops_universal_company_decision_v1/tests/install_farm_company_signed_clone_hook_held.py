@@ -46,6 +46,7 @@ if [ "$signed_company_probe" = true ]; then
   test -n "${SIGNED_COMPANY_C1_FIXTURE:-}"
   test -n "${SIGNED_COMPANY_HARVEST_FIXTURE:-}"
   test -n "${SIGNED_COMPANY_PROBE_SCRIPT:-}"
+  test -n "${SIGNED_COMPANY_TRANSPORT_SQL:-}"
   phase="signed Farm-to-Company original C1 fixture"
   psql "$database_url" -X -v ON_ERROR_STOP=1 \
     -f "$SIGNED_COMPANY_C1_FIXTURE" \
@@ -83,6 +84,26 @@ for k in ('organizationId','governingLedgerId','farmId',
 if obj['kind']!='uni_ops_farm_company_source_test_only_v1':
     raise SystemExit('STOP: wrong fictional Farm source manifest')
 PY_MANIFEST
+  # Only the disposable clone has this exact C1 and native source evidence.
+  # Validate before installing the separately source-pinned DEFAULT-CLOSED
+  # wrapper, with no authenticated EXECUTE grant or production migration.
+  phase="default-closed known-case transport installed in disposable clone"
+  test "$(psql "$database_url" -X -A -t -v ON_ERROR_STOP=1 \
+    -c "SELECT (current_database()='postgres' AND
+      current_setting('server_version_num')::integer/10000=17 AND
+      (SELECT count(*) FROM auth.users
+       WHERE id IN (
+        'e5200000-0000-4000-8000-000000000001'::uuid,
+        'e5200000-0000-4000-8000-000000000002'::uuid,
+        'e5200000-0000-4000-8000-000000000003'::uuid,
+        'e5200000-0000-4000-8000-000000000004'::uuid))=4 AND
+      EXISTS(SELECT 1 FROM atlas.journal_event_index
+        WHERE event_key='harvest-preparation-needs-owner-direction:fa510000-0000-4000-8000-000000000003') AND
+      to_regprocedure('public.uni_ops_company_governed_case_receipt_self_api_v1(uuid)') IS NULL)" \
+    2>"$artifacts_dir/uniops-local-transport-guard-private.log")" = 't'
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -v VERBOSITY=verbose \
+    -f "$SIGNED_COMPANY_TRANSPORT_SQL" \
+    >"$artifacts_dir/uniops-default-closed-transport-private.log" 2>&1
   phase="genuine signed Farm-to-Company private source matrix"
   python3 "$SIGNED_COMPANY_PROBE_SCRIPT" \
     --db-url "$database_url" \
