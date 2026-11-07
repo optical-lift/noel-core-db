@@ -32,15 +32,24 @@ class ClonePreflight(unittest.TestCase):
    "production-custom-roles.sql","find candidate/supabase/migrations"):
    self.assertIn(key,w,key)
   self.assertNotIn("shared-titus-learner-private-notebook-v1/candidate.sql",w)
- def test_synthetic_fixture_not_mislabeled_production_shaped(self):
+ def test_source_shaped_fixture_still_not_a_canonical_clone(self):
   fx=(CAND/"signed_local_fixture.sql").read_text()
+  probe=(CAND/"validate_signed_local_http.py").read_text()
   review=(CAND/"PRODUCTION_SHAPE_REVIEW.md").read_text()
   for name in ("course_key","version_no","created_by_principal_id",
-   "enrolled_by_principal_id","published_by_principal_id"):
-   self.assertNotIn(name,fx)
+   "enrolled_by_principal_id","published_by_principal_id",
+   "atlas.capability_subject_valid_v1","atlas.capability_subject_governed_v1",
+   "atlas.capability_active_for_subject_v1",
+   "atlas.teaching_activation_active_v1","atlas.principal_ledger_authorities"):
+   self.assertIn(name,fx,name)
+  self.assertNotIn("atlas.synthetic_capability",fx)
   for table in ("atlas.ledgers","atlas.principals","atlas.capability_activations",
    "atlas.teaching_course_versions","atlas.teaching_enrollments"):
    self.assertIn(table,review)
+  for name in ("atlas.capability_definitions","enrolled_by_principal_id",
+   "created_by_principal_id","published_by_principal_id",
+   "source-governed Teaching","Retired source Ledger"):
+   self.assertIn(name,probe,name)
   self.assertIn("BLOCKED",review)
   w=LOCAL.read_text()
   self.assertIn("bash scripts/stage-held-titus-learner-clone-source.sh",w)

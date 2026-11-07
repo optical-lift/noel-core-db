@@ -156,25 +156,74 @@ def seed_person(user_id,i):
  person=f"30000000-0000-4000-8000-{i:012d}"
  binding=f"40000000-0000-4000-8000-{i:012d}"
  cred=f"50000000-0000-4000-8000-{i:012d}"
- db(f"""INSERT INTO reality.entities VALUES ('{person}','person','canonical');
+ db(f"""INSERT INTO reality.entities(id,stable_key,display_name,entity_kind,identity_state)
+ VALUES ('{person}','held_fictional_person_{i}','Fictional Learner or Governing Teacher {i}',
+         'person','canonical');
  INSERT INTO reality.auth_person_bindings
-  (id,auth_user_id,person_entity_id,binding_state) VALUES
-  ('{binding}','{user_id}','{person}','active');
- INSERT INTO atlas.people VALUES ('{person}','active');
+  (id,auth_user_id,person_entity_id,binding_state)
+  VALUES ('{binding}','{user_id}','{person}','active');
+ INSERT INTO atlas.people(id,stable_key,display_name,status)
+  VALUES ('{person}','held_titus_learner_{i}','Fictional Atlas Person {i}','active');
  INSERT INTO atlas.person_auth_credentials
- (id,person_id,credential_kind,auth_user_id,status)
- VALUES ('{cred}','{person}','supabase_auth_user','{user_id}','active');""")
+  (id,person_id,credential_kind,auth_user_id,status)
+  VALUES ('{cred}','{person}','supabase_auth_user','{user_id}','active');""")
+ if i==3:
+  principal="31000000-0000-4000-8000-000000000003"
+  db(f"""INSERT INTO atlas.principals
+    (id,user_id,person_id,stable_key,name,status)
+   VALUES ('{principal}','{user_id}','{person}',
+    'held_fictional_teaching_governor','Fictional Teacher/Governor','active');""")
  return person
 def seed_enrollment(people):
- db(f"""INSERT INTO atlas.synthetic_capability VALUES ('{LEDGER}','{ACTIVATION}','active');
- INSERT INTO atlas.teaching_courses(id,ledger_id,capability_activation_id,status)
- VALUES ('{COURSE}','{LEDGER}','{ACTIVATION}','active');
- INSERT INTO atlas.teaching_course_versions VALUES ('{VERSION}','{COURSE}',now());
- INSERT INTO atlas.teaching_course_offerings(id,ledger_id,course_id,course_version_id,state,opened_at)
- VALUES ('{OFFERING}','{LEDGER}','{COURSE}','{VERSION}','open',now());
- INSERT INTO atlas.teaching_enrollments(id,ledger_id,offering_id,person_id,state)
- VALUES ('{ENROLL[0]}','{LEDGER}','{OFFERING}','{people[0]}','active'),
- ('{ENROLL[1]}','{LEDGER}','{OFFERING}','{people[1]}','active');""")
+ # A genuinely linked fictional principal governs a fictional Ledger and
+ # publishes one Teaching Course Version before two distinct learner enrollments.
+ # This mirrors the source-shaped FK and capability activation relations; it is
+ # NOT the actual protected Noel production schema/trigger/release test.
+ principal="31000000-0000-4000-8000-000000000003"
+ governor=people[2]
+ db(f"""INSERT INTO atlas.ledgers(id,stable_key,name,ledger_kind,status)
+   VALUES ('{LEDGER}','held_titus_fictional_ledger','Held Titus Fictional Teaching Ledger',
+           'governed_reality','active');
+ INSERT INTO atlas.principal_ledger_authorities
+   (id,principal_id,ledger_id,authority_kind,status,basis)
+ VALUES ('32000000-0000-4000-8000-000000000003','{principal}','{LEDGER}',
+         'root_governing','active','local_titus_private_notebook_test');
+ INSERT INTO atlas.capability_definitions
+   (capability_key,capability_version,status,eligible_subject_kinds)
+ VALUES ('teaching',1,'active',ARRAY['ledger']::text[]);
+ INSERT INTO atlas.capability_activations
+   (id,ledger_id,capability_key,capability_version,subject_ledger_id,
+    subject_kind,subject_id,state,created_by_person_id,created_by_principal_id)
+ VALUES ('{ACTIVATION}','{LEDGER}','teaching',1,'{LEDGER}',
+         'ledger','{LEDGER}','active','{governor}','{principal}');
+ INSERT INTO atlas.teaching_courses
+   (id,ledger_id,capability_activation_id,course_key,name,status,
+    created_by_person_id,created_by_principal_id)
+ VALUES ('{COURSE}','{LEDGER}','{ACTIVATION}',
+         'held_fictional_course_101','Held Fictional Course 101','active',
+         '{governor}','{principal}');
+ INSERT INTO atlas.teaching_course_versions
+   (id,course_id,version_no,title,published_by_person_id,published_by_principal_id,
+    published_at)
+ VALUES ('{VERSION}','{COURSE}',1,'Held Fictional Course v1',
+         '{governor}','{principal}',now());
+ INSERT INTO atlas.teaching_course_offerings
+   (id,ledger_id,course_id,course_version_id,state,opened_at,delivery_mode,
+    created_by_person_id,created_by_principal_id)
+ VALUES ('{OFFERING}','{LEDGER}','{COURSE}','{VERSION}',
+         'open',now(),'cohort','{governor}','{principal}');
+ INSERT INTO atlas.teaching_enrollments
+   (id,ledger_id,offering_id,person_id,state,enrolled_by_person_id,enrolled_by_principal_id)
+ VALUES ('{ENROLL[0]}','{LEDGER}','{OFFERING}','{people[0]}',
+         'active','{governor}','{principal}'),
+        ('{ENROLL[1]}','{LEDGER}','{OFFERING}','{people[1]}',
+         'active','{governor}','{principal}');""")
+ check(db(f"SELECT atlas.teaching_activation_active_v1('{LEDGER}'::uuid,'{ACTIVATION}'::uuid)")=="t",
+       "Real source-defined governed Teaching activation did not allow fixture")
+ # Strong negative: teacher has actual fictional Ledger authority, but no
+ # Enrollment as the learner Person, and thus receives no private-note reader.
+ check(db(f"SELECT count(*) FROM atlas.principal_ledger_authorities WHERE principal_id='{principal}' AND ledger_id='{LEDGER}' AND status='active'")=="1",
+       "Governing teacher authority fixture missing")
 def main():
  global ARGS
  ap=argparse.ArgumentParser()
@@ -240,6 +289,28 @@ def main():
  check(len({x.get("noteId") for x in results})==1 and
        {x.get("replay") for x in results}=={True,False},
        "Signed simultaneous duplicate request not serialized/idempotent")
+ # Released-source-shaped negative transitions, all fictional and local:
+ # pause Teaching, retire Ledger, unpublish edition and revoke current bindings.
+ db(f"UPDATE atlas.capability_activations SET state='paused' WHERE id='{ACTIVATION}';")
+ deny(api,key,a,read,read_args(ENROLL[0]),"Paused source-governed Teaching reader denied")
+ deny(api,key,second,create,note_args(ENROLL[0]),"Paused source-governed Teaching writer denied")
+ db(f"UPDATE atlas.capability_activations SET state='active' WHERE id='{ACTIVATION}';")
+ db(f"UPDATE atlas.ledgers SET status='retired' WHERE id='{LEDGER}';")
+ deny(api,key,a,read,read_args(ENROLL[0]),"Retired source Ledger reader denied")
+ deny(api,key,second,create,note_args(ENROLL[0]),"Retired source Ledger writer denied")
+ db(f"UPDATE atlas.ledgers SET status='active' WHERE id='{LEDGER}';")
+ db(f"UPDATE atlas.teaching_course_versions SET published_at=NULL WHERE id='{VERSION}';")
+ deny(api,key,a,read,read_args(ENROLL[0]),"Unpublished Course Version reader denied")
+ deny(api,key,second,create,note_args(ENROLL[0]),"Unpublished Course Version writer denied")
+ db(f"UPDATE atlas.teaching_course_versions SET published_at=now() WHERE id='{VERSION}';")
+ db(f"UPDATE atlas.person_auth_credentials SET status='retired',retired_at=now() WHERE auth_user_id='{users[0][0]}';")
+ deny(api,key,a,read,read_args(ENROLL[0]),"Retired current-Person credential reader denied")
+ deny(api,key,second,create,note_args(ENROLL[0]),"Retired current-Person credential writer denied")
+ db(f"UPDATE atlas.person_auth_credentials SET status='active',retired_at=NULL WHERE auth_user_id='{users[0][0]}';")
+ db(f"UPDATE reality.auth_person_bindings SET binding_state='retired',retired_at=now() WHERE auth_user_id='{users[0][0]}';")
+ deny(api,key,a,read,read_args(ENROLL[0]),"Retired canonical Reality binding reader denied")
+ deny(api,key,second,create,note_args(ENROLL[0]),"Retired canonical Reality binding writer denied")
+ db(f"UPDATE reality.auth_person_bindings SET binding_state='active',retired_at=NULL WHERE auth_user_id='{users[0][0]}';")
  db(f"UPDATE atlas.teaching_enrollments SET state='withdrawn',withdrawn_at=now() WHERE id='{ENROLL[0]}';")
  deny(api,key,a,read,read_args(ENROLL[0]),"Withdrawn learner read denied")
  deny(api,key,second,create,note_args(ENROLL[0]),"Withdrawn learner write denied")

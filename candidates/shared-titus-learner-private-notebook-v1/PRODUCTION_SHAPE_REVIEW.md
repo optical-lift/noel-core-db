@@ -4,11 +4,20 @@
 
 ## Existing proof
 
-Noel PR #2580 has passing isolated PostgreSQL 17 SQL/ACL and local genuine GoTrue OAuth/PKCE/PostgREST tests. The candidate SQL remains unchanged at Git blob d1a00f02b8673e8b016ab8ef124a52dbe40c8101. These tests use fictional simplified Teaching tables, not the actual Atlas Teaching schema. They do not establish real learner access, consent, or release.
+Noel PR #2580 has passing isolated PostgreSQL 17 SQL/ACL and local genuine GoTrue OAuth/PKCE/PostgREST tests. The candidate SQL remains unchanged at Git blob d1a00f02b8673e8b016ab8ef124a52dbe40c8101. The earlier passing tests used simplified fictional Teaching tables. The next test revision adds a source-shaped fictional academic model with exact read-only catalog-sourced Teaching activation function definitions; this still does not contain the full protected production schema. They do not establish real learner access, consent, or release.
+
+
+## November 7 source-shaped test increment — acceptance pending
+
+The source-only draft extends the **local fictional** signed-user test without creating a releasable migration. The test has a fictional root-governing Person and Principal bound to a valid active Ledger. That principal creates an actual-shaped Teaching capability activation, Course, published Version, open Offering, and two separately enrolled fictional People using required source fields and composite foreign keys. The third governor Person is denied learner-private access despite holding Ledger authority. Local GoTrue OAuth issues all three real signed sessions; the test does not fabricate an `auth.users` row.
+
+The signed negative matrix now additionally checks paused Teaching capability, retired Ledger, unpublished Course Version, retired active Atlas credential, and retired canonical Reality Person binding. The author/source SQL remains unchanged at blob `d1a00f02b8673e8b016ab8ef124a52dbe40c8101`. These are **candidate test changes**, not a passing receipt until exact-head CI completes.
+
+**Boundary:** source-shaped fictional tables with copied canonical function bodies are more faithful than the original simplified tables, but they do **not** replace a schema/roles dump with all live constraints, policies, triggers and release governance. A reviewed production-shaped clone, separate owner-initiated issue, and protected environment approval are still REQUIRED. **Status: BLOCKED** for real notebook release.
 
 ## Live read-only catalog evidence (2026-11-06)
 
-Production Teaching requires additional NOT NULL, no-default columns which the signed-local fixture omits:
+The first signed-local fixture omitted these NOT NULL, no-default columns. The revised source-shaped local fixture now models them and its cross-source foreign keys:
 
 - atlas.teaching_courses: course_key, name, created_by_person_id, created_by_principal_id
 - atlas.teaching_course_versions: version_no, title, published_by_person_id, published_by_principal_id
@@ -16,7 +25,7 @@ Production Teaching requires additional NOT NULL, no-default columns which the s
 - atlas.teaching_enrollments: enrolled_by_person_id, enrolled_by_principal_id
 - reality.entities: stable_key, display_name
 
-The released foreign-key graph additionally requires atlas.ledgers, atlas.principals, atlas.capability_activations and atlas.capability_definitions. The real atlas.teaching_activation_active_v1 uses governed source, active Ledgers and capability definitions. Its checks cannot be replaced by the signed-local fixture's atlas.synthetic_capability Boolean.
+The foreign-key graph also requires atlas.ledgers, atlas.principals, atlas.capability_activations and atlas.capability_definitions. The revised local fixture supplies these fictional tables, and loads the exact live read-only catalog definitions of atlas.capability_subject_valid_v1, atlas.capability_subject_governed_v1, atlas.capability_active_for_subject_v1, and atlas.teaching_activation_active_v1. The earlier atlas.synthetic_capability Boolean has been retired in this fixture; the actual owner-approved production-shaped schema clone remains a separate gate.
 
 The existing candidates/atlas-teaching-academic-kernel-v1/fixture.sql contains a better source-shaped fictional Ledger, principal and Teaching-definition example, but generates fake Auth users. Any production-shaped clone must instead obtain *real local signed* GoTrue OAuth sessions and write only fictional Atlas/Reality records linked to those synthetic local identities. No real Person, student or Course data is permitted in validation.
 
