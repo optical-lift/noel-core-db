@@ -254,10 +254,6 @@ def main():
     check(sql(db,"SELECT result_contract_key FROM atlas.work_items WHERE "
       "id="+lit(WRONG_WORK)+"::uuid")=="ordinary_company_work_worker_attestation_v1",
       "Native Person acceptance must bind original Work ordinary result policy")
-    check(sql(db,"SELECT count(*) FROM atlas.organization_employee_seats "
-          "WHERE 1=0")=="0" if sql(db,"SELECT to_regclass('atlas.organization_employee_seats') IS NOT NULL")=="t"
-          else True,
-          "Employee status is never an acceptance prerequisite")
     print("PASS signed native Flower Work offer/target acceptance; no employee seat or duplicate Work")
 
     # POSITIVE native source parity: after the independent Venue reference is
