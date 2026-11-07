@@ -8,7 +8,7 @@ candidate="/source/candidates/shared-titus-learner-private-notebook-v1"
 for f in fixture.sql candidate.sql structural_postconditions.sql postconditions.sql; do
  test -s "$root/candidates/shared-titus-learner-private-notebook-v1/$f"
 done
-container="titus-private-notes-\${GITHUB_RUN_ID:-local}-\${GITHUB_RUN_ATTEMPT:-1}"
+container="titus-private-notes-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-1}"
 [[ "$container" =~ ^[a-zA-Z0-9_.-]+$ ]] || exit 2
 started=false
 cleanup(){
