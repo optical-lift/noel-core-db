@@ -71,6 +71,41 @@ jobs:
           print('PASS owner issue protected test gate and no production mutation path')
           PY
 
+      - name: Checkout exact held signed-test sources without protected credentials
+        uses: actions/checkout@v4
+        with:
+          ref: 90951401ac3c5804c0dba44e84c38ed666e0d1bb
+          path: signed
+          persist-credentials: false
+
+      - name: Verify signed-source hashes, Python syntax and scratch-only controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'e63b6229e29b37185d759bdc4630e70b5442777a'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = '483a8b23ce4b9965812c6327b3dc005cdad0019a'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '0674036ad8c1220bf70b9983d455b03dfbde384c'
+          python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py
+          python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py
+          cp scripts/validate-production-schema-clone.sh "$RUNNER_TEMP/held-uniops-local-only.sh"
+          python3 signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py --controller "$RUNNER_TEMP/held-uniops-local-only.sh"
+          bash -n "$RUNNER_TEMP/held-uniops-local-only.sh"
+          python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          text=Path(os.environ['RUNNER_TEMP'],'held-uniops-local-only.sh').read_text()
+          assert text.count('signed_company_probe=true')==1
+          assert text.count('UNI-OPS SIGNED HOOK')==1
+          assert "PGOPTIONS='-c uni_ops.disposable_clone=true'" in text
+          fixture=Path('signed/candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql').read_text()
+          for forbidden in (r'^\s*INSERT\s+INTO\s+atlas\.uni_ops_governed_source_cases',
+                            r'^\s*INSERT\s+INTO\s+atlas\.uni_ops_governed_case_decision_events',
+                            r'^\s*INSERT\s+INTO\s+atlas\.farm_crop_ledger_custody_v1',
+                            r'^\s*GRANT\s+EXECUTE'):
+              assert not re.search(forbidden,fixture,re.I|re.M),forbidden
+          print('PASS no invented Company source case, decision, custody or grants')
+          PY
+
   validate-protected:
     if: >-
       github.event_name == 'issues' &&
