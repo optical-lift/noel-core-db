@@ -74,7 +74,7 @@ jobs:
       - name: Checkout exact held signed-test sources without protected credentials
         uses: actions/checkout@v4
         with:
-          ref: 496d045aa8889dfb5d437bb36a5de351ba1a4c78
+          ref: 9a4003fe6d699df9585e305ff0a378cc2258e414
           path: signed
           persist-credentials: false
 
@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'e63b6229e29b37185d759bdc4630e70b5442777a'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = 'eb17eda9df6f9de14c4e8ebd292ef43ce81e239e'
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '4032f1a681d9867563c7f46dfdc8809572e2d761'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '99bd93e16c3d53284f7e0e4bad44ed83b09b885b'
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py
           cp scripts/validate-production-schema-clone.sh "$RUNNER_TEMP/held-uniops-local-only.sh"
@@ -145,7 +145,7 @@ jobs:
               raise SystemExit('universal source must be an immutable Git commit')
           if fields['p3_head']!='d608391b3374d8113d869a6338dffab299be1b1e':
               raise SystemExit('P3 source head changed')
-          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='496d045aa8889dfb5d437bb36a5de351ba1a4c78':
+          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='9a4003fe6d699df9585e305ff0a378cc2258e414':
               raise SystemExit('Exact Company and test source changed')
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
               f.write('signed_test_head='+fields['signed_test_head']+'\n')
@@ -183,7 +183,7 @@ jobs:
           test "$u" = "open|true|candidate/uni-ops-universal-decision-boundary-20261106|$EXPECTED_UNIVERSAL"
           test "$p" = "open|true|candidate/uni-ops-p3-result-no-successor-20261106|$EXPECTED_P3"
           t="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2575" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
-          test "$t" = 'open|true|test/uni-ops-farm-company-signed-acceptance-20261106|496d045aa8889dfb5d437bb36a5de351ba1a4c78'
+          test "$t" = 'open|true|test/uni-ops-farm-company-signed-acceptance-20261106|9a4003fe6d699df9585e305ff0a378cc2258e414'
           echo 'PASS three draft held sources unchanged'
 
       - name: Install pinned schema-clone CLI
@@ -257,7 +257,7 @@ jobs:
           test -s "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'e63b6229e29b37185d759bdc4630e70b5442777a'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = 'eb17eda9df6f9de14c4e8ebd292ef43ce81e239e'
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '4032f1a681d9867563c7f46dfdc8809572e2d761'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '99bd93e16c3d53284f7e0e4bad44ed83b09b885b'
           test "$(git -C c1fixture hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = 'e877d93323ddc67d8778be8bea1dfa34319cc85c'
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py
           test ! -e "canonical/supabase/migrations/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
@@ -403,10 +403,58 @@ jobs:
                           for position in sorted(markers):
                               if position<=line_number: first_source=markers[position]
                               else: break
-          # Printed fields consist exclusively of ENUMS, not source text.
+          # Classify first fictional Harvest-fixture SQL failure ONLY.
+          # All source SQL, error messages, paths, IDs and JWTs remain private
+          # in the ephemeral runner; emit only fixed enum labels/SQLSTATE.
+          fixture_step='not_applicable'
+          fixture_sqlstate='not_applicable'
+          if phase=='native nonweekly Harvest generated source witness':
+              fixture_step='unlocated'
+              fixture_sqlstate='unclassified'
+              logfile=base/'uniops-signed-harvest-fixture.log'
+              fixture=Path(os.environ['GITHUB_WORKSPACE'])/'signed'/'candidates'/'uni_ops_universal_company_decision_v1'/'tests'/'farm_company_harvest_disposable_fixture.sql'
+              if logfile.is_file() and fixture.is_file():
+                  private_log=logfile.read_text(encoding='utf-8',errors='replace')[:120000]
+                  first=re.search(r'(?m)^psql:[^\n]*?:(\d+):\s+(?:ERROR|FATAL):\s+([A-Z0-9]{5}):',private_log)
+                  if first:
+                      fail_line=int(first.group(1))
+                      allowed_states={
+                          '22023','22P02','23502','23503','23505','23514',
+                          '42501','42703','42883','42P01','42704','42601',
+                          'P0001','40P01','55000','22001'
+                      }
+                      code=first.group(2)
+                      fixture_sqlstate=code if code in allowed_states else 'other'
+                      allowed_steps=(
+                         ('guard','DO $fixture_guard          print(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
+              out.write(report+'\n')
+              out.write('No raw production schema, SQL, role, user identity, or secret diagnostics published.\n')
+              out.write('No production write or release, no Person Work/Clock; protected private source methods remain ungranted to REST.\n')
+          PY
+),
+                         ('task','INSERT INTO atlas.tasks('),
+                         ('crop_cycle','INSERT INTO atlas.crop_cycles('),
+                         ('task_crop_relation','INSERT INTO atlas.task_crop_cycles('),
+                         ('harvest_batch','INSERT INTO atlas.flower_harvest_batches('),
+                         ('bucket_observation','INSERT INTO atlas.flower_harvest_bucket_observations('),
+                         ('source_postcondition','DO $verify_native_source          print(report)
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
+              out.write(report+'\n')
+              out.write('No raw production schema, SQL, role, user identity, or secret diagnostics published.\n')
+              out.write('No production write or release, no Person Work/Clock; protected private source methods remain ungranted to REST.\n')
+          PY
+)
+                      )
+                      for i,line in enumerate(fixture.read_text(encoding='utf-8').splitlines(),1):
+                          for label,marker in allowed_steps:
+                              if i<=fail_line and line.strip()==marker:
+                                  fixture_step=label
+          # Printed fields are only FIXED ENUM LABELS / allowlisted SQLSTATE,
+          # not source contents, diagnostic strings, identities or SQL.
           outcome=os.environ.get('CLONE_VALIDATION_OUTCOME','unknown')
           if outcome not in ('success','failure','cancelled','skipped'): outcome='unknown'
-          report=f'HELD schema-clone outcome={outcome}; sanitized_phase={phase}; startup_class={category}; first_sql_source={first_source}; first_sql_class={first_class}'
+          report=f'HELD schema-clone outcome={outcome}; sanitized_phase={phase}; startup_class={category}; first_sql_source={first_source}; first_sql_class={first_class}; fixture_step={fixture_step}; fixture_sqlstate={fixture_sqlstate}'
           print(report)
           with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
               out.write(report+'\n')
