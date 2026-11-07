@@ -143,11 +143,11 @@ jobs:
           supabase init --force
           supabase migration new atlas_venue_bed_shared_use_clone_only_v1
           mapfile -t files < <(find supabase/migrations -name '*_atlas_venue_bed_shared_use_clone_only_v1.sql')
-          test "${{#files[@]}}" = 1
-          file="$PWD/${{files[0]}}"
+          test "${#files[@]}" = 1
+          file="$PWD/${files[0]}"
           cp "$GITHUB_WORKSPACE/held/candidates/atlas/venue_bed_shared_use_v1/HELD_source_candidate.sql" "$file"
           basename="$(basename "$file")"
-          version="${{basename%%_*}}"
+          version="${basename%%_*}"
           [[ "$version" =~ ^[0-9]{14}$ ]]
           echo "file=$file" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
