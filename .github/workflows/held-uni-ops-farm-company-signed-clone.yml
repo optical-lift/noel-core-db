@@ -229,7 +229,7 @@ jobs:
           base_test="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2575" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
           test "$base_test" = 'open|true|test/uni-ops-farm-company-signed-acceptance-20261106|4ae96a32b6812bc74b16340174306cf62eea295b'
           receipt_test="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2585" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
-          test "$receipt_test" = 'open|true|test/uni-ops-company-case-receipt-signed-20261106|274800943b23a706806cb5c01dc47b9674bfce34'
+          test "$receipt_test" = 'open|true|test/uni-ops-company-case-receipt-signed-20261106|fcc7fec11bcec096b451ca3610dc22a74e0f3d6a'
           latest_test="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2589" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
           test "$latest_test" = 'open|true|test/uni-ops-company-known-receipt-rest-local-grant-20261106|274800943b23a706806cb5c01dc47b9674bfce34'
           transport="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2588" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
