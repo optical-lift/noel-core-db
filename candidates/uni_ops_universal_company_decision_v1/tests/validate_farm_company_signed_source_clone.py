@@ -208,6 +208,132 @@ def run(db_url, manifest_path, output):
               "WHERE id=" + literal(c1.ROOT_AUTHORITY) + "::uuid)") == "1",
           "Signed native custody receipt does not match established root")
 
+    # CURRENT original Work exists in the immutable fictional C1 fixture.
+    # Never insert a synthetic "active allocation" to make a reader pass:
+    # the signed native OWNER must self-adopt the same existing original
+    # through the canonical public source writer, and the guards must
+    # independently verify the Task/Zone/Bed/Work/seat/ledger source.
+    physical_work = "e5200000-0000-4000-8000-000000000b10"
+    physical_task = "fa510000-0000-4000-8000-000000000001"
+    physical_zone = "fa510000-0000-4000-8000-000000000005"
+    bed3 = "e5200000-0000-4000-8000-000000000b03"
+    bed4 = "e5200000-0000-4000-8000-000000000b04"
+    withheld_bed = "e5200000-0000-4000-8000-000000000b05"
+    b3_key = "clone-upick-bed-3"
+    b4_key = "clone-upick-bed-4"
+    work_key = "clone-original-beds-3-and-4"
+    self_adopt_rpc = "/rest/v1/rpc/self_adopt_existing_company_work_owner_self_api_v1"
+    owner_adoption = {
+        "p_organization_id": org, "p_ledger_id": ledger,
+        "p_work_item_id": physical_work,
+        "p_reason": "Fictional existing original Work: owner assumes responsibility before physical context."
+    }
+    check(sql(db_url, "SELECT count(*) FROM atlas.work_allocations "
+              "WHERE work_item_id=" + literal(physical_work) + "::uuid "
+              "AND state='active'") == "0",
+          "Test cannot begin with preadmitted original Work responsibility")
+    for label in ("worker", "outsider", "no-seat"):
+        code, result = c1.request(
+            api, key, self_adopt_rpc, owner_adoption, tokens[label]
+        )
+        check(code in (400, 401, 403)
+              and not (isinstance(result, dict) and result.get("ok") is True),
+              "Non-governor self-adopted physical Work")
+    code, adopted = c1.request(
+        api, key, self_adopt_rpc, owner_adoption, tokens["owner"]
+    )
+    check(code == 200 and isinstance(adopted, dict)
+          and adopted.get("ok") is True
+          and adopted.get("workItemId") == physical_work
+          and adopted.get("newWorkCreated") is False
+          and adopted.get("planCreated") is False
+          and adopted.get("employeeSeatRequired") is False,
+          "True signed root did not self-adopt the EXISTING original")
+    check(sql(db_url, "SELECT count(*) FROM atlas.work_allocations "
+              "WHERE work_item_id=" + literal(physical_work)
+              + "::uuid AND state='active' AND allocation_role='responsible'") == "1",
+          "Original Work responsibility not source-established once")
+    check(count(db_url, "atlas.work_items") == before_work,
+          "Signed owner self-adoption created another original Work")
+    check(sql(db_url, "SELECT count(*) FROM atlas.work_execution_plans "
+              "WHERE work_item_id=" + literal(physical_work) + "::uuid") == "0",
+          "Signed self-adoption unexpectedly made a schedule")
+
+    review_path = "/rest/v1/rpc/work_growing_object_context_review_self_api_v1"
+    write_path = "/rest/v1/rpc/establish_work_growing_object_context_self_api_v1"
+    review_args = {"p_ledger_id": ledger, "p_work_item_id": physical_work}
+    link_args = {
+        "p_ledger_id": ledger, "p_work_item_id": physical_work,
+        "p_object_id": bed3,
+        "p_review": {
+            "humanConfirmed": True,
+            "reviewedWorkStableKey": work_key,
+            "reviewedObjectKey": b3_key
+        }
+    }
+    for label in ("worker", "outsider", "no-seat"):
+        code, obj = c1.request(api, key, review_path, review_args, tokens[label])
+        check(code in (200, 400, 401, 403)
+              and not (isinstance(obj, dict) and obj.get("ok") is True),
+              "Unsigned or non-governor read physical candidate list")
+        code, obj = c1.request(api, key, write_path, link_args, tokens[label])
+        check(code in (200, 400, 401, 403)
+              and not (isinstance(obj, dict) and obj.get("ok") is True),
+              "Non-governor forged actual physical Work/Bed context")
+    for path, body in ((review_path, review_args), (write_path, link_args)):
+        code, obj = c1.request(api, key, path, body, None)
+        check(code in (401, 403, 404)
+              and not (isinstance(obj, dict) and obj.get("ok") is True),
+              "Anonymous acquired physical source context")
+    code, review = c1.request(api, key, review_path, review_args, tokens["owner"])
+    check(code == 200 and isinstance(review, dict)
+          and review.get("ok") is True
+          and review.get("workItemId") == physical_work
+          and review.get("workStableKey") == work_key
+          and review.get("originalTaskId") == physical_task
+          and review.get("confersAccess") is False
+          and isinstance(review.get("candidates"), list)
+          and {x.get("objectId") for x in review["candidates"]} == {bed3, bed4}
+          and withheld_bed not in {x.get("objectId") for x in review["candidates"]},
+          "Signed root physical candidates leaked withheld Bed or mismatched source")
+    code, linked = c1.request(api, key, write_path, link_args, tokens["owner"])
+    check(code == 200 and isinstance(linked, dict) and linked.get("ok") is True
+          and linked.get("workItemId") == physical_work
+          and linked.get("created") is True
+          and linked.get("confersAccess") is False
+          and linked.get("contextId"),
+          "Signed current governing root did not link original Work to Bed")
+    code, replay_link = c1.request(
+        api, key, write_path, link_args, tokens["owner"]
+    )
+    check(code == 200 and isinstance(replay_link, dict)
+          and replay_link.get("ok") is True
+          and replay_link.get("created") is False
+          and replay_link.get("contextId") == linked.get("contextId"),
+          "Original Work/Bed context replay duplicated a source link")
+    for changed, label in (
+        (dict(link_args, p_object_id=withheld_bed), "wrong-zone hidden Bed"),
+        (dict(link_args, p_review={
+            "humanConfirmed": True,
+            "reviewedWorkStableKey": "forged-original",
+            "reviewedObjectKey": b3_key
+        }), "spoofed Work source stable key")
+    ):
+        code, result = c1.request(
+            api, key, write_path, changed, tokens["owner"]
+        )
+        check(code != 404
+              and code in (200, 400, 401, 403)
+              and not (isinstance(result, dict) and result.get("ok") is True),
+              "Signed governor bypassed real Work/Bed source: " + label)
+    check(sql(db_url, "SELECT count(*) FROM atlas.work_item_context_links "
+              "WHERE work_item_id=" + literal(physical_work)
+              + "::uuid AND subject_domain='spatial' "
+              "AND subject_kind='growing_object'") == "1",
+          "One source-reviewed physical Work/Bed link, not invented successors")
+    check(count(db_url, "atlas.work_items") == before_work,
+          "Physical source admission created Work")
+
     # These methods are deliberately private and NOT an application RPC.
     # 404 means absent public transport, NOT a native actor denial.
     for label in ("owner", "worker", "outsider"):
@@ -500,6 +626,18 @@ def run(db_url, manifest_path, output):
                    receipt_arg, want_error="42501")
     rest_denial(owner, rest_body, "revoked native root first session")
     rest_denial(owner2, rest_body, "revoked native root second session")
+    # Revoking the native root must also close the independent physical
+    # Work/Bed writer and candidate reader, not only Company case receipts.
+    for path, body in ((review_path, review_args), (write_path,
+        dict(link_args, p_object_id=bed4, p_review={
+            "humanConfirmed": True,
+            "reviewedWorkStableKey": work_key,
+            "reviewedObjectKey": b4_key
+        }))):
+        code, response = c1.request(api, key, path, body, tokens["owner"])
+        check(code in (200, 400, 401, 403)
+              and not (isinstance(response, dict) and response.get("ok") is True),
+              "Revoked signed root still read/wrote original Work/Bed context")
     check(sql(db_url,"SELECT has_function_privilege('anon',"
               +literal(wrapper)+",'EXECUTE')") == "f",
           "Temporary signed test unexpectedly widened anonymous grant")
@@ -521,6 +659,8 @@ def run(db_url, manifest_path, output):
         "temporary authenticated PostgREST GRANT only in disposable PG17; "
         "signed governor one-case HTTP positive/negative/unknown/revoked "
         "and precise 17-field safe source read; "
+        "real signed current-root Work self-adoption and Work-to-Bed "
+        "read/link/replay/forged-key/revoked denial; "
         "zero new Work; NO production grant or release approval\n",
         encoding="utf-8"
     )
