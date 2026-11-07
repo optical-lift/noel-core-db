@@ -46,8 +46,8 @@ jobs:
           )
           for p in required:
             assert p in section,p
-          assert "\\nconcurrency:\\n" not in s
-          assert "    concurrency:\\n      group: atlas-venue-bed-owner-protected-signed-clone" in section
+          assert "\nconcurrency:\n" not in s
+          assert "    concurrency:\n      group: atlas-venue-bed-owner-protected-signed-clone" in section
           assert section.count("NOEL_CORE_DATABASE_URL:") == 1
           assert section.index('Snapshot production schema and roles READ ONLY') < section.index('Checkout immutable held candidate')
           assert section.index('Checkout immutable held candidate') < section.index('Assemble disposable fixture and source')
