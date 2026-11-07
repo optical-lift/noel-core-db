@@ -34,7 +34,7 @@ INSERT INTO atlas.growing_objects(
 ('e5200000-0000-4000-8000-000000000b03',
  'e5200000-0000-4000-8000-000000000b01',
  'clone-upick-bed-3','Fictional Flower Bed 3','bed',
- '{"fictional":true,"privateNote":"do-not-disclose"}'::jsonb),
+ '{"fictional":true,"privateNote":"private-held"}'::jsonb),
 ('e5200000-0000-4000-8000-000000000b04',
  'e5200000-0000-4000-8000-000000000b01',
  'clone-upick-bed-4','Fictional Flower Bed 4','bed',
@@ -134,6 +134,6 @@ INSERT INTO atlas.company_work_native_ledger_relevance(
  'e5200000-0000-4000-8000-000000000402',
  'serves_purpose','owner_attested',
  'clone:venue-work-source-b20',
- 'Fictional existing Venue Work only; not a new Work command',
+ 'Fictional existing Venue Work only - not a new Work command',
  'e5200000-0000-4000-8000-000000000103'
 );
