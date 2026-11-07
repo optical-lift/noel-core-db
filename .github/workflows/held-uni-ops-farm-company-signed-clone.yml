@@ -403,9 +403,8 @@ jobs:
                           for position in sorted(markers):
                               if position<=line_number: first_source=markers[position]
                               else: break
-          # Classify first fictional Harvest-fixture SQL failure ONLY.
-          # All source SQL, error messages, paths, IDs and JWTs remain private
-          # in the ephemeral runner; emit only fixed enum labels/SQLSTATE.
+          # Classify only the FIRST fictional Harvest fixture failure.
+          # Raw SQL, paths, identities and errors remain inside disposable CI.
           fixture_step='not_applicable'
           fixture_sqlstate='not_applicable'
           if phase=='native nonweekly Harvest generated source witness':
@@ -426,32 +425,19 @@ jobs:
                       code=first.group(2)
                       fixture_sqlstate=code if code in allowed_states else 'other'
                       allowed_steps=(
-                         ('guard','DO $fixture_guard          print(report)
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
-              out.write(report+'\n')
-              out.write('No raw production schema, SQL, role, user identity, or secret diagnostics published.\n')
-              out.write('No production write or release, no Person Work/Clock; protected private source methods remain ungranted to REST.\n')
-          PY
-),
+                         ('guard','DO $fixture_guard$'),
                          ('task','INSERT INTO atlas.tasks('),
                          ('crop_cycle','INSERT INTO atlas.crop_cycles('),
                          ('task_crop_relation','INSERT INTO atlas.task_crop_cycles('),
                          ('harvest_batch','INSERT INTO atlas.flower_harvest_batches('),
                          ('bucket_observation','INSERT INTO atlas.flower_harvest_bucket_observations('),
-                         ('source_postcondition','DO $verify_native_source          print(report)
-          with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as out:
-              out.write(report+'\n')
-              out.write('No raw production schema, SQL, role, user identity, or secret diagnostics published.\n')
-              out.write('No production write or release, no Person Work/Clock; protected private source methods remain ungranted to REST.\n')
-          PY
-)
+                         ('source_postcondition','DO $verify_native_source$')
                       )
                       for i,line in enumerate(fixture.read_text(encoding='utf-8').splitlines(),1):
                           for label,marker in allowed_steps:
                               if i<=fail_line and line.strip()==marker:
                                   fixture_step=label
-          # Printed fields are only FIXED ENUM LABELS / allowlisted SQLSTATE,
-          # not source contents, diagnostic strings, identities or SQL.
+          # Printed fields are fixed enum labels and allowlisted SQLSTATE.
           outcome=os.environ.get('CLONE_VALIDATION_OUTCOME','unknown')
           if outcome not in ('success','failure','cancelled','skipped'): outcome='unknown'
           report=f'HELD schema-clone outcome={outcome}; sanitized_phase={phase}; startup_class={category}; first_sql_source={first_source}; first_sql_class={first_class}; fixture_step={fixture_step}; fixture_sqlstate={fixture_sqlstate}'
