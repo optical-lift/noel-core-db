@@ -37,7 +37,9 @@ CREATE TABLE atlas.venue_bed_shared_use_authorizations_v1 (
       AND withdrawn_by_principal_id IS NOT NULL AND withdrawn_at IS NOT NULL)
   ),
   CONSTRAINT venue_bed_offer_action_idempotent_v1
-    UNIQUE (flower_ledger_id, offer_action_id)
+    UNIQUE (flower_ledger_id, offer_action_id),
+  CONSTRAINT venue_bed_use_exact_reference_key_v1
+    UNIQUE (id, venue_ledger_id, bed_id)
 );
 
 CREATE UNIQUE INDEX venue_bed_one_current_use_v1
@@ -60,7 +62,11 @@ CREATE TABLE atlas.venue_bed_work_references_v1 (
   CONSTRAINT venue_bed_work_one_reference_v1
     UNIQUE (venue_ledger_id, work_item_id, bed_id),
   CONSTRAINT venue_bed_work_action_idempotent_v1
-    UNIQUE (venue_ledger_id, source_action_id)
+    UNIQUE (venue_ledger_id, source_action_id),
+  CONSTRAINT venue_bed_work_ref_exact_authorization_v1
+    FOREIGN KEY (use_authorization_id, venue_ledger_id, bed_id)
+    REFERENCES atlas.venue_bed_shared_use_authorizations_v1
+      (id, venue_ledger_id, bed_id) ON DELETE RESTRICT
 );
 
 -- Store authorized relationships privately. No direct authenticated table
