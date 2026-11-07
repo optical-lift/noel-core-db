@@ -224,14 +224,62 @@ def seed_enrollment(people):
  # Enrollment as the learner Person, and thus receives no private-note reader.
  check(db(f"SELECT count(*) FROM atlas.principal_ledger_authorities WHERE principal_id='{principal}' AND ledger_id='{LEDGER}' AND status='active'")=="1",
        "Governing teacher authority fixture missing")
+def verify_canonical_clone_shape():
+ """Preflight only: rejects the reduced test schema before ANY signed-user writes.
+
+ This is NOT a substitute for the owner-approved roles/schema snapshot.
+ """
+ checks={
+  "full Ledger organization relationship": """
+   SELECT EXISTS(
+     SELECT 1 FROM pg_catalog.pg_constraint con
+     WHERE con.contype='f' AND con.conrelid=to_regclass('atlas.ledgers')
+       AND con.confrelid=to_regclass('atlas.organizations')
+   )""",
+  "governed organization source": """
+   SELECT to_regclass('atlas.organization_ledger_entries') IS NOT NULL""",
+  "Course Offering composite source": """
+   SELECT EXISTS(
+     SELECT 1 FROM pg_catalog.pg_constraint con
+     WHERE con.contype='f'
+       AND con.conrelid=to_regclass('atlas.teaching_course_offerings')
+       AND con.confrelid=to_regclass('atlas.teaching_course_versions')
+       AND array_length(con.conkey,1)=2
+   )""",
+  "Enrollment composite source": """
+   SELECT EXISTS(
+     SELECT 1 FROM pg_catalog.pg_constraint con
+     WHERE con.contype='f'
+       AND con.conrelid=to_regclass('atlas.teaching_enrollments')
+       AND con.confrelid=to_regclass('atlas.teaching_course_offerings')
+       AND array_length(con.conkey,1)=2
+   )""",
+  "canonical Person and Teaching RPCs": """
+   SELECT to_regprocedure('titus.current_authenticated_person_entity_id_v1()') IS NOT NULL
+     AND to_regprocedure('atlas.teaching_activation_active_v1(uuid,uuid)') IS NOT NULL""",
+  "private table FORCE RLS": """
+   SELECT coalesce((
+      SELECT relrowsecurity AND relforcerowsecurity
+      FROM pg_catalog.pg_class
+      WHERE oid=to_regclass('titus.learner_private_course_note_events_v1')
+   ),false)""",
+ }
+ for label,query in checks.items():
+  check(db(query)=="t","Clone preflight refused: "+label)
+ print("PASS local canonical-schema shape preflight; signed tests still required")
+
 def main():
  global ARGS
  ap=argparse.ArgumentParser()
  ap.add_argument("--db-url",required=True)
  ap.add_argument("--output",required=True)
+ ap.add_argument("--require-canonical-clone",action="store_true",
+  help="Fail closed unless full source-schema markers are present before any user creation")
  ARGS=ap.parse_args()
  check(bool(re.fullmatch(r"postgres(?:ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres",ARGS.db_url)),
        "Refuse nonlocal DB")
+ if ARGS.require_canonical_clone:
+  verify_canonical_clone_shape()
  api,key=c1.local_status()
  # Only local status; SUPABASE_SERVICE_ROLE_KEY/ SERVICE_ROLE_KEY never logged.
  result=subprocess.run(["supabase","status","-o","env"],capture_output=True,text=True,check=True)

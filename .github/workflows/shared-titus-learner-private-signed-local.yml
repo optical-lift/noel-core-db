@@ -7,6 +7,8 @@ on:
       - 'candidates/shared-titus-learner-private-notebook-v1/**'
       - 'scripts/test-shared-titus-learner-signed-local.sh'
       - 'scripts/stage-held-titus-learner-clone-source.sh'
+      - 'scripts/validate-titus-learner-private-notebook-clone-signed-http.py'
+      - 'scripts/validate-production-schema-clone.sh'
       - '.github/workflows/shared-titus-learner-private-signed-local.yml'
 permissions:
   contents: read
@@ -30,6 +32,9 @@ jobs:
           [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]]
           bash -n scripts/test-shared-titus-learner-signed-local.sh
           python3 -m py_compile candidates/shared-titus-learner-private-notebook-v1/validate_signed_local_http.py
+          python3 -m py_compile scripts/validate-titus-learner-private-notebook-clone-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+          bash scripts/check-production-schema-validation-contract.sh
           python3 -m unittest discover -s candidates/shared-titus-learner-private-notebook-v1 -p 'test_static_contract.py' -v
           python3 -m unittest discover -s candidates/shared-titus-learner-private-notebook-v1 -p 'test_clone_preflight.py' -v
           bash -n scripts/stage-held-titus-learner-clone-source.sh
