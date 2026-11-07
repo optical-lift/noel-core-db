@@ -189,6 +189,17 @@ INSERT INTO atlas.company_work_native_ledger_relevance(
 );
 
 
+-- The production-only schema dump has no reference policy rows. This
+-- fictional policy permits the rightful Event checklist writer in this
+-- clone, so a denial on ordinary already-existing Work means source mismatch
+-- rather than a missing contract policy.
+INSERT INTO atlas.work_result_contract_policies(
+ contract_key,source_domain,acceptance_mode,active
+) VALUES (
+ 'ledger_occurrence_shared_confirmation_v1',
+ 'organization','domain_adapter',true
+);
+
 -- Synthetic original Event binding positive prerequisite. This native
 -- Occurrence is ALREADY a source of the Venue Ledger; signed link later
 -- associates an existing original Venue Work with it, without Work creation.
