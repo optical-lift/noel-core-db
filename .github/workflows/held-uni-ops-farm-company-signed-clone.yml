@@ -196,6 +196,20 @@ jobs:
           path: p3
           persist-credentials: false
 
+      - name: Checkout exact held signed source test
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.signed_test_head }}
+          path: signed
+          persist-credentials: false
+
+      - name: Checkout immutable fictional C1 source
+        uses: actions/checkout@v4
+        with:
+          ref: 9af4ab9b203877f048af09e23bac58bf86cd58fe
+          path: c1fixture
+          persist-credentials: false
+
       - name: Verify source and generate scratch SQL
         shell: bash
         run: |
@@ -206,14 +220,33 @@ jobs:
             --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
             --output "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
           test -s "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'e63b6229e29b37185d759bdc4630e70b5442777a'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = '483a8b23ce4b9965812c6327b3dc005cdad0019a'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '0674036ad8c1220bf70b9983d455b03dfbde384c'
+          test "$(git -C c1fixture hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = 'e877d93323ddc67d8778be8bea1dfa34319cc85c'
+          python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py
           test ! -e "canonical/supabase/migrations/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
           echo 'PASS fixed nine-source scratch candidate; never generated a releasable migration'
+
+      - name: Prepare ephemeral exact-source local GoTrue hook only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py \
+            --controller canonical/scripts/validate-production-schema-clone.sh
+          bash -n canonical/scripts/validate-production-schema-clone.sh
+          echo 'PASS signed test hook attached to disposable checkout only'
 
       - name: Validate through canonical disposable schema clone
         id: clone_validation
         shell: bash
+        env:
+          SIGNED_COMPANY_C1_FIXTURE: ${{ github.workspace }}/c1fixture/validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql
+          SIGNED_COMPANY_HARVEST_FIXTURE: ${{ github.workspace }}/signed/candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql
+          SIGNED_COMPANY_PROBE_SCRIPT: ${{ github.workspace }}/signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py
         run: |
           set -euo pipefail
+          # All raw startup, JWT, schema and SQL diagnostic text remains ephemeral.
           bash canonical/scripts/validate-production-schema-clone.sh \
             --migration-version 20261106235959 \
             --release-lane atlas \
@@ -221,7 +254,10 @@ jobs:
             --candidate-validation universal/candidates/uni_ops_universal_company_decision_v1/deferred_postconditions.sql \
             --roles-dump "$RUNNER_TEMP/production-custom-roles.sql" \
             --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
-            --artifacts-dir "$RUNNER_TEMP/uniops-company-clone-artifacts"
+            --artifacts-dir "$RUNNER_TEMP/uniops-company-clone-artifacts" \
+            >"$RUNNER_TEMP/uniops-company-private-run.log" 2>&1
+          test -s "$RUNNER_TEMP/uniops-company-clone-artifacts/uniops-farm-company-signed-summary.txt"
+          grep -q '^PASS local real GoTrue sessions' "$RUNNER_TEMP/uniops-company-clone-artifacts/uniops-farm-company-signed-summary.txt"
 
       - name: Report allowlisted local failure phase without private diagnostics
         if: always()
