@@ -75,6 +75,14 @@ def session_checked(db_url, access_token, expected_user=None):
     return claims
 
 
+class SourceSQLDenial(Exception):
+    """Only a fixed SQLSTATE is carried out of the protected clone."""
+
+    def __init__(self, code):
+        self.code = code
+        super().__init__("Private source denied with allowlisted SQLSTATE")
+
+
 def private_signed(db_url, token, method, arguments, *, want_error=None):
     # This wrapper is a PRIVILEGED LOCAL SOURCE PROBE, not a public client RPC.
     # psql never gets a production URL. The claims originate exclusively from
@@ -94,12 +102,15 @@ def private_signed(db_url, token, method, arguments, *, want_error=None):
          "-v", "VERBOSITY=verbose", "-c", statement],
         capture_output=True, text=True, check=False, timeout=35
     )
+    state = next((x for x in ("42501", "23505")
+                  if re.search(r"\b" + x + r"\b", result.stderr)), None)
     if want_error:
-        check(result.returncode != 0 and
-              re.search(r"\b" + re.escape(want_error) + r"\b", result.stderr),
+        check(result.returncode != 0 and state == want_error,
               "Expected private source SQLSTATE " + want_error
               + " was not returned")
         return None
+    if result.returncode != 0 and state is not None:
+        raise SourceSQLDenial(state)
     check(result.returncode == 0, "Private source operation failed; "
           "diagnose in protected clone, without printing sensitive SQL")
     payloads = [x.strip() for x in result.stdout.splitlines()
@@ -255,18 +266,17 @@ def run(db_url, manifest_path, output):
         try:
             res = private_signed(db_url, token, "decide", params)
             return "ok", res
-        except AssertionError:
-            # Exact error classification is verified by rerunning the LOSER
-            # after the race, below. Do not expose raw SQL/private text.
-            return "denied", None
+        except SourceSQLDenial as denied:
+            return "denied", denied.code
     with ThreadPoolExecutor(max_workers=2) as pool:
         f1 = pool.submit(race, owner, str(uuid.uuid4()))
         f2 = pool.submit(race, owner2, str(uuid.uuid4()))
         barrier.wait(timeout=10)
         results = [f1.result(timeout=45), f2.result(timeout=45)]
     check(sum(x[0] == "ok" for x in results) == 1
+          and sum(x == ("denied", "23505") for x in results) == 1
           and count(db_url, "atlas.uni_ops_governed_case_decision_events_v1") == 2,
-          "Concurrent governor decisions violated one current CAS")
+          "Concurrent governor CAS must admit one and 23505-deny one")
     # Withholding one class must deny even a CURRENT governor after admission.
     disclosure("condition", "withhold")
     decision(owner, str(uuid.uuid4()),
