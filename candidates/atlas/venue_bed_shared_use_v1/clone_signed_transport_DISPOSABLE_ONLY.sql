@@ -72,21 +72,4 @@ GRANT EXECUTE ON FUNCTION public.clone_test_venue_bed_accept_v1(uuid) TO authent
 GRANT EXECUTE ON FUNCTION public.clone_test_venue_bed_link_v1(uuid,uuid,text,jsonb) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.clone_test_venue_bed_withdraw_v1(uuid) TO authenticated;
 
--- DISPOSABLE fallback transport for the genuine existing Company Work
--- owner decision source. It delegates with the CALLER's signed authenticated
--- role; it never supplies identity or grants any new production endpoint.
--- A released public route, when present, is preferred by the test script.
-CREATE FUNCTION public.clone_test_flower_owner_accept_result_v1(
- p_execution_result_id uuid,p_decision text,p_reason text DEFAULT NULL
-) RETURNS jsonb
-LANGUAGE sql SECURITY INVOKER SET search_path TO ''
-AS $worker_test$
- SELECT atlas.organization_owner_decide_company_work_result_api_v1(
-   p_execution_result_id,p_decision,p_reason);
-$worker_test$;
-REVOKE ALL ON FUNCTION public.clone_test_flower_owner_accept_result_v1(uuid,text,text)
-  FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION public.clone_test_flower_owner_accept_result_v1(uuid,text,text)
-  TO authenticated;
-
 COMMIT;
