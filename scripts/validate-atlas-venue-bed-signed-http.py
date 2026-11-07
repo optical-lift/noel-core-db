@@ -194,6 +194,67 @@ def main():
        "Venue must never obtain crop custody from use grant")
     print("PASS exact Venue reference without duplicate original or custody transfer")
 
+    # POSITIVE native source parity: after the independent Venue reference is
+    # present, the *original*, still-open Flower Work must remain joinable to
+    # the *same* Bed through the already released Flower governed context
+    # writer. This is NOT the Venue reference writer. Synthetic source Task,
+    # exact zone, active current allocation, Organization Unit, Ledger crop
+    # custody and all reviewed stable keys must independently exist.
+    flower_read={"p_ledger_id":FLOWER,"p_work_item_id":WRONG_WORK}
+    for name,token in (("ordinary worker",worker),
+                       ("other Ledger root",venue),("unseated",noseat)):
+        code,body=c1.rpc(api,key,
+           "work_growing_object_context_review_self_api_v1",flower_read,token)
+        check(code==200 and isinstance(body,dict)
+              and body.get("ok") is False and "candidates" not in body,
+              "Source Flower Bed candidate review leaked to "+name)
+    code,review=c1.rpc(api,key,
+        "work_growing_object_context_review_self_api_v1",flower_read,owner)
+    check(code==200 and isinstance(review,dict) and review.get("ok") is True,
+          "Flower source governor lost original Work/Bed review after Venue reference")
+    allowed_beds={c.get("objectId") for c in review.get("candidates",[])}
+    check(BED in allowed_beds and OTHER_BED not in allowed_beds,
+          "Original exact task zone must admit Flower Bed 3 and exclude withheld Bed 5")
+    flower_link={
+      "p_ledger_id":FLOWER,"p_work_item_id":WRONG_WORK,
+      "p_object_id":BED,
+      "p_review":{"humanConfirmed":True,
+                  "reviewedWorkStableKey":"clone-flower-original-work-901",
+                  "reviewedObjectKey":"clone-upick-bed-3"}
+    }
+    for name,token in (("ordinary worker",worker),
+                       ("other Ledger root",venue),("unseated",noseat)):
+        code,body=c1.rpc(api,key,
+           "establish_work_growing_object_context_self_api_v1",flower_link,token)
+        check(code==200 and isinstance(body,dict)
+              and body.get("ok") is False and not body.get("contextId"),
+              "Unauthorized actor can establish Flower physical Work: "+name)
+    code,physical=c1.rpc(api,key,
+        "establish_work_growing_object_context_self_api_v1",flower_link,owner)
+    check(code==200 and isinstance(physical,dict)
+          and physical.get("ok") is True and physical.get("created") is True
+          and physical.get("confersAccess") is False,
+          "Signed original Flower Work-to-same-Bed positive admission failed")
+    context_id=str(uuid.UUID(physical["contextId"]))
+    code,replay=c1.rpc(api,key,
+        "establish_work_growing_object_context_self_api_v1",flower_link,owner)
+    check(code==200 and isinstance(replay,dict)
+          and replay.get("ok") is True and replay.get("created") is False
+          and replay.get("contextId")==context_id,
+          "Existing Flower context replay must return the same original relation")
+    check(sql(db,"SELECT count(*) FROM atlas.work_item_context_links WHERE "
+      "id="+lit(context_id)+"::uuid AND work_item_id="+lit(WRONG_WORK)+"::uuid "
+      "AND subject_domain='spatial' AND subject_kind='growing_object' "
+      "AND subject_id="+lit(BED)+"::uuid AND relation_kind='acts_on'")=="1",
+      "Original Flower physical Work relation missing from canonical context")
+    check(int(sql(db,"SELECT count(*) FROM atlas.work_items"))==baseline_work
+          and int(sql(db,"SELECT count(*) FROM atlas.growing_objects"))==baseline_bed,
+          "Flower positive link must not invent original Work or Bed")
+    check(sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+      "WHERE ledger_id="+lit(VENUE)+"::uuid")=="0",
+      "Independent original Flower link must not transfer crop custody to Venue")
+    print("PASS genuine signed Flower original Work-to-same-Bed link and replay after Venue")
+
     accepted(api,key,owner,"withdraw",{"p_use_id":offer},expect="bool")
     check(sql(db,"SELECT use_state FROM atlas.venue_bed_shared_use_authorizations_v1 "
        "WHERE id="+lit(offer)+"::uuid")=="withdrawn","Flower root withdrawal did not terminate use")
@@ -247,7 +308,10 @@ def main():
 
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
-      "PASS genuine local signed Flower/Venue/worker/outsider/no-seat denial;"
+      "PASS genuine signed ORIGINAL Flower Work-to-Bed positive parity after Venue link;"
+      " authorized Flower-only canonical context/replay;" 
+      " no duplicate originals or Venue crop-custody transfer;"
+      " independent local Flower/Venue/worker/outsider/no-seat denial;"
       " two-party offer-accept-link-withdraw/reapproval;"
       " Work/Bed original identity unchanged;"
       " ended Seat and same-JWT GoTrue revocation.\n",
