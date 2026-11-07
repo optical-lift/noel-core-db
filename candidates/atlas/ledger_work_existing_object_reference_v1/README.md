@@ -2,7 +2,7 @@
 
 **Owner decision:** 2026-11-07 — [one real-world Object, multiple independent Ledger Work contexts](https://github.com/optical-lift/atlas/blob/docs/uni-ops-native-canonical-bridge-hold-20261106/docs/integration/SHARED_REAL_WORLD_OBJECT_MULTI_LEDGER_WORK_AUTHORITY_20261107.md).
 
-**Status:** SOURCE DRAFT ONLY. No migration, public RPC, protected signed run, deployment, real permission or UI delivery. Owner-directed replacement for the old *mandatory* Flower offer → Venue accept sequence **solely for reference**. The historical old candidate and its signed successes remain intact, but are not the target product law.
+**Status:** SOURCE DRAFT ONLY. **Protected independently signed disposable PG17+GoTrue/PostgREST test PASSED 2026-11-07**, at immutable test-only source mirror commit `7c813aa32480a15e55317170da420d13a45f721a`; no migration, public RPC, deployment, real permission or UI delivery. Owner-directed replacement for the old *mandatory* Flower offer → Venue accept sequence **solely for reference**. The historical old candidate and its signed successes remain intact, but are not the target product law.
 
 ## What is implemented in draft source
 
@@ -13,18 +13,22 @@
 - Deterministic replay, action-collision rejection and one reference per exact Ledger/Work/Bed. The original Work must be open to gain a new reference. Result/Done is untouched.
 - The new reference does **not** insert into `atlas.work_item_context_links`; the original Flower spatial Work guard and Flower source mutation rights remain in force.
 
-## Signed-test preparation only
+## Protected signed clone — PASS, 2026-11-07
 
 - `clone_test_api_DISPOSABLE_ONLY.sql` refuses all but exact local PostgreSQL17/C1 fictional fixture, and installs an isolated PostgREST test transport **only on a disposable clone**. No authenticated source function or table grant.
 - `scripts/validate-atlas-independent-ledger-bed-reference-signed-http.py` requires four genuine independent GoTrue sessions, existing original Venue Work relevant to Venue Ledger, and original Flower Bed. It asserts: no Flower offer/accept needed; Venue governor positive; Flower governor/worker/no-seat and wrong-Work/not-real-Bed negative; idempotent replay; action collision; unchanged Bed, original Work, crop custody, physical Work contexts and original Work state; receipt excludes Bed private metadata; reused revoked Venue token denied.
-- **Not run yet:** New SQL has NOT been installed on a protected disposable full-schema clone, and the new test has NOT executed. CI source/lint success does not substitute for those facts. Wire this only into an authorized protected runner without changing immutable production source/migration scope.
+- **Executed and verified:** [owner-pinned issue #2618](https://github.com/optical-lift/noel-core-db/issues/2618) → [signed protected clone #42426715242](https://github.com/optical-lift/noel-core-db/actions/runs/42426715242) **SUCCESS** on exact immutable test-only `7c813aa32480a15e55317170da420d13a45f721a`. The original historical Venue source blob `19e6cd0ac886bc51a1ad5682e38a14195737d2f9` stayed unchanged; this new feature SQL and wrapper were mirrored **byte-for-byte** into clone-only transport, and the static guard verified the mirror before the protected test. No new code was applied to production.
 
 ## Separate remaining contracts
+
+- **Independent signed positive:** four real synthetic GoTrue sessions; Venue root created a private source reference to the SAME Flower Bed 3 under an existing Venue-relevant original Work **before any Flower offer/accept existed**. Direct Flower-only governor, Flower worker, unseated Person, cross-Ledger Work, nonexistent Bed and wrong Organization were SQL `42501` denied. Stable-action replay reused the reference; a different Bed with same action returned SQL `23505`. Bed and Work counts and native Flower custody stayed unchanged; receipt exposed no crop notes; a removed GoTrue Venue session denied the very same signed JWT. A fresh independently issued Venue session then passed the historic two-party tests.
+- **Real clone privacy/security receipts:** new reference table direct authenticated SELECT denied and held source-function direct authenticated EXECUTE denied; original Flower context guard/writer and its existing Bed-context operations unchanged; previous old Venue private-table function/table checks all passed. Baseline schema lint **14**, candidate **14**, **0 introduced**, local advisors and postconditions passed. [Diagnostics artifact](https://github.com/optical-lift/noel-core-db/actions/runs/42426715242) `venue-bed-signed-clone`, artifact ID `13596195964`.
+- **Truth boundary:** The passed test is the **reference-only signed behavior in a disposable clone**, not release approval or a full universal object identity/read integration. Existing ordinary Venue Work Person Result/Done is **still HELD**; no positive ordinary Venue Result/Done or Event private disclosure release is claimed.
 
 1. This first adapter covers **same-Organization physical Beds**. Other object kinds and cross-Organization references need source-specific identity/privacy adapters, not duplicated Objects or dual-governor Work-authoring ceremonies.
 2. Native worker Result/Done for original Venue Work remains a separate source contract; the existing shared Event checklist Done is not an ordinary Person Work completion result.
 3. An approved Atlas reader/projection is still needed to present this private reference alongside the same original Work without leaking Bed metadata or bypassing source disclosure.
-4. **No live authorization change is claimed.** Source/security owner review, protected full-schema signed execution, exact generated migration, release and browser tests remain independent gates.
+4. **No live authorization change is claimed.** Source/security owner review of the newly proved candidate, exact generated migration, protected release and browser/UI acceptance remain independent gates. The protected full-schema signed reference-only acceptance above is now verified.
 
 ## Go/no-go
 
