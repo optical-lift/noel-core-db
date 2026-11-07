@@ -194,6 +194,11 @@ def main():
        "Venue must never obtain crop custody from use grant")
     print("PASS exact Venue reference without duplicate original or custody transfer")
 
+    check(sql(db,"SELECT establishment_basis_kind FROM atlas.work_allocations WHERE "
+      "id='e5200000-0000-4000-8000-000000000a23'::uuid")
+          =="legacy_governed_reconstruction",
+          "Original Flower Work responsibility requires exact native source-issued basis")
+    
     # POSITIVE native source parity: after the independent Venue reference is
     # present, the *original*, still-open Flower Work must remain joinable to
     # the *same* Bed through the already released Flower governed context
