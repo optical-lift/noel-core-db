@@ -2,6 +2,8 @@
 
 **Current execution:** Noel #2255; Atlas #437. Existing owner decisions and exact native Ledger/Person identity are preserved. No duplicate permission authority, no new Seat, no production release.
 
+**2026-11-07 current-state update:** The owner has deleted the separate legacy Vercel `farm-atlas` project (independent Vercel GET 404 / list zero). The current `atlas` project still serves `atlas.opticallift.com`. The previously held custody migration `20261026010327` is now **released**, and real Flower custody plus original Work→Bed 3/4 physical links have been verified. These facts supersede the older dated hosting and custody-status notes below; **they do not certify private Work/crop disclosure**. Read [GATE0_LEGACY_HOST_SHUTDOWN_AND_READER_AUDIT_20261107.md](GATE0_LEGACY_HOST_SHUTDOWN_AND_READER_AUDIT_20261107.md) and use `production_alternate_reader_catalog_readonly_20261107.sql` for the current read-only catalog checkpoint. Older SQL functions and authenticated SQL EXECUTE grants **remain**; the real GoTrue/PostgREST signed tests for PR #2263 are still unrun.
+
 ## Current verified production check — 2026-10-25 (America/Chicago)
 
 - Noel main: `d988ea816293b4b9a98a816679afefcbe6d732b6`. Atlas main: `7d9e4c61937a3455ab843cb3b25f96bc3343d724`.
