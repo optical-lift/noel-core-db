@@ -44,7 +44,7 @@ jobs:
              "supabase db dump",
              "scripts/validate-production-schema-clone.sh",
              "prepare_protected_clone_candidate_held.py",
-             "6365371342b021406154f3646424497cc6f47f7e",
+             "3f5fc0a705313745d5b5e5232726598f5d75fae8",
              "candidate/uni-ops-universal-decision-boundary-20261106",
           ):
              assert required in protected,required
@@ -108,7 +108,7 @@ jobs:
               raise SystemExit('not the exact production READ-ONLY schema source')
           if not re.fullmatch(r'[0-9a-f]{40}',fields['universal_head']):
               raise SystemExit('universal source must be an immutable Git commit')
-          if fields['p3_head']!='f9ca3c44065a0d2f8a23821a583fcc0571d2d0fc':
+          if fields['p3_head']!='d608391b3374d8113d869a6338dffab299be1b1e':
               raise SystemExit('P3 source head changed')
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
               f.write('universal_head='+fields['universal_head']+'\n')
@@ -195,7 +195,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C universal hash-object --no-filters candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py)" = '6365371342b021406154f3646424497cc6f47f7e'
+          test "$(git -C universal hash-object --no-filters candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py)" = '3f5fc0a705313745d5b5e5232726598f5d75fae8'
           python3 -m py_compile universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py
           python3 universal/candidates/uni_ops_universal_company_decision_v1/tests/prepare_protected_clone_candidate_held.py \
             --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
