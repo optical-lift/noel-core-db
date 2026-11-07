@@ -254,6 +254,64 @@ def run(db_url, manifest_path, output):
           and count(db_url, "atlas.uni_ops_farm_company_source_links_v1") == 1,
           "First-party source admission replay created another case/link")
 
+    # One-bounded private receipt reader: no raw source, Subject, employee,
+    # task or access grant is serialized. A valid case ID is not enough for a
+    # non-governing signer. No public RPC can serve this reader yet.
+    receipt_arg = [literal(case) + "::uuid"]
+    def bounded_receipt(token, expected_decision):
+        receipt = private_signed(db_url, token, "receipt", receipt_arg)
+        allowed = {
+            "ok", "contractVersion", "caseId", "sourceCaseRegisteredAt",
+            "sourceEvidenceRecordedAt", "domainAdapterMarkedVerified",
+            "latestRegisteredAdmittedRevision", "latestGovernorDecisionId",
+            "latestGovernorDecisionAt", "latestGovernorDecisionOutcome",
+            "currentDomainSourceStillNeedsFreshProof",
+            "realSourceSubjectDisclosureWasNotGrantedByThisReader",
+            "permissionToCreateOriginalWork", "permissionToAssignWorker",
+            "permissionToPlacePrincipalClockCandidate",
+            "permissionToAcceptActualOrDone", "permissionToAutoCreateNextWork"
+        }
+        check(set(receipt) == allowed, "Receipt expanded past reviewed safe fields")
+        check(identifier(receipt["caseId"]) == case
+              and receipt["contractVersion"] ==
+                  "uni_ops_company_governed_case_receipt_v1"
+              and receipt["domainAdapterMarkedVerified"] is True
+              and receipt["latestRegisteredAdmittedRevision"] is True
+              and receipt["currentDomainSourceStillNeedsFreshProof"] is True
+              and receipt["realSourceSubjectDisclosureWasNotGrantedByThisReader"] is True,
+              "Source case receipt identity/currentness disclosure changed")
+        for gate in (
+            "permissionToCreateOriginalWork", "permissionToAssignWorker",
+            "permissionToPlacePrincipalClockCandidate",
+            "permissionToAcceptActualOrDone", "permissionToAutoCreateNextWork"
+        ):
+            check(receipt[gate] is False, "Receipt promoted a permission: " + gate)
+        latest = receipt["latestGovernorDecisionId"]
+        check((latest is None if expected_decision is None
+               else identifier(latest) == identifier(expected_decision)),
+              "Receipt did not preserve the exact immutable latest decision")
+        return receipt
+
+    # Even genuine signed owner/worker JWTs cannot find the PRIVATE
+    # receipt through PostgREST. 404 alone is not business ACL proof.
+    for label in ("owner", "worker", "outsider", "no-seat"):
+        code, obj = c1.request(api, key,
+                               "/rest/v1/rpc/" + REST_FUNCS[3],
+                               {"p_case_id": case}, tokens[label])
+        check(code in (401, 403, 404)
+              and not (isinstance(obj, dict) and obj.get("ok") is True),
+              "Private Company receipt unexpectedly reachable over REST")
+    code, obj = c1.request(api, key, "/rest/v1/rpc/" + REST_FUNCS[3],
+                           {"p_case_id": case}, None)
+    check(code in (401, 403, 404), "Anonymous Company receipt RPC is exposed")
+
+    # Positive reads use verified signed JWT/session in a PRIVILEGED
+    # disposable SQL probe, not a public client transport.
+    bounded_receipt(owner, None)
+    for label in ("worker", "outsider", "no-seat"):
+        private_signed(db_url, tokens[label], "receipt",
+                       receipt_arg, want_error="42501")
+
     def decision(token, action, reason, expected=None, outcome="hold_for_more_source",
                  error=None):
         params = [literal(case) + "::uuid", literal(attention) + "::uuid",
@@ -270,6 +328,9 @@ def run(db_url, manifest_path, output):
     reason = "The genuine source needs a governing review; no Work is admitted."
     first = decision(owner, first_action, reason)
     first_event = identifier(first["decisionEventId"])
+    first_receipt = bounded_receipt(owner, first_event)
+    check(first_receipt["latestGovernorDecisionOutcome"] == "hold_for_more_source",
+          "Receipt mutated governor choice or disclosed another outcome")
     check(first.get("newWorkCreated") is False
           and first.get("principalClockCandidateCreated") is False,
           "Source decision fabricated Work or Principal Clock")
@@ -309,6 +370,10 @@ def run(db_url, manifest_path, output):
           and sum(x == ("denied", "23505") for x in results) == 1
           and count(db_url, "atlas.uni_ops_governed_case_decision_events_v1") == 2,
           "Concurrent governor CAS must admit one and 23505-deny one")
+    race_winner_event = (results[0][1] if results[0][0] == "ok"
+                         else results[1][1])["decisionEventId"]
+    bounded_receipt(owner, race_winner_event)
+    bounded_receipt(owner2, race_winner_event)
     # Withholding one class must deny even a CURRENT governor after admission.
     disclosure("condition", "withhold")
     decision(owner, str(uuid.uuid4()),
@@ -319,6 +384,10 @@ def run(db_url, manifest_path, output):
              error="42501")
     check(count(db_url, "atlas.uni_ops_governed_case_decision_events_v1") == 2,
           "Withheld Subject disclosure did not freeze decisions")
+    # The bounded receipt is historical/safe even while source condition
+    # disclosure is currently WITHHELD; it does NOT claim fresh Subject
+    # visibility or right to decide a new source action.
+    bounded_receipt(owner, race_winner_event)
     # Re-establish the information class, then revoke the *native* root:
     # this denial must be about actual current authority, not the prior
     # independent withheld-Subject denial. Only this disposable clone changes.
@@ -336,6 +405,10 @@ def run(db_url, manifest_path, output):
              expected=identifier(latest), error="42501")
     check(count(db_url, "atlas.uni_ops_governed_case_decision_events_v1") == 2,
           "Revoked governing authority wrote another decision")
+    private_signed(db_url, owner, "receipt",
+                   receipt_arg, want_error="42501")
+    private_signed(db_url, owner2, "receipt",
+                   receipt_arg, want_error="42501")
 
     check(count(db_url, "atlas.work_items") == before_work,
           "Company source decision unexpectedly produced canonical Work")
@@ -348,7 +421,9 @@ def run(db_url, manifest_path, output):
     Path(output).write_text(
         "PASS local real GoTrue sessions + privileged private source probe; "
         "two independently signed Subject disclosures; one native Farm case; "
-        "one immutable Company decision chain; replay/concurrency/withhold; "
+        "one immutable Company decision chain; bounded governor-only "
+        "private case receipt before/after decision, concurrent decision, "
+        "Subject withholding and native root revocation; "
         "zero new Work; NO public REST grants or production approval\n",
         encoding="utf-8"
     )
