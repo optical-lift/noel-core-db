@@ -1,0 +1,29 @@
+name: Atlas Venue Bed shared-use held source guard
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-venue-bed-shared-use-source.yml'
+      - 'scripts/validate-atlas-venue-bed-shared-use-source.py'
+      - 'candidates/atlas/venue_bed_shared_use_v1/**'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/atlas-venue-bed-shared-use-source.yml'
+      - 'scripts/validate-atlas-venue-bed-shared-use-source.py'
+      - 'candidates/atlas/venue_bed_shared_use_v1/**'
+permissions:
+  contents: read
+jobs:
+  validate-held-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run static source guard and source-mutation negative fixtures
+        run: |
+          python3 -m py_compile scripts/validate-atlas-venue-bed-shared-use-source.py
+          python3 scripts/validate-atlas-venue-bed-shared-use-source.py
+      - name: Bound result
+        run: echo "Static source only; no production DDL, no signed actor proof, no permission release."
