@@ -71,15 +71,19 @@ INSERT INTO atlas.tasks(
  'e5200000-0000-4000-8000-000000000801','farm_operation',
  '{"cloneOnly":true,"sourceTask":true}'::jsonb
 );
+-- Source identifiers for fictional institutional Organization memberships.
+-- No employee seat, employee Position, employee Worker Day or paid credential.
 INSERT INTO atlas.organization_memberships(
- id,organization_id,user_id,role,active
+ id,organization_id,user_id,person_id,role,active
 ) VALUES
  ('e5200000-0000-4000-8000-000000000a21',
   'e5200000-0000-4000-8000-000000000801',
-  'e5200000-0000-4000-8000-000000000001','owner',true),
+  'e5200000-0000-4000-8000-000000000001',
+  'e5200000-0000-4000-8000-000000000101','owner',true),
  ('e5200000-0000-4000-8000-000000000a22',
   'e5200000-0000-4000-8000-000000000801',
-  'e5200000-0000-4000-8000-000000000002','member',true);
+  'e5200000-0000-4000-8000-000000000002',
+  'e5200000-0000-4000-8000-000000000102','member',true);
 INSERT INTO atlas.work_items(
  id,organization_id,organization_unit_id,stable_key,title,work_state,
  source_object_type,source_object_id
@@ -91,18 +95,8 @@ INSERT INTO atlas.work_items(
  'Fictional Flower Work on original Bed','open',
  'legacy_task','e5200000-0000-4000-8000-000000000a11'
 );
-INSERT INTO atlas.work_allocations(
- id,organization_id,work_item_id,assignee_membership_id,
- allocation_role,state,metadata
-) VALUES (
- 'e5200000-0000-4000-8000-000000000a23',
- 'e5200000-0000-4000-8000-000000000801',
- 'e5200000-0000-4000-8000-000000000901',
- 'e5200000-0000-4000-8000-000000000a22',
- 'responsible','active',
- '{"cloneOnly":true,"source":"explicit_worker_task_company_work_adoption_v2",
-   "legacyTaskId":"e5200000-0000-4000-8000-000000000a11"}'::jsonb
-);
+-- No fabricated original Work responsibility: the signed owner must offer
+-- the same original Flower Work and the signed target Person must accept.
 INSERT INTO atlas.company_work_native_ledger_relevance(
  organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
  attestation_source_ref,attestation_reason,established_by_person_id
@@ -113,6 +107,15 @@ INSERT INTO atlas.company_work_native_ledger_relevance(
  'serves_purpose','owner_attested','clone:flower-work-901',
  'Existing original Work admitted to Flower only in disposable evidence',
  'e5200000-0000-4000-8000-000000000101'
+);
+
+-- Canonical ordinary Person-completion policy, existing source vocabulary.
+-- The real signed person-accept command must bind the Work to this contract.
+INSERT INTO atlas.work_result_contract_policies(
+ contract_key,source_domain,acceptance_mode,active
+) VALUES (
+ 'ordinary_company_work_worker_attestation_v1',
+ 'organization','worker_attestation',true
 );
 
 -- Venue is a separate current native Ledger over the existing Organization.
