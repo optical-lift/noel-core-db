@@ -28,30 +28,78 @@ INSERT INTO atlas.farms(
   'e5200000-0000-4000-8000-000000000802',
   '{"fictional":true}'::jsonb
 );
+-- Source-backed Flower physical-context positive parity: these zones,
+-- task and responsibility are synthetic C1 prerequisite facts, not a new
+-- Work/Bed issued by the Venue permission.
+INSERT INTO atlas.zones(id,farm_id,stable_key,name)
+VALUES
+ ('e5200000-0000-4000-8000-000000000a01',
+  'e5200000-0000-4000-8000-000000000b01',
+  'clone-physical-bed-zone','Fictional Flower Bed Zone'),
+ ('e5200000-0000-4000-8000-000000000a02',
+  'e5200000-0000-4000-8000-000000000b01',
+  'clone-withheld-physical-zone','Fictional Withheld Zone');
+
 INSERT INTO atlas.growing_objects(
-  id,farm_id,stable_key,label,object_type,metadata
+  id,farm_id,zone_id,stable_key,label,object_type,metadata
 ) VALUES
 ('e5200000-0000-4000-8000-000000000b03',
  'e5200000-0000-4000-8000-000000000b01',
+ 'e5200000-0000-4000-8000-000000000a01',
  'clone-upick-bed-3','Fictional Flower Bed 3','bed',
  '{"fictional":true,"privateNote":"private-held"}'::jsonb),
 ('e5200000-0000-4000-8000-000000000b04',
  'e5200000-0000-4000-8000-000000000b01',
+ 'e5200000-0000-4000-8000-000000000a01',
  'clone-upick-bed-4','Fictional Flower Bed 4','bed',
  '{"fictional":true}'::jsonb),
 ('e5200000-0000-4000-8000-000000000b05',
  'e5200000-0000-4000-8000-000000000b01',
+ 'e5200000-0000-4000-8000-000000000a02',
  'clone-withheld-bed-5','Fictional Withheld Bed','bed',
  '{"fictional":true,"sourceOwnerOnly":true}'::jsonb);
 
 -- Existing Flower original Work, deliberately NOT Venue-relevant. This is a
 -- wrong-Ledger negative subject, not a fabricated new Work from Venue link.
-INSERT INTO atlas.work_items(id,organization_id,stable_key,title,work_state)
-VALUES (
+INSERT INTO atlas.tasks(
+ id,farm_id,zone_id,title,task_type,status,organization_id,task_scope,metadata
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000a11',
+ 'e5200000-0000-4000-8000-000000000b01',
+ 'e5200000-0000-4000-8000-000000000a01',
+ 'Fictional Flower Bed 3 preparation','general','open',
+ 'e5200000-0000-4000-8000-000000000801','farm_operation',
+ '{"cloneOnly":true,"sourceTask":true}'::jsonb
+);
+INSERT INTO atlas.organization_memberships(
+ id,organization_id,user_id,role,active
+) VALUES
+ ('e5200000-0000-4000-8000-000000000a21',
+  'e5200000-0000-4000-8000-000000000801',
+  'e5200000-0000-4000-8000-000000000001','owner',true),
+ ('e5200000-0000-4000-8000-000000000a22',
+  'e5200000-0000-4000-8000-000000000801',
+  'e5200000-0000-4000-8000-000000000002','member',true);
+INSERT INTO atlas.work_items(
+ id,organization_id,organization_unit_id,stable_key,title,work_state,
+ source_object_type,source_object_id
+) VALUES (
  'e5200000-0000-4000-8000-000000000901',
  'e5200000-0000-4000-8000-000000000801',
+ 'e5200000-0000-4000-8000-000000000802',
  'clone-flower-original-work-901',
- 'Fictional Flower Work on original Bed','open'
+ 'Fictional Flower Work on original Bed','open',
+ 'legacy_task','e5200000-0000-4000-8000-000000000a11'
+);
+INSERT INTO atlas.work_allocations(
+ id,organization_id,work_item_id,assignee_membership_id,
+ allocation_role,state,metadata
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000a23',
+ 'e5200000-0000-4000-8000-000000000801',
+ 'e5200000-0000-4000-8000-000000000901',
+ 'e5200000-0000-4000-8000-000000000a22',
+ 'responsible','active','{"cloneOnly":true,"originalResponsibility":true}'::jsonb
 );
 INSERT INTO atlas.company_work_native_ledger_relevance(
  organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
