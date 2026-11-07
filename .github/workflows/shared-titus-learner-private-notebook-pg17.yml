@@ -1,0 +1,37 @@
+name: HELD Titus learner-private notebook — network-isolated PG17
+on:
+  push:
+    branches:
+      - candidate/shared-titus-learner-private-notebook-v1-20261106
+    paths:
+      - 'candidates/shared-titus-learner-private-notebook-v1/**'
+      - 'scripts/test-shared-titus-learner-private-notebook-hosted-pg17.sh'
+      - '.github/workflows/shared-titus-learner-private-notebook-pg17.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: held-titus-learner-notebook-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  isolate:
+    if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/candidate/shared-titus-learner-private-notebook-v1-20261106'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact source, no persistent credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact revision and source invariants
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git rev-parse HEAD)" == "${GITHUB_SHA}" ]]
+          [[ "$GITHUB_REPOSITORY" == 'optical-lift/noel-core-db' ]]
+          bash -n scripts/test-shared-titus-learner-private-notebook-hosted-pg17.sh
+          python3 -m unittest discover -s candidates/shared-titus-learner-private-notebook-v1 -p 'test_static_contract.py' -v
+          echo "HELD source revision: $GITHUB_SHA; no live migration"
+      - name: Fictional two-Person SQL tests in offline disposable PG17
+        shell: bash
+        run: bash scripts/test-shared-titus-learner-private-notebook-hosted-pg17.sh
