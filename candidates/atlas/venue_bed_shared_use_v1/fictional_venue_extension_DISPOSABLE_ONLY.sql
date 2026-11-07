@@ -1,0 +1,90 @@
+-- DISPOSABLE C1 VENUE EXTENSION ONLY; fictional identity and Work context.
+-- Append to immutable C1 fictional fixture from commit
+-- 83833e3efbb2e18c6376b56eb3982df5b8c000b3. NO production use.
+-- Do not assert that fixture establishment is a real human action.
+
+-- Every signed actor must have their own native Personal Atlas to pass
+-- the existing real-session membrane.
+INSERT INTO personal.atlases(person_entity_id,atlas_state,native)
+SELECT seed.person_entity_id,'active',true FROM (VALUES
+ ('e5200000-0000-4000-8000-000000000101'::uuid),
+ ('e5200000-0000-4000-8000-000000000102'::uuid),
+ ('e5200000-0000-4000-8000-000000000103'::uuid),
+ ('e5200000-0000-4000-8000-000000000104'::uuid)
+) seed(person_entity_id)
+WHERE NOT EXISTS (
+ SELECT 1 FROM personal.atlases a WHERE a.person_entity_id=seed.person_entity_id
+);
+
+-- Venue is a separate current native Ledger over the existing Organization.
+-- Its independent root is the pre-existing C1 Other-Ledger Person, not Flower's.
+INSERT INTO atlas.ledgers(id,stable_key,name,ledger_kind,status,organization_id)
+VALUES (
+ 'e5200000-0000-4000-8000-000000000402',
+ 'venue-disposable-ledger-b','Fictional Venue Ledger',
+ 'governed_reality','active',
+ 'e5200000-0000-4000-8000-000000000801'
+);
+
+INSERT INTO atlas.ledger_organization_participations(
+ id,ledger_id,organization_id,participation_kind,is_compatibility_primary,basis
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000804',
+ 'e5200000-0000-4000-8000-000000000402',
+ 'e5200000-0000-4000-8000-000000000801',
+ 'operating',false,'{"fictional":true,"doesNotTransferFarmCustody":true}'::jsonb
+);
+
+INSERT INTO atlas.principals(id,user_id,person_id,stable_key,name,status)
+VALUES (
+ 'e5200000-0000-4000-8000-000000000113',
+ 'e5200000-0000-4000-8000-000000000003',
+ 'e5200000-0000-4000-8000-000000000103',
+ 'disposable-venue-principal','Fictional Venue Governor','active'
+);
+
+INSERT INTO atlas.principal_ledger_authorities(
+ id,principal_id,ledger_id,authority_kind,status,basis
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000603',
+ 'e5200000-0000-4000-8000-000000000113',
+ 'e5200000-0000-4000-8000-000000000402',
+ 'root_governing','active','disposable_venue_fixture'
+);
+
+-- Synthetic prerequisite: this exact fictional Farm is custodied to Flower A.
+-- The existing active-Farm custody unique index remains in force.
+INSERT INTO atlas.farm_crop_ledger_custody_v1(
+ farm_id,ledger_id,authority_domain,custody_state,
+ established_by_principal_id,adjudication
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000b01',
+ 'e5200000-0000-4000-8000-000000000401',
+ 'farm_crop_operations','active',
+ 'e5200000-0000-4000-8000-000000000111',
+ '{"fictional":true,"FlowerOwnsOriginal":true,"VenueMayOnlyReference":true}'::jsonb
+);
+
+-- Existing original Venue Work: not a new Work issued by the tested command.
+-- The distinct Venue-Ledger relevance is human-attested in the existing source
+-- vocabulary; this fixture does not claim a source-verified Event origin.
+INSERT INTO atlas.work_items(id,organization_id,stable_key,title,work_state)
+VALUES (
+ 'e5200000-0000-4000-8000-000000000b20',
+ 'e5200000-0000-4000-8000-000000000801',
+ 'disposable-venue-work-near-bed',
+ 'Fictional Venue preparation near existing Bed','open'
+);
+
+INSERT INTO atlas.company_work_native_ledger_relevance(
+ organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
+ attestation_source_ref,attestation_reason,established_by_person_id
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000801',
+ 'e5200000-0000-4000-8000-000000000b20',
+ 'e5200000-0000-4000-8000-000000000402',
+ 'serves_purpose','owner_attested',
+ 'clone:venue-work-source-b20',
+ 'Fictional existing Venue Work only; not a new Work command',
+ 'e5200000-0000-4000-8000-000000000103'
+);
