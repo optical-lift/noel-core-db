@@ -85,7 +85,7 @@ def assert_source_only(sql: str) -> None:
         "atlas.company_work_native_ledger_relevance relevance",
         "relevance.attribution_state='active'",
         "participation.status='active'",
-        "AND v_work.work_state<>'open'",
+        "v_work.work_state<>'open'",
         "reviewedWorkStableKey",
         "reviewedBedStableKey",
         "p_human_review->>'humanConfirmed'",
