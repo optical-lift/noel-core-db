@@ -121,8 +121,8 @@ def oauth_token(api,key,plain,client_id=CLIENT):
  check(u.hostname in ("127.0.0.1","localhost") and
        u.path.endswith("/oauth/consent"),"Consent redirect not local/recognized")
  authorization_id=urllib.parse.parse_qs(u.query).get("authorization_id",[None])[0]
- check(authorization_id and UUID.fullmatch(authorization_id),
-       "GoTrue authorization ID not issued")
+ check(authorization_id and re.fullmatch(r"[A-Za-z0-9_-]{12,256}",authorization_id),
+       "GoTrue authorization ID not issued as a bounded opaque token")
  endpoint=api+"/auth/v1/oauth/authorizations/"+authorization_id
  code,details,_=http("GET",endpoint,key,plain,origin=ORIGIN)
  check(code==200 and isinstance(details,dict) and
