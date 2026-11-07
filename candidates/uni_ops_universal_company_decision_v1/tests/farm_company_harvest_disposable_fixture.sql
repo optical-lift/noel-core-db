@@ -70,6 +70,19 @@ INSERT INTO atlas.crop_cycles(
  '{"cloneFixture":true}'::jsonb
 );
 
+-- The EXISTING first-party Harvest validator requires a canonical
+-- task ↔ crop-cycle relation. Neither the task nor the crop cycle alone
+-- authorizes a physical bucket observation. This is source provenance,
+-- not a second Work original or a generated successor.
+INSERT INTO atlas.task_crop_cycles(
+ task_id,crop_cycle_id,role,confidence,source,metadata
+) VALUES (
+ 'fa510000-0000-4000-8000-000000000001',
+ 'fa510000-0000-4000-8000-000000000002',
+ 'harvests','confirmed','fictional_disposable_fixture',
+ '{"cloneFixture":true,"physicalSourceLinkOnly":true}'::jsonb
+);
+
 INSERT INTO atlas.flower_harvest_batches(
  id,farm_id,recorded_by_membership_id,batch_key,created_by_user_id,metadata
 ) VALUES (
