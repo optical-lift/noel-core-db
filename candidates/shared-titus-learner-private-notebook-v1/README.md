@@ -65,3 +65,21 @@ The first attempt [#42326742813](https://github.com/optical-lift/noel-core-db/ac
 
 **Completion classification:** private learner note SQL candidate = isolated synthetic PG17 **TESTED**; actual human learner notebook, release and production = **NOT READY**.
 
+## Genuine local GoTrue/OAuth + PostgREST proof — November 6, 2026
+
+**PASS, exact source `2e0f9ac868b1a40bd29981a5e64f22535ca5d599`:** [signed local Auth/REST #42328478812](https://github.com/optical-lift/noel-core-db/actions/runs/42328478812) SUCCESS. Unlike the previous PG17 fixture, this ran a **real local Supabase GoTrue OAuth 2.1 authorization-code/PKCE flow** to mint three independently authenticated fictional learner/outsider sessions with the exact production Titus `client_id` claim. The client ID was bound **only in the disposable local OAuth client table**; no live Auth client or real user was changed. The test exercised the unchanged held SQL candidate in local PostgREST using actual signed bearer tokens, not synthetic GUC claims.
+
+**Observed successful acceptance:** signed learner's original note creation, readback and idempotent replay; separate enrolled Person cannot read/write another's notebook; outsider/teacher without Enrollment cannot read/write; ordinary signed password JWT lacking Titus OAuth client is denied; anon and foreign/unknown Enrollment denied. Two distinct signed OAuth sessions of the same learner raced with one operation ID and yielded one durable original (one first result and one replay). The test then withdrew the Enrollment and separately revoked a genuine Auth session, both denying renewed access. The runner verified no extra originals. Local signed test artifacts are summary-only and contain no bearer token, service key or real account detail. Eight static contract tests, local schema/ACL checks, and source repo custody CI also passed. **Neither the Auth stack nor the academic records came from Noel production**.
+
+**Earlier test setup failures, resolved without changing the held note SQL:** initial local TOML duplicate OAuth section; client UUID write result assertion included the SQL command-tag line; authorization IDs were treated as UUIDs although GoTrue emits opaque authorization tokens. Those were test-harness corrections only. The accepted source candidate remains the original `candidate.sql`.
+
+**Boundary:** This proves local genuine signed Auth and HTTP behavior against **synthetic Atlas/Reality prerequisite tables** plus a source-compatible copy of the current Titus Person resolver. It is **not** the separately owner-authorized **production-shaped schema clone**, and does not prove any actual real-world learner Course enrollment/consent, external Auth configuration, protected rollout, school roster, private SK101 publication, or live Titus notebook UI. No production migration was created, no teacher-facing notes granted and no Titus PR #72 application changed.
+
+**Remaining RELEASE HOLDS:**
+1. Owner-authorized protected **read-only snapshot of the current production schema/roles** (never real data) through the canonical governed clone; verify candidate DDL and exact tables, status constraints, ACL/permissions and trigger behavior against that snapshot.
+2. Repeat genuine signed GoTrue/PostgREST two-Person/outsider/teacher tests on that production-shaped disposable clone, including concurrent replay and withdrawal/session/credential/client revocations; verify exact source at immutable reviewed SHA. Capture bounded results without credentials or user data in logs.
+3. Independent `shared_` authority/schema reviewer acceptance and a separate actual academic Course Version/Offering/Enrollment issuance decision. No draft Titus Course is an Offering.
+4. Explicit principal-authorized release decision for any generated migration or real student-facing UI. Remain DRAFT/unmerged, source APIs unreleased until these gates pass.
+
+**Next unfinished step:** prepare an owner-approved protected schema-clone diagnostic request that pins this exact candidate, target, source lane and negative test scope. Existing protected workflows require a real GitHub repository owner issue and production environment approval; do not create a fake approval or trigger a secret-bearing workflow merely because a local signed test passed.
+
