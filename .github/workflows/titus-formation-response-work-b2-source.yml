@@ -1,0 +1,94 @@
+name: Titus Formation response Work B2 source-only structural proof
+
+on:
+  push:
+    branches:
+      - work/titus-formation-review-b2-source-20261103
+    paths:
+      - 'candidates/titus-formation-response-work-b2-v1/**'
+      - '.github/workflows/titus-formation-response-work-b2-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: titus-formation-work-b2-structural
+  cancel-in-progress: false
+
+jobs:
+  candidate-structural-only:
+    if: >-
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.ref == 'refs/heads/work/titus-formation-review-b2-source-20261103'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: fixture-only-not-a-secret
+          POSTGRES_DB: titus_b2_disposable
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d titus_b2_disposable"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: fixture-only-not-a-secret
+      PGDATABASE: titus_b2_disposable
+    steps:
+      - name: Checkout this exact source revision (no credential persistence)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact branch and no-release boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$GITHUB_REF" = 'refs/heads/work/titus-formation-review-b2-source-20261103'
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('candidates/titus-formation-response-work-b2-v1')
+          candidate=(root/'candidate.sql').read_text()
+          fixture=(root/'fixture.sql').read_text()
+          proof=(root/'postconditions.sql').read_text()
+          for required in (
+              "SELECT false;", "CREATE TABLE titus.formation_response_work_events_v1",
+              "BEFORE INSERT OR UPDATE OR DELETE", "ENABLE ROW LEVEL SECURITY",
+              "REVOKE ALL ON TABLE", "titus.formation_responses",
+              "titus.teacher_person_bindings", "FOR UPDATE", "ON DELETE RESTRICT",
+          ):
+              assert required in candidate,required
+          for prohibited in (
+              "GRANT EXECUTE", "GRANT SELECT", "GRANT INSERT", "ALTER ROLE",
+              "CREATE OR REPLACE FUNCTION public.", "supabase db push",
+              "UPDATE titus.formation_responses", "DELETE FROM titus.formation_responses"
+          ):
+              assert prohibited not in candidate,prohibited
+          assert 'fixture' in fixture.lower()
+          assert "SELECT true;" in proof and "SELECT false;" in proof
+          assert 'CREATE OR REPLACE FUNCTION titus.formation_response_work_authority_gate_v1()' in proof
+          print("B2 source-only bounds: PASS. No public RPC, grants, or released migration.")
+          PY
+      - name: Check Postgres fixture runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v psql
+          psql -v ON_ERROR_STOP=1 -Atc 'select current_setting('"'server_version_num'"')::integer >= 160000'
+      - name: Run isolated existing-source miniature + gate-closed candidate + negative postconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir=candidates/titus-formation-response-work-b2-v1
+          psql -v ON_ERROR_STOP=1 -X -f "$dir/fixture.sql"
+          psql -v ON_ERROR_STOP=1 -X -f "$dir/candidate.sql"
+          psql -v ON_ERROR_STOP=1 -X -f "$dir/postconditions.sql"
+          echo 'PASS: miniature Postgres structural proof only; not a production-shaped or signed two-Person proof.'
