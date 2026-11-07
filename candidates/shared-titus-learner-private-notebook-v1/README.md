@@ -41,3 +41,15 @@ First execute `candidate.sql` against a production-shaped **synthetic, isolated 
 ## Release boundary and next work
 
 Review the shared schema candidate against current canonical main and source-held classroom/home decisions. Use no live SQL other than SELECT verification without separate owner approval. The protected migration requires an explicit source-governed approval naming target, exact version and release lane. The eventual Titus client may connect only after a real Enrollment exists and owner/learner access is independently accepted. Keep [Titus authoring PR #72](https://github.com/optical-lift/titus/pull/72) in draft; its editor and protected Preview are untouched.
+
+## Source-only completion register — November 6, 2026
+
+- **Exact executable-source commit:** `d22f919c65658ef2eacfcf4ada9fd7365205f717`. The candidate is four source-only files under `candidates/shared-titus-learner-private-notebook-v1/`; no migration, outside repository or product code changes.
+- **Source static checks:** eight direct candidate invariants checked: source-only transaction and no synthetic enrollment seeding; active canonical Person and Titus client; exact existing Atlas Enrollment/Offering; no actor/teacher arguments; closed RLS/ACL; immutable original and replay; strict self-reader; no customer draft/classroom shortcut. These are static checks, **not** execution of the included Python test file or PostgreSQL.
+- **GitHub custody:** [Database Custody CI #42322991224](https://github.com/optical-lift/noel-core-db/actions/runs/42322991224) **SUCCESS** on exact candidate commit, including repository custody rules. That CI is not source-specific PG17 runtime authorization.
+- **Live source observation:** SELECT-only read returned 0 Teaching Courses, 0 open Teaching Offerings, 0 active Enrollments, and one unreleased private customer Course draft. No learner could actually pass the candidate's current permission predicate. The proposed APIs do not exist on production.
+- **Remaining proof, all OPEN:** proper isolated production-shaped PG17 parsing/application; execute `structural_postconditions.sql`; fictional separately enrolled Person/outsider, idempotency, concurrency, expiry and withdrawal tests; genuine signed Titus OAuth GoTrue/PostgREST negative matrix; internal schema ACL/owner audit; shared-lane reviewer acceptance; exact migration and separately authorized protected release; independent real Titus browser proof. No person enrollment, consent, entitlement, or private note may be fabricated to satisfy a test.
+- **Next unfinished step:** reuse the held shared source/identity fixture without importing the classroom writer as a reader or the institutional authorized-home candidate as a grant. Prove this exact SQL against a disposable PG17 clone with **two distinct current-Person sessions**. If the authentic shared source cannot prove the required enrollment, keep both writer and learner notebook closed. Do not merge because custody CI passed.
+
+**Closeout status:** candidate filed, source checks and repository custody PASS, *runtime and release HELD*. No user-facing notebook is available yet.
+
