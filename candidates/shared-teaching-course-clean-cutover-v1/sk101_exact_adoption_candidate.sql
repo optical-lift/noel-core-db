@@ -1,0 +1,184 @@
+-- M2 HELD — SAME ORIGINAL SK101. CLONE ONLY, NEVER RUN ON LIVE.
+-- Uses existing source rows in a protected restored PG clone. No founder
+-- text or UUID values are committed in this source or emitted in logs.
+-- Requires M1 canonical Person-first schema (not an official migration).
+-- Clone orchestrator starts a transaction, sets app.shared_course_clone,
+-- applies M1 and this source, validates equality, then ROLLBACKs.
+DO $preflight$
+DECLARE
+ v_drafts integer;
+ v_bad integer;
+BEGIN
+ IF current_setting('app.shared_course_clone', true) IS DISTINCT FROM 'approved' THEN
+  RAISE EXCEPTION 'clone-only candidate — not live SQL' USING ERRCODE='42501';
+ END IF;
+ SELECT count(*) INTO v_drafts FROM titus.customer_course_drafts_v1;
+ IF v_drafts <> 1 THEN
+  RAISE EXCEPTION 'source Course count drift' USING ERRCODE='23514';
+ END IF;
+ IF (SELECT count(*) FROM titus.customer_course_material_revisions_v1) <> 1
+ OR (SELECT count(*) FROM titus.customer_course_units_v1) <> 2
+ OR (SELECT count(*) FROM titus.customer_course_unit_revisions_v1) <> 3 THEN
+  RAISE EXCEPTION 'source revision counts drift' USING ERRCODE='23514';
+ END IF;
+ IF EXISTS (SELECT 1 FROM titus.customer_course_drafts_v1 d
+  JOIN atlas.teaching_courses c ON c.id=d.course_id) THEN
+  RAISE EXCEPTION 'Course identity already present — do not create duplicate' USING ERRCODE='23505';
+ END IF;
+ -- Each original author and historical editor must map to exactly one
+ -- *currently established* canonical Person. Never infer from a username.
+ WITH actors AS (
+  SELECT created_by_auth_user_id AS auth_id FROM titus.customer_course_drafts_v1
+  UNION SELECT created_by_auth_user_id FROM titus.customer_course_units_v1
+  UNION SELECT recorded_by_auth_user_id FROM titus.customer_course_material_revisions_v1
+  UNION SELECT recorded_by_auth_user_id FROM titus.customer_course_unit_revisions_v1
+ ), fitness AS (
+  SELECT a.auth_id,(
+   SELECT count(*) FROM reality.auth_person_bindings b
+   JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person'
+   WHERE b.auth_user_id=a.auth_id AND b.binding_state='active'
+  ) AS n FROM actors a
+ )
+ SELECT count(*) INTO v_bad FROM fitness WHERE n<>1;
+ IF v_bad<>0 THEN
+  RAISE EXCEPTION 'unresolved historical Person binding' USING ERRCODE='42501';
+ END IF;
+ IF EXISTS(SELECT 1 FROM titus.customer_course_units_v1
+           WHERE kind NOT IN ('lesson','assignment')) THEN
+  RAISE EXCEPTION 'unexpected Unit kind' USING ERRCODE='23514';
+ END IF;
+END
+$preflight$;
+
+-- Adopt exact existing Course UUID (no UUID generation, no second Course).
+INSERT INTO atlas.teaching_courses (
+ id,course_key,name,status,created_at,updated_at,
+ created_by_person_entity_id,created_by_auth_user_id,create_request_id
+)
+SELECT d.course_id,d.course_id::text,d.title,'active',d.created_at,d.created_at,
+ b.person_entity_id,d.created_by_auth_user_id,d.create_request_id
+FROM titus.customer_course_drafts_v1 d
+JOIN reality.auth_person_bindings b ON b.auth_user_id=d.created_by_auth_user_id
+ AND b.binding_state='active'
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+
+INSERT INTO atlas.teaching_course_manuscript_revisions(
+ revision_id,course_id,edit_request_id,based_on_revision,revision_number,
+ body_text,recorded_by_person_entity_id,recorded_by_auth_user_id,recorded_at
+)
+SELECT r.revision_id,r.course_id,r.edit_request_id,r.based_on_revision,
+ r.revision_number,r.body_text,b.person_entity_id,
+ r.recorded_by_auth_user_id,r.recorded_at
+FROM titus.customer_course_material_revisions_v1 r
+JOIN reality.auth_person_bindings b ON b.auth_user_id=r.recorded_by_auth_user_id
+ AND b.binding_state='active'
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+
+INSERT INTO atlas.teaching_course_units(
+ unit_id,course_id,create_request_id,kind,title,display_position,
+ created_by_person_entity_id,created_by_auth_user_id,created_at
+)
+SELECT u.unit_id,u.course_id,u.create_request_id,u.kind,u.title,u.display_position,
+ b.person_entity_id,u.created_by_auth_user_id,u.created_at
+FROM titus.customer_course_units_v1 u
+JOIN reality.auth_person_bindings b ON b.auth_user_id=u.created_by_auth_user_id
+ AND b.binding_state='active'
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+
+INSERT INTO atlas.teaching_course_unit_revisions(
+ revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
+ body_text,recorded_by_person_entity_id,recorded_by_auth_user_id,recorded_at
+)
+SELECT r.revision_id,r.unit_id,r.edit_request_id,r.based_on_revision,
+ r.revision_number,r.body_text,b.person_entity_id,
+ r.recorded_by_auth_user_id,r.recorded_at
+FROM titus.customer_course_unit_revisions_v1 r
+JOIN reality.auth_person_bindings b ON b.auth_user_id=r.recorded_by_auth_user_id
+ AND b.binding_state='active'
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+
+-- Structural and exact row-equality proof with NO body text returned.
+DO $compare$
+DECLARE v_bad integer;
+BEGIN
+ IF (SELECT count(*) FROM atlas.teaching_courses) <> 1
+ OR (SELECT count(*) FROM atlas.teaching_course_manuscript_revisions) <> 1
+ OR (SELECT count(*) FROM atlas.teaching_course_units) <> 2
+ OR (SELECT count(*) FROM atlas.teaching_course_unit_revisions) <> 3 THEN
+  RAISE EXCEPTION 'adoption cardinality mismatch' USING ERRCODE='23514';
+ END IF;
+
+ SELECT count(*) INTO v_bad
+ FROM (
+  (SELECT d.course_id,d.create_request_id,d.title,d.created_by_auth_user_id,d.created_at
+   FROM titus.customer_course_drafts_v1 d
+   EXCEPT
+   SELECT c.id,c.create_request_id,c.name,c.created_by_auth_user_id,c.created_at
+   FROM atlas.teaching_courses c)
+  UNION ALL
+  (SELECT c.id,c.create_request_id,c.name,c.created_by_auth_user_id,c.created_at
+   FROM atlas.teaching_courses c
+   EXCEPT
+   SELECT d.course_id,d.create_request_id,d.title,d.created_by_auth_user_id,d.created_at
+   FROM titus.customer_course_drafts_v1 d)
+ ) mismatch;
+ IF v_bad<>0 THEN RAISE EXCEPTION 'Course original not preserved' USING ERRCODE='23514'; END IF;
+
+ SELECT count(*) INTO v_bad FROM (
+  (SELECT revision_id,course_id,edit_request_id,based_on_revision,revision_number,
+    body_text,recorded_by_auth_user_id,recorded_at
+   FROM titus.customer_course_material_revisions_v1
+   EXCEPT
+   SELECT revision_id,course_id,edit_request_id,based_on_revision,revision_number,
+    body_text,recorded_by_auth_user_id,recorded_at
+   FROM atlas.teaching_course_manuscript_revisions)
+  UNION ALL
+  (SELECT revision_id,course_id,edit_request_id,based_on_revision,revision_number,
+    body_text,recorded_by_auth_user_id,recorded_at
+   FROM atlas.teaching_course_manuscript_revisions
+   EXCEPT
+   SELECT revision_id,course_id,edit_request_id,based_on_revision,revision_number,
+    body_text,recorded_by_auth_user_id,recorded_at
+   FROM titus.customer_course_material_revisions_v1)
+ ) mismatch;
+ IF v_bad<>0 THEN RAISE EXCEPTION 'founding manuscript revision difference' USING ERRCODE='23514'; END IF;
+
+ SELECT count(*) INTO v_bad FROM (
+  (SELECT unit_id,course_id,create_request_id,kind,title,display_position,
+    created_by_auth_user_id,created_at
+   FROM titus.customer_course_units_v1
+   EXCEPT
+   SELECT unit_id,course_id,create_request_id,kind,title,display_position,
+    created_by_auth_user_id,created_at
+   FROM atlas.teaching_course_units)
+  UNION ALL
+  (SELECT unit_id,course_id,create_request_id,kind,title,display_position,
+    created_by_auth_user_id,created_at
+   FROM atlas.teaching_course_units
+   EXCEPT
+   SELECT unit_id,course_id,create_request_id,kind,title,display_position,
+    created_by_auth_user_id,created_at
+   FROM titus.customer_course_units_v1)
+ ) mismatch;
+ IF v_bad<>0 THEN RAISE EXCEPTION 'Unit original difference' USING ERRCODE='23514'; END IF;
+
+ SELECT count(*) INTO v_bad FROM (
+  (SELECT revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
+    body_text,recorded_by_auth_user_id,recorded_at
+   FROM titus.customer_course_unit_revisions_v1
+   EXCEPT
+   SELECT revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
+    body_text,recorded_by_auth_user_id,recorded_at
+   FROM atlas.teaching_course_unit_revisions)
+  UNION ALL
+  (SELECT revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
+    body_text,recorded_by_auth_user_id,recorded_at
+   FROM atlas.teaching_course_unit_revisions
+   EXCEPT
+   SELECT revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
+    body_text,recorded_by_auth_user_id,recorded_at
+   FROM titus.customer_course_unit_revisions_v1)
+ ) mismatch;
+ IF v_bad<>0 THEN RAISE EXCEPTION 'Unit revision history difference' USING ERRCODE='23514'; END IF;
+END
+$compare$;
