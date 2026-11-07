@@ -108,6 +108,14 @@ def main():
     check(sql(db,"SELECT count(*) FROM atlas.principal_ledger_authorities WHERE "
       "ledger_id="+lit(VENUE)+"::uuid AND status='active' AND authority_kind='root_governing'")=="1",
       "Distinct Venue governing Principal not established by fictional source")
+    check(sql(db,"SELECT count(*) FROM atlas.growing_objects WHERE "
+      "farm_id='e5200000-0000-4000-8000-000000000b01'::uuid "
+      "AND id IN ("+lit(BED)+"::uuid,"+lit(OTHER_BED)+"::uuid)")=="2",
+      "The two distinct synthetic Bed identities are not present")
+    check(sql(db,"SELECT count(*) FROM atlas.work_items WHERE "
+      "id="+lit(WRONG_WORK)+"::uuid "
+      "AND stable_key='clone-flower-original-work-901'")=="1",
+      "Wrong-Ledger Work must actually exist for a meaningful negative test")
 
     base.setup_auth(db)
     actors={}
@@ -140,6 +148,12 @@ def main():
           "Source action replay must be idempotent")
     check(sql(db,"SELECT use_state FROM atlas.venue_bed_shared_use_authorizations_v1 "
        "WHERE id="+lit(offer)+"::uuid")=="offered","Offer must not grant use by itself")
+    conflict_code,conflict_body=user_rpc(
+        api,key,owner,"offer",offer_args(bed=OTHER_BED,action="venue-offer-a"))
+    check(conflict_code==409 and isinstance(conflict_body,dict)
+          and conflict_body.get("code")=="23505",
+          "An existing action ID must not be replayed against a different Bed")
+    print("PASS source-action idempotence cannot be laundered across Beds")
 
     refused(api,key,owner,"accept",accept_args(offer),
             "Flower root cannot accept as a Venue root")
@@ -199,13 +213,29 @@ def main():
        "New grant must not overwrite former grant historical receipt")
     print("PASS distinct grant can lawfully reapprove the same existing original Work")
 
-    # End the Venue Seat: a still-valid GoTrue JWT cannot conjure native Seat.
+    # Either governing source is permitted to withdraw; use a genuine signed
+    # Venue actor for this second independent direction.
+    accepted(api,key,venue,"withdraw",{"p_use_id":new_offer},expect="bool")
+    check(sql(db,"SELECT use_state FROM atlas.venue_bed_shared_use_authorizations_v1 "
+      "WHERE id="+lit(new_offer)+"::uuid")=="withdrawn",
+      "Venue root withdrawal did not end its own approved Bed-use")
+    refused(api,key,venue,"link",link_args(new_offer,action="after-venue-withdraw"),
+            "Venue withdrawal immediately blocks later references")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_work_references_v1 "
+      "WHERE id="+lit(fresh)+"::uuid")=="1",
+      "Venue withdrawal must preserve historical approved reference")
+    print("PASS independent signed Venue withdrawal and historical custody")
+
+    # A third valid current grant isolates Seat-ending proof from withdrawal.
+    active_offer=accepted(api,key,owner,"offer",offer_args(action="venue-offer-c"))
+    accepted(api,key,venue,"accept",accept_args(active_offer))
+    # End Venue Seat: an already signed GoTrue JWT cannot replace native Seat.
     sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() WHERE "
        "ledger_id="+lit(VENUE)+"::uuid AND person_entity_id="+lit(VENUE_PERSON)+"::uuid")
-    refused(api,key,venue,"withdraw",{"p_use_id":new_offer},
+    refused(api,key,venue,"withdraw",{"p_use_id":active_offer},
             "Ended native Venue Seat prevents a valid-session root operation")
     # Flower can still withdraw despite Venue's Seat ending.
-    accepted(api,key,owner,"withdraw",{"p_use_id":new_offer},expect="bool")
+    accepted(api,key,owner,"withdraw",{"p_use_id":active_offer},expect="bool")
 
     # End Flower's actual GoTrue session: reusing its SAME old JWT must be
     # refused by reality_access_self_api_v1(), not by HTTP token expiry.
