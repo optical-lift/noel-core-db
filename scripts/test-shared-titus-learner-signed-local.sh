@@ -30,13 +30,27 @@ unset DATABASE_URL NOEL_CORE_DATABASE_URL SUPABASE_DB_URL
 unset SUPABASE_ACCESS_TOKEN SUPABASE_SERVICE_ROLE_KEY SUPABASE_PROJECT_ID
 cd "$scratch"
 supabase init --force >/dev/null
-cat >>supabase/config.toml <<'TOML'
-
-[auth.oauth_server]
-enabled = true
-authorization_url_path = "/oauth/consent"
-allow_dynamic_registration = false
-TOML
+# The pinned Supabase CLI may already generate [auth.oauth_server].
+# Update its one section in place; never append a duplicate TOML table.
+python3 - <<'PY'
+from pathlib import Path
+import re
+path=Path("supabase/config.toml")
+src=path.read_text()
+target="[auth.oauth_server]"
+settings=('enabled = true','authorization_url_path = "/oauth/consent"')
+if target in src:
+    before,after=src.split(target,1)
+    next_section=re.search(r"(?m)^\\[[^\\n]+\\]",after)
+    section=after[:next_section.start()] if next_section else after
+    tail=after[next_section.start():] if next_section else ""
+    section=re.sub(r"(?m)^\\s*(?:enabled|authorization_url_path|allow_dynamic_registration)\\s*=.*(?:\\n|$)","",section)
+    src=before+target+"\\n"+"\\n".join(settings)+"\\n"+section+tail
+else:
+    src=src.rstrip()+"\\n\\n"+target+"\\n"+"\\n".join(settings)+"\\n"
+path.write_text(src)
+assert src.count(target)==1
+PY
 # Supabase CLI's own local Auth and PostgREST: no production/remote link.
 supabase start -x realtime,storage-api,imgproxy >/dev/null
 db_url='postgresql://postgres:postgres@127.0.0.1:54322/postgres'
