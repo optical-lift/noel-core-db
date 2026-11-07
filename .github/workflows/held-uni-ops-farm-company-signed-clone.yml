@@ -83,7 +83,7 @@ jobs:
       - name: Checkout exact held signed-test sources without protected credentials
         uses: actions/checkout@v4
         with:
-          ref: 274800943b23a706806cb5c01dc47b9674bfce34
+          ref: 399ec950d1a8a0c395e6f28dfc2fc887883ba50c
           path: signed
           persist-credentials: false
 
@@ -98,9 +98,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'be422db401b1f37190fe1fb2ee765b8c625d6399'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = '1d0fef102fc978b31f993f25544986261e9e99e8'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = '3baef432c0131e1fa168506ae5f494c3f9bd707d'
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '8a5b9be48b386afcfee5accb6f132b90ad609406'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_bed_context_disposable_fixture.sql)" = 'b7943cc5c2fecc2a637df97826112119cff63cd3'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '9c56d9913b636be6cf0f75c1be3f74a871232791'
           test "$(git -C receipt_transport hash-object candidates/uni_ops_universal_company_decision_v1/07_company_case_receipt_public_transport_DEFAULT_CLOSED_held.sql)" = '714d7e34265ef883dd939b22ad7cdd701ad917dc'
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py
@@ -120,7 +121,15 @@ jobs:
                             r'^\s*INSERT\s+INTO\s+atlas\.farm_crop_ledger_custody_v1',
                             r'^\s*GRANT\s+EXECUTE'):
               assert not re.search(forbidden,fixture,re.I|re.M),forbidden
-          print('PASS no invented Company source case, decision, custody or grants')
+          physical=Path('signed/candidates/uni_ops_universal_company_decision_v1/tests/farm_bed_context_disposable_fixture.sql').read_text()
+          assert "uni_ops.disposable_clone" in physical
+          assert "fa510000-0000-4000-8000-000000000001" in physical
+          assert "e5200000-0000-4000-8000-000000000b10" in physical
+          for forbidden in (r'(?im)^\s*INSERT\s+INTO\s+atlas\.work_items\b',
+                            r'(?im)^\s*INSERT\s+INTO\s+atlas\.work_allocations\b',
+                            r'(?im)^\s*GRANT\s+EXECUTE\b'):
+              assert not re.search(forbidden,physical),forbidden
+          print('PASS fixed fictional original Work source; no fake active responsibility or rights')
           script=Path('signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py').read_text()
           for required in (
               'def bounded_receipt(token, expected_decision):',
@@ -134,7 +143,10 @@ jobs:
               'rest_denial(owner, rest_body, "revoked native root first session")',
               'GRANT EXECUTE ON FUNCTION',
               'Temporary clone grant widened beyond authenticated',
-              'NO production grant or release approval'
+              'NO production grant or release approval',
+              'self_adopt_existing_company_work_owner_self_api_v1',
+              'establish_work_growing_object_context_self_api_v1',
+              'Revoked signed root still read/wrote original Work/Bed context'
           ):
               assert required in script,required
           wrapper=Path('receipt_transport/candidates/uni_ops_universal_company_decision_v1/07_company_case_receipt_public_transport_DEFAULT_CLOSED_held.sql').read_text()
@@ -188,7 +200,7 @@ jobs:
               raise SystemExit('P3 source head changed')
           if fields['receipt_transport_head']!='a6b9da805f676488ec3be3c55c456ffb72755383':
               raise SystemExit('Held default-closed receipt source changed')
-          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='274800943b23a706806cb5c01dc47b9674bfce34':
+          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='399ec950d1a8a0c395e6f28dfc2fc887883ba50c':
               raise SystemExit('Exact Company and test source changed')
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
               f.write('signed_test_head='+fields['signed_test_head']+'\n')
@@ -232,6 +244,8 @@ jobs:
           test "$receipt_test" = 'open|true|test/uni-ops-company-case-receipt-signed-20261106|fcc7fec11bcec096b451ca3610dc22a74e0f3d6a'
           latest_test="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2589" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
           test "$latest_test" = 'open|true|test/uni-ops-company-known-receipt-rest-local-grant-20261106|274800943b23a706806cb5c01dc47b9674bfce34'
+          bed_test="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2595" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
+          test "$bed_test" = 'open|true|test/uniops-farm-bed-context-real-signed-20261107|399ec950d1a8a0c395e6f28dfc2fc887883ba50c'
           transport="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2588" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
           test "$transport" = 'open|true|candidate/uni-ops-company-case-receipt-readonly-transport-held-20261106|a6b9da805f676488ec3be3c55c456ffb72755383'
           echo 'PASS original and new signed test, Company/P3 and default-closed wrapper draft heads unchanged'
@@ -312,9 +326,10 @@ jobs:
             --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
             --output "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
           test -s "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'be422db401b1f37190fe1fb2ee765b8c625d6399'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = '1d0fef102fc978b31f993f25544986261e9e99e8'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = '3baef432c0131e1fa168506ae5f494c3f9bd707d'
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '8a5b9be48b386afcfee5accb6f132b90ad609406'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_bed_context_disposable_fixture.sql)" = 'b7943cc5c2fecc2a637df97826112119cff63cd3'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '9c56d9913b636be6cf0f75c1be3f74a871232791'
           test "$(git -C c1fixture hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = 'e877d93323ddc67d8778be8bea1dfa34319cc85c'
           test "$(git -C receipt_transport hash-object candidates/uni_ops_universal_company_decision_v1/07_company_case_receipt_public_transport_DEFAULT_CLOSED_held.sql)" = '714d7e34265ef883dd939b22ad7cdd701ad917dc'
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py signed/candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py
@@ -338,6 +353,7 @@ jobs:
           SIGNED_COMPANY_HARVEST_FIXTURE: ${{ github.workspace }}/signed/candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql
           SIGNED_COMPANY_PROBE_SCRIPT: ${{ github.workspace }}/signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py
           SIGNED_COMPANY_TRANSPORT_SQL: ${{ github.workspace }}/receipt_transport/candidates/uni_ops_universal_company_decision_v1/07_company_case_receipt_public_transport_DEFAULT_CLOSED_held.sql
+          SIGNED_COMPANY_WORK_BED_FIXTURE: ${{ github.workspace }}/signed/candidates/uni_ops_universal_company_decision_v1/tests/farm_bed_context_disposable_fixture.sql
         run: |
           set -euo pipefail
           # All raw startup, JWT, schema and SQL diagnostic text remains ephemeral.
@@ -380,6 +396,7 @@ jobs:
               'signed Farm-to-Company original C1 fixture',
               'native nonweekly Harvest generated source witness',
               'default-closed known-case transport installed in disposable clone',
+              'source-guarded fictional Work-to-Bed prerequisites',
               'exact original Harvest Journal manifest',
               'genuine signed Farm-to-Company private source matrix'
           }
