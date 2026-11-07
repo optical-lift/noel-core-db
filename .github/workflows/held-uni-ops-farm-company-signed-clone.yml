@@ -83,7 +83,7 @@ jobs:
       - name: Checkout exact held signed-test sources without protected credentials
         uses: actions/checkout@v4
         with:
-          ref: 4ae96a32b6812bc74b16340174306cf62eea295b
+          ref: fcc7fec11bcec096b451ca3610dc22a74e0f3d6a
           path: signed
           persist-credentials: false
 
@@ -91,7 +91,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'e63b6229e29b37185d759bdc4630e70b5442777a'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = '948157a38f6ae56749fb92b82e4ccb0de724c2c9'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = '3baef432c0131e1fa168506ae5f494c3f9bd707d'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '99bd93e16c3d53284f7e0e4bad44ed83b09b885b'
           python3 -m py_compile signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py
@@ -113,6 +113,18 @@ jobs:
                             r'^\s*GRANT\s+EXECUTE'):
               assert not re.search(forbidden,fixture,re.I|re.M),forbidden
           print('PASS no invented Company source case, decision, custody or grants')
+          script=Path('signed/candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py').read_text()
+          for required in (
+              'def bounded_receipt(token, expected_decision):',
+              'Receipt expanded past reviewed safe fields',
+              'bounded_receipt(owner, None)',
+              'bounded_receipt(owner2, race_winner_event)',
+              'private_signed(db_url, owner2, "receipt",',
+              '"/rest/v1/rpc/" + REST_FUNCS[3]',
+              'zero new Work; NO public REST grants'
+          ):
+              assert required in script,required
+          print('PASS governor-only receipt readback negative/positive/static safe-field assertions')
           PY
 
   validate-protected:
@@ -154,7 +166,7 @@ jobs:
               raise SystemExit('universal source must be an immutable Git commit')
           if fields['p3_head']!='d608391b3374d8113d869a6338dffab299be1b1e':
               raise SystemExit('P3 source head changed')
-          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='4ae96a32b6812bc74b16340174306cf62eea295b':
+          if fields['universal_head']!='fceab782cb87fc8fcd1d595fc8cc51c48e16a31e' or fields['signed_test_head']!='fcc7fec11bcec096b451ca3610dc22a74e0f3d6a':
               raise SystemExit('Exact Company and test source changed')
           with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as f:
               f.write('signed_test_head='+fields['signed_test_head']+'\n')
@@ -191,9 +203,11 @@ jobs:
           p="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2565" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
           test "$u" = "open|true|candidate/uni-ops-universal-decision-boundary-20261106|$EXPECTED_UNIVERSAL"
           test "$p" = "open|true|candidate/uni-ops-p3-result-no-successor-20261106|$EXPECTED_P3"
-          t="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2575" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
-          test "$t" = 'open|true|test/uni-ops-farm-company-signed-acceptance-20261106|4ae96a32b6812bc74b16340174306cf62eea295b'
-          echo 'PASS three draft held sources unchanged'
+          base_test="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2575" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
+          test "$base_test" = 'open|true|test/uni-ops-farm-company-signed-acceptance-20261106|4ae96a32b6812bc74b16340174306cf62eea295b'
+          receipt_test="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2585" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')"
+          test "$receipt_test" = 'open|true|test/uni-ops-company-case-receipt-signed-20261106|fcc7fec11bcec096b451ca3610dc22a74e0f3d6a'
+          echo 'PASS four draft held source/test heads unchanged'
 
       - name: Install pinned schema-clone CLI
         shell: bash
@@ -264,7 +278,7 @@ jobs:
             --main-checkout canonical --p3-checkout p3 --universal-checkout universal \
             --output "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
           test -s "$RUNNER_TEMP/20261106235959_atlas_uni_ops_company_full_schema_TEST_ONLY.sql"
-          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = 'e63b6229e29b37185d759bdc4630e70b5442777a'
+          test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/validate_farm_company_signed_source_clone.py)" = '948157a38f6ae56749fb92b82e4ccb0de724c2c9'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/farm_company_harvest_disposable_fixture.sql)" = '3baef432c0131e1fa168506ae5f494c3f9bd707d'
           test "$(git -C signed hash-object candidates/uni_ops_universal_company_decision_v1/tests/install_farm_company_signed_clone_hook_held.py)" = '99bd93e16c3d53284f7e0e4bad44ed83b09b885b'
           test "$(git -C c1fixture hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = 'e877d93323ddc67d8778be8bea1dfa34319cc85c'
