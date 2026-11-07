@@ -122,6 +122,23 @@ signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
+signed_venue_bed_probe=false
+# Exact Venue/Flower shared-use signed test. No production path: this probe
+# requires the named scratch-only candidate, DML fixture and postconditions.
+# Temporary public transport is permitted only within that disposable clone.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_venue_bed_shared_use_signed_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "Venue Bed signed proof requires a fictional fixture and source postconditions." >&2
+    exit 2
+  fi
+  if [ ! -s "scripts/validate-atlas-venue-bed-signed-http.py" ]; then
+    echo "Venue Bed signed proof requires the immutable held local HTTP test source." >&2
+    exit 2
+  fi
+  signed_venue_bed_probe=true
+fi
+
 # One exact generated mail permission candidate needs true signed Auth+REST.
 if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_communication_person_mail_read_window_v2[.]sql$ ]]; then
@@ -613,7 +630,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
-       [ "$signed_person_mail_probe" = true ]; then
+       [ "$signed_person_mail_probe" = true ] ||
+       [ "$signed_venue_bed_probe" = true ]; then
     # The source-governed signed care/Done test requires only PostgreSQL,
     # local GoTrue, PostgREST and the Kong API gateway. Pulling Studio,
     # analytics, Realtime, storage and auxiliary containers consumed the
@@ -625,7 +643,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
-       [ "$signed_ledger_disposition_v2_probe" = true ]; then
+       [ "$signed_ledger_disposition_v2_probe" = true ] ||
+       [ "$signed_venue_bed_probe" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
     else
       supabase start >"$startup_log" 2>&1
@@ -709,6 +728,16 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$signed_venue_bed_probe" = true ]; then
+  phase="signed local Flower/Venue Bed source, replay, withdrawal and revoked-session matrix"
+  python3 "$repo_root/scripts/validate-atlas-venue-bed-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-venue-bed-summary.txt" \
+    >"$artifacts_dir/signed-venue-bed.log" 2>&1
+  test -s "$artifacts_dir/signed-venue-bed-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-venue-bed-summary.txt"
 fi
 
 if [ "$signed_http_probe" = true ]; then
