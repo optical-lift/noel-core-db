@@ -104,7 +104,7 @@ def oauth_client(api,key,service):
  # The candidate itself is never rewritten for test admission.
  table=db("SELECT coalesce(to_regclass('auth.oauth_clients')::text,'')")
  check(table=="auth.oauth_clients","Local GoTrue OAuth client table not present; no token fabrication fallback")
- check(db(f"UPDATE auth.oauth_clients SET id='{CLIENT}' WHERE id='{generated}' RETURNING id") == CLIENT,
+ check(db(f"WITH rebound AS (UPDATE auth.oauth_clients SET id='{CLIENT}' WHERE id='{generated}' RETURNING id) SELECT id FROM rebound") == CLIENT,
        "Local OAuth client ID could not be bound to exact existing Titus issuer")
  return CLIENT
 def oauth_token(api,key,plain,client_id=CLIENT):
