@@ -411,6 +411,80 @@ def main():
     check(sql(db,"SELECT count(*) FROM atlas.work_execution_results "
       "WHERE work_item_id="+lit(WRONG_WORK)+"::uuid")=="0",
       "Denied native reports may not make durable worker results")
+    # A responsibility allocation is NOT a permission to see the original
+    # physical Subject. The current universal original Work writer rejects
+    # Result/Done until the separate Flower native Ledger governor discloses
+    # BOTH this exact Bed's identity and condition, one source decision each.
+    # First preserve the legitimate signed denial, never fake a grant.
+    st,undisclosed=c1.rpc(api,key,
+       "report_connected_person_company_work_self_api_v1",native_report_args,worker)
+    check(st in (401,403) and isinstance(undisclosed,dict)
+       and undisclosed.get("code")=="42501"
+       and undisclosed.get("message")=="Undisclosed original Work Subject unavailable",
+       "Worker responsibility without Bed disclosure must NOT authorize Done")
+    disclosure_base={
+       "p_organization_id":c1.ORG,"p_ledger_id":FLOWER,
+       "p_target_person_id":"e5200000-0000-4000-8000-000000000102",
+       "p_subject_domain":"spatial","p_subject_kind":"growing_object",
+       "p_subject_id":BED,"p_decision_kind":"grant"
+    }
+    identity_args=dict(disclosure_base,
+       p_disclosure_class="identity",
+       p_source_action_id="e5200000-0000-4000-8000-000000000e01",
+       p_reason="Fictional Flower governor approves ONLY original Bed 3 identity for accepted Person Work")
+    for name,token in (("ordinary worker",worker),
+                       ("unrelated Venue governor",venue),
+                       ("no connected Person",noseat)):
+        st,body=c1.rpc(api,key,
+           "governor_set_subject_disclosure_self_api_v1",identity_args,token)
+        check(st in (401,403) and isinstance(body,dict)
+              and body.get("code")=="42501",
+              "Original Bed disclosure governance must deny "+name)
+    st,identity_grant=c1.rpc(api,key,
+         "governor_set_subject_disclosure_self_api_v1",identity_args,owner)
+    check(st==200 and isinstance(identity_grant,dict)
+       and identity_grant.get("ok") is True
+       and identity_grant.get("currentlyGranted") is True
+       and identity_grant.get("disclosureClass")=="identity"
+       and identity_grant.get("subjectId")==BED,
+       f"Signed Flower governor unable to issue exact Bed identity disclosure: {st}, {str(identity_grant)[:430]}")
+    st,still_private=c1.rpc(api,key,
+       "report_connected_person_company_work_self_api_v1",native_report_args,worker)
+    check(st in (401,403) and isinstance(still_private,dict)
+       and still_private.get("code")=="42501"
+       and still_private.get("message")=="Undisclosed original Work Subject unavailable",
+       "One identity grant must not implicitly disclose Bed condition or license Done")
+    condition_args=dict(disclosure_base,
+       p_disclosure_class="condition",
+       p_source_action_id="e5200000-0000-4000-8000-000000000e02",
+       p_reason="Fictional Flower governor separately approves ONLY original Bed 3 condition for accepted Work")
+    st,condition_grant=c1.rpc(api,key,
+         "governor_set_subject_disclosure_self_api_v1",condition_args,owner)
+    check(st==200 and isinstance(condition_grant,dict)
+       and condition_grant.get("ok") is True
+       and condition_grant.get("currentlyGranted") is True
+       and condition_grant.get("disclosureClass")=="condition"
+       and condition_grant.get("subjectId")==BED,
+       f"Signed Flower governor unable to issue independently bounded Bed condition disclosure: {st}, {str(condition_grant)[:440]}")
+    check(sql(db,"SELECT count(*) FROM atlas.subject_disclosure_decision_events_v1 "
+       "WHERE ledger_id="+lit(FLOWER)+"::uuid "
+       "AND target_person_id='e5200000-0000-4000-8000-000000000102'::uuid "
+       "AND subject_id="+lit(BED)+"::uuid "
+       "AND subject_domain='spatial' AND subject_kind='growing_object' "
+       "AND disclosure_class IN ('identity','condition') "
+       "AND decision_kind='grant'")=="2",
+       "Native governor's independent exact Bed identity/condition decisions missing")
+    st,subject=c1.rpc(api,key,
+       "connected_person_original_work_subject_self_api_v1",{
+         "p_organization_id":c1.ORG,"p_ledger_id":FLOWER,
+         "p_work_item_id":WRONG_WORK,"p_subject_domain":"spatial",
+         "p_subject_kind":"growing_object","p_subject_id":BED},worker)
+    check(st==200 and isinstance(subject,dict)
+       and subject.get("ok") is True
+       and subject.get("subjectId")==BED,
+       f"Current signed Person must have exact bounded original Bed disclosure, not a full-farm grant: {st}, {str(subject)[:440]}")
+    print("PASS independently source-issued Flower Bed identity+condition disclosures; no disclosure by Work assignment alone")
+
     st,report=c1.rpc(api,key,
        "report_connected_person_company_work_self_api_v1",native_report_args,worker)
     check(st==200 and isinstance(report,dict)
@@ -520,6 +594,7 @@ def main():
 
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
+      "PASS signed current-only exact Flower Bed identity and condition disclosure;"
       "PASS signed Person-native original Flower Work offer, acceptance, ordinary Result/Done/replay;"
       " no employee-seat credential or Worker Day dependency;"
       "PASS real signed native Event already-existing Work positive link/replay;"
