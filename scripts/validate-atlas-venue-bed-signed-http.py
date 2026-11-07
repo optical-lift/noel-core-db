@@ -246,6 +246,7 @@ def main():
     baseline_work=int(sql(db,"SELECT count(*) FROM atlas.work_items"))
     baseline_bed=int(sql(db,"SELECT count(*) FROM atlas.growing_objects"))
     baseline_context=int(sql(db,"SELECT count(*) FROM atlas.work_item_context_links"))
+    venue=prove_independent_bed_reference(api,key,db,actors)
     offer=accepted(api,key,owner,"offer",offer_args())
     check(accepted(api,key,owner,"offer",offer_args())==offer,
           "Source action replay must be idempotent")
