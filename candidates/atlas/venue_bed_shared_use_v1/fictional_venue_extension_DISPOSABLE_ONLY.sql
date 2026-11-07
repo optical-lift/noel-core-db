@@ -16,6 +16,55 @@ WHERE NOT EXISTS (
  SELECT 1 FROM personal.atlases a WHERE a.person_entity_id=seed.person_entity_id
 );
 
+-- The immutable C1 base fixture contains signed Persons/Seats, but NO farm,
+-- growing Beds or original Work 901. These are explicit synthetic dependencies
+-- for this Venue proof; never infer they came from production or a real Farm.
+INSERT INTO atlas.farms(
+  id,stable_key,name,organization_id,organization_unit_id,metadata
+) VALUES (
+  'e5200000-0000-4000-8000-000000000b01',
+  'clone-universal-garden','Fictional Flower Test Farm',
+  'e5200000-0000-4000-8000-000000000801',
+  'e5200000-0000-4000-8000-000000000802',
+  '{"fictional":true}'::jsonb
+);
+INSERT INTO atlas.growing_objects(
+  id,farm_id,stable_key,label,object_type,metadata
+) VALUES
+('e5200000-0000-4000-8000-000000000b03',
+ 'e5200000-0000-4000-8000-000000000b01',
+ 'clone-upick-bed-3','Fictional Flower Bed 3','bed',
+ '{"fictional":true,"privateNote":"do-not-disclose"}'::jsonb),
+('e5200000-0000-4000-8000-000000000b04',
+ 'e5200000-0000-4000-8000-000000000b01',
+ 'clone-upick-bed-4','Fictional Flower Bed 4','bed',
+ '{"fictional":true}'::jsonb),
+('e5200000-0000-4000-8000-000000000b05',
+ 'e5200000-0000-4000-8000-000000000b01',
+ 'clone-withheld-bed-5','Fictional Withheld Bed','bed',
+ '{"fictional":true,"sourceOwnerOnly":true}'::jsonb);
+
+-- Existing Flower original Work, deliberately NOT Venue-relevant. This is a
+-- wrong-Ledger negative subject, not a fabricated new Work from Venue link.
+INSERT INTO atlas.work_items(id,organization_id,stable_key,title,work_state)
+VALUES (
+ 'e5200000-0000-4000-8000-000000000901',
+ 'e5200000-0000-4000-8000-000000000801',
+ 'clone-flower-original-work-901',
+ 'Fictional Flower Work on original Bed','open'
+);
+INSERT INTO atlas.company_work_native_ledger_relevance(
+ organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
+ attestation_source_ref,attestation_reason,established_by_person_id
+) VALUES (
+ 'e5200000-0000-4000-8000-000000000801',
+ 'e5200000-0000-4000-8000-000000000901',
+ 'e5200000-0000-4000-8000-000000000401',
+ 'serves_purpose','owner_attested','clone:flower-work-901',
+ 'Existing original Work admitted to Flower only in disposable evidence',
+ 'e5200000-0000-4000-8000-000000000101'
+);
+
 -- Venue is a separate current native Ledger over the existing Organization.
 -- Its independent root is the pre-existing C1 Other-Ledger Person, not Flower's.
 INSERT INTO atlas.ledgers(id,stable_key,name,ledger_kind,status,organization_id)
