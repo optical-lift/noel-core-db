@@ -593,6 +593,11 @@ $no_premature_operation$;
 -- authorize institution use, create an Offering, or invent a second Course.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_published_definition_tests_pg17.sql
 
+-- M3.10: exact author permission for an immutable metadata Version plus
+-- independent governing Ledger may create DRAFT Offering on SAME Course.
+-- No open Offering, student enrollment, Course content read or second Course.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/same_course_offering_draft_tests_pg17.sql
+
 -- M4 private-Course retirement simulation ONLY in fictional PG17.
 -- The source originals were stored in the session-private manifest before M1.
 -- Delete children explicitly, then DROP RESTRICT rather than CASCADE. Verify
