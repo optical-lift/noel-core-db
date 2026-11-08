@@ -57,9 +57,7 @@ BEGIN
   OR NEW.operating_proposal_id IS DISTINCT FROM OLD.operating_proposal_id
   OR NEW.creation_request_id IS DISTINCT FROM OLD.creation_request_id
   OR NEW.created_by_person_entity_id IS DISTINCT FROM OLD.created_by_person_entity_id
-  OR NEW.created_by_person_id IS DISTINCT FROM OLD.created_by_person_id
-  OR NEW.created_by_principal_id IS DISTINCT FROM OLD.created_by_principal_id
-  OR NEW.state IS DISTINCT FROM 'draft'
+   OR NEW.state IS DISTINCT FROM 'draft'
   OR NEW.delivery_mode IS DISTINCT FROM OLD.delivery_mode
   OR NEW.starts_at IS DISTINCT FROM OLD.starts_at
   OR NEW.ends_at IS DISTINCT FROM OLD.ends_at THEN
@@ -235,11 +233,10 @@ BEGIN
 
  INSERT INTO atlas.teaching_course_offerings(
   ledger_id,course_id,course_version_id,state,delivery_mode,starts_at,ends_at,
-  created_by_person_id,created_by_principal_id,
   created_by_person_entity_id,operating_proposal_id,creation_request_id
  ) VALUES(
   s.ledger_id,s.course_id,v_version.id,'draft',v_mode,p_starts_at,p_ends_at,
-  NULL,NULL,v_person,s.id,p_request_id
+  v_person,s.id,p_request_id
  ) RETURNING * INTO v_new;
  RETURN jsonb_build_object(
    'contractVersion','shared_course_offering_draft_v1',
