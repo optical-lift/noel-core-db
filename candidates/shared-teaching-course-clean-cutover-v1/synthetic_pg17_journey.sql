@@ -694,6 +694,29 @@ ROLLBACK TO SAVEPOINT unexpected_course_reader;
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_course_shell_retirement_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_mcmillan_program_retirement_candidate.sql
 
+-- M4.1: formerly institutional Course/Version/Offering/Enrollment writers
+-- must no longer exist. An unexpected dependent view MUST stop the exact
+-- DROP RESTRICT; this fixture proves that before actual source retirement.
+SAVEPOINT old_institutional_rpc_dependent;
+CREATE VIEW public.fictional_unlisted_legacy_teaching_reader_v1 AS
+ SELECT EXISTS(SELECT atlas.create_teaching_course_offering_self_api_v1(
+  NULL::uuid,NULL::uuid,NULL::text,NULL::timestamptz,NULL::timestamptz)) AS dependent;
+SAVEPOINT expected_old_teaching_dependency_block;
+\set ON_ERROR_STOP off
+DROP FUNCTION atlas.create_teaching_course_offering_self_api_v1(
+ uuid,uuid,text,timestamptz,timestamptz) RESTRICT;
+\set old_teaching_dependency_sqlstate :SQLSTATE
+\set ON_ERROR_STOP on
+ROLLBACK TO SAVEPOINT expected_old_teaching_dependency_block;
+SELECT (:'old_teaching_dependency_sqlstate'='2BP01') AS old_api_unknown_dependency_blocked \gset
+\if :old_api_unknown_dependency_blocked
+\else
+ SELECT 1/0 AS old_institutional_api_was_cascaded_or_silently_dropped;
+\endif
+ROLLBACK TO SAVEPOINT old_institutional_rpc_dependent;
+
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_institutional_teaching_api_retirement_candidate.sql
+
 -- Old shared research table STRUCTURES are reusable, but only the retired
 -- program's rows have vanished. Independent lesson/source originals survive.
 DO $full_m4_result$
@@ -709,7 +732,10 @@ BEGIN
     to_regclass('public.titus_course_word_pattern_boards_v1') IS NOT NULL OR
     to_regprocedure('atlas.create_teaching_course_self_api_v1(uuid,text,text)') IS NOT NULL OR
     to_regprocedure('atlas.create_teaching_course_from_activation_self_api_v1(uuid,text,text)') IS NOT NULL OR
-    to_regprocedure('atlas.create_teaching_course_offering_self_api_v1(uuid,uuid,text,timestamptz,timestamptz)') IS NULL OR
+    to_regprocedure('atlas.create_teaching_course_offering_self_api_v1(uuid,uuid,text,timestamptz,timestamptz)') IS NOT NULL OR
+    to_regprocedure('atlas.publish_teaching_course_version_self_api_v1(uuid,text,text,text[])') IS NOT NULL OR
+    to_regprocedure('atlas.enroll_person_in_teaching_offering_self_api_v1(uuid,uuid)') IS NOT NULL OR
+    to_regprocedure('atlas.teaching_courses_admin_self_api_v1(uuid)') IS NOT NULL OR
     EXISTS(SELECT 1 FROM titus.programs) OR
     EXISTS(SELECT 1 FROM titus.curriculum_versions) OR
     EXISTS(SELECT 1 FROM titus.canon_claims) OR
