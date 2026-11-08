@@ -34,8 +34,16 @@ psql_scratch() {
   docker exec "$name" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
     -h /var/run/postgresql "$@"
 }
-identity="$(psql_scratch -Atqc "select current_setting('server_version_num')::int/10000,inet_server_addr() is null,current_user")"
-[[ "$identity" == '17|t|postgres' ]] || { echo 'Unexpected DB target' >&2; exit 3; }
+# postgres:17 image briefly opens an initialization postmaster and shuts it
+# down before the final server starts. pg_isready can catch that transient
+# server, so require successful identity query after initialization completes.
+identity=''
+for i in $(seq 1 25); do
+  identity="$(psql_scratch -Atqc "select current_setting('server_version_num')::int/10000,inet_server_addr() is null,current_user" 2>/dev/null || true)"
+  [[ "$identity" == '17|t|postgres' ]] && break
+  sleep 1
+done
+[[ "$identity" == '17|t|postgres' ]] || { echo 'Stable isolated PG17 target never became ready' >&2; exit 3; }
 echo 'Verified network-isolated, job-owned PG17; only synthetic persons/manuscripts.'
 # The marker is an accidental-misuse guard, not a security substitute for
 # protected runner isolation and the release approval process.
