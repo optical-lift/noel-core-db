@@ -24,6 +24,12 @@ WITH expected(name,found) AS (
  ('Titus private author access self API',to_regprocedure('public.titus_authoring_access_self_api_v1()') IS NOT NULL),
  ('canonical author-signed teacher offer',to_regprocedure('public.shared_teaching_teacher_offer_self_api_v1(uuid,uuid,uuid)') IS NOT NULL),
  ('canonical teacher signed answer',to_regprocedure('public.shared_teaching_teacher_respond_self_api_v1(uuid,uuid,text)') IS NOT NULL),
+ ('source-specific learner invitation author permission',to_regprocedure('public.shared_teaching_learner_invitation_decide_self_api_v1(uuid,uuid,text)') IS NOT NULL),
+ ('exact canonical learner invitation offer',to_regprocedure('public.shared_teaching_learner_offer_self_api_v1(uuid,uuid,uuid)') IS NOT NULL),
+ ('private own learner invitation reader',to_regprocedure('public.shared_teaching_learner_offer_read_self_api_v1(uuid)') IS NOT NULL),
+ ('independent learner consent response',to_regprocedure('public.shared_teaching_learner_respond_self_api_v1(uuid,uuid,text)') IS NOT NULL),
+ ('governor learner invitation withdrawal',to_regprocedure('public.shared_teaching_learner_withdraw_self_api_v1(uuid,uuid)') IS NOT NULL),
+ ('Enrollment closed pending canonical issue',to_regprocedure('atlas.guard_shared_course_enrollment_pending_v1()') IS NOT NULL),
  ('canonical exact governor open source',to_regprocedure('public.shared_teaching_course_offering_open_self_api_v1(uuid,uuid)') IS NOT NULL),
  ('private original Course seal',to_regclass('atlas.teaching_course_version_curriculum_snapshots') IS NOT NULL)
 ), retired(name,present) AS (
