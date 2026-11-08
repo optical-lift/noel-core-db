@@ -178,9 +178,21 @@ def main():
     # Bound diagnostic data to a small fixed enum, without printing the
     # offer UUID, source Subject, private server response or SQL content.
     # Distinguishes a legitimate empty-source hold from a mismatched receipt.
-    if (created.get("offerCreated") is True and
-        created.get("state")=="offered" and
-        created.get("candidateId")==CANDIDATE):
+    # The pinned U2 success receipt has state, offerId, candidateId,
+    # and negative Work/physical flags. It intentionally does NOT return
+    # offerCreated:true; that key is exclusive to the no-candidate result.
+    # See original pinned U2A source lines 452-461, not a later UI adapter.
+    valid_offer=(created.get("contractVersion")=="governed_prework_candidate_offer_v1"
+       and created.get("state")=="offered"
+       and created.get("candidateId")==CANDIDATE
+       and isinstance(created.get("offerId"),str)
+       and bool(re.fullmatch(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}",
+                             created.get("offerId","")))
+       and created.get("replayed") is False
+       and created.get("originalWorkCreated") is False
+       and created.get("responsibilityCreated") is False
+       and created.get("physicalConditionAsserted") is False)
+    if valid_offer:
         selection="exact_source_offered"
     elif (created.get("offerCreated") is False and
           created.get("state")=="no_source_eligible_candidate"):
@@ -190,9 +202,7 @@ def main():
     else:
         selection="unrecognized_receipt"
     print("U2_SOURCE_SELECTION="+selection,flush=True)
-    check(created.get("offerCreated") is True and created.get("state")=="offered"
-          and created.get("candidateId")==CANDIDATE,
-          "Offer must come from one exact current native rhythm source")
+    check(valid_offer, "Only exact pinned U2 source-selected offer receipt is admissible")
     offer=created["offerId"]
     check(sql(a.db_url,f"select count(*) from atlas.work_items where organization_id='{ORG}'::uuid")==str(count_before),
           "Offer itself fabricated an original Work")
