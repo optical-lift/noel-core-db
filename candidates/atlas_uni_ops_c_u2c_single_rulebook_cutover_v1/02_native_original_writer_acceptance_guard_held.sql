@@ -372,3 +372,225 @@ $writer$;
 REVOKE ALL ON FUNCTION atlas.owner_establish_standing_continuing_care_work_self_api_v1(
  uuid,uuid,uuid,uuid,text,date,date,uuid,smallint[]
 ) FROM PUBLIC,anon,authenticated,service_role;
+
+
+-- BEGIN U2C RHYTHM-ORIGINAL CONTEXT GUARD BRIDGE (HELD; NO MIGRATION)
+-- Original installed trigger is preserved; one signed pre-original source
+-- is admitted after the accepted-first U2C writer gate, with exact source
+-- identity, consent, native custody and per-Subject disclosure checked again.
+-- Legacy growing-object task guard below remains text-identical apart from
+-- the one bounded first branch; no public endpoint/ACL or role is added.
+CREATE OR REPLACE FUNCTION atlas.guard_work_growing_object_context_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $body$
+DECLARE
+  v_ledger uuid;
+BEGIN
+  IF NEW.subject_domain<>'spatial'
+     OR NEW.subject_kind<>'growing_object'
+  THEN
+    RETURN NEW;
+  END IF;
+
+
+  -- New narrowly admitted source: one accepted pre-original mowing offer
+  -- may create the canonical rhythm_state -> growing_object Subject link
+  -- inside the SAME signed governor transaction. It is not a general
+  -- capacity, observation, context-disclosure or task creation permission.
+  -- The original legacy-task branch below must remain byte-identical.
+  IF NEW.provenance->>'sourceContract'='continuing_original_work_v1' THEN
+    IF TG_OP<>'INSERT' OR TG_TABLE_SCHEMA<>'atlas'
+       OR TG_TABLE_NAME<>'work_item_context_links'
+       OR NEW.organization_id IS NULL OR NEW.household_id IS NOT NULL
+       OR NEW.relation_kind<>'acts_on'
+       OR NEW.provenance->>'needKind' IS DISTINCT FROM 'rhythm_state'
+       OR NEW.metadata IS DISTINCT FROM '{}'::jsonb
+       OR auth.uid() IS NULL
+       OR atlas.current_principal_id_v1() IS NULL
+       OR coalesce(NEW.metadata->>'confersAccess','false')='true'
+       OR coalesce(NEW.metadata->>'createsWork','false')='true'
+    THEN
+      RAISE EXCEPTION 'Accepted rhythm Work context requires exact signed provenance'
+        USING ERRCODE='42501';
+    END IF;
+
+    -- Verify, rather than assume, the SAME original written by the internal
+    -- continuing source and the SAME accepted response issued before Work.
+    -- The source's ordinary admissibility reader cannot be called AFTER
+    -- inserting Work: its correct duplicate-Work guard would deny itself.
+    -- U2B and U2C verify it immediately BEFORE original creation under
+    -- the original Subject/offer transaction locks.
+    IF NOT EXISTS (
+      SELECT 1
+      FROM atlas.work_items w
+      JOIN atlas.governed_prework_candidate_offers_v1 o
+        ON o.id::text=w.metadata->>'servingKey'
+       AND o.organization_id=w.organization_id
+       AND o.source_candidate_id=w.source_object_id
+       AND o.subject_id=NEW.subject_id
+      JOIN atlas.company_work_standing_assignment_scopes scope
+        ON scope.id=o.accepted_standing_scope_id
+       AND scope.organization_id=o.organization_id
+       AND scope.ledger_id=o.ledger_id
+       AND scope.worker_person_id=o.target_person_id
+      JOIN atlas.rhythm_state rhythm
+        ON rhythm.id=o.source_candidate_id
+       AND rhythm.organization_id=o.organization_id
+       AND rhythm.subject_id=o.subject_id
+       AND rhythm.farm_id=o.farm_id
+       AND rhythm.rhythm_rule_id=o.source_rule_id
+       AND rhythm.rhythm_key='mowing'
+       AND rhythm.state<>'paused'
+      JOIN atlas.growing_objects obj
+        ON obj.id=NEW.subject_id AND obj.farm_id=o.farm_id
+      JOIN atlas.farm_crop_ledger_custody_v1 custody
+        ON custody.farm_id=o.farm_id
+       AND custody.ledger_id=o.ledger_id
+       AND custody.custody_state='active'
+       AND custody.ended_at IS NULL
+      JOIN atlas.ledger_organization_participations lop
+        ON lop.organization_id=o.organization_id
+       AND lop.ledger_id=o.ledger_id
+       AND lop.status='active'
+       AND lop.ended_at IS NULL
+       AND lop.participation_kind='governing'
+       AND lop.is_compatibility_primary=true
+      CROSS JOIN LATERAL (
+        SELECT atlas.resolve_governed_canonical_farm_rule_authority_v1(
+          o.organization_id,o.ledger_id,o.farm_id,
+          o.source_rule_id,o.subject_id) AS truth
+      ) rule
+      WHERE w.id=NEW.work_item_id
+        AND w.organization_id=NEW.organization_id
+        AND w.household_id IS NULL AND w.work_state='open'
+        AND w.created_by_user_id=auth.uid()
+        AND w.source_object_type='rhythm_state'
+        AND w.result_contract_key='continuing_care_actual_v1'
+        AND w.metadata->>'sourceContract'='continuing_original_work_v1'
+        AND w.metadata->>'needKind'='rhythm_state'
+        AND w.metadata->>'needId'=o.source_candidate_id::text
+        AND NEW.provenance=pg_catalog.jsonb_build_object(
+          'needKind','rhythm_state',
+          'needId',o.source_candidate_id,
+          'sourceContract','continuing_original_work_v1')
+        AND o.offer_state='accepted'
+        AND o.original_work_item_id IS NULL
+        AND o.responded_at IS NOT NULL
+        AND o.response_action_id IS NOT NULL
+        AND o.responding_principal_id IS NOT NULL
+        AND (pg_catalog.now() AT TIME ZONE o.timezone_name)::date
+              <=o.first_service_day
+        AND o.offered_by_person_id=
+          atlas.company_work_native_ledger_owner_self_v1(
+            o.organization_id,o.ledger_id)
+        AND scope.proposed_by_person_id=o.offered_by_person_id
+        AND scope.scope_state='active'
+        AND scope.coverage_mode='ledger_all_work'
+        AND scope.worker_membership_id IS NULL
+        AND scope.accepted_by_person_id=o.target_person_id
+        AND scope.accepted_at IS NOT NULL
+        AND (scope.valid_until IS NULL OR scope.valid_until>pg_catalog.now())
+        AND atlas.person_has_native_ledger_connection_v1(
+          o.organization_id,o.ledger_id,o.target_person_id)
+        AND atlas.has_current_subject_disclosure_v1(
+          o.ledger_id,o.target_person_id,'spatial',
+          'growing_object',o.subject_id,'identity')
+        AND atlas.has_current_subject_disclosure_v1(
+          o.ledger_id,o.target_person_id,'spatial',
+          'growing_object',o.subject_id,'condition')
+        AND rule.truth->>'state'='native_source_admitted_for_offer'
+        AND rule.truth->>'candidateOfferAdmissible'='true'
+        AND rule.truth->>'propertyRuleVersionId'=o.property_rule_version_id::text
+        AND rule.truth->>'effectiveRuleVersionId'=o.rule_version_id::text
+    ) THEN
+      RAISE EXCEPTION 'Accepted current native mowing original context not proven'
+        USING ERRCODE='42501';
+    END IF;
+    -- Only the one linked original Subject; no reader authorization,
+    -- physical Actual, allocation or future successor can be inferred.
+    RETURN NEW;
+  END IF;
+
+  -- An established work link does not automatically authorize reading it.
+  -- This source-owned path requires a current exact-Ledger governor and
+  -- separately verified real Work/farm/physical source at every creation.
+  IF auth.uid() IS NULL
+     OR atlas.current_principal_id_v1() IS NULL
+     OR coalesce(NEW.provenance->>'humanConfirmed','false')<>'true'
+     OR coalesce(NEW.provenance->>'reviewedObjectKey','')=''
+     OR coalesce(NEW.provenance->>'reviewedWorkStableKey','')=''
+     OR coalesce(NEW.metadata->>'confersAccess','false')='true'
+     OR coalesce(NEW.metadata->>'createsWork','false')='true'
+  THEN
+    RAISE EXCEPTION 'governed work-context establishment required'
+      USING ERRCODE='42501';
+  END IF;
+
+  BEGIN
+    v_ledger := (NEW.provenance->>'nativeLedgerId')::uuid;
+  EXCEPTION WHEN invalid_text_representation THEN
+    RAISE EXCEPTION 'invalid native Ledger proof'
+      USING ERRCODE='42501';
+  END;
+  IF v_ledger IS NULL
+     OR NOT atlas.principal_has_ledger_authority_v1(
+       atlas.current_principal_id_v1(), v_ledger
+     )
+  THEN
+    RAISE EXCEPTION 'exact Ledger governor required'
+      USING ERRCODE='42501';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM atlas.work_items w
+    JOIN atlas.tasks t
+      ON t.id=w.source_object_id
+     AND w.source_object_type IN ('legacy_task','legacy_task_slice')
+    JOIN atlas.growing_objects g
+      ON g.id=NEW.subject_id
+    JOIN atlas.farms f
+      ON f.id=g.farm_id AND f.id=t.farm_id
+    JOIN atlas.farm_crop_ledger_custody_v1 custody
+      ON custody.farm_id=f.id
+     AND custody.ledger_id=v_ledger
+     AND custody.custody_state='active'
+     AND custody.ended_at IS NULL
+    JOIN atlas.ledger_organization_participations lop
+      ON lop.organization_id=w.organization_id
+     AND lop.organization_id=f.organization_id
+     AND lop.ledger_id=v_ledger
+     AND lop.status='active' AND lop.ended_at IS NULL
+     AND lop.participation_kind IN ('governing','operating')
+    JOIN ledger.ledgers nl
+      ON nl.id=lop.ledger_id
+     AND nl.ledger_state='active' AND nl.retired_at IS NULL
+    WHERE w.id=NEW.work_item_id
+      AND w.organization_id=NEW.organization_id
+      AND f.organization_unit_id=w.organization_unit_id
+      AND t.zone_id=g.zone_id
+      AND g.object_type='bed'
+      AND w.work_state IN ('open','in_progress')
+      AND g.stable_key=NEW.provenance->>'reviewedObjectKey'
+      AND w.stable_key=NEW.provenance->>'reviewedWorkStableKey'
+      AND t.id::text=NEW.provenance->>'originalTaskId'
+      AND EXISTS (
+        SELECT 1 FROM atlas.work_allocations a
+        WHERE a.work_item_id=w.id AND a.state='active'
+      )
+      AND (
+        w.source_object_type<>'legacy_task_slice'
+        OR EXISTS (
+          SELECT 1
+          FROM atlas.company_work_legacy_slice_contract_provenance_v1 src
+          WHERE src.work_item_id=w.id AND src.source_task_id=t.id
+        )
+      )
+  ) THEN
+    RAISE EXCEPTION 'physical Work source and exact Ledger custody unproven'
+      USING ERRCODE='42501';
+  END IF;
+  RETURN NEW;
+END;
+$body$;
+-- END U2C RHYTHM-ORIGINAL CONTEXT GUARD BRIDGE
