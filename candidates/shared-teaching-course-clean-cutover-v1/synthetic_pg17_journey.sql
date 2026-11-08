@@ -584,6 +584,10 @@ $no_premature_operation$;
 -- and Teaching capability. This is a RECEIPT, never Course operation.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/operating_standing_acceptance_tests_pg17.sql
 
+-- M3.8: title-only institutional read requires author-issued disclosure
+-- AND current accepted governing/Teaching authority on the SAME Course ID.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/operating_course_title_disclosure_tests_pg17.sql
+
 -- M4 private-Course retirement simulation ONLY in fictional PG17.
 -- The source originals were stored in the session-private manifest before M1.
 -- Delete children explicitly, then DROP RESTRICT rather than CASCADE. Verify
