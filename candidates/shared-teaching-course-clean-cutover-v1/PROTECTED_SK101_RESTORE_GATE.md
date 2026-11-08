@@ -2,6 +2,12 @@
 
 **Status:** HELD. Source-only plan and test fixtures, not a protected data backup, owner approval, generated migration, live source release or authorization to delete.
 
+## Owner correction: do not confuse the app copy with the complete course
+
+On November 7, the owner clarified that the SK 101 real course is being developed separately and was **never available only through this Titus/Noel database copy**. Therefore this source must not be described as the irreplaceable sole manuscript, and no special *sole-copy* preservation project is necessary merely on that assumption.
+
+The same-ID and byte/history checks below remain valuable **software migration acceptance tests**, not claims about the unique custody of the real course. Work on legacy reader/writer replacement and ordinary schema/FK verification may proceed independently. The earlier specifically chosen **backup-before-deleting 15 obsolete Courses/McMillan Program** is a separate pre-deletion safeguard for deeper program/Formation/research relationships and shared-database integrity. Do not silently cancel that owner-selected condition or the distinct production-release authorization. No production data or schema change is authorized by this clarification.
+
 ## Owner-governing outcome
 
 SK 101's existing `titus.customer_course_drafts_v1.course_id` becomes **the same** `atlas.teaching_courses.id`, never a newly minted second Course. Its founding manuscript, both authored Units (Class and Homework draft), their three saved Unit revisions, exact original revision and request UUIDs, authors, positions, timestamps and UTF-8 body bytes remain unchanged. A draft Homework document is not assigned Work. Titus product access is separately source issued. An institutional proposal does not give the operator access.
