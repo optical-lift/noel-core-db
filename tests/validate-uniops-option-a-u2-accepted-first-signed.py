@@ -339,9 +339,26 @@ def main():
        "Only the original current native root may finalize":"current_root_precondition",
        "Offer identity changed":"exact_offer_identity_guard",
        "Offer unavailable":"offer_absent",
-       "Exact accepted candidate reference required":"missing_exact_offer"
+       "Exact accepted candidate reference required":"missing_exact_offer",
+       # Source-owned U2C accepted-first R01/R02 overlay guards.
+       "An accepted candidate must exist before original Work":"accepted_offer_missing",
+       "Original writer cannot bypass exact worker acceptance":"accepted_offer_identity_mismatch",
+       "Accepted candidate source, custody or capacity is stale":"accepted_offer_stale",
+       "Existing accepted connected-Person Ledger-wide scope required":"native_standing_scope_denied",
+       "The connected Person cannot receive this protected physical Subject":"worker_subject_disclosure_denied",
+       # Source-owned R02 approval/original-custody guards.
+       "Signed exact source opportunity required":"governor_adapter_source_denied",
+       "Household source cannot claim organization authority":"wrong_custody_branch",
+       "Organization source requires exact governed jurisdiction":"original_writer_custody_denied"
     }.get(finalize_message,
           "accepted_receipt" if finalize_ok else "other_refusal")
+    if final_guard=="other_refusal":
+        # PostgreSQL itself may deny an object/row without a source-owned
+        # RAISE. Never print any private object name or exact SQL response.
+        if finalize_message.lower().startswith("permission denied for "):
+            final_guard="sql_object_privilege_denied"
+        elif "row-level security policy" in finalize_message.lower():
+            final_guard="sql_row_policy_denied"
     print("U2_GOVERNOR_FINALIZE_HTTP_CLASS="+final_http,flush=True)
     print("U2_GOVERNOR_FINALIZE_ERROR_CLASS="+(
        "none" if finalize_ok else final_classes.get(finalize_code,"other_or_unspecified")),flush=True)
