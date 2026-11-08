@@ -15,7 +15,11 @@ WITH expected(name,found) AS (
  ('canonical authored Unit revisions',to_regclass('atlas.teaching_course_unit_revisions') IS NOT NULL),
  ('optional institutional operating standing',to_regclass('atlas.teaching_course_operating_standings') IS NOT NULL),
  ('source-issued Person-scoped Titus access',to_regclass('titus.course_authoring_access_grants') IS NOT NULL),
- ('Titus private author access self API',to_regprocedure('public.titus_authoring_access_self_api_v1()') IS NOT NULL)
+ ('Titus private author access self API',to_regprocedure('public.titus_authoring_access_self_api_v1()') IS NOT NULL),
+ ('canonical author-signed teacher offer',to_regprocedure('public.shared_teaching_teacher_offer_self_api_v1(uuid,uuid,uuid)') IS NOT NULL),
+ ('canonical teacher signed answer',to_regprocedure('public.shared_teaching_teacher_respond_self_api_v1(uuid,uuid,text)') IS NOT NULL),
+ ('canonical exact governor open source',to_regprocedure('public.shared_teaching_course_offering_open_self_api_v1(uuid,uuid)') IS NOT NULL),
+ ('private original Course seal',to_regclass('atlas.teaching_course_version_curriculum_snapshots') IS NOT NULL)
 ), retired(name,present) AS (
  VALUES
  ('legacy Titus courses',to_regclass('titus.courses') IS NOT NULL),
@@ -44,7 +48,17 @@ old_rpc AS (
  WHERE (n.nspname='public' AND p.proname LIKE 'titus_customer_%')
     OR (n.nspname='atlas' AND p.proname IN
        ('create_teaching_course_self_api_v1',
-        'create_teaching_course_from_activation_self_api_v1'))
+        'create_teaching_course_from_activation_self_api_v1',
+        'teaching_courses_admin_self_api_v1',
+        'teaching_course_admin_self_api_v1',
+        'retire_teaching_course_self_api_v1',
+        'publish_teaching_course_version_self_api_v1',
+        'create_teaching_course_offering_self_api_v1',
+        'transition_teaching_course_offering_self_api_v1',
+        'teaching_offering_roster_admin_self_api_v1',
+        'enroll_person_in_teaching_offering_self_api_v1',
+        'withdraw_teaching_enrollment_self_api_v1',
+        'teaching_enrollments_for_current_person_self_api_v1'))
     OR (n.nspname='titus' AND p.proname IN
        ('customer_current_auth_user_v1',
         'customer_owned_course_for_units_v1',
