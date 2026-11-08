@@ -318,6 +318,17 @@ def main():
     # The prior protected test reached 26 signed checkpoints, then failed
     # before reporting root finalization. Classify ONLY a finite public
     # source-owned refusal category; never log the private RPC response.
+    # No change to the signed RPC or SQL writers: this timestamps the exact
+    # governor call so its existing disposable PostgreSQL server ERROR/CONTEXT
+    # can be inspected privately, only after a real signed refusal.
+    stack_spec=importlib.util.spec_from_file_location(
+      "uniops_u2_local_stack_evidence",
+      ROOT/"tests"/"uniops_u2_local_stack_evidence.py")
+    check(stack_spec is not None and stack_spec.loader is not None,
+          "Local-only frame observer unavailable")
+    stack_module=importlib.util.module_from_spec(stack_spec)
+    stack_spec.loader.exec_module(stack_module)
+    finalize_probe_started=stack_module.local_probe_started()
     finalize_status,finish=rpc(api,key,owner,final,{"p_offer_id":offer})
     finalize_ok=(finalize_status==200 and isinstance(finish,dict)
                  and finish.get("ok") is True)
@@ -375,6 +386,16 @@ def main():
           a.db_url,finalize_message,sql)
     print("U2_GOVERNOR_FINALIZE_SOURCE_FAMILY="+source_family,flush=True)
     print("U2_GOVERNOR_FINALIZE_GUARD_ORDINAL="+source_ordinal,flush=True)
+    # Static pg_proc literal detection alone is not execution proof.
+    # Read the existing local PostgreSQL Docker ERROR/CONTEXT privately;
+    # emit only finite safe origin-frame/stage categories. Never log raw
+    # error messages, stack frames, source code, Docker metadata or tokens.
+    call_frame,call_stage=("not_applicable","unverified")
+    if not finalize_ok and finalize_code=="42501":
+        call_frame,call_stage=stack_module.inspect_signed_denial_stack(
+          a.db_url,finalize_message,finalize_probe_started,sql)
+    print("U2_GOVERNOR_FINALIZE_CALL_FRAME_EVIDENCE="+call_frame,flush=True)
+    print("U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE="+call_stage,flush=True)
     print("U2_GOVERNOR_FINALIZE_HTTP_CLASS="+final_http,flush=True)
     print("U2_GOVERNOR_FINALIZE_ERROR_CLASS="+(
        "none" if finalize_ok else final_classes.get(finalize_code,"other_or_unspecified")),flush=True)
