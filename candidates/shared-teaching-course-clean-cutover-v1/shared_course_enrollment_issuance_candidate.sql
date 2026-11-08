@@ -287,6 +287,7 @@ BEGIN
   END IF;
   RETURN jsonb_build_object('contractVersion','shared_learner_enrollment_issue_v1',
    'enrollmentId',v_prior.enrollment_id,'offeringId',v_offer.offering_id,
+    'offerId',v_offer.offer_id,
    'learnerPersonEntityId',v_offer.offered_to_person_entity_id,
    'enrollmentState','active','alreadyExists',true,
    'canParticipate',false,'canReadCurriculum',false,'canTeach',false);
@@ -312,6 +313,7 @@ BEGIN
   v_offer.offered_to_person_entity_id,v_governor,p_offer_id,p_request_id,'active');
  RETURN jsonb_build_object('contractVersion','shared_learner_enrollment_issue_v1',
   'enrollmentId',v_created_id,'offeringId',v_offer.offering_id,
+   'offerId',v_offer.offer_id,
   'learnerPersonEntityId',v_offer.offered_to_person_entity_id,
   'enrollmentState','active','alreadyExists',false,
   'canParticipate',false,'canReadCurriculum',false,'canTeach',false);
