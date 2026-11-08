@@ -717,6 +717,14 @@ ROLLBACK TO SAVEPOINT old_institutional_rpc_dependent;
 
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_institutional_teaching_api_retirement_candidate.sql
 
+-- M4.2 requires ALL superseded privileged old APIs absent first, then
+-- proves Person-root, Version and operational Offering columns can lose
+-- obsolete Atlas Principal/Ledger identity WITHOUT dropping the originals.
+-- Never DROP CASCADE. Unknown dependence makes exact clone fail.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_institutional_teaching_columns_retirement_candidate.sql
+
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/final_clone_postconditions.sql
+
 -- Old shared research table STRUCTURES are reusable, but only the retired
 -- program's rows have vanished. Independent lesson/source originals survive.
 DO $full_m4_result$
