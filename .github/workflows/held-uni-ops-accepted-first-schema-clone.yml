@@ -257,6 +257,39 @@ jobs:
                       code=str(issue.get('sqlState','')) if isinstance(issue,dict) else ''
                       label=classes.get(code,'other_or_unspecified')
                       groups[label]=groups.get(label,0)+1
+                  # Resolve a lint function to a public pinned-source ordinal only.
+                  # The original private function name and SQL remain unprinted.
+                  allowed_stages=set(('lifecycle-shadow','lifecycle-single-transition',
+                      'r01-r02-composed-native','u1a-exact-foundry-rulebook',
+                      'u1b-native-scope-history','u2a-preoriginal-offer',
+                      'u2b-signed-root-finalize','u2c-single-authority-arbiter',
+                      'u2c-accepted-only-original-guard',
+                      'u2c-close-old-standing-bypasses',
+                      'u2c-schema-and-acl-postconditions'))
+                  ownership={}
+                  if sql.is_file():
+                      current=None
+                      ordinal=0
+                      for line in sql.read_text(errors='replace').splitlines():
+                          if line.startswith('-- BEGIN PINNED STAGE '):
+                              tokens=line.split()
+                              current=tokens[4] if len(tokens)==6 and tokens[4] in allowed_stages else None
+                              ordinal=0
+                              continue
+                          if line.startswith('-- END PINNED STAGE '):
+                              current=None
+                              continue
+                          if current:
+                              match=re.search(r'(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*)\s*\(',line)
+                              if match:
+                                  ordinal+=1
+                                  ownership[match[1].lower()]=(current,ordinal)
+                  locations=set()
+                  for item in findings:
+                      name=str(item.get('function','')).split('(',1)[0].strip().lower() if isinstance(item,dict) else ''
+                      label,ordinal=ownership.get(name,('outside_or_unmatched',0))
+                      locations.add(label+':'+str(ordinal))
+                  print('UNI_OPS_LINT_SOURCE_LOCATIONS='+(','.join(sorted(locations)) if locations else 'none'))
                   print('UNI_OPS_LINT_DELTA_STATUS='+('introduced_errors' if count else 'no_new_errors'))
                   print('UNI_OPS_LINT_INTRODUCED_COUNT='+str(count))
                   print('UNI_OPS_LINT_ERROR_CLASSES='+
