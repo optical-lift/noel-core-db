@@ -168,7 +168,7 @@ REVOKE ALL ON titus.course_authoring_access_grants FROM PUBLIC,anon,authenticate
 CREATE FUNCTION titus.require_authoring_access_v1()
 RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path TO pg_catalog
-AS $
+AS $access$
 DECLARE v_person uuid;
 BEGIN
  v_person:=atlas.current_person_for_private_course_v1();
@@ -182,7 +182,7 @@ BEGIN
  END IF;
  RETURN v_person;
 END
-$;
+$access$;
 REVOKE ALL ON FUNCTION titus.require_authoring_access_v1()
  FROM PUBLIC,anon,authenticated;
 
@@ -191,7 +191,7 @@ REVOKE ALL ON FUNCTION titus.require_authoring_access_v1()
 CREATE FUNCTION public.titus_authoring_access_self_api_v1()
 RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path TO pg_catalog
-AS $
+AS $self_access$
 DECLARE v_person uuid; v_eligible boolean;
 BEGIN
  v_person:=atlas.current_person_for_private_course_v1();
@@ -203,7 +203,7 @@ BEGIN
  RETURN jsonb_build_object('contractVersion','titus_authoring_access_v1',
   'canUseTitus',v_eligible);
 END
-$;
+$self_access$;
 REVOKE ALL ON FUNCTION public.titus_authoring_access_self_api_v1()
  FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.titus_authoring_access_self_api_v1()
