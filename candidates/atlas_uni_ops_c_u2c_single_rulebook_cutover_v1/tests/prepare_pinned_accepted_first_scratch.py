@@ -89,10 +89,15 @@ def validate_safety(output: Path | None) -> None:
         fail("no service-role credential may be accessible to scratch assembler")
     if output is None:
         return
-    if not output.is_absolute() or not re.search(
-        r"/(?:tmp|var/tmp|private/tmp)/", str(output)
-    ):
-        fail("scratch output must be an absolute OS temp directory path")
+    runner_temp = os.environ.get("RUNNER_TEMP")
+    approved_runner = bool(
+        runner_temp and output.parent.resolve() == Path(runner_temp).resolve()
+    )
+    approved_os_temp = bool(
+        re.search(r"/(?:tmp|var/tmp|private/tmp)/", str(output))
+    )
+    if not output.is_absolute() or not (approved_runner or approved_os_temp):
+        fail("scratch output must be under RUNNER_TEMP or an OS temp directory")
     if "TEST_ONLY" not in output.name or output.suffix != ".sql":
         fail("scratch SQL output basename must declare TEST_ONLY.sql")
     if "supabase/migrations" in str(output) or output.exists():
