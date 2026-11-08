@@ -197,7 +197,8 @@ BEGIN
  v_author:=atlas.current_person_for_private_course_v1();
  IF v_offering.course_id IS DISTINCT FROM v_standing.course_id
  OR v_offering.ledger_id IS DISTINCT FROM v_standing.ledger_id
- OR v_offering.state<>'draft'
+ OR v_offering.state NOT IN ('draft','open')
+ OR (p_decision='allow_open_offering' AND v_offering.state<>'draft')
  OR v_standing.proposal_state<>'proposed'
  OR v_standing.operator_acceptance_state<>'accepted' THEN
   RAISE EXCEPTION 'current accepted draft Offering required'
