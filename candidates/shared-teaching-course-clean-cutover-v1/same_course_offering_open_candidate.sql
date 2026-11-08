@@ -96,8 +96,6 @@ BEGIN
  OR NEW.operating_proposal_id IS DISTINCT FROM OLD.operating_proposal_id
  OR NEW.creation_request_id IS DISTINCT FROM OLD.creation_request_id
  OR NEW.created_by_person_entity_id IS DISTINCT FROM OLD.created_by_person_entity_id
- OR NEW.created_by_person_id IS DISTINCT FROM OLD.created_by_person_id
- OR NEW.created_by_principal_id IS DISTINCT FROM OLD.created_by_principal_id
  OR NEW.delivery_mode IS DISTINCT FROM OLD.delivery_mode
  OR NEW.starts_at IS DISTINCT FROM OLD.starts_at
  OR NEW.ends_at IS DISTINCT FROM OLD.ends_at
