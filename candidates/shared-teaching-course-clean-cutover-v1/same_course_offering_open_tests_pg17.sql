@@ -385,6 +385,34 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'immutable source opening issuance was deleted'; END IF;
 END $same_one_course_open_no_students$;
 
+-- An old institution-first Offering with no operating proposal cannot
+-- acquire canonical Person-Course standing by an UPDATE of new columns.
+DO $legacy_offering_reparent_refused$
+DECLARE v_legacy uuid;denied boolean:=false;
+BEGIN
+ INSERT INTO atlas.teaching_course_offerings(
+  ledger_id,course_id,course_version_id,state,delivery_mode,
+  created_by_person_id,created_by_principal_id)
+ VALUES(
+  '77777777-7777-4777-8777-777777777777',
+  '11111111-1111-4111-8111-111111111111',
+  current_setting('app.fictional_published_version_id')::uuid,
+  'draft','cohort',
+  (SELECT id FROM atlas.people ORDER BY id LIMIT 1),
+  (SELECT id FROM atlas.principals ORDER BY id LIMIT 1))
+ RETURNING id INTO v_legacy;
+ BEGIN
+  UPDATE atlas.teaching_course_offerings
+   SET operating_proposal_id='e5555555-5555-4555-8555-555555555555'
+   WHERE id=v_legacy;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN
+  RAISE EXCEPTION 'old unshared Offering acquired new Person Course standing';
+ END IF;
+ DELETE FROM atlas.teaching_course_offerings WHERE id=v_legacy;
+END $legacy_offering_reparent_refused$;
+
 -- After source opening, author withholds author permission: persisted state
 -- is a historical issued fact, NOT ongoing ability to enroll/teach.
 SET LOCAL ROLE authenticated;
