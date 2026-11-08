@@ -231,7 +231,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
-          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 5a3878ce9c9b7f280a13c544e1a4cdd1c511b113
+          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 305467040b47d1c9ea49d1514a91b34617434669
           test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
           python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh
@@ -371,7 +371,7 @@ jobs:
                   # Only finite labels: local private RPC response stays private.
                   final_http_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_HTTP_CLASS=(ok|bad_request|unauthorized|forbidden|not_found|conflict|server_failure|other_status)$',actor_text)
                   final_error_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_ERROR_CLASS=(none|source_permission|source_constraint|source_conflict|source_argument|missing_function|missing_relation|missing_column|other_or_unspecified)$',actor_text)
-                  final_guard_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_SOURCE_GUARD=(accepted_receipt|worker_acceptance_precondition|current_source_precondition|native_original_writer_contract|allocation_plan_contract|current_root_precondition|exact_offer_identity_guard|offer_absent|missing_exact_offer|other_refusal)$',actor_text)
+                  final_guard_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_SOURCE_GUARD=(accepted_receipt|worker_acceptance_precondition|current_source_precondition|native_original_writer_contract|allocation_plan_contract|current_root_precondition|exact_offer_identity_guard|offer_absent|missing_exact_offer|accepted_offer_missing|accepted_offer_identity_mismatch|accepted_offer_stale|native_standing_scope_denied|worker_subject_disclosure_denied|governor_adapter_source_denied|wrong_custody_branch|original_writer_custody_denied|sql_object_privilege_denied|sql_row_policy_denied|other_refusal)$',actor_text)
                   final_http=final_http_hits[-1] if final_http_hits else 'not_reached'
                   final_error=final_error_hits[-1] if final_error_hits else 'not_reached'
                   final_guard=final_guard_hits[-1] if final_guard_hits else 'not_reached'
