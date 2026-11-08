@@ -1,0 +1,351 @@
+name: HELD UNI-OPS Option A accepted-first U2 genuine signed local clone (test only)
+on:
+  issues:
+    types: [edited, reopened]
+permissions:
+  contents: read
+  packages: read
+  issues: read
+concurrency:
+  group: held-uni-ops-option-a-u2-signed-accepted-first
+  cancel-in-progress: false
+jobs:
+  validate-protected:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.number == 2626
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 55
+    steps:
+      - name: Authorize exact held test scope, never release
+        shell: bash
+        env:
+          OWNER_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          pairs={}
+          expected={
+              'diagnostic_scope':'uni_ops_a_u2_signed_disposable_schema_v1',
+              'source_choice':'a_full_current_completion_plus_history',
+              'signed_contract':'u1b_u2_mowing_accepted_first_v1',
+              'production_target':'zirqkouammpwxlqfbsvf',
+              'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1'}
+          for line in os.environ.get('OWNER_BODY','').splitlines():
+              match=re.fullmatch(r'([a-z_]+):\s*([a-z0-9_]+)\s*',line)
+              if match and match[1] in expected:
+                  if match[1] in pairs:raise SystemExit("Duplicate owner source selector")
+                  pairs[match[1]]=match[2]
+          if pairs!=expected:raise SystemExit("Unrecognized immutable owner test selection")
+          print("PASS owner-selected option A complete + historical cancel; disposable test only")
+          PY
+      - name: Checkout existing main custody and zero-cost signed schema clone harness
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: canonical
+          persist-credentials: false
+      - name: Verify trusted Noel migration custody
+        shell: bash
+        working-directory: canonical
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          import json
+          d=json.load(open('custody/production-baseline-v1.json'))
+          assert d['inheritedHistory']['migrationCount']==2022
+          assert d['inheritedHistory']['throughVersion']=='20260825203448'
+          print("PASS frozen inherited migration baseline; no history replays")
+          PY
+      - name: Install SHA256-pinned existing Supabase CLI 2.116.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/supabase-2.116.0.tar.gz"
+          curl -fLsS --proto '=https' --tlsv1.2 --max-time 240 \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_2.116.0_linux_amd64.tar.gz \
+            -o "$archive"
+          echo "5b3031cb297d51b25be4c284e4c852254460ec722ec221d3b81b07d55acfd158  $archive" | sha256sum -c --status
+          tar -xzf "$archive" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -1)" = 2.116.0
+          command -v psql
+          docker info >/dev/null
+      - name: Authorize read-only GHCR image pulls
+        shell: bash
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin >/dev/null
+      - name: READ-ONLY snapshot exact production schema and roles, no data
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$NOEL_CORE_DATABASE_URL" || {
+            echo 'BLOCKED existing protected read-only schema credential unavailable'
+            exit 1
+          }
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only --file "$RUNNER_TEMP/uniops-snapshot-roles.sql" >/dev/null
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/uniops-snapshot-schema.sql" >/dev/null
+          test -s "$RUNNER_TEMP/uniops-snapshot-roles.sql"
+          test -s "$RUNNER_TEMP/uniops-snapshot-schema.sql"
+          echo 'PASS existing production schema-only read; no table rows or mutations'
+      - name: Pin six separate held revisions and one exact Noel assembler
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          pin_root="$(mktemp -d "$RUNNER_TEMP/uniops-full-clone.XXXXXXXX")"
+          echo "UNI_OPS_PIN_ROOT=$pin_root" >> "$GITHUB_ENV"
+          git init -q "$pin_root/repo"
+          git -C "$pin_root/repo" remote add origin https://github.com/optical-lift/noel-core-db.git
+          while read -r label sha; do
+            test -n "$label" && [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+            git -C "$pin_root/repo" -c credential.helper= fetch -q --depth=1 --no-tags origin "$sha"
+            test "$(git -C "$pin_root/repo" rev-parse FETCH_HEAD)" = "$sha"
+            git -C "$pin_root/repo" worktree add --quiet --detach "$pin_root/$label" "$sha"
+            test "$(git -C "$pin_root/$label" rev-parse HEAD)" = "$sha"
+          done <<'PINNED'
+          lifecycle ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          r02 d48cd444fd261fd5f8c91655b789e50730c1b9f7
+          u1a f9c372d3487ea6af4d29a4ee3b22579b9d94c5ae
+          u1b 18be5996faaa0f7a0def1d07c262f53b39e73605
+          u2 2be045d7fa51b83416a57c76b1a5508e815b8445
+          u2c 1fd28856ff8d3fd99997fc0ae1fcf8714407a407
+          harness 5d28e2584736b8dd9cab928a34a6d5dc39ba38c1
+          c1fixture 9af4ab9b203877f048af09e23bac58bf86cd58fe
+          PINNED
+          path="candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py"
+          test "$(git -C "$pin_root/harness" hash-object "$path")" = f3a2de3a345d63cb51feba6f848ccb9a4ab74bb0
+          test "$(git -C canonical hash-object scripts/prepare-uni-ops-a-full-history-clone-only.py)" = 286a5ca2a3f779053da88d8ec7a77d32c8eedc6e
+          python3 -m py_compile canonical/scripts/prepare-uni-ops-a-full-history-clone-only.py
+          test "$(git -C "$pin_root/c1fixture" hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = e877d93323ddc67d8778be8bea1dfa34319cc85c
+          echo 'PASS exact pinned source revisions, fictional C1 baseline and option A test-only assembler'
+      - name: Assemble exactly 18 original-and-historical SQL stages, scratch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          script="canonical/scripts/prepare-uni-ops-a-full-history-clone-only.py"
+          scratch="$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
+          python3 "$script" \
+            --harness "$UNI_OPS_PIN_ROOT/harness" \
+            --lifecycle "$UNI_OPS_PIN_ROOT/lifecycle" \
+            --r02 "$UNI_OPS_PIN_ROOT/r02" \
+            --u1a "$UNI_OPS_PIN_ROOT/u1a" \
+            --u1b "$UNI_OPS_PIN_ROOT/u1b" \
+            --u2 "$UNI_OPS_PIN_ROOT/u2" \
+            --u2c "$UNI_OPS_PIN_ROOT/u2c" \
+            --output "$scratch" > "$RUNNER_TEMP/uniops-manifest.json"
+          python3 - "$RUNNER_TEMP/uniops-manifest.json" "$scratch" <<'PY'
+          import hashlib,json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d['kind']=='UNI_OPS_A_FULL_HISTORY_DISPOSABLE_ONLY' and d['success'] is True
+          assert d['stage_count']==18 and len(d['stages'])==18
+          assert len({x['stage'] for x in d['stages']})==18
+          assert sum(x['stage'].startswith('history-') for x in d['stages'])==7
+          assert all(x['ref'] and x['blob'] and x['sha256'] for x in d['stages'])
+          assert hashlib.sha256(open(sys.argv[2],'rb').read()).hexdigest()==d['scratch_file_sha256']
+          print('PASS 11 immutable originals plus seven exact historical #2368 sources; disposable only')
+          PY
+          cp "$scratch" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
+      - name: Attach exact genuine signed U2 test to a disposable local validator COPY
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
+          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = d3f99de0aab77df26ef3b50523de5f66d6f6f4bb
+          test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
+          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
+          python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh
+          bash -n canonical/scripts/validate-production-schema-clone.sh
+          echo 'PASS only disposable local validator-copy U1B/U2 true GoTrue test hook installed; production validator unchanged'
+      - name: Run canonical authentic-schema disposable clone, no release
+        id: integration
+        shell: bash
+        working-directory: canonical
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/uniops-private-diagnostics"
+          if bash scripts/validate-production-schema-clone.sh \
+            --migration-version 20261107211000 \
+            --release-lane atlas \
+            --candidate-migration "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" \
+            --candidate-fixture "$UNI_OPS_PIN_ROOT/c1fixture/validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql" \
+            --roles-dump "$RUNNER_TEMP/uniops-snapshot-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/uniops-snapshot-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/uniops-private-diagnostics" \
+            > "$RUNNER_TEMP/uniops-private-clone.log" 2>&1; then
+              test -s "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
+              grep -q '^PASS genuine separate signed local' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
+              echo 'PASS 18 option A source stages, canonical one original after independent signed worker U2 consent'
+              echo 'HOLD integrated U1A overlap, historical cancel and post-Result 6A remain separate gates'
+          else
+              echo 'HELD authentic-schema clone SQL test; diagnostic classification follows'
+              exit 1
+          fi
+      - name: Report only bounded failure class and source stage
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/uniops-private-diagnostics" \
+            "$RUNNER_TEMP/uniops-private-clone.log" \
+            "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" <<'PY'
+          import json,pathlib,re,sys
+          root=pathlib.Path(sys.argv[1]); summary=pathlib.Path(sys.argv[2])
+          candidate=root/'candidate-migration.log'
+          sql=pathlib.Path(sys.argv[3])
+          class_map={'42P01':'missing_relation','42703':'missing_column','42883':'missing_function',
+           '42710':'duplicate_object','42P07':'duplicate_relation','42601':'syntax',
+           '42501':'privilege','23505':'uniqueness','23514':'check_constraint','3F000':'missing_schema'}
+          stage='not_reached'; category='not_classified'
+          if candidate.is_file() and sql.is_file():
+              err=candidate.read_text(errors='replace')
+              # Standard psql errors omit SQLSTATE; match the first error line
+              # independently of whether VERBOSITY includes a five-character code.
+              m=re.search(r'(?m)^psql:[^:\n]+:(\d+):\s*(?:ERROR|FATAL):\s*(?:([A-Z0-9]{5}):\s*)?',err)
+              if m:
+                  if m[2]:
+                      category=class_map.get(m[2],'other_sqlstate')
+                  else:
+                      # Read only a private error line. Emit a fixed category,
+                      # never the statement, relation name, or error message.
+                      detail=err[m.end():].splitlines()[0].lower()
+                      patterns=(
+                          ('missing_schema',r'\bschema\b.*\bdoes not exist\b'),
+                          ('missing_relation',r'\brelation\b.*\bdoes not exist\b'),
+                          ('missing_column',r'\bcolumn\b.*\bdoes not exist\b'),
+                          ('missing_function',r'\bfunction\b.*\bdoes not exist\b'),
+                          ('syntax',r'\bsyntax error\b'),
+                          ('privilege',r'\bpermission denied\b'),
+                          ('uniqueness',r'\bduplicate key\b'),
+                          ('check_constraint',r'\bcheck constraint\b'),
+                          ('duplicate_object',r'\balready exists\b'))
+                      category=next((name for name,pattern in patterns if re.search(pattern,detail)),
+                                    'unclassified_sql_error')
+                  for i,line in enumerate(sql.read_text(errors='replace').splitlines(),1):
+                      marker=re.match(r'^-- BEGIN PINNED STAGE ([a-z0-9-]+) blob:[0-9a-f]{40}$',line)
+                      if marker:stage=marker[1]
+                      if i>=int(m[1]):break
+          log=summary.read_text(errors='replace') if summary.is_file() else ''
+          report=root/'summary.md'
+          report_text=report.read_text(errors='replace') if report.is_file() else ''
+          allowed=('release-lane custody check','validation fixture safety check',
+                   'schema dump sanitation','disposable database startup',
+                   'production custom-role restore','production user-schema restore',
+                   'baseline domain schema lint','candidate validation fixture application',
+                   'candidate migration application','candidate migration postconditions',
+                   'candidate domain schema lint','candidate lint delta comparison','local database advisors')
+          phase=next((x for x in allowed
+                     if ('Validation command exited during ' + chr(96)+x+chr(96)) in report_text
+                     or ('**FAILED during '+x+'.**') in report_text),'not_reported')
+          print('UNI_OPS_FIRST_SOURCE='+stage)
+          print('UNI_OPS_SQL_ERROR_CLASS='+category)
+          print('UNI_OPS_LOCAL_PHASE='+phase)
+          # Report only fixed aggregate categories; private function names,
+          # SQL, identity, relation names and raw lint messages stay local.
+          delta=root/'schema-lint-delta.json'
+          if not delta.is_file():
+              print('UNI_OPS_LINT_DELTA_STATUS=report_absent')
+          else:
+              try:
+                  payload=json.loads(delta.read_text(errors='replace'))
+                  findings=payload['introduced']
+                  count=payload['introduced_count']
+                  if not isinstance(findings,list) or not isinstance(count,int) or count!=len(findings):
+                      raise ValueError('invalid counts')
+                  groups={}
+                  classes={'42883':'missing_function','42703':'missing_column',
+                           '42P01':'missing_relation','3F000':'missing_schema',
+                           '42601':'syntax','42501':'privilege','42702':'ambiguous_column',
+                           '23514':'check_constraint'}
+                  for entry in findings:
+                      issue=entry.get('issue',{}) if isinstance(entry,dict) else {}
+                      code=str(issue.get('sqlState','')) if isinstance(issue,dict) else ''
+                      label=classes.get(code,'other_or_unspecified')
+                      groups[label]=groups.get(label,0)+1
+                  # Resolve a lint function to a public pinned-source ordinal only.
+                  # The original private function name and SQL remain unprinted.
+                  allowed_stages=set(('lifecycle-shadow','lifecycle-single-transition',
+                      'history-record-and-rls','history-governor-readback',
+                      'history-review-postconditions','history-public-transport',
+                      'history-retirement-bridge','history-retirement-preflight',
+                      'history-retirement-postconditions',
+                      'r01-r02-composed-native','u1a-exact-foundry-rulebook',
+                      'u1b-native-scope-history','u2a-preoriginal-offer',
+                      'u2b-signed-root-finalize','u2c-single-authority-arbiter',
+                      'u2c-accepted-only-original-guard',
+                      'u2c-close-old-standing-bypasses',
+                      'u2c-schema-and-acl-postconditions'))
+                  ownership={}
+                  if sql.is_file():
+                      current=None
+                      ordinal=0
+                      for line in sql.read_text(errors='replace').splitlines():
+                          if line.startswith('-- BEGIN PINNED STAGE '):
+                              tokens=line.split()
+                              current=tokens[4] if len(tokens)==6 and tokens[4] in allowed_stages else None
+                              ordinal=0
+                              continue
+                          if line.startswith('-- END PINNED STAGE '):
+                              current=None
+                              continue
+                          if current:
+                              match=re.search(r'(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*)\s*\(',line)
+                              if match:
+                                  ordinal+=1
+                                  ownership[match[1].lower()]=(current,ordinal)
+                  locations=set()
+                  for item in findings:
+                      name=str(item.get('function','')).split('(',1)[0].strip().lower() if isinstance(item,dict) else ''
+                      label,ordinal=ownership.get(name,('outside_or_unmatched',0))
+                      locations.add(label+':'+str(ordinal))
+                  print('UNI_OPS_LINT_SOURCE_LOCATIONS='+(','.join(sorted(locations)) if locations else 'none'))
+                  print('UNI_OPS_LINT_DELTA_STATUS='+('introduced_errors' if count else 'no_new_errors'))
+                  print('UNI_OPS_LINT_INTRODUCED_COUNT='+str(count))
+                  print('UNI_OPS_LINT_ERROR_CLASSES='+
+                        (','.join(k+':'+str(groups[k]) for k in sorted(groups)) if groups else 'none'))
+              except (OSError,ValueError,KeyError,TypeError,AttributeError):
+                  print('UNI_OPS_LINT_DELTA_STATUS=unreadable_report')
+          signed=root/'uniops-u2-signed-summary.txt'
+          print('UNI_OPS_SIGNED_U2_ACCEPTED_FIRST='+('PASS' if signed.is_file() and signed.read_text(errors='replace').startswith('PASS genuine separate signed local') else 'NOT_VERIFIED'))
+          print('UNI_OPS_SIGNED_HISTORY_CANCEL=NOT_RUN')
+          print('UNI_OPS_SIGNED_FULL_U1A_OVERLAP=NOT_RUN')
+          print('UNI_OPS_SIGNED_POST_RESULT_6A=NOT_RUN')
+          print('UNI_OPS_PRODUCTION_MUTATION=NONE')
+          print('UNI_OPS_PAID_BRANCH=NONE')
+          PY
+      - name: Delete private test-only schema, role snapshot, source and logs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- "$RUNNER_TEMP/uniops-snapshot-schema.sql" "$RUNNER_TEMP/uniops-snapshot-roles.sql"
+          rm -f -- "$RUNNER_TEMP/uniops-private-clone.log" "$RUNNER_TEMP/uniops-manifest.json"
+          rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
+          rm -f -- "$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
+          case "${UNI_OPS_PIN_ROOT:-}" in
+            "$RUNNER_TEMP"/uniops-full-clone.*) rm -rf -- "$UNI_OPS_PIN_ROOT" ;;
+          esac
+          if [[ -d "$RUNNER_TEMP/uniops-private-diagnostics" && ! -L "$RUNNER_TEMP/uniops-private-diagnostics" ]]; then
+            rm -rf -- "$RUNNER_TEMP/uniops-private-diagnostics"
+          fi
+          echo 'PASS no schema dump, role dump or diagnostic artifact retained/uploaded'
