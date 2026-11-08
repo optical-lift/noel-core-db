@@ -603,6 +603,11 @@ $no_premature_operation$;
 -- snapshot. This NEVER becomes an implicit institution or learner read.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_course_curriculum_snapshot_tests_pg17.sql
 
+-- M3.12: a sealed curriculum still requires a DIFFERENT, revocable,
+-- current author release for one accepted operating Ledger and Version.
+-- Institution governor read never grants teacher/learner or Offering opening.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/person_course_curriculum_disclosure_tests_pg17.sql
+
 -- M4 private-Course retirement simulation ONLY in fictional PG17.
 -- The source originals were stored in the session-private manifest before M1.
 -- Delete children explicitly, then DROP RESTRICT rather than CASCADE. Verify
