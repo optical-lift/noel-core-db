@@ -29,7 +29,21 @@ WITH expected(name,found) AS (
  ('private own learner invitation reader',to_regprocedure('public.shared_teaching_learner_offer_read_self_api_v1(uuid)') IS NOT NULL),
  ('independent learner consent response',to_regprocedure('public.shared_teaching_learner_respond_self_api_v1(uuid,uuid,text)') IS NOT NULL),
  ('governor learner invitation withdrawal',to_regprocedure('public.shared_teaching_learner_withdraw_self_api_v1(uuid,uuid)') IS NOT NULL),
- ('Enrollment closed pending canonical issue',to_regprocedure('atlas.guard_shared_course_enrollment_pending_v1()') IS NOT NULL),
+ ('original Enrollment carrier retained',to_regclass('atlas.teaching_enrollments') IS NOT NULL),
+ ('source-issued Enrollment gate still active',to_regprocedure('atlas.guard_shared_course_enrollment_pending_v1()') IS NOT NULL),
+ ('separate signed original author Enrollment permission',to_regprocedure('public.shared_teaching_learner_enrollment_decide_self_api_v1(uuid,uuid,text)') IS NOT NULL),
+ ('current governed canonical Enrollment issuance',to_regprocedure('public.shared_teaching_learner_enrollment_issue_self_api_v1(uuid,uuid)') IS NOT NULL),
+ ('private immutable original Enrollment issuance receipts',to_regclass('atlas.shared_course_enrollment_issuances') IS NOT NULL),
+ ('private immutable author Enrollment scope',to_regclass('atlas.shared_course_learner_enrollment_author_decisions') IS NOT NULL),
+ ('canonical Reality learner identity on SAME original Enrollment',EXISTS(
+   SELECT 1 FROM pg_attribute a WHERE a.attrelid=to_regclass('atlas.teaching_enrollments')
+   AND a.attname='person_entity_id' AND a.attnum>0 AND NOT a.attisdropped)),
+ ('canonical original Enrollment provenance constraint',EXISTS(
+   SELECT 1 FROM pg_constraint c WHERE c.conrelid=to_regclass('atlas.teaching_enrollments')
+   AND c.conname='shared_course_enrollment_provenance_v1' AND c.contype='c')),
+ ('original Enrollment source trigger retained',EXISTS(
+   SELECT 1 FROM pg_trigger t WHERE t.tgrelid=to_regclass('atlas.teaching_enrollments')
+   AND t.tgname='shared_course_enrollment_pending_v1' AND NOT t.tgisinternal)),
  ('canonical exact governor open source',to_regprocedure('public.shared_teaching_course_offering_open_self_api_v1(uuid,uuid)') IS NOT NULL),
  ('private original Course seal',to_regclass('atlas.teaching_course_version_curriculum_snapshots') IS NOT NULL)
 ), retired(name,present) AS (
