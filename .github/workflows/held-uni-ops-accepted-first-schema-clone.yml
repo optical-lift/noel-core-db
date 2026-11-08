@@ -36,7 +36,7 @@ jobs:
               'production_target':'zirqkouammpwxlqfbsvf',
               'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1'}
           for line in os.environ.get('OWNER_BODY','').splitlines():
-              match=re.fullmatch(r'([a-z_]+):\\s*([a-z0-9_]+)\\s*',line)
+              match=re.fullmatch(r'([a-z_]+):\s*([a-z0-9_]+)\s*',line)
               if match and match[1] in expected:
                   if match[1] in pairs:raise SystemExit("Duplicate owner source selector")
                   pairs[match[1]]=match[2]
