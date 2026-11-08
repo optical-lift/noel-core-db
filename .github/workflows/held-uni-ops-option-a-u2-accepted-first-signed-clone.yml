@@ -50,7 +50,7 @@ jobs:
                       "offer_next_governed_prework_candidate_self_api_v1",
                       "respond_governed_prework_candidate_self_api_v1",
                       "finalize_accepted_governed_prework_self_api_v1",
-                      "originalWorkCreatedNow", "nextOriginalNotPrecreated",
+                      "originalWorkCreatedNow", "nextOriginalNotPrecreated", "U2_SOURCE_SELECTION",
                       "work_execution_results", "work_result_acceptances"):
               assert tok in p,tok
           assert "SET uniops.disposable_signed" in fixture
@@ -229,7 +229,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
-          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = d3f99de0aab77df26ef3b50523de5f66d6f6f4bb
+          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 43806e4dac0476f57759fdb3751207f31d1d96ea
           test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
           python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh
@@ -348,6 +348,8 @@ jobs:
                   checks=sum(1 for line in actor_text.splitlines()
                              if re.match(r'^PASS(?:\s|$)',line))
                   checks=min(checks,99)
+                  choices=re.findall(r'(?m)^U2_SOURCE_SELECTION=(exact_source_offered|no_eligible_source|unexpected_offered_source|unrecognized_receipt)$',actor_text)
+                  selection=choices[-1] if choices else 'not_reached'
                   if 'AssertionError' in actor_text:
                       failure_class='python_assertion'
                   elif 'Traceback (most recent call last)' in actor_text:
@@ -356,6 +358,7 @@ jobs:
                       failure_class='other_actor_failure'
               elif fixturelog.is_file():
                   subphase='fictional_source_fixture'
+                  selection='not_reached'
                   checks=0
                   fixture_text=fixturelog.read_text(errors='replace')[-150000:].lower()
                   categories=(('foreign_key',r'foreign key constraint'),
@@ -371,9 +374,11 @@ jobs:
                      if re.search(pat,fixture_text)),'other_fixture_failure')
               else:
                   subphase='before_fictional_fixture'
+                  selection='not_reached'
                   checks=0
                   failure_class='pre_fixture'
               print('UNI_OPS_SIGNED_U2_SUBPHASE='+subphase)
+              print('UNI_OPS_SIGNED_U2_SOURCE_SELECTION='+selection)
               print('UNI_OPS_SIGNED_U2_PASS_CHECKPOINTS='+str(checks))
               print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
           # Report only fixed aggregate categories; private function names,

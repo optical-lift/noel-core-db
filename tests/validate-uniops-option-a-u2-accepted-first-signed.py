@@ -175,6 +175,21 @@ def main():
 
     created=allow(api,key,owner,offer_name,first_params,
                   "native root offers one source-selected mowing candidate")
+    # Bound diagnostic data to a small fixed enum, without printing the
+    # offer UUID, source Subject, private server response or SQL content.
+    # Distinguishes a legitimate empty-source hold from a mismatched receipt.
+    if (created.get("offerCreated") is True and
+        created.get("state")=="offered" and
+        created.get("candidateId")==CANDIDATE):
+        selection="exact_source_offered"
+    elif (created.get("offerCreated") is False and
+          created.get("state")=="no_source_eligible_candidate"):
+        selection="no_eligible_source"
+    elif created.get("state")=="offered":
+        selection="unexpected_offered_source"
+    else:
+        selection="unrecognized_receipt"
+    print("U2_SOURCE_SELECTION="+selection,flush=True)
     check(created.get("offerCreated") is True and created.get("state")=="offered"
           and created.get("candidateId")==CANDIDATE,
           "Offer must come from one exact current native rhythm source")
