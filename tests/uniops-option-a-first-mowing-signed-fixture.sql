@@ -2,6 +2,7 @@
 -- Tested after exact 18-source local clone application. This is first-party
 -- observational source data for a clearly fictional area, NOT a simulated
 -- signed root policy decision or worker acceptance.
+SET uniops.disposable_signed = 'true';
 DO $guard$
 BEGIN
   IF current_database()<>'postgres'
