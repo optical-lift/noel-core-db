@@ -297,14 +297,20 @@ BEGIN
    (outl->'units'->1->>'unitId')::uuid IS DISTINCT FROM new_unit THEN
   RAISE EXCEPTION 'bounded ordered Unit move broke unique positions';
  END IF;
+END
+$authoring$;
+RESET ROLE;
+-- Cross-original byte comparison runs as scratch postgres, not as a client.
+-- Author client access to this table must remain denied.
+DO $source_integrity$
+BEGIN
  IF NOT EXISTS(SELECT 1 FROM atlas.teaching_course_manuscript_revisions
    WHERE course_id='11111111-1111-4111-8111-111111111111'
    AND revision_number=1 AND body_text=E'Teaching source\n\nObservation: א\n') THEN
   RAISE EXCEPTION 'new edit overwrote original founding manuscript';
  END IF;
 END
-$authoring$;
-RESET ROLE;
+$source_integrity$;
 
 -- Other current People, withdrawn actors and anonymous requests cannot read
 -- the author's Course/Unit originals, even if they know the immutable UUIDs.
