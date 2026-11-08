@@ -315,8 +315,40 @@ def main():
          "worker cannot finalize Work as governing root")
     deny(api,key,outsider,final,{"p_offer_id":offer},
          "outsider cannot finalize accepted Work")
-    finish=allow(api,key,owner,final,{"p_offer_id":offer},
-                 "governor creates exact one original after worker accepts")
+    # The prior protected test reached 26 signed checkpoints, then failed
+    # before reporting root finalization. Classify ONLY a finite public
+    # source-owned refusal category; never log the private RPC response.
+    finalize_status,finish=rpc(api,key,owner,final,{"p_offer_id":offer})
+    finalize_ok=(finalize_status==200 and isinstance(finish,dict)
+                 and finish.get("ok") is True)
+    finalize_code=(str(finish.get("code","")) if isinstance(finish,dict) else "")
+    finalize_message=(str(finish.get("message","")) if isinstance(finish,dict) else "")
+    final_http={200:"ok",400:"bad_request",401:"unauthorized",403:"forbidden",
+                404:"not_found",409:"conflict"}.get(finalize_status,
+                "server_failure" if isinstance(finalize_status,int) and finalize_status>=500
+                else "other_status")
+    final_classes={"42501":"source_permission","23514":"source_constraint",
+                   "23505":"source_conflict","22023":"source_argument",
+                   "42883":"missing_function","42P01":"missing_relation",
+                   "42703":"missing_column"}
+    final_guard={
+       "Worker must independently accept before original Work":"worker_acceptance_precondition",
+       "Current policy, native Person, workday, capacity or source changed":"current_source_precondition",
+       "Original writer did not create exactly one new source Work":"native_original_writer_contract",
+       "Canonical original, allocation and chosen Person day did not agree":"allocation_plan_contract",
+       "Only the original current native root may finalize":"current_root_precondition",
+       "Offer identity changed":"exact_offer_identity_guard",
+       "Offer unavailable":"offer_absent",
+       "Exact accepted candidate reference required":"missing_exact_offer"
+    }.get(finalize_message,
+          "accepted_receipt" if finalize_ok else "other_refusal")
+    print("U2_GOVERNOR_FINALIZE_HTTP_CLASS="+final_http,flush=True)
+    print("U2_GOVERNOR_FINALIZE_ERROR_CLASS="+(
+       "none" if finalize_ok else final_classes.get(finalize_code,"other_or_unspecified")),flush=True)
+    print("U2_GOVERNOR_FINALIZE_SOURCE_GUARD="+final_guard,flush=True)
+    check(finalize_ok,
+          "Governing root did not finalize one original through source-owned RPC")
+    print("PASS governor creates exact one original after worker accepts",flush=True)
     new_work=finish.get("workItemId")
     check(new_work and finish.get("originalWorkCreatedNow") is True
           and finish.get("workerAcceptedFirst") is True
