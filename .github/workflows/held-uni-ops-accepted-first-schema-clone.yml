@@ -230,7 +230,7 @@ jobs:
                    'candidate migration application','candidate migration postconditions',
                    'candidate domain schema lint','candidate lint delta comparison','local database advisors')
           phase=next((x for x in allowed
-                     if ('Validation command exited during ' + chr(96)+x+chr(96)) in log
+                     if ('Validation command exited during ' + chr(96)+x+chr(96)) in report_text
                      or ('**FAILED during '+x+'.**') in report_text),'not_reported')
           print('UNI_OPS_FIRST_SOURCE='+stage)
           print('UNI_OPS_SQL_ERROR_CLASS='+category)
