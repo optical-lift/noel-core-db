@@ -64,7 +64,7 @@ STAGES = (
 )
 
 def git_blob(data: bytes) -> str:
-    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\\0" + data).hexdigest()
+    return hashlib.sha1(b"blob " + str(len(data)).encode("ascii") + b"\0" + data).hexdigest()
 
 def fail(message: str) -> None:
     raise SystemExit("HELD UNI-OPS source pin rejected: " + message)
@@ -111,7 +111,7 @@ def prepare(roots: dict[str, Path]) -> tuple[list[dict[str, str]], list[str]]:
         actual = git_blob(data)
         if actual != expected_blob:
             fail(name + ": exact Git source blob differs from reviewed source")
-        if len(data) < 350 or b"CREATE " not in data and name != "u2c-schema-and-acl-postconditions":
+        if len(data) < 350 or (b"CREATE " not in data and name not in (\n            "u2c-schema-and-acl-postconditions", "u2c-close-old-standing-bypasses"\n        )):
             fail(name + ": unexpectedly incomplete source")
         if name == "u2c-single-authority-arbiter":
             for required in (b"v_u1a_disputed", b"candidateOfferAdmissible",
@@ -132,9 +132,9 @@ def prepare(roots: dict[str, Path]) -> tuple[list[dict[str, str]], list[str]]:
             "blob": actual, "sha256": hashlib.sha256(data).hexdigest(),
         })
         sql.extend([
-            "-- BEGIN PINNED STAGE " + name + " blob:" + actual + "\\n",
-            data.decode("utf-8").rstrip() + "\\n",
-            "-- END PINNED STAGE " + name + "\\n\\n",
+            "-- BEGIN PINNED STAGE " + name + " blob:" + actual + "\n",
+            data.decode("utf-8").rstrip() + "\n",
+            "-- END PINNED STAGE " + name + "\n\n",
         ])
     return receipts, sql
 
@@ -161,8 +161,8 @@ def main() -> int:
     }
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        payload = ("-- TEST ONLY: no source authority, no production migration.\\n"
-                   "-- Actual PG17/GoTrue acceptance must be a SEPARATE protected test.\\n\\n"
+        payload = ("-- TEST ONLY: no source authority, no production migration.\n"
+                   "-- Actual PG17/GoTrue acceptance must be a SEPARATE protected test.\n\n"
                    + "".join(sql)).encode("utf-8")
         with args.output.open("xb") as f:
             f.write(payload)
