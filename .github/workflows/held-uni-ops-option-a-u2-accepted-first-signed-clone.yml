@@ -2,6 +2,12 @@ name: HELD UNI-OPS Option A accepted-first U2 genuine signed local clone (test o
 on:
   issues:
     types: [edited, reopened]
+  pull_request:
+    paths:
+      - '.github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml'
+      - 'tests/uniops-option-a-first-mowing-signed-fixture.sql'
+      - 'tests/validate-uniops-option-a-u2-accepted-first-signed.py'
+      - 'tests/install-uniops-u2-first-original-signed-hook.py'
 permissions:
   contents: read
   packages: read
@@ -10,6 +16,50 @@ concurrency:
   group: held-uni-ops-option-a-u2-signed-accepted-first
   cancel-in-progress: false
 jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile and audit exact disposable-only signed fixture and runner contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml")'
+          python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/install-uniops-u2-first-original-signed-hook.py
+          python3 - <<'PY'
+          from pathlib import Path
+          workflow=Path(".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml").read_text()
+          p=Path("tests/validate-uniops-option-a-u2-accepted-first-signed.py").read_text()
+          fixture=Path("tests/uniops-option-a-first-mowing-signed-fixture.sql").read_text()
+          hook=Path("tests/install-uniops-u2-first-original-signed-hook.py").read_text()
+          assert workflow.count("github.actor == github.repository_owner")==1
+          assert "github.event.issue.number == 2626" in workflow
+          assert "source_choice':'a_full_current_completion_plus_history'" in workflow
+          assert "signed_contract':'u1b_u2_mowing_accepted_first_v1'" in workflow
+          assert "NOEL_CORE_DATABASE_URL" in workflow and "supabase db dump" in workflow
+          assert not any(needle in workflow for needle in ("supabase db push","apply_migration","CREATE ROLE "))
+          for tok in ("c1.sign_in", "auth.sessions", "governor_set_subject_disclosure_self_api_v1",
+                      "propose_native_ledger_standing_scope_owner_self_api_v1",
+                      "respond_native_ledger_standing_scope_self_api_v1",
+                      "adopt_governed_farm_rulebook_scope_self_api_v1",
+                      "offer_next_governed_prework_candidate_self_api_v1",
+                      "respond_governed_prework_candidate_self_api_v1",
+                      "finalize_accepted_governed_prework_self_api_v1",
+                      "originalWorkCreatedNow", "nextOriginalNotPrecreated",
+                      "work_execution_results", "work_result_acceptances"):
+              assert tok in p,tok
+          assert "SET uniops.disposable_signed" in fixture
+          assert "CREATE TABLE" not in fixture
+          assert "INSERT INTO atlas.governed_prework_candidate_offers_v1" not in fixture
+          assert "INSERT INTO atlas.work_items" not in fixture
+          assert "signed_accepted_first_probe" in hook
+          assert "39f526cd8671f0aadbaab61c66dfc4971ef52131" in hook
+          print("PASS source-only true-signed U2 bounded runner/fixture contract; NOT runtime acceptance")
+          PY
   validate-protected:
     if: >-
       github.event_name == 'issues' &&
