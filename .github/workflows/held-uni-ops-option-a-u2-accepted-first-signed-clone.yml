@@ -244,7 +244,7 @@ jobs:
           set -euo pipefail
           test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
           test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 8fcaedc6623c4d9e01dee85facd56364561aa96e
-          test "$(git -C canonical hash-object tests/uniops_u2_local_stack_evidence.py)" = 271c89af108661c9fe7cbd5c44dcb283a86f89fb
+          test "$(git -C canonical hash-object tests/uniops_u2_local_stack_evidence.py)" = 9e79cf36cec2db349802aa58f4ce83c87b2e50e5
           test "$(git -C canonical hash-object tests/uniops_u2_namefree_guard_owner.py)" = 79bb547611ebec962bd4e5624af709e87b0675e2
           test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/uniops_u2_namefree_guard_owner.py canonical/tests/uniops_u2_local_stack_evidence.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
