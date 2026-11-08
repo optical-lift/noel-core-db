@@ -477,6 +477,14 @@ BEGIN
  EXCEPTION WHEN insufficient_privilege THEN denied:=true;
  END;
  IF NOT denied THEN RAISE EXCEPTION 'withdrawn teacher appointment still active'; END IF;
+ denied:=false;
+ BEGIN
+   PERFORM public.shared_teaching_teacher_sealed_unit_read_self_api_v1(
+     current_setting('app.teacher_accept_offer_id')::uuid,
+     current_setting('app.m316_unit_id')::uuid);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'withdrawn teacher kept a sealed Unit reader'; END IF;
 END $withdrawn_teacher_cannot_claim_appointment$;
 RESET ROLE;
 
