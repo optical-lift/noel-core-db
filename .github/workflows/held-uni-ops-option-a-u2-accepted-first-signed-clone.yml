@@ -243,10 +243,11 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
-          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 7991ee1254329ef235c78cc80f02f49758f303ac
+          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 8fcaedc6623c4d9e01dee85facd56364561aa96e
+          test "$(git -C canonical hash-object tests/uniops_u2_local_stack_evidence.py)" = 271c89af108661c9fe7cbd5c44dcb283a86f89fb
           test "$(git -C canonical hash-object tests/uniops_u2_namefree_guard_owner.py)" = 79bb547611ebec962bd4e5624af709e87b0675e2
           test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
-          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/uniops_u2_namefree_guard_owner.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
+          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/uniops_u2_namefree_guard_owner.py canonical/tests/uniops_u2_local_stack_evidence.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
           python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh
           bash -n canonical/scripts/validate-production-schema-clone.sh
           echo 'PASS only disposable local validator-copy U1B/U2 true GoTrue test hook installed; production validator unchanged'
@@ -388,6 +389,13 @@ jobs:
                   final_http=final_http_hits[-1] if final_http_hits else 'not_reached'
                   final_error=final_error_hits[-1] if final_error_hits else 'not_reached'
                   final_guard=final_guard_hits[-1] if final_guard_hits else 'not_reached'
+                  # Report finite actor categories only; private PG frames stay local.
+                  frames=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_CALL_FRAME_EVIDENCE=(raise_frame_match|call_path_match|different_origin|unobservable|not_applicable)$',actor_text)
+                  stages=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE=(u2b_finalizer|r02_adapter|r01_writer|canonical_original|native_allocation|native_governor|accepted_first_guard|inherited_or_other|unverified)$',actor_text)
+                  call_frame=frames[-1] if frames else 'not_reached'
+                  call_stage=stages[-1] if stages else 'not_reached'
+                  if ((call_frame in ('not_applicable','unobservable','different_origin') and call_stage!='unverified') or (call_frame in ('raise_frame_match','call_path_match') and call_stage in ('unverified','not_reached')) or ((call_frame=='not_reached')!=(call_stage=='not_reached'))):
+                      call_frame=call_stage='not_reached'
                   family_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_SOURCE_FAMILY=(not_applicable|atlas_source|public_transport|ledger_source|reality_source|auth_source|unmapped|ambiguous|catalog_error)$',actor_text)
                   ordinal_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_GUARD_ORDINAL=([0-9]{4})$',actor_text)
                   final_family=family_hits[-1] if family_hits else 'not_reached'
@@ -412,6 +420,7 @@ jobs:
                   worker_guard='not_reached'
                   final_http=final_error=final_guard='not_reached'
                   final_family=final_ordinal='not_reached'
+                  call_frame=call_stage='not_reached'
                   selection='not_reached'
                   checks=0
                   fixture_text=fixturelog.read_text(errors='replace')[-150000:].lower()
@@ -438,6 +447,7 @@ jobs:
                   worker_guard='not_reached'
                   final_http=final_error=final_guard='not_reached'
                   final_family=final_ordinal='not_reached'
+                  call_frame=call_stage='not_reached'
                   selection='not_reached'
                   checks=0
                   failure_class='pre_fixture'
@@ -456,6 +466,8 @@ jobs:
               print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_SOURCE_GUARD='+final_guard)
               print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_SOURCE_FAMILY='+final_family)
               print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_GUARD_ORDINAL='+final_ordinal)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_CALL_FRAME_EVIDENCE='+call_frame)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE='+call_stage)
               print('UNI_OPS_SIGNED_U2_PASS_CHECKPOINTS='+str(checks))
               print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
           # Report only fixed aggregate categories; private function names,
