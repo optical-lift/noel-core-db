@@ -11,6 +11,8 @@ on:
       - 'tests/test_uniops_u2_namefree_guard_owner.py'
       - 'tests/uniops_u2_local_stack_evidence.py'
       - 'tests/test_uniops_u2_local_stack_evidence.py'
+      - 'tests/prepare_reviewed_uniops_u2c_context_scratch.py'
+      - 'tests/test_prepare_reviewed_uniops_u2c_context_scratch.py'
       - 'tests/install-uniops-u2-first-original-signed-hook.py'
 permissions:
   contents: read
@@ -33,9 +35,10 @@ jobs:
         run: |
           set -euo pipefail
           ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml")'
-          python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/uniops_u2_namefree_guard_owner.py tests/test_uniops_u2_namefree_guard_owner.py tests/uniops_u2_local_stack_evidence.py tests/test_uniops_u2_local_stack_evidence.py tests/install-uniops-u2-first-original-signed-hook.py
+          python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/uniops_u2_namefree_guard_owner.py tests/test_uniops_u2_namefree_guard_owner.py tests/uniops_u2_local_stack_evidence.py tests/test_uniops_u2_local_stack_evidence.py tests/prepare_reviewed_uniops_u2c_context_scratch.py tests/test_prepare_reviewed_uniops_u2c_context_scratch.py tests/install-uniops-u2-first-original-signed-hook.py
           python3 -m unittest discover -s tests -p 'test_uniops_u2_namefree_guard_owner.py' -v
           python3 -m unittest discover -s tests -p 'test_uniops_u2_local_stack_evidence.py' -v
+          python3 -m unittest discover -s tests -p 'test_prepare_reviewed_uniops_u2c_context_scratch.py' -v
           python3 - <<'PY'
           from pathlib import Path
           workflow=Path(".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml").read_text()
@@ -71,6 +74,8 @@ jobs:
           assert "U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE" in p
           assert "tests/uniops_u2_namefree_guard_owner.py" in workflow
           assert "tests/test_uniops_u2_namefree_guard_owner.py" in workflow
+          assert "source_review" in workflow and "u2c_context_guard_two_blobs_v1" in workflow
+          assert "prepare_reviewed_uniops_u2c_context_scratch.py" in workflow
           assert "signed_accepted_first_probe" in hook
           assert "39f526cd8671f0aadbaab61c66dfc4971ef52131" in hook
           print("PASS source-only true-signed U2 bounded runner/fixture contract; NOT runtime acceptance")
@@ -100,6 +105,7 @@ jobs:
               'diagnostic_scope':'uni_ops_a_u2_signed_disposable_schema_v1',
               'source_choice':'a_full_current_completion_plus_history',
               'signed_contract':'u1b_u2_mowing_accepted_first_v1',
+              'source_review':'u2c_context_guard_two_blobs_v1',
               'production_target':'zirqkouammpwxlqfbsvf',
               'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1'}
           for line in os.environ.get('OWNER_BODY','').splitlines():
@@ -185,7 +191,7 @@ jobs:
           # No widening of source pins, network credentials or feature code.
           while read -r label sha; do
             test -n "$label" && [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
-            [[ "$label" =~ ^(lifecycle|r02|u1a|u1b|u2|u2c|harness|c1fixture)$ ]]
+            [[ "$label" =~ ^(lifecycle|r02|u1a|u1b|u2|u2c|u2c_review|harness|c1fixture)$ ]]
             root="$pin_root/$label"
             test ! -e "$root"
             git init -q "$root"
@@ -201,13 +207,17 @@ jobs:
           u1b 18be5996faaa0f7a0def1d07c262f53b39e73605
           u2 2be045d7fa51b83416a57c76b1a5508e815b8445
           u2c 1fd28856ff8d3fd99997fc0ae1fcf8714407a407
+          u2c_review aa117383d693d33dbfe12bdc46fd6c7ae64a7911
           harness 5d28e2584736b8dd9cab928a34a6d5dc39ba38c1
           c1fixture 9af4ab9b203877f048af09e23bac58bf86cd58fe
           PINNED
           path="candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py"
           test "$(git -C "$pin_root/harness" hash-object "$path")" = f3a2de3a345d63cb51feba6f848ccb9a4ab74bb0
           test "$(git -C canonical hash-object scripts/prepare-uni-ops-a-full-history-clone-only.py)" = 286a5ca2a3f779053da88d8ec7a77d32c8eedc6e
-          python3 -m py_compile canonical/scripts/prepare-uni-ops-a-full-history-clone-only.py
+          test "$(git -C "$pin_root/u2c_review" hash-object candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/02_native_original_writer_acceptance_guard_held.sql)" = e07cacd0c5035f05a4017de651cd615a97b2f0f6
+          test "$(git -C "$pin_root/u2c_review" hash-object candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/04_postconditions_held.sql)" = 6ac485dc5d11038d8d0d8df5536174791418f046
+          test "$(git -C canonical hash-object tests/prepare_reviewed_uniops_u2c_context_scratch.py)" = 53b1fbee6a4f6156e71215504bda0fb0c5f2d997
+          python3 -m py_compile canonical/scripts/prepare-uni-ops-a-full-history-clone-only.py canonical/tests/prepare_reviewed_uniops_u2c_context_scratch.py
           test "$(git -C "$pin_root/c1fixture" hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = e877d93323ddc67d8778be8bea1dfa34319cc85c
           echo 'PASS exact pinned source revisions, fictional C1 baseline and option A test-only assembler'
       - name: Assemble exactly 18 original-and-historical SQL stages, scratch only
@@ -237,7 +247,37 @@ jobs:
           assert hashlib.sha256(open(sys.argv[2],'rb').read()).hexdigest()==d['scratch_file_sha256']
           print('PASS 11 immutable originals plus seven exact historical #2368 sources; disposable only')
           PY
-          cp "$scratch" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
+          # The exact old 18-stage source stays immutable. Produce an
+          # independent scratch copy with ONLY the two reviewed U2C source
+          # blobs. Neither protected production schema nor source checkout
+          # is changed; all source receipts remain byte-bound in the manifest.
+          reviewed="$RUNNER_TEMP/UNI_OPS_U2C_CONTEXT_${GITHUB_RUN_ID}_TEST_ONLY.sql"
+          python3 canonical/tests/prepare_reviewed_uniops_u2c_context_scratch.py \
+            --original "$scratch" \
+            --original-manifest "$RUNNER_TEMP/uniops-manifest.json" \
+            --review-checkout "$UNI_OPS_PIN_ROOT/u2c_review" \
+            --output "$reviewed" \
+            --output-manifest "$RUNNER_TEMP/uniops-u2c-review-manifest.json"
+          python3 - "$RUNNER_TEMP/uniops-manifest.json" "$RUNNER_TEMP/uniops-u2c-review-manifest.json" "$reviewed" <<'PY'
+          import hashlib,json,sys
+          baseline=json.load(open(sys.argv[1]))
+          amended=json.load(open(sys.argv[2]))
+          assert amended['kind']=='UNI_OPS_U2C_CONTEXT_REVIEW_DISPOSABLE_ONLY'
+          assert amended['stage_count']==18 and len(amended['stages'])==18
+          changed=[(old,new) for old,new in zip(baseline['stages'],amended['stages'])
+                   if old!=new]
+          assert len(changed)==2
+          assert {new['stage'] for _,new in changed}=={
+            'u2c-accepted-only-original-guard','u2c-schema-and-acl-postconditions'}
+          assert all(old['checkout']=='u2c' and new['checkout']=='u2c_review'
+                     for old,new in changed)
+          assert all(old['stage']==new['stage']
+                     for old,new in zip(baseline['stages'],amended['stages']))
+          assert sum(x['stage'].startswith('history-') for x in amended['stages'])==7
+          assert hashlib.sha256(open(sys.argv[3],'rb').read()).hexdigest()==amended['scratch_file_sha256']
+          print('PASS 16 frozen source stages and exactly two independently pinned U2C context-review stages; scratch only')
+          PY
+          cp "$reviewed" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
       - name: Attach exact genuine signed U2 test to a disposable local validator COPY
         shell: bash
         run: |
