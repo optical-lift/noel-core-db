@@ -36,7 +36,8 @@ jobs:
           p=Path("tests/validate-uniops-option-a-u2-accepted-first-signed.py").read_text()
           fixture=Path("tests/uniops-option-a-first-mowing-signed-fixture.sql").read_text()
           hook=Path("tests/install-uniops-u2-first-original-signed-hook.py").read_text()
-          assert workflow.count("github.actor == github.repository_owner")==1
+          protected=workflow.split("  validate-protected:\n",1)[1]
+          assert protected.count("github.actor == github.repository_owner")==1
           assert "github.event.issue.number == 2626" in workflow
           assert "source_choice':'a_full_current_completion_plus_history'" in workflow
           assert "signed_contract':'u1b_u2_mowing_accepted_first_v1'" in workflow
