@@ -135,11 +135,19 @@ BEGIN
    current_setting('app.fictional_open_offering_id')::uuid);
  EXCEPTION WHEN insufficient_privilege THEN denied:=true;
  END;
- IF NOT denied OR EXISTS(SELECT 1 FROM atlas.teaching_course_offering_open_issuances) THEN
+ IF NOT denied THEN
   RAISE EXCEPTION 'prior privileged transition bypassed the source issuer';
  END IF;
 END $legacy_transition_cannot_open$;
 RESET ROLE;
+-- The authenticated role cannot read internal issuer receipts. Verify
+-- absence only after returning to the scratch test database owner.
+DO $old_open_created_no_issuance$
+BEGIN
+ IF EXISTS(SELECT 1 FROM atlas.teaching_course_offering_open_issuances) THEN
+  RAISE EXCEPTION 'old privileged writer inserted a source opening issuance';
+ END IF;
+END $old_open_created_no_issuance$;
 
 -- The author is not the institutional governor and must issue *this one*
 -- draft's own allow, never merely the wider immutable Version use.
