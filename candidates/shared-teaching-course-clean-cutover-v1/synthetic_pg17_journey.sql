@@ -588,6 +588,11 @@ $no_premature_operation$;
 -- AND current accepted governing/Teaching authority on the SAME Course ID.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/operating_course_title_disclosure_tests_pg17.sql
 
+-- M3.9: immutable academic DEFINITION metadata is published by the original
+-- canonical Person on the SAME Course ID. This does not disclose manuscript,
+-- authorize institution use, create an Offering, or invent a second Course.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/person_published_definition_tests_pg17.sql
+
 -- M4 private-Course retirement simulation ONLY in fictional PG17.
 -- The source originals were stored in the session-private manifest before M1.
 -- Delete children explicitly, then DROP RESTRICT rather than CASCADE. Verify
