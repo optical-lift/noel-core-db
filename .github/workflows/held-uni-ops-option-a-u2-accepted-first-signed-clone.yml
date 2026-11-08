@@ -336,6 +336,46 @@ jobs:
           else:
               locus='phase_reported'
           print('UNI_OPS_FAILURE_LOCUS='+locus)
+          # Restrict signed-test failure reporting to file-presence, bounded
+          # checkpoint count and allowlisted error class. Never emit raw
+          # Python traceback, SQL output, JWT, Person/Subject or row contents.
+          if phase=='signed integrated U1B source and U2 accepted-first original':
+              actorlog=root/'uniops-u2-signed.log'
+              fixturelog=root/'uniops-u2-fictional-fixture.log'
+              if actorlog.is_file():
+                  subphase='actor_rpc_assertions'
+                  actor_text=actorlog.read_text(errors='replace')[:150000]
+                  checks=sum(1 for line in actor_text.splitlines()
+                             if re.match(r'^PASS(?:\\s|$)',line))
+                  checks=min(checks,99)
+                  if 'AssertionError' in actor_text:
+                      failure_class='python_assertion'
+                  elif 'Traceback (most recent call last)' in actor_text:
+                      failure_class='python_exception'
+                  else:
+                      failure_class='other_actor_failure'
+              elif fixturelog.is_file():
+                  subphase='fictional_source_fixture'
+                  checks=0
+                  fixture_text=fixturelog.read_text(errors='replace')[-150000:].lower()
+                  categories=(('foreign_key',r'foreign key constraint'),
+                              ('check_constraint',r'check constraint'),
+                              ('not_null',r'not-null constraint'),
+                              ('duplicate_key',r'duplicate key'),
+                              ('missing_relation',r'relation .* does not exist'),
+                              ('missing_column',r'column .* does not exist'),
+                              ('invalid_input',r'invalid input syntax'),
+                              ('permission_denied',r'permission denied'),
+                              ('sql_syntax',r'syntax error'))
+                  failure_class=next((label for label,pat in categories
+                     if re.search(pat,fixture_text)),'other_fixture_failure')
+              else:
+                  subphase='before_fictional_fixture'
+                  checks=0
+                  failure_class='pre_fixture'
+              print('UNI_OPS_SIGNED_U2_SUBPHASE='+subphase)
+              print('UNI_OPS_SIGNED_U2_PASS_CHECKPOINTS='+str(checks))
+              print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
           # Report only fixed aggregate categories; private function names,
           # SQL, identity, relation names and raw lint messages stay local.
           delta=root/'schema-lint-delta.json'
