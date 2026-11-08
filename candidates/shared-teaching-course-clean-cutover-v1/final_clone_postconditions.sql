@@ -4,28 +4,39 @@
 -- A passing structural check alone never approves source rights or deployment.
 -- No founder materials, PII, source text or private hashes are selected.
 
+DO $final_release$
+DECLARE v_failures text;
+BEGIN
 WITH expected(name,found) AS (
  VALUES
  ('canonical Course root',to_regclass('atlas.teaching_courses') IS NOT NULL),
  ('canonical manuscript revisions',to_regclass('atlas.teaching_course_manuscript_revisions') IS NOT NULL),
  ('canonical authored Units',to_regclass('atlas.teaching_course_units') IS NOT NULL),
  ('canonical authored Unit revisions',to_regclass('atlas.teaching_course_unit_revisions') IS NOT NULL),
- ('optional institutional operating standing',to_regclass('atlas.teaching_course_operating_standings') IS NOT NULL)
+ ('optional institutional operating standing',to_regclass('atlas.teaching_course_operating_standings') IS NOT NULL),
+ ('source-issued Person-scoped Titus access',to_regclass('titus.course_authoring_access_grants') IS NOT NULL),
+ ('Titus private author access self API',to_regprocedure('public.titus_authoring_access_self_api_v1()') IS NOT NULL)
 ), retired(name,present) AS (
  VALUES
  ('legacy Titus courses',to_regclass('titus.courses') IS NOT NULL),
  ('legacy Titus course slots',to_regclass('titus.course_slots') IS NOT NULL),
  ('legacy Titus Course teacher links',to_regclass('titus.course_teachers') IS NOT NULL),
+ ('legacy Titus lesson placements',to_regclass('titus.course_lesson_placements') IS NOT NULL),
+ ('legacy Titus lesson prerequisites',to_regclass('titus.course_lesson_prerequisites') IS NOT NULL),
+ ('legacy Titus Course-slot activity log',to_regclass('titus.course_slot_activity_log') IS NOT NULL),
  ('legacy Titus program Courses',to_regclass('titus.program_course_placements') IS NOT NULL),
  ('legacy Titus programs',to_regclass('titus.programs') IS NOT NULL),
+ ('legacy Titus program teachers',to_regclass('titus.program_teachers') IS NOT NULL),
  ('legacy Course-only workspace',to_regclass('titus.customer_workspaces_v1') IS NOT NULL),
+ ('old Auth-owned Titus product entitlements',to_regclass('titus.customer_workspace_entitlements_v1') IS NOT NULL),
  ('Titus shadow Course drafts',to_regclass('titus.customer_course_drafts_v1') IS NOT NULL),
  ('Titus shadow Course manuscript revisions',to_regclass('titus.customer_course_material_revisions_v1') IS NOT NULL),
  ('Titus shadow Course Units',to_regclass('titus.customer_course_units_v1') IS NOT NULL),
  ('Titus shadow Course Unit revisions',to_regclass('titus.customer_course_unit_revisions_v1') IS NOT NULL),
  ('obsolete Titus public Courses view',to_regclass('public.titus_courses_v1') IS NOT NULL),
  ('obsolete Titus public Course slots view',to_regclass('public.titus_course_slots_v1') IS NOT NULL),
- ('obsolete Titus course path view',to_regclass('public.titus_course_path_v1') IS NOT NULL)
+ ('obsolete Titus course path view',to_regclass('public.titus_course_path_v1') IS NOT NULL),
+ ('obsolete Titus Course preview path view',to_regclass('public.titus_course_preview_path_v1') IS NOT NULL)
 ),
 old_rpc AS (
  SELECT n.nspname||'.'||p.proname AS name
@@ -34,6 +45,13 @@ old_rpc AS (
     OR (n.nspname='atlas' AND p.proname IN
        ('create_teaching_course_self_api_v1',
         'create_teaching_course_from_activation_self_api_v1'))
+    OR (n.nspname='titus' AND p.proname IN
+       ('customer_current_auth_user_v1',
+        'customer_owned_course_for_units_v1',
+        'link_lesson_packet_to_course_slot',
+        'mark_course_slot_in_sandbox',
+        'mark_course_slot_packet_ready',
+        'start_course_slot_deep_dive'))
 ),
 old_fk AS (
  SELECT c.conname, c.confrelid::regclass::text AS target
@@ -51,14 +69,24 @@ competing_course_views AS (
     OR definition ILIKE '%titus.courses%'
     OR definition ILIKE '%titus.programs%')
 )
-SELECT 'required' AS kind,name,found AS ok FROM expected
-UNION ALL SELECT 'retired',name,NOT present FROM retired
-UNION ALL SELECT 'obsolete-RPC',name,FALSE FROM old_rpc
-UNION ALL SELECT 'old-Principal-or-Ledger-FK',conname||'->'||target,FALSE FROM old_fk
-UNION ALL SELECT 'legacy-view',name,FALSE FROM competing_course_views
-ORDER BY kind,name;
+violations AS (
+ SELECT 'required' AS kind,name,found AS ok FROM expected
+ UNION ALL SELECT 'retired',name,NOT present FROM retired
+ UNION ALL SELECT 'obsolete-RPC',name,FALSE FROM old_rpc
+ UNION ALL SELECT 'old-Principal-or-Ledger-FK',conname||'->'||target,FALSE FROM old_fk
+ UNION ALL SELECT 'legacy-view',name,FALSE FROM competing_course_views
+)
+SELECT string_agg(kind||':'||name,'; ' ORDER BY kind,name)
+  INTO v_failures FROM violations WHERE NOT ok;
+IF v_failures IS NOT NULL THEN
+ RAISE EXCEPTION 'shared Course cutover has unresolved legacy/source requirements: %',
+  v_failures USING ERRCODE='23514';
+END IF;
+END
+$final_release$;
 
--- Fails as a release proof if any row in the above result is false.
+-- This is a hard-fail end-state structural proof, EXPECTED to fail on live.
+-- Its passing never constitutes authority to release.
 -- Additional private proof MUST compare old protected snapshot to new source
 -- by all original UUIDs and row values: body bytes, request IDs, timestamps,
 -- author provenance, ordering, revision sequence and source rights.
