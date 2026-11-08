@@ -125,8 +125,7 @@ END
 $stubs$;
 
 -- All remaining historical institution-first public Teaching API signatures
--- live only as fictional placeholders for the exact retirement test. The
--- unchanged original Course and new source APIs are NOT overwritten.
+-- are fictional placeholders for exact DROP RESTRICT tests only.
 DO $institutional_stubs$
 DECLARE signature text;
 BEGIN
@@ -142,11 +141,7 @@ BEGIN
   'atlas.teaching_enrollments_for_current_person_self_api_v1()'
  ] LOOP
   EXECUTE 'CREATE FUNCTION '||signature||
-    ' RETURNS void LANGUAGE plpgsql AS $stub_body$BEGIN RETURN; END$stub_body
- END LOOP;
-END
-$institutional_stubs$;
-;
+   ' RETURNS void LANGUAGE plpgsql AS $fiction$BEGIN RETURN; END$fiction$';
  END LOOP;
 END
 $institutional_stubs$;
