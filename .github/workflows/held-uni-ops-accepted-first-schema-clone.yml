@@ -29,16 +29,17 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import os
+          import re
           pairs={}
-          for line in os.environ.get('OWNER_BODY','').splitlines():
-              if ': ' in line:
-                  key,value=line.split(': ',1)
-                  if key in pairs:raise SystemExit("Duplicate issue selectors are denied")
-                  pairs[key]=value.strip()
           expected={
               'diagnostic_scope':'uni_ops_accepted_first_disposable_schema_v1',
               'production_target':'zirqkouammpwxlqfbsvf',
               'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1'}
+          for line in os.environ.get('OWNER_BODY','').splitlines():
+              match=re.fullmatch(r'([a-z_]+):\\s*([a-z0-9_]+)\\s*',line)
+              if match and match[1] in expected:
+                  if match[1] in pairs:raise SystemExit("Duplicate owner source selector")
+                  pairs[match[1]]=match[2]
           if pairs!=expected:raise SystemExit("Unrecognized immutable owner test selection")
           print("PASS exact owner-controlled held integration, no production release")
           PY
