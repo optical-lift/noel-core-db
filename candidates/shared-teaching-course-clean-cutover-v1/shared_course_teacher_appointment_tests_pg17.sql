@@ -1,6 +1,8 @@
 -- HELD M3.14: isolated PG17 actual SQL source issuer + separate signed
 -- fictional teacher, author and institution, all rolled back. No learner.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_teacher_appointment_candidate.sql
+-- M3.15A same-root learner consent source. Issuer stays closed to Enrollment.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_learner_invitation_candidate.sql
 
 DO $teacher_surface_acl$
 DECLARE n integer;
@@ -480,4 +482,7 @@ BEGIN
   RAISE EXCEPTION 'teacher appointment did not preserve one Course and no students';
  END IF;
 END $no_unissued_teaching_or_enrollment$;
+-- Test a separate learner's current, explicit response on the same open
+-- original Offering, before rolling back the fictional teacher fixture.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_learner_invitation_tests_pg17.sql
 ROLLBACK TO SAVEPOINT shared_teacher_appointment_isolation;
