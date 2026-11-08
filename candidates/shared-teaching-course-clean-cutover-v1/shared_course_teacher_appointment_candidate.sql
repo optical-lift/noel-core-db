@@ -340,7 +340,7 @@ BEGIN
   'endsAt',(SELECT o.ends_at FROM atlas.teaching_course_offerings o
             WHERE o.id=v_offer.offering_id),
   'state',coalesce(v_decision,'offered'),
-  'appointmentEffective',v_decision='accept',
+  'appointmentEffective',coalesce(v_decision='accept',false),
   'canTeach',false,'canReadCurriculum',false,'canEnroll',false);
 END $own_offer$;
 
