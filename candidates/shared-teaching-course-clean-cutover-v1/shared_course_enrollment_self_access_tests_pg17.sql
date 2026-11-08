@@ -223,6 +223,14 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'terminal original Enrollment was silently reactivated'; END IF;
  denied:=false;
  BEGIN
+  UPDATE atlas.teaching_enrollments
+   SET offering_id='99999999-9999-4999-8999-999999999999'
+   WHERE id=current_setting('app.fictional_learner_enrollment_id')::uuid;
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'shared original Enrollment was reparented'; END IF;
+ denied:=false;
+ BEGIN
   UPDATE atlas.teaching_enrollments SET withdrawal_reason='fabricated'
    WHERE id=current_setting('app.fictional_learner_enrollment_id')::uuid;
  EXCEPTION WHEN insufficient_privilege THEN denied:=true;
