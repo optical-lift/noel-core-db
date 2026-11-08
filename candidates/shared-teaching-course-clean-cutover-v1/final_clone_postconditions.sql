@@ -24,6 +24,13 @@ WITH expected(name,found) AS (
  ('Titus private author access self API',to_regprocedure('public.titus_authoring_access_self_api_v1()') IS NOT NULL),
  ('canonical author-signed teacher offer',to_regprocedure('public.shared_teaching_teacher_offer_self_api_v1(uuid,uuid,uuid)') IS NOT NULL),
  ('canonical teacher signed answer',to_regprocedure('public.shared_teaching_teacher_respond_self_api_v1(uuid,uuid,text)') IS NOT NULL),
+ ('original author exact teacher sealed Unit permission',to_regprocedure('public.shared_teaching_teacher_unit_disclose_decide_self_api_v1(uuid,uuid,uuid,text)') IS NOT NULL),
+ ('teacher single sealed Unit self reader',to_regprocedure('public.shared_teaching_teacher_sealed_unit_read_self_api_v1(uuid,uuid)') IS NOT NULL),
+ ('private immutable teacher Unit disclosure author events',to_regclass('atlas.shared_course_teacher_unit_disclosure_decisions') IS NOT NULL),
+ ('immutable teacher Unit disclosure trigger',EXISTS (
+   SELECT 1 FROM pg_trigger t
+   WHERE t.tgrelid=to_regclass('atlas.shared_course_teacher_unit_disclosure_decisions')
+    AND t.tgname='shared_teacher_unit_disclosure_immutable' AND NOT t.tgisinternal)),
  ('source-specific learner invitation author permission',to_regprocedure('public.shared_teaching_learner_invitation_decide_self_api_v1(uuid,uuid,text)') IS NOT NULL),
  ('exact canonical learner invitation offer',to_regprocedure('public.shared_teaching_learner_offer_self_api_v1(uuid,uuid,uuid)') IS NOT NULL),
  ('private own learner invitation reader',to_regprocedure('public.shared_teaching_learner_offer_read_self_api_v1(uuid)') IS NOT NULL),
