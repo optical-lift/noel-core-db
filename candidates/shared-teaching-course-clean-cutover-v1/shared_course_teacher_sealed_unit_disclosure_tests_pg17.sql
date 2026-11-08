@@ -142,30 +142,27 @@ RESET ROLE;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee","session_id":"5eeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"}';
 DO $m316_teacher_reads_exact_one_sealed_unit$
-DECLARE j jsonb; sealed_unit jsonb; denied boolean:=false;
+DECLARE j jsonb; denied boolean:=false;
 BEGIN
  j:=public.shared_teaching_teacher_sealed_unit_read_self_api_v1(
   current_setting('app.teacher_accept_offer_id')::uuid,
   current_setting('app.m316_unit_id')::uuid);
- SELECT x.unit INTO sealed_unit
- FROM atlas.teaching_course_version_curriculum_snapshots s
- CROSS JOIN LATERAL jsonb_array_elements(s.curriculum_payload->'units') x(unit)
- WHERE s.course_id='11111111-1111-4111-8111-111111111111'
-   AND s.course_version_id=current_setting('app.fictional_published_version_id')::uuid
-   AND x.unit->>'unitId'=current_setting('app.m316_unit_id');
- IF sealed_unit IS NULL OR j->>'contractVersion'<>'shared_teacher_sealed_unit_read_v1'
+ IF j->>'contractVersion'<>'shared_teacher_sealed_unit_read_v1'
  OR j->>'teacherOfferId'<>current_setting('app.teacher_accept_offer_id')
  OR j->>'offeringId'<>current_setting('app.fictional_teacher_offering_id')
  OR j->>'unitId'<>current_setting('app.m316_unit_id')
  OR j->>'courseVersionId'<>current_setting('app.fictional_published_version_id')
- OR j->'unit' IS DISTINCT FROM sealed_unit
+ OR j->'unit' IS NULL
  OR j->>'scope'<>'one_author_approved_sealed_unit_to_appointed_teacher_only'
  OR j->>'canTeach'<>'false' OR j->>'canReadOtherUnits'<>'false'
  OR j->>'canReadManuscript'<>'false' OR j->>'canShareWithLearners'<>'false'
  OR j->>'canAssignWork'<>'false' OR j->>'canEnroll'<>'false'
  OR j ? 'manuscript' OR j ? 'curriculum' OR j ? 'units' OR j ? 'roster'
  OR j ? 'otherTeachers' OR j ? 'learners' OR j ? 'courseText' THEN
-  RAISE EXCEPTION 'Unit read was not EXACT sealed single Unit and negative rights'; END IF;
+  RAISE EXCEPTION 'Unit read was not exact single Unit and negative rights'; END IF;
+ -- Test transport only, with fully fictional bytes: the signed teacher
+ -- cannot SELECT private snapshot tables. Scratch owner checks fidelity.
+ PERFORM set_config('app.m316_read_unit', (j->'unit')::text,true);
  BEGIN
   PERFORM public.shared_teaching_teacher_sealed_unit_read_self_api_v1(
     current_setting('app.teacher_accept_offer_id')::uuid,
@@ -175,6 +172,20 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'teacher enumerated another Unit without author scope'; END IF;
 END $m316_teacher_reads_exact_one_sealed_unit$;
 RESET ROLE;
+DO $m316_scratch_owner_bytes_equal_sealed_source$
+DECLARE sealed_unit jsonb; observed jsonb;
+BEGIN
+ SELECT x.unit INTO sealed_unit
+ FROM atlas.teaching_course_version_curriculum_snapshots s
+ CROSS JOIN LATERAL jsonb_array_elements(s.curriculum_payload->'units') x(unit)
+ WHERE s.course_id='11111111-1111-4111-8111-111111111111'
+  AND s.course_version_id=current_setting('app.fictional_published_version_id')::uuid
+  AND x.unit->>'unitId'=current_setting('app.m316_unit_id');
+ observed:=current_setting('app.m316_read_unit')::jsonb;
+ IF sealed_unit IS NULL OR observed IS DISTINCT FROM sealed_unit THEN
+  RAISE EXCEPTION 'specific authorized Unit does not match immutable sealed source';
+ END IF;
+END $m316_scratch_owner_bytes_equal_sealed_source$;
 
 -- After author revokes THIS UNIT only, previously accepted appointment and
 -- invitation remain historic but future reads are denied.
