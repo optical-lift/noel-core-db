@@ -280,8 +280,26 @@ def main():
                  'other_or_unrecognized')
     print("U2_WORKER_INBOX_RESULT="+inbox_class,flush=True)
     check(good_inbox,"Worker must privately read one exact authorized offer")
-    accepted=allow(api,key,worker,response,args_accept,
-                   "worker independently accepts known preoriginal offer")
+    # Classify only exact source-owned guard text; never print raw
+    # PostgreSQL messages, Person/offer identity or private details.
+    code,reply=rpc(api,key,worker,response,args_accept)
+    if code==200 and isinstance(reply,dict) and reply.get("ok") is True:
+        guard="accepted"
+    elif isinstance(reply,dict) and reply.get("code")=="42501":
+        detail=str(reply.get("message",""))
+        guard=({
+            "Signed exact Person and offer response required":"signed_person_principal_guard",
+            "Candidate offer unavailable to signed Person":"recipient_identity_guard",
+            "Current source no longer permits this candidate":"current_source_guard"
+        }).get(detail,"other_42501_guard")
+    elif isinstance(reply,dict) and reply.get("code")=="23514":
+        guard="already_resolved_guard"
+    else:
+        guard="other_http_or_sql_guard"
+    print("U2_WORKER_RESPONSE_GUARD="+guard,flush=True)
+    check(guard=="accepted", "Signed worker acceptance must pass source guard")
+    accepted=reply
+    print("PASS worker independently accepts known preoriginal offer")
     check(accepted.get("acceptanceIsNotAssignment") is True
           and accepted.get("originalWorkCreated") is False,
           "Recipient consent is not assignment")

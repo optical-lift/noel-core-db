@@ -51,7 +51,8 @@ jobs:
                       "respond_governed_prework_candidate_self_api_v1",
                       "finalize_accepted_governed_prework_self_api_v1",
                       "originalWorkCreatedNow", "nextOriginalNotPrecreated", "U2_SOURCE_SELECTION",
-                      "work_execution_results", "work_result_acceptances"):
+                      "work_execution_results", "work_result_acceptances",
+                      "U2_WORKER_RESPONSE_GUARD"):
               assert tok in p,tok
           assert "SET uniops.disposable_signed" in fixture
           assert "CREATE TABLE" not in fixture
@@ -229,7 +230,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
-          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = e4088570d0fa664563788691a196c031f6092fc1
+          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 469493f1e5ca609a35a2e29cf92c948a9a0a5080
           test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
           python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh
@@ -364,6 +365,8 @@ jobs:
                   inbox_result=inbox_results[-1] if inbox_results else 'not_reached'
                   inbox_http_class=inbox_http[-1] if inbox_http else 'not_reached'
                   inbox_error_class=inbox_errors[-1] if inbox_errors else 'not_reached'
+                  guards=re.findall(r'(?m)^U2_WORKER_RESPONSE_GUARD=(accepted|signed_person_principal_guard|recipient_identity_guard|current_source_guard|other_42501_guard|already_resolved_guard|other_http_or_sql_guard)$',actor_text)
+                  worker_guard=guards[-1] if guards else 'not_reached'
                   if 'AssertionError' in actor_text:
                       failure_class='python_assertion'
                   elif 'Traceback (most recent call last)' in actor_text:
@@ -379,6 +382,7 @@ jobs:
                   inbox_result='not_reached'
                   inbox_http_class='not_reached'
                   inbox_error_class='not_reached'
+                  worker_guard='not_reached'
                   selection='not_reached'
                   checks=0
                   fixture_text=fixturelog.read_text(errors='replace')[-150000:].lower()
@@ -402,6 +406,7 @@ jobs:
                   inbox_result='not_reached'
                   inbox_http_class='not_reached'
                   inbox_error_class='not_reached'
+                  worker_guard='not_reached'
                   selection='not_reached'
                   checks=0
                   failure_class='pre_fixture'
@@ -414,6 +419,7 @@ jobs:
               print('UNI_OPS_SIGNED_U2_WORKER_INBOX_RESULT='+inbox_result)
               print('UNI_OPS_SIGNED_U2_WORKER_INBOX_HTTP_CLASS='+inbox_http_class)
               print('UNI_OPS_SIGNED_U2_WORKER_INBOX_ERROR_CLASS='+inbox_error_class)
+              print('UNI_OPS_SIGNED_U2_WORKER_RESPONSE_GUARD='+worker_guard)
               print('UNI_OPS_SIGNED_U2_PASS_CHECKPOINTS='+str(checks))
               print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
           # Report only fixed aggregate categories; private function names,
