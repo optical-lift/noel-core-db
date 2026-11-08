@@ -123,3 +123,26 @@ BEGIN
  END LOOP;
 END
 $stubs$;
+
+-- All remaining historical institution-first public Teaching API signatures
+-- live only as fictional placeholders for the exact retirement test. The
+-- unchanged original Course and new source APIs are NOT overwritten.
+DO $institutional_stubs$
+DECLARE signature text;
+BEGIN
+ FOREACH signature IN ARRAY ARRAY[
+  'atlas.teaching_courses_admin_self_api_v1(uuid)',
+  'atlas.teaching_course_admin_self_api_v1(uuid)',
+  'atlas.retire_teaching_course_self_api_v1(uuid,text)',
+  'atlas.publish_teaching_course_version_self_api_v1(uuid,text,text,text[])',
+  'atlas.transition_teaching_course_offering_self_api_v1(uuid,text)',
+  'atlas.teaching_offering_roster_admin_self_api_v1(uuid)',
+  'atlas.enroll_person_in_teaching_offering_self_api_v1(uuid,uuid)',
+  'atlas.withdraw_teaching_enrollment_self_api_v1(uuid,text)',
+  'atlas.teaching_enrollments_for_current_person_self_api_v1()'
+ ] LOOP
+  EXECUTE 'CREATE FUNCTION '||signature||
+    ' RETURNS void LANGUAGE plpgsql AS $stub_body$BEGIN RETURN; END$stub_body;
+ END LOOP;
+END
+$institutional_stubs$;
