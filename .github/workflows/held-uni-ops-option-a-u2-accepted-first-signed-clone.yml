@@ -7,6 +7,8 @@ on:
       - '.github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml'
       - 'tests/uniops-option-a-first-mowing-signed-fixture.sql'
       - 'tests/validate-uniops-option-a-u2-accepted-first-signed.py'
+      - 'tests/uniops_u2_namefree_guard_owner.py'
+      - 'tests/test_uniops_u2_namefree_guard_owner.py'
       - 'tests/install-uniops-u2-first-original-signed-hook.py'
 permissions:
   contents: read
@@ -29,7 +31,8 @@ jobs:
         run: |
           set -euo pipefail
           ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml")'
-          python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/install-uniops-u2-first-original-signed-hook.py
+          python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/uniops_u2_namefree_guard_owner.py tests/test_uniops_u2_namefree_guard_owner.py tests/install-uniops-u2-first-original-signed-hook.py
+          python3 -m unittest discover -s tests -p 'test_uniops_u2_namefree_guard_owner.py' -v
           python3 - <<'PY'
           from pathlib import Path
           workflow=Path(".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml").read_text()
@@ -59,6 +62,10 @@ jobs:
           assert "CREATE TABLE" not in fixture
           assert "INSERT INTO atlas.governed_prework_candidate_offers_v1" not in fixture
           assert "INSERT INTO atlas.work_items" not in fixture
+          assert "U2_GOVERNOR_FINALIZE_SOURCE_FAMILY" in p
+          assert "U2_GOVERNOR_FINALIZE_GUARD_ORDINAL" in p
+          assert "tests/uniops_u2_namefree_guard_owner.py" in workflow
+          assert "tests/test_uniops_u2_namefree_guard_owner.py" in workflow
           assert "signed_accepted_first_probe" in hook
           assert "39f526cd8671f0aadbaab61c66dfc4971ef52131" in hook
           print("PASS source-only true-signed U2 bounded runner/fixture contract; NOT runtime acceptance")
@@ -231,9 +238,10 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
-          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 305467040b47d1c9ea49d1514a91b34617434669
+          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 7991ee1254329ef235c78cc80f02f49758f303ac
+          test "$(git -C canonical hash-object tests/uniops_u2_namefree_guard_owner.py)" = 79bb547611ebec962bd4e5624af709e87b0675e2
           test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
-          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
+          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/uniops_u2_namefree_guard_owner.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
           python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh
           bash -n canonical/scripts/validate-production-schema-clone.sh
           echo 'PASS only disposable local validator-copy U1B/U2 true GoTrue test hook installed; production validator unchanged'
@@ -375,6 +383,12 @@ jobs:
                   final_http=final_http_hits[-1] if final_http_hits else 'not_reached'
                   final_error=final_error_hits[-1] if final_error_hits else 'not_reached'
                   final_guard=final_guard_hits[-1] if final_guard_hits else 'not_reached'
+                  family_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_SOURCE_FAMILY=(not_applicable|atlas_source|public_transport|ledger_source|reality_source|auth_source|unmapped|ambiguous|catalog_error)$',actor_text)
+                  ordinal_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_GUARD_ORDINAL=([0-9]{4})$',actor_text)
+                  final_family=family_hits[-1] if family_hits else 'not_reached'
+                  final_ordinal=ordinal_hits[-1] if ordinal_hits else 'not_reached'
+                  if (final_family in ('not_applicable','unmapped','ambiguous','catalog_error') and final_ordinal!='0000') or (final_family in ('atlas_source','public_transport','ledger_source','reality_source','auth_source') and final_ordinal in ('0000','not_reached')) or ((final_family=='not_reached')!=(final_ordinal=='not_reached')):
+                      final_family=final_ordinal='not_reached'
                   if 'AssertionError' in actor_text:
                       failure_class='python_assertion'
                   elif 'Traceback (most recent call last)' in actor_text:
@@ -392,6 +406,7 @@ jobs:
                   inbox_error_class='not_reached'
                   worker_guard='not_reached'
                   final_http=final_error=final_guard='not_reached'
+                  final_family=final_ordinal='not_reached'
                   selection='not_reached'
                   checks=0
                   fixture_text=fixturelog.read_text(errors='replace')[-150000:].lower()
@@ -417,6 +432,7 @@ jobs:
                   inbox_error_class='not_reached'
                   worker_guard='not_reached'
                   final_http=final_error=final_guard='not_reached'
+                  final_family=final_ordinal='not_reached'
                   selection='not_reached'
                   checks=0
                   failure_class='pre_fixture'
@@ -433,6 +449,8 @@ jobs:
               print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_HTTP_CLASS='+final_http)
               print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_ERROR_CLASS='+final_error)
               print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_SOURCE_GUARD='+final_guard)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_SOURCE_FAMILY='+final_family)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_GUARD_ORDINAL='+final_ordinal)
               print('UNI_OPS_SIGNED_U2_PASS_CHECKPOINTS='+str(checks))
               print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
           # Report only fixed aggregate categories; private function names,
