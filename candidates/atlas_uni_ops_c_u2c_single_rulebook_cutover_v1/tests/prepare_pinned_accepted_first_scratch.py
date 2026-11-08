@@ -111,7 +111,9 @@ def prepare(roots: dict[str, Path]) -> tuple[list[dict[str, str]], list[str]]:
         actual = git_blob(data)
         if actual != expected_blob:
             fail(name + ": exact Git source blob differs from reviewed source")
-        if len(data) < 350 or (b"CREATE " not in data and name not in (\n            "u2c-schema-and-acl-postconditions", "u2c-close-old-standing-bypasses"\n        )):
+        if len(data) < 350 or (b"CREATE " not in data and name not in (
+            "u2c-schema-and-acl-postconditions", "u2c-close-old-standing-bypasses"
+        )):
             fail(name + ": unexpectedly incomplete source")
         if name == "u2c-single-authority-arbiter":
             for required in (b"v_u1a_disputed", b"candidateOfferAdmissible",
