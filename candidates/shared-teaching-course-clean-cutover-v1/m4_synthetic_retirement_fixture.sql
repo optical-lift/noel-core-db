@@ -86,7 +86,7 @@ INSERT INTO titus.lesson_structure_links SELECT gen_random_uuid(),(SELECT canon_
 INSERT INTO titus.teacher_source_units VALUES (gen_random_uuid(),'Fictional original source, retain');
 INSERT INTO titus.lesson_packets VALUES ('aaaaaaaa-0000-4000-8000-000000000003','Fictional independent lesson, retain');
 INSERT INTO titus.lesson_teacher_source_links SELECT gen_random_uuid(),'aaaaaaaa-0000-4000-8000-000000000003',(SELECT adjudication_id FROM titus.teacher_source_adjudications LIMIT 1);
-CREATE VIEW public.titus_courses_v1 AS SELECT course_id FROM titus.courses;
+CREATE VIEW public.titus_courses_v1 AS SELECT course_id FROM titus.courses;\nCREATE VIEW public.titus_course_prerequisites_v1 AS SELECT id FROM titus.course_lesson_prerequisites;\n-- Retiring this OLD exposure must not remove its independent lesson source.\nCREATE VIEW public.titus_course_word_pattern_boards_v1 AS SELECT id,body_text FROM titus.lesson_packets;
 CREATE VIEW public.titus_course_slots_v1 AS SELECT slot_id FROM titus.course_slots;
 -- All actual private legacy functions are represented by nonfunctional
 -- placeholders: this test inspects retirement mechanics, never their behavior.
