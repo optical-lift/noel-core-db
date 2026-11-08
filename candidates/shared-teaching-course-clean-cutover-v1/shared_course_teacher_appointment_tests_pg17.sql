@@ -1,6 +1,8 @@
 -- HELD M3.14: isolated PG17 actual SQL source issuer + separate signed
 -- fictional teacher, author and institution, all rolled back. No learner.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_teacher_appointment_candidate.sql
+-- M3.16A: independently author-approved specific sealed Unit for signed teacher.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_teacher_sealed_unit_disclosure_candidate.sql
 -- M3.15A same-root learner consent source. Issuer stays closed to Enrollment.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_learner_invitation_candidate.sql
 -- M3.15B: original Enrollment carrier, after independent learner consent.
@@ -368,6 +370,8 @@ BEGIN
 END $other_teacher_declines$;
 RESET ROLE;
 
+-- Test exact accepted teacher sealed-Unit scope before later teacher revocations.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_teacher_sealed_unit_disclosure_tests_pg17.sql
 DO $no_course_or_learner_side_effects$
 DECLARE denied boolean:=false;
 BEGIN
