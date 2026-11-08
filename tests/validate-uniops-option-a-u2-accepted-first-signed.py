@@ -46,7 +46,11 @@ def rpc(api,key,token,name,params):
 def allow(api,key,token,name,params,label):
     status,obj=rpc(api,key,token,name,params)
     ok=status==200 and isinstance(obj,dict) and obj.get("ok") is True
-    if label=="worker independently accepts known preoriginal offer" and not ok:
+    diagnostic=(
+      "INBOX" if label=="worker reads source-owned preoriginal inbox"
+      else "ACCEPT" if label=="worker independently accepts known preoriginal offer"
+      else None)
+    if diagnostic and not ok:
         # Report only enum/allowlisted error class from LOCAL synthetic actor.
         # Never print the private PostgREST response, message, token or Person.
         codes={"42501":"source_permission","23514":"source_constraint",
@@ -57,8 +61,8 @@ def allow(api,key,token,name,params,label):
               404:"not_found",409:"conflict"}.get(status,
               "server_failure" if isinstance(status,int) and status>=500
               else "other_status")
-        print("U2_WORKER_ACCEPT_HTTP_CLASS="+http,flush=True)
-        print("U2_WORKER_ACCEPT_ERROR_CLASS="+codes.get(code,"other_or_unspecified"),flush=True)
+        print("U2_WORKER_"+diagnostic+"_HTTP_CLASS="+http,flush=True)
+        print("U2_WORKER_"+diagnostic+"_ERROR_CLASS="+codes.get(code,"other_or_unspecified"),flush=True)
     check(ok,
           f"{label} failed as signed RPC (status={status}, code={obj.get('code') if isinstance(obj,dict) else 'unknown'})")
     print("PASS",label,flush=True)
@@ -239,6 +243,43 @@ def main():
        +offer+"'::uuid) then 'eligible' else 'ineligible' end")
     state=candidate_state if candidate_state in ("eligible","ineligible") else "unclassified"
     print("U2_WORKER_ACCEPT_SOURCE_PREFLIGHT="+state,flush=True)
+    # Read-only LOCAL fixture custody: compare only known synthetic worker
+    # identity, one active principal, recipient and original offer. Do not
+    # authorize from this check; the signed inbox/response are still mandatory.
+    identity=sql(a.db_url,f"""
+       select case when
+         (select count(*) from reality.auth_person_bindings b
+          where b.auth_user_id='{c1.WORKER}'::uuid
+            and b.person_entity_id='{WORKER_PERSON}'::uuid
+            and b.binding_state='active' and b.retired_at is null)=1
+         and (select count(*) from atlas.principals p
+              where p.user_id='{c1.WORKER}'::uuid
+                and p.person_id='{WORKER_PERSON}'::uuid
+                and p.status='active')=1
+         and (select count(*) from atlas.principals p
+              where p.person_id='{WORKER_PERSON}'::uuid
+                and p.status='active')=1
+         and (select count(*) from atlas.governed_prework_candidate_offers_v1 o
+              where o.id='{offer}'::uuid
+                and o.target_person_id='{WORKER_PERSON}'::uuid)=1
+        then 'aligned' else 'misaligned' end""")
+    identity_class=identity if identity in ('aligned','misaligned') else 'unclassified'
+    print("U2_WORKER_IDENTITY_FIXTURE="+identity_class,flush=True)
+    # This exact existing U2A signed inbox verifies worker can actually
+    # observe THEIR one known original offer, not a queried roster.
+    inbox=allow(api,key,worker,"read_governed_prework_candidate_inbox_self_api_v1",{},
+                "worker reads source-owned preoriginal inbox")
+    items=inbox.get("items")
+    good_inbox=(inbox.get("contractVersion")=="governed_prework_candidate_inbox_v1"
+       and isinstance(items,list) and len(items)==1
+       and items[0].get("offerId")==offer
+       and items[0].get("sourceCandidateIdentityDisclosed") is True
+       and items[0].get("originalWorkCreated") is False)
+    inbox_class=('one_matching' if good_inbox else
+                 'empty' if isinstance(items,list) and not items else
+                 'other_or_unrecognized')
+    print("U2_WORKER_INBOX_RESULT="+inbox_class,flush=True)
+    check(good_inbox,"Worker must privately read one exact authorized offer")
     accepted=allow(api,key,worker,response,args_accept,
                    "worker independently accepts known preoriginal offer")
     check(accepted.get("acceptanceIsNotAssignment") is True
