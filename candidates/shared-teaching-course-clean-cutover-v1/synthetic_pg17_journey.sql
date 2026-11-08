@@ -18,7 +18,7 @@ VALUES ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
  'private_pilot','fictional-temporary-m1-access','active',now(),NULL);
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $writer$
 DECLARE a uuid; b uuid; result jsonb; denied boolean:=false;
 BEGIN
@@ -66,7 +66,7 @@ BEGIN
 END
 $deny_direct$;
 
-SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
 DO $outsider$
 DECLARE v_id uuid;
 BEGIN
@@ -98,7 +98,7 @@ SAVEPOINT revoked_test;
 UPDATE reality.auth_person_bindings SET binding_state='revoked'
  WHERE auth_user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $revoked$
 DECLARE denied boolean:=false;
 BEGIN
@@ -113,6 +113,82 @@ $revoked$;
 RESET ROLE;
 ROLLBACK TO SAVEPOINT revoked_test;
 
+-- A JWT subject alone is never enough: require a CURRENT session ID.
+SAVEPOINT missing_current_session;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $missing_session$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_create_self_api_v1(
+   '97777777-7777-4777-8777-777777777777','No session');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'JWT without session ID created Course'; END IF;
+END
+$missing_session$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT missing_current_session;
+
+-- Signed but expired session is denied even with an active Person binding.
+SAVEPOINT session_expired;
+UPDATE auth.sessions SET not_after=clock_timestamp()-interval '1 minute'
+ WHERE user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $expired_session$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_create_self_api_v1(
+   '98888888-8888-4888-8888-888888888888','Expired session');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'expired session created Course'; END IF;
+END
+$expired_session$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT session_expired;
+
+-- Current JWT subject with another Person's session is not sufficient.
+SAVEPOINT wrong_session_owner;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $wrong_owner$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_create_self_api_v1(
+   '99999999-9999-4999-8999-999999999999','Wrong session owner');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'mismatched session created Course'; END IF;
+END
+$wrong_owner$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT wrong_session_owner;
+
+-- A retired binding must not be resurrected because its status stayed active.
+SAVEPOINT retired_binding;
+UPDATE reality.auth_person_bindings SET retired_at=clock_timestamp()
+ WHERE auth_user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $retired_binding$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_create_self_api_v1(
+   '9eeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','Retired binding');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'retired binding created Course'; END IF;
+END
+$retired_binding$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT retired_binding;
+
 -- Duplicate active Person resolutions MUST be denied rather than arbitrary.
 SAVEPOINT ambiguous_actor;
 INSERT INTO reality.entities(id,entity_kind,stable_key) VALUES
@@ -121,7 +197,7 @@ INSERT INTO reality.auth_person_bindings(auth_user_id,person_entity_id,binding_s
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee','active');
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $ambiguous$
 DECLARE denied boolean:=false;
 BEGIN
@@ -166,7 +242,7 @@ $m2_proof$;
 -- The old pilot grant has migrated to Person-source without retaining
 -- an Auth-owned workspace entitlement as the long-term access original.
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $grant_copy$
 DECLARE result jsonb;
 BEGIN
@@ -176,7 +252,7 @@ BEGIN
  END IF;
 END
 $grant_copy$;
-SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
 DO $no_grant$
 DECLARE result jsonb;
 BEGIN
@@ -191,7 +267,7 @@ SAVEPOINT revoke_grant;
 UPDATE titus.course_authoring_access_grants SET state='revoked'
  WHERE person_entity_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $denied_license$
 DECLARE result jsonb;
 BEGIN
@@ -210,7 +286,7 @@ ROLLBACK TO SAVEPOINT revoke_grant;
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/canonical_authoring_clone_postconditions.sql
 SAVEPOINT authoring_rollback;
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $authoring$
 DECLARE
  c jsonb; m jsonb; u jsonb; outl jsonb;
@@ -315,7 +391,7 @@ $source_integrity$;
 -- Other current People, withdrawn actors and anonymous requests cannot read
 -- the author's Course/Unit originals, even if they know the immutable UUIDs.
 SET LOCAL ROLE authenticated;
-SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
 DO $outsider_material$
 DECLARE denied boolean:=false; j jsonb;
 BEGIN

@@ -119,28 +119,45 @@ REVOKE ALL ON atlas.teaching_course_manuscript_revisions FROM PUBLIC,anon,authen
 REVOKE ALL ON atlas.teaching_course_units FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON atlas.teaching_course_unit_revisions FROM PUBLIC,anon,authenticated;
 
--- No Person ID comes from client input; active Reality credential binding
--- is the only subject resolver. Must have exactly one canonical Person.
+-- Source identity requires a CURRENT Atlas reality_access session, not just
+-- an unexpired signed bearer with an old auth.uid. That source verifies auth
+-- session_id, account availability, canonical Reality Person and native Atlas.
+-- Independently require EXACTLY ONE current binding; the existing reality
+-- resolver's LIMIT 1 must never silently pick a Person when ambiguous.
 CREATE FUNCTION atlas.current_person_for_private_course_v1()
-RETURNS uuid LANGUAGE plpgsql STABLE SECURITY DEFINER
+RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path TO pg_catalog
-AS $$
-DECLARE v_people uuid[]; v_auth uuid;
+AS $course_person$
+DECLARE v_people uuid[]; v_auth uuid; v_access jsonb; v_subject uuid;
 BEGIN
  v_auth:=auth.uid();
  IF v_auth IS NULL THEN
-  RAISE EXCEPTION 'signed Person required' USING ERRCODE='42501';
+  RAISE EXCEPTION 'current signed Person session required' USING ERRCODE='42501';
  END IF;
+ v_access:=atlas.reality_access_self_api_v1();
+ IF coalesce(v_access->>'state','')<>'ready'
+    OR coalesce(v_access->>'authenticated','false')<>'true'
+    OR coalesce(v_access->>'contractVersion','')<>'reality_access_self_v1' THEN
+  RAISE EXCEPTION 'current Atlas Reality session required' USING ERRCODE='42501';
+ END IF;
+ BEGIN
+  v_subject:=(v_access->'person'->>'id')::uuid;
+ EXCEPTION WHEN invalid_text_representation THEN
+  RAISE EXCEPTION 'current Reality Person unverified' USING ERRCODE='42501';
+ END;
  SELECT array_agg(b.person_entity_id) INTO v_people
  FROM reality.auth_person_bindings b JOIN reality.entities e
-   ON e.id=b.person_entity_id AND e.entity_kind='person'
- WHERE b.auth_user_id=v_auth AND b.binding_state='active';
- IF coalesce(array_length(v_people,1),0)<>1 THEN
+   ON e.id=b.person_entity_id
+   AND e.entity_kind='person' AND e.identity_state='canonical'
+ WHERE b.auth_user_id=v_auth
+   AND b.binding_state='active' AND b.retired_at IS NULL;
+ IF coalesce(array_length(v_people,1),0)<>1
+    OR v_subject IS DISTINCT FROM v_people[1] THEN
   RAISE EXCEPTION 'unique current canonical Person required' USING ERRCODE='42501';
  END IF;
  RETURN v_people[1];
 END
-$$;
+$course_person$;
 REVOKE ALL ON FUNCTION atlas.current_person_for_private_course_v1() FROM PUBLIC,anon,authenticated;
 
 -- Titus product access is independent of universal Person-authored Course

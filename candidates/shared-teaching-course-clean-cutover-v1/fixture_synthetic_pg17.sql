@@ -8,6 +8,14 @@ CREATE SCHEMA atlas;
 CREATE SCHEMA titus;
 GRANT USAGE ON SCHEMA auth,public TO authenticated;
 CREATE TABLE auth.users(id uuid PRIMARY KEY);
+CREATE TABLE auth.sessions(
+ id uuid PRIMARY KEY,
+ user_id uuid NOT NULL REFERENCES auth.users(id),
+ not_after timestamptz
+);
+CREATE FUNCTION auth.jwt() RETURNS jsonb LANGUAGE sql STABLE AS $jwt$
+ SELECT coalesce(nullif(current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb)
+$jwt$;
 CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS $$
  SELECT (NULLIF(current_setting('request.jwt.claims',true),'')::jsonb ->> 'sub')::uuid
 $$;
@@ -15,14 +23,49 @@ GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
 CREATE TABLE reality.entities(
  id uuid PRIMARY KEY,
  entity_kind text NOT NULL CHECK(entity_kind in ('person','business')),
+ identity_state text NOT NULL DEFAULT 'canonical',
  stable_key text NOT NULL
 );
 CREATE TABLE reality.auth_person_bindings(
  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  auth_user_id uuid NOT NULL REFERENCES auth.users(id),
  person_entity_id uuid NOT NULL REFERENCES reality.entities(id),
- binding_state text NOT NULL
+ binding_state text NOT NULL,
+ retired_at timestamptz
 );
+-- Fictional Atlas Reality authorization stub: models CURRENT session
+-- dependency only; this is not genuine signed GoTrue/PostgREST proof.
+CREATE FUNCTION atlas.reality_access_self_api_v1()
+RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER
+SET search_path TO pg_catalog
+AS $reality_context$
+DECLARE v_auth uuid:=auth.uid(); v_session uuid; v_person uuid;
+BEGIN
+ BEGIN
+  v_session:=nullif(auth.jwt()->>'session_id','')::uuid;
+ EXCEPTION WHEN invalid_text_representation THEN v_session:=NULL;
+ END;
+ IF v_auth IS NULL OR v_session IS NULL
+  OR NOT EXISTS (SELECT 1 FROM auth.sessions s
+   WHERE s.id=v_session AND s.user_id=v_auth
+   AND (s.not_after IS NULL OR s.not_after>clock_timestamp())) THEN
+  RETURN jsonb_build_object('contractVersion','reality_access_self_v1',
+   'authenticated',false,'state','session_invalid');
+ END IF;
+ SELECT b.person_entity_id INTO v_person FROM reality.auth_person_bindings b
+ JOIN reality.entities e ON e.id=b.person_entity_id
+  AND e.entity_kind='person' AND e.identity_state='canonical'
+ WHERE b.auth_user_id=v_auth AND b.binding_state='active'
+ AND b.retired_at IS NULL ORDER BY b.id LIMIT 1;
+ IF v_person IS NULL THEN
+  RETURN jsonb_build_object('contractVersion','reality_access_self_v1',
+   'authenticated',true,'state','person_binding_required');
+ END IF;
+ RETURN jsonb_build_object('contractVersion','reality_access_self_v1',
+  'authenticated',true,'state','ready',
+  'person',jsonb_build_object('id',v_person));
+END
+$reality_context$;
 CREATE TABLE atlas.ledgers(id uuid PRIMARY KEY);
 CREATE TABLE atlas.capability_activations(id uuid PRIMARY KEY);
 CREATE TABLE atlas.people(id uuid PRIMARY KEY);
@@ -101,6 +144,11 @@ CREATE TABLE titus.customer_workspace_entitlements_v1(
 INSERT INTO auth.users(id) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
+INSERT INTO auth.sessions(id,user_id,not_after) VALUES
+ ('5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',NULL),
+ ('5ccccccc-cccc-4ccc-8ccc-cccccccccccc',
+  'cccccccc-cccc-4ccc-8ccc-cccccccccccc',NULL);
 INSERT INTO reality.entities(id,entity_kind,stable_key) VALUES
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','person','fictional-author'),
  ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','person','fictional-outsider');

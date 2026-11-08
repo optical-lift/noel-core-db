@@ -35,8 +35,8 @@ BEGIN
  ), fitness AS (
   SELECT a.auth_id,(
    SELECT count(*) FROM reality.auth_person_bindings b
-   JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person'
-   WHERE b.auth_user_id=a.auth_id AND b.binding_state='active'
+   JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical'
+   WHERE b.auth_user_id=a.auth_id AND b.binding_state='active' AND b.retired_at IS NULL
   ) AS n FROM actors a
  )
  SELECT count(*) INTO v_bad FROM fitness WHERE n<>1;
@@ -49,9 +49,9 @@ BEGIN
   SELECT 1 FROM titus.customer_workspace_entitlements_v1 g
   WHERE (SELECT count(*) FROM reality.auth_person_bindings b
     JOIN reality.entities e ON e.id=b.person_entity_id
-      AND e.entity_kind='person'
+      AND e.entity_kind='person' AND e.identity_state='canonical'
     WHERE b.auth_user_id=g.owner_auth_user_id
-      AND b.binding_state='active')<>1
+      AND b.binding_state='active' AND b.retired_at IS NULL)<>1
  ) THEN
   RAISE EXCEPTION 'Titus access grant Person unresolved' USING ERRCODE='42501';
  END IF;
@@ -59,7 +59,7 @@ BEGIN
   SELECT b.person_entity_id
   FROM titus.customer_workspace_entitlements_v1 g
   JOIN reality.auth_person_bindings b
-    ON b.auth_user_id=g.owner_auth_user_id AND b.binding_state='active'
+    ON b.auth_user_id=g.owner_auth_user_id AND b.binding_state='active' AND b.retired_at IS NULL
   GROUP BY b.person_entity_id HAVING count(*)>1
  ) THEN
   RAISE EXCEPTION 'colliding legacy grants on a canonical Person'
@@ -81,8 +81,8 @@ SELECT d.course_id,d.course_id::text,d.title,'active',d.created_at,d.created_at,
  b.person_entity_id,d.created_by_auth_user_id,d.create_request_id
 FROM titus.customer_course_drafts_v1 d
 JOIN reality.auth_person_bindings b ON b.auth_user_id=d.created_by_auth_user_id
- AND b.binding_state='active'
-JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+ AND b.binding_state='active' AND b.retired_at IS NULL
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical';
 
 INSERT INTO atlas.teaching_course_manuscript_revisions(
  revision_id,course_id,edit_request_id,based_on_revision,revision_number,
@@ -93,8 +93,8 @@ SELECT r.revision_id,r.course_id,r.edit_request_id,r.based_on_revision,
  r.recorded_by_auth_user_id,r.recorded_at
 FROM titus.customer_course_material_revisions_v1 r
 JOIN reality.auth_person_bindings b ON b.auth_user_id=r.recorded_by_auth_user_id
- AND b.binding_state='active'
-JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+ AND b.binding_state='active' AND b.retired_at IS NULL
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical';
 
 INSERT INTO atlas.teaching_course_units(
  unit_id,course_id,create_request_id,kind,title,display_position,
@@ -104,8 +104,8 @@ SELECT u.unit_id,u.course_id,u.create_request_id,u.kind,u.title,u.display_positi
  b.person_entity_id,u.created_by_auth_user_id,u.created_at
 FROM titus.customer_course_units_v1 u
 JOIN reality.auth_person_bindings b ON b.auth_user_id=u.created_by_auth_user_id
- AND b.binding_state='active'
-JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+ AND b.binding_state='active' AND b.retired_at IS NULL
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical';
 
 INSERT INTO atlas.teaching_course_unit_revisions(
  revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
@@ -116,8 +116,8 @@ SELECT r.revision_id,r.unit_id,r.edit_request_id,r.based_on_revision,
  r.recorded_by_auth_user_id,r.recorded_at
 FROM titus.customer_course_unit_revisions_v1 r
 JOIN reality.auth_person_bindings b ON b.auth_user_id=r.recorded_by_auth_user_id
- AND b.binding_state='active'
-JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+ AND b.binding_state='active' AND b.retired_at IS NULL
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical';
 
 -- Preserve genuine source-issued Titus pilot/purchase grants on People;
 -- the canonical shared Course creator itself does not require a Titus license.
@@ -129,8 +129,8 @@ SELECT b.person_entity_id,g.owner_auth_user_id,g.grant_kind,
  g.grant_source_receipt,g.state,g.granted_at,g.valid_until
 FROM titus.customer_workspace_entitlements_v1 g
 JOIN reality.auth_person_bindings b ON b.auth_user_id=g.owner_auth_user_id
- AND b.binding_state='active'
-JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+ AND b.binding_state='active' AND b.retired_at IS NULL
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical';
 
 -- Structural and exact row-equality proof with NO body text returned.
 DO $compare$
