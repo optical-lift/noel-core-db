@@ -9,6 +9,8 @@
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_enrollment_issuance_candidate.sql
 -- M3.15C current own Enrollment read and source-issued terminal withdrawal.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_enrollment_self_access_candidate.sql
+-- M3.16B separate learner-by-Unit author scope, never Enrollment-derived.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_learner_sealed_unit_disclosure_candidate.sql
 
 DO $teacher_surface_acl$
 DECLARE n integer;
