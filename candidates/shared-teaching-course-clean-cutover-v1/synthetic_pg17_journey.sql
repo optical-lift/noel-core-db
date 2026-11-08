@@ -608,6 +608,12 @@ $no_premature_operation$;
 -- Institution governor read never grants teacher/learner or Offering opening.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_course_curriculum_disclosure_tests_pg17.sql
 
+-- M3.13: independently author-approved and current-governor-issued
+-- OPEN state on ONE existing sealed Version's shared Course Offering.
+-- Existing privileged old enrollment INSERT is denied by the DB table
+-- trigger even after 'open': no learner/teacher consent is inferred.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/same_course_offering_open_tests_pg17.sql
+
 -- M4 private-Course retirement simulation ONLY in fictional PG17.
 -- The source originals were stored in the session-private manifest before M1.
 -- Delete children explicitly, then DROP RESTRICT rather than CASCADE. Verify
