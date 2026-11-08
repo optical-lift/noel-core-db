@@ -216,7 +216,7 @@ jobs:
           test "$(git -C canonical hash-object scripts/prepare-uni-ops-a-full-history-clone-only.py)" = 286a5ca2a3f779053da88d8ec7a77d32c8eedc6e
           test "$(git -C "$pin_root/u2c_review" hash-object candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/02_native_original_writer_acceptance_guard_held.sql)" = e07cacd0c5035f05a4017de651cd615a97b2f0f6
           test "$(git -C "$pin_root/u2c_review" hash-object candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/04_postconditions_held.sql)" = 6ac485dc5d11038d8d0d8df5536174791418f046
-          test "$(git -C canonical hash-object tests/prepare_reviewed_uniops_u2c_context_scratch.py)" = 53b1fbee6a4f6156e71215504bda0fb0c5f2d997
+          test "$(git -C canonical hash-object tests/prepare_reviewed_uniops_u2c_context_scratch.py)" = 928182c76ab70b8d8a8fab9d685838c4593487ab
           python3 -m py_compile canonical/scripts/prepare-uni-ops-a-full-history-clone-only.py canonical/tests/prepare_reviewed_uniops_u2c_context_scratch.py
           test "$(git -C "$pin_root/c1fixture" hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = e877d93323ddc67d8778be8bea1dfa34319cc85c
           echo 'PASS exact pinned source revisions, fictional C1 baseline and option A test-only assembler'

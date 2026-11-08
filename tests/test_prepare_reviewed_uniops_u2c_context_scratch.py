@@ -29,8 +29,9 @@ class ReviewedCloneSourceTests(unittest.TestCase):
             b"DO $$ BEGIN "
             b"PERFORM 'work_growing_object_context_guard_v1'; "
             b"PERFORM 'U2C_ACCEPTED_RHYTHM_CONTEXT_ONLY'; "
-            b"PERFORM 'Original Work'; "
-            + b"source-review " * 50 + b" END $$;"
+            b"PERFORM 'physical Work source and exact Ledger custody unproven'; "
+            b"PERFORM 'legacy_task_slice'; "
+            + b"source-review " * 50 + b" END $;"
         )
         self.old_a = b"-- frozen accepted-first source, not the review"
         self.old_b = b"-- frozen schema contract, not the review"
@@ -121,6 +122,15 @@ class ReviewedCloneSourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "original writer consent"):
             review.revised_bytes(self.sql, self.stages,
                                  {A: missing, B: self.new_b})
+
+    def test_postconditions_must_preserve_original_legacy_guard(self):
+        missing = self.new_b.replace(b"legacy_task_slice", b"missing_legacy")
+        review.CHANGES = dict(review.CHANGES)
+        review.CHANGES[B] = (
+            review.CHANGES[B][0], review.git_blob(missing), "04.sql")
+        with self.assertRaisesRegex(ValueError, "review postconditions"):
+            review.revised_bytes(self.sql, self.stages,
+                                 {A: self.new_a, B: missing})
 
     def test_additional_source_override_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "exact two"):

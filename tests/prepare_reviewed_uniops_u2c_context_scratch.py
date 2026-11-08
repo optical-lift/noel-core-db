@@ -87,7 +87,8 @@ def revised_bytes(old_sql: bytes, stages: list[dict], revision: dict[str, bytes]
             require(all(token in new_data for token in (
                 b"work_growing_object_context_guard_v1",
                 b"U2C_ACCEPTED_RHYTHM_CONTEXT_ONLY",
-                b"Original Work",
+                b"physical Work source and exact Ledger custody unproven",
+                b"legacy_task_slice",
             )), "review postconditions lost original trigger or source")
         # Existing trusted assembler emitted this wrapped frozen stage, byte
         # identical to its committed checkout; assert exactly one replacement.
