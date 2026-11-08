@@ -150,8 +150,30 @@ echo "SOURCE_SHA=$SHA; ISOLATED_PROJECT=$PROJECT_ID; LOOPBACK_API=$API_PORT; LOO
 STARTED=true
 PHASE="launch-local-auth-rest-postgres"
 supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor \
-  >"$EVIDENCE/startup.log" 2>&1 ||
- { echo 'HOLD: isolated local Supabase startup failed (no other project changed)'; exit 1; }
+  >"$EVIDENCE/startup.log" 2>&1 || {
+  python3 - "$EVIDENCE/startup.log" <<'PY'
+from pathlib import Path
+import re,sys
+s=Path(sys.argv[1]).read_text(errors="replace").lower()
+categories=(
+ ('network_download',r'(tls handshake|connection reset|context deadline|timeout|i/o timeout|proxyconnect|could not resolve|temporary failure in name resolution)'),
+ ('container_image_pull',r'(failed to pull|pull access denied|manifest unknown|download failed|failed to resolve reference|rate limit)'),
+ ('docker_resource',r'(no space left|resource exhausted|cannot allocate|out of memory|permission denied while trying to connect to the docker daemon)'),
+ ('host_port_conflict',r'(port is already allocated|address already in use|bind: address already in use)'),
+ ('schema_migration',r'(error running migrations|error applying migration|failed to apply migration|migration failed|migration .*failed)'),
+ ('database_boot',r'(database is not healthy|postgres.*healthcheck|postgres container.*exit|could not start database)'),
+ ('service_health',r'(service.*unhealthy|container.*unhealthy|health check failed|failed to start.*service)'),
+ ('cli_config',r'(invalid config|failed to parse config|unknown config key)'),
+)
+matched=[name for name,pattern in categories if re.search(pattern,s,re.I)]
+print("FRESH_SUPABASE_START_CLASS="+(",".join(matched) if matched else "unclassified"))
+print("FRESH_SUPABASE_START_LOG_BYTES="+str(len(s.encode())))
+print("FRESH_SUPABASE_START_HAS_MIGRATION="+str("migration" in s).lower())
+print("FRESH_SUPABASE_START_HAS_DOCKER_IMAGE="+str("pull" in s or "image" in s).lower())
+PY
+  echo 'HOLD: isolated local Supabase startup failed; only sanitized class reported'
+  exit 1
+}
 query() { psql "$DB_URL" -X -At -v ON_ERROR_STOP=1 -c "$1"; }
 [[ "$(query 'SELECT current_database()')" == postgres ]] ||
  { echo 'STOP: not the isolated local database'; exit 1; }
