@@ -143,6 +143,72 @@ END
 $$;
 REVOKE ALL ON FUNCTION atlas.current_person_for_private_course_v1() FROM PUBLIC,anon,authenticated;
 
+-- Titus product access is independent of universal Person-authored Course
+-- identity. Preserve the one existing source-issued private-pilot/purchase
+-- grant as an actual Person-scoped access original, NOT a Course workspace.
+-- Creating a Course through shared source does not convey a Titus license.
+CREATE TABLE titus.course_authoring_access_grants (
+ person_entity_id uuid PRIMARY KEY REFERENCES reality.entities(id) ON DELETE RESTRICT,
+ grant_source_auth_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+ grant_kind text NOT NULL CHECK (grant_kind IN ('private_pilot','purchase')),
+ grant_source_receipt text NOT NULL UNIQUE
+  CHECK (grant_source_receipt=btrim(grant_source_receipt) AND
+         length(grant_source_receipt) BETWEEN 8 AND 200),
+ state text NOT NULL CHECK (state IN ('active','suspended','revoked')),
+ granted_at timestamptz NOT NULL,
+ valid_until timestamptz,
+ CHECK (valid_until IS NULL OR valid_until>granted_at)
+);
+ALTER TABLE titus.course_authoring_access_grants ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON titus.course_authoring_access_grants FROM PUBLIC,anon,authenticated;
+
+-- Titus application/authoring use requires a separately granted and still
+-- active Person entitlement. It is not required for any other Atlas-based
+-- Person Course creation through the universal root.
+CREATE FUNCTION titus.require_authoring_access_v1()
+RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path TO pg_catalog
+AS $
+DECLARE v_person uuid;
+BEGIN
+ v_person:=atlas.current_person_for_private_course_v1();
+ IF NOT EXISTS (SELECT 1 FROM titus.course_authoring_access_grants g
+   WHERE g.person_entity_id=v_person
+   AND g.state='active'
+   AND g.granted_at<=clock_timestamp()
+   AND (g.valid_until IS NULL OR g.valid_until>clock_timestamp())) THEN
+  RAISE EXCEPTION 'current Titus authoring access required'
+   USING ERRCODE='42501';
+ END IF;
+ RETURN v_person;
+END
+$;
+REVOKE ALL ON FUNCTION titus.require_authoring_access_v1()
+ FROM PUBLIC,anon,authenticated;
+
+-- Minimal deliberately exposed Titus product check, without grant receipt
+-- or other Person data. A denied grant does not grant Course read access.
+CREATE FUNCTION public.titus_authoring_access_self_api_v1()
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path TO pg_catalog
+AS $
+DECLARE v_person uuid; v_eligible boolean;
+BEGIN
+ v_person:=atlas.current_person_for_private_course_v1();
+ SELECT EXISTS(SELECT 1 FROM titus.course_authoring_access_grants g
+  WHERE g.person_entity_id=v_person AND g.state='active'
+  AND g.granted_at<=clock_timestamp()
+  AND (g.valid_until IS NULL OR g.valid_until>clock_timestamp()))
+ INTO v_eligible;
+ RETURN jsonb_build_object('contractVersion','titus_authoring_access_v1',
+  'canUseTitus',v_eligible);
+END
+$;
+REVOKE ALL ON FUNCTION public.titus_authoring_access_self_api_v1()
+ FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.titus_authoring_access_self_api_v1()
+ TO authenticated;
+
 -- First ONE Course root-creation writer. Subsequent institution operation
 -- references the same id. No legacy workspace or Principal ID is accepted.
 CREATE FUNCTION public.shared_teaching_course_create_self_api_v1(

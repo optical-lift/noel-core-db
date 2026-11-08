@@ -90,6 +90,14 @@ CREATE TABLE titus.customer_course_unit_revisions_v1(
  recorded_by_auth_user_id uuid NOT NULL REFERENCES auth.users(id),
  recorded_at timestamptz NOT NULL
 );
+CREATE TABLE titus.customer_workspace_entitlements_v1(
+ owner_auth_user_id uuid PRIMARY KEY REFERENCES auth.users(id),
+ grant_kind text NOT NULL,
+ grant_source_receipt text NOT NULL,
+ state text NOT NULL,
+ granted_at timestamptz NOT NULL,
+ valid_until timestamptz
+);
 INSERT INTO auth.users(id) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc');
@@ -99,6 +107,10 @@ INSERT INTO reality.entities(id,entity_kind,stable_key) VALUES
 INSERT INTO reality.auth_person_bindings(auth_user_id,person_entity_id,binding_state) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','active'),
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','dddddddd-dddd-4ddd-8ddd-dddddddddddd','active');
+INSERT INTO titus.customer_workspace_entitlements_v1 VALUES(
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'private_pilot','fictional-pilot-grant-receipt','active',
+ '2026-11-06 15:00+00',NULL);
 INSERT INTO titus.customer_course_drafts_v1(
  course_id,workspace_id,created_by_auth_user_id,create_request_id,
  title,state,created_at) VALUES

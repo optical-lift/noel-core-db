@@ -43,6 +43,28 @@ BEGIN
  IF v_bad<>0 THEN
   RAISE EXCEPTION 'unresolved historical Person binding' USING ERRCODE='42501';
  END IF;
+ -- The old private-pilot product access is Person-bound in the target,
+ -- not silently discarded when the legacy Auth-owned workspace disappears.
+ IF EXISTS (
+  SELECT 1 FROM titus.customer_workspace_entitlements_v1 g
+  WHERE (SELECT count(*) FROM reality.auth_person_bindings b
+    JOIN reality.entities e ON e.id=b.person_entity_id
+      AND e.entity_kind='person'
+    WHERE b.auth_user_id=g.owner_auth_user_id
+      AND b.binding_state='active')<>1
+ ) THEN
+  RAISE EXCEPTION 'Titus access grant Person unresolved' USING ERRCODE='42501';
+ END IF;
+ IF EXISTS (
+  SELECT b.person_entity_id
+  FROM titus.customer_workspace_entitlements_v1 g
+  JOIN reality.auth_person_bindings b
+    ON b.auth_user_id=g.owner_auth_user_id AND b.binding_state='active'
+  GROUP BY b.person_entity_id HAVING count(*)>1
+ ) THEN
+  RAISE EXCEPTION 'colliding legacy grants on a canonical Person'
+   USING ERRCODE='23505';
+ END IF;
  IF EXISTS(SELECT 1 FROM titus.customer_course_units_v1
            WHERE kind NOT IN ('lesson','assignment')) THEN
   RAISE EXCEPTION 'unexpected Unit kind' USING ERRCODE='23514';
@@ -94,6 +116,19 @@ SELECT r.revision_id,r.unit_id,r.edit_request_id,r.based_on_revision,
  r.recorded_by_auth_user_id,r.recorded_at
 FROM titus.customer_course_unit_revisions_v1 r
 JOIN reality.auth_person_bindings b ON b.auth_user_id=r.recorded_by_auth_user_id
+ AND b.binding_state='active'
+JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
+
+-- Preserve genuine source-issued Titus pilot/purchase grants on People;
+-- the canonical shared Course creator itself does not require a Titus license.
+INSERT INTO titus.course_authoring_access_grants(
+ person_entity_id,grant_source_auth_user_id,grant_kind,
+ grant_source_receipt,state,granted_at,valid_until
+)
+SELECT b.person_entity_id,g.owner_auth_user_id,g.grant_kind,
+ g.grant_source_receipt,g.state,g.granted_at,g.valid_until
+FROM titus.customer_workspace_entitlements_v1 g
+JOIN reality.auth_person_bindings b ON b.auth_user_id=g.owner_auth_user_id
  AND b.binding_state='active'
 JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person';
 
@@ -180,5 +215,27 @@ BEGIN
    FROM titus.customer_course_unit_revisions_v1)
  ) mismatch;
  IF v_bad<>0 THEN RAISE EXCEPTION 'Unit revision history difference' USING ERRCODE='23514'; END IF;
+
+ SELECT count(*) INTO v_bad FROM (
+  (SELECT g.owner_auth_user_id,g.grant_kind,g.grant_source_receipt,
+     g.state,g.granted_at,g.valid_until
+   FROM titus.customer_workspace_entitlements_v1 g
+   EXCEPT
+   SELECT c.grant_source_auth_user_id,c.grant_kind,c.grant_source_receipt,
+     c.state,c.granted_at,c.valid_until
+   FROM titus.course_authoring_access_grants c)
+  UNION ALL
+  (SELECT c.grant_source_auth_user_id,c.grant_kind,c.grant_source_receipt,
+     c.state,c.granted_at,c.valid_until
+   FROM titus.course_authoring_access_grants c
+   EXCEPT
+   SELECT g.owner_auth_user_id,g.grant_kind,g.grant_source_receipt,
+     g.state,g.granted_at,g.valid_until
+   FROM titus.customer_workspace_entitlements_v1 g)
+ ) mismatch;
+ IF v_bad<>0 THEN
+  RAISE EXCEPTION 'original Titus product grant was not preserved'
+   USING ERRCODE='23514';
+ END IF;
 END
 $compare$;

@@ -9,6 +9,14 @@ SET LOCAL app.shared_course_clone='approved';
 
 -- Writer tests MUST rollback to restore an empty Course root for exact adoption.
 SAVEPOINT writer_contract;
+-- This synthetic author access grant is rolled back before M2 copies the
+-- original fictional legacy pilot receipt.
+INSERT INTO titus.course_authoring_access_grants(
+ person_entity_id,grant_source_auth_user_id,grant_kind,
+ grant_source_receipt,state,granted_at,valid_until)
+VALUES ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'private_pilot','fictional-temporary-m1-access','active',now(),NULL);
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $writer$
@@ -36,6 +44,16 @@ BEGIN
 END
 $writer$;
 
+-- A Titus UI entitlement is separate from the universal Course root.
+DO $license$
+DECLARE access jsonb;
+BEGIN
+ access:=public.titus_authoring_access_self_api_v1();
+ IF access->>'canUseTitus'<>'true' THEN
+  RAISE EXCEPTION 'original pilot author should have Titus app access';
+ END IF;
+END
+$license$;
 -- Browser authenticated roles do not inherit canonical Course table reads.
 DO $deny_direct$
 DECLARE denied boolean:=false;
@@ -144,6 +162,47 @@ BEGIN
  END IF;
 END
 $m2_proof$;
+
+-- The old pilot grant has migrated to Person-source without retaining
+-- an Auth-owned workspace entitlement as the long-term access original.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $grant_copy$
+DECLARE result jsonb;
+BEGIN
+ result:=public.titus_authoring_access_self_api_v1();
+ IF result->>'canUseTitus'<>'true' THEN
+  RAISE EXCEPTION 'migrated source pilot grant did not authorize Titus app';
+ END IF;
+END
+$grant_copy$;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $no_grant$
+DECLARE result jsonb;
+BEGIN
+ result:=public.titus_authoring_access_self_api_v1();
+ IF result->>'canUseTitus'<>'false' THEN
+  RAISE EXCEPTION 'another Person inherited a Titus entitlement';
+ END IF;
+END
+$no_grant$;
+RESET ROLE;
+SAVEPOINT revoke_grant;
+UPDATE titus.course_authoring_access_grants SET state='revoked'
+ WHERE person_entity_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $denied_license$
+DECLARE result jsonb;
+BEGIN
+ result:=public.titus_authoring_access_self_api_v1();
+ IF result->>'canUseTitus'<>'false' THEN
+  RAISE EXCEPTION 'revoked Titus entitlement leaked';
+ END IF;
+END
+$denied_license$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT revoke_grant;
 
 -- Entire test rolls back on network-isolated container. Nothing is released.
 ROLLBACK;
