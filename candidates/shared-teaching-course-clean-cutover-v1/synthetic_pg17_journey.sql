@@ -426,5 +426,113 @@ $outsider_material$;
 RESET ROLE;
 ROLLBACK TO SAVEPOINT authoring_rollback;
 
+-- M3.5: author initiates a relationship to one genuine Reality Ledger.
+-- This is only a private, retractable proposal. It grants NO institution power.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/operating_standing_proposal_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/operating_standing_clone_postconditions.sql
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $operator_proposal$
+DECLARE
+ v_course uuid:='11111111-1111-4111-8111-111111111111';
+ v_ledger uuid:='77777777-7777-4777-8777-777777777777';
+ v_req uuid:='66666666-6666-4666-8666-666666666666';
+ j jsonb;k jsonb;items jsonb; denied boolean:=false;
+BEGIN
+ j:=public.shared_teaching_course_operating_propose_self_api_v1(
+  v_course,v_ledger,v_req);
+ IF j->>'state'<>'proposed' OR (j->>'courseId')::uuid<>v_course THEN
+  RAISE EXCEPTION 'author intent failed to reference same Course original';
+ END IF;
+ k:=public.shared_teaching_course_operating_propose_self_api_v1(
+  v_course,v_ledger,v_req);
+ IF k->>'proposalId'<>j->>'proposalId' THEN
+  RAISE EXCEPTION 'institutional proposal replay created a second relation';
+ END IF;
+ items:=public.shared_teaching_course_operating_proposals_self_api_v1(v_course);
+ IF jsonb_array_length(items->'proposals')<>1 THEN
+  RAISE EXCEPTION 'author could not read exact own proposal';
+ END IF;
+ BEGIN
+  PERFORM public.shared_teaching_course_operating_propose_self_api_v1(
+   v_course,'88888888-8888-4888-8888-888888888888',v_req);
+ EXCEPTION WHEN unique_violation THEN denied:=true;
+ END;
+ IF NOT denied THEN
+  RAISE EXCEPTION 'changed Ledger accepted for same request';
+ END IF;
+ k:=public.shared_teaching_course_operating_withdraw_self_api_v1(
+  v_course,v_req);
+ IF k->>'state'<>'withdrawn' THEN
+  RAISE EXCEPTION 'original proposal was not withdrawn';
+ END IF;
+ k:=public.shared_teaching_course_operating_withdraw_self_api_v1(
+  v_course,v_req);
+ IF k->>'state'<>'withdrawn' THEN
+  RAISE EXCEPTION 'withdraw replay was not idempotent';
+ END IF;
+ k:=public.shared_teaching_course_operating_propose_self_api_v1(
+  v_course,v_ledger,
+  '66666666-6666-4666-8666-666666666667');
+ IF k->>'state'<>'proposed' OR k->>'proposalId'=j->>'proposalId' THEN
+  RAISE EXCEPTION 'new proposal after withdrawal was not distinct';
+ END IF;
+END
+$operator_proposal$;
+
+DO $no_direct_ledger_power$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM 1 FROM atlas.teaching_course_operating_standings LIMIT 1;
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN
+  RAISE EXCEPTION 'author browser can directly read operating table';
+ END IF;
+END
+$no_direct_ledger_power$;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $no_outsider_intent$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_operating_proposals_self_api_v1(
+   '11111111-1111-4111-8111-111111111111');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'outsider read private intent'; END IF;
+ denied:=false;
+ BEGIN
+  PERFORM public.shared_teaching_course_operating_propose_self_api_v1(
+   '11111111-1111-4111-8111-111111111111',
+   '77777777-7777-4777-8777-777777777777',
+   '66666666-6666-4666-8666-666666666668');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'outsider proposed on foreign Course'; END IF;
+END
+$no_outsider_intent$;
+RESET ROLE;
+
+DO $no_premature_operation$
+DECLARE rejected boolean:=false;
+BEGIN
+ BEGIN
+  UPDATE atlas.teaching_course_operating_standings
+   SET proposal_state='active'
+   WHERE proposal_state='proposed';
+ EXCEPTION WHEN check_violation THEN rejected:=true;
+ END;
+ IF NOT rejected THEN
+  RAISE EXCEPTION 'active institutional authority could be faked by proposal';
+ END IF;
+ IF (SELECT count(*) FROM atlas.teaching_courses)<>1 THEN
+  RAISE EXCEPTION 'institutional intent duplicated Course original';
+ END IF;
+END
+$no_premature_operation$;
+
 -- Entire test rolls back on network-isolated container. Nothing is released.
 ROLLBACK;

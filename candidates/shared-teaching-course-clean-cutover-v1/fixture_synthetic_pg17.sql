@@ -6,6 +6,7 @@ CREATE SCHEMA auth;
 CREATE SCHEMA reality;
 CREATE SCHEMA atlas;
 CREATE SCHEMA titus;
+CREATE SCHEMA ledger;
 GRANT USAGE ON SCHEMA auth,public TO authenticated;
 CREATE TABLE auth.users(id uuid PRIMARY KEY);
 CREATE TABLE auth.sessions(
@@ -66,6 +67,12 @@ BEGIN
   'person',jsonb_build_object('id',v_person));
 END
 $reality_context$;
+CREATE TABLE ledger.ledgers(
+ id uuid PRIMARY KEY,
+ subject_entity_id uuid NOT NULL REFERENCES reality.entities(id),
+ ledger_state text NOT NULL,
+ retired_at timestamptz
+);
 CREATE TABLE atlas.ledgers(id uuid PRIMARY KEY);
 CREATE TABLE atlas.capability_activations(id uuid PRIMARY KEY);
 CREATE TABLE atlas.people(id uuid PRIMARY KEY);
@@ -151,7 +158,11 @@ INSERT INTO auth.sessions(id,user_id,not_after) VALUES
   'cccccccc-cccc-4ccc-8ccc-cccccccccccc',NULL);
 INSERT INTO reality.entities(id,entity_kind,stable_key) VALUES
  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','person','fictional-author'),
- ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','person','fictional-outsider');
+ ('dddddddd-dddd-4ddd-8ddd-dddddddddddd','person','fictional-outsider'),
+ ('44444444-4444-4444-8444-444444444444','business','fictional-institution');
+INSERT INTO ledger.ledgers(id,subject_entity_id,ledger_state,retired_at)
+ VALUES('77777777-7777-4777-8777-777777777777',
+ '44444444-4444-4444-8444-444444444444','active',NULL);
 INSERT INTO reality.auth_person_bindings(auth_user_id,person_entity_id,binding_state) VALUES
  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','active'),
  ('cccccccc-cccc-4ccc-8ccc-cccccccccccc','dddddddd-dddd-4ddd-8ddd-dddddddddddd','active');
