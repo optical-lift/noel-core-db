@@ -213,6 +213,9 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'learner original consent could be rewritten'; END IF;
 END $learner_consent_no_enrollment$;
 
+-- Bounded M3.15B Enrollment issuer test, rolled back to no Enrollment.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_enrollment_issuance_tests_pg17.sql
+
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $author_revokes_learner_disclosure$
