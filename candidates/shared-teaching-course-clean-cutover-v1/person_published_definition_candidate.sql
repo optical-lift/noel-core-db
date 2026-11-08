@@ -79,11 +79,10 @@ BEGIN
  FROM atlas.teaching_course_versions WHERE course_id=v_course;
  INSERT INTO atlas.teaching_course_versions(
   course_id,version_no,title,summary,learning_outcomes,
-  published_by_person_id,published_by_principal_id,
   published_by_person_entity_id,publication_request_id,publication_scope
  ) VALUES (
   v_course,v_no,v_title,v_summary,v_outcomes,
-  NULL,NULL,v_person,p_request_id,'definition_metadata_only'
+  v_person,p_request_id,'definition_metadata_only'
  ) RETURNING * INTO v_new;
  RETURN jsonb_build_object(
   'contractVersion','shared_course_definition_publish_v1',
