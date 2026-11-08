@@ -17,6 +17,21 @@ BEGIN
 END
 $acceptance_privilege_check$;
 
+DO $fix_exact_proposal_id$
+DECLARE v_id uuid;
+BEGIN
+ SELECT id INTO v_id FROM atlas.teaching_course_operating_standings
+ WHERE course_id='11111111-1111-4111-8111-111111111111'
+ AND request_id='66666666-6666-4666-8666-666666666667';
+ IF v_id IS NULL THEN RAISE EXCEPTION 'author proposal missing'; END IF;
+ -- Use an explicit fixed test ID under the fixture's privileged role so
+ -- the following fictional signed POST contains the actual invitation ID.
+ UPDATE atlas.teaching_course_operating_standings
+ SET id='e7777777-7777-4777-8777-777777777777'
+ WHERE id=v_id;
+END
+$fix_exact_proposal_id$;
+
 -- The author authored the proposal but cannot sign the Ledger's acceptance.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
@@ -102,20 +117,6 @@ ROLLBACK TO SAVEPOINT suspended_teaching_activation;
 -- A known proposal UUID is NOT enough for an unassigned Ledger actor.
 -- The fixture's governor is the outsider Person in the earlier author test,
 -- but now holds independently grounded institutional root authority.
-DO $fix_exact_proposal_id$
-DECLARE v_id uuid;
-BEGIN
- SELECT id INTO v_id FROM atlas.teaching_course_operating_standings
- WHERE course_id='11111111-1111-4111-8111-111111111111'
- AND request_id='66666666-6666-4666-8666-666666666667';
- IF v_id IS NULL THEN RAISE EXCEPTION 'author proposal missing'; END IF;
- -- Use an explicit fixed test ID under the fixture's privileged role so
- -- the following fictional signed POST contains the actual invitation ID.
- UPDATE atlas.teaching_course_operating_standings
- SET id='e7777777-7777-4777-8777-777777777777'
- WHERE id=v_id;
-END
-$fix_exact_proposal_id$;
 
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
