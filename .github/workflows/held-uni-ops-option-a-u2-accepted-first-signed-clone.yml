@@ -165,14 +165,21 @@ jobs:
           umask 077
           pin_root="$(mktemp -d "$RUNNER_TEMP/uniops-full-clone.XXXXXXXX")"
           echo "UNI_OPS_PIN_ROOT=$pin_root" >> "$GITHUB_ENV"
-          git init -q "$pin_root/repo"
-          git -C "$pin_root/repo" remote add origin https://github.com/optical-lift/noel-core-db.git
+          # One independent shallow repository per immutable source commit.
+          # Sharing .git/shallow across sequential fetches can fail with
+          # "shallow file has changed since we read it" (run #42445200175).
+          # No widening of source pins, network credentials or feature code.
           while read -r label sha; do
             test -n "$label" && [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
-            git -C "$pin_root/repo" -c credential.helper= fetch -q --depth=1 --no-tags origin "$sha"
-            test "$(git -C "$pin_root/repo" rev-parse FETCH_HEAD)" = "$sha"
-            git -C "$pin_root/repo" worktree add --quiet --detach "$pin_root/$label" "$sha"
-            test "$(git -C "$pin_root/$label" rev-parse HEAD)" = "$sha"
+            [[ "$label" =~ ^(lifecycle|r02|u1a|u1b|u2|u2c|harness|c1fixture)$ ]]
+            root="$pin_root/$label"
+            test ! -e "$root"
+            git init -q "$root"
+            git -C "$root" remote add origin https://github.com/optical-lift/noel-core-db.git
+            git -C "$root" -c credential.helper= fetch -q --depth=1 --no-tags origin "$sha"
+            test "$(git -C "$root" rev-parse FETCH_HEAD)" = "$sha"
+            git -C "$root" -c advice.detachedHead=false checkout --quiet --detach "$sha"
+            test "$(git -C "$root" rev-parse HEAD)" = "$sha"
           done <<'PINNED'
           lifecycle ddfb0bf5374798301fe076a61d2b944dfb52ff63
           r02 d48cd444fd261fd5f8c91655b789e50730c1b9f7
