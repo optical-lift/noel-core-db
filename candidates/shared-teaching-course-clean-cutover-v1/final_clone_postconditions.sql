@@ -84,7 +84,7 @@ competing_course_views AS (
     OR definition ILIKE '%titus.programs%')
 ),
 violations AS (
- SELECT 'required' AS kind,name,found AS ok FROM expected
+ SELECT 'required' AS kind,expected.name,expected.found AS ok FROM expected
  UNION ALL SELECT 'retired',name,NOT present FROM retired
  UNION ALL SELECT 'obsolete-RPC',name,FALSE FROM old_rpc
  UNION ALL SELECT 'old-Principal-or-Ledger-FK',conname||'->'||target,FALSE FROM old_fk
