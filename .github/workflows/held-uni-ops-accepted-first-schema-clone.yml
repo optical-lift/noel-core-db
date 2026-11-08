@@ -24,7 +24,7 @@ jobs:
       - name: Authorize exact held test scope, never release
         shell: bash
         env:
-          OWNER_BODY: ${{ github.event.issue.body }
+          OWNER_BODY: ${{ github.event.issue.body }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -81,15 +81,15 @@ jobs:
       - name: Authorize read-only GHCR image pulls
         shell: bash
         env:
-          REGISTRY_USER: ${{ github.actor }
-          REGISTRY_TOKEN: ${{ github.token }
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin >/dev/null
       - name: READ-ONLY snapshot exact production schema and roles, no data
         shell: bash
         env:
-          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
         run: |
           set -euo pipefail
           umask 077
@@ -136,7 +136,7 @@ jobs:
         run: |
           set -euo pipefail
           script="$UNI_OPS_PIN_ROOT/harness/candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py"
-          scratch="$RUNNER_TEMP/UNI_OPS_ACCEPTED_FIRST_$GITHUB_RUN_ID_TEST_ONLY.sql"
+          scratch="$RUNNER_TEMP/UNI_OPS_ACCEPTED_FIRST_${GITHUB_RUN_ID}_TEST_ONLY.sql"
           python3 "$script" \
             --lifecycle "$UNI_OPS_PIN_ROOT/lifecycle" \
             --r02 "$UNI_OPS_PIN_ROOT/r02" \
@@ -221,8 +221,8 @@ jobs:
           rm -f -- "$RUNNER_TEMP/uniops-snapshot-schema.sql" "$RUNNER_TEMP/uniops-snapshot-roles.sql"
           rm -f -- "$RUNNER_TEMP/uniops-private-clone.log" "$RUNNER_TEMP/uniops-manifest.json"
           rm -f -- "$RUNNER_TEMP/20261107193000_atlas_uni_ops_accepted_first_DISPOSABLE_ONLY.sql"
-          rm -f -- "$RUNNER_TEMP/UNI_OPS_ACCEPTED_FIRST_$GITHUB_RUN_ID_TEST_ONLY.sql"
-          case "$UNI_OPS_PIN_ROOT" in
+          rm -f -- "$RUNNER_TEMP/UNI_OPS_ACCEPTED_FIRST_${GITHUB_RUN_ID}_TEST_ONLY.sql"
+          case "${UNI_OPS_PIN_ROOT:-}" in
             "$RUNNER_TEMP"/uniops-full-clone.*) rm -rf -- "$UNI_OPS_PIN_ROOT" ;;
           esac
           if [[ -d "$RUNNER_TEMP/uniops-private-diagnostics" && ! -L "$RUNNER_TEMP/uniops-private-diagnostics" ]]; then
