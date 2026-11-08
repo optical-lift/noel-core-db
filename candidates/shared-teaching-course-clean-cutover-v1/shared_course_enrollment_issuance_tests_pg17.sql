@@ -132,7 +132,7 @@ BEGIN
   PERFORM public.shared_teaching_learner_enrollment_issue_self_api_v1(
     current_setting('app.fictional_learner_decline_offer_id')::uuid,
     'b7666666-6666-4666-8666-666666666661');
- EXCEPTION WHEN insufficient_privilege,unique_violation THEN denied:=true;
+ EXCEPTION WHEN insufficient_privilege OR unique_violation THEN denied:=true;
  END;
  IF NOT denied THEN RAISE EXCEPTION 'Enrollment issuance request could be reparented'; END IF;
 END $m315b_governor_issues_one_original$;
