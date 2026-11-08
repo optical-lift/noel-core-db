@@ -132,7 +132,9 @@ JOIN reality.auth_person_bindings b ON b.auth_user_id=g.owner_auth_user_id
  AND b.binding_state='active' AND b.retired_at IS NULL
 JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical';
 
--- Structural and exact row-equality proof with NO body text returned.
+-- Structural and exact UTF-8 BYTE equality (not locale-collated text equality).
+-- Historical source and target content is converted to bytea for comparisons.
+-- No UUID or manuscript bytes are printed; mismatch raises a generic denial.
 DO $compare$
 DECLARE v_bad integer;
 BEGIN
@@ -145,53 +147,53 @@ BEGIN
 
  SELECT count(*) INTO v_bad
  FROM (
-  (SELECT d.course_id,d.create_request_id,d.title,d.created_by_auth_user_id,d.created_at
+  (SELECT d.course_id,d.create_request_id,convert_to(d.title,'UTF8') AS title_bytes,d.created_by_auth_user_id,d.created_at
    FROM titus.customer_course_drafts_v1 d
    EXCEPT
-   SELECT c.id,c.create_request_id,c.name,c.created_by_auth_user_id,c.created_at
+   SELECT c.id,c.create_request_id,convert_to(c.name,'UTF8') AS title_bytes,c.created_by_auth_user_id,c.created_at
    FROM atlas.teaching_courses c)
   UNION ALL
-  (SELECT c.id,c.create_request_id,c.name,c.created_by_auth_user_id,c.created_at
+  (SELECT c.id,c.create_request_id,convert_to(c.name,'UTF8') AS title_bytes,c.created_by_auth_user_id,c.created_at
    FROM atlas.teaching_courses c
    EXCEPT
-   SELECT d.course_id,d.create_request_id,d.title,d.created_by_auth_user_id,d.created_at
+   SELECT d.course_id,d.create_request_id,convert_to(d.title,'UTF8') AS title_bytes,d.created_by_auth_user_id,d.created_at
    FROM titus.customer_course_drafts_v1 d)
  ) mismatch;
  IF v_bad<>0 THEN RAISE EXCEPTION 'Course original not preserved' USING ERRCODE='23514'; END IF;
 
  SELECT count(*) INTO v_bad FROM (
   (SELECT revision_id,course_id,edit_request_id,based_on_revision,revision_number,
-    body_text,recorded_by_auth_user_id,recorded_at
+    convert_to(body_text,'UTF8') AS body_bytes,recorded_by_auth_user_id,recorded_at
    FROM titus.customer_course_material_revisions_v1
    EXCEPT
    SELECT revision_id,course_id,edit_request_id,based_on_revision,revision_number,
-    body_text,recorded_by_auth_user_id,recorded_at
+    convert_to(body_text,'UTF8') AS body_bytes,recorded_by_auth_user_id,recorded_at
    FROM atlas.teaching_course_manuscript_revisions)
   UNION ALL
   (SELECT revision_id,course_id,edit_request_id,based_on_revision,revision_number,
-    body_text,recorded_by_auth_user_id,recorded_at
+    convert_to(body_text,'UTF8') AS body_bytes,recorded_by_auth_user_id,recorded_at
    FROM atlas.teaching_course_manuscript_revisions
    EXCEPT
    SELECT revision_id,course_id,edit_request_id,based_on_revision,revision_number,
-    body_text,recorded_by_auth_user_id,recorded_at
+    convert_to(body_text,'UTF8') AS body_bytes,recorded_by_auth_user_id,recorded_at
    FROM titus.customer_course_material_revisions_v1)
  ) mismatch;
  IF v_bad<>0 THEN RAISE EXCEPTION 'founding manuscript revision difference' USING ERRCODE='23514'; END IF;
 
  SELECT count(*) INTO v_bad FROM (
-  (SELECT unit_id,course_id,create_request_id,kind,title,display_position,
+  (SELECT unit_id,course_id,create_request_id,convert_to(kind,'UTF8') AS kind_bytes,convert_to(title,'UTF8') AS title_bytes,display_position,
     created_by_auth_user_id,created_at
    FROM titus.customer_course_units_v1
    EXCEPT
-   SELECT unit_id,course_id,create_request_id,kind,title,display_position,
+   SELECT unit_id,course_id,create_request_id,convert_to(kind,'UTF8') AS kind_bytes,convert_to(title,'UTF8') AS title_bytes,display_position,
     created_by_auth_user_id,created_at
    FROM atlas.teaching_course_units)
   UNION ALL
-  (SELECT unit_id,course_id,create_request_id,kind,title,display_position,
+  (SELECT unit_id,course_id,create_request_id,convert_to(kind,'UTF8') AS kind_bytes,convert_to(title,'UTF8') AS title_bytes,display_position,
     created_by_auth_user_id,created_at
    FROM atlas.teaching_course_units
    EXCEPT
-   SELECT unit_id,course_id,create_request_id,kind,title,display_position,
+   SELECT unit_id,course_id,create_request_id,convert_to(kind,'UTF8') AS kind_bytes,convert_to(title,'UTF8') AS title_bytes,display_position,
     created_by_auth_user_id,created_at
    FROM titus.customer_course_units_v1)
  ) mismatch;
@@ -199,19 +201,19 @@ BEGIN
 
  SELECT count(*) INTO v_bad FROM (
   (SELECT revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
-    body_text,recorded_by_auth_user_id,recorded_at
+    convert_to(body_text,'UTF8') AS body_bytes,recorded_by_auth_user_id,recorded_at
    FROM titus.customer_course_unit_revisions_v1
    EXCEPT
    SELECT revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
-    body_text,recorded_by_auth_user_id,recorded_at
+    convert_to(body_text,'UTF8') AS body_bytes,recorded_by_auth_user_id,recorded_at
    FROM atlas.teaching_course_unit_revisions)
   UNION ALL
   (SELECT revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
-    body_text,recorded_by_auth_user_id,recorded_at
+    convert_to(body_text,'UTF8') AS body_bytes,recorded_by_auth_user_id,recorded_at
    FROM atlas.teaching_course_unit_revisions
    EXCEPT
    SELECT revision_id,unit_id,edit_request_id,based_on_revision,revision_number,
-    body_text,recorded_by_auth_user_id,recorded_at
+    convert_to(body_text,'UTF8') AS body_bytes,recorded_by_auth_user_id,recorded_at
    FROM titus.customer_course_unit_revisions_v1)
  ) mismatch;
  IF v_bad<>0 THEN RAISE EXCEPTION 'Unit revision history difference' USING ERRCODE='23514'; END IF;

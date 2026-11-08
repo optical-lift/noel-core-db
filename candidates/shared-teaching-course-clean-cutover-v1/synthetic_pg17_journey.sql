@@ -215,6 +215,46 @@ ROLLBACK TO SAVEPOINT ambiguous_actor;
 -- M2 copies same fictional old Course UUID and exact original text, IDs,
 -- revision numbers, request IDs, source auth and timestamps.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_exact_adoption_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_byte_attestation.sql
+
+-- Deliberately corrupt cloned target *after* successful adoption. The
+-- independent byte attestation must reject it; then rollback only mutation.
+-- This proves a passing source-copy test is not a vacuous count-only test.
+SAVEPOINT byte_mutation;
+UPDATE atlas.teaching_course_manuscript_revisions
+ SET body_text=replace(body_text,E'\n',E'\r\n')
+ WHERE course_id='11111111-1111-4111-8111-111111111111';
+\set ON_ERROR_STOP off
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_byte_attestation.sql
+\set byte_mutation_sqlstate :SQLSTATE
+\set ON_ERROR_STOP on
+ROLLBACK TO SAVEPOINT byte_mutation;
+SELECT (:'byte_mutation_sqlstate'='23514') AS byte_mutation_detected \gset
+\if :byte_mutation_detected
+\else
+  \echo 'FAILED: private manuscript line-ending mutation escaped the byte postcondition'
+  SELECT 1/0 AS byte_attestation_missed_mutation;
+\endif
+
+-- Independent Unit order is part of the original history; altering it must
+-- be rejected even when no text or identity changed.
+SAVEPOINT order_mutation;
+UPDATE atlas.teaching_course_units SET display_position=256
+ WHERE unit_id='31111111-1111-4111-8111-111111111111';
+\set ON_ERROR_STOP off
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_byte_attestation.sql
+\set order_mutation_sqlstate :SQLSTATE
+\set ON_ERROR_STOP on
+ROLLBACK TO SAVEPOINT order_mutation;
+SELECT (:'order_mutation_sqlstate'='23514') AS order_mutation_detected \gset
+\if :order_mutation_detected
+\else
+  \echo 'FAILED: original Unit ordering mutation escaped the postcondition'
+  SELECT 1/0 AS unit_order_attestation_missed_mutation;
+\endif
+
+-- Recheck pristine original after negative tests.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_byte_attestation.sql
 
 DO $m2_proof$
 BEGIN
