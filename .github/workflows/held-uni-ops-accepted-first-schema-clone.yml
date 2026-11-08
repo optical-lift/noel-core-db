@@ -184,7 +184,7 @@ jobs:
           python3 - "$RUNNER_TEMP/uniops-private-diagnostics" \
             "$RUNNER_TEMP/uniops-private-clone.log" \
             "$RUNNER_TEMP/20261107193000_atlas_uni_ops_accepted_first_DISPOSABLE_ONLY.sql" <<'PY'
-          import pathlib,re,sys
+          import json,pathlib,re,sys
           root=pathlib.Path(sys.argv[1]); summary=pathlib.Path(sys.argv[2])
           candidate=root/'candidate-migration.log'
           sql=pathlib.Path(sys.argv[3])
@@ -235,6 +235,34 @@ jobs:
           print('UNI_OPS_FIRST_SOURCE='+stage)
           print('UNI_OPS_SQL_ERROR_CLASS='+category)
           print('UNI_OPS_LOCAL_PHASE='+phase)
+          # Report only fixed aggregate categories; private function names,
+          # SQL, identity, relation names and raw lint messages stay local.
+          delta=root/'schema-lint-delta.json'
+          if not delta.is_file():
+              print('UNI_OPS_LINT_DELTA_STATUS=report_absent')
+          else:
+              try:
+                  payload=json.loads(delta.read_text(errors='replace'))
+                  findings=payload['introduced']
+                  count=payload['introduced_count']
+                  if not isinstance(findings,list) or not isinstance(count,int) or count!=len(findings):
+                      raise ValueError('invalid counts')
+                  groups={}
+                  classes={'42883':'missing_function','42703':'missing_column',
+                           '42P01':'missing_relation','3F000':'missing_schema',
+                           '42601':'syntax','42501':'privilege','42702':'ambiguous_column',
+                           '23514':'check_constraint'}
+                  for entry in findings:
+                      issue=entry.get('issue',{}) if isinstance(entry,dict) else {}
+                      code=str(issue.get('sqlState','')) if isinstance(issue,dict) else ''
+                      label=classes.get(code,'other_or_unspecified')
+                      groups[label]=groups.get(label,0)+1
+                  print('UNI_OPS_LINT_DELTA_STATUS='+('introduced_errors' if count else 'no_new_errors'))
+                  print('UNI_OPS_LINT_INTRODUCED_COUNT='+str(count))
+                  print('UNI_OPS_LINT_ERROR_CLASSES='+
+                        (','.join(k+':'+str(groups[k]) for k in sorted(groups)) if groups else 'none'))
+              except (OSError,ValueError,KeyError,TypeError,AttributeError):
+                  print('UNI_OPS_LINT_DELTA_STATUS=unreadable_report')
           print('UNI_OPS_SIGNED_WORK_ACCEPTANCE=NOT_RUN')
           print('UNI_OPS_PRODUCTION_MUTATION=NONE')
           print('UNI_OPS_PAID_BRANCH=NONE')
