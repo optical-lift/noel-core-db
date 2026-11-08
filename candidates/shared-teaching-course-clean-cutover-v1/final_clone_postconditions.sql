@@ -68,7 +68,7 @@ competing_course_views AS (
     definition ILIKE '%titus.customer_course_drafts_v1%'
     OR definition ILIKE '%titus.courses%'
     OR definition ILIKE '%titus.programs%')
-)
+),
 violations AS (
  SELECT 'required' AS kind,name,found AS ok FROM expected
  UNION ALL SELECT 'retired',name,NOT present FROM retired
