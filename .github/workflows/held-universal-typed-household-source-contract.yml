@@ -1,0 +1,47 @@
+name: HELD universal typed Household native evidence source (no database)
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas_uni_ops_universal_typed_household_evidence_v1/**'
+      - 'tests/atlas-uni-ops-typed-household-native-source.test.mjs'
+      - '.github/workflows/held-universal-typed-household-source-contract.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Universal source-to-native Household boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/atlas-uni-ops-typed-household-native-source.test.mjs
+      - name: Refuse accidental migration, public privilege or production use
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('candidates/atlas_uni_ops_universal_typed_household_evidence_v1/candidate.sql')
+          s=p.read_text()
+          wf=Path('.github/workflows/held-universal-typed-household-source-contract.yml').read_text()
+          assert s.count('CREATE FUNCTION ')==1
+          assert "'native_subject_only_not_canonical'" in s
+          for a in ('canonicalRealityBindingVerified','domainAdmissionAuthorized','workCreated','successorWorkCreated'):
+              assert "'"+a+"',false" in s
+          assert 'CREATE FUNCTION public.' not in s
+          assert 'GRANT EXECUTE ON FUNCTION' not in s
+          assert not any(f.name.startswith('20261106') and 'typed_household' in f.name for f in Path('supabase/migrations').glob('*.sql'))
+          assert 'secrets'+'.' not in wf
+          assert 'workflow_'+'dispatch:' not in wf
+          assert 'environment:'+' production' not in wf
+          assert 'supabase db '+'push' not in wf
+          print('PASS HELD typed native source, no production grant or test-only transport')
+          PY
