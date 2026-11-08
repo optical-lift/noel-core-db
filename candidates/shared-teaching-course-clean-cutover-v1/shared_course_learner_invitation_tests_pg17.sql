@@ -213,6 +213,24 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'learner original consent could be rewritten'; END IF;
 END $learner_consent_no_enrollment$;
 
+-- Signed student invitation/consent never implies instructor source access.
+-- This is the same immutable Version but the teacher Unit is a distinct grant.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"d6666666-6666-4666-8666-666666666661","session_id":"56666666-6666-4666-8666-666666666661"}';
+DO $learner_cannot_read_named_teacher_unit$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_teacher_sealed_unit_read_self_api_v1(
+    current_setting('app.teacher_accept_offer_id')::uuid,
+    current_setting('app.m316_unit_id')::uuid);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'learner inherited teacher-only sealed Unit source'; END IF;
+END $learner_cannot_read_named_teacher_unit$;
+RESET ROLE;
+
+
 -- Bounded M3.15B Enrollment issuer test, rolled back to no Enrollment.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_enrollment_issuance_tests_pg17.sql
 
