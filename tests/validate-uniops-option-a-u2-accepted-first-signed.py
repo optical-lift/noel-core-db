@@ -227,7 +227,7 @@ def main():
 
     response="respond_governed_prework_candidate_self_api_v1"
     final="finalize_accepted_governed_prework_self_api_v1"
-    args_accept={"p_offer_id":offer,"p_decision":"accept",
+    args_accept={"p_offer_id":offer,"p_decision":"accepted",
                  "p_action_id":"e5200000-0000-4000-8000-000000000e04"}
     deny(api,key,outsider,response,args_accept,
          "outsider cannot accept recipient-specific offer")
