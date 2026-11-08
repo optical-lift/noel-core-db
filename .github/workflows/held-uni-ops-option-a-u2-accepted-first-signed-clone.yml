@@ -42,7 +42,7 @@ jobs:
           assert "source_choice':'a_full_current_completion_plus_history'" in workflow
           assert "signed_contract':'u1b_u2_mowing_accepted_first_v1'" in workflow
           assert "NOEL_CORE_DATABASE_URL" in workflow and "supabase db dump" in workflow
-          assert not any(needle in workflow for needle in ("supabase db push","apply_migration","CREATE ROLE "))
+          assert not any(needle in protected for needle in ("supabase db push","apply_migration","CREATE ROLE "))
           for tok in ("c1.sign_in", "auth.sessions", "governor_set_subject_disclosure_self_api_v1",
                       "propose_native_ledger_standing_scope_owner_self_api_v1",
                       "respond_native_ledger_standing_scope_self_api_v1",
