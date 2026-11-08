@@ -254,6 +254,116 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'unreleased Offering deletion bypassed'; END IF;
 END $exact_shared_structure$;
 
+-- A previously authorized draft is no license to create more after ANY
+-- independent current source condition ends. Each negative is restored
+-- before the next check, with the same signed governor session.
+SAVEPOINT offering_root_ended;
+UPDATE atlas.principal_ledger_authorities SET status='ended'
+ WHERE authority_kind='root_governing';
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $offering_root_revoked_denied$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_offering_draft_create_self_api_v1(
+   'e8888888-8888-4888-8888-888888888888',
+   current_setting('app.fictional_published_version_id')::uuid,
+   'a8888888-8888-4888-8888-888888888880','cohort',NULL,NULL);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'revoked governor minted further Course Offering'; END IF;
+END $offering_root_revoked_denied$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT offering_root_ended;
+
+SAVEPOINT offering_teaching_revoked;
+UPDATE atlas.fictional_teaching_entitlement SET state='revoked';
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $offering_teaching_revoked_denied$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_offering_draft_create_self_api_v1(
+   'e8888888-8888-4888-8888-888888888888',
+   current_setting('app.fictional_published_version_id')::uuid,
+   'a8888888-8888-4888-8888-888888888881','cohort',NULL,NULL);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'revoked Teaching entitlement minted Offering'; END IF;
+END $offering_teaching_revoked_denied$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT offering_teaching_revoked;
+
+SAVEPOINT offering_session_expired;
+UPDATE auth.sessions SET not_after=clock_timestamp()-interval '1 minute'
+ WHERE user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $offering_session_invalid_denied$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_offering_draft_create_self_api_v1(
+   'e8888888-8888-4888-8888-888888888888',
+   current_setting('app.fictional_published_version_id')::uuid,
+   'a8888888-8888-4888-8888-888888888882','cohort',NULL,NULL);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'expired operator session created an Offering'; END IF;
+END $offering_session_invalid_denied$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT offering_session_expired;
+
+-- Distinct author decisions are serialized on the same proposal lock.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $offering_title_withhold$
+BEGIN
+ PERFORM public.shared_teaching_course_operating_title_decide_self_api_v1(
+  'e8888888-8888-4888-8888-888888888888',
+  'd8888888-8888-4888-8888-888888888883','withhold_title');
+END $offering_title_withhold$;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $offering_title_withdraw_denied$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_offering_draft_create_self_api_v1(
+   'e8888888-8888-4888-8888-888888888888',
+   current_setting('app.fictional_published_version_id')::uuid,
+   'a8888888-8888-4888-8888-888888888883','cohort',NULL,NULL);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'withheld title still justified an Offering'; END IF;
+END $offering_title_withdraw_denied$;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $offering_title_reallow$
+BEGIN
+ PERFORM public.shared_teaching_course_operating_title_decide_self_api_v1(
+  'e8888888-8888-4888-8888-888888888888',
+  'd8888888-8888-4888-8888-888888888884','allow_title');
+END $offering_title_reallow$;
+RESET ROLE;
+
+-- A supplied Version UUID belonging to no published original is denied.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $wrong_published_version_denied$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_teaching_course_offering_draft_create_self_api_v1(
+   'e8888888-8888-4888-8888-888888888888',
+   'baaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+   'a8888888-8888-4888-8888-888888888884','cohort',NULL,NULL);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'unknown/foreign Version minted shared Offering'; END IF;
+END $wrong_published_version_denied$;
+RESET ROLE;
+
 -- Changed current author approval must stop NEW draft creation, even while
 -- an earlier draft remains historical. Draft has no open/enroll access.
 SET LOCAL ROLE authenticated;
