@@ -614,6 +614,11 @@ $no_premature_operation$;
 -- trigger even after 'open': no learner/teacher consent is inferred.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/same_course_offering_open_tests_pg17.sql
 
+-- M3.14: one bounded author-authorized Offering teacher invitation,
+-- independently issued by exact governor and accepted/declined by the
+-- specific signed Person. No class, materials or student authority.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_teacher_appointment_tests_pg17.sql
+
 -- M4 private-Course retirement simulation ONLY in fictional PG17.
 -- The source originals were stored in the session-private manifest before M1.
 -- Delete children explicitly, then DROP RESTRICT rather than CASCADE. Verify
