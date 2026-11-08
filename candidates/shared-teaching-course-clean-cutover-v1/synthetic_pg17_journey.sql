@@ -627,7 +627,7 @@ ROLLBACK TO SAVEPOINT fictional_private_retirement;
 SAVEPOINT full_m4_retirement;
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/m4_synthetic_retirement_fixture.sql
 
--- Full original-set and grant attestation succeeds before deleting source.
+-- Unknown downstream reader MUST block DROP RESTRICT, not be cascaded away.\n-- This deliberately induced dependency is removed before actual M4 execution.\nSAVEPOINT unexpected_course_reader;\nCREATE VIEW public.fictional_unlisted_course_reader_v1 AS\n SELECT id FROM public.titus_course_prerequisites_v1;\nSAVEPOINT expected_dependency_block;\n\\set ON_ERROR_STOP off\nDROP VIEW public.titus_course_prerequisites_v1 RESTRICT;\n\\set course_dependency_sqlstate :SQLSTATE\n\\set ON_ERROR_STOP on\nROLLBACK TO SAVEPOINT expected_dependency_block;\nSELECT (:'course_dependency_sqlstate'='2BP01') AS unexpected_dependency_blocked \\gset\n\\if :unexpected_dependency_blocked\n\\else\n SELECT 1/0 AS unexpected_view_dependency_was_silently_dropped;\n\\endif\nROLLBACK TO SAVEPOINT unexpected_course_reader;\n\n-- Full original-set and grant attestation succeeds before deleting source.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_byte_attestation.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_private_course_retirement_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_course_shell_retirement_candidate.sql
@@ -643,12 +643,12 @@ BEGIN
     to_regclass('titus.customer_course_drafts_v1') IS NOT NULL OR
     to_regclass('titus.customer_workspaces_v1') IS NOT NULL OR
     to_regprocedure('public.titus_customer_catalog_self_api_v1()') IS NOT NULL OR
-    to_regclass('public.titus_courses_v1') IS NOT NULL OR
+    to_regclass('public.titus_courses_v1') IS NOT NULL OR\n    to_regclass('public.titus_course_prerequisites_v1') IS NOT NULL OR\n    to_regclass('public.titus_course_word_pattern_boards_v1') IS NOT NULL OR
     EXISTS(SELECT 1 FROM titus.programs) OR
     EXISTS(SELECT 1 FROM titus.curriculum_versions) OR
     EXISTS(SELECT 1 FROM titus.canon_claims) OR
     EXISTS(SELECT 1 FROM titus.formation_units) OR
-    EXISTS(SELECT 1 FROM titus.teacher_source_adjudications) THEN
+    EXISTS(SELECT 1 FROM titus.teacher_source_adjudications) OR\n    EXISTS(SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace\n     WHERE n.nspname='public' AND c.relname LIKE 'titus_course%'\n       AND c.relkind IN ('v','m')) THEN
    RAISE EXCEPTION 'full three-tranche M4 retirement did not remove retired roots';
  END IF;
  IF (SELECT count(*) FROM titus.lesson_packets)<>1 OR
