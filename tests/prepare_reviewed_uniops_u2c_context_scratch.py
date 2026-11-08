@@ -72,7 +72,8 @@ def revised_bytes(old_sql: bytes, stages: list[dict], revision: dict[str, bytes]
                 "original stage identity changed: " + name)
         new_data = revision[name]
         require(git_blob(new_data) == new_sha, "reviewed new source blob mismatch: " + name)
-        require(b"CREATE " in new_data and len(new_data) > 350,
+        require((b"CREATE " in new_data or name.endswith("postconditions"))
+                and len(new_data) > 350,
                 "reviewed source incomplete: " + name)
         if name == "u2c-accepted-only-original-guard":
             require(all(token in new_data for token in (
