@@ -142,7 +142,11 @@ BEGIN
   'atlas.teaching_enrollments_for_current_person_self_api_v1()'
  ] LOOP
   EXECUTE 'CREATE FUNCTION '||signature||
-    ' RETURNS void LANGUAGE plpgsql AS $stub_body$BEGIN RETURN; END$stub_body;
+    ' RETURNS void LANGUAGE plpgsql AS $stub_body$BEGIN RETURN; END$stub_body
+ END LOOP;
+END
+$institutional_stubs$;
+;
  END LOOP;
 END
 $institutional_stubs$;
