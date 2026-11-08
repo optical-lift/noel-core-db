@@ -622,5 +622,46 @@ END
 $retired_private_shape$;
 ROLLBACK TO SAVEPOINT fictional_private_retirement;
 
+-- Exercise the actual HELD three-tranche M4 deletion SQL against a richer,
+-- synthetic relational graph. This is NOT a restored production schema.
+SAVEPOINT full_m4_retirement;
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/m4_synthetic_retirement_fixture.sql
+
+-- Full original-set and grant attestation succeeds before deleting source.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_byte_attestation.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_private_course_retirement_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_course_shell_retirement_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/legacy_mcmillan_program_retirement_candidate.sql
+
+-- Old shared research table STRUCTURES are reusable, but only the retired
+-- program's rows have vanished. Independent lesson/source originals survive.
+DO $full_m4_result$
+BEGIN
+ IF (SELECT count(*) FROM atlas.teaching_courses)<>1 OR
+    to_regclass('titus.courses') IS NOT NULL OR
+    to_regclass('titus.course_slots') IS NOT NULL OR
+    to_regclass('titus.customer_course_drafts_v1') IS NOT NULL OR
+    to_regclass('titus.customer_workspaces_v1') IS NOT NULL OR
+    to_regprocedure('public.titus_customer_catalog_self_api_v1()') IS NOT NULL OR
+    to_regclass('public.titus_courses_v1') IS NOT NULL OR
+    EXISTS(SELECT 1 FROM titus.programs) OR
+    EXISTS(SELECT 1 FROM titus.curriculum_versions) OR
+    EXISTS(SELECT 1 FROM titus.canon_claims) OR
+    EXISTS(SELECT 1 FROM titus.formation_units) OR
+    EXISTS(SELECT 1 FROM titus.teacher_source_adjudications) THEN
+   RAISE EXCEPTION 'full three-tranche M4 retirement did not remove retired roots';
+ END IF;
+ IF (SELECT count(*) FROM titus.lesson_packets)<>1 OR
+    (SELECT count(*) FROM titus.teacher_source_units)<>1 OR
+    (SELECT count(*) FROM titus.lesson_teacher_source_links)<>1 OR
+    EXISTS(SELECT 1 FROM titus.lesson_teacher_source_links WHERE adjudication_id IS NOT NULL)
+ THEN
+   RAISE EXCEPTION 'M4 accidentally destroyed independent lesson/source originals';
+ END IF;
+END
+$full_m4_result$;
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_postretirement_manifest_attestation.sql
+ROLLBACK TO SAVEPOINT full_m4_retirement;
+
 -- Entire test rolls back on network-isolated container. Nothing is released.
 ROLLBACK;
