@@ -4,6 +4,7 @@
 BEGIN;
 SET LOCAL app.shared_course_clone='approved';
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/fixture_synthetic_pg17.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_temporary_manifest.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_first_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_first_clone_postconditions.sql
 
@@ -216,6 +217,7 @@ ROLLBACK TO SAVEPOINT ambiguous_actor;
 -- revision numbers, request IDs, source auth and timestamps.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_exact_adoption_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_byte_attestation.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_postretirement_manifest_attestation.sql
 
 -- Deliberately corrupt cloned target *after* successful adoption. The
 -- independent byte attestation must reject it; then rollback only mutation.
@@ -573,6 +575,52 @@ BEGIN
  END IF;
 END
 $no_premature_operation$;
+
+-- M4 private-Course retirement simulation ONLY in fictional PG17.
+-- The source originals were stored in the session-private manifest before M1.
+-- Delete children explicitly, then DROP RESTRICT rather than CASCADE. Verify
+-- the SAME retained Course history without reading any old source table.
+SAVEPOINT fictional_private_retirement;
+DELETE FROM titus.customer_course_unit_revisions_v1;
+DELETE FROM titus.customer_course_material_revisions_v1;
+DELETE FROM titus.customer_course_units_v1;
+DELETE FROM titus.customer_course_drafts_v1;
+DROP TABLE titus.customer_course_unit_revisions_v1 RESTRICT;
+DROP TABLE titus.customer_course_material_revisions_v1 RESTRICT;
+DROP TABLE titus.customer_course_units_v1 RESTRICT;
+DROP TABLE titus.customer_course_drafts_v1 RESTRICT;
+
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_postretirement_manifest_attestation.sql
+
+-- Even with the old source removed in the scratch savepoint, mutating a
+-- retained Unit revision must fail against the independent private manifest.
+SAVEPOINT retained_unit_mutation;
+UPDATE atlas.teaching_course_unit_revisions
+ SET body_text=body_text||E'\r'
+ WHERE revision_id='41111111-1111-4111-8111-111111111111';
+\set ON_ERROR_STOP off
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_postretirement_manifest_attestation.sql
+\set postretirement_mutation_sqlstate :SQLSTATE
+\set ON_ERROR_STOP on
+ROLLBACK TO SAVEPOINT retained_unit_mutation;
+SELECT (:'postretirement_mutation_sqlstate'='23514') AS retained_revision_change_detected \gset
+\if :retained_revision_change_detected
+\else
+ SELECT 1/0 AS manifest_failed_to_detect_retained_unit_mutation;
+\endif
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_postretirement_manifest_attestation.sql
+
+DO $retired_private_shape$
+BEGIN
+ IF to_regclass('titus.customer_course_drafts_v1') IS NOT NULL
+ OR to_regclass('titus.customer_course_units_v1') IS NOT NULL
+ OR to_regclass('titus.customer_course_material_revisions_v1') IS NOT NULL
+ OR to_regclass('titus.customer_course_unit_revisions_v1') IS NOT NULL THEN
+  RAISE EXCEPTION 'old private Course table survived fictional DROP RESTRICT';
+ END IF;
+END
+$retired_private_shape$;
+ROLLBACK TO SAVEPOINT fictional_private_retirement;
 
 -- Entire test rolls back on network-isolated container. Nothing is released.
 ROLLBACK;

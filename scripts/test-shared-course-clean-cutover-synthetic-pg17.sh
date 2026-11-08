@@ -5,7 +5,7 @@ set -Eeuo pipefail
 command -v docker >/dev/null || exit 2
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 d="candidates/shared-teaching-course-clean-cutover-v1"
-for f in fixture_synthetic_pg17.sql person_first_candidate.sql person_first_clone_postconditions.sql sk101_exact_adoption_candidate.sql sk101_clone_byte_attestation.sql canonical_authoring_candidate.sql canonical_authoring_clone_postconditions.sql operating_standing_proposal_candidate.sql operating_standing_clone_postconditions.sql synthetic_pg17_journey.sql; do
+for f in fixture_synthetic_pg17.sql person_first_candidate.sql person_first_clone_postconditions.sql sk101_exact_adoption_candidate.sql sk101_clone_temporary_manifest.sql sk101_clone_byte_attestation.sql sk101_clone_postretirement_manifest_attestation.sql canonical_authoring_candidate.sql canonical_authoring_clone_postconditions.sql operating_standing_proposal_candidate.sql operating_standing_clone_postconditions.sql synthetic_pg17_journey.sql; do
   test -s "$root/$d/$f" || { echo "Missing $f" >&2; exit 2; }
 done
 if grep -Eq '\\bNOEL_CORE_DATABASE_URL\\b|\\bSUPABASE_DB_URL\\b|\\bsupabase db push\\b' "$root/$d/synthetic_pg17_journey.sql"; then
