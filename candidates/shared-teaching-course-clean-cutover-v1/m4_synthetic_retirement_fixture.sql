@@ -91,6 +91,15 @@ CREATE VIEW public.titus_course_prerequisites_v1 AS SELECT id FROM titus.course_
 -- Retiring this OLD exposure must not remove its independent lesson source.
 CREATE VIEW public.titus_course_word_pattern_boards_v1 AS SELECT id,body_text FROM titus.lesson_packets;
 CREATE VIEW public.titus_course_slots_v1 AS SELECT slot_id FROM titus.course_slots;
+-- Old Atlas duplicate root creators and distinct preserved Offering operation.
+-- These are fictional stubs: the source cleanup must delete the two Course
+-- minting paths but must leave the Offering writer available.
+CREATE FUNCTION atlas.create_teaching_course_self_api_v1(uuid,text,text)
+ RETURNS void LANGUAGE sql AS 'SELECT NULL::void';
+CREATE FUNCTION atlas.create_teaching_course_from_activation_self_api_v1(uuid,text,text)
+ RETURNS void LANGUAGE sql AS 'SELECT NULL::void';
+CREATE FUNCTION atlas.create_teaching_course_offering_self_api_v1(uuid,uuid,text,timestamptz,timestamptz)
+ RETURNS void LANGUAGE sql AS 'SELECT NULL::void';
 -- All actual private legacy functions are represented by nonfunctional
 -- placeholders: this test inspects retirement mechanics, never their behavior.
 DO $stubs$
