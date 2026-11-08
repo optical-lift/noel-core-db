@@ -235,7 +235,7 @@ jobs:
           print('UNI_OPS_FIRST_SOURCE='+stage)
           print('UNI_OPS_SQL_ERROR_CLASS='+category)
           print('UNI_OPS_LOCAL_PHASE='+phase)
-                    print('UNI_OPS_SIGNED_WORK_ACCEPTANCE=NOT_RUN')
+          print('UNI_OPS_SIGNED_WORK_ACCEPTANCE=NOT_RUN')
           print('UNI_OPS_PRODUCTION_MUTATION=NONE')
           print('UNI_OPS_PAID_BRANCH=NONE')
           PY
