@@ -664,6 +664,9 @@ BEGIN
     to_regclass('public.titus_courses_v1') IS NOT NULL OR
     to_regclass('public.titus_course_prerequisites_v1') IS NOT NULL OR
     to_regclass('public.titus_course_word_pattern_boards_v1') IS NOT NULL OR
+    to_regprocedure('atlas.create_teaching_course_self_api_v1(uuid,text,text)') IS NOT NULL OR
+    to_regprocedure('atlas.create_teaching_course_from_activation_self_api_v1(uuid,text,text)') IS NOT NULL OR
+    to_regprocedure('atlas.create_teaching_course_offering_self_api_v1(uuid,uuid,text,timestamptz,timestamptz)') IS NULL OR
     EXISTS(SELECT 1 FROM titus.programs) OR
     EXISTS(SELECT 1 FROM titus.curriculum_versions) OR
     EXISTS(SELECT 1 FROM titus.canon_claims) OR
