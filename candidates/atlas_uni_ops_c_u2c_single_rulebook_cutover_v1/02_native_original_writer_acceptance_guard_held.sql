@@ -393,6 +393,7 @@ BEGIN
   END IF;
 
 
+  -- BEGIN U2C_ACCEPTED_RHYTHM_CONTEXT_ONLY (reversible source diff)
   -- New narrowly admitted source: one accepted pre-original mowing offer
   -- may create the canonical rhythm_state -> growing_object Subject link
   -- inside the SAME signed governor transaction. It is not a general
@@ -510,6 +511,7 @@ BEGIN
     -- physical Actual, allocation or future successor can be inferred.
     RETURN NEW;
   END IF;
+  -- END U2C_ACCEPTED_RHYTHM_CONTEXT_ONLY
 
   -- An established work link does not automatically authorize reading it.
   -- This source-owned path requires a current exact-Ledger governor and
