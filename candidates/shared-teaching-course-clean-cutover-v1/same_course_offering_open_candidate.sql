@@ -80,6 +80,14 @@ BEGIN
   RETURN OLD;
  END IF;
  IF OLD.operating_proposal_id IS NULL THEN
+  -- An old institution-first Offering must not be reparented into a
+  -- source-governed Person Course by changing its new relation columns.
+  IF NEW.operating_proposal_id IS NOT NULL
+   OR NEW.created_by_person_entity_id IS DISTINCT FROM OLD.created_by_person_entity_id
+   OR NEW.creation_request_id IS DISTINCT FROM OLD.creation_request_id THEN
+   RAISE EXCEPTION 'legacy Offering cannot adopt a shared Course operating identity'
+    USING ERRCODE='55000';
+  END IF;
   RETURN NEW;
  END IF;
  IF NEW.ledger_id IS DISTINCT FROM OLD.ledger_id
