@@ -346,7 +346,7 @@ jobs:
                   subphase='actor_rpc_assertions'
                   actor_text=actorlog.read_text(errors='replace')[:150000]
                   checks=sum(1 for line in actor_text.splitlines()
-                             if re.match(r'^PASS(?:\\s|$)',line))
+                             if re.match(r'^PASS(?:\s|$)',line))
                   checks=min(checks,99)
                   if 'AssertionError' in actor_text:
                       failure_class='python_assertion'
