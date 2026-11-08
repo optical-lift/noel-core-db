@@ -80,6 +80,31 @@ old_fk AS (
     to_regclass('atlas.principals'),to_regclass('atlas.ledgers'),
     to_regclass('atlas.capability_activations'))
 ),
+old_institutional_columns AS (
+ SELECT n.nspname||'.'||c.relname||'.'||a.attname AS name
+ FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid
+ JOIN pg_namespace n ON n.oid=c.relnamespace
+ WHERE n.nspname='atlas' AND a.attnum>0 AND NOT a.attisdropped
+ AND (
+  (c.relname='teaching_courses' AND a.attname IN
+   ('ledger_id','capability_activation_id','created_by_person_id','created_by_principal_id'))
+  OR (c.relname='teaching_course_versions' AND a.attname IN
+   ('published_by_person_id','published_by_principal_id'))
+  OR (c.relname='teaching_course_offerings' AND a.attname IN
+   ('created_by_person_id','created_by_principal_id'))
+ )
+),
+obsolete_offering_guard AS (
+ SELECT n.nspname||'.'||p.proname AS name
+ FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname='atlas' AND p.proname='guard_teaching_course_offering_update_v1'
+ UNION ALL
+ SELECT n.nspname||'.'||t.tgname
+ FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid
+ JOIN pg_namespace n ON n.oid=c.relnamespace
+ WHERE n.nspname='atlas' AND t.tgname='teaching_course_offerings_update_guard_v1'
+   AND NOT t.tgisinternal
+),
 competing_course_views AS (
  SELECT schemaname||'.'||viewname AS name
  FROM pg_views
@@ -93,6 +118,8 @@ violations AS (
  UNION ALL SELECT 'retired',name,NOT present FROM retired
  UNION ALL SELECT 'obsolete-RPC',name,FALSE FROM old_rpc
  UNION ALL SELECT 'old-Principal-or-Ledger-FK',conname||'->'||target,FALSE FROM old_fk
+ UNION ALL SELECT 'obsolete-institutional-identity-column',name,FALSE FROM old_institutional_columns
+ UNION ALL SELECT 'obsolete-Offering-guard',name,FALSE FROM obsolete_offering_guard
  UNION ALL SELECT 'legacy-view',name,FALSE FROM competing_course_views
 )
 SELECT string_agg(kind||':'||name,'; ' ORDER BY kind,name)
