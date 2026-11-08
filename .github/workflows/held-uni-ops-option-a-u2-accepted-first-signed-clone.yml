@@ -304,13 +304,31 @@ jobs:
                    'production custom-role restore','production user-schema restore',
                    'baseline domain schema lint','candidate validation fixture application',
                    'candidate migration application','candidate migration postconditions',
-                   'candidate domain schema lint','candidate lint delta comparison','local database advisors')
+                   'candidate domain schema lint','candidate lint delta comparison','local database advisors',
+                   'signed integrated U1B source and U2 accepted-first original')
           phase=next((x for x in allowed
                      if ('Validation command exited during ' + chr(96)+x+chr(96)) in report_text
                      or ('**FAILED during '+x+'.**') in report_text),'not_reported')
           print('UNI_OPS_FIRST_SOURCE='+stage)
           print('UNI_OPS_SQL_ERROR_CLASS='+category)
           print('UNI_OPS_LOCAL_PHASE='+phase)
+          # The canonical clone's private summary holds the actual failed phase.
+          # These are allowlisted component labels, NOT private SQL, errors or JWTs.
+          if phase=='not_reported':
+              markers=(
+                 ('uniops-u2-signed.log','signed_u2_actor_probe'),
+                 ('uniops-u2-fictional-fixture.log','fictional_mowing_fixture'),
+                 ('postconditions.log','after_candidate_postconditions'),
+                 ('candidate-migration.log','after_18_source_sql_apply'),
+                 ('candidate-fixture.log','at_or_after_c1_fixture'),
+                 ('restore-schema.log','at_or_after_schema_restore'),
+                 ('restore-roles.log','at_or_after_roles_restore'),
+                 ('schema-lint-baseline.raw.log','at_or_after_baseline_lint'),
+              )
+              locus=next((name for fname,name in markers if (root/fname).is_file()),'before_schema_restore')
+          else:
+              locus='phase_reported'
+          print('UNI_OPS_FAILURE_LOCUS='+locus)
           # Report only fixed aggregate categories; private function names,
           # SQL, identity, relation names and raw lint messages stay local.
           delta=root/'schema-lint-delta.json'
