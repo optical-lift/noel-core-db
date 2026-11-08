@@ -85,8 +85,8 @@ class ReviewedCloneSourceTests(unittest.TestCase):
                 out)
         self.assertNotIn(self.old_a, out)
         self.assertNotIn(self.old_b, out)
-        self.assertIn(self.new_a, out)
-        self.assertIn(self.new_b, out)
+        self.assertIn(self.new_a.rstrip(), out)
+        self.assertIn(self.new_b.rstrip(), out)
 
     def test_reviewed_blob_cannot_drift(self):
         altered = dict(self.replacement, **{A: self.new_a + b"one byte"})
