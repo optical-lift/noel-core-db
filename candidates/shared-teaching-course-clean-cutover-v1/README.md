@@ -9,6 +9,14 @@ Status: SOURCE PLAN / NO LIVE MIGRATION. Date: 2026-11-07. Cross-domain structur
 3D: Delete the six other obsolete Titus Courses and exclusively related data AFTER a verified backup.
 Preserve SK 101 — The Mechanics of Reality, the same Course UUID, all original manuscript text, author and Unit IDs, all edit requests, author/provenance, timestamps, ordering, and ALL historical revisions. Remove legacy Course tables, old RPCs, views, and permanent adapters after fully verified cutover.
 
+### November 7 owner correction — SK 101 is not a sole surviving manuscript
+
+The owner clarified that the SK 101 record being developed through Titus/Noel is **not the only copy of the actual SK 101 course**, and the real course is being developed independently. Earlier language that frames this particular database manuscript as irreplaceable or the only existing real course is incorrect. Do not use a presumed sole-copy emergency to delay ordinary source cleanup.
+
+Keep **separate** the current in-app source identity contract and the independent course manuscript. This cutover still preserves the existing Titus Course UUID and the stored revision chain as a *migration identity/correctness test*, unless the owner explicitly changes that separate requirement. It does not assert that these stored bytes constitute the unique or complete real course, or publish them as such.
+
+The original owner choices to retire nine McMillan plus six other legacy Course shells **after a verified backup** remain recorded. That backup/restore boundary protects the old program's deeper linked evidence and independent shared-database records, not an assumption that SK 101 has no other copy. Continue implementing schema-only/FK safety and consumer replacements without holding all source work hostage to a manuscript-uniqueness assumption. Real deletion/release still requires its own specific authorization and proof.
+
 This supersedes the proposed draft-to-institutional-Course bridge and the assumption that Course creation needs a Ledger, a Principal or Teaching activation. See Atlas Reality/Ledger Constitution, domain isolation, solo-owner structural release review, and the Titus one-Course correction in its product constitution.
 
 ## Observed live source, read-only
