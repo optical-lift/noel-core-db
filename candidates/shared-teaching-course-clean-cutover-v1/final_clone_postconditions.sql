@@ -15,6 +15,12 @@ WITH expected(name,found) AS (
  ('canonical authored Unit revisions',to_regclass('atlas.teaching_course_unit_revisions') IS NOT NULL),
  ('optional institutional operating standing',to_regclass('atlas.teaching_course_operating_standings') IS NOT NULL),
  ('source-issued Person-scoped Titus access',to_regclass('titus.course_authoring_access_grants') IS NOT NULL),
+ -- The old McMillan program's exclusive rows must be gone, but the shared
+ -- Program and teacher-link table DEFINITIONS remain reusable source schema.
+ ('reusable Program table retained',to_regclass('titus.programs') IS NOT NULL),
+ ('reusable Program-teacher relation retained',to_regclass('titus.program_teachers') IS NOT NULL),
+ ('old Program rows deleted',NOT EXISTS (SELECT 1 FROM titus.programs)),
+ ('old Program teacher links deleted',NOT EXISTS (SELECT 1 FROM titus.program_teachers)),
  ('Titus private author access self API',to_regprocedure('public.titus_authoring_access_self_api_v1()') IS NOT NULL),
  ('canonical author-signed teacher offer',to_regprocedure('public.shared_teaching_teacher_offer_self_api_v1(uuid,uuid,uuid)') IS NOT NULL),
  ('canonical teacher signed answer',to_regprocedure('public.shared_teaching_teacher_respond_self_api_v1(uuid,uuid,text)') IS NOT NULL),
@@ -29,8 +35,7 @@ WITH expected(name,found) AS (
  ('legacy Titus lesson prerequisites',to_regclass('titus.course_lesson_prerequisites') IS NOT NULL),
  ('legacy Titus Course-slot activity log',to_regclass('titus.course_slot_activity_log') IS NOT NULL),
  ('legacy Titus program Courses',to_regclass('titus.program_course_placements') IS NOT NULL),
- ('legacy Titus programs',to_regclass('titus.programs') IS NOT NULL),
- ('legacy Titus program teachers',to_regclass('titus.program_teachers') IS NOT NULL),
+
  ('legacy Course-only workspace',to_regclass('titus.customer_workspaces_v1') IS NOT NULL),
  ('old Auth-owned Titus product entitlements',to_regclass('titus.customer_workspace_entitlements_v1') IS NOT NULL),
  ('Titus shadow Course drafts',to_regclass('titus.customer_course_drafts_v1') IS NOT NULL),
