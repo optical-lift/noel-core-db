@@ -164,7 +164,24 @@ categories=(
  ('database_boot',r'(database is not healthy|postgres.*healthcheck|postgres container.*exit|could not start database)'),
  ('service_health',r'(service.*unhealthy|container.*unhealthy|health check failed|failed to start.*service)'),
  ('cli_config',r'(invalid config|failed to parse config|unknown config key)'),
+ ('migration_sql_object',r'(relation .* already exists|column .* does not exist|function .* does not exist|schema .* does not exist|type .* does not exist|operator does not exist|no schema has been selected)'),
+ ('migration_sql_parse',r'(syntax error at or near|unterminated dollar-quoted string|invalid input syntax|error in sql)'),
+ ('migration_sql_ownership',r'(must be owner of|permission denied for|insufficient privilege|role .* does not exist)'),
+ ('migration_replay',r'(duplicate key value|multiple primary keys|cannot drop .* because other objects depend|cannot alter .* because)'),
+ ('migration_extension',r'(extension .* is not available|could not open extension control file|unrecognized configuration parameter)'),
+ ('cli_status',r'(error starting|failed starting|error starting local development|unexpected error|failed to create|cannot start)'),
+ ('container_runtime',r'(container .* exited|container .* not found|docker daemon|network .* not found|unable to start container)'),
+ ('postgres_error',r'(error:|fatal:|panic:|sqlstate|[0-9a-z]{5}:)'),
 )
+migration_names=re.findall(r'(?:applying migration|migration file)\\s+([0-9]{14}_[a-z0-9_]+\\.sql)',s)
+if migration_names:
+ print("FRESH_SUPABASE_LAST_MIGRATION="+migration_names[-1])
+else:
+ print("FRESH_SUPABASE_LAST_MIGRATION=unreported")
+print("FRESH_SUPABASE_MIGRATION_MARKERS="+str(len(migration_names)))
+sqlstates=re.findall(r'(?:sqlstate|error:)[^\\n]{0,160}?\\b([0-9a-z]{5})\\b',s)
+code_class={"42p01":"missing_relation","42703":"missing_column","42883":"missing_function","42p07":"duplicate_relation","42710":"duplicate_object","42601":"syntax","42501":"permission","23505":"duplicate_key","23514":"check_constraint","3f000":"missing_schema","0a000":"unsupported_feature","42704":"missing_object"}
+print("FRESH_SUPABASE_SQLSTATE_CLASS="+(code_class.get(sqlstates[-1],"other") if sqlstates else "unreported"))
 matched=[name for name,pattern in categories if re.search(pattern,s,re.I)]
 print("FRESH_SUPABASE_START_CLASS="+(",".join(matched) if matched else "unclassified"))
 print("FRESH_SUPABASE_START_LOG_BYTES="+str(len(s.encode())))
