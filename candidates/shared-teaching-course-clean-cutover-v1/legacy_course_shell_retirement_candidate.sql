@@ -114,7 +114,8 @@ BEGIN
  IF to_regclass('titus.courses') IS NOT NULL
  OR to_regclass('titus.course_slots') IS NOT NULL
  OR to_regclass('public.titus_course_prerequisites_v1') IS NOT NULL
- OR to_regclass('public.titus_course_word_pattern_boards_v1') IS NOT NULL\n OR to_regclass('titus.program_course_placements') IS NOT NULL
+ OR to_regclass('public.titus_course_word_pattern_boards_v1') IS NOT NULL
+ OR to_regclass('titus.program_course_placements') IS NOT NULL
  OR to_regclass('titus.workspace_state') IS NOT NULL
  OR (SELECT count(*) FROM atlas.teaching_courses)<>1
  THEN
