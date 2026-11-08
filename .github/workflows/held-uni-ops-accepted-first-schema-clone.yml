@@ -303,13 +303,15 @@ jobs:
                           label=stage_chunks[i]
                           if label not in stage_labels:
                               continue
-                          for found in re.finditer(r'(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*)\s*\(',stage_chunks[i+1]):
-                              ownership[found[1].lower()]=label
-                  found_stages=set()
+                          definitions=list(re.finditer(r'(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*)\s*\(',stage_chunks[i+1]))
+                          for ordinal,found in enumerate(definitions,1):
+                              ownership[found[1].lower()]=(label,ordinal)
+                  found_locations=set()
                   for entry in findings:
                       name=str(entry.get('function','')).split('(',1)[0].strip().lower() if isinstance(entry,dict) else ''
-                      found_stages.add(ownership.get(name,'outside_or_unmatched'))
-                  print('UNI_OPS_LINT_SOURCE_STAGES='+(','.join(sorted(found_stages)) if found_stages else 'none'))
+                      label,ordinal=ownership.get(name,('outside_or_unmatched',0))
+                      found_locations.add(label+':'+str(ordinal))
+                  print('UNI_OPS_LINT_SOURCE_LOCATIONS='+(','.join(sorted(found_locations)) if found_locations else 'none'))
                   print('UNI_OPS_LINT_DELTA_STATUS='+('introduced_errors' if count else 'no_new_errors'))
                   print('UNI_OPS_LINT_INTRODUCED_COUNT='+str(count))
                   print('UNI_OPS_LINT_ERROR_CLASSES='+
