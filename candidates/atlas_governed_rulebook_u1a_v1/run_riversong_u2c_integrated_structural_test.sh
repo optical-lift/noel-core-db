@@ -16,19 +16,27 @@ ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
 SHA="$(git -C "$ROOT" rev-parse HEAD)"
 [[ "$SHA" =~ ^[a-f0-9]{40}$ ]] || { echo 'STOP: invalid source SHA'; exit 2; }
 if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
-  # Noel is not where RiverSong is registered. The established, protected
-  # carrier is optical-lift/atlas on its macOS atlas-verifier label; it pins
-  # one immutable Noel commit into a disposable checkout.
-  case "${GITHUB_REPOSITORY:-}:$(printf '%s' "${RUNNER_NAME:-}" | tr '[:upper:]' '[:lower:]')" in
-    optical-lift/atlas:riversong|optical-lift/atlas:riversong-lex)
-      [[ "${U1A_ATLAS_CARRIER_SHA:-}" == "$SHA" ]] ||
-        { echo 'STOP: pinned Atlas carrier source SHA does not match'; exit 2; };;
-    *)
-      echo 'STOP: only the established Atlas RiverSong carrier may execute Actions test'; exit 2;;
-  esac
+  # Noel does not own a self-hosted runner. The Atlas repo owns both the
+  # established RiverSong source carrier and this no-secret GH-hosted
+  # disposable Docker/Supabase structural test. Neither is a release.
+  [[ "${GITHUB_REPOSITORY:-}" == optical-lift/atlas &&
+     "${U1A_ATLAS_CARRIER_SHA:-}" == "$SHA" ]] ||
+    { echo 'STOP: exact Atlas owner/test carrier and Noel SHA required'; exit 2; }
+  if [[ "$(uname -s)" == Linux ]]; then
+    [[ "${RUNNER_ENVIRONMENT:-}" == github-hosted && "${RUNNER_OS:-}" == Linux ]] ||
+      { echo 'STOP: only Atlas GitHub-hosted Linux structural test admitted'; exit 2; }
+  else
+    [[ "$(uname -s)" == Darwin ]] ||
+      { echo 'STOP: unsupported test host'; exit 2; }
+    case "$(printf '%s' "${RUNNER_NAME:-}" | tr '[:upper:]' '[:lower:]')" in
+      riversong|riversong-lex) :;;
+      *) echo 'STOP: only registered Atlas RiverSong for macOS test'; exit 2;;
+    esac
+  fi
+else
+  echo 'STOP: no manual ungoverned test carrier for this integrated source'; exit 2
 fi
-[[ "$(uname -s)" == Darwin ]] || { echo 'STOP: RiverSong macOS only'; exit 2; }
-for key in NOEL_CORE_DATABASE_URL SUPABASE_DB_URL DATABASE_URL SUPABASE_ACCESS_TOKEN; do
+for key in NOEL_CORE_DATABASE_URL SUPABASE_DB_URL DATABASE_URL SUPABASE_ACCESS_TOKEN SUPABASE_SERVICE_ROLE_KEY; do
   [[ -z "${!key:-}" ]] || { echo "STOP: remote credential $key must not be present"; exit 2; }
 done
 for cmd in git docker supabase psql python3 node; do
