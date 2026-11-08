@@ -359,6 +359,22 @@ def main():
             final_guard="sql_object_privilege_denied"
         elif "row-level security policy" in finalize_message.lower():
             final_guard="sql_row_policy_denied"
+    # Exact failed RPC only: ask the DISPOSABLE local catalog for one
+    # candidate source family and a snapshot-local ordinal. Neither the
+    # source function name nor its private refusal text may enter actor logs.
+    source_family, source_ordinal=("not_applicable","0000")
+    if not finalize_ok and finalize_code=="42501":
+        guard_spec=importlib.util.spec_from_file_location(
+          "uniops_u2_namefree_guard_owner",
+          ROOT/"tests"/"uniops_u2_namefree_guard_owner.py")
+        check(guard_spec is not None and guard_spec.loader is not None,
+              "Local diagnostic helper missing")
+        guard_module=importlib.util.module_from_spec(guard_spec)
+        guard_spec.loader.exec_module(guard_module)
+        source_family,source_ordinal=guard_module.classify_namefree_source(
+          a.db_url,finalize_message,sql)
+    print("U2_GOVERNOR_FINALIZE_SOURCE_FAMILY="+source_family,flush=True)
+    print("U2_GOVERNOR_FINALIZE_GUARD_ORDINAL="+source_ordinal,flush=True)
     print("U2_GOVERNOR_FINALIZE_HTTP_CLASS="+final_http,flush=True)
     print("U2_GOVERNOR_FINALIZE_ERROR_CLASS="+(
        "none" if finalize_ok else final_classes.get(finalize_code,"other_or_unspecified")),flush=True)
