@@ -580,6 +580,10 @@ $no_premature_operation$;
 -- exact-Ledger, and source-authorized, WITHOUT Course disclosure/operation.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/canonical_ledger_governor_tests_pg17.sql
 
+-- M3.7: two-party invitation acceptance needs independently current root
+-- and Teaching capability. This is a RECEIPT, never Course operation.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/operating_standing_acceptance_tests_pg17.sql
+
 -- M4 private-Course retirement simulation ONLY in fictional PG17.
 -- The source originals were stored in the session-private manifest before M1.
 -- Delete children explicitly, then DROP RESTRICT rather than CASCADE. Verify
