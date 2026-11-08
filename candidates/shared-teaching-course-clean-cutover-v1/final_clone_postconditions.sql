@@ -33,6 +33,14 @@ WITH expected(name,found) AS (
  ('source-issued Enrollment gate still active',to_regprocedure('atlas.guard_shared_course_enrollment_pending_v1()') IS NOT NULL),
  ('separate signed original author Enrollment permission',to_regprocedure('public.shared_teaching_learner_enrollment_decide_self_api_v1(uuid,uuid,text)') IS NOT NULL),
  ('current governed canonical Enrollment issuance',to_regprocedure('public.shared_teaching_learner_enrollment_issue_self_api_v1(uuid,uuid)') IS NOT NULL),
+ ('learner own original Enrollment read',to_regprocedure('public.shared_teaching_learner_enrollment_read_self_api_v1(uuid)') IS NOT NULL),
+ ('learner source-issued terminal original withdrawal',to_regprocedure('public.shared_teaching_learner_enrollment_withdraw_self_api_v1(uuid,uuid)') IS NOT NULL),
+ ('immutable original learner withdrawal receipt',to_regclass('atlas.shared_course_enrollment_withdrawal_issuances') IS NOT NULL),
+ ('original Enrollment withdrawal receipt trigger',EXISTS(
+   SELECT 1 FROM pg_trigger t
+   WHERE t.tgrelid=to_regclass('atlas.shared_course_enrollment_withdrawal_issuances')
+   AND t.tgname='shared_enrollment_withdrawal_immutable'
+   AND NOT t.tgisinternal)),
  ('private immutable original Enrollment issuance receipts',to_regclass('atlas.shared_course_enrollment_issuances') IS NOT NULL),
  ('private immutable author Enrollment scope',to_regclass('atlas.shared_course_learner_enrollment_author_decisions') IS NOT NULL),
  ('canonical Reality learner identity on SAME original Enrollment',EXISTS(
