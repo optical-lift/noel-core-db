@@ -9,6 +9,8 @@ on:
       - 'tests/validate-uniops-option-a-u2-accepted-first-signed.py'
       - 'tests/uniops_u2_namefree_guard_owner.py'
       - 'tests/test_uniops_u2_namefree_guard_owner.py'
+      - 'tests/uniops_u2_local_stack_evidence.py'
+      - 'tests/test_uniops_u2_local_stack_evidence.py'
       - 'tests/install-uniops-u2-first-original-signed-hook.py'
 permissions:
   contents: read
@@ -31,8 +33,9 @@ jobs:
         run: |
           set -euo pipefail
           ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml")'
-          python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/uniops_u2_namefree_guard_owner.py tests/test_uniops_u2_namefree_guard_owner.py tests/install-uniops-u2-first-original-signed-hook.py
+          python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/uniops_u2_namefree_guard_owner.py tests/test_uniops_u2_namefree_guard_owner.py tests/uniops_u2_local_stack_evidence.py tests/test_uniops_u2_local_stack_evidence.py tests/install-uniops-u2-first-original-signed-hook.py
           python3 -m unittest discover -s tests -p 'test_uniops_u2_namefree_guard_owner.py' -v
+          python3 -m unittest discover -s tests -p 'test_uniops_u2_local_stack_evidence.py' -v
           python3 - <<'PY'
           from pathlib import Path
           workflow=Path(".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml").read_text()
@@ -64,6 +67,8 @@ jobs:
           assert "INSERT INTO atlas.work_items" not in fixture
           assert "U2_GOVERNOR_FINALIZE_SOURCE_FAMILY" in p
           assert "U2_GOVERNOR_FINALIZE_GUARD_ORDINAL" in p
+          assert "U2_GOVERNOR_FINALIZE_CALL_FRAME_EVIDENCE" in p
+          assert "U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE" in p
           assert "tests/uniops_u2_namefree_guard_owner.py" in workflow
           assert "tests/test_uniops_u2_namefree_guard_owner.py" in workflow
           assert "signed_accepted_first_probe" in hook
