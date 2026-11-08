@@ -45,9 +45,23 @@ def rpc(api,key,token,name,params):
 
 def allow(api,key,token,name,params,label):
     status,obj=rpc(api,key,token,name,params)
-    check(status==200 and isinstance(obj,dict) and obj.get("ok") is True,
+    ok=status==200 and isinstance(obj,dict) and obj.get("ok") is True
+    if label=="worker independently accepts known preoriginal offer" and not ok:
+        # Report only enum/allowlisted error class from LOCAL synthetic actor.
+        # Never print the private PostgREST response, message, token or Person.
+        codes={"42501":"source_permission","23514":"source_constraint",
+               "23505":"source_conflict","22023":"source_argument",
+               "42883":"missing_function","42P01":"missing_relation"}
+        code=obj.get("code") if isinstance(obj,dict) else None
+        http={400:"bad_request",401:"unauthorized",403:"forbidden",
+              404:"not_found",409:"conflict"}.get(status,
+              "server_failure" if isinstance(status,int) and status>=500
+              else "other_status")
+        print("U2_WORKER_ACCEPT_HTTP_CLASS="+http,flush=True)
+        print("U2_WORKER_ACCEPT_ERROR_CLASS="+codes.get(code,"other_or_unspecified"),flush=True)
+    check(ok,
           f"{label} failed as signed RPC (status={status}, code={obj.get('code') if isinstance(obj,dict) else 'unknown'})")
-    print("PASS",label)
+    print("PASS",label,flush=True)
     return obj
 
 def deny(api,key,token,name,params,label,codes=("42501",)):
@@ -217,6 +231,14 @@ def main():
          "root cannot impersonate recipient acceptance")
     deny(api,key,owner,final,{"p_offer_id":offer},
          "governor may not finalize Work before worker consent")
+    # Non-authoritative local read-only candidate observation. This does
+    # NOT replace the subsequent independently signed worker RPC; it only
+    # distinguishes source eligibility from worker-authn/authz failure.
+    candidate_state=sql(a.db_url,
+       "select case when atlas.governed_prework_offer_still_admissible_v1('"
+       +offer+"'::uuid) then 'eligible' else 'ineligible' end")
+    state=candidate_state if candidate_state in ("eligible","ineligible") else "unclassified"
+    print("U2_WORKER_ACCEPT_SOURCE_PREFLIGHT="+state,flush=True)
     accepted=allow(api,key,worker,response,args_accept,
                    "worker independently accepts known preoriginal offer")
     check(accepted.get("acceptanceIsNotAssignment") is True

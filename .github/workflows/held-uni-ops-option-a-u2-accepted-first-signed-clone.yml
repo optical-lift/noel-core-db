@@ -229,7 +229,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
-          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 8154e757c07e552349697bce4ae956fbf2431bb6
+          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = b9c04ae2ad5f052e74adb1995e2816f73bffbd78
           test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
           python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh
@@ -350,6 +350,12 @@ jobs:
                   checks=min(checks,99)
                   choices=re.findall(r'(?m)^U2_SOURCE_SELECTION=(exact_source_offered|no_eligible_source|unexpected_offered_source|unrecognized_receipt)$',actor_text)
                   selection=choices[-1] if choices else 'not_reached'
+                  preflights=re.findall(r'(?m)^U2_WORKER_ACCEPT_SOURCE_PREFLIGHT=(eligible|ineligible|unclassified)$',actor_text)
+                  accept_http=re.findall(r'(?m)^U2_WORKER_ACCEPT_HTTP_CLASS=(bad_request|unauthorized|forbidden|not_found|conflict|server_failure|other_status)$',actor_text)
+                  accept_errors=re.findall(r'(?m)^U2_WORKER_ACCEPT_ERROR_CLASS=(source_permission|source_constraint|source_conflict|source_argument|missing_function|missing_relation|other_or_unspecified)$',actor_text)
+                  preflight=preflights[-1] if preflights else 'not_reached'
+                  http_class=accept_http[-1] if accept_http else 'not_reached'
+                  accept_class=accept_errors[-1] if accept_errors else 'not_reached'
                   if 'AssertionError' in actor_text:
                       failure_class='python_assertion'
                   elif 'Traceback (most recent call last)' in actor_text:
@@ -358,6 +364,9 @@ jobs:
                       failure_class='other_actor_failure'
               elif fixturelog.is_file():
                   subphase='fictional_source_fixture'
+                  preflight='not_reached'
+                  http_class='not_reached'
+                  accept_class='not_reached'
                   selection='not_reached'
                   checks=0
                   fixture_text=fixturelog.read_text(errors='replace')[-150000:].lower()
@@ -374,11 +383,17 @@ jobs:
                      if re.search(pat,fixture_text)),'other_fixture_failure')
               else:
                   subphase='before_fictional_fixture'
+                  preflight='not_reached'
+                  http_class='not_reached'
+                  accept_class='not_reached'
                   selection='not_reached'
                   checks=0
                   failure_class='pre_fixture'
               print('UNI_OPS_SIGNED_U2_SUBPHASE='+subphase)
               print('UNI_OPS_SIGNED_U2_SOURCE_SELECTION='+selection)
+              print('UNI_OPS_SIGNED_U2_WORKER_SOURCE_PREFLIGHT='+preflight)
+              print('UNI_OPS_SIGNED_U2_WORKER_ACCEPT_HTTP_CLASS='+http_class)
+              print('UNI_OPS_SIGNED_U2_WORKER_ACCEPT_ERROR_CLASS='+accept_class)
               print('UNI_OPS_SIGNED_U2_PASS_CHECKPOINTS='+str(checks))
               print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
           # Report only fixed aggregate categories; private function names,
