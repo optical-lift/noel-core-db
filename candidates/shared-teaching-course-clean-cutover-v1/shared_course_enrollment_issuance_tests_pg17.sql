@@ -259,5 +259,7 @@ BEGIN
  OR (SELECT count(*) FROM atlas.shared_course_enrollment_issuances)<>1
  THEN RAISE EXCEPTION 'Enrollment issuance introduced duplicate Course or shadow Enrollment'; END IF;
 END $m315b_no_course_or_class_created$;
+-- M3.15C learner-owned history, revoked permission exit and termination.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_course_enrollment_self_access_tests_pg17.sql
 ROLLBACK TO SAVEPOINT m315b_one_original_enrollment;
 -- Existing M3.15A test after this include still sees ZERO Enrollments.
