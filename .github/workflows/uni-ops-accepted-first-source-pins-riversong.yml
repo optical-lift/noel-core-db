@@ -83,9 +83,9 @@ jobs:
           test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
           python3 -m py_compile work/candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py
           scratch="$RUNNER_TEMP/UNI_OPS_U1A_U1B_U2A_U2C_${GITHUB_RUN_ID}_TEST_ONLY.sql"
-          python3 work/candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py \\
-            --lifecycle source-lifecycle --r02 source-r02 \\
-            --u1a source-u1a --u1b source-u1b --u2 source-u2 --u2c source-u2c \\
+          python3 work/candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py \
+            --lifecycle source-lifecycle --r02 source-r02 \
+            --u1a source-u1a --u1b source-u1b --u2 source-u2 --u2c source-u2c \
             --output "$scratch" > "$RUNNER_TEMP/uniops-pinned-source-manifest.json"
           test -s "$scratch"
           test -s "$RUNNER_TEMP/uniops-pinned-source-manifest.json"
