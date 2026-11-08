@@ -390,6 +390,11 @@ END $same_one_course_open_no_students$;
 DO $legacy_offering_reparent_refused$
 DECLARE v_legacy uuid;denied boolean:=false;
 BEGIN
+ -- The isolated canonical Person fixture has no legacy atlas.people rows.
+ -- Supply a fictional legacy Person solely for this old-schema proof.
+ INSERT INTO atlas.people(id)
+ VALUES ('95555555-5555-4555-8555-55555555555a')
+ ON CONFLICT DO NOTHING;
  INSERT INTO atlas.teaching_course_offerings(
   ledger_id,course_id,course_version_id,state,delivery_mode,
   created_by_person_id,created_by_principal_id)
