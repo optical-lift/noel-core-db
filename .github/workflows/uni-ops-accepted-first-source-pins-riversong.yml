@@ -1,0 +1,103 @@
+name: HELD UNI-OPS accepted-first pinned source preflight on RiverSong
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches:
+      - candidate/atlas-uni-ops-c-u2c-single-rulebook-cutover-20261104
+    paths:
+      - '.github/workflows/uni-ops-accepted-first-source-pins-riversong.yml'
+      - 'candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/**'
+permissions:
+  contents: read
+concurrency:
+  group: uni-ops-accepted-first-source-preflight
+  cancel-in-progress: false
+jobs:
+  exact-source-preflight:
+    if: >-
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == 'optical-lift/noel-core-db' &&
+      github.event.pull_request.head.ref == 'test/uni-ops-accepted-first-composition-20261107'
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - name: Checkout immutable test-only preflight
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: work
+      - name: Exact held lifecycle original
+        uses: actions/checkout@v4
+        with:
+          ref: ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          fetch-depth: 1
+          persist-credentials: false
+          path: source-lifecycle
+      - name: Exact held R01/R02 source
+        uses: actions/checkout@v4
+        with:
+          ref: d48cd444fd261fd5f8c91655b789e50730c1b9f7
+          fetch-depth: 1
+          persist-credentials: false
+          path: source-r02
+      - name: Exact independently signed U1A source
+        uses: actions/checkout@v4
+        with:
+          ref: f9c372d3487ea6af4d29a4ee3b22579b9d94c5ae
+          fetch-depth: 1
+          persist-credentials: false
+          path: source-u1a
+      - name: Exact held U1B native source
+        uses: actions/checkout@v4
+        with:
+          ref: 18be5996faaa0f7a0def1d07c262f53b39e73605
+          fetch-depth: 1
+          persist-credentials: false
+          path: source-u1b
+      - name: Exact held U2A/B preoriginal worker choice
+        uses: actions/checkout@v4
+        with:
+          ref: 2be045d7fa51b83416a57c76b1a5508e815b8445
+          fetch-depth: 1
+          persist-credentials: false
+          path: source-u2
+      - name: Exact held U2C arbiter and acceptance cutover
+        uses: actions/checkout@v4
+        with:
+          ref: 1fd28856ff8d3fd99997fc0ae1fcf8714407a407
+          fetch-depth: 1
+          persist-credentials: false
+          path: source-u2c
+      - name: Validate RiverSong and reproduce exact held source assembly
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(uname -s)" = Darwin
+          test "$(printf '%s' "${RUNNER_NAME:-}" | tr '[:upper:]' '[:lower:]')" = riversong
+          test "$(git -C work rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test -z "${NOEL_CORE_DATABASE_URL:-}"
+          test -z "${SUPABASE_SERVICE_ROLE_KEY:-}"
+          python3 -m py_compile work/candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py
+          scratch="$RUNNER_TEMP/UNI_OPS_U1A_U1B_U2A_U2C_${GITHUB_RUN_ID}_TEST_ONLY.sql"
+          python3 work/candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py \\
+            --lifecycle source-lifecycle --r02 source-r02 \\
+            --u1a source-u1a --u1b source-u1b --u2 source-u2 --u2c source-u2c \\
+            --output "$scratch" > "$RUNNER_TEMP/uniops-pinned-source-manifest.json"
+          test -s "$scratch"
+          test -s "$RUNNER_TEMP/uniops-pinned-source-manifest.json"
+          python3 - "$RUNNER_TEMP/uniops-pinned-source-manifest.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1]))
+          assert m["success"] is True
+          assert len(m["stages"])==11
+          assert "PostgreSQL compilation" in m["notVerified"]
+          assert "real GoTrue governor/reviewer/worker" in m["notVerified"]
+          print("PASS 11 exact source stages, distinct U1A/U1B/U2A/U2C, scratch SQL only.")
+          print("HELD: no database execution, signed actor, migration, grant or release.")
+          PY
+          rm -f "$scratch" "$RUNNER_TEMP/uniops-pinned-source-manifest.json"
+          echo 'PASS disposed scratch source composition; no credentials, DB or source writes'
