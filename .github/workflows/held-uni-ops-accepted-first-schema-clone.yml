@@ -194,19 +194,44 @@ jobs:
           stage='not_reached'; category='not_classified'
           if candidate.is_file() and sql.is_file():
               err=candidate.read_text(errors='replace')
-              m=re.search(r'psql:[^:\n]+:(\d+):\s*ERROR:\s*([A-Z0-9]{5}):',err)
+              # Standard psql errors omit SQLSTATE; match the first error line
+              # independently of whether VERBOSITY includes a five-character code.
+              m=re.search(r'(?m)^psql:[^:\n]+:(\d+):\s*(?:ERROR|FATAL):\s*(?:([A-Z0-9]{5}):\s*)?',err)
               if m:
-                  category=class_map.get(m[2],'other_sqlstate')
+                  if m[2]:
+                      category=class_map.get(m[2],'other_sqlstate')
+                  else:
+                      # Read only a private error line. Emit a fixed category,
+                      # never the statement, relation name, or error message.
+                      detail=err[m.end():].splitlines()[0].lower()
+                      patterns=(
+                          ('missing_schema',r'\bschema\b.*\bdoes not exist\b'),
+                          ('missing_relation',r'\brelation\b.*\bdoes not exist\b'),
+                          ('missing_column',r'\bcolumn\b.*\bdoes not exist\b'),
+                          ('missing_function',r'\bfunction\b.*\bdoes not exist\b'),
+                          ('syntax',r'\bsyntax error\b'),
+                          ('privilege',r'\bpermission denied\b'),
+                          ('uniqueness',r'\bduplicate key\b'),
+                          ('check_constraint',r'\bcheck constraint\b'),
+                          ('duplicate_object',r'\balready exists\b'))
+                      category=next((name for name,pattern in patterns if re.search(pattern,detail)),
+                                    'unclassified_sql_error')
                   for i,line in enumerate(sql.read_text(errors='replace').splitlines(),1):
                       marker=re.match(r'^-- BEGIN PINNED STAGE ([a-z0-9-]+) blob:[0-9a-f]{40}$',line)
                       if marker:stage=marker[1]
                       if i>=int(m[1]):break
           log=summary.read_text(errors='replace') if summary.is_file() else ''
-          allowed=('release-lane custody check','schema dump sanitation','disposable database startup',
-                   'production custom-role restore','production user-schema restore','baseline domain schema lint',
+          report=root/'summary.md'
+          report_text=report.read_text(errors='replace') if report.is_file() else ''
+          allowed=('release-lane custody check','validation fixture safety check',
+                   'schema dump sanitation','disposable database startup',
+                   'production custom-role restore','production user-schema restore',
+                   'baseline domain schema lint','candidate validation fixture application',
                    'candidate migration application','candidate migration postconditions',
                    'candidate domain schema lint','candidate lint delta comparison','local database advisors')
-          phase=next((x for x in allowed if ('Validation command exited during ' + chr(96)+x+chr(96)) in log),'not_reported')
+          phase=next((x for x in allowed
+                     if ('Validation command exited during ' + chr(96)+x+chr(96)) in log
+                     or ('**FAILED during '+x+'.**') in report_text),'not_reported')
           print('UNI_OPS_FIRST_SOURCE='+stage)
           print('UNI_OPS_SQL_ERROR_CLASS='+category)
           print('UNI_OPS_LOCAL_PHASE='+phase)
