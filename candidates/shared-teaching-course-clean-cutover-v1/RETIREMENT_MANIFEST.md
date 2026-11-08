@@ -57,7 +57,7 @@ Old view dependencies observed: public.titus_course_prerequisites_v1 and public.
 
 Selected old Course-slot functions: public.get_titus_course_preview_packet_by_slug, titus.link_lesson_packet_to_course_slot, titus.mark_course_slot_in_sandbox, titus.mark_course_slot_packet_ready, titus.start_course_slot_deep_dive, titus.get_lesson_packet_template_for_slot. Re-query all functions referencing old tables, and remove their related grants and app entrypoints in a single reviewed cutover.
 
-Old institutional root Course creators to replace: atlas.create_teaching_course_self_api_v1 and atlas.create_teaching_course_from_activation_self_api_v1. Replace guards that require Ledger/Principal at Course origination; DO NOT delete distinct institutional Offering/Enrollment source merely because it is not currently populated. Reconcile them as operations on ONE Person-origin Course.
+Old institutional root Course creators to replace: atlas.create_teaching_course_self_api_v1(uuid,text,text) and atlas.create_teaching_course_from_activation_self_api_v1(uuid,text,text). Held M4 drops both by exact signature with RESTRICT after the canonical Person-first creator is present; the separate existing atlas.create_teaching_course_offering_self_api_v1(uuid,uuid,text,timestamptz,timestamptz) is expressly retained. Replace guards that require Ledger/Principal at Course origination; DO NOT delete distinct institutional Offering/Enrollment source merely because it is not currently populated. Reconcile them as operations on ONE Person-origin Course.
 
 ## Ordered deletion approval proof
 
