@@ -50,6 +50,14 @@ DECLARE
  v_offering_id uuid;
 BEGIN
  v_offering_id:=CASE WHEN TG_OP='DELETE' THEN OLD.offering_id ELSE NEW.offering_id END;
+ -- Prevent a shared original from being reparented to an old Offering
+ -- even if some earlier institutional guard is later retired.
+ IF TG_OP='UPDATE'
+  AND OLD.offering_id IS DISTINCT FROM NEW.offering_id
+  AND EXISTS(SELECT 1 FROM atlas.teaching_course_offerings o
+   WHERE o.id=OLD.offering_id AND o.operating_proposal_id IS NOT NULL)
+ THEN RAISE EXCEPTION 'shared Enrollment cannot be reparented outside its original'
+  USING ERRCODE='42501'; END IF;
  IF EXISTS(SELECT 1 FROM atlas.teaching_course_offerings o
   WHERE o.id=v_offering_id AND o.operating_proposal_id IS NOT NULL)
  THEN
