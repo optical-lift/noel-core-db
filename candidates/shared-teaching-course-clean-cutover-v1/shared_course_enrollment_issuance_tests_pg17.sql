@@ -113,6 +113,8 @@ BEGIN
  IF a->>'contractVersion'<>'shared_learner_enrollment_issue_v1'
  OR a->>'alreadyExists'<>'false' OR b->>'alreadyExists'<>'true'
  OR a->>'enrollmentId'<>b->>'enrollmentId'
+ OR a->>'offerId'<>current_setting('app.fictional_learner_accept_offer_id')
+ OR b->>'offerId'<>a->>'offerId'
  OR a->>'enrollmentState'<>'active'
  OR a->>'learnerPersonEntityId'<>'f6666666-6666-4666-8666-666666666661'
  OR a->>'canParticipate'<>'false' OR a->>'canReadCurriculum'<>'false'
