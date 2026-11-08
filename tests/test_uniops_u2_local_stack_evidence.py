@@ -96,6 +96,20 @@ class SourceStackEvidenceTests(unittest.TestCase):
             lambda db,stmt:FUNC,runner),("unobservable","unverified"))
         self.assertEqual(len(calls),1)
 
+    def test_duplicate_identical_error_cannot_assert_origin(self):
+        block=("ERROR:  "+ERR+"\n"
+               "CONTEXT:  PL/pgSQL function "+FUNC+"(uuid) line 4 at RAISE\n")
+        runner,_=runner_with(block+block)
+        self.assertEqual(stack.inspect_signed_denial_stack(DB,ERR,START,
+            lambda db,stmt:FUNC,runner),("unobservable","unverified"))
+
+    def test_precise_call_start_is_utc_microsecond(self):
+        started=stack.local_probe_started()
+        self.assertRegex(started,r"^\\d{4}-\\d\\d-\\d\\dT\\d\\d:\\d\\d:\\d\\d\\.\\d{6}Z$")
+        runner,_=runner_with("ERROR:  "+ERR+"\n")
+        self.assertEqual(stack.inspect_signed_denial_stack(DB,ERR,started,
+            lambda db,stmt:FUNC,runner),("unobservable","unverified"))
+
     def test_never_echoes_private_docker_errors(self):
         def runner(argv,**kwargs):
             return SimpleNamespace(returncode=1,stdout="private jwt",
