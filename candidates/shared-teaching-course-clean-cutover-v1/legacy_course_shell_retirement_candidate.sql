@@ -68,6 +68,13 @@ DROP FUNCTION IF EXISTS titus.mark_course_slot_packet_ready(text,text,text) REST
 DROP FUNCTION IF EXISTS titus.start_course_slot_deep_dive(text,text,text,text) RESTRICT;
 DROP FUNCTION IF EXISTS titus.get_lesson_packet_template_for_slot(text,text,text) RESTRICT;
 
+-- Retire BOTH incompatible Atlas institutional Course creators so there is
+-- exactly one Person-origin Course creation path. Institutional Offerings,
+-- Enrollment and Version operations remain as distinct source acts. Any
+-- unknown dependent consumer blocks this exact DROP RESTRICT.
+DROP FUNCTION IF EXISTS atlas.create_teaching_course_self_api_v1(uuid,text,text) RESTRICT;
+DROP FUNCTION IF EXISTS atlas.create_teaching_course_from_activation_self_api_v1(uuid,text,text) RESTRICT;
+
 -- Drop old workspace state, which is one legacy Program/Course pointer,
 -- not a canonical Person, Course, Institution, or Notebook original.
 -- If other views or functions need it, RESTRICT fails and blocks cutover.
@@ -115,11 +122,13 @@ BEGIN
  OR to_regclass('titus.course_slots') IS NOT NULL
  OR to_regclass('public.titus_course_prerequisites_v1') IS NOT NULL
  OR to_regclass('public.titus_course_word_pattern_boards_v1') IS NOT NULL
- OR to_regclass('titus.program_course_placements') IS NOT NULL
+ OR to_regprocedure('atlas.create_teaching_course_self_api_v1(uuid,text,text)') IS NOT NULL
+ OR to_regprocedure('atlas.create_teaching_course_from_activation_self_api_v1(uuid,text,text)') IS NOT NULL
+  OR to_regclass('titus.program_course_placements') IS NOT NULL
  OR to_regclass('titus.workspace_state') IS NOT NULL
  OR (SELECT count(*) FROM atlas.teaching_courses)<>1
  THEN
-  RAISE EXCEPTION 'Course-shell retirement not complete' USING ERRCODE='23514';
+  RAISE EXCEPTION 'Course-shell/competing-creator retirement not complete' USING ERRCODE='23514';
  END IF;
 END
 $post$;
