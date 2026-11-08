@@ -204,5 +204,145 @@ $denied_license$;
 RESET ROLE;
 ROLLBACK TO SAVEPOINT revoke_grant;
 
+-- Person-first authoring operations read the SAME adopted Course UUID and
+-- append revisions without rewrites. This is synthetic, not real signed JWT.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/canonical_authoring_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/canonical_authoring_clone_postconditions.sql
+SAVEPOINT authoring_rollback;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $authoring$
+DECLARE
+ c jsonb; m jsonb; u jsonb; outl jsonb;
+ bad boolean:=false; new_unit uuid;
+BEGIN
+ c:=public.shared_teaching_course_catalog_self_api_v1();
+ IF jsonb_array_length(c->'courses')<>1 OR
+    (c->'courses'->0->>'courseId')::uuid
+      IS DISTINCT FROM '11111111-1111-4111-8111-111111111111'::uuid THEN
+  RAISE EXCEPTION 'Course catalog identity differs after adoption';
+ END IF;
+ m:=public.shared_teaching_course_material_read_self_api_v1(
+   '11111111-1111-4111-8111-111111111111');
+ IF (m->'material'->>'revisionNumber')::int<>1 OR
+    m->'material'->>'text'<>E'Teaching source\n\nObservation: א\n' THEN
+  RAISE EXCEPTION 'founding manuscript cannot be reopened';
+ END IF;
+ outl:=public.shared_teaching_course_outline_read_self_api_v1(
+   '11111111-1111-4111-8111-111111111111');
+ IF jsonb_array_length(outl->'units')<>2 THEN
+  RAISE EXCEPTION 'original Class/Homework outline not seen';
+ END IF;
+ u:=public.shared_teaching_course_unit_read_self_api_v1(
+    '31111111-1111-4111-8111-111111111111');
+ IF (u->'material'->>'revisionNumber')::int<>2 THEN
+  RAISE EXCEPTION 'original Unit revisions not reopened';
+ END IF;
+ m:=public.shared_teaching_course_material_save_self_api_v1(
+   '11111111-1111-4111-8111-111111111111',
+   'f4111111-1111-4111-8111-111111111111',
+   1,'New author text');
+ IF (m->'material'->>'revisionNumber')::int<>2 THEN
+  RAISE EXCEPTION 'new manuscript revision not appended';
+ END IF;
+ m:=public.shared_teaching_course_material_save_self_api_v1(
+   '11111111-1111-4111-8111-111111111111',
+   'f4111111-1111-4111-8111-111111111111',
+   1,'New author text');
+ IF (m->'material'->>'revisionNumber')::int<>2 THEN
+  RAISE EXCEPTION 'replay duplicated manuscript revision';
+ END IF;
+ BEGIN
+  PERFORM public.shared_teaching_course_material_save_self_api_v1(
+    '11111111-1111-4111-8111-111111111111',
+    'f4111111-1111-4111-8111-111111111111',
+    1,'Changed retry');
+ EXCEPTION WHEN unique_violation THEN bad:=true;
+ END;
+ IF NOT bad THEN RAISE EXCEPTION 'changed manuscript retry admitted'; END IF;
+ bad:=false;
+ BEGIN
+  PERFORM public.shared_teaching_course_material_save_self_api_v1(
+    '11111111-1111-4111-8111-111111111111',
+    'f4222222-2222-4222-8222-222222222222',
+    1,'stale write');
+ EXCEPTION WHEN serialization_failure THEN bad:=true;
+ END;
+ IF NOT bad THEN RAISE EXCEPTION 'stale manuscript overwrite admitted'; END IF;
+ u:=public.shared_teaching_course_unit_save_self_api_v1(
+   '31111111-1111-4111-8111-111111111111',
+   'f4333333-3333-4333-8333-333333333333',
+   2,'Revised third Unit edition');
+ IF (u->'material'->>'revisionNumber')::int<>3 THEN
+  RAISE EXCEPTION 'Unit revision not appended';
+ END IF;
+ outl:=public.shared_teaching_course_unit_create_self_api_v1(
+   '11111111-1111-4111-8111-111111111111',
+   'f4444444-4444-4444-8444-444444444444',
+   'assignment','Second homework draft');
+ IF jsonb_array_length(outl->'units')<>3 THEN
+  RAISE EXCEPTION 'Unit create did not return three originals';
+ END IF;
+ outl:=public.shared_teaching_course_unit_create_self_api_v1(
+   '11111111-1111-4111-8111-111111111111',
+   'f4444444-4444-4444-8444-444444444444',
+   'assignment','Second homework draft');
+ IF jsonb_array_length(outl->'units')<>3 THEN
+  RAISE EXCEPTION 'Unit create retry minted another original';
+ END IF;
+ new_unit:=(outl->'units'->2->>'unitId')::uuid;
+ outl:=public.shared_teaching_course_unit_move_self_api_v1(
+   '11111111-1111-4111-8111-111111111111',new_unit,'up');
+ IF jsonb_array_length(outl->'units')<>3 OR
+   (outl->'units'->1->>'unitId')::uuid IS DISTINCT FROM new_unit THEN
+  RAISE EXCEPTION 'bounded ordered Unit move broke unique positions';
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM atlas.teaching_course_manuscript_revisions
+   WHERE course_id='11111111-1111-4111-8111-111111111111'
+   AND revision_number=1 AND body_text=E'Teaching source\n\nObservation: א\n') THEN
+  RAISE EXCEPTION 'new edit overwrote original founding manuscript';
+ END IF;
+END
+$authoring$;
+RESET ROLE;
+
+-- Other current People, withdrawn actors and anonymous requests cannot read
+-- the author's Course/Unit originals, even if they know the immutable UUIDs.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $outsider_material$
+DECLARE denied boolean:=false; j jsonb;
+BEGIN
+ j:=public.shared_teaching_course_catalog_self_api_v1();
+ IF jsonb_array_length(j->'courses')<>0 THEN
+  RAISE EXCEPTION 'outsider sees another author Course in catalog';
+ END IF;
+ BEGIN
+  PERFORM public.shared_teaching_course_material_read_self_api_v1(
+   '11111111-1111-4111-8111-111111111111');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'outsider read author manuscript'; END IF;
+ denied:=false;
+ BEGIN
+  PERFORM public.shared_teaching_course_unit_read_self_api_v1(
+   '31111111-1111-4111-8111-111111111111');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'outsider read author Unit'; END IF;
+ denied:=false;
+ BEGIN
+  PERFORM public.shared_teaching_course_unit_save_self_api_v1(
+   '31111111-1111-4111-8111-111111111111',
+   'f4555555-5555-4555-8555-555555555555',
+   2,'Outsider overwrite');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'outsider wrote author Unit'; END IF;
+END
+$outsider_material$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT authoring_rollback;
+
 -- Entire test rolls back on network-isolated container. Nothing is released.
 ROLLBACK;
