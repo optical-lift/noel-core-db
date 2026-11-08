@@ -293,8 +293,9 @@ BEGIN
    current_setting('app.teacher_accept_offer_id')::uuid);
  IF j->>'courseTitle'<>'Founding Course definition'
  OR j->>'state'<>'offered'
- OR j->>'appointmentEffective'<>'false'
- OR j->>'canTeach'<>'false' OR j->>'canReadCurriculum'<>'false'
+ OR j->>'appointmentEffective' IS DISTINCT FROM 'false'
+ OR j->>'canTeach' IS DISTINCT FROM 'false'
+ OR j->>'canReadCurriculum' IS DISTINCT FROM 'false'
  OR j->>'canEnroll'<>'false' OR j ? 'curriculum' OR j ? 'units'
  OR j ? 'otherTeachers' OR j ? 'roster'
  OR j->>'deliveryMode'<>'cohort' THEN
