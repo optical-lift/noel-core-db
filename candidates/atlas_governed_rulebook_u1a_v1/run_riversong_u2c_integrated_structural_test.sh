@@ -173,13 +173,13 @@ categories=(
  ('container_runtime',r'(container .* exited|container .* not found|docker daemon|network .* not found|unable to start container)'),
  ('postgres_error',r'(error:|fatal:|panic:|sqlstate|[0-9a-z]{5}:)'),
 )
-migration_names=re.findall(r'(?:applying migration|migration file)\\s+([0-9]{14}_[a-z0-9_]+\\.sql)',s)
+migration_names=re.findall(r'(?:applying migration|migration file)\s+([0-9]{14}_[a-z0-9_]+\.sql)',s)
 if migration_names:
  print("FRESH_SUPABASE_LAST_MIGRATION="+migration_names[-1])
 else:
  print("FRESH_SUPABASE_LAST_MIGRATION=unreported")
 print("FRESH_SUPABASE_MIGRATION_MARKERS="+str(len(migration_names)))
-sqlstates=re.findall(r'(?:sqlstate|error:)[^\\n]{0,160}?\\b([0-9a-z]{5})\\b',s)
+sqlstates=re.findall(r'(?:sqlstate|error:)[^\n]{0,160}?\b([0-9a-z]{5})\b',s)
 code_class={"42p01":"missing_relation","42703":"missing_column","42883":"missing_function","42p07":"duplicate_relation","42710":"duplicate_object","42601":"syntax","42501":"permission","23505":"duplicate_key","23514":"check_constraint","3f000":"missing_schema","0a000":"unsupported_feature","42704":"missing_object"}
 print("FRESH_SUPABASE_SQLSTATE_CLASS="+(code_class.get(sqlstates[-1],"other") if sqlstates else "unreported"))
 matched=[name for name,pattern in categories if re.search(pattern,s,re.I)]
