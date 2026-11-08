@@ -53,7 +53,7 @@ DO NOT infer every table listed must be globally dropped. Some (Formation, canon
 
 ## Named public views and legacy functions to retire after reader cutover
 
-Old view dependencies observed: public.titus_courses_v1, public.titus_course_slots_v1, public.titus_course_path_v1, public.titus_course_preview_path_v1, titus.course_build_board_v1, titus.course_slots_admin_v1, titus.noel_deep_dive_queue_v1, titus.ready_to_promote_queue_v1, titus.v_program_curriculum_map_v2. Re-query pg_views because other views or later changes may depend on these. Drop only with RESTRICT.
+Old view dependencies observed: public.titus_course_prerequisites_v1 and public.titus_course_word_pattern_boards_v1 (the latter exposes independent pattern-board/lesson sources; remove only its obsolete view, not those originals), public.titus_courses_v1, public.titus_course_slots_v1, public.titus_course_path_v1, public.titus_course_preview_path_v1, titus.course_build_board_v1, titus.course_slots_admin_v1, titus.noel_deep_dive_queue_v1, titus.ready_to_promote_queue_v1, titus.v_program_curriculum_map_v2. Re-query pg_views because other views or later changes may depend on these. Drop only with RESTRICT.
 
 Selected old Course-slot functions: public.get_titus_course_preview_packet_by_slug, titus.link_lesson_packet_to_course_slot, titus.mark_course_slot_in_sandbox, titus.mark_course_slot_packet_ready, titus.start_course_slot_deep_dive, titus.get_lesson_packet_template_for_slot. Re-query all functions referencing old tables, and remove their related grants and app entrypoints in a single reviewed cutover.
 
