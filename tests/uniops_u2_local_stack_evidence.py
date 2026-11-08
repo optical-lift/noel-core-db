@@ -27,7 +27,7 @@ _FRAMES = frozenset(("raise_frame_match", "call_path_match",
 
 def local_probe_started():
     """UTC instant for Docker's local-only --since, called before the real RPC."""
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _matching_private_function(db_url, message, local_sql):
@@ -107,7 +107,7 @@ def _database_container_id(port, runner):
 def _stack_evidence(log_text, exact_message, private_name):
     """Read only the error block belonging to the exact signed RPC refusal."""
     lines = log_text.splitlines()
-    result = _UNOBSERVED
+    blocks = []
     for i, line in enumerate(lines):
         match = re.search(r"\bERROR:\s*(.*)$", line)
         if match is None or match.group(1).strip() != exact_message:
@@ -121,24 +121,24 @@ def _stack_evidence(log_text, exact_message, private_name):
                 next_line
             ):
                 frames.append((frame.group(1).lower(), "at RAISE" in next_line))
-        if not frames:
-            continue
-        if frames[0] == (private_name, True):
-            return ("raise_frame_match",
-                    _STAGES.get(private_name, "inherited_or_other"))
-        if any(name == private_name for name, _ in frames):
-            result = ("call_path_match",
-                      _STAGES.get(private_name, "inherited_or_other"))
-        else:
-            result = ("different_origin", "unverified")
-    return result
+        blocks.append(frames)
+    # Without one specific matching ERROR block there is no defensible
+    # attribution to the signed governor request (including zero/duplicates).
+    if len(blocks) != 1 or not blocks[0]:
+        return _UNOBSERVED
+    frames = blocks[0]
+    if frames[0] == (private_name, True):
+        return ("raise_frame_match", _STAGES.get(private_name, "inherited_or_other"))
+    if any(name == private_name for name, _ in frames):
+        return ("call_path_match", _STAGES.get(private_name, "inherited_or_other"))
+    return ("different_origin", "unverified")
 
 
 def inspect_signed_denial_stack(db_url, exact_message, since_utc,
                                 local_sql, runner=subprocess.run):
     """Finite tuple ONLY. No private function name or container log leaves here."""
     if (not isinstance(since_utc, str) or
-        not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", since_utc)):
+        not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{6})?Z", since_utc)):
         return _UNOBSERVED
     port = _local_db_port(db_url)
     if port is None:
