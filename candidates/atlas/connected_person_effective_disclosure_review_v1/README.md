@@ -500,3 +500,52 @@ decisions nor Work-field grants exist in production; no original
 record, Auth session, ACL, reader, migration or deployment changed.
 Existing Gate 0 Source CI PASS / Database Custody CI PASS are
 not permission proofs.
+
+
+## 2026-11-08 — Option C first contextual authority diagnostic (HELD)
+
+The owner selected **Option C**, a common Person/Ledger/original subject/field/
+operation authority-resolution grammar, preserving the pre-existing Oct 25/26
+40 answers and Nov 7 R1–R8 80-answer *proposed* constitution. This is a
+small **read-only** increment to this **existing held** governor review, not
+a second permission engine, a released source law, or a change to someone's
+permissions. The current source branch is substantially behind Noel main;
+**do not merge/release it as a whole** without fresh source integration.
+
+`candidate.sql` now includes `contextualAuthorityReview` in the existing
+signed, exact-native-Ledger-root, exact-target-Seat governor response:
+
+- Resolve a target to **exactly one** active linked Principal; if zero/multiple,
+  do not guess which user has authority.
+- Require **exactly one** active selected Ledger → Organization participation,
+  and **exactly one** active governing compatibility-primary Ledger for that
+  Organization. Missing/ambiguous jurisdiction returns `unresolved` and NULL
+  flags, **not** a permission, a false 403 diagnosis or a green certificate.
+- Read exact-Ledger and Organization-primary root facts independently from
+  existing `principal_has_ledger_authority_v1` (no role-name inheritance and
+  no parent Ledger grant). Return `source_root_flags_only` and a
+  `legacyCompanyWorkDualRootCandidate` flag for the **present** Company Work
+  compatibility policy; never claim that policy should be universal.
+- No target Principal ID, primary Ledger ID, other Organization identity,
+  unrelated Work, Person roster, or private field is returned in these flags.
+  This is a governor-facing explanation of source jurisdiction, **not** a
+  simulated target login or actual effective Work/People disclosure proof.
+- The existing reviewer guard, missing/unauthorized `not_found`, Work-field
+  candidate content protections, `verification_incomplete`, and
+  `mayCertifyNonDisclosure=false` remain unchanged. No protected source
+  reader/writer grants, source schema, migrations or app UI are modified.
+
+**Evidence plan:** Gate 0 static CI verifies all new source guard/NULL labels;
+protected-clone `postconditions.sql` checks their presence; the existing
+signed GoTrue/PostgREST test now checks truthful boolean dual-root flags where
+the canonical relationship is unambiguous and NULL otherwise, always with
+non-grant markers. No signed clone has run *for this new candidate*; it
+cannot establish live permission correctness. A next bounded proof must test
+two simultaneous independent governors of one exact Ledger, separate
+Organization-primary rights, multiple participating Ledgers and one revoked
+root/Seat with real independent signed sessions, plus old-reader exposures.
+
+**Constitutional holds:** Q74A predefined accepted Position access, Q80C
+independent allow versus mandatory confidentiality, H1–H9 conflict resolution,
+source-authorized writer/revocation and whole-person effective exposure remain
+**pending**. This candidate should not be used to grant or widen any access.
