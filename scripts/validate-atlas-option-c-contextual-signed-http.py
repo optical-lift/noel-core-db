@@ -68,6 +68,39 @@ def review(api,key,token,ledger,person):
           and context.get("notAnEffectivePermissionCertificate") is True
           and context.get("legacyDualRootIsNotUniversalAuthorityLaw") is True,
           "contextual source facts falsely implied a granted capability")
+    observations=body.get("contextualOperationObservations")
+    check(isinstance(observations,list) and len(observations)==1,
+          "typed operation observation must be one governor-only source packet")
+    operation=observations[0]
+    check(operation.get("dimension")=="governing"
+          and operation.get("operation")=="company_work.manage"
+          and operation.get("recordKind")=="native_ledger"
+          and operation.get("selectedLedgerId")==ledger
+          and operation.get("selectedLedgerRootSource")==context.get("selectedLedgerRoot")
+          and operation.get("legacyCompatibilitySourceCandidate")==
+              context.get("legacyCompanyWorkDualRootCandidate")
+          and operation.get("grantChainCoverage")=="not_verified"
+          and operation.get("effectivePermission")=="verification_incomplete"
+          and operation.get("sourceWriterRecheckRequired") is True
+          and operation.get("doesNotAuthorizeAnyOperation") is True,
+          "typed operation packet inferred execution from source root")
+    for work in body.get("canonicalWork",[]):
+        for subject in work.get("linkedSubjectDisclosure",{}).get("items",[]):
+            fields=subject.get("contextualFieldObservations")
+            check(isinstance(fields,list) and len(fields)==2,
+                  "a linked Subject must have two separate typed field observations")
+            for item,field,source_field in zip(fields,("identity","condition"),
+                ("identityDecisionCurrentlyGrants","conditionDecisionCurrentlyGrants")):
+                check(item.get("dimension")=="knowledge"
+                      and item.get("operation")=="subject.read"
+                      and item.get("recordKind")=="spatial.growing_object"
+                      and item.get("selectedLedgerId")==ledger
+                      and item.get("fieldPath")==field
+                      and item.get("currentSourceGrant") is subject.get(source_field)
+                      and item.get("grantChainCoverage")=="legacy_last_decision_only"
+                      and item.get("effectivePermission")=="verification_incomplete"
+                      and item.get("doesNotDiscloseFieldToTarget") is True,
+                      "typed field observation promoted old disclosure to broad right")
     return context
 
 def flags(context,exact,primary,is_primary):
@@ -124,6 +157,29 @@ def main():
     flags(review(api,key,owner,OPERATING,OWNER_PERSON),True,True,False)
     flags(review(api,key,owner,PRIMARY,WORKER_PERSON),False,False,True)
     print("PASS two simultaneous operating roots and independent primary scope")
+
+    # Only the governor sees these facts. Distinct known current SOURCE
+    # decisions do not certify the worker can read private records.
+    status,full=request(api,key,owner,OPERATING,WORKER_PERSON)
+    check(status==200 and full.get("ok") is True,
+          "held signed source review unavailable for typed field fixture")
+    originals=full.get("canonicalWork",[])
+    check(len(originals)==1 and
+          originals[0].get("workItemId")=="e5200000-0000-4000-8000-000000000903",
+          "fictional source Work was not observed by canonical identity")
+    linked=originals[0].get("linkedSubjectDisclosure",{}).get("items",[])
+    check(len(linked)==1 and
+          linked[0].get("subjectId")=="e5200000-0000-4000-8000-000000000902",
+          "one original linked Subject not returned")
+    typed=linked[0].get("contextualFieldObservations",[])
+    check(len(typed)==2 and
+          typed[0].get("fieldPath")=="identity" and
+          typed[0].get("currentSourceGrant") is True and
+          typed[1].get("fieldPath")=="condition" and
+          typed[1].get("currentSourceGrant") is False,
+          "independent identity/condition source grants were collapsed")
+    print("PASS one canonical Work linked Subject, distinct typed field source states")
+
 
     missing=review(api,key,owner,OPERATING,UNKNOWN_PERSON)
     check(missing.get("status")=="unresolved"
