@@ -33,6 +33,14 @@ def check(condition,reason):
 def sql(db,stmt):
     return c1.sql(db,stmt)
 
+def governed_action(api,key,token,name,args):
+    status,body=c1.rpc(api,key,name,args,token)
+    check(status==200 and isinstance(body,dict)
+          and body.get("code") not in ("not_found","review_required")
+          and body.get("ok",True) is True,
+          "Signed canonical source command failed: "+name+" HTTP "+str(status))
+    return body
+
 def request(api,key,token,ledger,person):
     return c1.rpc(api,key,RPC,{
         "p_organization_id":ORG,
@@ -296,6 +304,90 @@ def main():
     flags(review(api,key,owner,OPERATING,OWNER_PERSON),True,True,False)
     flags(review(api,key,owner,PRIMARY,WORKER_PERSON),False,False,True)
     print("PASS two simultaneous operating roots and independent primary scope")
+
+    # Exact native Farm crop custody must be established by the genuine
+    # current governor using the existing public source-owned API.
+    custody=governed_action(api,key,owner,
+      "establish_farm_crop_ledger_custody_self_api_v1",{
+        "p_farm_id":"e5200000-0000-4000-8000-000000000901",
+        "p_ledger_id":OPERATING,
+        "p_review":{"cropLedgerBoundaryReviewed":True,
+                    "authorityDomain":"farm_crop_operations"}})
+    check(bool(custody.get("custodyId"))
+          and custody.get("confersPersonAccess") is False,
+          "Signed Farm/Ledger custody must not imply Person disclosure")
+    relevance=governed_action(api,key,owner,
+      "establish_company_work_native_ledger_relevance_self_api_v1",{
+        "p_work_item_id":work,"p_ledger_id":OPERATING,
+        "p_evidence_basis":{
+          "evidenceClass":"owner_attestation",
+          "sourceRef":"atlas.tasks:e5200000-0000-4000-8000-000000000912",
+          "reason":"Fictional Bed preparation Task serves this exact governed operating Ledger."}})
+    check(relevance.get("workItemId")==work
+          and relevance.get("ledgerId")==OPERATING
+          and relevance.get("evidenceKind")=="owner_attested"
+          and relevance.get("isSourceVerified") is False,
+          "Signed Work relevance must preserve honest owner-attested evidence")
+
+    # Same original Work: governor offers -> actual recipient accepts.
+    offered=governed_action(api,key,owner,
+      "offer_connected_person_company_work_owner_self_api_v1",{
+        "p_organization_id":ORG,"p_ledger_id":OPERATING,
+        "p_work_item_id":work,
+        "p_target_canonical_person_id":WORKER_PERSON,
+        "p_reason":"Offer the single original fictional Bed task to the connected worker."})
+    check(offered.get("state")=="offered"
+          and offered.get("responsibilityChanged") is False
+          and bool(offered.get("offerId")),
+          "Source offer must not preassign or infer recipient consent")
+    accepted=governed_action(api,key,worker,
+      "respond_connected_person_company_work_self_api_v1",{
+        "p_offer_id":offered["offerId"],"p_decision":"accepted"})
+    check(accepted.get("state")=="accepted",
+          "Worker acceptance must be independently authenticated")
+    check(sql(args.db_url,
+       "SELECT count(*) FROM atlas.work_allocations "
+       "WHERE work_item_id='"+work+"'::uuid "
+       "AND assignee_canonical_person_id='"+WORKER_PERSON+"'::uuid "
+       "AND allocation_role='responsible' AND state='active'")=="1",
+       "Accepted source must hold ONE canonical Person Work allocation")
+    check(sql(args.db_url,
+       "SELECT count(*) FROM atlas.work_items WHERE id='"+work+
+       "'::uuid AND source_object_id="
+       "'e5200000-0000-4000-8000-000000000912'::uuid")=="1",
+       "Original Work identity changed during recipient acceptance")
+    print("PASS signed governor original-Work offer and independent recipient acceptance")
+
+    physical=governed_action(api,key,owner,
+      "work_growing_object_context_review_self_api_v1",{
+        "p_ledger_id":OPERATING,"p_work_item_id":work})
+    candidate_ids={x.get("objectId") for x in physical.get("candidates",[])}
+    check(physical.get("ok") is True and
+          candidate_ids=={
+            "e5200000-0000-4000-8000-000000000902",
+            "e5200000-0000-4000-8000-000000000918"},
+          "Physical review did not establish exact Task/Farm/Zone Bed candidates")
+    for obj,stable in (
+        ("e5200000-0000-4000-8000-000000000902",
+         "option-c-fictional-bed"),
+        ("e5200000-0000-4000-8000-000000000918",
+         "option-c-private-bed")):
+        context=governed_action(api,key,owner,
+          "establish_work_growing_object_context_self_api_v1",{
+             "p_ledger_id":OPERATING,"p_work_item_id":work,
+             "p_object_id":obj,
+             "p_review":{"humanConfirmed":True,
+                 "reviewedWorkStableKey":physical["workStableKey"],
+                 "reviewedObjectKey":stable}})
+        check(context.get("ok") is True
+              and context.get("workItemId")==work
+              and context.get("confersAccess") is False,
+              "Physical context link cannot create Work or disclose private fields")
+    check(sql(args.db_url,"SELECT count(*) FROM atlas.work_item_context_links "
+       "WHERE work_item_id='"+work+"'::uuid "
+       "AND subject_domain='spatial' AND subject_kind='growing_object'")=="2",
+       "Signed physical source did not establish exactly two guarded context links")
+    print("PASS governor-attested physical Work/Bed source links, no disclosure power")
 
     # The underlying source has field-specific decisions, but the shared
     # source-custody guard forbids inventing an original Work/Bed link.
