@@ -47,6 +47,9 @@ jobs:
                       "secrets.SUPABASE_SERVICE_ROLE_KEY","gh pr merge"):
             assert bad not in protected,bad
           assert "option_c_clone_phase=" in protected
+          assert "option_c_signed_checkpoint=" in protected
+          assert "checkpoints.get(line.strip())" in protected
+          assert "print(line)" not in protected
           assert "Report only allowlisted failed clone phase" in protected
           assert "print(raw)" not in protected and "print(text)" not in protected
           print("PASS immutable owner-only disposable signed clone; live snapshot read-only")
@@ -232,6 +235,36 @@ jobs:
           }
           key=phase[-1] if phase else ''
           print('option_c_clone_phase='+approved.get(key,'unknown_or_incomplete'))
+          PY
+      - name: Report only allowlisted signed checkpoint
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          source=Path(os.environ["RUNNER_TEMP"])/"option-c-result"/"signed-option-c-context.log"
+          checkpoints={
+            "PASS four independent real local signed GoTrue sessions":"sessions",
+            "PASS two simultaneous operating roots and independent primary scope":"two_roots",
+            "PASS unknown Principal returns null, not false authority certainty":"unresolved_target",
+            "PASS exact operating root does not bypass current legacy primary-root guard":"worker_legacy_deny",
+            "PASS unrelated actor cannot preview governor source facts":"outsider_deny",
+            "PASS no-root participant cannot preview governor source facts":"no_root_deny",
+            "PASS anonymous actor cannot preview governor source facts":"anonymous_deny",
+            "PASS governor cannot enumerate Person with no active operating Seat":"nonmember_deny",
+            "PASS newly lawful second governor independently signed":"second_governor",
+            "PASS independent authority-chain withdrawal reflected immediately":"withdrawal",
+            "PASS one governing root's withdrawal leaves independent primary root":"independent_root",
+            "PASS all held Option C real signed local tests":"complete",
+          }
+          last="before_sessions_or_log_missing"
+          if source.is_file():
+              for line in source.read_text(encoding="utf-8",errors="replace").splitlines():
+                  mark=checkpoints.get(line.strip())
+                  if mark:
+                      last=mark
+          print("option_c_signed_checkpoint="+last)
           PY
       - name: Upload only allowlisted signed summary
         if: always()
