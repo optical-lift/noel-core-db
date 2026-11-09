@@ -81,7 +81,7 @@ jobs:
           assert "U4_SIGNED_ACTUAL_RESULT_DONE=PASS" in workflow
           assert "github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'" in workflow
           assert "u4_test_sha" in workflow and "test_goal" in workflow
-          assert 'ref: 1f8bacb42c3e25d24fe123c1982857e1e79884fc' in workflow
+          assert 'ref: 9820cfeab595cb1c7764128f1cdae4a3855ecefe' in workflow
           assert "--u4-actual-followon" in workflow
           assert protected.count("NOEL_CORE_DATABASE_URL:") == 1
           assert "No production feature source SQL / permission / migration" in workflow
@@ -115,7 +115,7 @@ jobs:
               'source_review':'u2c_context_guard_two_blobs_v1',
               'production_target':'zirqkouammpwxlqfbsvf',
               'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1',
-              'u4_test_sha':'1f8bacb42c3e25d24fe123c1982857e1e79884fc',
+              'u4_test_sha':'9820cfeab595cb1c7764128f1cdae4a3855ecefe',
               'test_goal':'signed_u2_result_done_v1'}
           for line in os.environ.get('OWNER_BODY','').splitlines():
               match=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
@@ -364,7 +364,7 @@ jobs:
       - name: Checkout immutable U4 test-only source AFTER snapshot
         uses: actions/checkout@v4
         with:
-          ref: 1f8bacb42c3e25d24fe123c1982857e1e79884fc
+          ref: 9820cfeab595cb1c7764128f1cdae4a3855ecefe
           path: u4-test
           persist-credentials: false
       - name: Attach immutable U4 signed follow-on ONLY to disposable validator COPY
@@ -372,10 +372,10 @@ jobs:
         run: |
           set -euo pipefail
           # No production feature source SQL / permission / migration changes.
-          test "$(git -C u4-test rev-parse HEAD)" = 1f8bacb42c3e25d24fe123c1982857e1e79884fc
+          test "$(git -C u4-test rev-parse HEAD)" = 9820cfeab595cb1c7764128f1cdae4a3855ecefe
           test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
-          test "$(git -C u4-test hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 3629cf05641619d0b3b10b572d83dd7f589b64b9
-          test "$(git -C u4-test hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = 01bc92e0b70143bb161bb1e47855c55129ae9656
+          test "$(git -C u4-test hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = db9921b63b8a0cc6256d802cbeeff8d54e594559
+          test "$(git -C u4-test hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = e0c7dc18c3f456ed35bfe06dc5bbfae23cdf3d68
           cp u4-test/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/
           cp u4-test/tests/uniops_u2_qualified_actual_followon_held.py canonical/tests/
           cp u4-test/tests/test_uniops_u2_qualified_actual_followon_held.py canonical/tests/
@@ -500,6 +500,7 @@ jobs:
           # checkpoint count and allowlisted error class. Never emit raw
           # Python traceback, SQL output, JWT, Person/Subject or row contents.
           if phase=='signed integrated U1B source and U2 accepted-first original':
+              u4_probe=u4_gate='not_reached'
               actorlog=root/'uniops-u2-signed.log'
               fixturelog=root/'uniops-u2-fictional-fixture.log'
               if actorlog.is_file():
@@ -546,6 +547,14 @@ jobs:
                   final_ordinal=ordinal_hits[-1] if ordinal_hits else 'not_reached'
                   if (final_family in ('not_applicable','unmapped','ambiguous','catalog_error') and final_ordinal!='0000') or (final_family in ('atlas_source','public_transport','ledger_source','reality_source','auth_source') and final_ordinal in ('0000','not_reached')) or ((final_family=='not_reached')!=(final_ordinal=='not_reached')):
                       final_family=final_ordinal='not_reached'
+                  # Source-authored U4 finite gate only; never publish
+                  # response bodies, actor tokens, SQL or private traceback.
+                  entered=re.findall(r'(?m)^U4_SIGNED_PROBE_ENTERED=yes$',actor_text)
+                  u4_probe=('yes' if len(entered)==1 else
+                      'not_reached' if not entered else 'ambiguous')
+                  failure_hits=re.findall(r'(?m)^U4_SIGNED_FAILURE_GATE=(local_only_gate|original_work_id_gate|signed_actor_sessions_gate|source_table_name_gate|public_actual_signature_gate|public_actual_execute_gate|campaign_original_gate|responsible_person_gate|native_ledger_gate|physical_subject_gate|pre_result_empty_gate|nonrecipient_permission_gate|invalid_condition_gate|negative_result_mutation_gate|signed_result_done_receipt_gate|qualified_result_acceptance_gate|one_terminal_transition_gate|idempotent_replay_gate|zero_successor_gate|single_result_after_replay_gate|unclassified_probe_assertion)$',actor_text)
+                  u4_gate=(failure_hits[0] if len(failure_hits)==1 else
+                      'not_reported' if not failure_hits else 'ambiguous')
                   if 'AssertionError' in actor_text:
                       failure_class='python_assertion'
                   elif 'Traceback (most recent call last)' in actor_text:
@@ -614,6 +623,8 @@ jobs:
               print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE='+call_stage)
               print('UNI_OPS_SIGNED_U2_PASS_CHECKPOINTS='+str(checks))
               print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
+              print('UNI_OPS_U4_SIGNED_PROBE_ENTERED='+u4_probe)
+              print('UNI_OPS_U4_SIGNED_FAILURE_GATE='+u4_gate)
           # Report only fixed aggregate categories; private function names,
           # SQL, identity, relation names and raw lint messages stay local.
           delta=root/'schema-lint-delta.json'

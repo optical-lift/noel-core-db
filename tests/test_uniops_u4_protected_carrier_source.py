@@ -13,7 +13,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 U4=ROOT/".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml"
 ORIGINAL=ROOT/".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml"
-SOURCE_SHA="1f8bacb42c3e25d24fe123c1982857e1e79884fc"
+SOURCE_SHA="9820cfeab595cb1c7764128f1cdae4a3855ecefe"
 
 class U4CarrierSourceSafety(unittest.TestCase):
     @classmethod
@@ -88,8 +88,8 @@ class U4CarrierSourceSafety(unittest.TestCase):
             self.assertIn(exact,body)
             self.assertIn(exact,orig)
         for blob in ("09eeee925ebfa2cb64b1dea336688ba8076ef44d",
-                     "3629cf05641619d0b3b10b572d83dd7f589b64b9",
-                     "01bc92e0b70143bb161bb1e47855c55129ae9656"):
+                     "db9921b63b8a0cc6256d802cbeeff8d54e594559",
+                     "e0c7dc18c3f456ed35bfe06dc5bbfae23cdf3d68"):
             self.assertIn(blob,body)
         self.assertEqual(body.rsplit("  validate-protected:",1)[-1].count("ref: "+SOURCE_SHA),1)
         self.assertEqual(body.count("Checkout immutable U4 test-only source AFTER snapshot"),1)
@@ -141,6 +141,22 @@ class U4CarrierSourceSafety(unittest.TestCase):
         self.assertEqual(body.count(opener),1)
         block=body.split(opener,1)[1].split("<<'PY'\n",1)[1].split("\n          PY\n",1)[0]
         ast.parse(textwrap.dedent(block),filename="u4-ephemeral-transport-source.py",mode="exec")
+
+    def test_u4_bounded_failure_enum_reporter(self):
+        protected=self.source.rsplit("  validate-protected:",1)[-1]
+        self.assertIn("U4_SIGNED_PROBE_ENTERED=yes",protected)
+        self.assertIn("U4_SIGNED_FAILURE_GATE=",protected)
+        self.assertIn("UNI_OPS_U4_SIGNED_FAILURE_GATE=",protected)
+        self.assertIn("UNI_OPS_U4_SIGNED_PROBE_ENTERED=",protected)
+        self.assertIn("unclassified_probe_assertion",protected)
+        self.assertIn("public_actual_signature_gate",protected)
+        self.assertIn("one_terminal_transition_gate",protected)
+        self.assertIn("zero_successor_gate",protected)
+        self.assertIn("source_table_name_gate",protected)
+        self.assertIn("not_reported",protected)
+        self.assertIn("ambiguous",protected)
+        self.assertNotIn("print('UNI_OPS_U4_SIGNED_FAILURE_GATE='+actor_text)",protected)
+        self.assertIn("no schema dump, role dump or diagnostic artifact retained/uploaded",protected)
 
     def test_acceptance_requires_u4_not_generic_u2_pass(self):
         body=self.source
