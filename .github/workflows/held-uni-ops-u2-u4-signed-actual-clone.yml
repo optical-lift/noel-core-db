@@ -83,7 +83,7 @@ jobs:
           assert "u4_test_sha" in workflow and "test_goal" in workflow
           assert 'ref: 1f8bacb42c3e25d24fe123c1982857e1e79884fc' in workflow
           assert "--u4-actual-followon" in workflow
-          assert workflow.count("NOEL_CORE_DATABASE_URL:") == 1
+          assert protected.count("NOEL_CORE_DATABASE_URL:") == 1
           assert "No production feature source SQL / permission / migration" in workflow
           print("PASS source-only true-signed U2 bounded runner/fixture contract; NOT runtime acceptance")
           PY
