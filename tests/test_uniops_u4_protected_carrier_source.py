@@ -3,7 +3,9 @@
 No secrets, network, production DB, API or signed session. Kept separate from
 the trusted U2 workflow. This test never authorizes CI installation.
 """
+import ast
 import re
+import textwrap
 import subprocess
 from pathlib import Path
 import unittest
@@ -111,6 +113,34 @@ class U4CarrierSourceSafety(unittest.TestCase):
             self.assertNotIn(forbidden,protected)
         self.assertIn("rm -f -- \"$RUNNER_TEMP/uniops-snapshot-schema.sql\"",body)
         self.assertIn("rm -rf -- \"$RUNNER_TEMP/uniops-private-diagnostics\"",body)
+
+    def test_public_signed_transport_exact_source_and_disposable_only(self):
+        # The original U2 18-stage assembly has no public care-Actual RPC;
+        # the R02 private writer is already frozen and must not be replaced.
+        body=self.source
+        self.assertIn('12_care_signed_http_rpc_candidate.sql',body)
+        self.assertIn('3e09b66e54c15e100110c2b50f43dc9c7593e51a',body)
+        self.assertIn('transport="$UNI_OPS_PIN_ROOT/r02/',body)
+        self.assertIn("manifest['stage_count']==18",body)
+        self.assertIn("before.count(b'-- BEGIN PINNED STAGE ')==18",body)
+        self.assertIn("before.count(b'-- END PINNED STAGE ')==18",body)
+        self.assertIn("manifest['scratch_file_sha256']",body)
+        self.assertIn("blob=='3e09b66e54c15e100110c2b50f43dc9c7593e51a'",body)
+        self.assertIn("not out.exists() and not out.is_symlink()",body)
+        self.assertIn("out.parent==pathlib.Path(__import__('os').environ['RUNNER_TEMP'])",body)
+        self.assertIn("IF auth.uid() IS NULL OR atlas.current_person_id_v1() IS NULL",body)
+        self.assertIn("FROM PUBLIC,anon,authenticated,service_role;",body)
+        self.assertIn("b'TO authenticated;'",body)
+        self.assertIn("has_function_privilege('anon'",body)
+        self.assertIn("has_function_privilege('authenticated'",body)
+        self.assertIn("preexisting public care actual source requires",body.lower())
+        self.assertIn("BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB",body)
+        self.assertIn("END U4 DISPOSABLE PUBLIC TRANSPORT",body)
+        self.assertNotIn('cp "$reviewed" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"',body)
+        opener='          python3 - "$reviewed" "$RUNNER_TEMP/uniops-u2c-review-manifest.json" "$transport" \\'
+        self.assertEqual(body.count(opener),1)
+        block=body.split(opener,1)[1].split("<<'PY'\n",1)[1].split("\n          PY\n",1)[0]
+        ast.parse(textwrap.dedent(block),filename="u4-ephemeral-transport-source.py",mode="exec")
 
     def test_acceptance_requires_u4_not_generic_u2_pass(self):
         body=self.source
