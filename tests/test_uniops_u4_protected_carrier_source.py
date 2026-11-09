@@ -13,7 +13,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 U4=ROOT/".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml"
 ORIGINAL=ROOT/".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml"
-SOURCE_SHA="3827b97cab0eee461fbc7327ae3a8eb46fe8bc6c"
+SOURCE_SHA="a16f5ac6962d652e3461561ed4c3035fb5803b5c"
 
 class U4CarrierSourceSafety(unittest.TestCase):
     @classmethod
@@ -88,8 +88,8 @@ class U4CarrierSourceSafety(unittest.TestCase):
             self.assertIn(exact,body)
             self.assertIn(exact,orig)
         for blob in ("09eeee925ebfa2cb64b1dea336688ba8076ef44d",
-                     "db9921b63b8a0cc6256d802cbeeff8d54e594559",
-                     "acb845c8285c4f75067eab1c871a0eb6d2d3ad3a"):
+                     "90a384621024361cd675d3c55d2add06bb5c413a",
+                     "19864c20915442bb74af35dd32019dc299f22a7a"):
             self.assertIn(blob,body)
         self.assertEqual(body.rsplit("  validate-protected:",1)[-1].count("ref: "+SOURCE_SHA),1)
         self.assertEqual(body.count("Checkout immutable U4 test-only source AFTER snapshot"),1)
@@ -163,11 +163,19 @@ class U4CarrierSourceSafety(unittest.TestCase):
         self.assertIn("Checkout immutable U4 no-network source for CI contract",source)
         self.assertIn("Verify exact U4 helper blobs and no-network unit tests",source)
         self.assertIn("python3 -m unittest discover -s u4-source-contract/tests -p 'test_uniops_u2_qualified_actual_followon_held.py' -v",source)
-        self.assertIn("acb845c8285c4f75067eab1c871a0eb6d2d3ad3a",source)
+        self.assertIn("19864c20915442bb74af35dd32019dc299f22a7a",source)
         self.assertLess(source.index("Verify exact U4 helper blobs and no-network unit tests"),
                         source.index("\n  validate-protected:\n"))
         self.assertIn("persist-credentials: false",source)
         self.assertIn("ref: "+SOURCE_SHA,source)
+
+    def test_exact_known_count_tables_guarded_by_immutable_u4_helper(self):
+        self.assertIn("90a384621024361cd675d3c55d2add06bb5c413a",self.source)
+        self.assertIn("19864c20915442bb74af35dd32019dc299f22a7a",self.source)
+        self.assertIn("test_uniops_u2_qualified_actual_followon_held.py' -v",self.source)
+        self.assertIn("u4_test_sha':'a16f5ac6962d652e3461561ed4c3035fb5803b5c'",self.source)
+        self.assertIn("U4_SIGNED_FAILURE_GATE=",self.source)
+        self.assertIn("U4_SIGNED_PROBE_ENTERED=yes",self.source)
 
     def test_acceptance_requires_u4_not_generic_u2_pass(self):
         body=self.source
