@@ -46,6 +46,9 @@ jobs:
                       "supabase db reset --linked","apply_migration",
                       "secrets.SUPABASE_SERVICE_ROLE_KEY","gh pr merge"):
             assert bad not in protected,bad
+          assert "option_c_clone_phase=" in protected
+          assert "Report only allowlisted failed clone phase" in protected
+          assert "print(raw)" not in protected and "print(text)" not in protected
           print("PASS immutable owner-only disposable signed clone; live snapshot read-only")
           PY
   protected-signed-local:
