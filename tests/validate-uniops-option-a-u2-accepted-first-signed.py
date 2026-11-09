@@ -456,17 +456,30 @@ def main():
     deny(api,key,owner,final,{"p_offer_id":offer},
          "revoked root session cannot replay governed original")
     out=Path(a.output)
-    out.write_text(
+    u2_receipt=(
       "PASS genuine separate signed local root/worker/outsider/no-seat; native "
       "scope proposed and accepted; exact mowing Subject disclosures; property "
       "and Subject rule versions approved by current root; no offer without "
       "policy; worker consent before canonical original; outsider, worker, root "
       "impersonation and revoked session denied; exactly one original, active "
-      "allocation and date plan, replay, no physical Result, no accepted Actual, "
-      "no Clock or automatic next original. NOT TESTED: U1A overlap, historical "
-      "cancel on new original, post-Result 6A eligibility or production.\n"
-      + ("U4 opt-in typed Actual signed probe PASSED; P1 Activity and production remain HELD.\n"
-         if a.u4_actual_followon else ""),
+      "allocation and date plan, replay, "
+    )
+    if a.u4_actual_followon:
+        result_claim=(
+          "one independently signed first-party physical Actual, accepted "
+          "Result, one authoritative Done, exact replay and no new Work/task/"
+          "offer/plan; P1 manual Activity and full P3 other writers NOT TESTED.\n"
+          "U4_SIGNED_ACTUAL_RESULT_DONE=PASS\n"
+        )
+    else:
+        result_claim=(
+          "no physical Result, no accepted Actual, no Clock or automatic next "
+          "original. Post-Result 6A eligibility NOT TESTED.\n"
+          "U4_SIGNED_ACTUAL_RESULT_DONE=NOT_RUN\n"
+        )
+    out.write_text(
+      u2_receipt+result_claim+
+      "Historical cancel on this original, U1A overlap and production remain HELD.\n",
       encoding="utf-8")
     print("PASS UNI-OPS option A U1B/U2 genuinely signed first original Work, no successor")
 
