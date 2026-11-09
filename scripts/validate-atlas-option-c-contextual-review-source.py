@@ -30,8 +30,8 @@ for start, end in (
 field_source = ("'conditionDecisionCurrentlyGrants',"
     "atlas.has_current_subject_disclosure_v1(p_ledger_id,p_target_person_id,"
     "'spatial','growing_object',s.subject_id,'condition')")
-field_start = field_source + ",\\n     -- P1A governor-only field observations."
-field_end = "'doesNotDiscloseFieldToTarget',true)\\n     )"
+field_start = field_source + ",\n     -- P1A governor-only field observations."
+field_end = "'doesNotDiscloseFieldToTarget',true)\n     )"
 require(restored.count(field_start)==1 and restored.count(field_end)==1,
         "P1A field packet is missing/ambiguous")
 before, after = restored.split(field_start,1)
