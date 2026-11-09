@@ -35,17 +35,17 @@ jobs:
       - name: Checkout immutable U4 no-network source for CI contract
         uses: actions/checkout@v4
         with:
-          ref: a16f5ac6962d652e3461561ed4c3035fb5803b5c
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
           path: u4-source-contract
           persist-credentials: false
       - name: Verify exact U4 helper blobs and no-network unit tests
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C u4-source-contract rev-parse HEAD)" = a16f5ac6962d652e3461561ed4c3035fb5803b5c
+          test "$(git -C u4-source-contract rev-parse HEAD)" = 075919564dc340ad86be8e969a2ad2d02ec19a15
           test "$(git -C u4-source-contract hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
-          test "$(git -C u4-source-contract hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 90a384621024361cd675d3c55d2add06bb5c413a
-          test "$(git -C u4-source-contract hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = 19864c20915442bb74af35dd32019dc299f22a7a
+          test "$(git -C u4-source-contract hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 2e180aa2363201e75ca0d717eeeddd5a708193ab
+          test "$(git -C u4-source-contract hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = 5a9a2fe1e7f4eaa047396627baefd24a76c0398a
           python3 -m py_compile u4-source-contract/tests/validate-uniops-option-a-u2-accepted-first-signed.py u4-source-contract/tests/uniops_u2_qualified_actual_followon_held.py u4-source-contract/tests/test_uniops_u2_qualified_actual_followon_held.py
           python3 -m unittest discover -s u4-source-contract/tests -p 'test_uniops_u2_qualified_actual_followon_held.py' -v
       - name: Compile and audit exact disposable-only signed fixture and runner contract
@@ -99,7 +99,7 @@ jobs:
           assert "U4_SIGNED_ACTUAL_RESULT_DONE=PASS" in workflow
           assert "github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'" in workflow
           assert "u4_test_sha" in workflow and "test_goal" in workflow
-          assert 'ref: a16f5ac6962d652e3461561ed4c3035fb5803b5c' in workflow
+          assert 'ref: 075919564dc340ad86be8e969a2ad2d02ec19a15' in workflow
           assert "--u4-actual-followon" in workflow
           assert protected.count("NOEL_CORE_DATABASE_URL:") == 1
           assert "No production feature source SQL / permission / migration" in workflow
@@ -133,7 +133,7 @@ jobs:
               'source_review':'u2c_context_guard_two_blobs_v1',
               'production_target':'zirqkouammpwxlqfbsvf',
               'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1',
-              'u4_test_sha':'a16f5ac6962d652e3461561ed4c3035fb5803b5c',
+              'u4_test_sha':'075919564dc340ad86be8e969a2ad2d02ec19a15',
               'test_goal':'signed_u2_result_done_v1'}
           for line in os.environ.get('OWNER_BODY','').splitlines():
               match=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
@@ -382,7 +382,7 @@ jobs:
       - name: Checkout immutable U4 test-only source AFTER snapshot
         uses: actions/checkout@v4
         with:
-          ref: a16f5ac6962d652e3461561ed4c3035fb5803b5c
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
           path: u4-test
           persist-credentials: false
       - name: Attach immutable U4 signed follow-on ONLY to disposable validator COPY
@@ -390,10 +390,10 @@ jobs:
         run: |
           set -euo pipefail
           # No production feature source SQL / permission / migration changes.
-          test "$(git -C u4-test rev-parse HEAD)" = a16f5ac6962d652e3461561ed4c3035fb5803b5c
+          test "$(git -C u4-test rev-parse HEAD)" = 075919564dc340ad86be8e969a2ad2d02ec19a15
           test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
-          test "$(git -C u4-test hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 90a384621024361cd675d3c55d2add06bb5c413a
-          test "$(git -C u4-test hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = 19864c20915442bb74af35dd32019dc299f22a7a
+          test "$(git -C u4-test hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 2e180aa2363201e75ca0d717eeeddd5a708193ab
+          test "$(git -C u4-test hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = 5a9a2fe1e7f4eaa047396627baefd24a76c0398a
           cp u4-test/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/
           cp u4-test/tests/uniops_u2_qualified_actual_followon_held.py canonical/tests/
           cp u4-test/tests/test_uniops_u2_qualified_actual_followon_held.py canonical/tests/
@@ -519,6 +519,7 @@ jobs:
           # Python traceback, SQL output, JWT, Person/Subject or row contents.
           if phase=='signed integrated U1B source and U2 accepted-first original':
               u4_probe=u4_gate='not_reached'
+              u4_http=u4_error=u4_receipt='not_reached'
               actorlog=root/'uniops-u2-signed.log'
               fixturelog=root/'uniops-u2-fictional-fixture.log'
               if actorlog.is_file():
@@ -573,6 +574,17 @@ jobs:
                   failure_hits=re.findall(r'(?m)^U4_SIGNED_FAILURE_GATE=(local_only_gate|original_work_id_gate|signed_actor_sessions_gate|source_table_name_gate|public_actual_signature_gate|public_actual_execute_gate|campaign_original_gate|responsible_person_gate|native_ledger_gate|physical_subject_gate|pre_result_empty_gate|nonrecipient_permission_gate|invalid_condition_gate|negative_result_mutation_gate|signed_result_done_receipt_gate|qualified_result_acceptance_gate|one_terminal_transition_gate|idempotent_replay_gate|zero_successor_gate|single_result_after_replay_gate|unclassified_probe_assertion)$',actor_text)
                   u4_gate=(failure_hits[0] if len(failure_hits)==1 else
                       'not_reported' if not failure_hits else 'ambiguous')
+                  # Finite-only classes generated by the exact U4 test helper.
+                  # Never forward source error messages, JWTs, SQL or receipts.
+                  actual_http_hits=re.findall(r'(?m)^U4_ACTUAL_HTTP_CLASS=(ok|bad_request|unauthorized|forbidden|not_found|conflict|server_failure|other_status)$',actor_text)
+                  actual_error_hits=re.findall(r'(?m)^U4_ACTUAL_ERROR_CLASS=(source_permission|source_constraint|source_argument|source_conflict|missing_function|missing_relation|missing_column|none_or_other)$',actor_text)
+                  actual_receipt_hits=re.findall(r'(?m)^U4_ACTUAL_RECEIPT_FIELD=(non_object|not_ok|work_item_mismatch|actual_contract_mismatch|not_completed|new_work_not_absent|clock_not_absent|result_id_not_uuid|accepted|not_checked)$',actor_text)
+                  u4_http=(actual_http_hits[0] if len(actual_http_hits)==1 else
+                      'not_reported' if not actual_http_hits else 'ambiguous')
+                  u4_error=(actual_error_hits[0] if len(actual_error_hits)==1 else
+                      'not_reported' if not actual_error_hits else 'ambiguous')
+                  u4_receipt=(actual_receipt_hits[0] if len(actual_receipt_hits)==1 else
+                      'not_reported' if not actual_receipt_hits else 'ambiguous')
                   if 'AssertionError' in actor_text:
                       failure_class='python_assertion'
                   elif 'Traceback (most recent call last)' in actor_text:
@@ -643,6 +655,9 @@ jobs:
               print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
               print('UNI_OPS_U4_SIGNED_PROBE_ENTERED='+u4_probe)
               print('UNI_OPS_U4_SIGNED_FAILURE_GATE='+u4_gate)
+              print('UNI_OPS_U4_ACTUAL_HTTP_CLASS='+u4_http)
+              print('UNI_OPS_U4_ACTUAL_ERROR_CLASS='+u4_error)
+              print('UNI_OPS_U4_ACTUAL_RECEIPT_FIELD='+u4_receipt)
           # Report only fixed aggregate categories; private function names,
           # SQL, identity, relation names and raw lint messages stay local.
           delta=root/'schema-lint-delta.json'
