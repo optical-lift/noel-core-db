@@ -199,6 +199,37 @@ jobs:
           else
             echo "Signed local Option C proof incomplete or failed; no production changes." >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Report only allowlisted failed clone phase
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re,os
+          source=Path(os.environ['RUNNER_TEMP'])/'option-c-result'/'summary.md'
+          if not source.is_file():
+              print('option_c_clone_phase=before_summary_or_unavailable')
+              raise SystemExit(0)
+          text=source.read_text(encoding='utf-8')
+          phase=re.findall(r'Validation command exited during `([^`]+)`',text)
+          if not phase:
+              phase=re.findall(r'FAILED during ([A-Za-z0-9 /_-]+)[.]',text)
+          approved={
+              'validation fixture safety check':'fixture_safety',
+              'schema dump sanitation':'schema_sanitization',
+              'production custom-role restore':'roles_restore',
+              'production user-schema restore':'schema_restore',
+              'baseline domain schema lint':'baseline_lint',
+              'candidate validation fixture application':'fictional_fixture_application',
+              'candidate migration application':'held_sql_application',
+              'candidate migration postconditions':'clone_sql_postconditions',
+              'genuine signed local Option C selected versus primary Ledger authority':'signed_http_authority',
+              'candidate domain schema lint':'candidate_lint',
+              'local database advisors':'local_advisors',
+          }
+          key=phase[-1] if phase else ''
+          print('option_c_clone_phase='+approved.get(key,'unknown_or_incomplete'))
+          PY
       - name: Upload only allowlisted signed summary
         if: always()
         uses: actions/upload-artifact@v4
