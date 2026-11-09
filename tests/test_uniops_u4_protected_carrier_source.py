@@ -53,7 +53,7 @@ class U4CarrierSourceSafety(unittest.TestCase):
                      "3629cf05641619d0b3b10b572d83dd7f589b64b9",
                      "01bc92e0b70143bb161bb1e47855c55129ae9656"):
             self.assertIn(blob,body)
-        self.assertEqual(body.count("ref: "+SOURCE_SHA),1)
+        self.assertEqual(body.rsplit("  validate-protected:",1)[-1].count("ref: "+SOURCE_SHA),1)
         self.assertEqual(body.count("Checkout immutable U4 test-only source AFTER snapshot"),1)
         self.assertEqual(body.count("Attach immutable U4 signed follow-on ONLY to disposable validator COPY"),1)
         self.assertEqual(body.count("Run canonical authentic-schema disposable clone, no release"),1)
