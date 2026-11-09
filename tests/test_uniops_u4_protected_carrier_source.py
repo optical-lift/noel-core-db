@@ -88,8 +88,8 @@ class U4CarrierSourceSafety(unittest.TestCase):
             self.assertIn(exact,body)
             self.assertIn(exact,orig)
         for blob in ("09eeee925ebfa2cb64b1dea336688ba8076ef44d",
-                     "3629cf05641619d0b3b10b572d83dd7f589b64b9",
-                     "01bc92e0b70143bb161bb1e47855c55129ae9656"):
+                     "db9921b63b8a0cc6256d802cbeeff8d54e594559",
+                     "e0c7dc18c3f456ed35bfe06dc5bbfae23cdf3d68"):
             self.assertIn(blob,body)
         self.assertEqual(body.rsplit("  validate-protected:",1)[-1].count("ref: "+SOURCE_SHA),1)
         self.assertEqual(body.count("Checkout immutable U4 test-only source AFTER snapshot"),1)
