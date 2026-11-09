@@ -48,6 +48,9 @@ jobs:
             assert bad not in protected,bad
           assert "option_c_clone_phase=" in protected
           assert "option_c_signed_checkpoint=" in protected
+          assert "option_c_signed_bounded_error=" in protected
+          assert "audited.get(match[-1],\"other_rpc\")" in protected
+          assert "print(reason)" not in protected
           assert "checkpoints.get(line.strip())" in protected
           assert "print(line)" not in protected
           assert "Report only allowlisted failed clone phase" in protected
@@ -265,6 +268,24 @@ jobs:
                   if mark:
                       last=mark
           print("option_c_signed_checkpoint="+last)
+          # Classify only previously audited source RPC names, never log text.
+          audited={
+            "establish_farm_crop_ledger_custody_self_api_v1":"farm_custody_rpc",
+            "establish_company_work_native_ledger_relevance_self_api_v1":"work_relevance_rpc",
+            "offer_connected_person_company_work_owner_self_api_v1":"work_offer_rpc",
+            "respond_connected_person_company_work_self_api_v1":"work_accept_rpc",
+            "work_growing_object_context_review_self_api_v1":"bed_review_rpc",
+            "establish_work_growing_object_context_self_api_v1":"bed_link_rpc",
+          }
+          import re
+          reason="not_a_named_source_rpc_failure"
+          if source.is_file():
+              match=re.findall(
+                  r"Signed canonical source command failed: ([a-z_0-9]+) HTTP [0-9]+",
+                  source.read_text(encoding="utf-8",errors="replace"))
+              if match:
+                  reason=audited.get(match[-1],"other_rpc")
+          print("option_c_signed_bounded_error="+reason)
           PY
       - name: Upload only allowlisted signed summary
         if: always()
