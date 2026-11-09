@@ -47,6 +47,10 @@ VALUES ('e5200000-0000-4000-8000-000000000d01',
 
 -- The synthetic native Ledger's farm-crop custody and current rhythm source
 -- pre-exist the signed policy decision and recipient's own consent.
+-- This fictional rule defines exactly one potential terminal Result: a genuinely
+-- signed full mowing Actual, with observed resting condition. It is NOT evidence
+-- that mowing already occurred, an approved Rulebook, a Work offer, or consent.
+-- Owner/reviewer and worker must still independently sign the governed steps.
 INSERT INTO atlas.farm_crop_ledger_custody_v1(
  id,farm_id,ledger_id,established_by_principal_id,adjudication)
 VALUES ('e5200000-0000-4000-8000-000000000d02',
@@ -56,12 +60,12 @@ VALUES ('e5200000-0000-4000-8000-000000000d02',
 '{"cloneFixture":true,"evidence":"synthetic farm-crop ledger custody"}'::jsonb);
 INSERT INTO atlas.rhythm_rules(
  id,organization_id,farm_id,rule_key,rhythm_key,version,label,status,
- validity_interval_seconds,metadata)
+ validity_interval_seconds,qualifying_touches,metadata)
 VALUES ('e5200000-0000-4000-8000-000000000d03',
 'e5200000-0000-4000-8000-000000000801',
 'e5200000-0000-4000-8000-000000000b01',
-'clone-mowing-stewardship','mowing',1,'Fictional mowing inspection','active',
-604800,'{"timezoneName":"UTC","cloneFixture":true}'::jsonb);
+'clone-mowing-stewardship','mowing',1,'Fictional mowing stewardship','active',
+604800,'[{"effect":"full","sourceKind":"mowing_result","sourceEvent":"mowed_full"}]'::jsonb,'{"timezoneName":"UTC","cloneFixture":true}'::jsonb);
 INSERT INTO atlas.rhythm_bindings(
  id,organization_id,farm_id,rhythm_rule_id,binding_key,
  inheritance_layer,subject_kind,subject_id)
@@ -93,6 +97,9 @@ BEGIN
  IF (SELECT count(*) FROM atlas.rhythm_state
      WHERE id='e5200000-0000-4000-8000-000000000d05'::uuid
        AND rhythm_key='mowing')<>1
+ OR (SELECT r.qualifying_touches FROM atlas.rhythm_rules r
+     WHERE r.id='e5200000-0000-4000-8000-000000000d03'::uuid)
+     IS DISTINCT FROM '[{"effect":"full","sourceKind":"mowing_result","sourceEvent":"mowed_full"}]'::jsonb
  OR (SELECT count(*) FROM atlas.governed_farm_rulebook_scope_versions_v1)<>0
  OR (SELECT count(*) FROM atlas.governed_prework_candidate_offers_v1)<>0
  OR (SELECT count(*) FROM atlas.work_items
