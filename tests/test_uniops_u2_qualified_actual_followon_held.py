@@ -1,5 +1,7 @@
 """Source-only U2->U4 probe controls. NOT a PostgreSQL or signed actor test."""
 import importlib.util
+import contextlib
+import io
 from pathlib import Path
 import unittest
 
@@ -52,6 +54,29 @@ class U4Boundaries(unittest.TestCase):
                      {"owner":"x","worker":"y","outsider":"z"},
                      "e5200000-0000-4000-8000-000000000d07",
                      sql=forbidden,rpc=forbidden)
+
+    def test_allowlisted_failure_gate_never_prints_untrusted_message(self):
+        self.assertEqual(len(u4.U4_DENIAL_CLASSES),20)
+        self.assertEqual(len(set(u4.U4_DENIAL_CLASSES.values())),20)
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):
+            with self.assertRaisesRegex(AssertionError,"RPC is NOT in clone"):
+                u4.require(False,
+                    "U4 source-authenticated physical Actual RPC is NOT in clone")
+        self.assertEqual(out.getvalue(),
+            "U4_SIGNED_FAILURE_GATE=public_actual_signature_gate\\n")
+        out=io.StringIO()
+        unexpected="private JWT and response data must not print"
+        with contextlib.redirect_stdout(out):
+            with self.assertRaisesRegex(AssertionError,"private JWT"):
+                u4.require(False,unexpected)
+        self.assertEqual(out.getvalue(),
+            "U4_SIGNED_FAILURE_GATE=unclassified_probe_assertion\\n")
+        self.assertNotIn(unexpected,out.getvalue())
+        out=io.StringIO()
+        with contextlib.redirect_stdout(out):
+            u4.require(True,unexpected)
+        self.assertEqual(out.getvalue(),"")
 
     def test_driver_is_explicit_opt_in(self):
         driver=(HERE/"validate-uniops-option-a-u2-accepted-first-signed.py").read_text()
