@@ -44,6 +44,24 @@ U4_DENIAL_CLASSES = {
     "U4 duplicate execution after replay": "single_result_after_replay_gate",
 }
 
+# Exact source-owned table allowlist for local-only COUNT observations.
+# Version digits are ordinary Noel identifiers, never a wildcard SQL name.
+U4_COUNT_TABLES = frozenset((
+    "atlas.work_items",
+    "atlas.work_allocations",
+    "atlas.company_work_native_ledger_relevance",
+    "atlas.work_item_context_links",
+    "atlas.work_execution_results",
+    "atlas.work_result_acceptances",
+    "atlas.tasks",
+    "atlas.governed_prework_candidate_offers_v1",
+    "atlas.work_execution_plans",
+    "atlas.work_lifecycle_events_v1",
+))
+
+def count_table_allowed(table):
+    return isinstance(table, str) and table in U4_COUNT_TABLES
+
 def require(ok, reason):
     if not ok:
         print("U4_SIGNED_FAILURE_GATE="+U4_DENIAL_CLASSES.get(reason,"unclassified_probe_assertion"),flush=True)
@@ -92,7 +110,7 @@ def prove(db_url, api, anon_key, tokens, work, *, sql, rpc):
     work_ref = "'" + work + "'::uuid"
 
     def count(table, condition="true"):
-        require(bool(re.fullmatch(r"[a-z_]+[.][a-z_]+", table)),
+        require(count_table_allowed(table),
                 "U4 internal table reference changed")
         return int(sql(db_url, "select count(*) from "+table+" where "+condition))
 
