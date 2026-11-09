@@ -133,7 +133,7 @@ class U4CarrierSourceSafety(unittest.TestCase):
         self.assertIn("b'TO authenticated;'",body)
         self.assertIn("has_function_privilege('anon'",body)
         self.assertIn("has_function_privilege('authenticated'",body)
-        self.assertIn("preexisting public care Actual source requires",body.lower())
+        self.assertIn("preexisting public care actual source requires",body.lower())
         self.assertIn("BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB",body)
         self.assertIn("END U4 DISPOSABLE PUBLIC TRANSPORT",body)
         self.assertNotIn('cp "$reviewed" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"',body)
