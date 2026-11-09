@@ -286,7 +286,67 @@ jobs:
           assert hashlib.sha256(open(sys.argv[3],'rb').read()).hexdigest()==amended['scratch_file_sha256']
           print('PASS 16 frozen source stages and exactly two independently pinned U2C context-review stages; scratch only')
           PY
-          cp "$reviewed" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
+          # Keep the exact 18 native/history stages unchanged in the reviewed manifest.
+          # Add one separately pinned public SIGNED transport only to the disposable
+          # local migration after the 18-stage source hash has been verified.
+          # This source is ALREADY tracked in the same immutable R02 checkout.
+          transport="$UNI_OPS_PIN_ROOT/r02/candidates/atlas_universal_continuing_original_work_v1/12_care_signed_http_rpc_candidate.sql"
+          test "$(git -C "$UNI_OPS_PIN_ROOT/r02" hash-object candidates/atlas_universal_continuing_original_work_v1/12_care_signed_http_rpc_candidate.sql)" = 3e09b66e54c15e100110c2b50f43dc9c7593e51a
+          python3 - "$reviewed" "$RUNNER_TEMP/uniops-u2c-review-manifest.json" "$transport" \
+            "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" <<'PY'
+          import hashlib,json,pathlib,sys
+          reviewed,manifest_path,source_path,out=(pathlib.Path(p) for p in sys.argv[1:])
+          manifest=json.loads(manifest_path.read_text(encoding='utf-8'))
+          before=reviewed.read_bytes()
+          assert manifest['kind']=='UNI_OPS_U2C_CONTEXT_REVIEW_DISPOSABLE_ONLY'
+          assert manifest['stage_count']==18 and len(manifest['stages'])==18
+          assert hashlib.sha256(before).hexdigest()==manifest['scratch_file_sha256']
+          assert before.count(b'-- BEGIN PINNED STAGE ')==18
+          assert before.count(b'-- END PINNED STAGE ')==18
+          assert b'public.record_continuing_care_actual_self_api_v1' not in before
+          assert out.parent==pathlib.Path(__import__('os').environ['RUNNER_TEMP'])
+          assert out.name=='20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql'
+          assert not out.exists() and not out.is_symlink()
+          source=source_path.read_bytes()
+          blob=hashlib.sha1(b'blob '+str(len(source)).encode()+b'\0'+source).hexdigest()
+          assert blob=='3e09b66e54c15e100110c2b50f43dc9c7593e51a'
+          for invariant in (
+              b'CREATE OR REPLACE FUNCTION public.record_continuing_care_actual_self_api_v1(',
+              b'SECURITY DEFINER SET search_path TO',
+              b'IF auth.uid() IS NULL OR atlas.current_person_id_v1() IS NULL',
+              b'RETURN atlas.record_continuing_care_actual_self_api_v1(',
+              b'FROM PUBLIC,anon,authenticated,service_role;',
+              b'TO authenticated;',
+              b"pg_notify('pgrst','reload schema')",
+              b'REVOKE ALL ON FUNCTION atlas.record_continuing_care_actual_self_api_v1(',
+          ):
+              assert invariant in source, 'Missing guarded source bridge invariant'
+          signature='public.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)'
+          preflight=(
+              '\nDO $u4_public_preflight$ BEGIN\n'
+              " IF to_regprocedure('"+signature+"') IS NOT NULL THEN\n"
+              "  RAISE EXCEPTION 'Preexisting public care Actual source requires separate review';\n"
+              ' END IF;\nEND;$u4_public_preflight$;\n'
+          ).encode()
+          post=(
+              '\nDO $u4_public_postconditions$ BEGIN\n'
+              " IF to_regprocedure('"+signature+"') IS NULL\n"
+              " OR NOT has_function_privilege('authenticated',to_regprocedure('"+signature+"'),'EXECUTE')\n"
+              " OR has_function_privilege('anon',to_regprocedure('"+signature+"'),'EXECUTE')\n"
+              " OR has_function_privilege('authenticated',to_regprocedure('atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)'),'EXECUTE')\n"
+              " THEN RAISE EXCEPTION 'Disposable public signed transport ACL not exact';\n"
+              ' END IF;\nEND;$u4_public_postconditions$;\n'
+          ).encode()
+          payload=(
+              before+b'\n-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:'
+              +blob.encode()+b'\n'+preflight+source+b'\n'+post
+              +b'-- END U4 DISPOSABLE PUBLIC TRANSPORT\n'
+          )
+          with out.open('xb') as fh:
+              fh.write(payload)
+          assert out.stat().st_size==len(payload)
+          print('PASS 18 immutable source stages plus exact R02 public signed-transport fixture; disposable only')
+          PY
       - name: Attach exact genuine signed U2 test to a disposable local validator COPY
         shell: bash
         run: |
