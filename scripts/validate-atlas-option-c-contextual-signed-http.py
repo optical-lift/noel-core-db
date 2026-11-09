@@ -167,6 +167,27 @@ def main():
           "Fictional primary Ledger must initially have owner root only")
     api,key=c1.local_status()
     base.setup_auth(args.db_url)
+    # The protected clone restores schema/roles only, not production reference
+    # rows. The *released source* requires this exact ordinary Work result
+    # contract when recipient uptake binds a legacy-task original. Seed that
+    # contract only on loopback, never in the shared fixture or live source.
+    sql(args.db_url, """
+      INSERT INTO atlas.work_result_contract_policies(
+        contract_key,source_domain,acceptance_mode,active,description,metadata
+      ) VALUES (
+        'ordinary_company_work_worker_attestation_v1',
+        'organization','worker_attestation',true,
+        'Disposable source-compatible ordinary Work result contract',
+        '{"cloneFixture":true}'::jsonb
+      ) ON CONFLICT (contract_key) DO NOTHING
+    """)
+    check(sql(args.db_url, """
+      SELECT count(*) FROM atlas.work_result_contract_policies
+      WHERE contract_key='ordinary_company_work_worker_attestation_v1'
+        AND source_domain='organization'
+        AND acceptance_mode='worker_attestation' AND active
+    """)=="1",
+      "Required source-native result policy is not uniquely active in local clone")
     # Fictional spatial sources are established on the loopback disposable
     # Postgres only. Do not add this DML to the shared guarded source fixture.
     sql(args.db_url, """
