@@ -7,7 +7,7 @@ The October 25–26 40 permissions choices and the November 7 R1–R8 80-choice 
 
 The old Noel #2263 branch was hundreds of commits behind main and its review referenced a held Work-field decision table not installed in production. **Do not merge that branch wholesale or copy its unreleased Work-field writer into production.**
 
-Current Noel main already owns `atlas.owner_effective_subject_disclosure_review_self_api_v1` with canonical target Seat and a governor-only, legacy two-root source gate. This P0B change extends **that same source** rather than exposing a competing review endpoint or permission table. Existing response, original Work and linked Subject disclosure remain unchanged.
+Current Noel main already owns `atlas.owner_effective_subject_disclosure_review_self_api_v1` with canonical target Seat and a governor-only, legacy two-root source gate. This P0B change stages a **full-function held override of that same source** in `contextual_authority_review_override_HELD.sql`, with matching `contextual_authority_review_postconditions_HELD.sql`. The original `candidate.sql` and `postconditions.sql` are kept **byte-identical to main**, because the universal Work integrated bundle fingerprints them. The override is not a new RPC, permission table, merged migration, or live source change. Existing response, original Work and linked Subject disclosure remain unchanged.
 
 ## Exactly what was added
 
@@ -18,6 +18,10 @@ For the existing authorized governor's selected Organization, exact native Ledge
 - Where unambiguous, check current `root_governing` authority for the *same target Principal* on the selected Ledger and separately on the organization's primary Ledger, with active authority and no ended-at timestamp.
 - Report `contextualAuthorityReview` as nonauthorizing source facts: `selectedLedgerRoot`, `organizationPrimaryRoot`, `selectedLedgerIsOrganizationPrimary`, `legacyCompanyWorkDualRootCandidate`. Do not assert effective Work/People access, a current target sign-in, field disclosure, or the propriety of the legacy double-root policy.
 - Preserve `company_work_native_ledger_owner_self_v1`, its existing roughly 62 downstream callers, all current signed session/Seat guards, source custody, provider/Org privacy, original canonical Person/Work and current app behavior. No source permission grant or read-path widening.
+
+## Integration fingerprint correction
+
+An initial in-place source edit caused global Database Custody CI's exact-integrated-Work assembler to fail at `integrated SQL candidate differs from exact original sources`. This was a **real dependency introduced by the source edit**, not an unrelated failure. The original candidate and postconditions have since been restored to their exact main Git blobs; a new static test strips only the three additive contextual blocks from the held override and requires byte-exact equality with the bundled original. Re-run exact-head Database Custody CI; never regenerate or modify the universal Work bundle merely to accommodate this held permissions diagnostic.
 
 ## Verification boundary
 
