@@ -147,7 +147,31 @@ BEGIN
      'identityDecision',coalesce((SELECT e.decision_kind FROM atlas.subject_disclosure_decision_events_v1 e WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id AND e.target_person_id=p_target_person_id AND e.subject_domain='spatial' AND e.subject_kind='growing_object' AND e.subject_id=s.subject_id AND e.disclosure_class='identity' ORDER BY e.recorded_at DESC,e.id DESC LIMIT 1),'not_decided'),
      'conditionDecision',coalesce((SELECT e.decision_kind FROM atlas.subject_disclosure_decision_events_v1 e WHERE e.organization_id=p_organization_id AND e.ledger_id=p_ledger_id AND e.target_person_id=p_target_person_id AND e.subject_domain='spatial' AND e.subject_kind='growing_object' AND e.subject_id=s.subject_id AND e.disclosure_class='condition' ORDER BY e.recorded_at DESC,e.id DESC LIMIT 1),'not_decided'),
      'identityDecisionCurrentlyGrants',atlas.has_current_subject_disclosure_v1(p_ledger_id,p_target_person_id,'spatial','growing_object',s.subject_id,'identity'),
-     'conditionDecisionCurrentlyGrants',atlas.has_current_subject_disclosure_v1(p_ledger_id,p_target_person_id,'spatial','growing_object',s.subject_id,'condition')
+     'conditionDecisionCurrentlyGrants',atlas.has_current_subject_disclosure_v1(p_ledger_id,p_target_person_id,'spatial','growing_object',s.subject_id,'condition'),
+     -- P1A governor-only field observations. A last-wins decision does NOT
+     -- establish all independently valid granting chains or signed access.
+     'contextualFieldObservations',jsonb_build_array(
+       jsonb_build_object(
+         'dimension','knowledge','operation','subject.read',
+         'recordKind','spatial.growing_object','fieldPath','identity',
+         'selectedLedgerId',p_ledger_id,
+         'source','atlas.has_current_subject_disclosure_v1',
+         'currentSourceGrant',atlas.has_current_subject_disclosure_v1(
+           p_ledger_id,p_target_person_id,'spatial','growing_object',s.subject_id,'identity'),
+         'grantChainCoverage','legacy_last_decision_only',
+         'effectivePermission','verification_incomplete',
+         'doesNotDiscloseFieldToTarget',true),
+       jsonb_build_object(
+         'dimension','knowledge','operation','subject.read',
+         'recordKind','spatial.growing_object','fieldPath','condition',
+         'selectedLedgerId',p_ledger_id,
+         'source','atlas.has_current_subject_disclosure_v1',
+         'currentSourceGrant',atlas.has_current_subject_disclosure_v1(
+           p_ledger_id,p_target_person_id,'spatial','growing_object',s.subject_id,'condition'),
+         'grantChainCoverage','legacy_last_decision_only',
+         'effectivePermission','verification_incomplete',
+         'doesNotDiscloseFieldToTarget',true)
+     )
    ) ORDER BY s.subject_id) FILTER(WHERE s.rn<=20),'[]'::jsonb),
    'hasMore',count(*)>20,'independentlySignedTargetProof',false)
   FROM (SELECT q.*,row_number() OVER(ORDER BY q.subject_id) rn
@@ -182,6 +206,23 @@ BEGIN
      'notAFieldDisclosure',true,
      'notASignedTargetSessionProof',true,
      'notAnEffectivePermissionCertificate',true),
+   -- P1A typed operation observation. Local root is not an actionable
+   -- cross-Ledger grant or a source-writer admission certificate.
+   'contextualOperationObservations',jsonb_build_array(
+     jsonb_build_object(
+       'dimension','governing','operation','company_work.manage',
+       'recordKind','native_ledger','fieldPath',NULL,
+       'selectedLedgerId',p_ledger_id,
+       'selectedLedgerRootSource',v_exact_root,
+       'legacyCompatibilitySourceCandidate',
+         CASE WHEN v_context_status='source_root_flags_only'
+           THEN v_exact_root AND v_primary_root ELSE NULL END,
+       'sourceState',v_context_status,
+       'grantChainCoverage','not_verified',
+       'effectivePermission','verification_incomplete',
+       'sourceWriterRecheckRequired',true,
+       'doesNotAuthorizeAnyOperation',true)
+   ),
    'targetActiveNativeLedgerConnectionConfirmed',true,
    'legacyFarmSources',v_farms,
    'broadLegacyFarmReaderPaths',jsonb_build_array(
