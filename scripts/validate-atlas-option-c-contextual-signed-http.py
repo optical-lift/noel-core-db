@@ -529,13 +529,13 @@ def main():
     check(status==403 and isinstance(denied,dict)
           and denied.get("code")=="42501",
           "Direct read disclosed the completely withheld Bed")
-    status,outsider=c1.rpc(api,key,
+    status,outsider_subjects=c1.rpc(api,key,
       "connected_person_work_subject_links_self_api_v1",{
         "p_organization_id":ORG,"p_ledger_id":OPERATING,
         "p_work_item_id":work,"p_limit":30,
         "p_after_subject_id":None},outsider)
-    check(status==403 and isinstance(outsider,dict)
-          and outsider.get("code")=="42501",
+    check(status==403 and isinstance(outsider_subjects,dict)
+          and outsider_subjects.get("code")=="42501",
           "Unassigned Person obtained the same Work's private Subject list")
     print("PASS signed worker sees only authorized Bed identity; condition and other Bed withheld")
 
