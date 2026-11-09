@@ -13,7 +13,8 @@ def require(condition: bool, reason: str) -> None:
         raise AssertionError(reason)
 
 # Exact byte identity: the canonical bundled reviewer must remain unchanged.
-# Overlay may add these three bounded blocks and NOTHING else.
+# Overlay may add the three P0B blocks and two bounded P1A review packets,
+# never change the canonical Work bundle or create permission writers.
 restored = source
 for start, end in (
     ("\n -- Review-only Option C jurisdiction facts;", " v_context_status text:='unresolved';"),
@@ -25,6 +26,26 @@ for start, end in (
     before, after = restored.split(start, 1)
     block_end, suffix = after.split(end, 1)
     restored = before + suffix
+# P1A field annotations must be the only change to original subject facts.
+field_source = ("'conditionDecisionCurrentlyGrants',"
+    "atlas.has_current_subject_disclosure_v1(p_ledger_id,p_target_person_id,"
+    "'spatial','growing_object',s.subject_id,'condition')")
+field_start = field_source + ",\\n     -- P1A governor-only field observations."
+field_end = "'doesNotDiscloseFieldToTarget',true)\\n     )"
+require(restored.count(field_start)==1 and restored.count(field_end)==1,
+        "P1A field packet is missing/ambiguous")
+before, after = restored.split(field_start,1)
+_, suffix = after.split(field_end,1)
+restored = before + field_source + suffix
+
+operation_start = "   -- P1A typed operation observation."
+operation_end = ("   'targetActiveNativeLedgerConnectionConfirmed',true,")
+require(restored.count(operation_start)==1 and restored.count(operation_end)==1,
+        "P1A operation packet is missing/ambiguous")
+before, after = restored.split(operation_start,1)
+_, suffix = after.split(operation_end,1)
+restored = before + operation_end + suffix
+
 require(restored == baseline,
         "held override changed existing source rather than adding bounded review facts")
 
@@ -87,4 +108,29 @@ require("CASE WHEN v_context_status='source_root_flags_only'" in source,
 require("'notAnEffectivePermissionCertificate'" in postconditions and
         "'authenticated'" in postconditions and "'anon'" in postconditions,
         "protected-clone invariants or ACL negative control missing")
+# Typed packets are bounded to existing governor review and cannot certify
+# effective rights before independently checked granting chains and signed routes.
+for claim in (
+    "'contextualOperationObservations',jsonb_build_array(",
+    "'dimension','governing','operation','company_work.manage'",
+    "'recordKind','native_ledger','fieldPath',NULL",
+    "'selectedLedgerRootSource',v_exact_root",
+    "'effectivePermission','verification_incomplete'",
+    "'sourceWriterRecheckRequired',true",
+    "'doesNotAuthorizeAnyOperation',true",
+    "'contextualFieldObservations',jsonb_build_array(",
+    "'dimension','knowledge','operation','subject.read'",
+    "'recordKind','spatial.growing_object','fieldPath','identity'",
+    "'recordKind','spatial.growing_object','fieldPath','condition'",
+    "'grantChainCoverage','legacy_last_decision_only'",
+    "'doesNotDiscloseFieldToTarget',true",
+):
+    require(claim in source, f"typed source observation invariant missing: {claim}")
+require(source.count("'contextualFieldObservations',jsonb_build_array(")==1,
+        "field observation may occur only inside original governor Work subject")
+require(source.count("'contextualOperationObservations',jsonb_build_array(")==1,
+        "operation observation must remain singular and governor-only")
+require(source.count("'effectivePermission','verification_incomplete'")==3,
+        "no field or operation may be promoted to executable permission")
+print("PASS P1A typed contextual governor-only field and operation packets (STATIC ONLY)")
 print("PASS P0B current-main contextual governor source guards (STATIC ONLY)")
