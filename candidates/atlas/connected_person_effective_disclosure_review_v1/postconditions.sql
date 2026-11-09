@@ -32,6 +32,18 @@ BEGIN
   THEN
     RAISE EXCEPTION 'Governor preview has lost bounded exact Work source or noncertification safeguards';
   END IF;
+  -- This is an explanation of existing source root facts for the exact
+  -- selected Ledger, not a target-person login or disclosure certificate.
+  IF pg_get_functiondef(v_internal) NOT LIKE '%contextualAuthorityReview%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%v_target_principal_count=1%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%v_exact_participation_count=1%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%v_primary_count=1%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%source_root_flags_only%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%notAGrant%'
+    OR pg_get_functiondef(v_internal) NOT LIKE '%notAnEffectivePermissionCertificate%'
+  THEN
+    RAISE EXCEPTION 'Governor jurisdiction diagnostic missing safe ambiguity/non-grant guards';
+  END IF;
   IF NOT (SELECT prosecdef FROM pg_proc WHERE oid=v_internal)
     OR NOT (SELECT prosecdef FROM pg_proc WHERE oid=v_bridge) THEN
     RAISE EXCEPTION 'Reviewed read membranes must maintain source checks';
