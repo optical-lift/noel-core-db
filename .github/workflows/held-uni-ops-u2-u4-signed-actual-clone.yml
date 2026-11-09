@@ -30,6 +30,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      # Validate this exact immutable test revision without DB credentials
+      # before any expensive owner-triggered protected schema snapshot.
+      - name: Checkout immutable U4 no-network source for CI contract
+        uses: actions/checkout@v4
+        with:
+          ref: 3827b97cab0eee461fbc7327ae3a8eb46fe8bc6c
+          path: u4-source-contract
+          persist-credentials: false
+      - name: Verify exact U4 helper blobs and no-network unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C u4-source-contract rev-parse HEAD)" = 3827b97cab0eee461fbc7327ae3a8eb46fe8bc6c
+          test "$(git -C u4-source-contract hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
+          test "$(git -C u4-source-contract hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = db9921b63b8a0cc6256d802cbeeff8d54e594559
+          test "$(git -C u4-source-contract hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = acb845c8285c4f75067eab1c871a0eb6d2d3ad3a
+          python3 -m py_compile u4-source-contract/tests/validate-uniops-option-a-u2-accepted-first-signed.py u4-source-contract/tests/uniops_u2_qualified_actual_followon_held.py u4-source-contract/tests/test_uniops_u2_qualified_actual_followon_held.py
+          python3 -m unittest discover -s u4-source-contract/tests -p 'test_uniops_u2_qualified_actual_followon_held.py' -v
       - name: Compile and audit exact disposable-only signed fixture and runner contract
         shell: bash
         run: |
@@ -81,7 +99,7 @@ jobs:
           assert "U4_SIGNED_ACTUAL_RESULT_DONE=PASS" in workflow
           assert "github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'" in workflow
           assert "u4_test_sha" in workflow and "test_goal" in workflow
-          assert 'ref: 9820cfeab595cb1c7764128f1cdae4a3855ecefe' in workflow
+          assert 'ref: 3827b97cab0eee461fbc7327ae3a8eb46fe8bc6c' in workflow
           assert "--u4-actual-followon" in workflow
           assert protected.count("NOEL_CORE_DATABASE_URL:") == 1
           assert "No production feature source SQL / permission / migration" in workflow
@@ -115,7 +133,7 @@ jobs:
               'source_review':'u2c_context_guard_two_blobs_v1',
               'production_target':'zirqkouammpwxlqfbsvf',
               'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1',
-              'u4_test_sha':'9820cfeab595cb1c7764128f1cdae4a3855ecefe',
+              'u4_test_sha':'3827b97cab0eee461fbc7327ae3a8eb46fe8bc6c',
               'test_goal':'signed_u2_result_done_v1'}
           for line in os.environ.get('OWNER_BODY','').splitlines():
               match=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
@@ -364,7 +382,7 @@ jobs:
       - name: Checkout immutable U4 test-only source AFTER snapshot
         uses: actions/checkout@v4
         with:
-          ref: 9820cfeab595cb1c7764128f1cdae4a3855ecefe
+          ref: 3827b97cab0eee461fbc7327ae3a8eb46fe8bc6c
           path: u4-test
           persist-credentials: false
       - name: Attach immutable U4 signed follow-on ONLY to disposable validator COPY
@@ -372,10 +390,10 @@ jobs:
         run: |
           set -euo pipefail
           # No production feature source SQL / permission / migration changes.
-          test "$(git -C u4-test rev-parse HEAD)" = 9820cfeab595cb1c7764128f1cdae4a3855ecefe
+          test "$(git -C u4-test rev-parse HEAD)" = 3827b97cab0eee461fbc7327ae3a8eb46fe8bc6c
           test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
           test "$(git -C u4-test hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = db9921b63b8a0cc6256d802cbeeff8d54e594559
-          test "$(git -C u4-test hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = e0c7dc18c3f456ed35bfe06dc5bbfae23cdf3d68
+          test "$(git -C u4-test hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = acb845c8285c4f75067eab1c871a0eb6d2d3ad3a
           cp u4-test/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/
           cp u4-test/tests/uniops_u2_qualified_actual_followon_held.py canonical/tests/
           cp u4-test/tests/test_uniops_u2_qualified_actual_followon_held.py canonical/tests/
