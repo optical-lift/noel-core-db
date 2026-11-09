@@ -55,6 +55,30 @@ class U4Boundaries(unittest.TestCase):
                      "e5200000-0000-4000-8000-000000000d07",
                      sql=forbidden,rpc=forbidden)
 
+    def test_only_existing_exact_source_tables_admitted(self):
+        expected={
+            "atlas.work_items",
+            "atlas.work_allocations",
+            "atlas.company_work_native_ledger_relevance",
+            "atlas.work_item_context_links",
+            "atlas.work_execution_results",
+            "atlas.work_result_acceptances",
+            "atlas.tasks",
+            "atlas.governed_prework_candidate_offers_v1",
+            "atlas.work_execution_plans",
+            "atlas.work_lifecycle_events_v1",
+        }
+        self.assertEqual(u4.U4_COUNT_TABLES,expected)
+        for table in expected:
+            self.assertTrue(u4.count_table_allowed(table))
+        for forbidden in (
+            "",None,0,"atlas.tasks;drop table atlas.tasks",
+            "atlas.tasks where true","atlas.governed_prework_candidate_offers_v2",
+            "atlas.some_unreviewed_table","auth.users","public.other",
+            "atlas.work_items ","atlas.work_items\n", "atlas..tasks",
+        ):
+            self.assertFalse(u4.count_table_allowed(forbidden))
+
     def test_allowlisted_failure_gate_never_prints_untrusted_message(self):
         self.assertEqual(len(u4.U4_DENIAL_CLASSES),20)
         self.assertEqual(len(set(u4.U4_DENIAL_CLASSES.values())),20)
