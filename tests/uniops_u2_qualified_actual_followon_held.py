@@ -18,9 +18,37 @@ WORKER_PERSON = "e5200000-0000-4000-8000-000000000102"
 ACTION = "e5200000-0000-4000-8000-000000000e13"
 ACTUAL_RPC = "record_continuing_care_actual_self_api_v1"
 
+# These are exact source-authored denial classes; no JWT, SQL, actor IDs,
+# messages returned by PostgREST or private traceback ever leave this probe.
+# Never accept a dynamic failure reason as an output class.
+U4_DENIAL_CLASSES = {
+    "U4 probe requires a disposable loopback PG": "local_only_gate",
+    "U4 requires the exact existing canonical Work": "original_work_id_gate",
+    "U4 requires independent signed actor sessions": "signed_actor_sessions_gate",
+    "U4 internal table reference changed": "source_table_name_gate",
+    "U4 source-authenticated physical Actual RPC is NOT in clone": "public_actual_signature_gate",
+    "U4 authenticated source writer has no exact RPC permission": "public_actual_execute_gate",
+    "U4 requires one actual accepted-first, campaign-provenant original": "campaign_original_gate",
+    "U4 requires original Work accepted by the actual canonical Person": "responsible_person_gate",
+    "U4 requires current native Ledger relevance": "native_ledger_gate",
+    "U4 requires a genuine original subject link": "physical_subject_gate",
+    "U4 must start before any original Result or acceptance": "pre_result_empty_gate",
+    "U4 nonrecipient unexpectedly performed exact original Work": "nonrecipient_permission_gate",
+    "U4 mismatched claimed physical condition was not rejected": "invalid_condition_gate",
+    "U4 negative cases changed the physical Result": "negative_result_mutation_gate",
+    "U4 signed first physical Result/one Done failed; hold source cutover": "signed_result_done_receipt_gate",
+    "U4 physical Result and domain acceptance are not exact originals": "qualified_result_acceptance_gate",
+    "U4 qualified Result did not create one canonical terminal transition": "one_terminal_transition_gate",
+    "U4 signed retry produced a second Result or changed its identity": "idempotent_replay_gate",
+    "U4 Result/Done produced an unauthorized successor, task, offer or plan": "zero_successor_gate",
+    "U4 duplicate execution after replay": "single_result_after_replay_gate",
+}
+
 def require(ok, reason):
     if not ok:
+        print("U4_SIGNED_FAILURE_GATE="+U4_DENIAL_CLASSES.get(reason,"unclassified_probe_assertion"),flush=True)
         raise AssertionError(reason)
+
 
 def local_only(db_url):
     return bool(re.fullmatch(
@@ -54,6 +82,7 @@ def prove(db_url, api, anon_key, tokens, work, *, sql, rpc):
     the parent U2 test; neither the SQL fixture nor this function signs an actor.
     No SQL mutation is performed by this test helper itself.
     """
+    print("U4_SIGNED_PROBE_ENTERED=yes",flush=True)
     require(local_only(db_url), "U4 probe requires a disposable loopback PG")
     require(valid_uuid(work), "U4 requires the exact existing canonical Work")
     require(isinstance(tokens, dict)
