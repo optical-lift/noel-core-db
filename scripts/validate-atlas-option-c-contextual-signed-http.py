@@ -405,6 +405,96 @@ def main():
           "separate fictional Bed identity/condition current source decisions disagree")
     print("PASS distinct subject field source truth (not signed target disclosure)")
 
+    # This is the non-vacuous P1B proof: one existing Work, two original
+    # physically-linked Beds, two separately typed field responses per Bed.
+    status,governor_rows=request(api,key,owner,OPERATING,WORKER_PERSON)
+    check(status==200 and isinstance(governor_rows,dict)
+          and governor_rows.get("ok") is True,
+          "Signed governor response unavailable for linked field proof")
+    originals=governor_rows.get("canonicalWork",[])
+    check(len(originals)==1 and originals[0].get("workItemId")==work
+          and originals[0].get("allocationId"),
+          "Work-linked review must name the same original accepted Work exactly")
+    packet=originals[0].get("linkedSubjectDisclosure",{})
+    subjects=packet.get("items",[])
+    check(len(subjects)==2 and packet.get("hasMore") is False,
+          "Signed governor response must return both physical Work-linked Beds")
+    subject_by_id={item.get("subjectId"):item for item in subjects}
+    check(set(subject_by_id)=={
+          "e5200000-0000-4000-8000-000000000902",
+          "e5200000-0000-4000-8000-000000000918"},
+          "Signed governor Work-linked subject IDs differ from source")
+    for sub_id,expected in (
+         ("e5200000-0000-4000-8000-000000000902",(True,False)),
+         ("e5200000-0000-4000-8000-000000000918",(False,False))):
+        fields=subject_by_id[sub_id].get("contextualFieldObservations")
+        check(isinstance(fields,list) and len(fields)==2,
+              "Each real Work-linked Subject must carry exactly two typed fields")
+        for index,(field,source_grant) in enumerate(zip(
+                ("identity","condition"),expected)):
+            item=fields[index]
+            check(item.get("fieldPath")==field
+                  and item.get("operation")=="subject.read"
+                  and item.get("recordKind")=="spatial.growing_object"
+                  and item.get("selectedLedgerId")==OPERATING
+                  and item.get("currentSourceGrant") is source_grant
+                  and item.get("grantChainCoverage")=="legacy_last_decision_only"
+                  and item.get("effectivePermission")=="verification_incomplete"
+                  and item.get("doesNotDiscloseFieldToTarget") is True,
+                  "Separate actual Work-linked field observation is not source true")
+    print("PASS signed governor two Work-linked Bed packets with distinct field states")
+
+    # A real accepted Work allocation NEVER grants the attached Bed's
+    # private identity/condition by itself. The target's own source-read
+    # routes must omit withheld Bed B and withhold Bed A condition.
+    status,visible=c1.rpc(api,key,
+        "connected_person_work_subject_links_self_api_v1",{
+           "p_organization_id":ORG,"p_ledger_id":OPERATING,
+           "p_work_item_id":work,"p_limit":30,
+           "p_after_subject_id":None},worker)
+    check(status==200 and isinstance(visible,dict) and
+          visible.get("ok") is True and
+          visible.get("undisclosedSubjectsOmitted") is True and
+          visible.get("items") is not None and
+          len(visible["items"])==1 and
+          visible["items"][0].get("subjectId")==
+            "e5200000-0000-4000-8000-000000000902" and
+          visible.get("hasMore") is False and
+          "e5200000-0000-4000-8000-000000000918" not in str(visible) and
+          "Fictional withheld Bed" not in str(visible),
+          "Worker listed Bed without a valid separate identity disclosure")
+    detail_args={
+        "p_organization_id":ORG,"p_ledger_id":OPERATING,
+        "p_work_item_id":work,"p_subject_domain":"spatial",
+        "p_subject_kind":"growing_object",
+        "p_subject_id":"e5200000-0000-4000-8000-000000000902"}
+    status,detail=c1.rpc(api,key,
+      "connected_person_original_work_subject_self_api_v1",detail_args,worker)
+    check(status==200 and isinstance(detail,dict)
+          and detail.get("subjectId")==detail_args["p_subject_id"]
+          and detail.get("conditionDisclosed") is False
+          and detail.get("condition") is None
+          and detail.get("cropPlacementDetailsDisclosed") is False
+          and detail.get("notesAndMetadataDisclosed") is False
+          and detail.get("fullFarmReaderAccessGranted") is False,
+          "Worker's allowed Bed identity improperly exposed condition/private fields")
+    hidden=dict(detail_args,
+      p_subject_id="e5200000-0000-4000-8000-000000000918")
+    status,denied=c1.rpc(api,key,
+      "connected_person_original_work_subject_self_api_v1",hidden,worker)
+    check(status==403 and isinstance(denied,dict)
+          and denied.get("code")=="42501",
+          "Direct read disclosed the completely withheld Bed")
+    status,outsider=c1.rpc(api,key,
+      "connected_person_work_subject_links_self_api_v1",{
+        "p_organization_id":ORG,"p_ledger_id":OPERATING,
+        "p_work_item_id":work,"p_limit":30,
+        "p_after_subject_id":None},outsider)
+    check(status==403 and isinstance(outsider,dict)
+          and outsider.get("code")=="42501",
+          "Unassigned Person obtained the same Work's private Subject list")
+    print("PASS signed worker sees only authorized Bed identity; condition and other Bed withheld")
+
 
     missing=review(api,key,owner,OPERATING,UNKNOWN_PERSON)
     check(missing.get("status")=="unresolved"
@@ -479,7 +569,8 @@ def main():
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
         "PASS Option C exact versus primary, concurrent governors, source "
-        "ambiguity, source-only field distinction, signed negative access, ended Seat, "
+        "ambiguity, lawful one-original Work source/accepted receiver/Bed links, "
+        "typed identity-vs-condition source projection, signed worker nondiscovery, "
         "withdrawn authority and revoked GoTrue session; DISPOSABLE LOCAL ONLY.\n",
         encoding="utf-8")
     print("PASS all held Option C real signed local tests")
