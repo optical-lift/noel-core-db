@@ -1,0 +1,20 @@
+name: Atlas Option C P0B contextual authority source (held)
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/atlas-option-c-contextual-review-source.yml"
+      - "candidates/atlas/governor_effective_subject_disclosure_review_v1/**"
+      - "scripts/validate-atlas-option-c-contextual-review-source.py"
+permissions:
+  contents: read
+jobs:
+  source-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate read-only context shape (not an authorization test)
+        run: |
+          python3 -m py_compile scripts/validate-atlas-option-c-contextual-review-source.py
+          python3 scripts/validate-atlas-option-c-contextual-review-source.py
