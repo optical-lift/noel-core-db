@@ -57,6 +57,10 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_uniops_u2_namefree_guard_owner.py' -v
           python3 -m unittest discover -s tests -p 'test_uniops_u2_local_stack_evidence.py' -v
           python3 -m unittest discover -s tests -p 'test_prepare_reviewed_uniops_u2c_context_scratch.py' -v
+          # Bind both new test-only files exactly before executing no-network matrix.
+          test "$(git hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = a4073038eaf38ce399f4fe7d3d85ce97259ed784
+          test "$(git hash-object tests/test_uniops_u4_mowing_rule_fixture_held.py)" = 3811bc84e86918ceef5c12d074d78b5e88d8a999
+          python3 -m unittest discover -s tests -p 'test_uniops_u4_mowing_rule_fixture_held.py' -v
           python3 - <<'PY'
           from pathlib import Path
           workflow=Path(".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml").read_text()
@@ -369,7 +373,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = ddd3f1b9d272145c445e865c2fc899189c208f21
+          test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = a4073038eaf38ce399f4fe7d3d85ce97259ed784
           test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 8fcaedc6623c4d9e01dee85facd56364561aa96e
           test "$(git -C canonical hash-object tests/uniops_u2_local_stack_evidence.py)" = 9e79cf36cec2db349802aa58f4ce83c87b2e50e5
           test "$(git -C canonical hash-object tests/uniops_u2_namefree_guard_owner.py)" = 79bb547611ebec962bd4e5624af709e87b0675e2
