@@ -102,6 +102,53 @@ class U4Boundaries(unittest.TestCase):
             u4.require(True,unexpected)
         self.assertEqual(out.getvalue(),"")
 
+    def test_actual_result_diagnostics_are_finite_and_never_expose_response(self):
+        work="e5200000-0000-4000-8000-000000000d07"
+        good={
+            "ok":True,"workItemId":work,
+            "physicalActualContractVersion":"continuing_care_actual_v1",
+            "workState":"completed","noNewWorkCreated":True,
+            "noClockAdmission":True,
+            "workResultId":"e5200000-0000-4000-8000-000000000d08",
+        }
+        self.assertEqual(
+            u4.actual_response_classes(200,good,work),
+            ("ok","none_or_other","accepted"))
+        variants=(
+            (None,"non_object"),({"ok":False},"not_ok"),
+            (dict(good,workItemId="unknown"),"work_item_mismatch"),
+            (dict(good,physicalActualContractVersion="other"),"actual_contract_mismatch"),
+            (dict(good,workState="open"),"not_completed"),
+            (dict(good,noNewWorkCreated=False),"new_work_not_absent"),
+            (dict(good,noClockAdmission=False),"clock_not_absent"),
+            (dict(good,workResultId=None),"result_id_not_uuid"),
+        )
+        for response,expected in variants:
+            with self.subTest(expected=expected):
+                self.assertEqual(
+                    u4.actual_response_classes(200,response,work),
+                    ("ok","none_or_other",expected))
+        for status,expected in ((400,"bad_request"),(401,"unauthorized"),
+                                (403,"forbidden"),(404,"not_found"),
+                                (409,"conflict"),(500,"server_failure"),
+                                (503,"server_failure"),(429,"other_status")):
+            response={"code":"42501","message":"private bearer token SECRET"}
+            labels=u4.actual_response_classes(status,response,work)
+            self.assertEqual(labels,(expected,"source_permission","not_checked"))
+            self.assertNotIn("private",repr(labels))
+            self.assertNotIn("SECRET",repr(labels))
+        self.assertEqual(
+            u4.actual_response_classes(400,{"code":"22023"},work),
+            ("bad_request","source_argument","not_checked"))
+        self.assertEqual(
+            u4.actual_response_classes(400,{"code":["dynamic","untrusted"]},work),
+            ("bad_request","none_or_other","not_checked"))
+        self.assertEqual(
+            u4.actual_response_classes(200,dict(good,code="private"),work),
+            ("ok","none_or_other","accepted"))
+        self.assertEqual(len(set(u4.U4_RECEIPT_FIELD_CLASSES)),10)
+        self.assertEqual(len(set(u4.U4_SQL_ERROR_CLASSES.values())),7)
+
     def test_driver_is_explicit_opt_in(self):
         driver=(HERE/"validate-uniops-option-a-u2-accepted-first-signed.py").read_text()
         self.assertIn('action="store_true"',driver)
