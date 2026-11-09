@@ -4,12 +4,29 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "candidates/atlas/governor_effective_subject_disclosure_review_v1"
-source = (BASE / "candidate.sql").read_text(encoding="utf-8")
-postconditions = (BASE / "postconditions.sql").read_text(encoding="utf-8")
+baseline = (BASE / "candidate.sql").read_text(encoding="utf-8")
+source = (BASE / "contextual_authority_review_override_HELD.sql").read_text(encoding="utf-8")
+postconditions = (BASE / "contextual_authority_review_postconditions_HELD.sql").read_text(encoding="utf-8")
 
 def require(condition: bool, reason: str) -> None:
     if not condition:
         raise AssertionError(reason)
+
+# Exact byte identity: the canonical bundled reviewer must remain unchanged.
+# Overlay may add these three bounded blocks and NOTHING else.
+restored = source
+for start, end in (
+    ("\\n -- Review-only Option C jurisdiction facts;", " v_context_status text:='unresolved';"),
+    (" -- A current root on a selected operating Ledger", "   v_context_status:='source_root_flags_only';\\n END IF;\\n"),
+    ("   'contextualAuthorityReview',jsonb_build_object(", "     'notAnEffectivePermissionCertificate',true),\\n"),
+):
+    require(restored.count(start)==1 and restored.count(end)==1,
+            f"held additive source block ambiguous: {start}")
+    before, after = restored.split(start, 1)
+    block_end, suffix = after.split(end, 1)
+    restored = before + suffix
+require(restored == baseline,
+        "held override changed existing source rather than adding bounded review facts")
 
 # Must continue the CURRENT source-reviewed governor endpoint, not invent a
 # competing Person/Work/permission engine or grant to an ordinary worker.
