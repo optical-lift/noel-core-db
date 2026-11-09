@@ -64,14 +64,14 @@ class U4Boundaries(unittest.TestCase):
                 u4.require(False,
                     "U4 source-authenticated physical Actual RPC is NOT in clone")
         self.assertEqual(out.getvalue(),
-            "U4_SIGNED_FAILURE_GATE=public_actual_signature_gate\\n")
+            "U4_SIGNED_FAILURE_GATE=public_actual_signature_gate\n")
         out=io.StringIO()
         unexpected="private JWT and response data must not print"
         with contextlib.redirect_stdout(out):
             with self.assertRaisesRegex(AssertionError,"private JWT"):
                 u4.require(False,unexpected)
         self.assertEqual(out.getvalue(),
-            "U4_SIGNED_FAILURE_GATE=unclassified_probe_assertion\\n")
+            "U4_SIGNED_FAILURE_GATE=unclassified_probe_assertion\n")
         self.assertNotIn(unexpected,out.getvalue())
         out=io.StringIO()
         with contextlib.redirect_stdout(out):
