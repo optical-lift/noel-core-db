@@ -27,7 +27,7 @@ def once(before,after,label):
 once("signed_venue_bed_probe=false\n",
      """signed_venue_bed_probe=false
 signed_option_c_probe=false
-# HE LD: specifically named disposable Option C read-only signed clone.
+# HELD: specifically named disposable Option C read-only signed clone.
 if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_option_c_contextual_review_signed_clone_only_v1[.]sql$ ]]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
@@ -38,8 +38,10 @@ if [ "$lane" = "atlas" ] &&
   signed_option_c_probe=true
 fi
 ""","exact signed lane")
-once('\n       [ "$signed_venue_bed_probe" = true ]; then\n',
-     '\n       [ "$signed_venue_bed_probe" = true ] ||\n'
+once('       [ "$signed_person_mail_probe" = true ] ||\n'
+     '       [ "$signed_venue_bed_probe" = true ]; then\n',
+     '       [ "$signed_person_mail_probe" = true ] ||\n'
+     '       [ "$signed_venue_bed_probe" = true ] ||\n'
      '       [ "$signed_option_c_probe" = true ]; then\n',
      "signed transport startup")
 once('       [ "$signed_venue_bed_probe" = true ]; then\n'
