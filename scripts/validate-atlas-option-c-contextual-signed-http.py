@@ -35,9 +35,32 @@ def sql(db,stmt):
 
 def governed_action(api,key,token,name,args):
     status,body=c1.rpc(api,key,name,args,token)
-    check(status==200 and isinstance(body,dict)
-          and body.get("code") not in ("not_found","review_required")
-          and body.get("ok",True) is True,
+    valid=(status==200 and isinstance(body,dict)
+           and body.get("code") not in ("not_found","review_required")
+           and body.get("ok",True) is True)
+    if not valid and name=="respond_connected_person_company_work_self_api_v1":
+        # No protected payload, SQL, Person, token or free-form source text
+        # can escape the local signed test; classify only audited conditions.
+        msg=str(body.get("message","")) if isinstance(body,dict) else ""
+        code=str(body.get("code","")) if isinstance(body,dict) else ""
+        recognized=(
+          ("Pending Person-native offer required","pending_offer"),
+          ("Work or exact Ledger connection changed before uptake","stale_work"),
+          ("Another Person already owns this Work","active_responsibility"),
+          ("Offered Work source no longer matches native Ledger","work_relevance"),
+          ("Ordinary Company Work result policy unavailable","result_policy"),
+          ("Person-native responsibility must trace to the exact accepted offer",
+           "allocation_offer_provenance"),
+          ("Active Work allocation cannot name an inactive assigning membership",
+           "assigner_membership"),
+          ("Exact Person-native receiver uptake provenance required","recipient_basis"),
+        )
+        reason=next((tag for phrase,tag in recognized if phrase in msg),
+                    {"42501":"source_denied","23514":"other_source_guard",
+                     "23505":"uniqueness","22023":"invalid_input",
+                     "PGRST301":"signed_session"}.get(code,"other_failure"))
+        print("OPTION_C_P1B_ACCEPTANCE_CLASS="+reason)
+    check(valid,
           "Signed canonical source command failed: "+name+" HTTP "+str(status))
     return body
 
