@@ -1,0 +1,52 @@
+name: HELD UNI-OPS historical signed follow-on patch (source-only)
+
+on:
+  pull_request:
+    paths:
+      - 'tests/prepare_uniops_historical_retirement_signed_followon_held.py'
+      - 'tests/test_prepare_uniops_historical_retirement_signed_followon_held.py'
+      - '.github/workflows/held-uniops-history-followon-hook-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout immutable successful U4 signed driver (no execution)
+        uses: actions/checkout@v4
+        with:
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
+          path: signed-u4-only
+          persist-credentials: false
+      - name: Checkout immutable historic governor companion (no execution)
+        uses: actions/checkout@v4
+        with:
+          ref: ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          path: history-only
+          persist-credentials: false
+      - name: Verify three source blobs, patch local-only copy and prove refusal matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C signed-u4-only rev-parse HEAD)" = 075919564dc340ad86be8e969a2ad2d02ec19a15
+          test "$(git -C history-only rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          test "$(git -C signed-u4-only hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
+          test "$(git hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
+          test "$(git -C history-only hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
+          python3 -m py_compile tests/prepare_uniops_historical_retirement_signed_followon_held.py tests/test_prepare_uniops_historical_retirement_signed_followon_held.py
+          python3 -m unittest discover -s tests -p 'test_prepare_uniops_historical_retirement_signed_followon_held.py' -v
+          python3 tests/prepare_uniops_historical_retirement_signed_followon_held.py \
+            --driver signed-u4-only/tests/validate-uniops-option-a-u2-accepted-first-signed.py \
+            --bridge tests/uniops_historical_retirement_signed_bridge_held.py \
+            --companion history-only/tests/validate-atlas-native-historical-retirement-signed-http.py \
+            --output "$RUNNER_TEMP/validate-uniops-historical-signed-local-only.py"
+          python3 -m py_compile "$RUNNER_TEMP/validate-uniops-historical-signed-local-only.py"
+          rm -f -- "$RUNNER_TEMP/validate-uniops-historical-signed-local-only.py"
+          echo 'PASS pinned source-only history follow-on; NO signed runtime, production or release'
