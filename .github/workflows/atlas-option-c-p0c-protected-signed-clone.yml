@@ -48,6 +48,10 @@ jobs:
             assert bad not in protected,bad
           assert "option_c_clone_phase=" in protected
           assert "option_c_signed_checkpoint=" in protected
+          assert "option_c_signed_acceptance_class=" in protected
+          assert "OPTION_C_P1B_ACCEPTANCE_CLASS=" in protected
+          assert "not_allowlisted" in protected and "not_reported" in protected
+          assert "print(matches)" not in protected and "print(msg)" not in protected
           assert "option_c_signed_bounded_error=" in protected
           assert "audited.get(match[-1],\"other_rpc\")" in protected
           assert "print(reason)" not in protected
@@ -286,6 +290,23 @@ jobs:
               if match:
                   reason=audited.get(match[-1],"other_rpc")
           print("option_c_signed_bounded_error="+reason)
+          # Only this fixed local test classification may cross the
+          # protected log boundary. No source message, SQL, tokens or
+          # guessed status from arbitrary lines is ever printed.
+          allowed={
+            "pending_offer","stale_work","active_responsibility",
+            "work_relevance","result_policy","allocation_offer_provenance",
+            "assigner_membership","recipient_basis","source_denied",
+            "other_source_guard","uniqueness","invalid_input",
+            "signed_session","other_failure"
+          }
+          acceptance="not_reported"
+          if source.is_file():
+              matches=re.findall(r"^OPTION_C_P1B_ACCEPTANCE_CLASS=([a-z_]+)$",
+                  source.read_text(encoding="utf-8",errors="replace"),re.M)
+              if matches:
+                  acceptance=matches[-1] if matches[-1] in allowed else "not_allowlisted"
+          print("option_c_signed_acceptance_class="+acceptance)
           PY
       - name: Upload only allowlisted signed summary
         if: always()
