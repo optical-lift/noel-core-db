@@ -10,15 +10,6 @@ AS $function$
 DECLARE
  v_owner uuid; v_primary uuid;
  v_target_governs boolean:=false;
- -- Review-only Option C jurisdiction facts; these are not target-session rights.
- v_target_principal_count integer:=0;
- v_target_principal uuid;
- v_exact_participation_count integer:=0;
- v_primary_candidate_count integer:=0;
- v_primary_candidate uuid;
- v_exact_root boolean;
- v_primary_root boolean;
- v_context_status text:='unresolved';
  v_farms jsonb:='[]'::jsonb;
  v_work jsonb:='[]'::jsonb;
  v_more boolean:=false;
@@ -41,47 +32,6 @@ BEGIN
  SELECT lop.ledger_id INTO v_primary FROM atlas.ledger_organization_participations lop
  WHERE lop.organization_id=p_organization_id AND lop.status='active' AND lop.ended_at IS NULL
    AND lop.is_compatibility_primary AND lop.participation_kind='governing' LIMIT 1;
- -- A current root on a selected operating Ledger is different from
- -- Organization-primary governance. Keep the existing Company Work dual-root
- -- policy unchanged: this is only an explanation in a governor's review.
- -- One target Principal, one exact Organization participation and one primary
- -- must resolve. Do not choose a convenient Principal or inherited parent.
- SELECT count(*)::integer,(array_agg(p.id))[1]
-   INTO v_target_principal_count,v_target_principal
- FROM atlas.principals p
- WHERE p.person_id=p_target_person_id AND p.status='active'
-   AND p.user_id IS NOT NULL;
- SELECT count(*)::integer INTO v_exact_participation_count
- FROM atlas.ledger_organization_participations lop
- JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
- WHERE lop.ledger_id=p_ledger_id AND lop.organization_id=p_organization_id
-   AND lop.status='active' AND lop.ended_at IS NULL
-   AND lop.participation_kind IN ('governing','operating');
- SELECT count(*)::integer,(array_agg(lop.ledger_id))[1]
-   INTO v_primary_candidate_count,v_primary_candidate
- FROM atlas.ledger_organization_participations lop
- JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
- WHERE lop.organization_id=p_organization_id AND lop.status='active'
-   AND lop.ended_at IS NULL AND lop.participation_kind='governing'
-   AND lop.is_compatibility_primary IS TRUE;
- IF v_target_principal_count=1 AND v_exact_participation_count=1
-    AND v_primary_candidate_count=1 THEN
-   SELECT EXISTS(
-     SELECT 1 FROM atlas.principal_ledger_authorities a
-     JOIN atlas.ledgers l ON l.id=a.ledger_id AND l.status='active'
-     WHERE a.principal_id=v_target_principal AND a.ledger_id=p_ledger_id
-       AND a.authority_kind='root_governing' AND a.status='active'
-       AND a.ended_at IS NULL
-   ) INTO v_exact_root;
-   SELECT EXISTS(
-     SELECT 1 FROM atlas.principal_ledger_authorities a
-     JOIN atlas.ledgers l ON l.id=a.ledger_id AND l.status='active'
-     WHERE a.principal_id=v_target_principal AND a.ledger_id=v_primary_candidate
-       AND a.authority_kind='root_governing' AND a.status='active'
-       AND a.ended_at IS NULL
-   ) INTO v_primary_root;
-   v_context_status:='source_root_flags_only';
- END IF;
  -- The target's own independent authority must still be signed-tested.
  SELECT EXISTS(
    SELECT 1 FROM atlas.principals p
@@ -167,21 +117,6 @@ BEGIN
    'organizationId',p_organization_id,'ledgerId',p_ledger_id,
    'reviewedPersonId',p_target_person_id,'governorPersonId',v_owner,
    'governorOnly',true,'isSignedTargetAccessProof',false,
-   'contextualAuthorityReview',jsonb_build_object(
-     'status',v_context_status,
-     'selectedLedgerRoot',v_exact_root,
-     'organizationPrimaryRoot',v_primary_root,
-     'selectedLedgerIsOrganizationPrimary',
-       CASE WHEN v_context_status='source_root_flags_only'
-         THEN p_ledger_id=v_primary_candidate ELSE NULL END,
-     'legacyCompanyWorkDualRootCandidate',
-       CASE WHEN v_context_status='source_root_flags_only'
-         THEN v_exact_root AND v_primary_root ELSE NULL END,
-     'legacyDualRootIsNotUniversalAuthorityLaw',true,
-     'doesNotAuthorizeAnyOperation',true,
-     'notAFieldDisclosure',true,
-     'notASignedTargetSessionProof',true,
-     'notAnEffectivePermissionCertificate',true),
    'targetActiveNativeLedgerConnectionConfirmed',true,
    'legacyFarmSources',v_farms,
    'broadLegacyFarmReaderPaths',jsonb_build_array(
