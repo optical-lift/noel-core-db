@@ -31,37 +31,6 @@ INSERT INTO atlas.growing_objects(id,farm_id,stable_key,label,object_type)
 VALUES ('e5200000-0000-4000-8000-000000000902',
         'e5200000-0000-4000-8000-000000000901',
         'option-c-fictional-bed','Fictional Bed for source review','bed');
-INSERT INTO atlas.work_items(id,organization_id,title,work_state)
-VALUES ('e5200000-0000-4000-8000-000000000903',
-        'e5200000-0000-4000-8000-000000000801',
-        'Fictional single original Work','open');
-INSERT INTO atlas.work_allocations(
-   id,organization_id,work_item_id,assignee_canonical_person_id,
-   establishment_basis_kind,establishment_basis,allocation_role,state
-) VALUES (
-   'e5200000-0000-4000-8000-000000000904',
-   'e5200000-0000-4000-8000-000000000801',
-   'e5200000-0000-4000-8000-000000000903',
-   'e5200000-0000-4000-8000-000000000102',
-   'ledger_connection_direct_assignment','{"cloneFixture":true}'::jsonb,
-   'responsible','active');
-INSERT INTO atlas.company_work_native_ledger_relevance(
-   id,organization_id,work_item_id,ledger_id,
-   evidence_kind,attestation_source_ref,attestation_reason,established_by_person_id
-) VALUES (
-   'e5200000-0000-4000-8000-000000000905',
-   'e5200000-0000-4000-8000-000000000801',
-   'e5200000-0000-4000-8000-000000000903',
-   'e5200000-0000-4000-8000-000000000402',
-   'owner_attested','option-c-disposable-source',
-   'One fictional original Work serving the operating Ledger only.',
-   'e5200000-0000-4000-8000-000000000101');
-INSERT INTO atlas.work_item_context_links(
-   id,organization_id,work_item_id,subject_domain,subject_kind,subject_id,relation_kind
-) VALUES (
-   'e5200000-0000-4000-8000-000000000906',
-   'e5200000-0000-4000-8000-000000000801',
-   'e5200000-0000-4000-8000-000000000903',
-   'spatial','growing_object','e5200000-0000-4000-8000-000000000902',
-   'acts_on');
--- Field decisions are inserted only by the disposable signed HTTP test.
+-- No Work allocation or growing-object context link may be fabricated here.
+-- Existing source requires a governed legacy-task/custody chain for such links.
+-- Separate field decisions are seeded only inside disposable signed test.
