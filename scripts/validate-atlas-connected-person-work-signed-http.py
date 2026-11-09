@@ -151,6 +151,29 @@ def main():
     need(gov_data.get("verificationStatus")=="verification_incomplete" and
          gov_data.get("mayCertifyNonDisclosure") is False,
          "Governor candidate preview falsely certified existing effective disclosure")
+    # Contextual authority is a bounded SOURCE diagnostic for the
+    # governor, not the worker's signed access or an inferred grant.
+    jurisdiction=gov_data.get("contextualAuthorityReview")
+    need(isinstance(jurisdiction,dict) and
+         jurisdiction.get("status") in ("unresolved","source_root_flags_only") and
+         jurisdiction.get("scope")=="current_selected_native_ledger" and
+         jurisdiction.get("notAGrant") is True and
+         jurisdiction.get("notAFieldDisclosure") is True and
+         jurisdiction.get("notASignedTargetSessionProof") is True and
+         jurisdiction.get("notAnEffectivePermissionCertificate") is True,
+         "Governor contextual authority response was wrongly certifying access")
+    if jurisdiction["status"]=="source_root_flags_only":
+        exact=jurisdiction["selectedLedgerRoot"]
+        primary=jurisdiction["organizationPrimaryRoot"]
+        need(type(exact) is bool and type(primary) is bool and
+             jurisdiction.get("legacyCompanyWorkDualRootCandidate") is
+             (exact and primary),
+             "Legacy dual-root source flags disagree with current root evidence")
+    else:
+        need(jurisdiction.get("selectedLedgerRoot") is None and
+             jurisdiction.get("organizationPrimaryRoot") is None and
+             jurisdiction.get("legacyCompanyWorkDualRootCandidate") is None,
+             "Unresolved root relationships were invented as effective permission")
     preview=gov_data.get("preliminaryWorkFieldReview")
     need(isinstance(preview,dict) and
          preview.get("status")=="governor_review_inputs_only" and
