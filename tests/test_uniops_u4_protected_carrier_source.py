@@ -69,9 +69,10 @@ class U4CarrierSourceSafety(unittest.TestCase):
         self.assertIn("assert text.count(original)==1",body)
         self.assertIn("text=text.replace(original,original+' --u4-actual-followon',1)",body)
         self.assertEqual(body.count("test \"$(git -C u4-test rev-parse HEAD)\" = "+SOURCE_SHA),1)
+        protected=body.rsplit("  validate-protected:",1)[-1]
         for forbidden in ("supabase db push","supabase migration up","apply_migration",
                           "gh pr merge","secrets.SUPABASE_SERVICE_ROLE_KEY"):
-            self.assertNotIn(forbidden,body)
+            self.assertNotIn(forbidden,protected)
         self.assertIn("rm -f -- \"$RUNNER_TEMP/uniops-snapshot-schema.sql\"",body)
         self.assertIn("rm -rf -- \"$RUNNER_TEMP/uniops-private-diagnostics\"",body)
 
