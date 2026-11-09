@@ -47,9 +47,9 @@ class U4CarrierSourceSafety(unittest.TestCase):
         lines=[line for line in protected.splitlines()
                if "match=re.fullmatch(r'" in line]
         self.assertEqual(len(lines),1)
-        source_match=re.search(r"match=re.fullmatch\\(r'([^']+)'",lines[0])
-        self.assertIsNotNone(source_match)
-        pattern=source_match.group(1)
+        source_parts=lines[0].split("match=re.fullmatch(r'",1)
+        self.assertEqual(len(source_parts),2)
+        pattern=source_parts[1].split("'",1)[0]
         expected={
             "diagnostic_scope":"uni_ops_a_u2_signed_disposable_schema_v1",
             "source_choice":"a_full_current_completion_plus_history",
