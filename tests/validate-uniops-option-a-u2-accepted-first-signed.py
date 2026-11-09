@@ -95,6 +95,8 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("--db-url",required=True)
     p.add_argument("--output",required=True)
+    p.add_argument("--u4-actual-followon",action="store_true",
+                   help="EXPLICIT test-only typed Result/Done probe; not P1 Activity")
     a=p.parse_args()
     check(bool(re.fullmatch(
         r"postgres(?:ql)?://postgres:[^@/]+@127[.]0[.]0[.]1:[0-9]{4,5}/postgres",
@@ -432,21 +434,52 @@ def main():
           "No physical Result can be synthesized by consent")
     check(sql(a.db_url,f"select count(*) from atlas.work_result_acceptances where work_item_id='{new_work}'::uuid")=="0",
           "No Result acceptance may be invented by issuing Work")
+    # U4 is an opt-in FOLLOW-ON, not part of the pinned U2-only proof.
+    # It deliberately tests the source's live campaign/no-successor boundary
+    # without mutating the source, removing campaign provenance or inventing
+    # a recipient permission. Never enable it from an unreviewed CI hook.
+    if a.u4_actual_followon:
+        follow_spec=importlib.util.spec_from_file_location(
+            "uniops_u2_qualified_actual_followon_held",
+            ROOT/"tests"/"uniops_u2_qualified_actual_followon_held.py")
+        check(follow_spec is not None and follow_spec.loader is not None,
+              "Held U4 follow-on module missing")
+        follow=importlib.util.module_from_spec(follow_spec)
+        follow_spec.loader.exec_module(follow)
+        follow.prove(a.db_url,api,key,
+          {"owner":owner,"worker":worker,"outsider":outsider},
+          new_work,sql=sql,rpc=rpc)
+
     # A signed actor's existing JWT is not authority after session removal.
     owner_session=signed["owner"][1]["session_id"]
     sql(a.db_url,"delete from auth.sessions where id='"+owner_session+"'::uuid")
     deny(api,key,owner,final,{"p_offer_id":offer},
          "revoked root session cannot replay governed original")
     out=Path(a.output)
-    out.write_text(
+    u2_receipt=(
       "PASS genuine separate signed local root/worker/outsider/no-seat; native "
       "scope proposed and accepted; exact mowing Subject disclosures; property "
       "and Subject rule versions approved by current root; no offer without "
       "policy; worker consent before canonical original; outsider, worker, root "
       "impersonation and revoked session denied; exactly one original, active "
-      "allocation and date plan, replay, no physical Result, no accepted Actual, "
-      "no Clock or automatic next original. NOT TESTED: U1A overlap, historical "
-      "cancel on new original, post-Result 6A eligibility or production.\n",
+      "allocation and date plan, replay, "
+    )
+    if a.u4_actual_followon:
+        result_claim=(
+          "one independently signed first-party physical Actual, accepted "
+          "Result, one authoritative Done, exact replay and no new Work/task/"
+          "offer/plan; P1 manual Activity and full P3 other writers NOT TESTED.\n"
+          "U4_SIGNED_ACTUAL_RESULT_DONE=PASS\n"
+        )
+    else:
+        result_claim=(
+          "no physical Result, no accepted Actual, no Clock or automatic next "
+          "original. Post-Result 6A eligibility NOT TESTED.\n"
+          "U4_SIGNED_ACTUAL_RESULT_DONE=NOT_RUN\n"
+        )
+    out.write_text(
+      u2_receipt+result_claim+
+      "Historical cancel on this original, U1A overlap and production remain HELD.\n",
       encoding="utf-8")
     print("PASS UNI-OPS option A U1B/U2 genuinely signed first original Work, no successor")
 
