@@ -136,6 +136,29 @@ def main():
           "Fictional primary Ledger must initially have owner root only")
     api,key=c1.local_status()
     base.setup_auth(args.db_url)
+    # Fictional spatial sources are established on the loopback disposable
+    # Postgres only. Do not add this DML to the shared guarded source fixture.
+    sql(args.db_url, """
+      INSERT INTO atlas.farms(id,stable_key,name,organization_id)
+      VALUES (
+        'e5200000-0000-4000-8000-000000000901',
+        'option-c-fictional-farm','Option C Fictional Farm',
+        'e5200000-0000-4000-8000-000000000801'
+      )
+    """)
+    sql(args.db_url, """
+      INSERT INTO atlas.growing_objects(id,farm_id,stable_key,label,object_type)
+      VALUES (
+        'e5200000-0000-4000-8000-000000000902',
+        'e5200000-0000-4000-8000-000000000901',
+        'option-c-fictional-bed','Fictional Bed for source review','bed'
+      )
+    """)
+    check(sql(args.db_url,
+          "select count(*) from atlas.growing_objects where id="
+          "'e5200000-0000-4000-8000-000000000902'::uuid")=="1",
+          "Fictional local-only subject was not established")
+
     # The global DML fixture scanner intentionally prohibits the word GRANT
     # even as a data literal. Only this disposable/local psql test setup
     # establishes fictional field events; it does not test a live writer.
