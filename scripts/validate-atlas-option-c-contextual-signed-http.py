@@ -142,8 +142,10 @@ def main():
          "no-root participant cannot preview governor source facts")
     deny(api,key,None,OPERATING,OWNER_PERSON,
          "anonymous actor cannot preview governor source facts")
-    deny(api,key,owner,OPERATING,"e5200000-0000-4000-8000-000000000103",
-         "governor cannot enumerate Person with no active operating Seat")
+    # C1's outsider has an active seat on B (the operating Ledger), but
+    # no seat on A (the primary Ledger). Test the real no-seat case.
+    deny(api,key,owner,PRIMARY,"e5200000-0000-4000-8000-000000000103",
+         "governor cannot enumerate Person with no selected-Ledger Seat")
 
     # Only local disposable root decisions; no production Person/grants.
     sql(args.db_url,
