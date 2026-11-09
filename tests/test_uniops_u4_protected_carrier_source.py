@@ -13,7 +13,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 U4=ROOT/".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml"
 ORIGINAL=ROOT/".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml"
-SOURCE_SHA="9820cfeab595cb1c7764128f1cdae4a3855ecefe"
+SOURCE_SHA="3827b97cab0eee461fbc7327ae3a8eb46fe8bc6c"
 
 class U4CarrierSourceSafety(unittest.TestCase):
     @classmethod
@@ -89,7 +89,7 @@ class U4CarrierSourceSafety(unittest.TestCase):
             self.assertIn(exact,orig)
         for blob in ("09eeee925ebfa2cb64b1dea336688ba8076ef44d",
                      "db9921b63b8a0cc6256d802cbeeff8d54e594559",
-                     "e0c7dc18c3f456ed35bfe06dc5bbfae23cdf3d68"):
+                     "acb845c8285c4f75067eab1c871a0eb6d2d3ad3a"):
             self.assertIn(blob,body)
         self.assertEqual(body.rsplit("  validate-protected:",1)[-1].count("ref: "+SOURCE_SHA),1)
         self.assertEqual(body.count("Checkout immutable U4 test-only source AFTER snapshot"),1)
@@ -157,6 +157,17 @@ class U4CarrierSourceSafety(unittest.TestCase):
         self.assertIn("ambiguous",protected)
         self.assertNotIn("print('UNI_OPS_U4_SIGNED_FAILURE_GATE='+actor_text)",protected)
         self.assertIn("no schema dump, role dump or diagnostic artifact retained/uploaded",protected)
+
+    def test_signed_u4_no_network_helper_verified_before_protected_schema(self):
+        source=self.source
+        self.assertIn("Checkout immutable U4 no-network source for CI contract",source)
+        self.assertIn("Verify exact U4 helper blobs and no-network unit tests",source)
+        self.assertIn("python3 -m unittest discover -s u4-source-contract/tests -p 'test_uniops_u2_qualified_actual_followon_held.py' -v",source)
+        self.assertIn("acb845c8285c4f75067eab1c871a0eb6d2d3ad3a",source)
+        self.assertLess(source.index("Verify exact U4 helper blobs and no-network unit tests"),
+                        source.index("\n  validate-protected:\n"))
+        self.assertIn("persist-credentials: false",source)
+        self.assertIn("ref: "+SOURCE_SHA,source)
 
     def test_acceptance_requires_u4_not_generic_u2_pass(self):
         body=self.source
