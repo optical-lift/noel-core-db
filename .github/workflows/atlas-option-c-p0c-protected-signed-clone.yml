@@ -1,0 +1,209 @@
+name: Atlas Option C P0C protected signed contextual clone
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-option-c-p0c-protected-signed-clone.yml'
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Audit issue-only production credential boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -ryaml -e 'YAML.load_file(".github/workflows/atlas-option-c-p0c-protected-signed-clone.yml")'
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path(".github/workflows/atlas-option-c-p0c-protected-signed-clone.yml").read_text()
+          protected=p.split("\n  protected-signed-local:\n",1)[1]
+          for required in (
+            "github.event.issue.author_association == 'OWNER'",
+            "github.actor == github.repository_owner",
+            "environment: production",
+            "candidate_sha:",
+            "NOEL_CORE_DATABASE_URL",
+            "Snapshot production user schema and roles READ ONLY",
+            "Checkout immutable held source AFTER snapshot",
+            "scripts/validate-production-schema-clone.sh",
+            "option_c_contextual_signed_fixture_HELD.sql",
+            "atlas_option_c_contextual_review_signed_clone_only_v1",
+            "signed-option-c-context-summary.txt",
+            "test -s",
+          ):
+            assert required in protected,required
+          assert protected.index("Snapshot production user schema and roles READ ONLY") < protected.index("Checkout immutable held source AFTER snapshot")
+          assert protected.count("NOEL_CORE_DATABASE_URL:")==1
+          for bad in ("supabase db push","supabase migration up",
+                      "supabase db reset --linked","apply_migration",
+                      "secrets.SUPABASE_SERVICE_ROLE_KEY","gh pr merge"):
+            assert bad not in protected,bad
+          print("PASS immutable owner-only disposable signed clone; live snapshot read-only")
+          PY
+  protected-signed-local:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Option C P0C: protected signed clone gate'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Bind owner-approved immutable candidate SHA
+        id: request
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          s=os.environ.get("ISSUE_BODY","")
+          a=re.findall(r"^candidate_sha:\s*([0-9a-f]{40})\s*$",s,re.M)
+          target=re.findall(r"^production_target:\s*([a-z0-9]+)\s*$",s,re.M)
+          if len(a)!=1 or target!=["zirqkouammpwxlqfbsvf"]:
+            raise SystemExit("Exact source commit and correct project scope required")
+          with open(os.environ["GITHUB_OUTPUT"],"a") as f:
+            f.write("sha="+a[0]+"\n")
+          PY
+      - name: Checkout trusted canonical test harness
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify canonical source custody and clone contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Install pinned Supabase CLI and authenticate registry
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = "2.116.0"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Snapshot production user schema and roles READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/option-c-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/option-c-schema.sql"
+          test -s "$RUNNER_TEMP/option-c-roles.sql"
+          test -s "$RUNNER_TEMP/option-c-schema.sql"
+      # Beyond this line, no live database credential is in any job step.
+      - name: Checkout immutable held source AFTER snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.request.outputs.sha }}
+          path: held
+          persist-credentials: false
+      - name: Checkout fixed synthetic base fixture
+        uses: actions/checkout@v4
+        with:
+          ref: 83833e3efbb2e18c6376b56eb3982df5b8c000b3
+          path: c1
+          persist-credentials: false
+      - name: Inspect held source without production credentials
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ steps.request.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git -C c1 rev-parse HEAD)" = "83833e3efbb2e18c6376b56eb3982df5b8c000b3"
+          base=held/candidates/atlas/governor_effective_subject_disclosure_review_v1
+          for name in contextual_authority_review_override_HELD.sql contextual_authority_review_postconditions_HELD.sql option_c_contextual_signed_fixture_HELD.sql; do
+            test -s "$base/$name"
+          done
+          test -s c1/validation/fixtures/20261019201528_atlas_company_work_operating_register_v1.sql
+          test -s validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql
+          python3 held/scripts/validate-atlas-option-c-contextual-review-source.py
+          python3 -m py_compile held/scripts/install-atlas-option-c-contextual-signed-hook-HELD.py
+          python3 -m py_compile held/scripts/validate-atlas-option-c-contextual-signed-http.py
+          # Checked-out main exists only in this disposable runner. Do not
+          # commit or deploy this ephemeral signed test hook.
+          cp held/scripts/validate-atlas-option-c-contextual-signed-http.py scripts/validate-atlas-option-c-contextual-signed-http.py
+          python3 held/scripts/install-atlas-option-c-contextual-signed-hook-HELD.py --controller scripts/validate-production-schema-clone.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Assemble only a disposable scratch migration and fictional fixture
+        shell: bash
+        id: scratch
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/option-c-local"
+          cd "$RUNNER_TEMP/option-c-local"
+          supabase init --force
+          supabase migration new atlas_option_c_contextual_review_signed_clone_only_v1
+          mapfile -t matches < <(find supabase/migrations -type f -name '*_atlas_option_c_contextual_review_signed_clone_only_v1.sql')
+          test "${#matches[@]}" -eq 1
+          sql_file="$PWD/${matches[0]}"
+          version="$(basename "$sql_file" | cut -d_ -f1)"
+          [[ "$version" =~ ^[0-9]{14}$ ]]
+          base="$GITHUB_WORKSPACE/held/candidates/atlas/governor_effective_subject_disclosure_review_v1"
+          cp "$base/contextual_authority_review_override_HELD.sql" "$sql_file"
+          fixture="$PWD/fictional-fixture.sql"
+          cat "$GITHUB_WORKSPACE/c1/validation/fixtures/20261019201528_atlas_company_work_operating_register_v1.sql" >"$fixture"
+          printf '\n' >>"$fixture"
+          cat "$GITHUB_WORKSPACE/validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql" >>"$fixture"
+          printf '\n' >>"$fixture"
+          cat "$base/option_c_contextual_signed_fixture_HELD.sql" >>"$fixture"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "migration=$sql_file" >> "$GITHUB_OUTPUT"
+          echo "fixture=$fixture" >> "$GITHUB_OUTPUT"
+      - name: Run current-schema disposable PostgreSQL with independent local GoTrue and REST
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+            --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+            --candidate-validation "$GITHUB_WORKSPACE/held/candidates/atlas/governor_effective_subject_disclosure_review_v1/contextual_authority_review_postconditions_HELD.sql" \
+            --roles-dump "$RUNNER_TEMP/option-c-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/option-c-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/option-c-result"
+          test -s "$RUNNER_TEMP/option-c-result/signed-option-c-context-summary.txt"
+          grep -q '^PASS' "$RUNNER_TEMP/option-c-result/signed-option-c-context-summary.txt"
+          echo "PASS disposable local Option C signed governor/worker/outsider matrix; no production mutation." >> "$GITHUB_STEP_SUMMARY"
+      - name: Short bounded result on failure
+        if: always()
+        shell: bash
+        run: |
+          if test -s "$RUNNER_TEMP/option-c-result/signed-option-c-context-summary.txt"; then
+            echo "Signed local Option C receipt produced." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Signed local Option C proof incomplete or failed; no production changes." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Upload only allowlisted signed summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: option-c-contextual-signed-summary
+          path: ${{ runner.temp }}/option-c-result/signed-option-c-context-summary.txt
+          if-no-files-found: ignore
+          retention-days: 14
