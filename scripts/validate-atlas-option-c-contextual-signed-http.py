@@ -136,6 +136,38 @@ def main():
           "Fictional primary Ledger must initially have owner root only")
     api,key=c1.local_status()
     base.setup_auth(args.db_url)
+    # The global DML fixture scanner intentionally prohibits the word GRANT
+    # even as a data literal. Only this disposable/local psql test setup
+    # establishes fictional field events; it does not test a live writer.
+    sql(args.db_url, """
+      INSERT INTO atlas.subject_disclosure_decision_events_v1(
+        id,organization_id,ledger_id,target_person_id,
+        subject_domain,subject_kind,subject_id,disclosure_class,
+        decision_kind,source_action_id,reason,decided_by_person_id
+      ) VALUES (
+        'e5200000-0000-4000-8000-000000000907',
+        'e5200000-0000-4000-8000-000000000801',
+        'e5200000-0000-4000-8000-000000000402',
+        'e5200000-0000-4000-8000-000000000102',
+        'spatial','growing_object','e5200000-0000-4000-8000-000000000902',
+        'identity','grant','e5200000-0000-4000-8000-000000000909',
+        'Fictional governor grants only this Subject identity source.',
+        'e5200000-0000-4000-8000-000000000101'
+      ),(
+        'e5200000-0000-4000-8000-000000000908',
+        'e5200000-0000-4000-8000-000000000801',
+        'e5200000-0000-4000-8000-000000000402',
+        'e5200000-0000-4000-8000-000000000102',
+        'spatial','growing_object','e5200000-0000-4000-8000-000000000902',
+        'condition','withhold','e5200000-0000-4000-8000-000000000910',
+        'Fictional governor withholds independent Subject condition.',
+        'e5200000-0000-4000-8000-000000000101'
+      )
+    """)
+    check(sql(args.db_url, "select count(*) from atlas.subject_disclosure_decision_events_v1 "
+              "where organization_id='"+ORG+"'::uuid and "
+              "subject_id='e5200000-0000-4000-8000-000000000902'::uuid")=="2",
+          "Fictional field source decisions were not established")
     sessions={}
     for name,expected in (("owner",c1.OWNER),("worker",c1.WORKER),
                           ("outsider",c1.OUTSIDER),("no-seat",c1.NO_SEAT)):
