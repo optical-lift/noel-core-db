@@ -118,7 +118,7 @@ jobs:
               'u4_test_sha':'1f8bacb42c3e25d24fe123c1982857e1e79884fc',
               'test_goal':'signed_u2_result_done_v1'}
           for line in os.environ.get('OWNER_BODY','').splitlines():
-              match=re.fullmatch(r'([a-z_]+):\s*([a-z0-9_]+)\s*',line)
+              match=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
               if match and match[1] in expected:
                   if match[1] in pairs:raise SystemExit("Duplicate owner source selector")
                   pairs[match[1]]=match[2]
