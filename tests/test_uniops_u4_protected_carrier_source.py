@@ -40,6 +40,42 @@ class U4CarrierSourceSafety(unittest.TestCase):
         self.assertIn("Duplicate owner source selector",protected)
         self.assertIn("github.event_name == 'pull_request'",body)
 
+    def test_owner_exact_eight_field_selector_accepts_u4_digit_without_widening_authority(self):
+        # Regression for the owner-gated issue #2653 failure #42662248793.
+        # The old name pattern [a-z_]+ could never parse u4_test_sha.
+        protected=self.source.rsplit("  validate-protected:",1)[-1]
+        lines=[line for line in protected.splitlines()
+               if "match=re.fullmatch(r'" in line]
+        self.assertEqual(len(lines),1)
+        source_match=re.search(r"match=re.fullmatch\\(r'([^']+)'",lines[0])
+        self.assertIsNotNone(source_match)
+        pattern=source_match.group(1)
+        expected={
+            "diagnostic_scope":"uni_ops_a_u2_signed_disposable_schema_v1",
+            "source_choice":"a_full_current_completion_plus_history",
+            "signed_contract":"u1b_u2_mowing_accepted_first_v1",
+            "source_review":"u2c_context_guard_two_blobs_v1",
+            "production_target":"zirqkouammpwxlqfbsvf",
+            "harness_head":"5d28e2584736b8dd9cab928a34a6d5dc39ba38c1",
+            "u4_test_sha":SOURCE_SHA,
+            "test_goal":"signed_u2_result_done_v1"
+        }
+        issue_lines=[key+": "+value for key,value in expected.items()]
+        parsed={}
+        for line in issue_lines:
+            match=re.fullmatch(pattern,line)
+            self.assertIsNotNone(match, "exact frozen field omitted: "+line)
+            if match[1] in expected:
+                self.assertNotIn(match[1],parsed)
+                parsed[match[1]]=match[2]
+        self.assertEqual(parsed,expected)
+        self.assertIsNone(re.fullmatch(pattern,"u4-test-sha: "+SOURCE_SHA))
+        self.assertIsNone(re.fullmatch(pattern,"u4_test_sha: anything/else"))
+        self.assertNotEqual(dict(parsed,u4_test_sha="0"*40),expected)
+        self.assertEqual(len(expected),8)
+        self.assertIn("if match[1] in pairs:raise SystemExit",protected)
+        self.assertIn("if pairs!=expected:raise SystemExit",protected)
+
     def test_only_custodied_new_source_in_existing_18_stage_composition(self):
         body=self.source
         orig=self.original
