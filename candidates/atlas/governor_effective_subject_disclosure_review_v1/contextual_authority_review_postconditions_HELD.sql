@@ -15,6 +15,14 @@ BEGIN
     OR position('a.ended_at IS NULL' in v_def)=0
     OR position('legacyDualRootIsNotUniversalAuthorityLaw' in v_def)=0
     OR position('doesNotAuthorizeAnyOperation' in v_def)=0
+    OR position('contextualOperationObservations' in v_def)=0
+    OR position('contextualFieldObservations' in v_def)=0
+    OR position('grantChainCoverage' in v_def)=0
+    OR position('legacy_last_decision_only' in v_def)=0
+    OR position('sourceWriterRecheckRequired' in v_def)=0
+    OR position('doesNotDiscloseFieldToTarget' in v_def)=0
+    OR position('effectivePermission' in v_def)=0
+    OR position('verification_incomplete' in v_def)=0
     OR position('notAnEffectivePermissionCertificate' in v_def)=0
     OR position('notASignedTargetSessionProof' in v_def)=0
     OR position('isSignedTargetAccessProof' in v_def)=0
