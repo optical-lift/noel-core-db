@@ -190,27 +190,21 @@ def main():
     flags(review(api,key,owner,PRIMARY,WORKER_PERSON),False,False,True)
     print("PASS two simultaneous operating roots and independent primary scope")
 
-    # Only the governor sees these facts. Distinct known current SOURCE
-    # decisions do not certify the worker can read private records.
-    status,full=request(api,key,owner,OPERATING,WORKER_PERSON)
-    check(status==200 and full.get("ok") is True,
-          "held signed source review unavailable for typed field fixture")
-    originals=full.get("canonicalWork",[])
-    check(len(originals)==1 and
-          originals[0].get("workItemId")=="e5200000-0000-4000-8000-000000000903",
-          "fictional source Work was not observed by canonical identity")
-    linked=originals[0].get("linkedSubjectDisclosure",{}).get("items",[])
-    check(len(linked)==1 and
-          linked[0].get("subjectId")=="e5200000-0000-4000-8000-000000000902",
-          "one original linked Subject not returned")
-    typed=linked[0].get("contextualFieldObservations",[])
-    check(len(typed)==2 and
-          typed[0].get("fieldPath")=="identity" and
-          typed[0].get("currentSourceGrant") is True and
-          typed[1].get("fieldPath")=="condition" and
-          typed[1].get("currentSourceGrant") is False,
-          "independent identity/condition source grants were collapsed")
-    print("PASS one canonical Work linked Subject, distinct typed field source states")
+    # The underlying source has field-specific decisions, but the shared
+    # source-custody guard forbids inventing an original Work/Bed link.
+    # These two SELECTs validate only the current last-decision helper.
+    # The field packet's signed Work-linked projection remains an OPEN gate.
+    identity=sql(args.db_url,
+        "SELECT atlas.has_current_subject_disclosure_v1('"+OPERATING+"'::uuid,"
+        "'"+WORKER_PERSON+"'::uuid,'spatial','growing_object',"
+        "'e5200000-0000-4000-8000-000000000902'::uuid,'identity')")
+    condition=sql(args.db_url,
+        "SELECT atlas.has_current_subject_disclosure_v1('"+OPERATING+"'::uuid,"
+        "'"+WORKER_PERSON+"'::uuid,'spatial','growing_object',"
+        "'e5200000-0000-4000-8000-000000000902'::uuid,'condition')")
+    check(identity=="t" and condition=="f",
+          "separate fictional Bed identity/condition current source decisions disagree")
+    print("PASS distinct subject field source truth (not signed target disclosure)")
 
 
     missing=review(api,key,owner,OPERATING,UNKNOWN_PERSON)
@@ -286,7 +280,7 @@ def main():
     Path(args.output).parent.mkdir(parents=True,exist_ok=True)
     Path(args.output).write_text(
         "PASS Option C exact versus primary, concurrent governors, source "
-        "ambiguity, signed negative access, independent chains, ended Seat, "
+        "ambiguity, source-only field distinction, signed negative access, ended Seat, "
         "withdrawn authority and revoked GoTrue session; DISPOSABLE LOCAL ONLY.\n",
         encoding="utf-8")
     print("PASS all held Option C real signed local tests")
