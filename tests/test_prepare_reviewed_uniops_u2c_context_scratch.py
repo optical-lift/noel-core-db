@@ -4,6 +4,10 @@ import importlib.util
 from pathlib import Path
 import unittest
 
+# Test-only extension: source-contract CI already discovers this module.
+# Importing these cases runs purely local safety/unit checks, never the U4 RPC.
+from test_uniops_u2_qualified_actual_followon_held import U4Boundaries
+
 spec = importlib.util.spec_from_file_location(
     "review", Path(__file__).with_name("prepare_reviewed_uniops_u2c_context_scratch.py"))
 review = importlib.util.module_from_spec(spec)
