@@ -139,19 +139,51 @@ def main():
     # Fictional spatial sources are established on the loopback disposable
     # Postgres only. Do not add this DML to the shared guarded source fixture.
     sql(args.db_url, """
-      INSERT INTO atlas.farms(id,stable_key,name,organization_id)
+      INSERT INTO atlas.farms(id,stable_key,name,organization_id,organization_unit_id)
       VALUES (
         'e5200000-0000-4000-8000-000000000901',
         'option-c-fictional-farm','Option C Fictional Farm',
-        'e5200000-0000-4000-8000-000000000801'
+        'e5200000-0000-4000-8000-000000000801',
+        'e5200000-0000-4000-8000-000000000802'
       )
     """)
     sql(args.db_url, """
-      INSERT INTO atlas.growing_objects(id,farm_id,stable_key,label,object_type)
+      INSERT INTO atlas.zones(id,farm_id,stable_key,label)
+      VALUES (
+        'e5200000-0000-4000-8000-000000000911',
+        'e5200000-0000-4000-8000-000000000901',
+        'option-c-fictional-zone','Fictional source Zone'
+      )
+    """)
+    sql(args.db_url, """
+      INSERT INTO atlas.organization_memberships(
+        id,organization_id,user_id,person_id,role,active
+      ) VALUES (
+        'e5200000-0000-4000-8000-000000000913',
+        'e5200000-0000-4000-8000-000000000801',
+        'e5200000-0000-4000-8000-000000000001',
+        'e5200000-0000-4000-8000-000000000101',
+        'owner',true
+      ),(
+        'e5200000-0000-4000-8000-000000000914',
+        'e5200000-0000-4000-8000-000000000801',
+        'e5200000-0000-4000-8000-000000000002',
+        'e5200000-0000-4000-8000-000000000102',
+        'member',true
+      )
+    """)
+    sql(args.db_url, """
+      INSERT INTO atlas.growing_objects(id,farm_id,zone_id,stable_key,label,object_type)
       VALUES (
         'e5200000-0000-4000-8000-000000000902',
         'e5200000-0000-4000-8000-000000000901',
+        'e5200000-0000-4000-8000-000000000911',
         'option-c-fictional-bed','Fictional Bed for source review','bed'
+      ),(
+        'e5200000-0000-4000-8000-000000000918',
+        'e5200000-0000-4000-8000-000000000901',
+        'e5200000-0000-4000-8000-000000000911',
+        'option-c-private-bed','Fictional withheld Bed','bed'
       )
     """)
     check(sql(args.db_url,
