@@ -1,0 +1,101 @@
+name: Held U1A RiverSong Isolated Signed Proof
+
+on:
+  pull_request:
+    types: [synchronize, opened, reopened]
+    branches: [main]
+    paths:
+      - '.github/workflows/u1a-riversong-isolated-signed-proof.yml'
+      # Explicit operator-owned trigger avoids rerunning a full disposable
+      # Docker test for every draft README/SQL correction.
+      - 'candidates/atlas_governed_rulebook_u1a_v1/OPTION_D_RUN_REQUEST.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: held-u1a-riversong-isolated
+  cancel-in-progress: false
+
+jobs:
+  syntax_source:
+    if: >-
+      github.event.pull_request.number == 2465 &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == 'optical-lift/noel-core-db' &&
+      github.event.pull_request.head.ref == 'candidate/atlas-u1a-governed-rulebook-adoption-20261103'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout immutable PR source without retained credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Parse U1A Node, Python, Bash and source custody contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n candidates/atlas_governed_rulebook_u1a_v1/run_riversong_option_d_isolated.sh
+          bash -n candidates/atlas_governed_rulebook_u1a_v1/run_riversong_rollback.sh
+          node --test tests/atlas-u1a-governed-rulebook-source.test.mjs
+
+  isolated_signed_proof:
+    needs: [syntax_source]
+    if: >-
+      github.event.pull_request.number == 2465 &&
+      github.event.pull_request.draft == true &&
+      github.event.pull_request.head.repo.full_name == 'optical-lift/noel-core-db' &&
+      github.event.pull_request.head.ref == 'candidate/atlas-u1a-governed-rulebook-adoption-20261103'
+    runs-on: self-hosted
+    timeout-minutes: 25
+    steps:
+      - name: Checkout exact held candidate without persistent credentials
+        uses: actions/checkout@v4
+        with:
+          ref: candidate/atlas-u1a-governed-rulebook-adoption-20261103
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check exact PR head and RiverSong machine before any database work
+        shell: bash
+        env:
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+          test "$(git branch --show-current)" = 'candidate/atlas-u1a-governed-rulebook-adoption-20261103'
+          test "$(uname -s)" = 'Darwin'
+          test "$(printf '%s' "${RUNNER_NAME:-}" | tr '[:upper:]' '[:lower:]')" = 'riversong'
+          test -z "$(git status --porcelain --untracked-files=all)"
+          echo 'PASS: exact owner-held PR and RiverSong local machine; no secrets loaded.'
+
+      - name: Run disposable source-derived Supabase Auth/REST/PG proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash candidates/atlas_governed_rulebook_u1a_v1/run_riversong_option_d_isolated.sh
+
+      - name: Display limited source-only result
+        if: always()
+        shell: bash
+        run: |
+          receipt="${RUNNER_TEMP}/u1a-option-d-results-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          if [[ -s "$receipt/cleanup-state.txt" ]]; then
+            cat "$receipt/cleanup-state.txt"
+            if [[ -s "$receipt/source-result.txt" ]]; then cat "$receipt/source-result.txt"; fi
+            if [[ -s "$receipt/missing-native-sources.txt" ]]; then cat "$receipt/missing-native-sources.txt"; fi
+          else
+            echo 'No disposable clone was started, or preflight stopped before test.'
+          fi
+          echo 'No U1A runtime result authorizes migration, source approval, or production release.'
+
+      - name: Upload only sanitized phase and cleanup receipts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: held-u1a-isolated-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/u1a-option-d-results-${{ github.run_id }}-${{ github.run_attempt }}/
+          if-no-files-found: ignore
+          retention-days: 7
