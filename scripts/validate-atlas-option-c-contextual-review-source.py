@@ -16,9 +16,9 @@ def require(condition: bool, reason: str) -> None:
 # Overlay may add these three bounded blocks and NOTHING else.
 restored = source
 for start, end in (
-    ("\\n -- Review-only Option C jurisdiction facts;", " v_context_status text:='unresolved';"),
-    (" -- A current root on a selected operating Ledger", "   v_context_status:='source_root_flags_only';\\n END IF;\\n"),
-    ("   'contextualAuthorityReview',jsonb_build_object(", "     'notAnEffectivePermissionCertificate',true),\\n"),
+    ("\n -- Review-only Option C jurisdiction facts;", " v_context_status text:='unresolved';"),
+    (" -- A current root on a selected operating Ledger", "   v_context_status:='source_root_flags_only';\n END IF;\n"),
+    ("   'contextualAuthorityReview',jsonb_build_object(", "     'notAnEffectivePermissionCertificate',true),\n"),
 ):
     require(restored.count(start)==1 and restored.count(end)==1,
             f"held additive source block ambiguous: {start}")
