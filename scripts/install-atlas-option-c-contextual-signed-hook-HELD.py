@@ -44,11 +44,13 @@ once('       [ "$signed_person_mail_probe" = true ] ||\n'
      '       [ "$signed_venue_bed_probe" = true ] ||\n'
      '       [ "$signed_option_c_probe" = true ]; then\n',
      "signed transport startup")
-once('       [ "$signed_venue_bed_probe" = true ]; then\n'
-     '       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector',
+once('       [ "$signed_ledger_disposition_v2_probe" = true ] ||\n'
+     '       [ "$signed_venue_bed_probe" = true ]; then\n'
+     '      supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor',
+     '       [ "$signed_ledger_disposition_v2_probe" = true ] ||\n'
      '       [ "$signed_venue_bed_probe" = true ] ||\n'
      '       [ "$signed_option_c_probe" = true ]; then\n'
-     '       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector',
+     '      supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor',
      "minimal signed local container runtime")
 marker='if [ "$signed_ledger_reciprocal_probe" = true ]; then\n'
 if s.count(marker)!=2:
