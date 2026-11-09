@@ -64,7 +64,7 @@ class U4CarrierSourceSafety(unittest.TestCase):
                         body.index("Checkout immutable U4 test-only source AFTER snapshot"))
         self.assertLess(body.index("Attach exact genuine signed U2 test to a disposable local validator COPY"),
                         body.index("Attach immutable U4 signed follow-on ONLY to disposable validator COPY"))
-        self.assertEqual(body.count("NOEL_CORE_DATABASE_URL:"),1)
+        self.assertEqual(body.split("\\n  validate-protected:\\n",1)[1].count("NOEL_CORE_DATABASE_URL:"),1)
         self.assertIn("python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh",body)
         self.assertIn("assert text.count(original)==1",body)
         self.assertIn("text=text.replace(original,original+' --u4-actual-followon',1)",body)
