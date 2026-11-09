@@ -13,7 +13,7 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1]
 U4=ROOT/".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml"
 ORIGINAL=ROOT/".github/workflows/held-uni-ops-option-a-u2-accepted-first-signed-clone.yml"
-SOURCE_SHA="a16f5ac6962d652e3461561ed4c3035fb5803b5c"
+SOURCE_SHA="075919564dc340ad86be8e969a2ad2d02ec19a15"
 
 class U4CarrierSourceSafety(unittest.TestCase):
     @classmethod
@@ -88,8 +88,8 @@ class U4CarrierSourceSafety(unittest.TestCase):
             self.assertIn(exact,body)
             self.assertIn(exact,orig)
         for blob in ("09eeee925ebfa2cb64b1dea336688ba8076ef44d",
-                     "90a384621024361cd675d3c55d2add06bb5c413a",
-                     "19864c20915442bb74af35dd32019dc299f22a7a"):
+                     "2e180aa2363201e75ca0d717eeeddd5a708193ab",
+                     "5a9a2fe1e7f4eaa047396627baefd24a76c0398a"):
             self.assertIn(blob,body)
         self.assertEqual(body.rsplit("  validate-protected:",1)[-1].count("ref: "+SOURCE_SHA),1)
         self.assertEqual(body.count("Checkout immutable U4 test-only source AFTER snapshot"),1)
@@ -163,19 +163,38 @@ class U4CarrierSourceSafety(unittest.TestCase):
         self.assertIn("Checkout immutable U4 no-network source for CI contract",source)
         self.assertIn("Verify exact U4 helper blobs and no-network unit tests",source)
         self.assertIn("python3 -m unittest discover -s u4-source-contract/tests -p 'test_uniops_u2_qualified_actual_followon_held.py' -v",source)
-        self.assertIn("19864c20915442bb74af35dd32019dc299f22a7a",source)
+        self.assertIn("5a9a2fe1e7f4eaa047396627baefd24a76c0398a",source)
         self.assertLess(source.index("Verify exact U4 helper blobs and no-network unit tests"),
                         source.index("\n  validate-protected:\n"))
         self.assertIn("persist-credentials: false",source)
         self.assertIn("ref: "+SOURCE_SHA,source)
 
     def test_exact_known_count_tables_guarded_by_immutable_u4_helper(self):
-        self.assertIn("90a384621024361cd675d3c55d2add06bb5c413a",self.source)
-        self.assertIn("19864c20915442bb74af35dd32019dc299f22a7a",self.source)
+        self.assertIn("2e180aa2363201e75ca0d717eeeddd5a708193ab",self.source)
+        self.assertIn("5a9a2fe1e7f4eaa047396627baefd24a76c0398a",self.source)
         self.assertIn("test_uniops_u2_qualified_actual_followon_held.py' -v",self.source)
-        self.assertIn("u4_test_sha':'a16f5ac6962d652e3461561ed4c3035fb5803b5c'",self.source)
+        self.assertIn("u4_test_sha':'075919564dc340ad86be8e969a2ad2d02ec19a15'",self.source)
         self.assertIn("U4_SIGNED_FAILURE_GATE=",self.source)
         self.assertIn("U4_SIGNED_PROBE_ENTERED=yes",self.source)
+
+    def test_u4_actual_response_diagnostics_are_finite_and_private(self):
+        protected=self.source.rsplit("  validate-protected:",1)[-1]
+        for expected in (
+            "U4_ACTUAL_HTTP_CLASS=","U4_ACTUAL_ERROR_CLASS=",
+            "U4_ACTUAL_RECEIPT_FIELD=","UNI_OPS_U4_ACTUAL_HTTP_CLASS=",
+            "UNI_OPS_U4_ACTUAL_ERROR_CLASS=",
+            "UNI_OPS_U4_ACTUAL_RECEIPT_FIELD=",
+            "source_permission","none_or_other",
+            "new_work_not_absent","clock_not_absent",
+            "actual_contract_mismatch","not_checked",
+        ):
+            self.assertIn(expected,protected)
+        self.assertIn("5a9a2fe1e7f4eaa047396627baefd24a76c0398a",self.source)
+        self.assertIn("2e180aa2363201e75ca0d717eeeddd5a708193ab",self.source)
+        self.assertIn("test_uniops_u2_qualified_actual_followon_held.py' -v",self.source)
+        self.assertIn("if pairs!=expected:raise SystemExit",protected)
+        self.assertNotIn("print('UNI_OPS_U4_ACTUAL_RECEIPT_FIELD='+actor_text)",protected)
+        self.assertIn("no schema dump, role dump or diagnostic artifact retained/uploaded",protected)
 
     def test_acceptance_requires_u4_not_generic_u2_pass(self):
         body=self.source
