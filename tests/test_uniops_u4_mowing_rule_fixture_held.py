@@ -92,7 +92,7 @@ class FictionalMowingQualification(unittest.TestCase):
     def test_fixture_guards_exact_rule_but_does_not_approve_work(self):
         self.assertIn("SET uniops.disposable_signed = 'true'", self.sql)
         self.assertIn("current_database()<>'postgres'", self.sql)
-        self.assertIn("physicalConditionAsserted\\\":false", self.sql)
+        self.assertIn('"physicalConditionAsserted":false', self.sql)
         self.assertIn("IS DISTINCT FROM", self.sql)
         self.assertIn("WHERE r.id='" + RULE_ID + "'::uuid", self.sql)
         self.assertNotIn("CREATE TABLE", self.sql)
