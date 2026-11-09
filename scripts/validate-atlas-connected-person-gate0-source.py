@@ -65,6 +65,33 @@ check("preliminaryWorkFieldReview" in review_tests and
       "LIMIT 51" in review_tests and
       "verification_incomplete" in review_tests,
       "Governor-only field preview clone postconditions missing")
+# Option C diagnostic is governor-only and intentionally **not** a new permission.
+for proof in (
+    "contextualAuthorityReview",
+    "source_root_flags_only",
+    "atlas.principals p",
+    "p.person_id=p_person_entity_id",
+    "v_target_principal_count=1",
+    "v_exact_participation_count=1",
+    "v_primary_count=1",
+    "lop.ledger_id=p_ledger_id",
+    "lop.participation_kind IN ('governing','operating')",
+    "lop.participation_kind='governing'",
+    "lop.is_compatibility_primary IS TRUE",
+    "atlas.principal_has_ledger_authority_v1(v_target_principal_id,p_ledger_id)",
+    "atlas.principal_has_ledger_authority_v1(v_target_principal_id,v_primary_ledger_id)",
+    "legacyCompanyWorkDualRootCandidate",
+    "currentLegacyGateNotEndorsedAsUniversalLaw',true",
+    "notAGrant',true",
+    "notAFieldDisclosure',true",
+    "notASignedTargetSessionProof',true",
+    "notAnEffectivePermissionCertificate',true",
+):
+    check(proof in review, f"Contextual jurisdiction diagnostic missing: {proof}")
+check("contextualAuthorityReview" in review_tests and
+      "source_root_flags_only" in review_tests and
+      "notAnEffectivePermissionCertificate" in review_tests,
+      "Jurisdiction clone source-shape verification missing")
 check(not re.search(r"CREATE TABLE|INSERT INTO|UPDATE atlas\.|DELETE FROM",review,re.I),
       "read-only governor review cannot mutate data")
 check(review.count("GRANT EXECUTE ON FUNCTION") == 1 and
