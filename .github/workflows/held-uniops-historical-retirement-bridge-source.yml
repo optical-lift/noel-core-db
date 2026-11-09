@@ -1,0 +1,28 @@
+name: HELD UNI-OPS historical retirement bridge (source-only)
+
+on:
+  pull_request:
+    paths:
+      - 'tests/uniops_historical_retirement_signed_bridge_held.py'
+      - 'tests/test_uniops_historical_retirement_signed_bridge_held.py'
+      - '.github/workflows/held-uniops-historical-retirement-bridge-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile and test no-network historical source admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/uniops_historical_retirement_signed_bridge_held.py tests/test_uniops_historical_retirement_signed_bridge_held.py
+          python3 -m unittest discover -s tests -p 'test_uniops_historical_retirement_signed_bridge_held.py' -v
+          echo 'PASS source-only historical retirement bridge admission; genuine signed clone NOT RUN'
