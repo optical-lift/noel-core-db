@@ -4,6 +4,9 @@ import importlib.util
 from pathlib import Path
 import unittest
 
+# Include source-only, no-credential review of the distinct held U4 CI gate.
+from test_uniops_u4_protected_carrier_source import U4CarrierSourceSafety
+
 spec = importlib.util.spec_from_file_location(
     "review", Path(__file__).with_name("prepare_reviewed_uniops_u2c_context_scratch.py"))
 review = importlib.util.module_from_spec(spec)
