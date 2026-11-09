@@ -19,6 +19,16 @@ DECLARE
   v_as_of timestamptz := statement_timestamp();
   v_work_review jsonb := '[]'::jsonb;
   v_work_candidate_count integer := 0;
+  -- Governor-only diagnostic facts, never an authorization grant.
+  v_target_principal_count integer := 0;
+  v_target_principal_id uuid;
+  v_exact_participation_count integer := 0;
+  v_organization_id uuid;
+  v_primary_count integer := 0;
+  v_primary_ledger_id uuid;
+  v_target_exact_root boolean;
+  v_target_primary_root boolean;
+  v_jurisdiction_status text := 'unresolved';
 BEGIN
   -- Denied, missing, inactive, cross-Ledger and invalid targets have exactly
   -- the same response. Neither a native Seat nor a farm role grants data.
@@ -62,6 +72,44 @@ BEGIN
 
   IF v_seat_id IS NULL THEN
     RETURN jsonb_build_object('ok',false,'code','not_found');
+  END IF;
+
+  -- Option C first read-only jurisdiction explanation: an exact Ledger
+  -- root need not be the same as the Organization's primary Ledger root.
+  -- The current legacy Company Work gate requires BOTH, but this
+  -- candidate neither changes that gate nor claims target-session access.
+  -- Never select a convenient Principal or parent when the relationship
+  -- is ambiguous. Return unknown instead of a false effective permission.
+  SELECT count(*)::integer,(array_agg(p.id))[1]
+    INTO v_target_principal_count,v_target_principal_id
+  FROM atlas.principals p
+  WHERE p.person_id=p_person_entity_id AND p.status='active'
+    AND p.user_id IS NOT NULL;
+
+  SELECT count(*)::integer,(array_agg(lop.organization_id))[1]
+    INTO v_exact_participation_count,v_organization_id
+  FROM atlas.ledger_organization_participations lop
+  JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
+  WHERE lop.ledger_id=p_ledger_id AND lop.status='active'
+    AND lop.ended_at IS NULL
+    AND lop.participation_kind IN ('governing','operating');
+
+  IF v_target_principal_count=1 AND v_exact_participation_count=1 THEN
+    SELECT count(*)::integer,(array_agg(lop.ledger_id))[1]
+      INTO v_primary_count,v_primary_ledger_id
+    FROM atlas.ledger_organization_participations lop
+    JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
+    WHERE lop.organization_id=v_organization_id
+      AND lop.status='active' AND lop.ended_at IS NULL
+      AND lop.participation_kind='governing'
+      AND lop.is_compatibility_primary IS TRUE;
+    IF v_primary_count=1 THEN
+      v_target_exact_root := coalesce(
+        atlas.principal_has_ledger_authority_v1(v_target_principal_id,p_ledger_id),false);
+      v_target_primary_root := coalesce(
+        atlas.principal_has_ledger_authority_v1(v_target_principal_id,v_primary_ledger_id),false);
+      v_jurisdiction_status := 'source_root_flags_only';
+    END IF;
   END IF;
 
   -- Preliminary *governor-only* inputs for exact Work field decisions.
@@ -191,6 +239,23 @@ BEGIN
     'governorPrincipalId',v_principal_id,
     'verificationStatus','verification_incomplete',
     'mayCertifyNonDisclosure',false,
+    'contextualAuthorityReview',jsonb_build_object(
+      'status',v_jurisdiction_status,
+      'scope','current_selected_native_ledger',
+      'selectedLedgerRoot',v_target_exact_root,
+      'organizationPrimaryRoot',v_target_primary_root,
+      'legacyCompanyWorkDualRootCandidate',
+        CASE WHEN v_jurisdiction_status='source_root_flags_only'
+          THEN v_target_exact_root AND v_target_primary_root ELSE NULL END,
+      'selectedLedgerIsOrganizationPrimary',
+        CASE WHEN v_jurisdiction_status='source_root_flags_only'
+          THEN p_ledger_id=v_primary_ledger_id ELSE NULL END,
+      'currentLegacyGateNotEndorsedAsUniversalLaw',true,
+      'notAGrant',true,
+      'notAFieldDisclosure',true,
+      'notASignedTargetSessionProof',true,
+      'notAnEffectivePermissionCertificate',true
+    ),
     'preliminaryWorkFieldReview',jsonb_build_object(
       'status','governor_review_inputs_only',
       'notAnActualAccessInventory',true,
