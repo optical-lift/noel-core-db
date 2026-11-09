@@ -79,6 +79,57 @@ def valid_uuid(value):
     except (TypeError, ValueError, AttributeError):
         return False
 
+# All classes are literals; never echo HTTP response, SQL, Work, Person or JWT.
+# The first failed field is diagnostic only; original acceptance stays unchanged.
+U4_HTTP_CLASSES = {
+    200: "ok", 400: "bad_request", 401: "unauthorized",
+    403: "forbidden", 404: "not_found", 409: "conflict",
+}
+U4_SQL_ERROR_CLASSES = {
+    "42501": "source_permission",
+    "23514": "source_constraint",
+    "22023": "source_argument",
+    "23505": "source_conflict",
+    "42883": "missing_function",
+    "42P01": "missing_relation",
+    "42703": "missing_column",
+}
+U4_RECEIPT_FIELD_CLASSES = (
+    "non_object", "not_ok", "work_item_mismatch",
+    "actual_contract_mismatch", "not_completed",
+    "new_work_not_absent", "clock_not_absent",
+    "result_id_not_uuid", "accepted", "not_checked",
+)
+
+def actual_response_classes(status, response, work):
+    http_class=U4_HTTP_CLASSES.get(status) if isinstance(status,int) else None
+    if http_class is None:
+        http_class="server_failure" if isinstance(status,int) and status>=500 else "other_status"
+    code=response.get("code") if isinstance(response,dict) else None
+    error_class=U4_SQL_ERROR_CLASSES.get(code,"none_or_other") if isinstance(code,str) else "none_or_other"
+    if status != 200:
+        return http_class,error_class,"not_checked"
+    if not isinstance(response,dict):
+        field="non_object"
+    elif response.get("ok") is not True:
+        field="not_ok"
+    elif response.get("workItemId") != work:
+        field="work_item_mismatch"
+    elif response.get("physicalActualContractVersion") != "continuing_care_actual_v1":
+        field="actual_contract_mismatch"
+    elif response.get("workState") != "completed":
+        field="not_completed"
+    elif response.get("noNewWorkCreated") is not True:
+        field="new_work_not_absent"
+    elif response.get("noClockAdmission") is not True:
+        field="clock_not_absent"
+    elif not valid_uuid(response.get("workResultId")):
+        field="result_id_not_uuid"
+    else:
+        field="accepted"
+    assert field in U4_RECEIPT_FIELD_CLASSES
+    return http_class,error_class,field
+
 def accepted_receipt(receipt, work):
     return (
         isinstance(receipt, dict)
@@ -195,6 +246,11 @@ def prove(db_url, api, anon_key, tokens, work, *, sql, rpc):
             "U4 negative cases changed the physical Result")
 
     status, response = call("worker")
+    if status != 200 or not accepted_receipt(response,work):
+        http_class,error_class,receipt_field=actual_response_classes(status,response,work)
+        print("U4_ACTUAL_HTTP_CLASS="+http_class,flush=True)
+        print("U4_ACTUAL_ERROR_CLASS="+error_class,flush=True)
+        print("U4_ACTUAL_RECEIPT_FIELD="+receipt_field,flush=True)
     require(status==200 and accepted_receipt(response,work),
             "U4 signed first physical Result/one Done failed; hold source cutover")
     result_ref = "'" + response["workResultId"] + "'::uuid"
