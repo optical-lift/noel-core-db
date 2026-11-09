@@ -240,6 +240,58 @@ def main():
     no_seat=sessions["no-seat"][0]
     print("PASS four independent real local signed GoTrue sessions")
 
+    # Actual canonical source chain, not a fabricated original Work row:
+    # physical Zone -> legacy Task -> existing canonical Work adoption trigger.
+    # The first temporary legacy allocation is released by that same task
+    # adapter, preserving the ONE original Work for a real signed Person offer.
+    sql(args.db_url, """
+      INSERT INTO atlas.tasks(
+        id,organization_id,farm_id,zone_id,title,task_type,status,
+        visibility_scope,assigned_user_id,created_by_user_id,note,metadata
+      ) VALUES (
+        'e5200000-0000-4000-8000-000000000912',
+        'e5200000-0000-4000-8000-000000000801',
+        'e5200000-0000-4000-8000-000000000901',
+        'e5200000-0000-4000-8000-000000000911',
+        'Prepare fictional growing Bed','general','open',
+        'assigned_worker','e5200000-0000-4000-8000-000000000002',
+        'e5200000-0000-4000-8000-000000000001',
+        'Inspect and prepare only the named Bed in the synthetic Zone.',
+        '{"execution_do":"Prepare the named growing bed",'
+        '"execution_done_when":"Bed preparation is complete",'
+        '"display_action":"Prepare","display_subject":"Fictional growing bed"}'::jsonb
+      )
+    """)
+    work=sql(args.db_url,
+       "SELECT w.id::text FROM atlas.work_items w "
+       "WHERE w.source_object_type='legacy_task' AND "
+       "w.source_object_id='e5200000-0000-4000-8000-000000000912'::uuid "
+       "AND w.organization_id='"+ORG+"'::uuid AND w.work_state='open'")
+    check(bool(re.fullmatch(r"[0-9a-f-]{36}",work)),
+          "Canonical task adapter failed to create exactly one original Work")
+    check(sql(args.db_url,
+       "SELECT count(*) FROM atlas.work_allocations a "
+       "WHERE a.work_item_id='"+work+"'::uuid "
+       "AND a.allocation_role='responsible' AND a.state='active'")=="1",
+       "Original legacy source did not establish responsible Work")
+
+    # Removing its old execution-carrier assignment must preserve Work,
+    # and remove only that transitional allocation. The recipient will
+    # accept the SAME canonical Work via governed Person-native offer.
+    sql(args.db_url, """
+      UPDATE atlas.tasks
+      SET assigned_user_id=NULL,visibility_scope='farm_shared'
+      WHERE id='e5200000-0000-4000-8000-000000000912'
+    """)
+    check(sql(args.db_url,
+       "SELECT count(*) FROM atlas.work_allocations a "
+       "WHERE a.work_item_id='"+work+"'::uuid "
+       "AND a.allocation_role='responsible' AND a.state='active'")=="0"
+       and sql(args.db_url,"SELECT count(*) FROM atlas.work_items "
+           "WHERE id='"+work+"'::uuid AND work_state='open'")=="1",
+       "Legacy adapter must release the temporary allocation and preserve original Work")
+    print("PASS original source-backed Task adoption and preserved Work identity")
+
     flags(review(api,key,owner,OPERATING,WORKER_PERSON),True,False,False)
     flags(review(api,key,owner,OPERATING,OWNER_PERSON),True,True,False)
     flags(review(api,key,owner,PRIMARY,WORKER_PERSON),False,False,True)
