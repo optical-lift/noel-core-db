@@ -133,6 +133,7 @@ jobs:
           test "$(git -C controller hash-object scripts/uniops-c1-safe-postconditions-reason-held.py)" = b9acdf2a777e4bff113a4049ce6c00b8b948f681
           test "$(git -C controller hash-object scripts/uniops-c1-readonly-disposable-grants-held.py)" = b0e136e61454c8d8bb393c9e239a987a41b1c0c7
           test "$(git -C controller hash-object scripts/prepare-uniops-c1-disposable-grant-observation-held.py)" = 37311454857d79e9a18de585fa6b6c84885db024
+          test "$(git -C controller hash-object scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql)" = e38508e4965db8da11e4c596d3134a5aca45054f
           python3 -m py_compile signed/scripts/validate-atlas-c2-case-work-signed-http.py
           python3 -m py_compile controller/scripts/prepare-uniops-c2-protected-clone-hook-held.py
           # These canonical custody scripts resolve paths against $PWD.
@@ -210,11 +211,10 @@ jobs:
           C2_SOURCE_ROOT: ${{ github.workspace }}/proposed
         run: |
           set -euo pipefail
-          scratch="$RUNNER_TEMP/20261019201528_atlas_c2_installed_c1_baseline_noop_TEST_ONLY.sql"
           # The C1 source is already installed in the read-only schema source:
           # do NOT create competing tables or replay C1 migration over them.
-          printf 'select 1;\n' > "$scratch"
-          test "$(cat "$scratch")" = 'select 1;'
+          scratch="$GITHUB_WORKSPACE/controller/scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql"
+          test -s "$scratch"
           # The disposable validator accepts a candidate-validation path.
           # Generate a clone-only wrapper: SELECT six C1 function grants into
           # a private, fixed-format file, then include every byte of the
@@ -225,7 +225,7 @@ jobs:
             --wrapper "$RUNNER_TEMP/held-c1-postconditions-readonly-probe.sql" \
             --private-report "$RUNNER_TEMP/held-c2-private-diagnostics/held-c1-clone-grants-private.txt"
           cd canonical
-          if bash scripts/validate-production-schema-clone.sh \
+          if PGOPTIONS='-c uni_ops.disposable_clone=true' bash scripts/validate-production-schema-clone.sh \
             --migration-version 20261019201528 \
             --release-lane atlas \
             --candidate-migration "$scratch" \

@@ -480,6 +480,27 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertIn("checkout@v4", y)
         self.assertIn("pulls/2668", y)
         self.assertIn("pulls/2669", y)
+        # An exact, fail-closed C1 clone ACL restoration is necessary before
+        # C1 postconditions after owner-run #42839466786. It must not install
+        # the C1 migration or modify any production permissions.
+        self.assertIn(
+            'test "$(git -C controller hash-object '
+            'scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql)" = '
+            'e38508e4965db8da11e4c596d3134a5aca45054f', y)
+        self.assertIn(
+            'scratch="$GITHUB_WORKSPACE/controller/scripts/'
+            'uniops-c1-disposable-public-wrapper-anon-parity-held.sql"', y)
+        self.assertIn(
+            "if PGOPTIONS='-c uni_ops.disposable_clone=true' bash "
+            "scripts/validate-production-schema-clone.sh", y)
+        self.assertIn('--candidate-migration "$scratch"', y)
+        self.assertNotIn("printf 'select 1;\\n' > \"$scratch\"", y)
+        self.assertLess(
+            y.index('scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql)" ='),
+            y.index("Read-only protected schema and roles snapshot"))
+        self.assertLess(
+            y.index('scratch="$GITHUB_WORKSPACE/controller/scripts/'),
+            y.index("if PGOPTIONS='-c uni_ops.disposable_clone=true' bash"))
         # C1 clone observation does not change C1/C2 predicates or release
         # privileges. It only adds a fixed SELECT inside the clone's original
         # candidate-postconditions stage, followed by immutable C1 SQL.
@@ -513,7 +534,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
             y.index('Read-only protected schema and roles snapshot'))
         self.assertLess(
             y.index('--create-wrapper'),
-            y.index('if bash scripts/validate-production-schema-clone.sh'))
+            y.index("if PGOPTIONS='-c uni_ops.disposable_clone=true' bash scripts/validate-production-schema-clone.sh"))
         # The only privileged use of the allowlisted classifier is the
         # diagnostic failure branch; pin its immutable Git blob before the
         # protected snapshot and verify that no private summary is printed.
