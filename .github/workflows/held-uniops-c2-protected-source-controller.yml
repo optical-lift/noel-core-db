@@ -225,6 +225,9 @@ jobs:
             test -s "$RUNNER_TEMP/held-c2-private-diagnostics/held-c2-signed-private-receipt.txt"
             echo 'PASS disposable PG17 C1+C2 signed owner, source current/stale, denial and revocation'
           else
+            python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-disposable-stage-receipt.py" \
+              "$RUNNER_TEMP/held-c2-private-diagnostics/summary.md" \
+              || echo 'C2_DISPOSABLE_PHASE=unclassified'
             echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
             exit 1
           fi
