@@ -25,7 +25,7 @@ FALLBACK = "unclassified"
 BEFORE_FIRST = "before_source_match"
 LOOKUP = {message: (idx, label) for idx, (message, label) in enumerate(MARKERS)}
 
-# Reviewed revised C2 signer source blob 67aa03f3224b06078559f55c40c3d78c4d2e7f8a.
+# Reviewed revised C2 signer source blob add2d975e9045ea6992569ff592523987776b5b1.
 # These are the nine public-source call sites between owner visibility
 # PASS and the later source-proof invalidation PASS. A denied immutable
 # booking reassignment is explicitly expected before disposable source removal.
@@ -34,12 +34,12 @@ SOURCE_TRANSITION_POINTS = {
     180: "immutable_booking_reassignment_denial",
     193: "immutable_l1_source_preserved",
     197: "immutable_l2_source_absent",
-    205: "synthetic_source_removal",
-    210: "removed_l1_source_absent",
-    214: "removed_l2_source_absent",
-    218: "persisted_relevance",
-    224: "stale_owner_response",
-    228: "work_clock_unchanged",
+    207: "synthetic_source_removal",
+    215: "removed_l1_source_absent",
+    219: "removed_l2_source_absent",
+    223: "persisted_relevance",
+    229: "stale_owner_response",
+    233: "work_clock_unchanged",
 }
 PUBLIC_MAIN_FRAME = re.compile(
     r'^\s*File "(?:[^"\r\n]*/)?validate-atlas-c2-case-work-signed-http[.]py", '
