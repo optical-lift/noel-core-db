@@ -12,6 +12,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 HOOK = ROOT / "scripts/prepare-uniops-c2-protected-clone-hook-held.py"
 VALIDATOR = ROOT / "scripts/validate-production-schema-clone.sh"
 WORKFLOW = ROOT / ".github/workflows/held-uniops-c2-protected-source-controller.yml"
+STAGE_CLASSIFIER = ROOT / "scripts/uniops-c2-safe-disposable-stage-receipt.py"
 
 
 class HeldC2ControllerSource(unittest.TestCase):
@@ -175,6 +176,79 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
                            capture_output=True, text=True)
             self.assertEqual(receipt.read_text().splitlines(),
                              [command.rsplit("/", 1)[-1] for command in commands])
+
+    def test_safe_phase_classifier_matches_only_canonical_fixed_summary_lines(self):
+        """A failed clone can expose only a hardcoded, public-safe phase enum."""
+        spec = importlib.util.spec_from_file_location("c2_stage_classifier", STAGE_CLASSIFIER)
+        classifier = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(classifier)
+        self.assertEqual(
+            classifier.categorize_summary(
+                "**FAILED during disposable database startup.**\n"
+                "Inspect the attached raw diagnostics for the exact command output.\n"),
+            "disposable_startup")
+        self.assertEqual(
+            classifier.categorize_summary(
+                "# Production schema clone validation\n"
+                "Validation command exited during "
+                "\x60held C2 exact native Ledger source proof signed matrix\x60.\n"),
+            "c2_signed_local")
+        self.assertEqual(
+            classifier.categorize_summary(
+                "Validation command exited during "
+                "\x60signed local HTTP API authorization matrix\x60.\n"),
+            "c1_signed_local")
+        self.assertEqual(
+            classifier.categorize_summary(
+                "private_sql=Validation command exited during "
+                "\x60held C2 exact native Ledger source proof signed matrix\x60.\n"),
+            "unclassified")
+        self.assertEqual(
+            classifier.categorize_summary(
+                "**FAILED during attacker private-schema path.**\n"),
+            "unclassified")
+        self.assertEqual(
+            classifier.categorize_summary("a credential was refused\n"),
+            "unclassified")
+        self.assertEqual(
+            classifier.categorize_summary(
+                "Validation command exited during "
+                "\x60held C2 exact native Ledger source proof signed matrix\x60.\n"
+                "Validation command exited during \x60unrecognized stage\x60.\n"),
+            "unclassified")
+
+    def test_safe_phase_classifier_cli_never_prints_private_text(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            record = root / "summary.md"
+            marker = "SENSITIVE_FAKE_SQL_TOKEN_DO_NOT_ECHO"
+            record.write_text(
+                "## synthetic summary\n"
+                "Validation command exited during \x60production user-schema restore\x60.\n"
+                + marker + "\n")
+            result = subprocess.run(
+                ["python3", str(STAGE_CLASSIFIER), str(record)],
+                capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout, "C2_DISPOSABLE_PHASE=clone_schema_restore\n")
+            self.assertNotIn(marker, result.stdout + result.stderr)
+            missing = subprocess.run(
+                ["python3", str(STAGE_CLASSIFIER), str(root / "missing")],
+                capture_output=True, text=True, check=True)
+            self.assertEqual(missing.stdout, "C2_DISPOSABLE_PHASE=unclassified\n")
+            oversize = root / "oversize.md"
+            oversize.write_text(
+                "Validation command exited during \x60production user-schema restore\x60.\n"
+                + "X" * 66000)
+            large = subprocess.run(
+                ["python3", str(STAGE_CLASSIFIER), str(oversize)],
+                capture_output=True, text=True, check=True)
+            self.assertEqual(large.stdout, "C2_DISPOSABLE_PHASE=unclassified\n")
+            sym = root / "symlink.md"
+            sym.symlink_to(record)
+            symlinked = subprocess.run(
+                ["python3", str(STAGE_CLASSIFIER), str(sym)],
+                capture_output=True, text=True, check=True)
+            self.assertEqual(symlinked.stdout, "C2_DISPOSABLE_PHASE=unclassified\n")
 
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
