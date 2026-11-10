@@ -795,7 +795,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertIn("github.event.issue.title == 'UNI-OPS C2 exact Ledger Case Work signed disposable test request'", protected)
         self.assertIn("ref: 32d67670259e37fc1bd1485ede2a4db7fc4e5401", protected)
         self.assertIn("ref: 2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17", protected)
-        self.assertIn("ref: c5244575e3379c414ce58945df89138e00041c12", protected)
+        self.assertIn("ref: 0809d5e08ede4fe17c7ea22493354fadf867d8c4", protected)
         self.assertTrue(y.index("Validate exact owner diagnostic scope") <
                         y.index("Read-only protected schema and roles snapshot") <
                         y.index("Validate C2 only on disposable clone"))
