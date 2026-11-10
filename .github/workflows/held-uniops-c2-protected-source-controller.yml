@@ -131,9 +131,15 @@ jobs:
           test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = c4c107e147105c11770cc73f224f24ad9ae63186
           python3 -m py_compile signed/scripts/validate-atlas-c2-case-work-signed-http.py
           python3 -m py_compile controller/scripts/prepare-uniops-c2-protected-clone-hook-held.py
-          bash canonical/scripts/check-custody.sh
-          bash canonical/scripts/check-production-release-contract.sh
-          bash canonical/scripts/check-production-schema-validation-contract.sh
+          # These canonical custody scripts resolve paths against $PWD.
+          # The root GitHub workspace is NOT the canonical checkout. Keep all
+          # three commands in the same pinned checkout; do not relax checks.
+          (
+            cd canonical
+            bash scripts/check-custody.sh
+            bash scripts/check-production-release-contract.sh
+            bash scripts/check-production-schema-validation-contract.sh
+          )
           echo 'PASS exact canonical validator, fixed C1, held source and held six-original test hashes'
 
       - name: Verify candidate and test PRs remain distinct draft, held and immutable
