@@ -128,7 +128,7 @@ jobs:
           test "$(git -C canonical hash-object candidates/atlas-company-work-operating-register-v1/fixture.sql)" = 686754e2ffb03d9f4f7e11806421b0491d091b63
           test "$(git -C canonical hash-object candidates/atlas-company-work-operating-register-v1/postconditions.sql)" = 239a1f3d264d9c66ced7965c325d5d22f0945224
           test "$(git -C proposed hash-object docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql)" = bce85f944bbc27532021e670c4b5a342bffcc505
-          test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = c4c107e147105c11770cc73f224f24ad9ae63186
+          test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = 926197145d3dc6f36eb36501999557293d8f41c0
           test "$(git -C controller hash-object scripts/uniops-c2-safe-disposable-stage-receipt.py)" = 9ebd246ff262b471ef35b0c60b86ef6e4dcd507f
           test "$(git -C controller hash-object scripts/uniops-c1-safe-postconditions-reason-held.py)" = b9acdf2a777e4bff113a4049ce6c00b8b948f681
           test "$(git -C controller hash-object scripts/uniops-c1-readonly-disposable-grants-held.py)" = b0e136e61454c8d8bb393c9e239a987a41b1c0c7
@@ -256,6 +256,21 @@ jobs:
               python3 "$GITHUB_WORKSPACE/controller/scripts/prepare-uniops-c1-disposable-grant-observation-held.py" \
                 --report "$RUNNER_TEMP/held-c2-private-diagnostics/held-c1-clone-grants-private.txt" \
                 || echo 'C1_CLONE_ACL=unclassified'
+            fi
+            # Reveal only an allowlisted fixed C2 substage token, never the
+            # private SQL/error logs or the synthetic actor receipt.
+            if [ "$phase" = 'C2_DISPOSABLE_PHASE=c2_signed_local' ]; then
+              marker="$RUNNER_TEMP/held-c2-private-diagnostics/held-c2-substage-private.txt"
+              tag=unclassified
+              if [ -f "$marker" ] && [ ! -L "$marker" ] && [ "$(wc -c < "$marker")" -le 24 ]; then
+                receipt_stage="$(cat "$marker")"
+                case "$receipt_stage" in
+                  baseline|candidate_install|fixture_setup|signed_http|receipt_check)
+                    tag="$receipt_stage" ;;
+                  *) ;;
+                esac
+              fi
+              echo "C2_SIGNED_SUBSTAGE=$tag"
             fi
             echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
             exit 1
