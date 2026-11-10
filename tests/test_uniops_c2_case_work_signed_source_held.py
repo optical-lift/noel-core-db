@@ -25,7 +25,7 @@ class C2SignedTestSourceReview(unittest.TestCase):
                          'revoked native root', 'ended native seat',
                          'ended GoTrue session',
                          'set(read_owner(api, key, owner)) == {W_L1, W_VERIFIED, W_STALE}',
-                         'read_owner(api, key, owner) == []',
+                         'W_VERIFIED, "C2 SOURCE VERIFIED L1 VALID")) == []',
                          'fingerprint(args.db_url)'):
             self.assertIn(expected, self.driver)
         self.assertIn('parsed.hostname in ("127.0.0.1", "localhost")', self.c1)
