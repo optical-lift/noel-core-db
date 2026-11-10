@@ -9,6 +9,7 @@ Never use a remote DB or PostgREST endpoint.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import runpy
@@ -104,6 +105,8 @@ def read_owner(api, key, token, extra_forbidden=()):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--db-url", required=True)
+    parser.add_argument("--expected-function-sql", required=True,
+                        help="Pinned #2668 pg_get_functiondef candidate, checkout verified by trusted controller")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     check(re.fullmatch(r"postgres(?:ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres",
@@ -113,6 +116,24 @@ def main():
           "C2 requires disposable PG17")
     check(sql(args.db_url, "select current_setting('uni_ops.disposable_clone',true)") == "true",
           "C2 explicit disposable clone guard absent")
+    # This protects against a green result on the wrong installed function.
+    # Only a separately authorized trusted controller may supply a checkout
+    # of the immutable, reviewed #2668 candidate SQL. This driver cannot
+    # establish the Git ref or authorize installing the candidate.
+    expected_file = Path(args.expected_function_sql)
+    check(expected_file.is_file(), "C2 pinned candidate function SQL missing")
+    expected_function = expected_file.read_text(encoding="utf-8").strip()
+    check(expected_function.startswith(
+        "CREATE OR REPLACE FUNCTION atlas.operating_requirements_owner_self_api_v1("),
+        "C2 expected source does not name the exact operating owner RPC")
+    actual_function = sql(args.db_url, """
+        select pg_get_functiondef(
+          'atlas.operating_requirements_owner_self_api_v1(uuid,uuid,integer)'::regprocedure)
+    """).strip()
+    check(hashlib.sha256(actual_function.encode()).digest()
+          == hashlib.sha256(expected_function.encode()).digest(),
+          "C2 disposable installed owner SQL differs from reviewed, pinned candidate")
+    print("PASS C2 installed disposable owner source matches supplied exact candidate")
     check(sql(args.db_url, f"""
         select count(*) from auth.users
         where id in ('{OWNER}','{WORKER}','{OUTSIDER}','{NO_SEAT}')
