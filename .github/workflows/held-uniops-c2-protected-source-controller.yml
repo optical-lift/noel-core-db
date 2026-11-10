@@ -130,7 +130,7 @@ jobs:
           test "$(git -C proposed hash-object docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql)" = bce85f944bbc27532021e670c4b5a342bffcc505
           test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = 926197145d3dc6f36eb36501999557293d8f41c0
           test "$(git -C controller hash-object scripts/uniops-c2-safe-disposable-stage-receipt.py)" = 9ebd246ff262b471ef35b0c60b86ef6e4dcd507f
-          test "$(git -C controller hash-object scripts/uniops-c2-safe-signed-checkpoint-held.py)" = 0527eea8668518b9a64452982a43a2accefdac17
+          test "$(git -C controller hash-object scripts/uniops-c2-safe-signed-checkpoint-held.py)" = 79aa45ae81a36479b524b9aa57eee7aadfab466b
           test "$(git -C controller hash-object scripts/uniops-c1-safe-postconditions-reason-held.py)" = b9acdf2a777e4bff113a4049ce6c00b8b948f681
           test "$(git -C controller hash-object scripts/uniops-c1-readonly-disposable-grants-held.py)" = b0e136e61454c8d8bb393c9e239a987a41b1c0c7
           test "$(git -C controller hash-object scripts/prepare-uniops-c1-disposable-grant-observation-held.py)" = 37311454857d79e9a18de585fa6b6c84885db024

@@ -619,7 +619,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         y = self.workflow
         pin = ('test "$(git -C controller hash-object scripts/'
                'uniops-c2-safe-signed-checkpoint-held.py)" = '
-               '0527eea8668518b9a64452982a43a2accefdac17')
+               '79aa45ae81a36479b524b9aa57eee7aadfab466b')
         self.assertIn(pin, y)
         call = 'python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-signed-checkpoint-held.py"'
         self.assertEqual(y.count(call), 1)
@@ -631,6 +631,50 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertLess(y.index(call), y.index(
             "echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'"))
         self.assertNotIn("cat held-c2-signed-private.log", y)
+
+    def test_stale_source_traceback_frame_maps_only_to_fixed_public_test_sites(self):
+        """A private signed traceback yields only one pinned source call-site token."""
+        helper = ROOT / "scripts/uniops-c2-safe-signed-checkpoint-held.py"
+        spec = importlib.util.spec_from_file_location("c2_safe_line_class", helper)
+        m = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(m)
+        expected = {
+            180: "retarget_native_source",
+            185: "old_ledger_source_proof",
+            189: "new_ledger_source_proof",
+            193: "persisted_relevance",
+            199: "stale_owner_response",
+            203: "work_clock_unchanged",
+        }
+        self.assertEqual(m.SOURCE_TRANSITION_POINTS, expected)
+        owner_prefix = "\n".join(x[0] for x in m.MARKERS[:2]) + "\n"
+        for number, tag in expected.items():
+            frame = ('  File "/fake/private/validate-atlas-c2-case-work-signed-http.py", '
+                     f'line {number}, in main\n')
+            private = owner_prefix + "Traceback (most recent call last):\n" + frame
+            private += "AssertionError: FAKE_PRIVATE_CREDENTIAL_OR_SQL\n"
+            self.assertEqual(m.classify_log(private), "owner_visibility")
+            self.assertEqual(m.classify_source_transition(private), tag)
+            with tempfile.TemporaryDirectory() as directory:
+                path = pathlib.Path(directory) / "private.log"
+                path.write_text(private, encoding="utf-8")
+                run = subprocess.run(["python3", str(helper), str(path)],
+                                     capture_output=True, text=True, check=True)
+                self.assertEqual(
+                    run.stdout,
+                    "C2_SIGNED_CHECKPOINT=owner_visibility\n"
+                    f"C2_SOURCE_TRANSITION_POINT={tag}\n")
+                self.assertNotIn("FAKE_PRIVATE", run.stdout + run.stderr)
+        self.assertEqual(m.classify_source_transition(owner_prefix), "unclassified")
+        self.assertEqual(m.classify_source_transition(
+            owner_prefix +
+            '  File "/fake/validate-atlas-c2-case-work-signed-http.py", line 199, in main\n' +
+            '  File "/fake/validate-atlas-c2-case-work-signed-http.py", line 203, in main\n'),
+            "unclassified")
+        self.assertEqual(m.classify_source_transition(
+            '  File "/fake/validate-atlas-c2-case-work-signed-http.py", line 999, in main\n'),
+            "unclassified")
+
 
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
