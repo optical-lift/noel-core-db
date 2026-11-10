@@ -13,6 +13,8 @@ HOOK = ROOT / "scripts/prepare-uniops-c2-protected-clone-hook-held.py"
 VALIDATOR = ROOT / "scripts/validate-production-schema-clone.sh"
 WORKFLOW = ROOT / ".github/workflows/held-uniops-c2-protected-source-controller.yml"
 STAGE_CLASSIFIER = ROOT / "scripts/uniops-c2-safe-disposable-stage-receipt.py"
+C1_REASON_CLASSIFIER = ROOT / "scripts/uniops-c1-safe-postconditions-reason-held.py"
+C1_PINNED_POSTCONDITIONS = ROOT / "candidates/atlas-company-work-operating-register-v1/postconditions.sql"
 
 
 class HeldC2ControllerSource(unittest.TestCase):
@@ -249,6 +251,66 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
                 ["python3", str(STAGE_CLASSIFIER), str(sym)],
                 capture_output=True, text=True, check=True)
             self.assertEqual(symlinked.stdout, "C2_DISPOSABLE_PHASE=unclassified\n")
+
+    def test_c1_reason_classifier_exactly_matches_held_canonical_assertions(self):
+        import re
+        source = C1_PINNED_POSTCONDITIONS.read_text(encoding="utf-8")
+        expressions = re.findall(r"raise exception '([^']+)'", source, flags=re.I)
+        spec = importlib.util.spec_from_file_location("c1_reasons", C1_REASON_CLASSIFIER)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(len(expressions), 27)
+        self.assertEqual(list(module.ASSERTION_CODES), expressions)
+        for position, expression in enumerate(expressions, start=1):
+            example = ("/tmp/PRIVATE_NAME_DO_NOT_REPORT.sql:340: "
+                       "ERROR:  " + expression)
+            self.assertEqual(module.classify_text("psql:" + example + "\n"),
+                             f"assertion_{position:02d}")
+        self.assertEqual(module.classify_text("ERROR:  permission denied for schema PRIVATE\n"),
+                         "permission_denied")
+        self.assertEqual(module.classify_text("ERROR:  function PRIVATE.do_thing() does not exist\n"),
+                         "missing_function")
+        self.assertEqual(module.classify_text(
+            "CONTEXT: ERROR:  Revoked native seat still read C1 register\n"),
+            "unclassified")
+        self.assertEqual(module.classify_text(
+            "ERROR:  completely unknown private SQL diagnostic here\n"),
+            "unclassified")
+        self.assertEqual(module.classify_text(
+            "ERROR:  Revoked native seat still read C1 register\n"
+            "ERROR:  Unsafe direct register table privileges\n"),
+            "unclassified")
+
+    def test_c1_reason_classifier_cli_private_log_fail_closed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            record = root / "postconditions.log"
+            secret = "FAKE_SECRET_SHOULD_NOT_LEAK_IN_ANY_OUTPUT"
+            record.write_text(
+                "psql:/tmp/PRIVATE_NAME_DO_NOT_REPORT.sql:44: "
+                "ERROR:  Register RPC role grants incorrect\n"
+                "STATEMENT: " + secret + "\n", encoding="utf-8")
+            result = subprocess.run(
+                ["python3", str(C1_REASON_CLASSIFIER), str(record)],
+                capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout, "C1_POSTCONDITIONS_REASON=assertion_06\n")
+            self.assertNotIn(secret, result.stdout + result.stderr)
+            large = root / "oversize.log"
+            large.write_text(record.read_text() + "x" * 66000)
+            oversized = subprocess.run(
+                ["python3", str(C1_REASON_CLASSIFIER), str(large)],
+                capture_output=True, text=True, check=True)
+            self.assertEqual(oversized.stdout, "C1_POSTCONDITIONS_REASON=unclassified\n")
+            alias = root / "symlink.log"
+            alias.symlink_to(record)
+            symlinked = subprocess.run(
+                ["python3", str(C1_REASON_CLASSIFIER), str(alias)],
+                capture_output=True, text=True, check=True)
+            self.assertEqual(symlinked.stdout, "C1_POSTCONDITIONS_REASON=unclassified\n")
+            missing = subprocess.run(
+                ["python3", str(C1_REASON_CLASSIFIER), str(root / "absent.log")],
+                capture_output=True, text=True, check=True)
+            self.assertEqual(missing.stdout, "C1_POSTCONDITIONS_REASON=unclassified\n")
 
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
