@@ -130,6 +130,7 @@ jobs:
           test "$(git -C proposed hash-object docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql)" = bce85f944bbc27532021e670c4b5a342bffcc505
           test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = c4c107e147105c11770cc73f224f24ad9ae63186
           test "$(git -C controller hash-object scripts/uniops-c2-safe-disposable-stage-receipt.py)" = 9ebd246ff262b471ef35b0c60b86ef6e4dcd507f
+          test "$(git -C controller hash-object scripts/uniops-c1-safe-postconditions-reason-held.py)" = b9acdf2a777e4bff113a4049ce6c00b8b948f681
           python3 -m py_compile signed/scripts/validate-atlas-c2-case-work-signed-http.py
           python3 -m py_compile controller/scripts/prepare-uniops-c2-protected-clone-hook-held.py
           # These canonical custody scripts resolve paths against $PWD.
@@ -232,6 +233,12 @@ jobs:
             echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
             exit 1
           fi
+            if [ "$(python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-disposable-stage-receipt.py" \
+              "$RUNNER_TEMP/held-c2-private-diagnostics/summary.md" 2>/dev/null)" = 'C2_DISPOSABLE_PHASE=c1_postconditions' ]; then
+              python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c1-safe-postconditions-reason-held.py" \
+                "$RUNNER_TEMP/held-c2-private-diagnostics/postconditions.log" 2>/dev/null \
+                || echo 'C1_POSTCONDITIONS_REASON=unclassified'
+            fi
           # All raw diagnostic, schema, credential, token and SQL output remains
           # private to the ephemeral runner. No artifact upload and no PR comment.
 
