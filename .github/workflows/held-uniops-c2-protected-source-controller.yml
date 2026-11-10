@@ -129,6 +129,7 @@ jobs:
           test "$(git -C canonical hash-object candidates/atlas-company-work-operating-register-v1/postconditions.sql)" = 239a1f3d264d9c66ced7965c325d5d22f0945224
           test "$(git -C proposed hash-object docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql)" = bce85f944bbc27532021e670c4b5a342bffcc505
           test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = c4c107e147105c11770cc73f224f24ad9ae63186
+          test "$(git -C controller hash-object scripts/uniops-c2-safe-disposable-stage-receipt.py)" = 9ebd246ff262b471ef35b0c60b86ef6e4dcd507f
           python3 -m py_compile signed/scripts/validate-atlas-c2-case-work-signed-http.py
           python3 -m py_compile controller/scripts/prepare-uniops-c2-protected-clone-hook-held.py
           # These canonical custody scripts resolve paths against $PWD.
@@ -225,6 +226,9 @@ jobs:
             test -s "$RUNNER_TEMP/held-c2-private-diagnostics/held-c2-signed-private-receipt.txt"
             echo 'PASS disposable PG17 C1+C2 signed owner, source current/stale, denial and revocation'
           else
+            python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-disposable-stage-receipt.py" \
+              "$RUNNER_TEMP/held-c2-private-diagnostics/summary.md" \
+              || echo 'C2_DISPOSABLE_PHASE=unclassified'
             echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
             exit 1
           fi

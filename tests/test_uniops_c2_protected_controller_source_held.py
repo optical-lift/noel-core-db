@@ -270,6 +270,23 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertIn("checkout@v4", y)
         self.assertIn("pulls/2668", y)
         self.assertIn("pulls/2669", y)
+        # The only privileged use of the allowlisted classifier is the
+        # diagnostic failure branch; pin its immutable Git blob before the
+        # protected snapshot and verify that no private summary is printed.
+        self.assertIn(
+            'test "$(git -C controller hash-object '
+            'scripts/uniops-c2-safe-disposable-stage-receipt.py)" = '
+            '9ebd246ff262b471ef35b0c60b86ef6e4dcd507f', y)
+        safe_call = ('python3 "$GITHUB_WORKSPACE/controller/scripts/'
+                     'uniops-c2-safe-disposable-stage-receipt.py"')
+        self.assertEqual(y.count(safe_call), 1)
+        self.assertIn(
+            '"$RUNNER_TEMP/held-c2-private-diagnostics/summary.md"', y)
+        self.assertIn("|| echo 'C2_DISPOSABLE_PHASE=unclassified'", y)
+        self.assertLess(y.index('scripts/uniops-c2-safe-disposable-stage-receipt.py)" ='),
+                        y.index('Read-only protected schema and roles snapshot'))
+        self.assertLess(y.index('Read-only protected schema and roles snapshot'),
+                        y.index(safe_call))
         self.assertNotIn("workflow_dispatch:", y)
         self.assertNotIn("supabase db push", y)
         self.assertNotIn("supabase migration up", y)
