@@ -496,8 +496,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertIn('--candidate-migration "$scratch"', y)
         self.assertNotIn("printf 'select 1;\\n' > \"$scratch\"", y)
         self.assertLess(
-            y.index("scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql)\" =")
-            if False else y.index('scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql)" ='),
+            y.index('scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql)" ='),
             y.index("Read-only protected schema and roles snapshot"))
         self.assertLess(
             y.index('scratch="$GITHUB_WORKSPACE/controller/scripts/'),
