@@ -1,0 +1,239 @@
+name: HELD UNI-OPS C2 exact Ledger signed Case Work disposable clone (owner issue only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-uniops-c2-protected-source-controller.yml'
+      - 'scripts/prepare-uniops-c2-protected-clone-hook-held.py'
+      - 'tests/test_uniops_c2_protected_controller_source_held.py'
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  packages: read
+  issues: read
+  pull-requests: read
+
+concurrency:
+  group: held-uniops-c2-native-ledger-signed-clone-owner
+  cancel-in-progress: false
+
+jobs:
+  source-review-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify disposable validator COPY and protected-owner gate offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uniops-c2-protected-source-controller.yml")'
+          python3 -m py_compile scripts/prepare-uniops-c2-protected-clone-hook-held.py
+          python3 tests/test_uniops_c2_protected_controller_source_held.py
+          bash -n scripts/validate-production-schema-clone.sh
+          echo 'PASS unprivileged PR-only C2 controller source; no protected run'
+
+  protected-disposable-signed-c2:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.user.login == github.actor &&
+      github.event.issue.title == 'UNI-OPS C2 exact Ledger Case Work signed disposable test request'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 50
+    permissions:
+      contents: read
+      packages: read
+      issues: read
+      pull-requests: read
+    steps:
+      - name: Validate exact owner diagnostic scope BEFORE any protected secret or snapshot
+        id: request
+        shell: bash
+        env:
+          REQUEST_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, re
+          expected = {
+              'diagnostic_scope': 'uniops_c2_native_ledger_case_work_signed_disposable_v1',
+              'production_target': 'zirqkouammpwxlqfbsvf',
+              'canonical_head': '32d67670259e37fc1bd1485ede2a4db7fc4e5401',
+              'source_head': '2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17',
+              'fixture_head': '7e9b712c38d6a9ff2ef3922f735431bc5dfd5f04',
+              'release_intent': 'none',
+              'test_only': 'true',
+          }
+          body = os.environ.get('REQUEST_BODY','')
+          found = {}
+          for line in body.splitlines():
+              match = re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*', line.strip())
+              if match:
+                  k, v = match.groups()
+                  if k in found:
+                      raise SystemExit('REFUSE duplicate owner request field')
+                  found[k] = v
+          if found != expected:
+              raise SystemExit('REFUSE C2: missing, changed or extra owner request pin')
+          print('PASS exact owner-authored C2 signed disposable TEST ONLY scope; no release')
+          PY
+
+      - name: Checkout exact trusted source and immutable held test inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = issues
+          test "$GITHUB_REF_TYPE" != 'tag' || exit 1
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: controller
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 32d67670259e37fc1bd1485ede2a4db7fc4e5401
+          path: canonical
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17
+          path: proposed
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 7e9b712c38d6a9ff2ef3922f735431bc5dfd5f04
+          path: signed
+          persist-credentials: false
+
+      - name: Verify immutable proposed source, C1 and trusted hook hashes without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C canonical rev-parse HEAD)" = 32d67670259e37fc1bd1485ede2a4db7fc4e5401
+          test "$(git -C proposed rev-parse HEAD)" = 2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17
+          test "$(git -C signed rev-parse HEAD)" = 7e9b712c38d6a9ff2ef3922f735431bc5dfd5f04
+          test "$(git -C canonical hash-object scripts/validate-production-schema-clone.sh)" = 39f526cd8671f0aadbaab61c66dfc4971ef52131
+          test "$(git -C canonical hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+          test "$(git -C canonical hash-object candidates/atlas-company-work-operating-register-v1/fixture.sql)" = 686754e2ffb03d9f4f7e11806421b0491d091b63
+          test "$(git -C canonical hash-object candidates/atlas-company-work-operating-register-v1/postconditions.sql)" = 239a1f3d264d9c66ced7965c325d5d22f0945224
+          test "$(git -C proposed hash-object docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql)" = bce85f944bbc27532021e670c4b5a342bffcc505
+          test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = c4c107e147105c11770cc73f224f24ad9ae63186
+          python3 -m py_compile signed/scripts/validate-atlas-c2-case-work-signed-http.py
+          python3 -m py_compile controller/scripts/prepare-uniops-c2-protected-clone-hook-held.py
+          bash canonical/scripts/check-custody.sh
+          bash canonical/scripts/check-production-release-contract.sh
+          bash canonical/scripts/check-production-schema-validation-contract.sh
+          echo 'PASS exact canonical validator, fixed C1, held source and held six-original test hashes'
+
+      - name: Verify candidate and test PRs remain distinct draft, held and immutable
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          source_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2668" --jq '[.state,(.draft|tostring),.head.sha]|join("|")')"
+          fixture_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2669" --jq '[.state,(.draft|tostring),.head.sha]|join("|")')"
+          test "$source_pr" = "open|true|2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17"
+          test "$fixture_pr" = "open|true|7e9b712c38d6a9ff2ef3922f735431bc5dfd5f04"
+          echo 'PASS source and test remain separate HELD PRs'
+
+      - name: Pin canonical validator COPY and inject one C2 hook; leave canonical main untouched
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp canonical/scripts/validate-production-schema-clone.sh canonical/scripts/validate-production-schema-clone.sh.c2-immutable-original
+          python3 controller/scripts/prepare-uniops-c2-protected-clone-hook-held.py canonical/scripts/validate-production-schema-clone.sh
+          bash -n canonical/scripts/validate-production-schema-clone.sh
+          test "$(git -C canonical hash-object scripts/validate-production-schema-clone.sh.c2-immutable-original)" = 39f526cd8671f0aadbaab61c66dfc4971ef52131
+          echo 'PASS one C2 hook only on local checked-out validator COPY'
+
+      - name: Install exact pinned Supabase CLI and verify local-only tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/c2-supabase.tgz"
+          tar -xzf "$RUNNER_TEMP/c2-supabase.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n 1)" = '2.116.0'
+          psql --version >/dev/null
+          python3 --version >/dev/null
+
+      - name: Authenticate GitHub container registry for disposable image pulls only
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USERNAME: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin >/dev/null
+          echo 'PASS disposable clone image pull access'
+
+      - name: Read-only protected schema and roles snapshot
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/production-custom-roles.sql" >"$RUNNER_TEMP/held-c2-role-snapshot-private.log" 2>&1
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/production-user-schema.sql" >"$RUNNER_TEMP/held-c2-schema-snapshot-private.log" 2>&1
+          test -s "$RUNNER_TEMP/production-custom-roles.sql"
+          test -s "$RUNNER_TEMP/production-user-schema.sql"
+          echo 'PASS read-only private schema+role snapshot; NO production data rows/SQL writes'
+
+      - name: Validate C2 only on disposable clone with genuine local C1 and C2 GoTrue sessions
+        id: diagnostic
+        shell: bash
+        env:
+          C2_TEST_ROOT: ${{ github.workspace }}/signed
+          C2_SOURCE_ROOT: ${{ github.workspace }}/proposed
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/20261019201528_atlas_c2_installed_c1_baseline_noop_TEST_ONLY.sql"
+          # The C1 source is already installed in the read-only schema source:
+          # do NOT create competing tables or replay C1 migration over them.
+          printf 'select 1;\n' > "$scratch"
+          test "$(cat "$scratch")" = 'select 1;'
+          cd canonical
+          if bash scripts/validate-production-schema-clone.sh \
+            --migration-version 20261019201528 \
+            --release-lane atlas \
+            --candidate-migration "$scratch" \
+            --candidate-fixture "$GITHUB_WORKSPACE/canonical/candidates/atlas-company-work-operating-register-v1/fixture.sql" \
+            --candidate-validation "$GITHUB_WORKSPACE/canonical/candidates/atlas-company-work-operating-register-v1/postconditions.sql" \
+            --roles-dump "$RUNNER_TEMP/production-custom-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/held-c2-private-diagnostics" \
+            >"$RUNNER_TEMP/held-c2-validation-private.log" 2>&1; then
+            test -s "$RUNNER_TEMP/held-c2-private-diagnostics/held-c2-signed-private-receipt.txt"
+            echo 'PASS disposable PG17 C1+C2 signed owner, source current/stale, denial and revocation'
+          else
+            echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
+            exit 1
+          fi
+          # All raw diagnostic, schema, credential, token and SQL output remains
+          # private to the ephemeral runner. No artifact upload and no PR comment.
+
+      - name: Final limited diagnostic accounting
+        if: always()
+        shell: bash
+        env:
+          DIAGNOSTIC_OUTCOME: ${{ steps.diagnostic.outcome }}
+        run: |
+          set -euo pipefail
+          case "$DIAGNOSTIC_OUTCOME" in
+            success) echo 'C2 HELD: signed clone PASS. Production RELEASE/INSTALL and cross-Ledger universal reader remain HELD.' ;;
+            failure) echo 'C2 HELD: signed clone FAILED (private details withheld). Production and originals unchanged.' ;;
+            *) echo 'C2 HELD: signed clone NOT EXECUTED or aborted before diagnostic. No signed acceptance.' ;;
+          esac
