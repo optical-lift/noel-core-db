@@ -146,7 +146,7 @@ jobs:
           import re
           pairs={}
           expected={
-              'diagnostic_scope':'uni_ops_a_u2_signed_disposable_schema_v1',
+              'diagnostic_scope':'uni_ops_a_history_signed_disposable_v1',
               'source_choice':'a_full_current_completion_plus_history',
               'signed_contract':'u1b_u2_mowing_accepted_first_v1',
               'source_review':'u2c_context_guard_two_blobs_v1',
