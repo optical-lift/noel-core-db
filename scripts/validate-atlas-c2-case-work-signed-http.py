@@ -49,7 +49,8 @@ def fingerprint(db_url):
         where schemaname='atlas' and
         (tablename like 'work\\_%' escape '\\'
          or tablename like '%clock%'
-         or tablename like 'company_work\\_%' escape '\\')
+         or (tablename like 'company_work\\_%' escape '\\'
+             and tablename <> 'company_work_native_ledger_relevance'))
         order by tablename
     """).splitlines()
     check("work_items" in tables and "work_allocations" in tables,
