@@ -161,10 +161,11 @@ python3() {
             for command in commands:
                 file = canonical / command.split(" ", 1)[1]
                 file.write_text(
-                    "#!/usr/bin/env bash\n"
-                    "set -euo pipefail\n"
-                    "test -f schemas/OWNERSHIP.md\n"
-                    "printf '%s\\n' \"$(basename \"$0\")\" >> \"$TRACE\"\n",
+                    r"""#!/usr/bin/env bash
+set -euo pipefail
+test -f schemas/OWNERSHIP.md
+printf '%s\n' "${0##*/}" >> "$TRACE"
+""",
                     encoding="utf-8",
                 )
             block = beginning + segment + closing
