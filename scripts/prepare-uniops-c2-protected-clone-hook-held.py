@@ -28,16 +28,16 @@ test "$(psql "$database_url" -X -A -t -v ON_ERROR_STOP=1 -c "select md5(pg_get_f
 # Never mutate the actual protected schema source: all psql connections below
 # must be the validator's generated disposable local database URL.
 [[ "$database_url" =~ ^postgresql://postgres:postgres@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
-PGOPTIONS='-c uni_ops.disposable_clone=true' psql "$database_url" -X -v ON_ERROR_STOP=1 \
-  -f "$C2_SOURCE_ROOT/docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql" \
+PGOPTIONS='-c uni_ops.disposable_clone=true' psql "$database_url" -X -v ON_ERROR_STOP=1 \\
+  -f "$C2_SOURCE_ROOT/docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql" \\
   >"$artifacts_dir/held-c2-disposable-function.log" 2>&1
-PGOPTIONS='-c uni_ops.disposable_clone=true' psql "$database_url" -X -v ON_ERROR_STOP=1 \
-  -f "$C2_TEST_ROOT/tests/uniops_c2_case_work_disposable_fixture_held.sql" \
+PGOPTIONS='-c uni_ops.disposable_clone=true' psql "$database_url" -X -v ON_ERROR_STOP=1 \\
+  -f "$C2_TEST_ROOT/tests/uniops_c2_case_work_disposable_fixture_held.sql" \\
   >"$artifacts_dir/held-c2-six-original-fixture.log" 2>&1
-PGOPTIONS='-c uni_ops.disposable_clone=true' python3 "$C2_TEST_ROOT/scripts/validate-atlas-c2-case-work-signed-http.py" \
-  --db-url "$database_url" \
-  --expected-function-sql "$C2_SOURCE_ROOT/docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql" \
-  --output "$artifacts_dir/held-c2-signed-private-receipt.txt" \
+PGOPTIONS='-c uni_ops.disposable_clone=true' python3 "$C2_TEST_ROOT/scripts/validate-atlas-c2-case-work-signed-http.py" \\
+  --db-url "$database_url" \\
+  --expected-function-sql "$C2_SOURCE_ROOT/docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql" \\
+  --output "$artifacts_dir/held-c2-signed-private-receipt.txt" \\
   >"$artifacts_dir/held-c2-signed-private.log" 2>&1
 test -s "$artifacts_dir/held-c2-signed-private-receipt.txt"
 grep -q '^C2 HELD synthetic signed owner, source-verified' "$artifacts_dir/held-c2-signed-private-receipt.txt"
