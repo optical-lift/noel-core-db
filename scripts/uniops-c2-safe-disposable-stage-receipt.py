@@ -40,9 +40,9 @@ def categorize_summary(summary: str) -> str:
     # The validator writes a trailing exit phase when a summary already exists,
     # otherwise its EXIT trap makes exactly one '**FAILED during ...**' header.
     # These are both public code-defined summary lines, not raw error/SQL text.
-    matches = re.findall(r"Validation command exited during `([^\n`]{1,140})`\.", summary)
+    matches = re.findall(r"(?m)^Validation command exited during \x60([^\n\x60]{1,140})\x60\.$", summary)
     if not matches:
-        matches = re.findall(r"\*\*FAILED during ([^\n*]{1,140})\.\*\*", summary)
+        matches = re.findall(r"(?m)^\*\*FAILED during ([^\n*]{1,140})\.\*\*$", summary)
     return CATEGORIES.get(matches[-1], FALLBACK) if matches else FALLBACK
 
 
