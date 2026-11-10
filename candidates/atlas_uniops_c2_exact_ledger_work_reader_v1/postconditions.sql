@@ -18,7 +18,7 @@ BEGIN
   WHERE p.oid='atlas.operating_requirements_owner_self_api_v1(uuid,uuid,integer)'::regprocedure;
 
   IF NOT coalesce(v_prosecdef,false) OR v_volatility <> 's'
-     OR NOT ('search_path=' = ANY(v_search_path)) THEN
+     OR NOT ('search_path=""' = ANY(v_search_path)) THEN
     RAISE EXCEPTION 'UNI-OPS C2 signed owner guard, volatility or search path drift'
       USING ERRCODE='23514';
   END IF;
