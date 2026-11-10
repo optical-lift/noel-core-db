@@ -142,7 +142,7 @@ python3() {
             self.assertTrue((artifacts / "held-c2-signed-private-receipt.txt").is_file())
             self.assertEqual(
                 (artifacts / "held-c2-substage-private.txt").read_text(encoding="utf-8"),
-                "receipt_check\\n")
+                "receipt_check\n")
 
 
     def test_c2_substage_receipt_is_a_fixed_allowlist_only(self):
