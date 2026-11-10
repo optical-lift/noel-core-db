@@ -75,7 +75,7 @@ class HeldC2CaseSourceReview(unittest.TestCase):
         # owner authority, legacy source, return envelope, GRANT or DML writers.
         for text in ("GRANT ", "ALTER ROLE ", "CREATE TABLE ", "DROP TABLE ",
                      "INSERT INTO ", "UPDATE atlas.", "DELETE FROM atlas."):
-            self.assertNotIn(text, self.after.upper())
+            self.assertNotIn(text.upper(), self.after.upper())
 
     def test_exact_ledger_original_relevance_not_organization_only(self):
         scoped = REPLACEMENT.split("and exists (", 1)[1]
