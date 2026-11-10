@@ -24,7 +24,7 @@ class C2SignedTestSourceReview(unittest.TestCase):
                          'auth.sessions', 'RPC, params, None',
                          'revoked native root', 'ended native seat',
                          'ended GoTrue session',
-                         'read_owner(api, key, owner) == [W_L1]',
+                         'set(read_owner(api, key, owner)) == {W_L1, W_VERIFIED, W_STALE}',
                          'read_owner(api, key, owner) == []',
                          'fingerprint(args.db_url)'):
             self.assertIn(expected, self.driver)
@@ -61,7 +61,7 @@ class C2SignedTestSourceReview(unittest.TestCase):
             self.assertIsNone(re.search(forbidden, self.fixture), forbidden)
 
     def test_exact_current_foreign_withdrawn_and_inactive_history_controls(self):
-        for suffix in ("c21", "c22", "c23", "c24"):
+        for suffix in ("c21", "c22", "c23", "c24", "c25", "c26"):
             self.assertIn("e5200000-0000-4000-8000-000000000" + suffix,
                           self.fixture)
             self.assertIn("e5200000-0000-4000-8000-000000000" + suffix,
@@ -78,6 +78,41 @@ class C2SignedTestSourceReview(unittest.TestCase):
                       self.driver)
         self.assertIn("C2 foreign, withdrawn or inactive historical original disclosed",
                       self.driver)
+
+    def test_current_stale_and_withdrawn_source_verified_proof_is_distinct(self):
+        # Only the existing source's allowlisted exact native booking source
+        # is used. No fake proof helper, grant, result or Work state mutation.
+        for value in (
+            "INSERT INTO ledger.booking_requests(",
+            "INSERT INTO atlas.company_work_native_ledger_relevance(",
+            "source_object_type,source_object_id",
+            "'ledger_booking_request'",
+            "'source_verified','ledger','booking_requests'",
+            "atlas.company_work_native_ledger_exact_source_v1(",
+            "C2 SOURCE VERIFIED L1 VALID",
+            "C2 SOURCE PROOF WILL GO STALE",
+            "e5200000-0000-4000-8000-000000000b25",
+            "e5200000-0000-4000-8000-000000000b26",
+        ):
+            self.assertIn(value, self.fixture, value)
+        for value in (
+            "update ledger.booking_requests set ledger_id=",
+            "where id='{B_STALE}'::uuid and ledger_id='{LEDGER_A}'::uuid",
+            "where work_item_id='{W_STALE}'::uuid",
+            "and evidence_kind='source_verified' and attribution_state='active'",
+            "C2 stale source still independently proves L1",
+            "C2 signed raw L1 reader disclosed stale source_verified original",
+            "extra_forbidden=(W_STALE, \"C2 SOURCE PROOF WILL GO STALE\")",
+            "where id='{RELEVANCE_VERIFIED}'::uuid and attribution_state='active'",
+            "C2 source_verified evidence withdrawal remained visible",
+            "start == fingerprint(args.db_url)",
+        ):
+            self.assertIn(value, self.driver, value)
+        self.assertNotIn("update atlas.work_items", self.driver.lower())
+        self.assertNotIn("insert into atlas.work_items", self.driver.lower())
+        self.assertNotIn("update atlas.work_requirement_links", self.driver.lower())
+        self.assertNotIn("source_verified' and no source", self.fixture)
+
 
 if __name__ == "__main__":
     unittest.main()
