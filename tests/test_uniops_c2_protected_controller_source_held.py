@@ -574,44 +574,44 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
             "complete",
         )
         self.assertEqual(tuple(label for _, label in classifier.MARKERS), labels)
-        self.assertEqual(classifier.classify_log("raw SQL password fake value\\n"),
+        self.assertEqual(classifier.classify_log("raw SQL password fake value\n"),
                          "before_source_match")
         for idx, (_, label) in enumerate(classifier.MARKERS):
-            prefix = "\\n".join(msg for msg, _ in classifier.MARKERS[:idx + 1])
+            prefix = "\n".join(msg for msg, _ in classifier.MARKERS[:idx + 1])
             self.assertEqual(classifier.classify_log(prefix), label)
-            self.assertEqual(classifier.classify_log(prefix + "\\nTRACEBACK PRIVATE DATA"),
+            self.assertEqual(classifier.classify_log(prefix + "\nTRACEBACK PRIVATE DATA"),
                              label)
         self.assertEqual(classifier.classify_log(classifier.MARKERS[1][0]),
                          "unclassified")
         self.assertEqual(classifier.classify_log(
-            classifier.MARKERS[0][0] + "\\n" + classifier.MARKERS[0][0]),
+            classifier.MARKERS[0][0] + "\n" + classifier.MARKERS[0][0]),
             "unclassified")
         self.assertEqual(classifier.classify_log(
-            classifier.MARKERS[0][0] + "\\n" + classifier.MARKERS[2][0]),
+            classifier.MARKERS[0][0] + "\n" + classifier.MARKERS[2][0]),
             "unclassified")
 
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             output = root / "private-signed.log"
             output.write_text(
-                classifier.MARKERS[0][0] + "\\nFAKE_PRIVATE_AUTH_TOKEN\\n",
+                classifier.MARKERS[0][0] + "\nFAKE_PRIVATE_AUTH_TOKEN\n",
                 encoding="utf-8")
             command = ["python3", str(helper), str(output)]
             result = subprocess.run(command, capture_output=True, text=True, check=True)
-            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=installed_source\\n")
+            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=installed_source\n")
             self.assertNotIn("FAKE_PRIVATE", result.stdout + result.stderr)
-            output.write_text("FAKE_PRIVATE_AUTH_TOKEN\\n")
+            output.write_text("FAKE_PRIVATE_AUTH_TOKEN\n")
             result = subprocess.run(command, capture_output=True, text=True, check=True)
-            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=before_source_match\\n")
+            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=before_source_match\n")
             output.write_text("A" * (classifier.MAX_LOG_BYTES + 1))
             result = subprocess.run(command, capture_output=True, text=True, check=True)
-            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=unclassified\\n")
+            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=unclassified\n")
             output.unlink()
             actual = root / "target.log"
             actual.write_text(classifier.MARKERS[0][0])
             output.symlink_to(actual)
             result = subprocess.run(command, capture_output=True, text=True, check=True)
-            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=unclassified\\n")
+            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=unclassified\n")
 
         y = self.workflow
         pin = ('test "$(git -C controller hash-object scripts/'
