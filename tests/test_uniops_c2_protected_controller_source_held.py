@@ -619,7 +619,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         y = self.workflow
         pin = ('test "$(git -C controller hash-object scripts/'
                'uniops-c2-safe-signed-checkpoint-held.py)" = '
-               '3ba40216632a37388753a79b61b37b1ab7571eb7')
+               '584940abb14889160be9dc25eecc24bb8435abb2')
         self.assertIn(pin, y)
         call = 'python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-signed-checkpoint-held.py"'
         self.assertEqual(y.count(call), 1)
@@ -642,12 +642,12 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
             180: "immutable_booking_reassignment_denial",
             193: "immutable_l1_source_preserved",
             197: "immutable_l2_source_absent",
-            205: "synthetic_source_removal",
-            210: "removed_l1_source_absent",
-            214: "removed_l2_source_absent",
-            218: "persisted_relevance",
-            224: "stale_owner_response",
-            228: "work_clock_unchanged",
+            207: "synthetic_source_removal",
+            215: "removed_l1_source_absent",
+            219: "removed_l2_source_absent",
+            223: "persisted_relevance",
+            229: "stale_owner_response",
+            233: "work_clock_unchanged",
         }
         self.assertEqual(m.SOURCE_TRANSITION_POINTS, expected)
         owner_prefix = "\n".join(x[0] for x in m.MARKERS[:2]) + "\n"
@@ -795,7 +795,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertIn("github.event.issue.title == 'UNI-OPS C2 exact Ledger Case Work signed disposable test request'", protected)
         self.assertIn("ref: 32d67670259e37fc1bd1485ede2a4db7fc4e5401", protected)
         self.assertIn("ref: 2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17", protected)
-        self.assertIn("ref: df0583eaa1d662dadbe1a93d7e71caf27fd9cba8", protected)
+        self.assertIn("ref: c5244575e3379c414ce58945df89138e00041c12", protected)
         self.assertTrue(y.index("Validate exact owner diagnostic scope") <
                         y.index("Read-only protected schema and roles snapshot") <
                         y.index("Validate C2 only on disposable clone"))
