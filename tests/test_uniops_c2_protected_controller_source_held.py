@@ -29,6 +29,21 @@ class HeldC2ControllerSource(unittest.TestCase):
         self.assertLess(compiled.index('python3 "$repo_root/scripts/validate-atlas-c1-signed-http.py"'),
                         compiled.index('phase="held C2 exact native Ledger'))
         self.assertIn("--expected-function-sql", compiled)
+        # bash -n misses doubled-backslash continuation: '\\\\' at EOL
+        # escapes the backslash and executes the next argument as a command.
+        # Exercise every multi-line C2 command rather than trusting syntax.
+        hook = self.module.HOOK
+        commands = [line for line in hook.splitlines()
+                    if line.startswith("PGOPTIONS=")
+                    or line.startswith("  -f \"$C2_")
+                    or line.startswith("  --db-url ")
+                    or line.startswith("  --expected-function-sql ")
+                    or line.startswith("  --output ")]
+        self.assertEqual(len(commands), 8)
+        self.assertTrue(all(line.endswith(chr(92)) and
+                            not line.endswith(chr(92) * 2)
+                            for line in commands))
+        self.assertIn('  >"$artifacts_dir/held-c2-signed-private.log" 2>&1', hook)
         self.assertIn("PGOPTIONS='-c uni_ops.disposable_clone=true'", compiled)
         self.assertIn("ffcf0b1c8ab49b4d456037aa5f1147cf", compiled)
         self.assertIn("held-c2-six-original-fixture.log", compiled)
