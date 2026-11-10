@@ -375,7 +375,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
                 ["python3", str(C1_CLONE_PARITY), "--db-url",
                  "postgresql://postgres:postgres@127.0.0.1:45789/postgres"],
                 env=env, check=True, capture_output=True, text=True)
-            self.assertEqual(result.stdout, "C1_CLONE_ACL=public_revise_anon\n")
+            self.assertEqual(result.stdout, "C1_CLONE_ACL=public_read_anon\n")
             self.assertNotIn(secret, result.stdout + result.stderr)
             invalid = subprocess.run(
                 ["python3", str(C1_CLONE_PARITY), "--db-url",
