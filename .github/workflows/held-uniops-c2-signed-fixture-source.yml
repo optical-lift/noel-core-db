@@ -29,10 +29,14 @@ jobs:
           y=Path('.github/workflows/held-uniops-c2-signed-fixture-source.yml').read_text()
           assert 'pull_request:' in y
           assert 'github.event_name == \'pull_request\'' in y
+          # Do not scan the literal prohibited list against itself.
+          declared=y.split('      - name: Deny protected execution and privilege escalation',1)[0]
+          import re
+          assert re.findall(r'^  ([a-z0-9_-]+):',y,re.M) == ['source-review-only']
           for prohibited in ('environment: production','secrets.', 'workflow_dispatch:',
                              'issues:', 'self-hosted', 'NOEL_CORE_DATABASE_URL',
                              'supabase db dump','supabase db push','psql ',
                              'validate-atlas-c2-case-work-signed-http.py --db-url'):
-              assert prohibited not in y,prohibited
+              assert prohibited not in declared,prohibited
           print('PASS PR-only unprivileged source review; no protected test')
           PY
