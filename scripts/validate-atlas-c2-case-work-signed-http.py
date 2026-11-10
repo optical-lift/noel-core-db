@@ -251,13 +251,16 @@ def main():
 
     # Revocation is local test-only, with immutable relevance history preserved.
     check(sql(args.db_url, f"""
-        update atlas.company_work_native_ledger_relevance
-        set attribution_state='withdrawn',withdrawn_at=now(),
-            withdrawn_by_person_id='{OWNER_PERSON}'::uuid,
-            withdrawal_reason='C2 disposable signed withdrawal proof'
-        where id='{RELEVANCE_L1}'::uuid
-          and attribution_state='active'
-        returning 1
+        with changed as (
+          update atlas.company_work_native_ledger_relevance
+          set attribution_state='withdrawn',withdrawn_at=now(),
+              withdrawn_by_person_id='{OWNER_PERSON}'::uuid,
+              withdrawal_reason='C2 disposable signed withdrawal proof'
+          where id='{RELEVANCE_L1}'::uuid
+            and attribution_state='active'
+          returning id
+        )
+        select count(*) from changed
     """) == "1", "C2 exact synthetic L1 relevance withdrawal failed")
     check(read_owner(api, key, owner,
                      extra_forbidden=(W_STALE, "C2 SOURCE PROOF WILL GO STALE")) == [W_VERIFIED],
@@ -269,12 +272,15 @@ def main():
     # Distinguish historical withdrawal of a source_verified attribution
     # from invalidation of the underlying exact source FK.
     check(sql(args.db_url, f"""
-        update atlas.company_work_native_ledger_relevance
-        set attribution_state='withdrawn',withdrawn_at=now(),
-            withdrawn_by_person_id='{OWNER_PERSON}'::uuid,
-            withdrawal_reason='C2 disposable source-verified withdrawal proof'
-        where id='{RELEVANCE_VERIFIED}'::uuid and attribution_state='active'
-        returning 1
+        with changed as (
+          update atlas.company_work_native_ledger_relevance
+          set attribution_state='withdrawn',withdrawn_at=now(),
+              withdrawn_by_person_id='{OWNER_PERSON}'::uuid,
+              withdrawal_reason='C2 disposable source-verified withdrawal proof'
+          where id='{RELEVANCE_VERIFIED}'::uuid and attribution_state='active'
+          returning id
+        )
+        select count(*) from changed
     """) == "1", "C2 current source_verified evidence withdrawal failed")
     check(read_owner(api, key, owner,
                      extra_forbidden=(W_STALE, "C2 SOURCE PROOF WILL GO STALE",
