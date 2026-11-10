@@ -202,10 +202,15 @@ def main():
     # Only the fictional, disposable booking B26 is now removed. This tests
     # loss of an exact source FK, not a forbidden Ledger identity rewrite.
     # The source_verified attribution row and original Work remain intact.
+    # psql -t -A can include a command tag after DELETE ... RETURNING.
+    # Return a single scalar SELECT instead of comparing command output.
     check(sql(args.db_url, f"""
-        delete from ledger.booking_requests
-        where id='{B_STALE}'::uuid and ledger_id='{LEDGER_A}'::uuid
-        returning 1
+        with removed as (
+          delete from ledger.booking_requests
+          where id='{B_STALE}'::uuid and ledger_id='{LEDGER_A}'::uuid
+          returning id
+        )
+        select count(*) from removed
     """) == "1", "C2 disposable synthetic booking source removal failed")
     check(sql(args.db_url, f"""
         select count(*) from atlas.company_work_native_ledger_exact_source_v1(
