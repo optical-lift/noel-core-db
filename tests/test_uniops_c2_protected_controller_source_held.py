@@ -56,6 +56,76 @@ class HeldC2ControllerSource(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.module.build_copy(compiled)
 
+    def test_generated_hook_runs_only_fake_local_shell_dispatch(self):
+        """Exercise the generated shell with fake psql/Python; no database."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            signed = root / "signed"
+            proposed = root / "proposed"
+            for relative in ("tests/uniops_c2_case_work_disposable_fixture_held.sql",
+                             "scripts/validate-atlas-c2-case-work-signed-http.py"):
+                file = signed / relative
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text("offline-only\n")
+            proposed_sql = proposed / (
+                "docs/review/uniops_c2_native_ledger_requirement_work_scope_held/"
+                "proposed_function_review_only.sql")
+            proposed_sql.parent.mkdir(parents=True, exist_ok=True)
+            proposed_sql.write_text("offline-only\n")
+            artifacts = root / "artifacts"
+            artifacts.mkdir()
+            trace = root / "trace.txt"
+            shell = root / "mock-hook.sh"
+            mocked_commands = r'''#!/usr/bin/env bash
+set -euo pipefail
+psql() {
+  printf 'psql:%s:%s\n' "${PGOPTIONS:-}" "$*" >> "$TRACE"
+  if [[ "$*" == *'select md5(pg_get_functiondef('* ]]; then
+    printf 'ffcf0b1c8ab49b4d456037aa5f1147cf\n'
+  else
+    test "${PGOPTIONS:-}" = '-c uni_ops.disposable_clone=true'
+    [[ " $* " == *' -f '* ]]
+  fi
+}
+python3() {
+  printf 'python:%s:%s\n' "${PGOPTIONS:-}" "$*" >> "$TRACE"
+  test "${PGOPTIONS:-}" = '-c uni_ops.disposable_clone=true'
+  test "$1" = "$C2_TEST_ROOT/scripts/validate-atlas-c2-case-work-signed-http.py"
+  shift
+  local receipt=''
+  while (( $# )); do
+    case "$1" in
+      --db-url) test "$2" = "$database_url"; shift 2 ;;
+      --expected-function-sql) test "$2" = "$C2_SOURCE_ROOT/docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql"; shift 2 ;;
+      --output) receipt="$2"; shift 2 ;;
+      *) echo 'unexpected arg' >&2; return 92 ;;
+    esac
+  done
+  test -n "$receipt"
+  printf '%s\n' 'C2 HELD synthetic signed owner, source-verified OFFLINE MOCK PASS' > "$receipt"
+}
+'''
+            shell.write_text(mocked_commands + self.module.HOOK, encoding="utf-8")
+            env = {
+                "PATH": __import__("os").environ["PATH"],
+                "TRACE": str(trace),
+                "C2_TEST_ROOT": str(signed),
+                "C2_SOURCE_ROOT": str(proposed),
+                "artifacts_dir": str(artifacts),
+                "database_url": "postgresql://postgres:postgres@127.0.0.1:40001/postgres",
+            }
+            subprocess.run(["bash", str(shell)], cwd=root, env=env,
+                           check=True, capture_output=True, text=True)
+            commands = trace.read_text().splitlines()
+            self.assertEqual(len(commands), 4)
+            self.assertTrue(commands[0].startswith("psql::"))
+            self.assertIn("select md5(pg_get_functiondef(", commands[0])
+            self.assertIn(str(proposed_sql), commands[1])
+            self.assertIn("uniops_c2_case_work_disposable_fixture_held.sql", commands[2])
+            self.assertTrue(commands[3].startswith("python:-c uni_ops.disposable_clone=true:"))
+            self.assertIn("--expected-function-sql", commands[3])
+            self.assertTrue((artifacts / "held-c2-signed-private-receipt.txt").is_file())
+
     def test_drift_and_missing_anchor_refused(self):
         for variant in (self.validator.replace("signed_http_probe=true", "signed_http_probe=false"),
                         self.validator + "\n# unauthorized change\n",
