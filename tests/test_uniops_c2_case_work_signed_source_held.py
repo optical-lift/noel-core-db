@@ -124,6 +124,11 @@ class C2SignedTestSourceReview(unittest.TestCase):
             self.assertIn(value, self.driver, value)
         self.assertIn("DO $c2_immutable$", self.driver)
         self.assertIn("raise exception 'C2 fixture unexpectedly permitted booking Ledger reassignment'".lower(), self.driver.lower())
+        # psql -t -A may include UPDATE command tags after RETURNING rows.
+        # Both local-only withdrawals must validate scalar affected-row counts.
+        self.assertEqual(self.driver.count("with changed as ("), 2)
+        self.assertEqual(self.driver.count("select count(*) from changed"), 2)
+        self.assertNotIn("returning 1", self.driver.lower())
         self.assertNotIn("update atlas.work_items", self.driver.lower())
         self.assertNotIn("insert into atlas.work_items", self.driver.lower())
         self.assertNotIn("update atlas.work_requirement_links", self.driver.lower())
