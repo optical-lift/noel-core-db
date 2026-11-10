@@ -213,7 +213,14 @@ jobs:
           set -euo pipefail
           # The C1 source is already installed in the read-only schema source:
           # do NOT create competing tables or replay C1 migration over them.
-          scratch="$GITHUB_WORKSPACE/controller/scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql"
+          source_sql="$GITHUB_WORKSPACE/controller/scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql"
+          scratch="$RUNNER_TEMP/20261019201528_atlas_c1_disposable_public_wrapper_anon_parity_TEST_ONLY.sql"
+          test -s "$source_sql"
+          # Preserve exact pinned SQL bytes while satisfying the validator's
+          # existing version and atlas_ release-lane filename contract.
+          cp -- "$source_sql" "$scratch"
+          cmp -s -- "$source_sql" "$scratch"
+          test "$(git -C controller hash-object "$scratch")" = e38508e4965db8da11e4c596d3134a5aca45054f
           test -s "$scratch"
           # The disposable validator accepts a candidate-validation path.
           # Generate a clone-only wrapper: SELECT six C1 function grants into
