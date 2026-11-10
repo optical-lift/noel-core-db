@@ -38,6 +38,10 @@ W_L1 = "e5200000-0000-4000-8000-000000000c21"
 W_L2 = "e5200000-0000-4000-8000-000000000c22"
 W_WITHDRAWN = "e5200000-0000-4000-8000-000000000c23"
 W_OLD_LINK = "e5200000-0000-4000-8000-000000000c24"
+W_VERIFIED = "e5200000-0000-4000-8000-000000000c25"
+W_STALE = "e5200000-0000-4000-8000-000000000c26"
+B_STALE = "e5200000-0000-4000-8000-000000000b26"
+RELEVANCE_VERIFIED = "e5200000-0000-4000-8000-000000000e25"
 RELEVANCE_L1 = "e5200000-0000-4000-8000-000000000e21"
 RPC = "operating_requirements_owner_self_api_v1"
 
@@ -68,7 +72,7 @@ def fingerprint(db_url):
     return snapshots
 
 
-def read_owner(api, key, token):
+def read_owner(api, key, token, extra_forbidden=()):
     read = {"p_organization_id": ORG, "p_ledger_id": LEDGER_A, "p_limit": 200}
     packet = allowed(api, key, RPC, read, token)
     check(packet.get("contractVersion") == "operating_requirements_owner_v1"
@@ -91,7 +95,7 @@ def read_owner(api, key, token):
     serialized = json.dumps(packet, sort_keys=True)
     for secret in (W_L2, W_WITHDRAWN, W_OLD_LINK,
                    "C2 FOREIGN L2 ONLY NOT DISCLOSABLE",
-                   "C2 WITHDRAWN L1 NOT DISCLOSABLE"):
+                   "C2 WITHDRAWN L1 NOT DISCLOSABLE", *extra_forbidden):
         check(secret not in serialized,
               "C2 returned forbidden Work ID/title elsewhere in owner payload")
     return ids
@@ -115,15 +119,17 @@ def main():
     """) == "4", "C2 requires exactly four C1 synthetic GoTrue principals")
     check(sql(args.db_url, f"""
         select count(*) from atlas.work_items
-        where id in ('{W_L1}','{W_L2}','{W_WITHDRAWN}','{W_OLD_LINK}')
-    """) == "4", "C2 fixture Work missing")
+        where id in ('{W_L1}','{W_L2}','{W_WITHDRAWN}','{W_OLD_LINK}',
+                     '{W_VERIFIED}','{W_STALE}')
+    """) == "6", "C2 fixture Work missing")
     check(sql(args.db_url, f"""
         select count(*) from atlas.company_work_native_ledger_relevance
         where id in ('{RELEVANCE_L1}',
           'e5200000-0000-4000-8000-000000000e22',
           'e5200000-0000-4000-8000-000000000e23',
-          'e5200000-0000-4000-8000-000000000e24')
-    """) == "4", "C2 fixture relevance missing")
+          'e5200000-0000-4000-8000-000000000e24',
+          '{RELEVANCE_VERIFIED}', 'e5200000-0000-4000-8000-000000000e26')
+    """) == "6", "C2 fixture relevance missing")
 
     api, key = local_status()  # rejects every non-loopback API
     identities = {name: sign_in(api, key, name)
@@ -142,10 +148,40 @@ def main():
           "C2 expects existing C1 forged worker metadata negative control")
     owner = identities["owner"][0]
     start = fingerprint(args.db_url)
-    check(read_owner(api, key, owner) == [W_L1],
-          "C2 current signed owner did not see exactly the L1 original")
+    check(set(read_owner(api, key, owner)) == {W_L1, W_VERIFIED, W_STALE},
+          "C2 current signed owner did not see exact L1 attested + two live source proofs")
     check(start == fingerprint(args.db_url), "C2 owner read mutated Work or Clock")
-    print("PASS C2 signed owner: one L1 original; foreign/withdrawn/historical suppressed")
+    print("PASS C2 signed owner: attested and verified source records shown; foreign/withdrawn/history denied")
+
+    # Keep the persisted source_verified record active, but move ONLY its
+    # fictional native source object to L2. The exact source resolver must
+    # immediately stop proving relevance to L1. No original Work is updated.
+    check(sql(args.db_url, f"""
+        update ledger.booking_requests set ledger_id='{LEDGER_B}'::uuid
+        where id='{B_STALE}'::uuid and ledger_id='{LEDGER_A}'::uuid
+        returning 1
+    """) == "1", "C2 disposable stale-source fixture update failed")
+    check(sql(args.db_url, f"""
+        select count(*) from atlas.company_work_native_ledger_exact_source_v1(
+          '{W_STALE}'::uuid,'{LEDGER_A}'::uuid)
+    """) == "0", "C2 stale source still independently proves L1")
+    check(sql(args.db_url, f"""
+        select count(*) from atlas.company_work_native_ledger_exact_source_v1(
+          '{W_STALE}'::uuid,'{LEDGER_B}'::uuid)
+    """) == "1", "C2 changed source did not become L2 specific")
+    check(sql(args.db_url, f"""
+        select count(*) from atlas.company_work_native_ledger_relevance
+        where work_item_id='{W_STALE}'::uuid
+          and ledger_id='{LEDGER_A}'::uuid
+          and evidence_kind='source_verified' and attribution_state='active'
+    """) == "1", "C2 stale negative lacks persisted active source_verified evidence")
+    check(set(read_owner(api, key, owner,
+                         extra_forbidden=(W_STALE, "C2 SOURCE PROOF WILL GO STALE")))
+          == {W_L1, W_VERIFIED},
+          "C2 signed raw L1 reader disclosed stale source_verified original")
+    check(start == fingerprint(args.db_url),
+          "C2 source-proof invalidation unexpectedly changed original Work/Result/Clock")
+    print("PASS C2 source_verified: current proof admitted, stale native source suppressed")
 
     params = {"p_organization_id": ORG, "p_ledger_id": LEDGER_A, "p_limit": 200}
     for label in ("worker", "outsider", "no-seat"):
@@ -172,11 +208,30 @@ def main():
           and attribution_state='active'
         returning 1
     """) == "1", "C2 exact synthetic L1 relevance withdrawal failed")
-    check(read_owner(api, key, owner) == [],
-          "C2 withdrawn L1 relevance remained visible in signed reader")
+    check(read_owner(api, key, owner,
+                     extra_forbidden=(W_STALE, "C2 SOURCE PROOF WILL GO STALE")) == [W_VERIFIED],
+          "C2 withdrawn L1 owner-attested evidence remained visible")
     check(start == fingerprint(args.db_url),
           "C2 relevance withdrawal improperly mutated Work, Result or Clock")
-    print("PASS C2 current signed owner sees revocation immediately")
+    print("PASS C2 owner-attested withdrawal changes the very next signed L1 read")
+
+    # Distinguish historical withdrawal of a source_verified attribution
+    # from invalidation of the underlying exact source FK.
+    check(sql(args.db_url, f"""
+        update atlas.company_work_native_ledger_relevance
+        set attribution_state='withdrawn',withdrawn_at=now(),
+            withdrawn_by_person_id='{OWNER_PERSON}'::uuid,
+            withdrawal_reason='C2 disposable source-verified withdrawal proof'
+        where id='{RELEVANCE_VERIFIED}'::uuid and attribution_state='active'
+        returning 1
+    """) == "1", "C2 current source_verified evidence withdrawal failed")
+    check(read_owner(api, key, owner,
+                     extra_forbidden=(W_STALE, "C2 SOURCE PROOF WILL GO STALE",
+                                      W_VERIFIED, "C2 SOURCE VERIFIED L1 VALID")) == [],
+          "C2 source_verified evidence withdrawal remained visible")
+    check(start == fingerprint(args.db_url),
+          "C2 verified evidence withdrawal altered original Work/Result/Clock")
+    print("PASS C2 source_verified withdrawal suppresses original without erasing Work")
 
     # Reuse C1's live-root/seat/session revocation semantics, in disposable
     # Postgres only; never create a new privilege or substitute service role.
@@ -207,8 +262,8 @@ def main():
     check(start == fingerprint(args.db_url),
           "C2 signed revocation tests mutated Work, Result or Clock")
     Path(args.output).write_text(
-        "C2 HELD synthetic owner/negative/relevance revocation signed assertions PASS\\n"
-        "Separate verified-source proof, carrier pin and release remain OPEN\\n",
+        "C2 HELD synthetic signed owner, source-verified active/stale, negative and revocation assertions PASS\n"
+        "Protected carrier/runner pin and production release remain OPEN\n",
         encoding="utf-8")
     print("PASS C2 signed read-only Work/Clock fingerprint and ACL matrix")
 
