@@ -26,7 +26,11 @@ class C2SignedTestSourceReview(unittest.TestCase):
                          'ended GoTrue session',
                          'set(read_owner(api, key, owner)) == {W_L1, W_VERIFIED, W_STALE}',
                          'W_VERIFIED, "C2 SOURCE VERIFIED L1 VALID")) == []',
-                         'fingerprint(args.db_url)'):
+                         'fingerprint(args.db_url)',
+                         'parser.add_argument("--expected-function-sql", required=True',
+                         'pg_get_functiondef(',
+                         'hashlib.sha256(actual_function.encode()).digest()',
+                         'C2 disposable installed owner SQL differs from reviewed, pinned candidate'):
             self.assertIn(expected, self.driver)
         self.assertIn('parsed.hostname in ("127.0.0.1", "localhost")', self.c1)
         self.assertNotIn('service_role', self.driver)
