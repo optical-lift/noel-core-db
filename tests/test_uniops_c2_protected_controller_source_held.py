@@ -134,6 +134,47 @@ python3() {
             with self.assertRaises(ValueError):
                 self.module.build_copy(variant)
 
+    def test_pinned_custody_contracts_execute_from_checkout_root(self):
+        """Reproduce the actual shell block with fake local files, no credentials."""
+        workflow = self.workflow
+        beginning = "          (\n            cd canonical\n"
+        closing = "          )\n"
+        self.assertEqual(workflow.count(beginning), 1)
+        segment = workflow.split(beginning, 1)[1].split(closing, 1)[0]
+        commands = [line.strip() for line in segment.splitlines()
+                    if line.strip().startswith("bash ")]
+        self.assertEqual(commands, [
+            "bash scripts/check-custody.sh",
+            "bash scripts/check-production-release-contract.sh",
+            "bash scripts/check-production-schema-validation-contract.sh",
+        ])
+        # Reproduce this exact bounded source block with stand-in scripts
+        # whose relative lookup fails when cwd is the overall workspace.
+        # This is a pure local regression, not a protected schema test.
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            canonical = root / "canonical"
+            (canonical / "schemas").mkdir(parents=True)
+            (canonical / "scripts").mkdir(parents=True)
+            (canonical / "schemas/OWNERSHIP.md").write_text("synthetic\n")
+            receipt = root / "executed.txt"
+            for command in commands:
+                file = canonical / command.split(" ", 1)[1]
+                file.write_text(
+                    "#!/usr/bin/env bash\n"
+                    "set -euo pipefail\n"
+                    "test -f schemas/OWNERSHIP.md\n"
+                    "printf '%s\\n' \"$(basename \"$0\")\" >> \"$TRACE\"\n",
+                    encoding="utf-8",
+                )
+            block = beginning + segment + closing
+            env = dict(__import__("os").environ, TRACE=str(receipt))
+            subprocess.run(["bash", "-euo", "pipefail", "-c", block],
+                           cwd=root, env=env, check=True,
+                           capture_output=True, text=True)
+            self.assertEqual(receipt.read_text().splitlines(),
+                             [command.rsplit("/", 1)[-1] for command in commands])
+
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
         self.assertIn("pull_request:", y)
