@@ -15,6 +15,7 @@ WORKFLOW = ROOT / ".github/workflows/held-uniops-c2-protected-source-controller.
 STAGE_CLASSIFIER = ROOT / "scripts/uniops-c2-safe-disposable-stage-receipt.py"
 C1_REASON_CLASSIFIER = ROOT / "scripts/uniops-c1-safe-postconditions-reason-held.py"
 C1_CLONE_PARITY = ROOT / "scripts/uniops-c1-readonly-disposable-grants-held.py"
+C1_CLONE_WRAPPER = ROOT / "scripts/prepare-uniops-c1-disposable-grant-observation-held.py"
 C1_PINNED_POSTCONDITIONS = ROOT / "candidates/atlas-company-work-operating-register-v1/postconditions.sql"
 
 
@@ -382,6 +383,44 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
                 env=env, check=True, capture_output=True, text=True)
             self.assertEqual(invalid.stdout, "C1_CLONE_ACL=unclassified\n")
             self.assertNotIn(secret, invalid.stdout + invalid.stderr)
+
+    def test_c1_clone_acl_wrapper_keeps_pinned_sql_and_never_writes_grants(self):
+        spec = importlib.util.spec_from_file_location("c1_acl_wrapper", C1_CLONE_WRAPPER)
+        wrapper = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wrapper)
+        source = C1_PINNED_POSTCONDITIONS
+        self.assertEqual(wrapper.git_blob(source.read_bytes()), wrapper.SOURCE_BLOB)
+        with tempfile.TemporaryDirectory() as directory:
+            d = pathlib.Path(directory)
+            output = d / "postconditions-wrapper.sql"
+            report = d / "clone-acl-private.txt"
+            wrapper.make_wrapper(source, output, report)
+            text = output.read_text(encoding="utf-8")
+            self.assertEqual(text.count("\\i "), 1)
+            self.assertIn("\\i " + str(source) + "\n", text)
+            self.assertIn("\\o " + str(report) + "\n", text)
+            self.assertIn("SELECT r.idx", text)
+            self.assertLess(text.index("SELECT r.idx"), text.index("\\i " + str(source)))
+            self.assertEqual(text.count("has_function_privilege("), 2)
+            for forbidden in ("REVOKE ALL ", "GRANT EXECUTE ", "DROP FUNCTION ",
+                              "ALTER FUNCTION ", "CREATE FUNCTION "):
+                self.assertNotIn(forbidden, text.upper())
+            with self.assertRaises(ValueError):
+                wrapper.make_wrapper(source, output, report)
+            rows = "".join(f"{i}|f|t|f\n" for i in range(1, 7))
+            report.write_text(rows, encoding="utf-8")
+            self.assertEqual(wrapper.summarize(report), "pass")
+            report.write_text(rows.replace("4|f|t|f", "4|t|t|f"))
+            self.assertEqual(wrapper.summarize(report),
+                             "public_establish_anon")
+            bad = d / "bad.sql"
+            bad.write_text(source.read_text(encoding="utf-8") + "\n-- altered\n")
+            with self.assertRaises(ValueError):
+                wrapper.make_wrapper(bad, d / "new-wrapper.sql", d / "new-report.txt")
+            symlink = d / "symlink.txt"
+            symlink.symlink_to(report)
+            self.assertEqual(wrapper.summarize(symlink), "unclassified")
+            self.assertEqual(wrapper.summarize(d / "missing"), "unclassified")
 
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
