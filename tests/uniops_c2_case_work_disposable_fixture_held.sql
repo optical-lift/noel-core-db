@@ -149,8 +149,9 @@ VALUES
 -- Separate source_verified evidence class. These are exact, fictional
 -- native booking sources accepted by the *existing* source proof function;
 -- none is created by a real business action or issued as Work.
--- A future signed-test phase must independently retarget B26 to native L2,
--- making the original stored L1 source proof stale without touching Work.
+-- A future signed-test phase must first prove B26 cannot be retargeted
+-- to native L2 (booking identity is immutable), then remove only the disposable
+-- synthetic B26 source row to invalidate its old L1 proof without touching Work.
 INSERT INTO ledger.booking_requests(
   id,ledger_id,booking_kind,request_label,request_state,metadata,provenance
 ) VALUES
