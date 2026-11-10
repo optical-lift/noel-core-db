@@ -174,22 +174,47 @@ def main():
     check(start == fingerprint(args.db_url), "C2 owner read mutated Work or Clock")
     print("PASS C2 signed owner: attested and verified source records shown; foreign/withdrawn/history denied")
 
-    # Keep the persisted source_verified record active, but move ONLY its
-    # fictional native source object to L2. The exact source resolver must
-    # immediately stop proving relevance to L1. No original Work is updated.
-    check(sql(args.db_url, f"""
-        update ledger.booking_requests set ledger_id='{LEDGER_B}'::uuid
-        where id='{B_STALE}'::uuid and ledger_id='{LEDGER_A}'::uuid
-        returning 1
-    """) == "1", "C2 disposable stale-source fixture update failed")
+    # Booking request identity is immutable. The exact source Ledger cannot
+    # be reassigned: prove the canonical guard still refuses that mutation.
+    # This is a disposable-only negative probe, not a production operation.
+    sql(args.db_url, f"""
+        DO $c2_immutable$
+        BEGIN
+          BEGIN
+            UPDATE ledger.booking_requests
+            SET ledger_id='{LEDGER_B}'::uuid
+            WHERE id='{B_STALE}'::uuid AND ledger_id='{LEDGER_A}'::uuid;
+            RAISE EXCEPTION 'C2 fixture unexpectedly permitted booking Ledger reassignment';
+          EXCEPTION WHEN SQLSTATE '23514' THEN NULL;
+          END;
+        END
+        $c2_immutable$;
+    """)
     check(sql(args.db_url, f"""
         select count(*) from atlas.company_work_native_ledger_exact_source_v1(
           '{W_STALE}'::uuid,'{LEDGER_A}'::uuid)
-    """) == "0", "C2 stale source still independently proves L1")
+    """) == "1", "C2 immutable booking source lost original L1 proof")
     check(sql(args.db_url, f"""
         select count(*) from atlas.company_work_native_ledger_exact_source_v1(
           '{W_STALE}'::uuid,'{LEDGER_B}'::uuid)
-    """) == "1", "C2 changed source did not become L2 specific")
+    """) == "0", "C2 immutable booking was wrongly reassigned to L2")
+
+    # Only the fictional, disposable booking B26 is now removed. This tests
+    # loss of an exact source FK, not a forbidden Ledger identity rewrite.
+    # The source_verified attribution row and original Work remain intact.
+    check(sql(args.db_url, f"""
+        delete from ledger.booking_requests
+        where id='{B_STALE}'::uuid and ledger_id='{LEDGER_A}'::uuid
+        returning 1
+    """) == "1", "C2 disposable synthetic booking source removal failed")
+    check(sql(args.db_url, f"""
+        select count(*) from atlas.company_work_native_ledger_exact_source_v1(
+          '{W_STALE}'::uuid,'{LEDGER_A}'::uuid)
+    """) == "0", "C2 removed synthetic source still independently proves L1")
+    check(sql(args.db_url, f"""
+        select count(*) from atlas.company_work_native_ledger_exact_source_v1(
+          '{W_STALE}'::uuid,'{LEDGER_B}'::uuid)
+    """) == "0", "C2 removed source spuriously proves L2")
     check(sql(args.db_url, f"""
         select count(*) from atlas.company_work_native_ledger_relevance
         where work_item_id='{W_STALE}'::uuid
