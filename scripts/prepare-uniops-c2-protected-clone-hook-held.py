@@ -47,7 +47,7 @@ echo 'PASS C2 ephemeral signed local test (private results withheld)'
 
 
 def github_blob_sha(content: bytes) -> str:
-    return hashlib.sha1(b"blob " + str(len(content)).encode() + b"\\0" + content).hexdigest()
+    return hashlib.sha1(b"blob " + str(len(content)).encode() + b"\0" + content).hexdigest()
 
 
 def build_copy(original: str) -> str:
