@@ -25,17 +25,21 @@ FALLBACK = "unclassified"
 BEFORE_FIRST = "before_source_match"
 LOOKUP = {message: (idx, label) for idx, (message, label) in enumerate(MARKERS)}
 
-# Reviewed pinned C2 signer source blob 7e4859e068fdc00acb4d26be63ba3222858c8f1c.
-# These are the only six public-source call sites between owner visibility
-# PASS and the later source-proof invalidation PASS. This mapping cannot
-# authorize an exception; it only classifies a private traceback frame.
+# Reviewed revised C2 signer source blob 67aa03f3224b06078559f55c40c3d78c4d2e7f8a.
+# These are the nine public-source call sites between owner visibility
+# PASS and the later source-proof invalidation PASS. A denied immutable
+# booking reassignment is explicitly expected before disposable source removal.
+# This mapping cannot authorize an exception; it only classifies a traceback.
 SOURCE_TRANSITION_POINTS = {
-    180: "retarget_native_source",
-    185: "old_ledger_source_proof",
-    189: "new_ledger_source_proof",
-    193: "persisted_relevance",
-    199: "stale_owner_response",
-    203: "work_clock_unchanged",
+    180: "immutable_booking_reassignment_denial",
+    193: "immutable_l1_source_preserved",
+    197: "immutable_l2_source_absent",
+    205: "synthetic_source_removal",
+    210: "removed_l1_source_absent",
+    214: "removed_l2_source_absent",
+    218: "persisted_relevance",
+    224: "stale_owner_response",
+    228: "work_clock_unchanged",
 }
 PUBLIC_MAIN_FRAME = re.compile(
     r'^\s*File "(?:[^"\r\n]*/)?validate-atlas-c2-case-work-signed-http[.]py", '
