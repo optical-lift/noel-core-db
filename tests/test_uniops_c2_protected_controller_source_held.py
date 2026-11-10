@@ -475,7 +475,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
             y.index('Read-only protected schema and roles snapshot'))
         self.assertLess(
             y.index('--create-wrapper'),
-            y.index('Validate C2 only on disposable clone with genuine local C1'))
+            y.index('if bash scripts/validate-production-schema-clone.sh'))
         # The only privileged use of the allowlisted classifier is the
         # diagnostic failure branch; pin its immutable Git blob before the
         # protected snapshot and verify that no private summary is printed.
