@@ -16,6 +16,7 @@ STAGE_CLASSIFIER = ROOT / "scripts/uniops-c2-safe-disposable-stage-receipt.py"
 C1_REASON_CLASSIFIER = ROOT / "scripts/uniops-c1-safe-postconditions-reason-held.py"
 C1_CLONE_PARITY = ROOT / "scripts/uniops-c1-readonly-disposable-grants-held.py"
 C1_CLONE_WRAPPER = ROOT / "scripts/prepare-uniops-c1-disposable-grant-observation-held.py"
+C1_CLONE_RESTORE = ROOT / "scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql"
 C1_PINNED_POSTCONDITIONS = ROOT / "candidates/atlas-company-work-operating-register-v1/postconditions.sql"
 
 
@@ -421,6 +422,43 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
             symlink.symlink_to(report)
             self.assertEqual(wrapper.summarize(symlink), "unclassified")
             self.assertEqual(wrapper.summarize(d / "missing"), "unclassified")
+
+    def test_c1_clone_acl_restore_exact_three_revoke_no_bypass(self):
+        """Only the observed extra anon grants are revoked, on a marked clone."""
+        source = C1_CLONE_RESTORE.read_text(encoding="utf-8")
+        uncommented = "\n".join(
+            line for line in source.splitlines()
+            if not line.lstrip().startswith("--")).lower()
+        import re
+        stmts = re.findall(r"(?m)^\s*(revoke|grant|alter|create|drop|insert|update|delete)\s+[^;\n]+;",
+                           uncommented)
+        self.assertEqual(stmts, ["revoke", "revoke", "revoke"])
+        revoke_lines = [
+            line.strip() for line in uncommented.splitlines()
+            if line.strip().startswith("revoke execute on function ")
+        ]
+        self.assertEqual(revoke_lines, [
+            "revoke execute on function "
+            "public.establish_operating_requirement_owner_self_api_v1"
+            "(uuid,uuid,uuid,text,text,jsonb,text,uuid,uuid) from anon;",
+            "revoke execute on function "
+            "public.revise_operating_requirement_owner_self_api_v1"
+            "(uuid,uuid,jsonb,text,uuid,uuid,integer,text,timestamptz) from anon;",
+            "revoke execute on function "
+            "public.operating_requirements_owner_self_api_v1"
+            "(uuid,uuid,integer) from anon;",
+        ])
+        self.assertTrue(uncommented.lstrip().startswith("begin;"))
+        self.assertTrue(uncommented.rstrip().endswith("commit;"))
+        self.assertIn("current_setting('uni_ops.disposable_clone', true)", source)
+        self.assertIn("current_database() <> 'postgres'", source)
+        self.assertEqual(source.count("'::regprocedure"), 12)
+        self.assertEqual(source.count("v_match_count<>6"), 2)
+        self.assertIn("REFUSE unexpected C1 six-function clone grant baseline", source)
+        self.assertIn("REFUSE C1 clone ACL restoration did not restore parity", source)
+        self.assertIn("has_function_privilege('authenticated'", source)
+        self.assertIn("acl.grantee=0", source)
+        self.assertIn("p.proacl is not null", source)
 
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
