@@ -14,6 +14,7 @@ VALIDATOR = ROOT / "scripts/validate-production-schema-clone.sh"
 WORKFLOW = ROOT / ".github/workflows/held-uniops-c2-protected-source-controller.yml"
 STAGE_CLASSIFIER = ROOT / "scripts/uniops-c2-safe-disposable-stage-receipt.py"
 C1_REASON_CLASSIFIER = ROOT / "scripts/uniops-c1-safe-postconditions-reason-held.py"
+C1_CLONE_PARITY = ROOT / "scripts/uniops-c1-readonly-disposable-grants-held.py"
 C1_PINNED_POSTCONDITIONS = ROOT / "candidates/atlas-company-work-operating-register-v1/postconditions.sql"
 
 
@@ -311,6 +312,76 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
                 ["python3", str(C1_REASON_CLASSIFIER), str(root / "absent.log")],
                 capture_output=True, text=True, check=True)
             self.assertEqual(missing.stdout, "C1_POSTCONDITIONS_REASON=unclassified\n")
+
+    def test_readonly_c1_clone_grant_parity_fixed_contract(self):
+        spec = importlib.util.spec_from_file_location("held_c1_clone_acl", C1_CLONE_PARITY)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertEqual(len(module.FUNCTIONS), 6)
+        self.assertEqual(module.EXPECTED, ("f", "t", "f"))
+        self.assertEqual(module.LABELS, ("anon", "authenticated", "public"))
+        self.assertTrue(module.local_clone_url(
+            "postgresql://postgres:postgres@127.0.0.1:45789/postgres"))
+        self.assertFalse(module.local_clone_url(
+            "postgresql://postgres:postgres@remote.internal:45789/postgres"))
+        self.assertFalse(module.local_clone_url(
+            "postgresql://postgres:postgres@localhost:45789/postgres"))
+        self.assertFalse(module.local_clone_url(
+            "postgresql://postgres:postgres@127.0.0.1:543/postgres"))
+        self.assertFalse(module.local_clone_url(
+            "postgresql://postgres:postgres@127.0.0.1:45789/production"))
+        rows = "".join(f"{i}|f|t|f\n" for i in range(1, 7))
+        self.assertEqual(module.classify(rows), "pass")
+        diff = rows.replace("1|f|t|f", "1|t|t|t")
+        self.assertEqual(module.classify(diff),
+                         "atlas_establish_anon,atlas_establish_public")
+        diff2 = rows.replace("6|f|t|f", "6|f|f|f")
+        self.assertEqual(module.classify(diff2),
+                         "public_read_authenticated")
+        self.assertEqual(module.classify(rows.replace("2|f|t|f", "2|f|2|f")),
+                         "unclassified")
+        self.assertEqual(module.classify(rows + "7|f|t|f\n"), "unclassified")
+        self.assertEqual(module.classify("SENSITIVE_SQL_OUTPUT\n"), "unclassified")
+        self.assertIn("SELECT r.idx", module.QUERY)
+        for forbidden in ("ALTER ", "GRANT ", "REVOKE ", "DROP ",
+                          "INSERT ", "UPDATE ", "DELETE "):
+            self.assertNotIn(forbidden, module.QUERY.upper())
+        for signature in (
+            "atlas.establish_operating_requirement_owner_self_api_v1(",
+            "atlas.revise_operating_requirement_owner_self_api_v1(",
+            "atlas.operating_requirements_owner_self_api_v1(",
+            "public.establish_operating_requirement_owner_self_api_v1(",
+            "public.revise_operating_requirement_owner_self_api_v1(",
+            "public.operating_requirements_owner_self_api_v1(",
+        ):
+            self.assertIn(signature, module.QUERY)
+
+    def test_readonly_c1_clone_probe_executes_only_local_and_never_echoes_psql(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            stub = root / "psql"
+            secret = "SENSITIVE_FAKE_SQL_DO_NOT_PRINT"
+            stub.write_text(
+                "#!/bin/sh\n"
+                "printf '%s\\n' '1|f|t|f' '2|f|t|f' '3|f|t|f' "
+                "'4|f|t|f' '5|f|t|f' '6|t|t|f'\n"
+                "echo '" + secret + "' >&2\n",
+                encoding="utf-8")
+            stub.chmod(0o755)
+            os = __import__("os")
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ["PATH"])
+            result = subprocess.run(
+                ["python3", str(C1_CLONE_PARITY), "--db-url",
+                 "postgresql://postgres:postgres@127.0.0.1:45789/postgres"],
+                env=env, check=True, capture_output=True, text=True)
+            self.assertEqual(result.stdout, "C1_CLONE_ACL=public_revise_anon\n")
+            self.assertNotIn(secret, result.stdout + result.stderr)
+            invalid = subprocess.run(
+                ["python3", str(C1_CLONE_PARITY), "--db-url",
+                 "postgresql://postgres:postgres@prod.example:5432/postgres"],
+                env=env, check=True, capture_output=True, text=True)
+            self.assertEqual(invalid.stdout, "C1_CLONE_ACL=unclassified\n")
+            self.assertNotIn(secret, invalid.stdout + invalid.stderr)
 
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
