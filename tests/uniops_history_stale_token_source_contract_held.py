@@ -19,14 +19,18 @@ OLD_SQL = b"""   RAISE EXCEPTION 'Retirement preflight stale; refresh impact'
    USING ERRCODE='40001'; END IF;"""
 NEW_SQL = b"""   RAISE EXCEPTION 'Retirement preflight stale; refresh impact'
    USING ERRCODE='PT409'; END IF;"""
-OLD_BRIDGE = b"""    \"\"\"Exact known source denial: stale snapshot is serialization failure.\"\"\"
-    if label == "Stale dependency snapshot must not cancel Work":
-        return "40001"
-    return "42501"""
-NEW_BRIDGE = b"""    \"\"\"Proposed review-only non-retryable stale-impact conflict code.\"\"\"
-    if label == "Stale dependency snapshot must not cancel Work":
-        return "PT409"
-    return "42501"""
+OLD_BRIDGE = (
+    b'    """Exact known source denial: stale snapshot is serialization failure."""\n'
+    b'    if label == "Stale dependency snapshot must not cancel Work":\n'
+    b'        return "40001"\n'
+    b'    return "42501"'
+)
+NEW_BRIDGE = (
+    b'    """Proposed review-only non-retryable stale-impact conflict code."""\n'
+    b'    if label == "Stale dependency snapshot must not cancel Work":\n'
+    b'        return "PT409"\n'
+    b'    return "42501"'
+)
 OLD_STATUS = b"""        if status not in (400, 401, 403, 409) or code != expected_denial_code(label):
             raise HeldProofRefusal("Signed historical denial not established: " + label)"""
 NEW_STATUS = b"""        expected = expected_denial_code(label)
