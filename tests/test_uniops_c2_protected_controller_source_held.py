@@ -171,7 +171,10 @@ python3() {
                                         env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 expected = value if value in allowlist else "unclassified"
-                self.assertEqual(result.stdout, f"C2_SIGNED_SUBSTAGE={expected}\n")
+                expected_output = f"C2_SIGNED_SUBSTAGE={expected}\n"
+                if expected == "signed_http":
+                    expected_output += "C2_SIGNED_CHECKPOINT=unclassified\n"
+                self.assertEqual(result.stdout, expected_output)
                 self.assertNotIn("FAKE_PRIVATE", result.stdout)
                 if value == "baseline":
                     marker.unlink()
