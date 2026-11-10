@@ -128,7 +128,7 @@ jobs:
           test "$(git -C canonical hash-object candidates/atlas-company-work-operating-register-v1/fixture.sql)" = 686754e2ffb03d9f4f7e11806421b0491d091b63
           test "$(git -C canonical hash-object candidates/atlas-company-work-operating-register-v1/postconditions.sql)" = 239a1f3d264d9c66ced7965c325d5d22f0945224
           test "$(git -C proposed hash-object docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql)" = bce85f944bbc27532021e670c4b5a342bffcc505
-          test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = 2f75ded1aa092e1d28ec0b5ea88f7d39e4130436
+          test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = c4c107e147105c11770cc73f224f24ad9ae63186
           python3 -m py_compile signed/scripts/validate-atlas-c2-case-work-signed-http.py
           python3 -m py_compile controller/scripts/prepare-uniops-c2-protected-clone-hook-held.py
           bash canonical/scripts/check-custody.sh
