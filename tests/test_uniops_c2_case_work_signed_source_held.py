@@ -100,11 +100,18 @@ class C2SignedTestSourceReview(unittest.TestCase):
         ):
             self.assertIn(value, self.fixture, value)
         for value in (
-            "update ledger.booking_requests set ledger_id=",
+            "UPDATE ledger.booking_requests",
+            "SET ledger_id='{LEDGER_B}'::uuid",
+            "EXCEPTION WHEN SQLSTATE '23514' THEN NULL;",
+            "C2 immutable booking source lost original L1 proof",
+            "C2 immutable booking was wrongly reassigned to L2",
+            "delete from ledger.booking_requests",
             "where id='{B_STALE}'::uuid and ledger_id='{LEDGER_A}'::uuid",
+            "C2 disposable synthetic booking source removal failed",
             "where work_item_id='{W_STALE}'::uuid",
             "and evidence_kind='source_verified' and attribution_state='active'",
-            "C2 stale source still independently proves L1",
+            "C2 removed synthetic source still independently proves L1",
+            "C2 removed source spuriously proves L2",
             "C2 signed raw L1 reader disclosed stale source_verified original",
             "extra_forbidden=(W_STALE, \"C2 SOURCE PROOF WILL GO STALE\")",
             "where id='{RELEVANCE_VERIFIED}'::uuid and attribution_state='active'",
@@ -112,6 +119,8 @@ class C2SignedTestSourceReview(unittest.TestCase):
             "start == fingerprint(args.db_url)",
         ):
             self.assertIn(value, self.driver, value)
+        self.assertIn("DO $c2_immutable$", self.driver)
+        self.assertIn("raise exception 'C2 fixture unexpectedly permitted booking Ledger reassignment'".lower(), self.driver.lower())
         self.assertNotIn("update atlas.work_items", self.driver.lower())
         self.assertNotIn("insert into atlas.work_items", self.driver.lower())
         self.assertNotIn("update atlas.work_requirement_links", self.driver.lower())
