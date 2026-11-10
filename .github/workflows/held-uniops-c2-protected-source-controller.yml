@@ -71,7 +71,7 @@ jobs:
               'production_target': 'zirqkouammpwxlqfbsvf',
               'canonical_head': '32d67670259e37fc1bd1485ede2a4db7fc4e5401',
               'source_head': '2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17',
-              'fixture_head': '7e9b712c38d6a9ff2ef3922f735431bc5dfd5f04',
+              'fixture_head': 'df0583eaa1d662dadbe1a93d7e71caf27fd9cba8',
               'release_intent': 'none',
               'test_only': 'true',
           }
@@ -112,7 +112,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: 7e9b712c38d6a9ff2ef3922f735431bc5dfd5f04
+          ref: df0583eaa1d662dadbe1a93d7e71caf27fd9cba8
           path: signed
           persist-credentials: false
 
@@ -122,7 +122,7 @@ jobs:
           set -euo pipefail
           test "$(git -C canonical rev-parse HEAD)" = 32d67670259e37fc1bd1485ede2a4db7fc4e5401
           test "$(git -C proposed rev-parse HEAD)" = 2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17
-          test "$(git -C signed rev-parse HEAD)" = 7e9b712c38d6a9ff2ef3922f735431bc5dfd5f04
+          test "$(git -C signed rev-parse HEAD)" = df0583eaa1d662dadbe1a93d7e71caf27fd9cba8
           test "$(git -C canonical hash-object scripts/validate-production-schema-clone.sh)" = 39f526cd8671f0aadbaab61c66dfc4971ef52131
           test "$(git -C canonical hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
           test "$(git -C canonical hash-object candidates/atlas-company-work-operating-register-v1/fixture.sql)" = 686754e2ffb03d9f4f7e11806421b0491d091b63
@@ -130,7 +130,7 @@ jobs:
           test "$(git -C proposed hash-object docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql)" = bce85f944bbc27532021e670c4b5a342bffcc505
           test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = 926197145d3dc6f36eb36501999557293d8f41c0
           test "$(git -C controller hash-object scripts/uniops-c2-safe-disposable-stage-receipt.py)" = 9ebd246ff262b471ef35b0c60b86ef6e4dcd507f
-          test "$(git -C controller hash-object scripts/uniops-c2-safe-signed-checkpoint-held.py)" = 79aa45ae81a36479b524b9aa57eee7aadfab466b
+          test "$(git -C controller hash-object scripts/uniops-c2-safe-signed-checkpoint-held.py)" = 3ba40216632a37388753a79b61b37b1ab7571eb7
           test "$(git -C controller hash-object scripts/uniops-c1-safe-postconditions-reason-held.py)" = b9acdf2a777e4bff113a4049ce6c00b8b948f681
           test "$(git -C controller hash-object scripts/uniops-c1-readonly-disposable-grants-held.py)" = b0e136e61454c8d8bb393c9e239a987a41b1c0c7
           test "$(git -C controller hash-object scripts/prepare-uniops-c1-disposable-grant-observation-held.py)" = 37311454857d79e9a18de585fa6b6c84885db024
@@ -157,7 +157,7 @@ jobs:
           source_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2668" --jq '[.state,(.draft|tostring),.head.sha]|join("|")')"
           fixture_pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2669" --jq '[.state,(.draft|tostring),.head.sha]|join("|")')"
           test "$source_pr" = "open|true|2545ed3cdafc811ce6ccb466b6aaa99ab9d5ec17"
-          test "$fixture_pr" = "open|true|7e9b712c38d6a9ff2ef3922f735431bc5dfd5f04"
+          test "$fixture_pr" = "open|true|df0583eaa1d662dadbe1a93d7e71caf27fd9cba8"
           echo 'PASS source and test remain separate HELD PRs'
 
       - name: Pin canonical validator COPY and inject one C2 hook; leave canonical main untouched
