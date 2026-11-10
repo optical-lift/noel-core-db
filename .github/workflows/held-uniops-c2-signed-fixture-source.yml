@@ -32,7 +32,7 @@ jobs:
           # Do not scan the literal prohibited list against itself.
           declared=y.split('      - name: Deny protected execution and privilege escalation',1)[0]
           import re
-          assert re.findall(r'^  ([a-z0-9_-]+):',y.split('jobs:\\n',1)[1],re.M) == ['source-review-only']
+          assert re.findall(r'^  ([a-z0-9_-]+):',y.split('jobs:',1)[1],re.M) == ['source-review-only']
           for prohibited in ('environment: production','secrets.', 'workflow_dispatch:',
                              'issues:', 'self-hosted', 'NOEL_CORE_DATABASE_URL',
                              'supabase db dump','supabase db push','psql ',
