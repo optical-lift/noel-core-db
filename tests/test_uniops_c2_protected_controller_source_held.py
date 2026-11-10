@@ -460,6 +460,55 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertIn("acl.grantee=0", source)
         self.assertIn("p.proacl is not null", source)
 
+    def test_c1_clone_candidate_copy_is_pinned_lane_named_and_local_only(self):
+        """Execute the actual workflow copy/verification block with synthetic paths."""
+        import os
+        workflow = self.workflow
+        beginning = (
+            '          source_sql="$GITHUB_WORKSPACE/controller/scripts/'
+            'uniops-c1-disposable-public-wrapper-anon-parity-held.sql"\\n'
+        )
+        ending = "          # The disposable validator accepts a candidate-validation path.\\n"
+        self.assertEqual(workflow.count(beginning), 1)
+        block = beginning + workflow.split(beginning, 1)[1].split(ending, 1)[0]
+        self.assertIn('cmp -s -- "$source_sql" "$scratch"', block)
+        self.assertNotIn("psql ", block)
+        self.assertNotIn("NOEL_CORE_DATABASE_URL", block)
+        with tempfile.TemporaryDirectory() as directory:
+            base = pathlib.Path(directory)
+            controller = base / "controller"
+            (controller / "scripts").mkdir(parents=True)
+            clone_sql = controller / "scripts" / C1_CLONE_RESTORE.name
+            clone_sql.write_bytes(C1_CLONE_RESTORE.read_bytes())
+            subprocess.run(["git", "init", "-q", str(controller)], check=True)
+            runner_temp = base / "runner-temp"
+            runner_temp.mkdir()
+            env = dict(os.environ, GITHUB_WORKSPACE=str(base), RUNNER_TEMP=str(runner_temp))
+            subprocess.run(["bash", "-euo", "pipefail", "-c", block],
+                           check=True, capture_output=True, text=True, env=env, cwd=base)
+            scratch = (runner_temp /
+                "20261019201528_atlas_c1_disposable_public_wrapper_anon_parity_TEST_ONLY.sql")
+            self.assertEqual(scratch.read_bytes(), C1_CLONE_RESTORE.read_bytes())
+            # Exercise the actual canonical release-lane validator offline,
+            # rather than relying only on the basename's apparent shape.
+            accepted = subprocess.run(
+                ["bash", "scripts/check-migration-release-lane.sh",
+                 "20261019201528", "atlas", str(scratch)],
+                cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+            rejected = subprocess.run(
+                ["bash", "scripts/check-migration-release-lane.sh",
+                 "20261019201528", "atlas", str(clone_sql)],
+                cwd=ROOT, capture_output=True, text=True)
+            self.assertNotEqual(rejected.returncode, 0)
+            # Even a local copy with the right name must refuse altered bytes.
+            clone_sql.write_bytes(C1_CLONE_RESTORE.read_bytes() + b"\\n-- tampered\\n")
+            altered = subprocess.run(
+                ["bash", "-euo", "pipefail", "-c", block],
+                cwd=base, env=env, capture_output=True, text=True)
+            self.assertNotEqual(altered.returncode, 0)
+
+
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
         self.assertIn("pull_request:", y)
@@ -488,8 +537,16 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
             'scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql)" = '
             'e38508e4965db8da11e4c596d3134a5aca45054f', y)
         self.assertIn(
-            'scratch="$GITHUB_WORKSPACE/controller/scripts/'
+            'source_sql="$GITHUB_WORKSPACE/controller/scripts/'
             'uniops-c1-disposable-public-wrapper-anon-parity-held.sql"', y)
+        self.assertIn(
+            'scratch="$RUNNER_TEMP/'
+            '20261019201528_atlas_c1_disposable_public_wrapper_anon_parity_TEST_ONLY.sql"', y)
+        self.assertIn('cp -- "$source_sql" "$scratch"', y)
+        self.assertIn('cmp -s -- "$source_sql" "$scratch"', y)
+        self.assertIn(
+            'test "$(git -C controller hash-object "$scratch")" = '
+            'e38508e4965db8da11e4c596d3134a5aca45054f', y)
         self.assertIn(
             "if PGOPTIONS='-c uni_ops.disposable_clone=true' bash "
             "scripts/validate-production-schema-clone.sh", y)
@@ -499,7 +556,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
             y.index('scripts/uniops-c1-disposable-public-wrapper-anon-parity-held.sql)" ='),
             y.index("Read-only protected schema and roles snapshot"))
         self.assertLess(
-            y.index('scratch="$GITHUB_WORKSPACE/controller/scripts/'),
+            y.index('source_sql="$GITHUB_WORKSPACE/controller/scripts/'),
             y.index("if PGOPTIONS='-c uni_ops.disposable_clone=true' bash"))
         # C1 clone observation does not change C1/C2 predicates or release
         # privileges. It only adds a fixed SELECT inside the clone's original
