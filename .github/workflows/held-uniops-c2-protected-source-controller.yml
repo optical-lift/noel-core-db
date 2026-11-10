@@ -227,18 +227,18 @@ jobs:
             test -s "$RUNNER_TEMP/held-c2-private-diagnostics/held-c2-signed-private-receipt.txt"
             echo 'PASS disposable PG17 C1+C2 signed owner, source current/stale, denial and revocation'
           else
-            python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-disposable-stage-receipt.py" \
-              "$RUNNER_TEMP/held-c2-private-diagnostics/summary.md" \
-              || echo 'C2_DISPOSABLE_PHASE=unclassified'
-            echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
-            exit 1
-          fi
-            if [ "$(python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-disposable-stage-receipt.py" \
-              "$RUNNER_TEMP/held-c2-private-diagnostics/summary.md" 2>/dev/null)" = 'C2_DISPOSABLE_PHASE=c1_postconditions' ]; then
+            phase="$(python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-disposable-stage-receipt.py" \
+              "$RUNNER_TEMP/held-c2-private-diagnostics/summary.md" 2>/dev/null \
+              || echo 'C2_DISPOSABLE_PHASE=unclassified')"
+            echo "$phase"
+            if [ "$phase" = 'C2_DISPOSABLE_PHASE=c1_postconditions' ]; then
               python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c1-safe-postconditions-reason-held.py" \
                 "$RUNNER_TEMP/held-c2-private-diagnostics/postconditions.log" 2>/dev/null \
                 || echo 'C1_POSTCONDITIONS_REASON=unclassified'
             fi
+            echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
+            exit 1
+          fi
           # All raw diagnostic, schema, credential, token and SQL output remains
           # private to the ephemeral runner. No artifact upload and no PR comment.
 
