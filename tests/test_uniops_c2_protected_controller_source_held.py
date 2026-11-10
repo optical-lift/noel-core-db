@@ -442,6 +442,40 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertIn("checkout@v4", y)
         self.assertIn("pulls/2668", y)
         self.assertIn("pulls/2669", y)
+        # C1 clone observation does not change C1/C2 predicates or release
+        # privileges. It only adds a fixed SELECT inside the clone's original
+        # candidate-postconditions stage, followed by immutable C1 SQL.
+        self.assertIn(
+            'test "$(git -C controller hash-object '
+            'scripts/uniops-c1-readonly-disposable-grants-held.py)" = '
+            'b0e136e61454c8d8bb393c9e239a987a41b1c0c7', y)
+        self.assertIn(
+            'test "$(git -C controller hash-object '
+            'scripts/prepare-uniops-c1-disposable-grant-observation-held.py)" = '
+            '37311454857d79e9a18de585fa6b6c84885db024', y)
+        self.assertIn(
+            '--pinned-postconditions '
+            '"$GITHUB_WORKSPACE/canonical/candidates/'
+            'atlas-company-work-operating-register-v1/postconditions.sql"', y)
+        self.assertIn(
+            '--candidate-validation '
+            '"$RUNNER_TEMP/held-c1-postconditions-readonly-probe.sql"', y)
+        self.assertIn(
+            '--private-report "$RUNNER_TEMP/held-c2-private-diagnostics/'
+            'held-c1-clone-grants-private.txt"', y)
+        self.assertIn(
+            '--report "$RUNNER_TEMP/held-c2-private-diagnostics/'
+            'held-c1-clone-grants-private.txt"', y)
+        self.assertIn("C1_CLONE_ACL=unclassified", y)
+        self.assertEqual(
+            y.count('scripts/prepare-uniops-c1-disposable-grant-observation-held.py"'),
+            2)
+        self.assertLess(
+            y.index('scripts/uniops-c1-readonly-disposable-grants-held.py)" ='),
+            y.index('Read-only protected schema and roles snapshot'))
+        self.assertLess(
+            y.index('--create-wrapper'),
+            y.index('if bash scripts/validate-production-schema-clone.sh'))
         # The only privileged use of the allowlisted classifier is the
         # diagnostic failure branch; pin its immutable Git blob before the
         # protected snapshot and verify that no private summary is printed.
