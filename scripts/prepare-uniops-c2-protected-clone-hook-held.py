@@ -23,22 +23,27 @@ test -s "$C2_TEST_ROOT/tests/uniops_c2_case_work_disposable_fixture_held.sql"
 test -s "$C2_TEST_ROOT/scripts/validate-atlas-c2-case-work-signed-http.py"
 test -s "$C2_SOURCE_ROOT/docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql"
 # Refuse unexpected currently-installed source. This is a clone-only check
+printf '%s\\n' 'baseline' > "$artifacts_dir/held-c2-substage-private.txt"
 # using the unmodified, exact C1 owner RPC baseline, before #2668 install.
 test "$(psql "$database_url" -X -A -t -v ON_ERROR_STOP=1 -c "select md5(pg_get_functiondef('atlas.operating_requirements_owner_self_api_v1(uuid,uuid,integer)'::regprocedure))")" = 'ffcf0b1c8ab49b4d456037aa5f1147cf'
 # Never mutate the actual protected schema source: all psql connections below
 # must be the validator's generated disposable local database URL.
 [[ "$database_url" =~ ^postgresql://postgres:postgres@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+printf '%s\\n' 'candidate_install' > "$artifacts_dir/held-c2-substage-private.txt"
 PGOPTIONS='-c uni_ops.disposable_clone=true' psql "$database_url" -X -v ON_ERROR_STOP=1 \\
   -f "$C2_SOURCE_ROOT/docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql" \\
   >"$artifacts_dir/held-c2-disposable-function.log" 2>&1
+printf '%s\\n' 'fixture_setup' > "$artifacts_dir/held-c2-substage-private.txt"
 PGOPTIONS='-c uni_ops.disposable_clone=true' psql "$database_url" -X -v ON_ERROR_STOP=1 \\
   -f "$C2_TEST_ROOT/tests/uniops_c2_case_work_disposable_fixture_held.sql" \\
   >"$artifacts_dir/held-c2-six-original-fixture.log" 2>&1
+printf '%s\\n' 'signed_http' > "$artifacts_dir/held-c2-substage-private.txt"
 PGOPTIONS='-c uni_ops.disposable_clone=true' python3 "$C2_TEST_ROOT/scripts/validate-atlas-c2-case-work-signed-http.py" \\
   --db-url "$database_url" \\
   --expected-function-sql "$C2_SOURCE_ROOT/docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql" \\
   --output "$artifacts_dir/held-c2-signed-private-receipt.txt" \\
   >"$artifacts_dir/held-c2-signed-private.log" 2>&1
+printf '%s\\n' 'receipt_check' > "$artifacts_dir/held-c2-substage-private.txt"
 test -s "$artifacts_dir/held-c2-signed-private-receipt.txt"
 grep -q '^C2 HELD synthetic signed owner, source-verified' "$artifacts_dir/held-c2-signed-private-receipt.txt"
 echo 'PASS C2 ephemeral signed local test (private results withheld)'
