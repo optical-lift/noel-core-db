@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Expose only a fixed C2 signed-test checkpoint, never its private log.
+"""Expose only fixed C2 signed-test progress and public-source failure points.
 
-The input is a private, disposable runner-local signed HTTP log, not a
-production log. This source-only classifier does not run SQL or contact HTTP.
-Only exact, reviewed PASS lines in their original order are recognized.
-No exception messages, actor fields, SQL, URLs or private output are printed.
+The input is one private disposable runner-local C2 signed HTTP log. Never
+print SQL, traceback paths, credentials, tokens, user or synthetic actor data.
+There is no HTTP, SQL, database, fixture or production access in this module.
 """
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 MARKERS = (
@@ -25,15 +25,42 @@ FALLBACK = "unclassified"
 BEFORE_FIRST = "before_source_match"
 LOOKUP = {message: (idx, label) for idx, (message, label) in enumerate(MARKERS)}
 
+# Reviewed pinned C2 signer source blob 7e4859e068fdc00acb4d26be63ba3222858c8f1c.
+# These are the only six public-source call sites between owner visibility
+# PASS and the later source-proof invalidation PASS. This mapping cannot
+# authorize an exception; it only classifies a private traceback frame.
+SOURCE_TRANSITION_POINTS = {
+    180: "retarget_native_source",
+    185: "old_ledger_source_proof",
+    189: "new_ledger_source_proof",
+    193: "persisted_relevance",
+    199: "stale_owner_response",
+    203: "work_clock_unchanged",
+}
+PUBLIC_MAIN_FRAME = re.compile(
+    r'^\s*File "(?:[^"\r\n]*/)?validate-atlas-c2-case-work-signed-http[.]py", '
+    r'line ([0-9]{1,4}), in main$'
+)
+
 
 def classify_log(source: str) -> str:
     matched = [LOOKUP[line] for line in source.splitlines() if line in LOOKUP]
     if not matched:
         return BEFORE_FIRST
-    # A repeated or out-of-sequence PASS line is not a trustworthy checkpoint.
     if [idx for idx, _ in matched] != list(range(len(matched))):
         return FALLBACK
     return matched[-1][1]
+
+
+def classify_source_transition(log: str) -> str:
+    frames = [
+        int(match.group(1))
+        for line in log.splitlines()
+        if (match := PUBLIC_MAIN_FRAME.fullmatch(line))
+    ]
+    if len(frames) != 1:
+        return FALLBACK
+    return SOURCE_TRANSITION_POINTS.get(frames[0], FALLBACK)
 
 
 def main() -> None:
@@ -42,13 +69,19 @@ def main() -> None:
     args = parser.parse_args()
     path = Path(args.private_signed_log)
     verdict = FALLBACK
+    point = FALLBACK
     try:
         if (path.is_file() and not path.is_symlink()
                 and 0 < path.stat().st_size <= MAX_LOG_BYTES):
-            verdict = classify_log(path.read_text(encoding="utf-8"))
+            log = path.read_text(encoding="utf-8")
+            verdict = classify_log(log)
+            if verdict == "owner_visibility":
+                point = classify_source_transition(log)
     except (OSError, UnicodeError):
         pass
     print("C2_SIGNED_CHECKPOINT=" + verdict)
+    if verdict == "owner_visibility":
+        print("C2_SOURCE_TRANSITION_POINT=" + point)
 
 
 if __name__ == "__main__":
