@@ -466,9 +466,9 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         workflow = self.workflow
         beginning = (
             '          source_sql="$GITHUB_WORKSPACE/controller/scripts/'
-            'uniops-c1-disposable-public-wrapper-anon-parity-held.sql"\\n'
+            'uniops-c1-disposable-public-wrapper-anon-parity-held.sql"\n'
         )
-        ending = "          # The disposable validator accepts a candidate-validation path.\\n"
+        ending = "          # The disposable validator accepts a candidate-validation path.\n"
         self.assertEqual(workflow.count(beginning), 1)
         block = beginning + workflow.split(beginning, 1)[1].split(ending, 1)[0]
         self.assertIn('cmp -s -- "$source_sql" "$scratch"', block)
@@ -502,7 +502,7 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
                 cwd=ROOT, capture_output=True, text=True)
             self.assertNotEqual(rejected.returncode, 0)
             # Even a local copy with the right name must refuse altered bytes.
-            clone_sql.write_bytes(C1_CLONE_RESTORE.read_bytes() + b"\\n-- tampered\\n")
+            clone_sql.write_bytes(C1_CLONE_RESTORE.read_bytes() + b"\n-- tampered\n")
             altered = subprocess.run(
                 ["bash", "-euo", "pipefail", "-c", block],
                 cwd=base, env=env, capture_output=True, text=True)
