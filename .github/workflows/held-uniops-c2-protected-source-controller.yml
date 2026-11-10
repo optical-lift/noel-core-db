@@ -130,6 +130,7 @@ jobs:
           test "$(git -C proposed hash-object docs/review/uniops_c2_native_ledger_requirement_work_scope_held/proposed_function_review_only.sql)" = bce85f944bbc27532021e670c4b5a342bffcc505
           test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = 926197145d3dc6f36eb36501999557293d8f41c0
           test "$(git -C controller hash-object scripts/uniops-c2-safe-disposable-stage-receipt.py)" = 9ebd246ff262b471ef35b0c60b86ef6e4dcd507f
+          test "$(git -C controller hash-object scripts/uniops-c2-safe-signed-checkpoint-held.py)" = 0527eea8668518b9a64452982a43a2accefdac17
           test "$(git -C controller hash-object scripts/uniops-c1-safe-postconditions-reason-held.py)" = b9acdf2a777e4bff113a4049ce6c00b8b948f681
           test "$(git -C controller hash-object scripts/uniops-c1-readonly-disposable-grants-held.py)" = b0e136e61454c8d8bb393c9e239a987a41b1c0c7
           test "$(git -C controller hash-object scripts/prepare-uniops-c1-disposable-grant-observation-held.py)" = 37311454857d79e9a18de585fa6b6c84885db024
@@ -271,6 +272,13 @@ jobs:
                 esac
               fi
               echo "C2_SIGNED_SUBSTAGE=$tag"
+              # Inspect only exact, public-source PASS milestones. Never print
+              # the private signed log, traceback, tokens, SQL or test actors.
+              if [ "$tag" = signed_http ]; then
+                python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-signed-checkpoint-held.py" \
+                  "$RUNNER_TEMP/held-c2-private-diagnostics/held-c2-signed-private.log" 2>/dev/null \
+                  || echo 'C2_SIGNED_CHECKPOINT=unclassified'
+              fi
             fi
             echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
             exit 1

@@ -171,7 +171,10 @@ python3() {
                                         env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 expected = value if value in allowlist else "unclassified"
-                self.assertEqual(result.stdout, f"C2_SIGNED_SUBSTAGE={expected}\n")
+                expected_output = f"C2_SIGNED_SUBSTAGE={expected}\n"
+                if expected == "signed_http":
+                    expected_output += "C2_SIGNED_CHECKPOINT=unclassified\n"
+                self.assertEqual(result.stdout, expected_output)
                 self.assertNotIn("FAKE_PRIVATE", result.stdout)
                 if value == "baseline":
                     marker.unlink()
@@ -561,6 +564,73 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
                 cwd=base, env=env, capture_output=True, text=True)
             self.assertNotEqual(altered.returncode, 0)
 
+
+    def test_fixed_c2_signed_checkpoint_classifier_keeps_private_logs_private(self):
+        """Only signed driver's exact public-source PASS lines may become tokens."""
+        helper = ROOT / "scripts/uniops-c2-safe-signed-checkpoint-held.py"
+        spec = importlib.util.spec_from_file_location("c2_signed_checkpoint", helper)
+        classifier = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(classifier)
+        labels = (
+            "installed_source", "owner_visibility", "stale_source",
+            "negative_roles", "owner_withdrawal", "verified_withdrawal",
+            "complete",
+        )
+        self.assertEqual(tuple(label for _, label in classifier.MARKERS), labels)
+        self.assertEqual(classifier.classify_log("raw SQL password fake value\n"),
+                         "before_source_match")
+        for idx, (_, label) in enumerate(classifier.MARKERS):
+            prefix = "\n".join(msg for msg, _ in classifier.MARKERS[:idx + 1])
+            self.assertEqual(classifier.classify_log(prefix), label)
+            self.assertEqual(classifier.classify_log(prefix + "\nTRACEBACK PRIVATE DATA"),
+                             label)
+        self.assertEqual(classifier.classify_log(classifier.MARKERS[1][0]),
+                         "unclassified")
+        self.assertEqual(classifier.classify_log(
+            classifier.MARKERS[0][0] + "\n" + classifier.MARKERS[0][0]),
+            "unclassified")
+        self.assertEqual(classifier.classify_log(
+            classifier.MARKERS[0][0] + "\n" + classifier.MARKERS[2][0]),
+            "unclassified")
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            output = root / "private-signed.log"
+            output.write_text(
+                classifier.MARKERS[0][0] + "\nFAKE_PRIVATE_AUTH_TOKEN\n",
+                encoding="utf-8")
+            command = ["python3", str(helper), str(output)]
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=installed_source\n")
+            self.assertNotIn("FAKE_PRIVATE", result.stdout + result.stderr)
+            output.write_text("FAKE_PRIVATE_AUTH_TOKEN\n")
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=before_source_match\n")
+            output.write_text("A" * (classifier.MAX_LOG_BYTES + 1))
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=unclassified\n")
+            output.unlink()
+            actual = root / "target.log"
+            actual.write_text(classifier.MARKERS[0][0])
+            output.symlink_to(actual)
+            result = subprocess.run(command, capture_output=True, text=True, check=True)
+            self.assertEqual(result.stdout, "C2_SIGNED_CHECKPOINT=unclassified\n")
+
+        y = self.workflow
+        pin = ('test "$(git -C controller hash-object scripts/'
+               'uniops-c2-safe-signed-checkpoint-held.py)" = '
+               '0527eea8668518b9a64452982a43a2accefdac17')
+        self.assertIn(pin, y)
+        call = 'python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c2-safe-signed-checkpoint-held.py"'
+        self.assertEqual(y.count(call), 1)
+        self.assertIn('if [ "$tag" = signed_http ]; then', y)
+        self.assertIn('"$RUNNER_TEMP/held-c2-private-diagnostics/held-c2-signed-private.log" 2>/dev/null', y)
+        self.assertIn("|| echo 'C2_SIGNED_CHECKPOINT=unclassified'", y)
+        self.assertLess(y.index(pin), y.index("Read-only protected schema and roles snapshot"))
+        self.assertLess(y.index('if [ "$tag" = signed_http ]; then'), y.index(call))
+        self.assertLess(y.index(call), y.index(
+            "echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'"))
+        self.assertNotIn("cat held-c2-signed-private.log", y)
 
     def test_workflow_has_separate_owner_only_protected_gate(self):
         y = self.workflow
