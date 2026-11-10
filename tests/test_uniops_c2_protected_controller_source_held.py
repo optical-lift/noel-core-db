@@ -50,6 +50,15 @@ class HeldC2ControllerSource(unittest.TestCase):
                             not line.endswith(chr(92) * 2)
                             for line in commands))
         self.assertIn('  >"$artifacts_dir/held-c2-signed-private.log" 2>&1', hook)
+        substages = ("baseline", "candidate_install", "fixture_setup",
+                     "signed_http", "receipt_check")
+        markers = [f"'{stage}' > \"$artifacts_dir/held-c2-substage-private.txt\""
+                   for stage in substages]
+        self.assertEqual(hook.count("held-c2-substage-private.txt"), len(markers))
+        for marker in markers:
+            self.assertIn(marker, hook)
+        self.assertEqual([hook.index(x) for x in markers],
+                         sorted(hook.index(x) for x in markers))
         self.assertIn("PGOPTIONS='-c uni_ops.disposable_clone=true'", compiled)
         self.assertIn("ffcf0b1c8ab49b4d456037aa5f1147cf", compiled)
         self.assertIn("held-c2-six-original-fixture.log", compiled)
@@ -131,6 +140,50 @@ python3() {
             self.assertTrue(commands[3].startswith("python:-c uni_ops.disposable_clone=true:"))
             self.assertIn("--expected-function-sql", commands[3])
             self.assertTrue((artifacts / "held-c2-signed-private-receipt.txt").is_file())
+            self.assertEqual(
+                (artifacts / "held-c2-substage-private.txt").read_text(encoding="utf-8"),
+                "receipt_check\\n")
+
+
+    def test_c2_substage_receipt_is_a_fixed_allowlist_only(self):
+        """The public failure branch never prints raw clone or SQL content."""
+        import os
+        begin = "            if [ \"$phase\" = 'C2_DISPOSABLE_PHASE=c2_signed_local' ]; then\n"
+        end = "            echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'\n"
+        self.assertEqual(self.workflow.count(begin), 1)
+        self.assertEqual(self.workflow.count(end), 1)
+        shell = begin + self.workflow.split(begin, 1)[1].split(end, 1)[0]
+        self.assertNotIn('echo "$receipt_stage"', shell)
+        self.assertNotIn('cat "$RUNNER_TEMP', shell)
+        allowlist = ("baseline", "candidate_install", "fixture_setup",
+                     "signed_http", "receipt_check")
+        for value in (*allowlist, "FAKE_PRIVATE_SQL_PASSWORD",
+                      "baseline\nFAKE_PRIVATE_SQL_PASSWORD", None):
+            with tempfile.TemporaryDirectory() as directory:
+                marker = (pathlib.Path(directory) / "held-c2-private-diagnostics" /
+                          "held-c2-substage-private.txt")
+                marker.parent.mkdir()
+                if value is not None:
+                    marker.write_text(value + "\n", encoding="utf-8")
+                env = dict(os.environ, RUNNER_TEMP=directory,
+                           phase="C2_DISPOSABLE_PHASE=c2_signed_local")
+                result = subprocess.run(["bash", "-euo", "pipefail", "-c", shell],
+                                        env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                expected = value if value in allowlist else "unclassified"
+                self.assertEqual(result.stdout, f"C2_SIGNED_SUBSTAGE={expected}\n")
+                self.assertNotIn("FAKE_PRIVATE", result.stdout)
+                if value == "baseline":
+                    marker.unlink()
+                    target = marker.parent / "target.txt"
+                    target.write_text("baseline\n")
+                    marker.symlink_to(target)
+                    result = subprocess.run(
+                        ["bash", "-euo", "pipefail", "-c", shell],
+                        env=env, capture_output=True, text=True)
+                    self.assertEqual(result.stdout,
+                                     "C2_SIGNED_SUBSTAGE=unclassified\n")
+
 
     def test_drift_and_missing_anchor_refused(self):
         for variant in (self.validator.replace("signed_http_probe=true", "signed_http_probe=false"),
@@ -524,6 +577,9 @@ printf '%s\n' "${0##*/}" >> "$TRACE"
         self.assertIn("validate-production-schema-clone.sh", y)
         self.assertIn("20261019201528", y)
         self.assertIn("prepare-uniops-c2-protected-clone-hook-held.py", y)
+        self.assertIn('test "$(git -C controller hash-object scripts/'
+                      'prepare-uniops-c2-protected-clone-hook-held.py)" = '
+                      '926197145d3dc6f36eb36501999557293d8f41c0', y)
         self.assertIn("diagnostic_scope", y)
         self.assertIn("release_intent", y)
         self.assertIn("checkout@v4", y)
