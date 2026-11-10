@@ -131,6 +131,8 @@ jobs:
           test "$(git -C controller hash-object scripts/prepare-uniops-c2-protected-clone-hook-held.py)" = c4c107e147105c11770cc73f224f24ad9ae63186
           test "$(git -C controller hash-object scripts/uniops-c2-safe-disposable-stage-receipt.py)" = 9ebd246ff262b471ef35b0c60b86ef6e4dcd507f
           test "$(git -C controller hash-object scripts/uniops-c1-safe-postconditions-reason-held.py)" = b9acdf2a777e4bff113a4049ce6c00b8b948f681
+          test "$(git -C controller hash-object scripts/uniops-c1-readonly-disposable-grants-held.py)" = b0e136e61454c8d8bb393c9e239a987a41b1c0c7
+          test "$(git -C controller hash-object scripts/prepare-uniops-c1-disposable-grant-observation-held.py)" = 37311454857d79e9a18de585fa6b6c84885db024
           python3 -m py_compile signed/scripts/validate-atlas-c2-case-work-signed-http.py
           python3 -m py_compile controller/scripts/prepare-uniops-c2-protected-clone-hook-held.py
           # These canonical custody scripts resolve paths against $PWD.
@@ -213,13 +215,22 @@ jobs:
           # do NOT create competing tables or replay C1 migration over them.
           printf 'select 1;\n' > "$scratch"
           test "$(cat "$scratch")" = 'select 1;'
+          # The disposable validator accepts a candidate-validation path.
+          # Generate a clone-only wrapper: SELECT six C1 function grants into
+          # a private, fixed-format file, then include every byte of the
+          # pinned original C1 postcondition SQL with ON_ERROR_STOP=1.
+          python3 "$GITHUB_WORKSPACE/controller/scripts/prepare-uniops-c1-disposable-grant-observation-held.py" \
+            --create-wrapper \
+            --pinned-postconditions "$GITHUB_WORKSPACE/canonical/candidates/atlas-company-work-operating-register-v1/postconditions.sql" \
+            --wrapper "$RUNNER_TEMP/held-c1-postconditions-readonly-probe.sql" \
+            --private-report "$RUNNER_TEMP/held-c2-private-diagnostics/held-c1-clone-grants-private.txt"
           cd canonical
           if bash scripts/validate-production-schema-clone.sh \
             --migration-version 20261019201528 \
             --release-lane atlas \
             --candidate-migration "$scratch" \
             --candidate-fixture "$GITHUB_WORKSPACE/canonical/candidates/atlas-company-work-operating-register-v1/fixture.sql" \
-            --candidate-validation "$GITHUB_WORKSPACE/canonical/candidates/atlas-company-work-operating-register-v1/postconditions.sql" \
+            --candidate-validation "$RUNNER_TEMP/held-c1-postconditions-readonly-probe.sql" \
             --roles-dump "$RUNNER_TEMP/production-custom-roles.sql" \
             --schema-dump "$RUNNER_TEMP/production-user-schema.sql" \
             --artifacts-dir "$RUNNER_TEMP/held-c2-private-diagnostics" \
@@ -235,6 +246,9 @@ jobs:
               python3 "$GITHUB_WORKSPACE/controller/scripts/uniops-c1-safe-postconditions-reason-held.py" \
                 "$RUNNER_TEMP/held-c2-private-diagnostics/postconditions.log" 2>/dev/null \
                 || echo 'C1_POSTCONDITIONS_REASON=unclassified'
+              python3 "$GITHUB_WORKSPACE/controller/scripts/prepare-uniops-c1-disposable-grant-observation-held.py" \
+                --report "$RUNNER_TEMP/held-c2-private-diagnostics/held-c1-clone-grants-private.txt" \
+                || echo 'C1_CLONE_ACL=unclassified'
             fi
             echo 'FAIL C2 protected disposable diagnostic; private schema and SQL errors withheld'
             exit 1
