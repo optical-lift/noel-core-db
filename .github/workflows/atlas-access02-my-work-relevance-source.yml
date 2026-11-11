@@ -1,0 +1,43 @@
+name: Atlas ACCESS-02 My Work verified native relevance source check
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas_connected_person_my_work_verified_relevance_v1/**'
+      - 'tests/test_atlas_access02_native_work_relevance_source.py'
+      - '.github/workflows/atlas-access02-my-work-relevance-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Checkout exact proposed candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Verify exact Work source and withheld-relevance contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_atlas_access02_native_work_relevance_source.py
+
+      - name: Parse PostgreSQL source candidate and postconditions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          root=Path("candidates/atlas_connected_person_my_work_verified_relevance_v1")
+          for filename in ("candidate.sql","postconditions.sql"):
+              parsed=parse_sql((root/filename).read_text())
+              assert parsed,filename
+              print("PASS PostgreSQL parse:",filename)
+          PY
+          echo "SOURCE-ONLY: no signed auth, clone, production SQL, or migration approval"
