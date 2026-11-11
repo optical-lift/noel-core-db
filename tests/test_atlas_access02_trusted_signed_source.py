@@ -86,6 +86,20 @@ class TrustedAccess02(unittest.TestCase):
             self.assertIn(required,F,required)
         for forbidden in ("auth.users","GRANT ","REVOKE ","CREATE TABLE","DROP TABLE","public."):
             self.assertNotIn(forbidden,F)
+        # Mirror the exact disposable schema-clone fixture admission, not
+        # just PostgreSQL grammar. Procedural DO and semicolons in strings
+        # are rejected by the trusted fixture sanitizer.
+        clean=re.sub(r"--[^\\n]*"," ",F)
+        clean=re.sub(r"\\s+"," ",clean).strip()
+        forbidden_sql=re.compile(
+            r"\\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|"
+            r"analyze|reindex|cluster|refresh|copy|do|call|execute|prepare|"
+            r"deallocate|listen|notify|security)\\b",re.I)
+        self.assertIsNone(forbidden_sql.search(clean))
+        statements=[v.strip() for v in clean.split(";") if v.strip()]
+        self.assertEqual(len(statements),4)
+        self.assertTrue(all(re.match(r"^(insert\\s+into|update\\s+|delete\\s+from|select\\s+)",v,re.I)
+                            for v in statements))
 
 if __name__=="__main__":
     unittest.main()
