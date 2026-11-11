@@ -53,6 +53,10 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual(mod.classify(0, "", None), "missing_signed_receipt")
         self.assertEqual(mod.classify(124, "", None), "time_bound")
         self.assertEqual(mod.classify(137, "", None), "time_bound")
+        self.assertEqual(
+            mod.classify(124, "**FAILED during candidate migration postconditions.**", None),
+            "postconditions"
+        )
         self.assertEqual(mod.classify(None, "", None), "exit_unknown")
 
     def test_reading_boundary(self):
