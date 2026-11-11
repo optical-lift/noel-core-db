@@ -46,7 +46,7 @@ jobs:
                     "github.actor == github.repository_owner",
                     "environment: production",
                     "candidate_sha:",
-                    "2d40867002a2906b908e802f3d40b065f03acfd3",
+                    "4eefa127f5482921f97eabab8d21eca54b510e55",
                     "NOEL_CORE_DATABASE_URL:",
                     "Snapshot production roles and schema READ ONLY",
                     "Checkout immutable held candidate",
@@ -102,7 +102,7 @@ jobs:
           import os,re
           s=os.environ.get("ISSUE_BODY","")
           x=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',s,re.M)
-          if x != ["2d40867002a2906b908e802f3d40b065f03acfd3"]:
+          if x != ["4eefa127f5482921f97eabab8d21eca54b510e55"]:
               raise SystemExit("OWNER issue must pin the one reviewed ACCESS-01 source SHA")
           with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
               out.write("candidate_sha="+x[0]+"\n")
