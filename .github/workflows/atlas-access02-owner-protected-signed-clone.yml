@@ -224,5 +224,9 @@ jobs:
           val=allowed.get(phase.group(1),"UNKNOWN") if phase else "UNKNOWN"
           with open(os.environ["GITHUB_STEP_SUMMARY"],"a",encoding="utf-8") as f:
               f.write("ACCESS02_DISPOSABLE_PHASE="+val+"\n")
+          # Only the allowlisted fixed token, never SQL/source/private logs.
+          # Console-visible receipt is required because the linked Actions
+          # interface cannot access GITHUB_STEP_SUMMARY through job log API.
+          print("ACCESS02_DISPOSABLE_PHASE="+val)
           PY
           echo 'No production SQL write or release; only schema/role dumps read-only and fictional local clone mutations.' >> "$GITHUB_STEP_SUMMARY"

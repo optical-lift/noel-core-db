@@ -27,6 +27,11 @@ class TrustedAccess02(unittest.TestCase):
           "ACCESS02_DISPOSABLE_SIGNED_RESULT=PASS",
         ):
             self.assertIn(required,protected,required)
+        self.assertIn('print("ACCESS02_DISPOSABLE_PHASE="+val)',protected)
+        self.assertIn('"UNKNOWN"',protected)
+        self.assertIn('"signed_my_work"',protected)
+        self.assertNotIn("print(source)",protected)
+        self.assertNotIn("print(raw)",protected)
         self.assertEqual(protected.count("NOEL_CORE_DATABASE_URL: "),1)
         self.assertLess(protected.index("Snapshot production roles and schema READ ONLY"),
                         protected.index("Checkout immutable held candidate"))
