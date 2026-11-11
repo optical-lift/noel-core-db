@@ -411,6 +411,20 @@ startup=startup.split('supabase start >"$startup_log" 2>&1',1)[0]
 if '[ "$signed_care_single_done_probe" = true ]' not in startup:
     errors.append('Signed care probe accidentally starts PostgreSQL-only')
 
+# ACCESS-01: only the exact generated Atlas migration inherits the proven
+# fail-closed disposable anonymous REST ACL parity recovery. All other names
+# and domains retain the original untouched validator behavior.
+access01_route = (
+    'if [ "$signed_access01_event_choices_probe" = true ] || {' in harness
+    and '[ "$lane" = "atlas" ] &&' in harness
+    and '^[0-9]{14}_atlas_access01_event_choices_root_boundary_v1[.]sql$' in harness
+    and 'phase="ACCESS-01 disposable anonymous REST ACL parity"' in harness
+    and 'PGOPTIONS="-c access01.disposable_clone=true"' in harness
+    and 'scripts/atlas-access01-disposable-anon-parity-held.sql' in harness
+)
+if not access01_route:
+    errors.append('ACCESS-01 exact generated Atlas clone ACL fidelity route missing')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
