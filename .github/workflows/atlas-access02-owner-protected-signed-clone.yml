@@ -204,7 +204,7 @@ jobs:
           base=Path(os.environ["RUNNER_TEMP"])/"access02-clone-artifacts"
           summary=base/"summary.md"
           source=summary.read_text(encoding="utf-8",errors="replace")[:16000] if summary.is_file() else ""
-          phase=re.search(r"\\*\\*FAILED during ([^\\n]{1,100})\\.\\*\\*",source)
+          phase=re.search(r"\*\*FAILED during ([^\n]{1,100})\.\*\*",source)
           allowed={
               "release-lane custody check":"lane_custody",
               "validation fixture safety check":"fixture_safety",
@@ -223,6 +223,6 @@ jobs:
           }
           val=allowed.get(phase.group(1),"UNKNOWN") if phase else "UNKNOWN"
           with open(os.environ["GITHUB_STEP_SUMMARY"],"a",encoding="utf-8") as f:
-              f.write("ACCESS02_DISPOSABLE_PHASE="+val+"\\n")
+              f.write("ACCESS02_DISPOSABLE_PHASE="+val+"\n")
           PY
           echo 'No production SQL write or release; only schema/role dumps read-only and fictional local clone mutations.' >> "$GITHUB_STEP_SUMMARY"
