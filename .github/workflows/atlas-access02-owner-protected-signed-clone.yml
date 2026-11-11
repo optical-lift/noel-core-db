@@ -1,0 +1,192 @@
+name: Atlas ACCESS-02 protected signed My Work clone
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-access02-owner-protected-signed-clone.yml'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'scripts/validate-atlas-access02-my-work-signed-http.py'
+      - 'validation/fixtures/access02_my_work_relevance_signed_clone_only.sql'
+      - 'tests/test_atlas_access02_trusted_signed_source.py'
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  check-harness-source:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check source-only protected test boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-access02-owner-protected-signed-clone.yml")'
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-access02-my-work-signed-http.py
+          python3 tests/test_atlas_access02_trusted_signed_source.py
+          echo 'PASS SOURCE-ONLY; not a signed test or release'
+
+  validate-owner-protected-signed:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas ACCESS-02: protected signed My Work relevance approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    concurrency:
+      group: atlas-access02-exact-owner-signed-clone
+      cancel-in-progress: false
+    steps:
+      - name: Require owner's exact immutable held source SHA
+        id: approved
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          body=os.environ.get("ISSUE_BODY","")
+          found=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',body,re.M)
+          expected="13b3f2cc2364b4e9d3f4d161b3a4d3a9d5033530"
+          if found!=[expected]:
+              raise SystemExit("ACCESS-02 issue must pin exact source SHA")
+          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
+              out.write("candidate_sha="+expected+"\n")
+          PY
+      - name: Checkout trusted canonical main controller
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Validate trusted source and custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-access02-my-work-signed-http.py
+          python3 tests/test_atlas_access02_trusted_signed_source.py
+      - name: Install pinned Supabase CLI and registry auth
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/access02-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/access02-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n 1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      # ONLY this step has a production secret, for ROLE/SCHEMA READ ONLY.
+      # No held candidate branch is checked out until after this step.
+      - name: Snapshot production roles and schema READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/access02-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/access02-schema.sql"
+          test -s "$RUNNER_TEMP/access02-roles.sql" && test -s "$RUNNER_TEMP/access02-schema.sql"
+      - name: Checkout immutable held candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.approved.outputs.candidate_sha }}
+          path: held
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify immutable held source, no untrusted executable test
+        shell: bash
+        env:
+          HELD_SHA: ${{ steps.approved.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "$HELD_SHA"
+          candidate="held/candidates/atlas_connected_person_my_work_verified_relevance_v1/candidate.sql"
+          post="held/candidates/atlas_connected_person_my_work_verified_relevance_v1/postconditions.sql"
+          test -s "$candidate" && test -s "$post"
+          python3 - <<'PY'
+          from pathlib import Path
+          c=Path('held/candidates/atlas_connected_person_my_work_verified_relevance_v1/candidate.sql').read_text()
+          p=Path('held/candidates/atlas_connected_person_my_work_verified_relevance_v1/postconditions.sql').read_text()
+          assert c.count("CREATE OR REPLACE FUNCTION atlas.connected_person_my_work_self_api_v1(")==1
+          assert c.count("AND coalesce(relevance.has_relevance,false)")==1
+          assert "d6003af17ab97d3ee21188f35454332c" in c
+          assert "CREATE OR REPLACE FUNCTION public." not in c
+          assert "GRANT EXECUTE" not in c
+          assert "c47a7961a04f6b834b65a851253990da" in p
+          print('PASS pinned single private Work reader candidate')
+          PY
+      - name: Assemble ephemeral disposable clone inputs
+        id: scratch
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/access02-scratch"
+          mkdir -p "$scratch"
+          (cd "$scratch" && supabase init --force && supabase migration new atlas_access02_my_work_relevance_signed_clone_only_v1)
+          migration="$(find "$scratch/supabase/migrations" -type f -name '*_atlas_access02_my_work_relevance_signed_clone_only_v1.sql')"
+          test -n "$migration"
+          test "$(printf '%s\n' "$migration" | wc -l)" -eq 1
+          cp held/candidates/atlas_connected_person_my_work_verified_relevance_v1/candidate.sql "$migration"
+          cp candidates/atlas/atlas_universal_original_work_integrated_v1/fixture.sql "$scratch/fixture.sql"
+          printf '\n' >> "$scratch/fixture.sql"
+          cat validation/fixtures/access02_my_work_relevance_signed_clone_only.sql >> "$scratch/fixture.sql"
+          cp held/candidates/atlas_connected_person_my_work_verified_relevance_v1/postconditions.sql "$scratch/postconditions.sql"
+          test -s "$scratch/fixture.sql" && test -s "$scratch/postconditions.sql"
+          echo "version=$(basename "$migration" | cut -d_ -f1)" >> "$GITHUB_OUTPUT"
+          echo "migration=$migration" >> "$GITHUB_OUTPUT"
+          echo "fixture=$scratch/fixture.sql" >> "$GITHUB_OUTPUT"
+          echo "postconditions=$scratch/postconditions.sql" >> "$GITHUB_OUTPUT"
+      - name: Genuine signed local My Work / relevance withdrawal clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          timeout --signal=TERM --kill-after=25s 18m \
+            bash scripts/validate-production-schema-clone.sh \
+              --migration-version "${{ steps.scratch.outputs.version }}" \
+              --release-lane atlas \
+              --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+              --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+              --candidate-validation "${{ steps.scratch.outputs.postconditions }}" \
+              --roles-dump "$RUNNER_TEMP/access02-roles.sql" \
+              --schema-dump "$RUNNER_TEMP/access02-schema.sql" \
+              --artifacts-dir "$RUNNER_TEMP/access02-clone-artifacts"
+          result=$?
+          set -e
+          if [ "$result" -eq 0 ]; then
+            if ! test -s "$RUNNER_TEMP/access02-clone-artifacts/signed-access02-my-work-summary.txt" ||
+               ! grep -q '^PASS ACCESS-02 signed ' "$RUNNER_TEMP/access02-clone-artifacts/signed-access02-my-work-summary.txt"; then
+              result=1
+            fi
+          fi
+          printf '%s\n' "$result" > "$RUNNER_TEMP/access02-clone-exit.txt"
+          exit "$result"
+      - name: Bounded source-only verdict, no private SQL/log text
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -s "$RUNNER_TEMP/access02-clone-exit.txt" &&
+             test "$(cat "$RUNNER_TEMP/access02-clone-exit.txt")" = 0 &&
+             test -s "$RUNNER_TEMP/access02-clone-artifacts/signed-access02-my-work-summary.txt" &&
+             grep -q '^PASS ACCESS-02 signed ' "$RUNNER_TEMP/access02-clone-artifacts/signed-access02-my-work-summary.txt"; then
+            echo 'ACCESS02_DISPOSABLE_SIGNED_RESULT=PASS' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'ACCESS02_DISPOSABLE_SIGNED_RESULT=FAILED_OR_NOT_REACHED' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo 'No production SQL write or release; only schema/role dumps read-only and fictional local clone mutations.' >> "$GITHUB_STEP_SUMMARY"

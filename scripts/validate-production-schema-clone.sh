@@ -124,6 +124,20 @@ signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
 signed_venue_bed_probe=false
 signed_access01_event_choices_probe=false
+signed_access02_my_work_probe=false
+# ACCESS-02: exact scratch-only signed My Work native relevance matrix.
+# This name is NOT a versioned production release migration. No implicit
+# signed acceptance is enabled for any other Atlas source.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_access02_my_work_relevance_signed_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$repo_root/scripts/validate-atlas-access02-my-work-signed-http.py" ]; then
+    echo "ACCESS-02 signed clone requires exact synthetic fixture, postconditions and trusted test." >&2
+    exit 2
+  fi
+  signed_access02_my_work_probe=true
+fi
+
 # ACCESS-01 single named test-only signed disposable clone, not a release lane.
 if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_access01_event_choices_signed_clone_only_v1[.]sql$ ]]; then
@@ -757,6 +771,16 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$signed_access02_my_work_probe" = true ]; then
+  phase="genuinely signed local ACCESS-02 My Work relevance grant-withdraw-restore"
+  python3 "$repo_root/scripts/validate-atlas-access02-my-work-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-access02-my-work-summary.txt" \
+    >"$artifacts_dir/signed-access02-my-work.log" 2>&1
+  test -s "$artifacts_dir/signed-access02-my-work-summary.txt"
+  grep -q '^PASS ACCESS-02 signed ' "$artifacts_dir/signed-access02-my-work-summary.txt"
 fi
 
 if [ "$signed_access01_event_choices_probe" = true ]; then
