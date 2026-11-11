@@ -78,7 +78,10 @@ def classify(exit_code, summary, signed_receipt):
             return "signed_pass"
         return "missing_signed_receipt"
     if exit_code == 124 or exit_code == 137:
-        return "time_bound"
+        # A prior SQL/fixture failure may already have recorded a fixed phase
+        # before Docker cleanup hit its deadline. Preserve that safe evidence.
+        known = phase_from_summary(summary)
+        return known if known != "unclassified" else "time_bound"
     if exit_code is None:
         return "exit_unknown"
     return phase_from_summary(summary)
