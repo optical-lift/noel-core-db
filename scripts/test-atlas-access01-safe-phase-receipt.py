@@ -41,6 +41,30 @@ class ReceiptTests(unittest.TestCase):
         )
         self.assertEqual(mod.classify(3, None, mock_secret), "unclassified")
 
+    def test_exact_safe_postcondition_reasons(self):
+        for message, code in mod.POSTCONDITION_REASONS.items():
+            self.assertEqual(
+                mod.postcondition_reason("psql:/tmp/disposable.sql:41: ERROR:  " + message),
+                code
+            )
+        self.assertEqual(
+            mod.postcondition_reason(
+                "psql: ERROR:  Other untrusted Postgres source with private value"
+            ), "unclassified"
+        )
+        self.assertEqual(
+            mod.postcondition_reason(
+                "psql: ERROR:  ACCESS-01 native or REST RPC role grants incorrect\n"
+                "psql: ERROR:  ACCESS-01 source guard, denial, order or public forwarding missing"
+            ), "unclassified"
+        )
+        self.assertEqual(
+            mod.postcondition_reason(
+                "NOTE: ACCESS-01 native or REST RPC role grants incorrect"
+            ), "unclassified"
+        )
+        self.assertEqual(mod.postcondition_reason(None), "unclassified")
+
     def test_signed_pass_requires_actual_receipt(self):
         self.assertEqual(
             mod.classify(0, "# Production schema clone validation", "PASS ACCESS-01 signed source"),

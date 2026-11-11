@@ -8,6 +8,9 @@ on:
       - '.github/workflows/atlas-access01-owner-protected-signed-clone.yml'
       - 'scripts/validate-production-schema-clone.sh'
       - 'scripts/validate-atlas-access01-event-choices-signed-http.py'
+      - 'scripts/atlas-access01-safe-phase-receipt.py'
+      - 'scripts/test-atlas-access01-safe-phase-receipt.py'
+      - 'scripts/atlas-access01-disposable-anon-parity-held.sql'
   issues:
     types: [opened, edited, reopened]
 
@@ -40,6 +43,7 @@ jobs:
           p=Path("scripts/validate-atlas-access01-event-choices-signed-http.py").read_text()
           reporter=Path("scripts/atlas-access01-safe-phase-receipt.py").read_text()
           reporter_tests=Path("scripts/test-atlas-access01-safe-phase-receipt.py").read_text()
+          acl_parity=Path("scripts/atlas-access01-disposable-anon-parity-held.sql").read_text()
           import re
           protected=re.split(r"(?m)^  validate-owner-protected-signed:\s*$",y,maxsplit=1)[1]
           for s in ("github.event.issue.author_association == 'OWNER'",
@@ -67,6 +71,14 @@ jobs:
           assert 'ACCESS01_DISPOSABLE_PHASE=' in reporter
           assert 'MAX_BYTES = 16384' in reporter
           assert 'test_all_fixed_harness_phases' in reporter_tests
+          assert 'test_exact_safe_postcondition_reasons' in reporter_tests
+          assert 'ACCESS-01 disposable anonymous REST ACL parity' in h
+          assert 'PGOPTIONS="-c access01.disposable_clone=true"' in h
+          assert 'REFUSE ACCESS01 ACL parity outside disposable clone' in acl_parity
+          assert acl_parity.count('REVOKE EXECUTE ON FUNCTION public.') == 2
+          assert 'GRANT EXECUTE' not in acl_parity
+          assert 'postconditions_' in reporter
+          assert '--postconditions-log' in protected
           assert 'timeout --signal=TERM --kill-after=25s 18m' in protected
           assert 'python3 scripts/atlas-access01-safe-phase-receipt.py' in protected
           assert 'cat "$RUNNER_TEMP/access01-clone-artifacts/summary.md"' not in protected
@@ -254,5 +266,6 @@ jobs:
           python3 scripts/atlas-access01-safe-phase-receipt.py \
             --clone-exit "$RUNNER_TEMP/access01-clone-exit.txt" \
             --summary "$RUNNER_TEMP/access01-clone-artifacts/summary.md" \
-            --signed-receipt "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt"
+            --signed-receipt "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt" \
+            --postconditions-log "$RUNNER_TEMP/access01-clone-artifacts/postconditions.log"
           echo "The receipt contains fixed labels only; no raw private diagnostics, releasable migration, production write or permission change." >> "$GITHUB_STEP_SUMMARY"

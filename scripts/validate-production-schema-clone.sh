@@ -735,6 +735,18 @@ phase="candidate migration application"
 psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration" \
   >"$artifacts_dir/candidate-migration.log" 2>&1
 
+# ACCESS-01 only: restore the *exact* expected anonymous-denial baseline
+# after a production-shaped user-schema restore, if the two PUBLIC REST wrapper
+# grants differ only by the known clone-specific extra anon grant.
+# The helper refuses any unexpected shape; it changes only the local clone.
+if [ "$signed_access01_event_choices_probe" = true ]; then
+  phase="ACCESS-01 disposable anonymous REST ACL parity"
+  PGOPTIONS="-c access01.disposable_clone=true" \
+    psql "$database_url" -X -v ON_ERROR_STOP=1 \
+      -f "$repo_root/scripts/atlas-access01-disposable-anon-parity-held.sql" \
+      >"$artifacts_dir/access01-anon-parity.log" 2>&1
+fi
+
 phase="candidate migration postconditions"
 if [ -n "$candidate_validation" ]; then
   psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_validation" \
