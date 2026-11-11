@@ -1,0 +1,233 @@
+name: Atlas ACCESS-01 protected signed Event clone
+
+# The protected job exists only on canonical main after reviewed merge.
+# This PR itself runs static source checks only and receives NO production secrets.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-access01-owner-protected-signed-clone.yml'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'scripts/validate-atlas-access01-event-choices-signed-http.py'
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  review-source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Source-only checks without production credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-access01-owner-protected-signed-clone.yml")'
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-access01-event-choices-signed-http.py
+          bash scripts/check-production-schema-validation-contract.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          y=Path(".github/workflows/atlas-access01-owner-protected-signed-clone.yml").read_text()
+          h=Path("scripts/validate-production-schema-clone.sh").read_text()
+          p=Path("scripts/validate-atlas-access01-event-choices-signed-http.py").read_text()
+          import re
+          protected=re.split(r"(?m)^  validate-owner-protected-signed:\s*$",y,maxsplit=1)[1]
+          for s in ("github.event.issue.author_association == 'OWNER'",
+                    "github.actor == github.repository_owner",
+                    "environment: production",
+                    "candidate_sha:",
+                    "2d40867002a2906b908e802f3d40b065f03acfd3",
+                    "NOEL_CORE_DATABASE_URL:",
+                    "Snapshot production roles and schema READ ONLY",
+                    "Checkout immutable held candidate",
+                    "Assemble disposable test-only package",
+                    "signed-access01-event-choices-summary.txt"):
+              assert s in protected,s
+          assert protected.count("NOEL_CORE_DATABASE_URL:")==1
+          assert protected.index("Snapshot production roles and schema READ ONLY") < protected.index("Checkout immutable held candidate")
+          assert protected.index("Checkout immutable held candidate") < protected.index("Assemble disposable test-only package")
+          assert h.count('signed_access01_event_choices_probe=true')==1
+          assert h.count('[ "$signed_access01_event_choices_probe" = true ]')>=4
+          assert "supabase start -x realtime,storage-api,imgproxy" in h
+          assert 'validate-atlas-access01-event-choices-signed-http.py' in h
+          assert '127[.]0[.]0[.]1:' in p and 'ev.local_endpoint()' in p
+          assert 'packet.get("code") == "42501"' in p
+          assert 'Other Ledger root cannot retrieve this Ledger roster' in p
+          assert 'ended exact root Work search' in p
+          for forbidden in ('supabase db push','supabase migration up',
+                            'db reset --linked','apply_migration',
+                            'SUPABASE_SERVICE_ROLE_KEY','gh pr merge'):
+              assert forbidden not in protected,forbidden
+          print("PASS ACCESS-01 protected issue owner gate and local signed test-only isolation")
+          PY
+
+  validate-owner-protected-signed:
+    concurrency:
+      group: atlas-access01-owner-protected-signed-clone
+      cancel-in-progress: false
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas ACCESS-01: protected signed clone approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    steps:
+      - name: Bind exact approved immutable candidate SHA
+        id: approved
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          s=os.environ.get("ISSUE_BODY","")
+          x=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',s,re.M)
+          if x != ["2d40867002a2906b908e802f3d40b065f03acfd3"]:
+              raise SystemExit("OWNER issue must pin the one reviewed ACCESS-01 source SHA")
+          with open(os.environ["GITHUB_OUTPUT"],"a",encoding="utf-8") as out:
+              out.write("candidate_sha="+x[0]+"\n")
+          PY
+
+      - name: Checkout trusted canonical main controller
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Validate trusted release and test harness contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-access01-event-choices-signed-http.py
+
+      - name: Install pinned Supabase CLI v2 and authenticate image registry
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/access01-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/access01-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n 1)" = "2.116.0"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+
+      # ONLY this step receives the protected production database URL. It takes
+      # roles+schema dumps, no row data. No held branch is checked out yet.
+      - name: Snapshot production roles and schema READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/access01-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/access01-schema.sql"
+          test -s "$RUNNER_TEMP/access01-roles.sql"
+          test -s "$RUNNER_TEMP/access01-schema.sql"
+
+      # Production credential is not passed to subsequent steps. The untrusted
+      # draft candidate supplies SQL+fictional fixture, NOT the trusted runner.
+      - name: Checkout immutable held candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.approved.outputs.candidate_sha }}
+          path: held
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify exact held source and trusted test identity
+        shell: bash
+        env:
+          CANDIDATE_SHA: ${{ steps.approved.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "$CANDIDATE_SHA"
+          dir=held/candidates/atlas-access-01-event-choices-root-boundary-20261111
+          test -s "$dir/candidate.sql"
+          test -s "$dir/validation.sql"
+          test -s "$dir/fictional_other_event_work_TEST_ONLY.sql"
+          test -s held/scripts/validate-atlas-access01-event-choices-signed-http.py
+          # Test program is admitted as reviewed source on trusted main.
+          # Fail rather than executing a changed held-branch test program.
+          cmp scripts/validate-atlas-access01-event-choices-signed-http.py held/scripts/validate-atlas-access01-event-choices-signed-http.py
+          python3 -m py_compile scripts/validate-atlas-access01-event-choices-signed-http.py
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path("held/candidates/atlas-access-01-event-choices-root-boundary-20261111/candidate.sql").read_text()
+          assert src.count("CREATE OR REPLACE FUNCTION atlas.")==2
+          assert "CREATE OR REPLACE FUNCTION public." not in src
+          assert "ea85d640f50b2db0a82d3365daa4a2c8" in src
+          assert "7c8489875224691d4b9e3e582622c7f9" in src
+          assert src.index("$access01_source_pins$") < src.index("CREATE OR REPLACE FUNCTION atlas.")
+          print("PASS immutable two-function, source-drift-pinned ACCESS-01 source")
+          PY
+
+      - name: Assemble disposable test-only package
+        id: scratch
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/access01-scratch"
+          mkdir -p "$work"
+          (cd "$work" && supabase init --force && supabase migration new atlas_access01_event_choices_signed_clone_only_v1)
+          migration="$(find "$work/supabase/migrations" -type f -name '*_atlas_access01_event_choices_signed_clone_only_v1.sql')"
+          test -n "$migration"
+          test "$(printf '%s\n' "$migration" | wc -l)" -eq 1
+          cat held/candidates/atlas-access-01-event-choices-root-boundary-20261111/candidate.sql > "$migration"
+          fixture="$work/fixture.sql"
+          cat validation/fixtures/20261027210656_atlas_unified_today_event_disclosure_work_authority_v1.sql > "$fixture"
+          printf '\n' >> "$fixture"
+          cat held/candidates/atlas-access-01-event-choices-root-boundary-20261111/fictional_other_event_work_TEST_ONLY.sql >> "$fixture"
+          post="$work/postconditions.sql"
+          cp held/candidates/atlas-access-01-event-choices-root-boundary-20261111/validation.sql "$post"
+          test -s "$fixture" && test -s "$post"
+          version="$(basename "$migration" | cut -d_ -f1)"
+          [[ "$version" =~ ^[0-9]{14}$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "migration=$migration" >> "$GITHUB_OUTPUT"
+          echo "fixture=$fixture" >> "$GITHUB_OUTPUT"
+          echo "post=$post" >> "$GITHUB_OUTPUT"
+          sha256sum "$migration" "$fixture" "$post"
+
+      - name: Protected genuine signed local GoTrue plus REST clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+            --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+            --candidate-validation "${{ steps.scratch.outputs.post }}" \
+            --roles-dump "$RUNNER_TEMP/access01-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/access01-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/access01-clone-artifacts"
+          test -s "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt"
+          grep -q '^PASS ACCESS-01' "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt"
+
+      - name: Bounded source-only verdict
+        if: always()
+        shell: bash
+        run: |
+          if test -s "$RUNNER_TEMP/access01-clone-artifacts/summary.md"; then
+            cat "$RUNNER_TEMP/access01-clone-artifacts/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ACCESS-01 signed clone has no PASS receipt. HOLD; no production changes." >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "This workflow never generates a releasable migration, merges PRs, applies production SQL or changes permissions." >> "$GITHUB_STEP_SUMMARY"
