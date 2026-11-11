@@ -739,7 +739,10 @@ psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration" \
 # after a production-shaped user-schema restore, if the two PUBLIC REST wrapper
 # grants differ only by the known clone-specific extra anon grant.
 # The helper refuses any unexpected shape; it changes only the local clone.
-if [ "$signed_access01_event_choices_probe" = true ]; then
+if [ "$signed_access01_event_choices_probe" = true ] || {
+     [ "$lane" = "atlas" ] &&
+     [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_access01_event_choices_root_boundary_v1[.]sql$ ]];
+   }; then
   phase="ACCESS-01 disposable anonymous REST ACL parity"
   PGOPTIONS="-c access01.disposable_clone=true" \
     psql "$database_url" -X -v ON_ERROR_STOP=1 \
