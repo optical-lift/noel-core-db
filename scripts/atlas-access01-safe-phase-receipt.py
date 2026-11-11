@@ -22,6 +22,7 @@ PHASE_CODES = {
     "baseline domain schema lint": "baseline_lint",
     "candidate validation fixture application": "fixture_application",
     "candidate migration application": "candidate_install",
+    "ACCESS-01 disposable anonymous REST ACL parity": "clone_acl_parity",
     "candidate migration postconditions": "postconditions",
     "genuinely signed local ACCESS-01 Event identity versus wider Ledger disclosure": "signed_actor_matrix",
     "candidate domain schema lint": "candidate_lint",
@@ -60,6 +61,32 @@ def phase_from_summary(summary):
     return next(iter(found)) if len(found) == 1 else "unclassified"
 
 
+# These are the *only* postcondition error texts allowed to influence a
+# result category. Source lines and the actual log bytes never leave the runner.
+POSTCONDITION_REASONS = {
+    "ACCESS-01 existing Event and root authority helpers required": "missing_helpers",
+    "ACCESS-01 native or original REST wrapper missing": "missing_wrappers",
+    "ACCESS-01 native function shape/security mismatch": "native_security_shape",
+    "ACCESS-01 REST delegate shape/security mismatch": "rest_security_shape",
+    "ACCESS-01 native or REST RPC role grants incorrect": "acl_parity",
+    "ACCESS-01 source guard, denial, order or public forwarding missing": "guard_or_delegate",
+}
+
+
+def postcondition_reason(log_text):
+    if log_text is None:
+        return "unclassified"
+    reasons = set()
+    for line in log_text.splitlines():
+        # Require actual psql ERROR segment, not arbitrary embedded text.
+        if "ERROR:  " not in line and "ERROR: " not in line:
+            continue
+        for phrase, code in POSTCONDITION_REASONS.items():
+            if line.rstrip().endswith("ERROR:  " + phrase) or line.rstrip().endswith("ERROR: " + phrase):
+                reasons.add(code)
+    return next(iter(reasons)) if len(reasons) == 1 else "unclassified"
+
+
 def exit_from_file(path):
     contents = bounded_plain(path)
     if contents is not None and re.fullmatch(r"(?:0|[1-9][0-9]{0,2})\s*", contents):
@@ -92,12 +119,16 @@ def main():
     ap.add_argument("--clone-exit", required=True)
     ap.add_argument("--summary", required=True)
     ap.add_argument("--signed-receipt", required=True)
+    ap.add_argument("--postconditions-log", required=True)
     args = ap.parse_args()
     code = exit_from_file(args.clone_exit)
     phase = classify(code, bounded_plain(args.summary), bounded_plain(args.signed_receipt))
+    if phase == "postconditions":
+        phase = "postconditions_" + postcondition_reason(bounded_plain(args.postconditions_log))
     if phase not in set(PHASE_CODES.values()) | {
         "unclassified", "signed_pass", "missing_signed_receipt",
-        "time_bound", "exit_unknown"
+        "time_bound", "exit_unknown",
+        *("postconditions_" + value for value in set(POSTCONDITION_REASONS.values()) | {"unclassified"})
     }:
         phase = "unclassified"
     result = "PASS" if phase == "signed_pass" else "HOLD"
