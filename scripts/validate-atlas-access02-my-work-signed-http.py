@@ -182,12 +182,26 @@ def main():
           "ACCESS-02 withdrawal silently released a Work obligation")
     print("PASS ACCESS-02 signed revoked native relevance hides title, details, count and cursor")
 
-    # Re-establish the same attestation, not new Work/Result/assignment.
-    sql(a.db_url,f"""UPDATE atlas.company_work_native_ledger_relevance
-      SET attribution_state='active', withdrawn_at=NULL,
-          withdrawn_by_person_id=NULL,withdrawal_reason=NULL
-      WHERE work_item_id='{WORK_A}'::uuid
-        AND ledger_id='{LEDGER}'::uuid AND attribution_state='withdrawn'""")
+    # Relevance evidence is append-only: the released trigger permits only
+    # active->withdrawn, never reopening the withdrawn historical row.
+    # Re-attest the same fictional native Work by INSERTING a new evidence
+    # row. Preserve the old withdrawal and the original Work/allocation.
+    sql(a.db_url,f"""INSERT INTO atlas.company_work_native_ledger_relevance
+      (organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
+       attestation_source_ref,attestation_reason,established_by_person_id)
+      VALUES('{ORG}'::uuid,'{WORK_A}'::uuid,'{LEDGER}'::uuid,
+        'serves_purpose','owner_attested','clone:access02-reattest-901',
+        'Independent synthetic new relevance after immutable withdrawal',
+        '{OWNER}'::uuid)""")
+    check(sql(a.db_url,f"""SELECT count(*) FROM
+         atlas.company_work_native_ledger_relevance
+         WHERE ledger_id='{LEDGER}'::uuid AND work_item_id='{WORK_A}'::uuid
+           AND attribution_state='withdrawn'""")=="1"
+         and sql(a.db_url,f"""SELECT count(*) FROM
+         atlas.company_work_native_ledger_relevance
+         WHERE ledger_id='{LEDGER}'::uuid AND work_item_id='{WORK_A}'::uuid
+           AND attribution_state='active'""")=="1",
+          "ACCESS-02 reattestation must preserve original withdrawn evidence")
     restored=mine(api,key,worker)
     check_items(restored,[WORK_A,WORK_B])
     check(restored["items"][0].get("allocationId")==ALLOC_A and
