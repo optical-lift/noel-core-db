@@ -57,7 +57,7 @@ BEGIN
    v_list := position('SELECT coalesce(jsonb_agg' in v_def);
    IF position('atlas.ledger_occurrence_shared_work_actor_self_v1' in v_def)=0
       OR v_guard=0 OR v_list=0 OR v_guard>v_list
-      OR position('USING errcode=''42501''' in lower(v_def))=0
+      OR position('using errcode=''42501''' in lower(v_def))=0
       OR position('atlas.' || v_name || '(' in v_public_def)=0
    THEN
      RAISE EXCEPTION 'ACCESS-01 source guard, denial, order or public forwarding missing';
