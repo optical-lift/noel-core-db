@@ -29,6 +29,15 @@ jobs:
           bash -n scripts/validate-production-schema-clone.sh
           python3 -m py_compile scripts/validate-atlas-access02-my-work-signed-http.py
           python3 tests/test_atlas_access02_trusted_signed_source.py
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          p=Path("validation/fixtures/access02_my_work_relevance_signed_clone_only.sql")
+          parsed=parse_sql(p.read_text())
+          assert len(parsed)==4, "ACCESS-02 requires four pure-DML fixture statements"
+          print("PASS ACCESS-02 disposable fixture SQL grammar")
+          PY
           echo 'PASS SOURCE-ONLY; not a signed test or release'
 
   validate-owner-protected-signed:
