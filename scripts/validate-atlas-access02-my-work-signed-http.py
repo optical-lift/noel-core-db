@@ -30,8 +30,8 @@ PERSON="e5200000-0000-4000-8000-000000000102"
 OWNER="e5200000-0000-4000-8000-000000000101"
 TITLE_A="Clone work: clear walkways"
 TITLE_B="Clone work: replacement sprayer arrives"
-SECRET_A="Synthetic instructions for Work 901; Ledger A only."
-SECRET_B="Synthetic instructions for Work 902; Ledger A only."
+SECRET_A="Synthetic instructions for Work 901 - Ledger A only."
+SECRET_B="Synthetic instructions for Work 902 - Ledger A only."
 RPC="connected_person_my_work_self_api_v1"
 
 def args(limit=50, after=None):
