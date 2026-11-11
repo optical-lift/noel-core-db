@@ -198,4 +198,31 @@ jobs:
           else
             echo 'ACCESS02_DISPOSABLE_SIGNED_RESULT=FAILED_OR_NOT_REACHED' >> "$GITHUB_STEP_SUMMARY"
           fi
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          base=Path(os.environ["RUNNER_TEMP"])/"access02-clone-artifacts"
+          summary=base/"summary.md"
+          source=summary.read_text(encoding="utf-8",errors="replace")[:16000] if summary.is_file() else ""
+          phase=re.search(r"\\*\\*FAILED during ([^\\n]{1,100})\\.\\*\\*",source)
+          allowed={
+              "release-lane custody check":"lane_custody",
+              "validation fixture safety check":"fixture_safety",
+              "schema dump sanitation":"schema_sanitation",
+              "disposable database startup":"local_startup",
+              "production custom-role restore":"role_restore",
+              "production user-schema restore":"schema_restore",
+              "baseline domain schema lint":"baseline_lint",
+              "candidate validation fixture application":"fixture_apply",
+              "candidate migration application":"candidate_apply",
+              "candidate migration postconditions":"postconditions",
+              "genuinely signed local ACCESS-02 My Work relevance grant-withdraw-restore":"signed_my_work",
+              "candidate domain schema lint":"candidate_lint",
+              "candidate lint delta comparison":"lint_delta",
+              "local database advisors":"advisors",
+          }
+          val=allowed.get(phase.group(1),"UNKNOWN") if phase else "UNKNOWN"
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a",encoding="utf-8") as f:
+              f.write("ACCESS02_DISPOSABLE_PHASE="+val+"\\n")
+          PY
           echo 'No production SQL write or release; only schema/role dumps read-only and fictional local clone mutations.' >> "$GITHUB_STEP_SUMMARY"
