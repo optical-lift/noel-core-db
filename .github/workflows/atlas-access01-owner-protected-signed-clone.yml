@@ -30,12 +30,16 @@ jobs:
           ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-access01-owner-protected-signed-clone.yml")'
           bash -n scripts/validate-production-schema-clone.sh
           python3 -m py_compile scripts/validate-atlas-access01-event-choices-signed-http.py
+          python3 -m py_compile scripts/atlas-access01-safe-phase-receipt.py
+          python3 scripts/test-atlas-access01-safe-phase-receipt.py
           bash scripts/check-production-schema-validation-contract.sh
           python3 - <<'PY'
           from pathlib import Path
           y=Path(".github/workflows/atlas-access01-owner-protected-signed-clone.yml").read_text()
           h=Path("scripts/validate-production-schema-clone.sh").read_text()
           p=Path("scripts/validate-atlas-access01-event-choices-signed-http.py").read_text()
+          reporter=Path("scripts/atlas-access01-safe-phase-receipt.py").read_text()
+          reporter_tests=Path("scripts/test-atlas-access01-safe-phase-receipt.py").read_text()
           import re
           protected=re.split(r"(?m)^  validate-owner-protected-signed:\s*$",y,maxsplit=1)[1]
           for s in ("github.event.issue.author_association == 'OWNER'",
@@ -60,6 +64,12 @@ jobs:
           assert 'packet.get("code") == "42501"' in p
           assert 'Other Ledger root cannot retrieve this Ledger roster' in p
           assert 'ended exact root Work search' in p
+          assert 'ACCESS01_DISPOSABLE_PHASE=' in reporter
+          assert 'MAX_BYTES = 16384' in reporter
+          assert 'test_all_fixed_harness_phases' in reporter_tests
+          assert 'timeout --signal=TERM --kill-after=25s 18m' in protected
+          assert 'python3 scripts/atlas-access01-safe-phase-receipt.py' in protected
+          assert 'cat "$RUNNER_TEMP/access01-clone-artifacts/summary.md"' not in protected
           for forbidden in ('supabase db push','supabase migration up',
                             'db reset --linked','apply_migration',
                             'SUPABASE_SERVICE_ROLE_KEY','gh pr merge'):
@@ -113,6 +123,8 @@ jobs:
           bash scripts/check-production-schema-validation-contract.sh
           bash -n scripts/validate-production-schema-clone.sh
           python3 -m py_compile scripts/validate-atlas-access01-event-choices-signed-http.py
+          python3 -m py_compile scripts/atlas-access01-safe-phase-receipt.py
+          python3 scripts/test-atlas-access01-safe-phase-receipt.py
 
       - name: Install pinned Supabase CLI v2 and authenticate image registry
         shell: bash
@@ -209,25 +221,38 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash scripts/validate-production-schema-clone.sh \
-            --migration-version "${{ steps.scratch.outputs.version }}" \
-            --release-lane atlas \
-            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
-            --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
-            --candidate-validation "${{ steps.scratch.outputs.post }}" \
-            --roles-dump "$RUNNER_TEMP/access01-roles.sql" \
-            --schema-dump "$RUNNER_TEMP/access01-schema.sql" \
-            --artifacts-dir "$RUNNER_TEMP/access01-clone-artifacts"
-          test -s "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt"
-          grep -q '^PASS ACCESS-01' "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt"
+          # Bound only the disposable local clone and its Docker cleanup.
+          # The read-only production schema snapshot happens in an earlier step.
+          set +e
+          timeout --signal=TERM --kill-after=25s 18m \
+            bash scripts/validate-production-schema-clone.sh \
+              --migration-version "${{ steps.scratch.outputs.version }}" \
+              --release-lane atlas \
+              --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+              --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+              --candidate-validation "${{ steps.scratch.outputs.post }}" \
+              --roles-dump "$RUNNER_TEMP/access01-roles.sql" \
+              --schema-dump "$RUNNER_TEMP/access01-schema.sql" \
+              --artifacts-dir "$RUNNER_TEMP/access01-clone-artifacts"
+          result=$?
+          set -e
+          if [ "$result" -eq 0 ]; then
+            if ! test -s "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt" ||
+               ! grep -q '^PASS ACCESS-01 signed ' "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt"; then
+              result=1
+            fi
+          fi
+          # Clone step exit status, only decimal digits. No SQL/log output.
+          printf '%s\n' "$result" > "$RUNNER_TEMP/access01-clone-exit.txt"
+          exit "$result"
 
       - name: Bounded source-only verdict
         if: always()
         shell: bash
         run: |
-          if test -s "$RUNNER_TEMP/access01-clone-artifacts/summary.md"; then
-            cat "$RUNNER_TEMP/access01-clone-artifacts/summary.md" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "ACCESS-01 signed clone has no PASS receipt. HOLD; no production changes." >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "This workflow never generates a releasable migration, merges PRs, applies production SQL or changes permissions." >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          python3 scripts/atlas-access01-safe-phase-receipt.py \
+            --clone-exit "$RUNNER_TEMP/access01-clone-exit.txt" \
+            --summary "$RUNNER_TEMP/access01-clone-artifacts/summary.md" \
+            --signed-receipt "$RUNNER_TEMP/access01-clone-artifacts/signed-access01-event-choices-summary.txt"
+          echo "The receipt contains fixed labels only; no raw private diagnostics, releasable migration, production write or permission change." >> "$GITHUB_STEP_SUMMARY"
