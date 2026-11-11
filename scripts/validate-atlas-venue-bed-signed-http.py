@@ -1,0 +1,765 @@
+#!/usr/bin/env python3
+"""TRUE signed local GoTrue -> PostgREST Venue-use test. DISPOSABLE CLONE ONLY.
+
+The public "clone_test_*" RPCs exist only in disposable-clone SQL. The held
+source procedures remain ungranted in real Noel. Never contact production.
+"""
+from __future__ import annotations
+import argparse
+import importlib.util
+import json
+import re
+import uuid
+from pathlib import Path
+
+HERE=Path(__file__).resolve().parent
+spec=importlib.util.spec_from_file_location(
+    "venue_signed_source_base",HERE/"validate-atlas-work-prerequisite-signed-http.py")
+if spec is None or spec.loader is None:
+    raise RuntimeError("Existing signed auth fixture helper required")
+base=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(base)
+c1=base.c1
+
+FLOWER=c1.LEDGER_A
+VENUE=c1.LEDGER_B
+BED="e5200000-0000-4000-8000-000000000b03"
+OTHER_BED="e5200000-0000-4000-8000-000000000b05"
+VENUE_WORK="e5200000-0000-4000-8000-000000000b20"
+VENUE_EVENT="e5200000-0000-4000-8000-000000000b40"
+WRONG_WORK="e5200000-0000-4000-8000-000000000901"
+VENUE_PERSON="e5200000-0000-4000-8000-000000000103"
+FLOWER_PERSON="e5200000-0000-4000-8000-000000000101"
+RPCS={
+  "offer":"clone_test_venue_bed_offer_v1",
+  "accept":"clone_test_venue_bed_accept_v1",
+  "link":"clone_test_venue_bed_link_v1",
+  "withdraw":"clone_test_venue_bed_withdraw_v1",
+}
+
+def check(ok,why):
+    if not ok: raise AssertionError(why)
+
+def lit(value):
+    return "'"+str(value).replace("'","''")+"'"
+
+def sql(db,statement):
+    return c1.sql(db,statement)
+
+def user_rpc(api,key,token,method,args):
+    return c1.rpc(api,key,RPCS[method],args,token)
+
+def accepted(api,key,token,method,args,expect="uuid"):
+    code,result=user_rpc(api,key,token,method,args)
+    check(code==200,f"Signed accepted {method} was HTTP {code}; the local source did not allow it")
+    if expect=="uuid":
+        check(isinstance(result,str),"Accepted source must return one UUID only")
+        return str(uuid.UUID(result))
+    check(expect=="bool" and result is True,"Expected boolean accepted receipt")
+    return True
+
+def refused(api,key,token,method,args,reason):
+    code,body=user_rpc(api,key,token,method,args)
+    check(code in (401,403) and isinstance(body,dict),
+        f"{reason}: expected actual signed source denial, got HTTP {code}")
+    check(body.get("code")=="42501",
+        f"{reason}: denial must come from SQL authorization, not missing RPC or caller syntax")
+    print("PASS",reason)
+
+def offer_args(bed=BED,action="venue-offer-a"):
+    return {
+      "p_flower_ledger_id":FLOWER,"p_venue_ledger_id":VENUE,
+      "p_bed_id":bed,"p_source_action_id":action,
+    }
+
+def accept_args(offer):
+    return {"p_offer_id":offer}
+
+def link_args(use,work=VENUE_WORK,action="venue-work-link-a",
+              reviewed_key="disposable-venue-work-near-bed",
+              reviewed_bed="clone-upick-bed-3"):
+    return {
+      "p_use_authorization_id":use,
+      "p_work_item_id":work,"p_source_action_id":action,
+      "p_human_review":{
+        "humanConfirmed":True,
+        "reviewedWorkStableKey":reviewed_key,
+        "reviewedBedStableKey":reviewed_bed
+      }
+    }
+
+def prove_independent_bed_reference(api,key,db,actors):
+    """Signed target Ledger Work reference without Flower permission ceremony."""
+    name="clone_test_ledger_work_existing_bed_reference_v1"
+    venue,claims=actors["outsider"]
+    def rpc_ref(token,work=VENUE_WORK,bed=BED,action="independent-venue-bed-3",org=c1.ORG):
+        return c1.rpc(api,key,name,{
+            "p_organization_id":org,"p_ledger_id":VENUE,
+            "p_work_item_id":work,"p_bed_id":bed,
+            "p_source_action_id":action},token)
+    def deny_ref(token,label,**kw):
+        status,body=rpc_ref(token,**kw)
+        check(status in (401,403) and isinstance(body,dict) and body.get("code")=="42501",
+              f"{label}: actual source authorization denial required; got {status}, {str(body)[:180]}")
+        print("PASS",label)
+
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_shared_use_authorizations_v1")=="0",
+          "No Flower offer may exist before independent Venue link proof")
+    check(sql(db,"SELECT count(*) FROM atlas.ledger_work_existing_bed_references_v1")=="0",
+          "Independent reference fixture must start empty")
+    check(sql(db,"SELECT has_table_privilege('authenticated',"
+          "'atlas.ledger_work_existing_bed_references_v1','SELECT')")=="f",
+          "Private reference table cannot be read directly by authenticated")
+    check(sql(db,"SELECT has_function_privilege('authenticated',"
+          "'atlas.establish_ledger_work_existing_bed_reference_self_v1(uuid,uuid,uuid,uuid,text)',"
+          "'EXECUTE')")=="f",
+          "Held source function has no ordinary authenticated EXECUTE")
+    before=[sql(db,"SELECT count(*) FROM "+table) for table in (
+        "atlas.work_items","atlas.growing_objects","atlas.work_item_context_links")]
+    custody=sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+       "WHERE ledger_id="+lit(FLOWER)+"::uuid AND custody_state='active'")
+
+    deny_ref(actors["owner"][0],"Flower root cannot author Venue reference")
+    deny_ref(actors["worker"][0],"Flower worker cannot author Venue reference")
+    deny_ref(actors["no-seat"][0],"Unseated Person cannot author Venue reference")
+    deny_ref(venue,"Venue root cannot reference Flower-only original Work",
+             work=WRONG_WORK,action="independent-wrong-work")
+    deny_ref(venue,"Venue root cannot reference a nonexistent physical Bed",
+             bed="e5200000-0000-4000-8000-00000000dead",
+             action="independent-no-bed")
+    deny_ref(venue,"Venue root cannot reference Bed from wrong Organization",
+             org="e5200000-0000-4000-8000-00000000dead",
+             action="independent-wrong-org")
+
+    status,data=rpc_ref(venue)
+    check(status==200 and isinstance(data,dict) and data.get("ok") is True
+          and data.get("idempotent") is False,
+          f"Venue independent original Bed reference not admitted: {status}, {str(data)[:250]}")
+    reference=str(uuid.UUID(data["referenceId"]))
+    check(data.get("workItemId")==VENUE_WORK and data.get("bedId")==BED
+          and data.get("ledgerId")==VENUE,
+          "Reference returns exact original Work, Bed, and target Ledger")
+    check(set(data)=={"ok","referenceId","idempotent","ledgerId","workItemId",
+          "bedId","newWorkCreated","newObjectCreated","physicalCustodyChanged",
+          "otherLedgerReadGranted"}
+          and data["newWorkCreated"] is False and data["newObjectCreated"] is False
+          and data["physicalCustodyChanged"] is False
+          and data["otherLedgerReadGranted"] is False,
+          "No Bed metadata, copy, crop mutation, or foreign-Ledger rights")
+    status,replay=rpc_ref(venue)
+    check(status==200 and replay.get("idempotent") is True
+          and replay.get("referenceId")==reference,
+          "Source action replay must reuse original reference")
+    status,collision=rpc_ref(venue,bed="e5200000-0000-4000-8000-000000000b04")
+    check(status==409 and isinstance(collision,dict)
+          and collision.get("code")=="23505",
+          "Cross-Bed action reuse must fail with source collision")
+    check(sql(db,"SELECT count(*) FROM atlas.ledger_work_existing_bed_references_v1")=="1",
+          "One reference to original object must exist")
+    check(sql(db,"SELECT recorded_by_person_id FROM "
+          "atlas.ledger_work_existing_bed_references_v1 WHERE id="+
+          lit(reference)+"::uuid")==VENUE_PERSON,
+          "Actual Venue signer must be attributed to new reference")
+    check(before==[sql(db,"SELECT count(*) FROM "+table) for table in (
+        "atlas.work_items","atlas.growing_objects","atlas.work_item_context_links")],
+          "Reference must not copy Work/Bed or bypass Flower spatial guard")
+    check(custody==sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+          "WHERE ledger_id="+lit(FLOWER)+"::uuid AND custody_state='active'"),
+          "Flower Bed custody remains separate and untouched")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_shared_use_authorizations_v1")=="0",
+          "Flower offer must remain absent after successful independent reference")
+
+    # Revocation of real local GoTrue session must deny SAME JWT. Restore only
+    # by signing in again with GoTrue, never synthetic JWT or SQL Session insert.
+    prior=claims["session_id"]
+    sql(db,"DELETE FROM auth.sessions WHERE id="+lit(prior)+"::uuid AND "
+          "user_id="+lit(c1.OUTSIDER)+"::uuid")
+    deny_ref(venue,"Revoked same signed Venue session denies next source reference",
+             action="independent-after-session-revoke")
+    renewed,newclaims=c1.sign_in(api,key,"outsider")
+    check(newclaims.get("sub")==c1.OUTSIDER
+          and newclaims.get("session_id")!=prior
+          and bool(newclaims.get("session_id")),
+          "Historical old-path test requires a genuinely renewed Venue session")
+    check(sql(db,"SELECT count(*) FROM auth.sessions WHERE id="+
+          lit(newclaims["session_id"])+"::uuid AND user_id="+
+          lit(c1.OUTSIDER)+"::uuid")=="1",
+          "New Venue JWT must have genuine persisted GoTrue session")
+    actors["outsider"]=(renewed,newclaims)
+    print("PASS independent signed Venue Work to SAME Flower Bed, no Flower offer")
+    return renewed
+
+
+def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--db-url",required=True)
+    parser.add_argument("--output",required=True)
+    args=parser.parse_args()
+    check(bool(re.fullmatch(
+      r"postgres(?:ql)?://[^@\s]+@127[.]0[.]0[.]1:[0-9]+/postgres",
+      args.db_url)),"Refuse non-local protected source or production database")
+    db=args.db_url
+    api,key=c1.local_status()
+    check(sql(db,"SELECT current_setting('server_version_num')::integer/10000")=="17",
+      "Only PG17 disposable clone is admissible")
+    check(sql(db,"SELECT count(*) FROM atlas.growing_objects WHERE id="
+      +lit(BED)+"::uuid AND stable_key='clone-upick-bed-3'")=="1",
+      "Fictional original Bed not present")
+    check(sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 WHERE "
+      "ledger_id="+lit(FLOWER)+"::uuid AND custody_state='active'")=="1",
+      "Fictional Flower original custody missing")
+    check(sql(db,"SELECT count(*) FROM atlas.principal_ledger_authorities WHERE "
+      "ledger_id="+lit(VENUE)+"::uuid AND status='active' AND authority_kind='root_governing'")=="1",
+      "Distinct Venue governing Principal not established by fictional source")
+    check(sql(db,"SELECT count(*) FROM atlas.growing_objects WHERE "
+      "farm_id='e5200000-0000-4000-8000-000000000b01'::uuid "
+      "AND id IN ("+lit(BED)+"::uuid,"+lit(OTHER_BED)+"::uuid)")=="2",
+      "The two distinct synthetic Bed identities are not present")
+    check(sql(db,"SELECT count(*) FROM atlas.work_items WHERE "
+      "id="+lit(WRONG_WORK)+"::uuid "
+      "AND stable_key='clone-flower-original-work-901'")=="1",
+      "Wrong-Ledger Work must actually exist for a meaningful negative test")
+
+    base.setup_auth(db)
+    actors={}
+    for name,uid in (("owner",c1.OWNER),("worker",c1.WORKER),
+                     ("outsider",c1.OUTSIDER),("no-seat",c1.NO_SEAT)):
+        token,claims=c1.sign_in(api,key,name)
+        check(claims.get("sub")==uid and claims.get("role")=="authenticated"
+              and bool(claims.get("session_id")), "Genuine GoTrue identity mismatch: "+name)
+        check(sql(db,"SELECT count(*) FROM auth.sessions WHERE id="
+                  +lit(claims["session_id"])+"::uuid AND user_id="+lit(uid)+"::uuid")=="1",
+              "GoTrue session not persisted locally: "+name)
+        actors[name]=(token,claims)
+    owner=actors["owner"][0]
+    venue=actors["outsider"][0]
+    worker=actors["worker"][0]
+    noseat=actors["no-seat"][0]
+    print("PASS four independent genuinely signed local actors")
+
+    # Neither role names nor editable claims allow worker authority.
+    refused(api,key,worker,"offer",offer_args(),"ordinary Flower worker cannot offer Bed")
+    refused(api,key,noseat,"offer",offer_args(),"unseated Person cannot offer Bed")
+    refused(api,key,venue,"offer",offer_args(),"Venue root cannot forge Flower offer")
+    refused(api,key,owner,"offer",offer_args(bed="e5200000-0000-4000-8000-00000000dead"),
+            "Flower owner cannot offer nonexistent Bed")
+    baseline_work=int(sql(db,"SELECT count(*) FROM atlas.work_items"))
+    baseline_bed=int(sql(db,"SELECT count(*) FROM atlas.growing_objects"))
+    baseline_context=int(sql(db,"SELECT count(*) FROM atlas.work_item_context_links"))
+    venue=prove_independent_bed_reference(api,key,db,actors)
+    offer=accepted(api,key,owner,"offer",offer_args())
+    check(accepted(api,key,owner,"offer",offer_args())==offer,
+          "Source action replay must be idempotent")
+    check(sql(db,"SELECT use_state FROM atlas.venue_bed_shared_use_authorizations_v1 "
+       "WHERE id="+lit(offer)+"::uuid")=="offered","Offer must not grant use by itself")
+    conflict_code,conflict_body=user_rpc(
+        api,key,owner,"offer",offer_args(bed=OTHER_BED,action="venue-offer-a"))
+    check(conflict_code==409 and isinstance(conflict_body,dict)
+          and conflict_body.get("code")=="23505",
+          "An existing action ID must not be replayed against a different Bed")
+    print("PASS source-action idempotence cannot be laundered across Beds")
+
+    refused(api,key,owner,"accept",accept_args(offer),
+            "Flower root cannot accept as a Venue root")
+    refused(api,key,worker,"accept",accept_args(offer),
+            "Ordinary worker cannot accept Venue use")
+    refused(api,key,noseat,"accept",accept_args(offer),
+            "No-seat actor cannot accept Venue use")
+    refused(api,key,venue,"accept",accept_args("e5200000-0000-4000-8000-00000000dead"),
+            "No existence oracle for guessed offer")
+    check(accepted(api,key,venue,"accept",accept_args(offer))==offer,
+          "Venue root accepted the exact original offer")
+    check(accepted(api,key,venue,"accept",accept_args(offer))==offer,
+          "Venue accept replay must be idempotent")
+
+    refused(api,key,owner,"link",link_args(offer),
+            "Flower owner cannot substitute for Venue Work governor")
+    refused(api,key,worker,"link",link_args(offer),
+            "Worker cannot self-authorize Venue Work reference")
+    refused(api,key,venue,"link",link_args(offer,work=WRONG_WORK),
+            "Wrong-Ledger existing Work is not Venue Work")
+    refused(api,key,venue,"link",link_args(offer,reviewed_bed="another-bed"),
+            "Client review cannot substitute unrelated Bed identity")
+    ref=accepted(api,key,venue,"link",link_args(offer))
+    check(accepted(api,key,venue,"link",link_args(offer))==ref,
+          "Venue Work-source action replay must be idempotent")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_work_references_v1 WHERE "
+       "id="+lit(ref)+"::uuid AND work_item_id="+lit(VENUE_WORK)+"::uuid AND "
+       "bed_id="+lit(BED)+"::uuid AND venue_ledger_id="+lit(VENUE)+"::uuid")=="1",
+       "Venue ref must point to the same existing original Work and Bed")
+    check(int(sql(db,"SELECT count(*) FROM atlas.work_items"))==baseline_work,
+       "Reference must never make another original Work")
+    check(int(sql(db,"SELECT count(*) FROM atlas.growing_objects"))==baseline_bed,
+       "Reference must never make another original Bed")
+    check(int(sql(db,"SELECT count(*) FROM atlas.work_item_context_links"))==baseline_context,
+       "Source-specific reference cannot bypass Flower's original link guard")
+    check(sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+       "WHERE ledger_id="+lit(VENUE)+"::uuid")=="0",
+       "Venue must never obtain crop custody from use grant")
+    print("PASS exact Venue reference without duplicate original or custody transfer")
+
+    # The native Flower–Person Work contract issues original responsibility
+    # through an actual signed Flower owner offer, then target Person acceptance.
+    # Native Ledger participation is distinct from obsolete employee-seat
+    # infrastructure. Never seed/impersonate an allocation to make Done pass.
+    check(sql(db,"SELECT count(*) FROM atlas.work_allocations WHERE "
+      "work_item_id="+lit(WRONG_WORK)+"::uuid AND state='active'")=="0",
+      "Original Flower Work must start unassigned before native offer")
+    person_offer_args={
+      "p_organization_id":c1.ORG,"p_ledger_id":FLOWER,
+      "p_work_item_id":WRONG_WORK,
+      "p_target_canonical_person_id":"e5200000-0000-4000-8000-000000000102",
+      "p_reason":"Fictional owner offers original Flower Bed 3 Work for exact native Person acceptance"
+    }
+    for name,token in (("unrelated Venue governor",venue),
+                       ("target worker cannot offer themselves",worker),
+                       ("no connected person",noseat)):
+        status,body=c1.rpc(api,key,
+          "offer_connected_person_company_work_owner_self_api_v1",person_offer_args,token)
+        check(status in (401,403) and isinstance(body,dict)
+              and body.get("code")=="42501",
+              "Native Work source owner offer must deny "+name)
+    status,offer_result=c1.rpc(api,key,
+      "offer_connected_person_company_work_owner_self_api_v1",person_offer_args,owner)
+    check(status==200 and isinstance(offer_result,dict)
+          and offer_result.get("ok") is True
+          and offer_result.get("state")=="offered"
+          and offer_result.get("workItemId")==WRONG_WORK
+          and offer_result.get("responsibilityChanged") is False,
+          f"Signed native owner must offer EXISTING Flower Work: {status}, {str(offer_result)[:440]}")
+    person_offer=str(uuid.UUID(offer_result["offerId"]))
+    uptake_args={"p_offer_id":person_offer,"p_decision":"accepted"}
+    for name,token in (("offerer",owner),
+                       ("unrelated Venue governor",venue),
+                       ("no connected Person",noseat)):
+        status,body=c1.rpc(api,key,
+          "respond_connected_person_company_work_self_api_v1",uptake_args,token)
+        check(status in (401,403) and isinstance(body,dict)
+              and body.get("code")=="42501",
+              "Exact Person Work acceptance must deny "+name)
+    status,uptake=c1.rpc(api,key,
+      "respond_connected_person_company_work_self_api_v1",uptake_args,worker)
+    check(status==200 and isinstance(uptake,dict)
+          and uptake.get("ok") is True and uptake.get("state")=="accepted"
+          and uptake.get("workItemId")==WRONG_WORK
+          and uptake.get("responsibilityChanged") is True
+          and uptake.get("employeeSeatRequired") is False,
+          f"Signed connected Person cannot accept Flower original Work: {status}, {str(uptake)[:480]}")
+    native_allocation=str(uuid.UUID(uptake["allocationId"]))
+    check(sql(db,"SELECT count(*) FROM atlas.work_allocations WHERE "
+      "id="+lit(native_allocation)+"::uuid AND "
+      "work_item_id="+lit(WRONG_WORK)+"::uuid AND state='active' "
+      "AND assignee_canonical_person_id='e5200000-0000-4000-8000-000000000102'::uuid "
+      "AND assignee_membership_id IS NULL "
+      "AND establishment_basis_kind='person_connection_receiver_uptake' "
+      "AND establishment_basis->>'nativeLedgerId'="+lit(FLOWER))=="1",
+      "Original Flower responsibility must be native Person connection with exact accepted offer")
+    check(sql(db,"SELECT result_contract_key FROM atlas.work_items WHERE "
+      "id="+lit(WRONG_WORK)+"::uuid")=="ordinary_company_work_worker_attestation_v1",
+      "Native Person acceptance must bind original Work ordinary result policy")
+    print("PASS signed native Flower Work offer/target acceptance; no employee seat or duplicate Work")
+
+    # POSITIVE native source parity: after the independent Venue reference is
+    # present, the *original*, still-open Flower Work must remain joinable to
+    # the *same* Bed through the already released Flower governed context
+    # writer. This is NOT the Venue reference writer. Synthetic source Task,
+    # exact zone, active current allocation, Organization Unit, Ledger crop
+    # custody and all reviewed stable keys must independently exist.
+    flower_read={"p_ledger_id":FLOWER,"p_work_item_id":WRONG_WORK}
+    for name,token in (("ordinary worker",worker),
+                       ("other Ledger root",venue),("unseated",noseat)):
+        code,body=c1.rpc(api,key,
+           "work_growing_object_context_review_self_api_v1",flower_read,token)
+        check(code==200 and isinstance(body,dict)
+              and body.get("ok") is False and "candidates" not in body,
+              "Source Flower Bed candidate review leaked to "+name)
+    code,review=c1.rpc(api,key,
+        "work_growing_object_context_review_self_api_v1",flower_read,owner)
+    check(code==200 and isinstance(review,dict) and review.get("ok") is True,
+          "Flower source governor lost original Work/Bed review after Venue reference")
+    allowed_beds={c.get("objectId") for c in review.get("candidates",[])}
+    check(BED in allowed_beds and OTHER_BED not in allowed_beds,
+          "Original exact task zone must admit Flower Bed 3 and exclude withheld Bed 5")
+    flower_link={
+      "p_ledger_id":FLOWER,"p_work_item_id":WRONG_WORK,
+      "p_object_id":BED,
+      "p_review":{"humanConfirmed":True,
+                  "reviewedWorkStableKey":"clone-flower-original-work-901",
+                  "reviewedObjectKey":"clone-upick-bed-3"}
+    }
+    for name,token in (("ordinary worker",worker),
+                       ("other Ledger root",venue),("unseated",noseat)):
+        code,body=c1.rpc(api,key,
+           "establish_work_growing_object_context_self_api_v1",flower_link,token)
+        check(code==200 and isinstance(body,dict)
+              and body.get("ok") is False and not body.get("contextId"),
+              "Unauthorized actor can establish Flower physical Work: "+name)
+    code,physical=c1.rpc(api,key,
+        "establish_work_growing_object_context_self_api_v1",flower_link,owner)
+    check(code==200 and isinstance(physical,dict)
+          and physical.get("ok") is True and physical.get("created") is True
+          and physical.get("confersAccess") is False,
+          "Signed original Flower Work-to-same-Bed positive admission failed")
+    context_id=str(uuid.UUID(physical["contextId"]))
+    code,replay=c1.rpc(api,key,
+        "establish_work_growing_object_context_self_api_v1",flower_link,owner)
+    check(code==200 and isinstance(replay,dict)
+          and replay.get("ok") is True and replay.get("created") is False
+          and replay.get("contextId")==context_id,
+          "Existing Flower context replay must return the same original relation")
+    check(sql(db,"SELECT count(*) FROM atlas.work_item_context_links WHERE "
+      "id="+lit(context_id)+"::uuid AND work_item_id="+lit(WRONG_WORK)+"::uuid "
+      "AND subject_domain='spatial' AND subject_kind='growing_object' "
+      "AND subject_id="+lit(BED)+"::uuid AND relation_kind='acts_on'")=="1",
+      "Original Flower physical Work relation missing from canonical context")
+    check(int(sql(db,"SELECT count(*) FROM atlas.work_items"))==baseline_work
+          and int(sql(db,"SELECT count(*) FROM atlas.growing_objects"))==baseline_bed,
+          "Flower positive link must not invent original Work or Bed")
+    check(sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 "
+      "WHERE ledger_id="+lit(VENUE)+"::uuid")=="0",
+      "Independent original Flower link must not transfer crop custody to Venue")
+    print("PASS genuine signed Flower original Work-to-same-Bed link and replay after Venue")
+
+    # Native Event positive parity: the Venue's ALREADY-EXISTING canonical
+    # Work is independently source-relevant and the Event already has exact
+    # Ledger plus Organization Occurrence bindings. Link it through the
+    # RELEASED public ordinary Event-Work source rather than the temporary
+    # Venue Bed-use permission. No Event checklist work is issued.
+    event_args={
+      "p_organization_id":c1.ORG,"p_ledger_id":VENUE,
+      "p_occurrence_id":VENUE_EVENT,"p_work_item_id":VENUE_WORK,
+      "p_source_action_id":"clone-event-existing-work-link-a",
+    }
+    check(sql(db,"SELECT count(*) FROM ledger.occurrence_calendar_bindings WHERE "
+       "ledger_id="+lit(VENUE)+"::uuid AND occurrence_id="+lit(VENUE_EVENT)
+       +"::uuid AND binding_state='active'")=="1",
+       "Exact original native Venue Event source binding absent")
+    for name,token in (("Flower root",owner),
+                       ("ordinary Flower worker",worker),
+                       ("no native seat",noseat)):
+        code,result=c1.rpc(api,key,
+          "link_existing_ledger_event_work_self_api_v1",event_args,token)
+        check(code in (401,403) and isinstance(result,dict)
+              and result.get("code")=="42501",
+              f"{name} must not link another Ledger's original Event Work")
+    code,linked=c1.rpc(api,key,
+          "link_existing_ledger_event_work_self_api_v1",event_args,venue)
+    check(code==200 and isinstance(linked,dict)
+          and linked.get("ok") is True
+          and linked.get("workItemId")==VENUE_WORK
+          and linked.get("idempotent") is False
+          and linked.get("workCustodyChanged") is False,
+          f"Real signed Venue native Event Work link failed: {code}, {str(linked)[:500]}")
+    event_link=str(uuid.UUID(linked["contextLinkId"]))
+    code,replayed=c1.rpc(api,key,
+          "link_existing_ledger_event_work_self_api_v1",event_args,venue)
+    check(code==200 and isinstance(replayed,dict)
+          and replayed.get("ok") is True
+          and replayed.get("idempotent") is True
+          and replayed.get("contextLinkId")==event_link,
+          "Native Event existing Work source replay must be idempotent")
+    check(sql(db,"SELECT count(*) FROM atlas.work_item_context_links WHERE "
+      "id="+lit(event_link)+"::uuid AND work_item_id="+lit(VENUE_WORK)+"::uuid "
+      "AND subject_domain='temporal' AND subject_kind='occurrence' "
+      "AND subject_id="+lit(VENUE_EVENT)+"::uuid AND relation_kind='for'")=="1",
+      "Native original Venue Event Work must occupy the canonical temporal context")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_work_references_v1 WHERE "
+      "id="+lit(ref)+"::uuid AND bed_id="+lit(BED)+"::uuid "
+      "AND work_item_id="+lit(VENUE_WORK)+"::uuid")=="1",
+      "Original independent Venue-Bed receipt must survive Event link")
+    check(sql(db,"SELECT count(*) FROM atlas.work_item_context_links WHERE "
+      "id="+lit(context_id)+"::uuid AND subject_id="+lit(BED)+"::uuid "
+      "AND work_item_id="+lit(WRONG_WORK)+"::uuid")=="1",
+      "Original independent Flower physical link must survive Venue Event link")
+    check(int(sql(db,"SELECT count(*) FROM atlas.work_items"))==baseline_work
+          and int(sql(db,"SELECT count(*) FROM atlas.growing_objects"))==baseline_bed,
+          "Native Event may not copy existing Work or Flower Bed")
+    check(sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+      "id="+lit(VENUE_WORK)+"::uuid")=="open",
+      "Event link does not complete ordinary existing Venue Work")
+    # The ordinary Event shared-checklist Done operation has a DISTINCT
+    # source contract. It MUST NOT complete an Event-linked pre-existing Work
+    # merely because both share the same Occurrence.
+    done_args=dict(event_args)
+    done_args["p_source_action_id"]="clone-event-checklist-forged-done"
+    code,result=c1.rpc(api,key,
+         "mark_ledger_occurrence_shared_work_done_self_api_v1",done_args,venue)
+    check(code in (401,403) and isinstance(result,dict)
+          and result.get("code")=="42501",
+          "Event checklist Done cannot launder ordinary existing Venue Work completion")
+    check(sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+      "id="+lit(VENUE_WORK)+"::uuid")=="open",
+      "Rejected checklist Done must preserve ordinary existing Work as open")
+    # HELD EVENT RESULT GATE — no inferred cross-Ledger institutional owner.
+    # The native Venue governor differs from the organization's compatibility-
+    # primary Flower governor. Both existing Event assignment and generic
+    # connected-Person offer independently require the exact native AND
+    # institutional root. Never add synthetic authority, employee seats, or
+    # an unaccepted receiver merely to manufacture an Event Done.
+    event_offer_args={
+       "p_organization_id":c1.ORG,"p_ledger_id":VENUE,
+       "p_work_item_id":VENUE_WORK,
+       "p_target_canonical_person_id":"e5200000-0000-4000-8000-000000000102",
+       "p_reason":"Fictional Event original Work responsibility authority boundary probe"
+    }
+    event_assignment_args={
+       "p_organization_id":c1.ORG,"p_ledger_id":VENUE,
+       "p_occurrence_id":VENUE_EVENT,"p_work_item_id":VENUE_WORK,
+       "p_expected_allocation_id":None,
+       "p_target_person_id":"e5200000-0000-4000-8000-000000000102",
+       "p_reason":"Fictional Event exact original Person assignment authority boundary",
+       "p_source_action_id":"held-venue-event-direct-assignment-denied"
+    }
+    for caller,token in (("Venue-only governor",venue),
+                         ("Flower institutional governor",owner),
+                         ("Flower connected worker",worker),
+                         ("no-seat actor",noseat)):
+        for fn,payload in (
+          ("offer_connected_person_company_work_owner_self_api_v1",event_offer_args),
+          ("event_work_owner_assign_connected_self_api_v1",event_assignment_args)
+        ):
+            st,body=c1.rpc(api,key,fn,payload,token)
+            check(st in (401,403) and isinstance(body,dict)
+                  and body.get("code")=="42501",
+                  f"{caller}: {fn} must deny without BOTH current roots; HTTP {st}, {str(body)[:280]}")
+    check(sql(db,"SELECT count(*) FROM atlas.company_work_initial_responsibility_offers "
+      "WHERE work_item_id="+lit(VENUE_WORK)+"::uuid")=="0"
+      and sql(db,"SELECT count(*) FROM atlas.work_allocations "
+      "WHERE work_item_id="+lit(VENUE_WORK)+"::uuid")=="0"
+      and sql(db,"SELECT count(*) FROM atlas.work_execution_results "
+      "WHERE work_item_id="+lit(VENUE_WORK)+"::uuid")=="0"
+      and sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+      "id="+lit(VENUE_WORK)+"::uuid")=="open",
+      "Denied Event offers/assignments must leave the SAME original Venue Work untouched")
+    check(sql(db,"SELECT result_contract_key IS NULL FROM atlas.work_items "
+      "WHERE id="+lit(VENUE_WORK)+"::uuid")=="t",
+      "Existing synthetic Venue Work has no independently source-issued ordinary result contract")
+    print("PASS HELD Event Work assignment denial for split native/institutional governors; no fake completion")
+    print("PASS signed native Event existing Work link/replay; checklist Done cannot substitute for Work result")
+
+    # The actual connected canonical Person reports an ordinary result on
+    # the SAME original Flower Work. This is not the old Employee Worker Day,
+    # not an Event checklist Done and not a manager impersonating the worker.
+    native_report_args={
+      "p_work_item_id":WRONG_WORK,"p_result_kind":"completed",
+      "p_idempotency_key":"clone-native-original-flower-work-901-completed",
+      "p_payload":{"cloneOnly":True,
+          "actual":"Synthetic Flower Bed 3 work performed by the accepting canonical Person"}
+    }
+    check(sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+      "id="+lit(WRONG_WORK)+"::uuid")=="open",
+      "Flower Work must be outstanding before Person's actual report")
+    for name,token in (("Flower owner is not assigned",owner),
+                       ("Venue governor not responsible",venue),
+                       ("no ledger connection",noseat)):
+        st,body=c1.rpc(api,key,
+          "report_connected_person_company_work_self_api_v1",native_report_args,token)
+        check(st in (401,403) and isinstance(body,dict) and body.get("code")=="42501",
+          "Signed original Work Result must deny "+name+" lacking responsibility")
+    check(sql(db,"SELECT count(*) FROM atlas.work_execution_results "
+      "WHERE work_item_id="+lit(WRONG_WORK)+"::uuid")=="0",
+      "Denied native reports may not make durable worker results")
+    # A responsibility allocation is NOT a permission to see the original
+    # physical Subject. The current universal original Work writer rejects
+    # Result/Done until the separate Flower native Ledger governor discloses
+    # BOTH this exact Bed's identity and condition, one source decision each.
+    # First preserve the legitimate signed denial, never fake a grant.
+    st,undisclosed=c1.rpc(api,key,
+       "report_connected_person_company_work_self_api_v1",native_report_args,worker)
+    check(st in (401,403) and isinstance(undisclosed,dict)
+       and undisclosed.get("code")=="42501"
+       and undisclosed.get("message")=="Undisclosed original Work Subject unavailable",
+       "Worker responsibility without Bed disclosure must NOT authorize Done")
+    disclosure_base={
+       "p_organization_id":c1.ORG,"p_ledger_id":FLOWER,
+       "p_target_person_id":"e5200000-0000-4000-8000-000000000102",
+       "p_subject_domain":"spatial","p_subject_kind":"growing_object",
+       "p_subject_id":BED,"p_decision_kind":"grant"
+    }
+    identity_args=dict(disclosure_base,
+       p_disclosure_class="identity",
+       p_source_action_id="e5200000-0000-4000-8000-000000000e01",
+       p_reason="Fictional Flower governor approves ONLY original Bed 3 identity for accepted Person Work")
+    for name,token in (("ordinary worker",worker),
+                       ("unrelated Venue governor",venue),
+                       ("no connected Person",noseat)):
+        st,body=c1.rpc(api,key,
+           "governor_set_subject_disclosure_self_api_v1",identity_args,token)
+        check(st in (401,403) and isinstance(body,dict)
+              and body.get("code")=="42501",
+              "Original Bed disclosure governance must deny "+name)
+    st,identity_grant=c1.rpc(api,key,
+         "governor_set_subject_disclosure_self_api_v1",identity_args,owner)
+    check(st==200 and isinstance(identity_grant,dict)
+       and identity_grant.get("ok") is True
+       and identity_grant.get("currentlyGranted") is True
+       and identity_grant.get("disclosureClass")=="identity"
+       and identity_grant.get("subjectId")==BED,
+       f"Signed Flower governor unable to issue exact Bed identity disclosure: {st}, {str(identity_grant)[:430]}")
+    st,still_private=c1.rpc(api,key,
+       "report_connected_person_company_work_self_api_v1",native_report_args,worker)
+    check(st in (401,403) and isinstance(still_private,dict)
+       and still_private.get("code")=="42501"
+       and still_private.get("message")=="Undisclosed original Work Subject unavailable",
+       "One identity grant must not implicitly disclose Bed condition or license Done")
+    condition_args=dict(disclosure_base,
+       p_disclosure_class="condition",
+       p_source_action_id="e5200000-0000-4000-8000-000000000e02",
+       p_reason="Fictional Flower governor separately approves ONLY original Bed 3 condition for accepted Work")
+    st,condition_grant=c1.rpc(api,key,
+         "governor_set_subject_disclosure_self_api_v1",condition_args,owner)
+    check(st==200 and isinstance(condition_grant,dict)
+       and condition_grant.get("ok") is True
+       and condition_grant.get("currentlyGranted") is True
+       and condition_grant.get("disclosureClass")=="condition"
+       and condition_grant.get("subjectId")==BED,
+       f"Signed Flower governor unable to issue independently bounded Bed condition disclosure: {st}, {str(condition_grant)[:440]}")
+    check(sql(db,"SELECT count(*) FROM atlas.subject_disclosure_decision_events_v1 "
+       "WHERE ledger_id="+lit(FLOWER)+"::uuid "
+       "AND target_person_id='e5200000-0000-4000-8000-000000000102'::uuid "
+       "AND subject_id="+lit(BED)+"::uuid "
+       "AND subject_domain='spatial' AND subject_kind='growing_object' "
+       "AND disclosure_class IN ('identity','condition') "
+       "AND decision_kind='grant'")=="2",
+       "Native governor's independent exact Bed identity/condition decisions missing")
+    st,subject=c1.rpc(api,key,
+       "connected_person_original_work_subject_self_api_v1",{
+         "p_organization_id":c1.ORG,"p_ledger_id":FLOWER,
+         "p_work_item_id":WRONG_WORK,"p_subject_domain":"spatial",
+         "p_subject_kind":"growing_object","p_subject_id":BED},worker)
+    check(st==200 and isinstance(subject,dict)
+       and subject.get("ok") is True
+       and subject.get("subjectId")==BED,
+       f"Current signed Person must have exact bounded original Bed disclosure, not a full-farm grant: {st}, {str(subject)[:440]}")
+    print("PASS independently source-issued Flower Bed identity+condition disclosures; no disclosure by Work assignment alone")
+
+    st,report=c1.rpc(api,key,
+       "report_connected_person_company_work_self_api_v1",native_report_args,worker)
+    check(st==200 and isinstance(report,dict)
+       and report.get("ok") is True
+       and report.get("idempotent") is False
+       and report.get("workItemId")==WRONG_WORK
+       and report.get("resultKind")=="completed"
+       and report.get("workState")=="completed"
+       and report.get("reportMode")=="own_work",
+       f"Accepted Person-native Flower Work completion failed: {st}, {str(report)[:490]}")
+    result_id=str(uuid.UUID(report["resultId"]))
+    st,repeated=c1.rpc(api,key,
+       "report_connected_person_company_work_self_api_v1",native_report_args,worker)
+    check(st==200 and isinstance(repeated,dict)
+       and repeated.get("ok") is True
+       and repeated.get("idempotent") is True
+       and repeated.get("resultId")==result_id
+       and repeated.get("workState")=="completed",
+       "Same genuinely signed worker must idempotently replay original Flower result")
+    check(sql(db,"SELECT count(*) FROM atlas.work_execution_results WHERE "
+       "id="+lit(result_id)+"::uuid AND work_item_id="+lit(WRONG_WORK)+"::uuid "
+       "AND responsible_allocation_id="+lit(native_allocation)+"::uuid "
+       "AND result_kind='completed' AND "
+       "metadata->>'reportMode'='own_work' "
+       "AND metadata->>'employeeSeatRequired'='false'")=="1",
+       "Native reporter must preserve one source-authorized non-employee Work result")
+    check(sql(db,"SELECT count(*) FROM atlas.work_result_acceptances WHERE "
+       "execution_result_id="+lit(result_id)+"::uuid "
+       "AND decision='accepted' AND "
+       "acceptance_kind='self_responsible_person_attestation'")=="1",
+       "Ordinary connected Person result must establish authentic acceptance")
+    check(sql(db,"SELECT count(*) FROM atlas.work_execution_results WHERE "
+       "work_item_id="+lit(WRONG_WORK)+"::uuid")=="1",
+       "Idempotence must never duplicate original Work result")
+    check(sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+       "id="+lit(WRONG_WORK)+"::uuid")=="completed"
+       and sql(db,"SELECT work_state FROM atlas.work_items WHERE "
+       "id="+lit(VENUE_WORK)+"::uuid")=="open",
+       "Accepted native Flower Person Done cannot finish Venue original Work")
+    check(sql(db,"SELECT count(*) FROM atlas.work_item_context_links WHERE "
+       "id="+lit(context_id)+"::uuid AND work_item_id="+lit(WRONG_WORK)+"::uuid "
+       "AND subject_id="+lit(BED)+"::uuid")=="1"
+       and sql(db,"SELECT count(*) FROM atlas.venue_bed_work_references_v1 WHERE "
+       "id="+lit(ref)+"::uuid AND work_item_id="+lit(VENUE_WORK)+"::uuid "
+       "AND bed_id="+lit(BED)+"::uuid")=="1"
+       and sql(db,"SELECT count(*) FROM atlas.work_item_context_links WHERE "
+       "id="+lit(event_link)+"::uuid AND work_item_id="+lit(VENUE_WORK)+"::uuid")=="1",
+       "Original Flower spatial, independent Venue Bed and Event temporal links must survive native Done")
+    check(int(sql(db,"SELECT count(*) FROM atlas.work_items"))==baseline_work
+       and int(sql(db,"SELECT count(*) FROM atlas.growing_objects"))==baseline_bed,
+       "Native Person completion cannot copy a Work or Bed")
+    check(sql(db,"SELECT count(*) FROM atlas.farm_crop_ledger_custody_v1 WHERE "
+       "ledger_id="+lit(VENUE)+"::uuid")=="0",
+       "Native Flower completion must not transfer crop custody to Venue")
+    print("PASS signed Person-native original Flower Work Result/Done, source acceptance and replay")
+
+    accepted(api,key,owner,"withdraw",{"p_use_id":offer},expect="bool")
+    check(sql(db,"SELECT use_state FROM atlas.venue_bed_shared_use_authorizations_v1 "
+       "WHERE id="+lit(offer)+"::uuid")=="withdrawn","Flower root withdrawal did not terminate use")
+    refused(api,key,venue,"link",link_args(offer,action="after-withdrawal"),
+            "Revocation stops already signed Venue governor")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_work_references_v1 "
+      "WHERE id="+lit(ref)+"::uuid")=="1","Historical Venue reference receipt must persist")
+    print("PASS withdrawal denies current permission and preserves original reference receipt")
+
+    new_offer=accepted(api,key,owner,"offer",offer_args(action="venue-offer-b"))
+    check(new_offer!=offer,"New use must have a new source identity")
+    accepted(api,key,venue,"accept",accept_args(new_offer))
+    fresh=accepted(api,key,venue,"link",link_args(new_offer,action="venue-link-after-reapproval"))
+    check(fresh!=ref,"A fresh grant must permit a separate auditable reference receipt")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_work_references_v1 "
+       "WHERE bed_id="+lit(BED)+"::uuid AND work_item_id="+lit(VENUE_WORK)+"::uuid")=="2",
+       "New grant must not overwrite former grant historical receipt")
+    print("PASS distinct grant can lawfully reapprove the same existing original Work")
+
+    # Either governing source is permitted to withdraw; use a genuine signed
+    # Venue actor for this second independent direction.
+    accepted(api,key,venue,"withdraw",{"p_use_id":new_offer},expect="bool")
+    check(sql(db,"SELECT use_state FROM atlas.venue_bed_shared_use_authorizations_v1 "
+      "WHERE id="+lit(new_offer)+"::uuid")=="withdrawn",
+      "Venue root withdrawal did not end its own approved Bed-use")
+    refused(api,key,venue,"link",link_args(new_offer,action="after-venue-withdraw"),
+            "Venue withdrawal immediately blocks later references")
+    check(sql(db,"SELECT count(*) FROM atlas.venue_bed_work_references_v1 "
+      "WHERE id="+lit(fresh)+"::uuid")=="1",
+      "Venue withdrawal must preserve historical approved reference")
+    print("PASS independent signed Venue withdrawal and historical custody")
+
+    # A third valid current grant isolates Seat-ending proof from withdrawal.
+    active_offer=accepted(api,key,owner,"offer",offer_args(action="venue-offer-c"))
+    accepted(api,key,venue,"accept",accept_args(active_offer))
+    # End Venue Seat: an already signed GoTrue JWT cannot replace native Seat.
+    sql(db,"UPDATE ledger.seats SET seat_state='ended',ended_at=now() WHERE "
+       "ledger_id="+lit(VENUE)+"::uuid AND person_entity_id="+lit(VENUE_PERSON)+"::uuid")
+    refused(api,key,venue,"withdraw",{"p_use_id":active_offer},
+            "Ended native Venue Seat prevents a valid-session root operation")
+    # Flower can still withdraw despite Venue's Seat ending.
+    accepted(api,key,owner,"withdraw",{"p_use_id":active_offer},expect="bool")
+
+    # End Flower's actual GoTrue session: reusing its SAME old JWT must be
+    # refused by reality_access_self_api_v1(), not by HTTP token expiry.
+    session=actors["owner"][1]["session_id"]
+    sql(db,"DELETE FROM auth.sessions WHERE id="+lit(session)+"::uuid "
+       "AND user_id="+lit(c1.OWNER)+"::uuid")
+    refused(api,key,owner,"offer",offer_args(action="revoked-signed-token"),
+            "Revoked same-JWT session cannot issue new Flower offer")
+
+    Path(args.output).parent.mkdir(parents=True,exist_ok=True)
+    Path(args.output).write_text(
+      "PASS signed current-only exact Flower Bed identity and condition disclosure;"
+      "PASS signed Person-native original Flower Work offer, acceptance, ordinary Result/Done/replay;"
+      " no employee-seat credential or Worker Day dependency;"
+      "PASS real signed native Event already-existing Work positive link/replay;"
+      " ordinary Event checklist Done unable to complete unrelated original Work;"
+      " HELD Event ordinary Person Result/Done not proven: split-root offers and direct assignment denied;"
+      "PASS genuine signed ORIGINAL Flower Work-to-Bed positive parity after Venue link;"
+      " authorized Flower-only canonical context/replay;" 
+      " no duplicate originals or Venue crop-custody transfer;"
+      " independent local Flower/Venue/worker/outsider/no-seat denial;"
+      "PASS genuine signed independent Venue original Work to original Flower Bed WITHOUT Flower offer;"
+      " one Bed, one Work, no custody, private crop data or unauthorized Ledger access;"
+      " revoked real Venue GoTrue session denied;"
+      " two-party offer-accept-link-withdraw/reapproval;"
+      " Work/Bed original identity unchanged;"
+      " ended Seat and same-JWT GoTrue revocation.\n",
+      encoding="utf-8")
+    print("PASS venue Bed signed source matrix; no production mutation")
+
+if __name__=="__main__":
+    main()
