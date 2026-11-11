@@ -24,14 +24,15 @@ ORG=base.ORG
 LEDGER=base.LEDGER
 WORK_A="e5200000-0000-4000-8000-000000000901"
 WORK_B="e5200000-0000-4000-8000-000000000902"
-ALLOC_A="e5200000-0000-4000-8000-000000000951"
-ALLOC_B="e5200000-0000-4000-8000-000000000952"
+# Resolved from genuine signed recipient uptake, never minted by the fixture.
+ALLOC_A=None
+ALLOC_B=None
 PERSON="e5200000-0000-4000-8000-000000000102"
 OWNER="e5200000-0000-4000-8000-000000000101"
 TITLE_A="Clone work: clear walkways"
 TITLE_B="Clone work: replacement sprayer arrives"
-SECRET_A="Synthetic instructions for Work 901; Ledger A only."
-SECRET_B="Synthetic instructions for Work 902; Ledger A only."
+SECRET_A="Synthetic instructions for Work 901 - Ledger A only."
+SECRET_B="Synthetic instructions for Work 902 - Ledger A only."
 RPC="connected_person_my_work_self_api_v1"
 
 def args(limit=50, after=None):
@@ -72,11 +73,9 @@ def main():
     check(bool(re.match(r"^https?://(127[.]0[.]0[.]1|localhost):[0-9]+",api)),
           "ACCESS-02 forbids nonlocal GoTrue/REST endpoint")
     check(sql(a.db_url,f"""SELECT count(*) FROM atlas.work_allocations
-         WHERE id IN ('{ALLOC_A}'::uuid,'{ALLOC_B}'::uuid)
-         AND organization_id='{ORG}'::uuid AND state='active'
-         AND assignee_canonical_person_id='{PERSON}'::uuid
-         AND establishment_basis->>'nativeLedgerId'='{LEDGER}'""")=="2",
-          "ACCESS-02 synthetic direct Work allocations missing")
+         WHERE organization_id='{ORG}'::uuid AND
+          work_item_id IN ('{WORK_A}'::uuid,'{WORK_B}'::uuid)""")=="0",
+          "ACCESS-02 requires originally unallocated Work before real signed offer")
     check(sql(a.db_url,f"""SELECT count(*) FROM atlas.work_items
       WHERE id IN ('{WORK_A}'::uuid,'{WORK_B}'::uuid)
       AND organization_id='{ORG}'::uuid AND work_state='open'""")=="2",
@@ -86,8 +85,7 @@ def main():
       AND evidence_kind='owner_attested'
       AND work_item_id IN ('{WORK_A}'::uuid,'{WORK_B}'::uuid)""")=="2",
           "ACCESS-02 two independent verified relevance witnesses required")
-    before=(sql(a.db_url,"SELECT count(*) FROM atlas.work_items"),
-            sql(a.db_url,"SELECT count(*) FROM atlas.work_allocations"))
+    original_work_count=sql(a.db_url,"SELECT count(*) FROM atlas.work_items")
     sessions={}
     for label,uid in base.setup_auth(a.db_url):
         token,claims=c1.sign_in(api,key,label)
@@ -106,25 +104,68 @@ def main():
     no_seat=sessions["no-seat"][0]
     root=sessions["owner"][0]
 
+    # Both responsibilities are lawfully issued by the independently signed
+    # root and genuinely accepted by the intended recipient via public REST.
+    # No privileged fixture allocation or forged acceptance can count.
+    global ALLOC_A,ALLOC_B
+    assigned=[]
+    for work in (WORK_A,WORK_B):
+        offer=allow(api,key,root,
+            "offer_connected_person_company_work_owner_self_api_v1",
+            {"p_organization_id":ORG,"p_ledger_id":LEDGER,
+             "p_work_item_id":work,
+             "p_target_canonical_person_id":PERSON,
+             "p_reason":"Synthetic worker may accept exactly this fictional original Work."})
+        check(offer.get("offerId") and offer.get("workItemId")==work
+              and offer.get("responsibilityChanged") is False,
+              "ACCESS-02 invalid or premature owner-issued exact Work offer")
+        response=allow(api,key,worker,
+            "respond_connected_person_company_work_self_api_v1",
+            {"p_offer_id":offer["offerId"],"p_decision":"accepted"})
+        check(response.get("state")=="accepted" and
+              response.get("workItemId")==work and
+              response.get("responsiblePersonId")==PERSON and
+              response.get("newWorkCreated") is False and
+              response.get("allocationId"),
+              "ACCESS-02 recipient acceptance did not source-issue original allocation")
+        assigned.append(response["allocationId"])
+    ALLOC_A,ALLOC_B=assigned
+    check(ALLOC_A!=ALLOC_B and
+          sql(a.db_url,f"""SELECT count(*) FROM atlas.work_allocations WHERE
+          id IN ('{ALLOC_A}'::uuid,'{ALLOC_B}'::uuid)
+          AND state='active' AND assignee_canonical_person_id='{PERSON}'::uuid
+          AND establishment_basis_kind='person_connection_receiver_uptake'
+          AND establishment_basis->>'nativeLedgerId'='{LEDGER}'""")=="2",
+          "ACCESS-02 two separate signed accepted native-Ledger allocations required")
+    check(original_work_count==sql(a.db_url,"SELECT count(*) FROM atlas.work_items"),
+          "ACCESS-02 signed offer/accept must not mint additional originals")
+    before=(sql(a.db_url,"SELECT count(*) FROM atlas.work_items"),
+            sql(a.db_url,"SELECT count(*) FROM atlas.work_allocations"))
+    ordered=sorted([(ALLOC_A,WORK_A),(ALLOC_B,WORK_B)])
+    expected=[work for _,work in ordered]
+    print("PASS ACCESS-02 real signed root-issued and recipient-accepted original Work")
+
     # Positive same signed Person and two independent, source-verified Works.
     page=mine(api,key,worker)
     check(page.get("personId")==PERSON,"ACCESS-02 wrong recipient identity")
-    check_items(page,[WORK_A,WORK_B])
+    check_items(page,expected)
     check(page.get("hasMore") is False and page.get("nextAllocationId") is None,
           "ACCESS-02 initial page count/cursor mismatch")
-    check(page["items"][0].get("title")==TITLE_A and
-          page["items"][0].get("instructions")==SECRET_A and
-          page["items"][0].get("allocationId")==ALLOC_A and
-          page["items"][1].get("title")==TITLE_B and
-          page["items"][1].get("instructions")==SECRET_B and
-          page["items"][1].get("allocationId")==ALLOC_B,
+    by_work={row["workItemId"]:row for row in page["items"]}
+    check(by_work[WORK_A].get("title")==TITLE_A and
+          by_work[WORK_A].get("instructions")==SECRET_A and
+          by_work[WORK_A].get("allocationId")==ALLOC_A and
+          by_work[WORK_B].get("title")==TITLE_B and
+          by_work[WORK_B].get("instructions")==SECRET_B and
+          by_work[WORK_B].get("allocationId")==ALLOC_B,
           "ACCESS-02 positive original title/instruction/assignment not preserved")
     first=mine(api,key,worker,1)
-    check_items(first,[WORK_A])
-    check(first.get("hasMore") is True and first.get("nextAllocationId")==ALLOC_A,
+    check_items(first,[ordered[0][1]])
+    check(first.get("hasMore") is True and
+          first.get("nextAllocationId")==ordered[0][0],
           "ACCESS-02 positive cursor/count drift")
-    second=mine(api,key,worker,1,ALLOC_A)
-    check_items(second,[WORK_B])
+    second=mine(api,key,worker,1,ordered[0][0])
+    check_items(second,[ordered[1][1]])
     check(second.get("hasMore") is False and second.get("nextAllocationId") is None,
           "ACCESS-02 final positive cursor missing")
     print("PASS ACCESS-02 two independent signed eligible Work details and pagination")
@@ -182,16 +223,31 @@ def main():
           "ACCESS-02 withdrawal silently released a Work obligation")
     print("PASS ACCESS-02 signed revoked native relevance hides title, details, count and cursor")
 
-    # Re-establish the same attestation, not new Work/Result/assignment.
-    sql(a.db_url,f"""UPDATE atlas.company_work_native_ledger_relevance
-      SET attribution_state='active', withdrawn_at=NULL,
-          withdrawn_by_person_id=NULL,withdrawal_reason=NULL
-      WHERE work_item_id='{WORK_A}'::uuid
-        AND ledger_id='{LEDGER}'::uuid AND attribution_state='withdrawn'""")
+    # Relevance evidence is append-only: the released trigger permits only
+    # active->withdrawn, never reopening the withdrawn historical row.
+    # Re-attest the same fictional native Work by INSERTING a new evidence
+    # row. Preserve the old withdrawal and the original Work/allocation.
+    sql(a.db_url,f"""INSERT INTO atlas.company_work_native_ledger_relevance
+      (organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
+       attestation_source_ref,attestation_reason,established_by_person_id)
+      VALUES('{ORG}'::uuid,'{WORK_A}'::uuid,'{LEDGER}'::uuid,
+        'serves_purpose','owner_attested','clone:access02-reattest-901',
+        'Independent synthetic new relevance after immutable withdrawal',
+        '{OWNER}'::uuid)""")
+    check(sql(a.db_url,f"""SELECT count(*) FROM
+         atlas.company_work_native_ledger_relevance
+         WHERE ledger_id='{LEDGER}'::uuid AND work_item_id='{WORK_A}'::uuid
+           AND attribution_state='withdrawn'""")=="1"
+         and sql(a.db_url,f"""SELECT count(*) FROM
+         atlas.company_work_native_ledger_relevance
+         WHERE ledger_id='{LEDGER}'::uuid AND work_item_id='{WORK_A}'::uuid
+           AND attribution_state='active'""")=="1",
+          "ACCESS-02 reattestation must preserve original withdrawn evidence")
     restored=mine(api,key,worker)
-    check_items(restored,[WORK_A,WORK_B])
-    check(restored["items"][0].get("allocationId")==ALLOC_A and
-          restored["items"][0].get("instructions")==SECRET_A,
+    check_items(restored,expected)
+    again_a=next(x for x in restored["items"] if x.get("workItemId")==WORK_A)
+    check(again_a.get("allocationId")==ALLOC_A and
+          again_a.get("instructions")==SECRET_A,
           "ACCESS-02 reattested original did not return same source/authority")
     print("PASS ACCESS-02 independent current relevance restored without new original")
 

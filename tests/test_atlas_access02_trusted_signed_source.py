@@ -62,7 +62,11 @@ class TrustedAccess02(unittest.TestCase):
           "company_work_native_ledger_relevance",
           "attribution_state='withdrawn'",
           "attribution_state='active'",
-          "withdrawn_at=NULL",
+          "offer_connected_person_company_work_owner_self_api_v1",
+          "respond_connected_person_company_work_self_api_v1",
+          "person_connection_receiver_uptake",
+          "clone:access02-reattest-901",
+          "must preserve original withdrawn evidence",
           "hasMore",
           "nextAllocationId",
           "Synthetic instructions for Work 901",
@@ -77,14 +81,29 @@ class TrustedAccess02(unittest.TestCase):
         self.assertNotIn("supabase.co",P)
         self.assertNotIn("zirqkouammpwxlqfbsvf",P)
         self.assertNotIn("service_role",P.lower())
-        for required in ("e5200000-0000-4000-8000-000000000951",
-                         "e5200000-0000-4000-8000-000000000952",
-                         "ledger_connection_direct_assignment",
-                         "'responsible','active'",
+        for required in ("e5200000-0000-4000-8000-000000000850",
+                         "atlas.organization_memberships",
+                         "'owner',true",
                          "access02_fixture_postconditions"):
             self.assertIn(required,F,required)
         for forbidden in ("auth.users","GRANT ","REVOKE ","CREATE TABLE","DROP TABLE","public."):
             self.assertNotIn(forbidden,F)
+        self.assertNotIn("INSERT INTO atlas.work_allocations",F)
+        self.assertIn("global ALLOC_A,ALLOC_B",P)
+        # Mirror the exact disposable schema-clone fixture admission, not
+        # just PostgreSQL grammar. Procedural DO and semicolons in strings
+        # are rejected by the trusted fixture sanitizer.
+        clean=re.sub(r"--[^\n]*"," ",F)
+        clean=re.sub(r"\s+"," ",clean).strip()
+        forbidden_sql=re.compile(
+            r"\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|"
+            r"analyze|reindex|cluster|refresh|copy|do|call|execute|prepare|"
+            r"deallocate|listen|notify|security)\b",re.I)
+        self.assertIsNone(forbidden_sql.search(clean))
+        statements=[v.strip() for v in clean.split(";") if v.strip()]
+        self.assertEqual(len(statements),4)
+        self.assertTrue(all(re.match(r"^(insert\s+into|update\s+|delete\s+from|select\s+)",v,re.I)
+                            for v in statements))
 
 if __name__=="__main__":
     unittest.main()

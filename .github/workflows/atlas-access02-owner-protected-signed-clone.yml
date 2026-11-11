@@ -29,6 +29,15 @@ jobs:
           bash -n scripts/validate-production-schema-clone.sh
           python3 -m py_compile scripts/validate-atlas-access02-my-work-signed-http.py
           python3 tests/test_atlas_access02_trusted_signed_source.py
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          p=Path("validation/fixtures/access02_my_work_relevance_signed_clone_only.sql")
+          parsed=parse_sql(p.read_text())
+          assert len(parsed)==4, "ACCESS-02 requires four pure-DML fixture statements"
+          print("PASS ACCESS-02 disposable fixture SQL grammar")
+          PY
           echo 'PASS SOURCE-ONLY; not a signed test or release'
 
   validate-owner-protected-signed:
@@ -189,4 +198,31 @@ jobs:
           else
             echo 'ACCESS02_DISPOSABLE_SIGNED_RESULT=FAILED_OR_NOT_REACHED' >> "$GITHUB_STEP_SUMMARY"
           fi
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          base=Path(os.environ["RUNNER_TEMP"])/"access02-clone-artifacts"
+          summary=base/"summary.md"
+          source=summary.read_text(encoding="utf-8",errors="replace")[:16000] if summary.is_file() else ""
+          phase=re.search(r"\*\*FAILED during ([^\n]{1,100})\.\*\*",source)
+          allowed={
+              "release-lane custody check":"lane_custody",
+              "validation fixture safety check":"fixture_safety",
+              "schema dump sanitation":"schema_sanitation",
+              "disposable database startup":"local_startup",
+              "production custom-role restore":"role_restore",
+              "production user-schema restore":"schema_restore",
+              "baseline domain schema lint":"baseline_lint",
+              "candidate validation fixture application":"fixture_apply",
+              "candidate migration application":"candidate_apply",
+              "candidate migration postconditions":"postconditions",
+              "genuinely signed local ACCESS-02 My Work relevance grant-withdraw-restore":"signed_my_work",
+              "candidate domain schema lint":"candidate_lint",
+              "candidate lint delta comparison":"lint_delta",
+              "local database advisors":"advisors",
+          }
+          val=allowed.get(phase.group(1),"UNKNOWN") if phase else "UNKNOWN"
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a",encoding="utf-8") as f:
+              f.write("ACCESS02_DISPOSABLE_PHASE="+val+"\n")
+          PY
           echo 'No production SQL write or release; only schema/role dumps read-only and fictional local clone mutations.' >> "$GITHUB_STEP_SUMMARY"
