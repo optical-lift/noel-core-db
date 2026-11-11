@@ -5,6 +5,23 @@
 -- result shape, existing grants, and permission to read one's disclosed Event remain unchanged.
 BEGIN;
 
+-- Fail closed if either installed original has drifted since the verified
+-- read-only November 11 source snapshot. Never silently erase later source work.
+DO $access01_source_pins$
+DECLARE
+ v_choices oid := to_regprocedure('atlas.event_existing_work_choices_self_api_v1(uuid,uuid,uuid,text)')::oid;
+ v_people oid := to_regprocedure('atlas.ledger_event_attention_people_self_api_v1(uuid,uuid,uuid)')::oid;
+BEGIN
+ IF v_choices IS NULL OR v_people IS NULL THEN
+   RAISE EXCEPTION 'ACCESS-01 expected original functions missing';
+ END IF;
+ IF md5(pg_get_functiondef(v_choices)) IS DISTINCT FROM 'ea85d640f50b2db0a82d3365daa4a2c8'
+    OR md5(pg_get_functiondef(v_people)) IS DISTINCT FROM '7c8489875224691d4b9e3e582622c7f9' THEN
+   RAISE EXCEPTION 'ACCESS-01 installed source drift: re-audit before replacement';
+ END IF;
+END
+$access01_source_pins$;
+
 CREATE OR REPLACE FUNCTION atlas.event_existing_work_choices_self_api_v1(p_organization_id uuid, p_ledger_id uuid, p_occurrence_id uuid, p_query text DEFAULT ''::text)
  RETURNS jsonb
  LANGUAGE plpgsql
