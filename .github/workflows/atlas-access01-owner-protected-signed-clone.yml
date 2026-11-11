@@ -36,7 +36,8 @@ jobs:
           y=Path(".github/workflows/atlas-access01-owner-protected-signed-clone.yml").read_text()
           h=Path("scripts/validate-production-schema-clone.sh").read_text()
           p=Path("scripts/validate-atlas-access01-event-choices-signed-http.py").read_text()
-          protected=y.split("  validate-owner-protected-signed:",1)[1]
+          import re
+          protected=re.split(r"(?m)^  validate-owner-protected-signed:\s*$",y,maxsplit=1)[1]
           for s in ("github.event.issue.author_association == 'OWNER'",
                     "github.actor == github.repository_owner",
                     "environment: production",
