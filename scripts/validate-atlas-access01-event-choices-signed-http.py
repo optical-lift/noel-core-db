@@ -130,6 +130,24 @@ def main():
     denied(api, key, member, RPC_CHOICES, choose_params(), "ungranted Work choices")
     denied(api, key, outsider, RPC_PEOPLE, event_params(), "outside Person roster")
     denied(api, key, outsider, RPC_CHOICES, choose_params(), "outside Work choices")
+
+    # A distinct, genuinely signed root of the OTHER fictional native Ledger
+    # is not a governor of this Event's Ledger. Never infer Organization/root
+    # reach across Ledger identities.
+    base_spec = importlib.util.spec_from_file_location(
+        "access01_work_prerequisite_base",
+        HERE / "validate-atlas-work-prerequisite-signed-http.py")
+    work_base = importlib.util.module_from_spec(base_spec)
+    base_spec.loader.exec_module(work_base)
+    work_base.setup_auth(args.db_url)
+    other_root, other_claims = work_base.c1.sign_in(api, key, "owner")
+    check(other_claims.get("sub") == work_base.c1.OWNER and
+          bool(other_claims.get("session_id")),
+          "Different Ledger root requires its own genuine signed session")
+    denied(api, key, other_root, RPC_PEOPLE, event_params(),
+           "Other Ledger root cannot retrieve this Ledger roster")
+    denied(api, key, other_root, RPC_CHOICES, choose_params(),
+           "Other Ledger root cannot search this Ledger Work")
     denied(api, key, None, RPC_PEOPLE, event_params(), "anonymous Person roster")
     denied(api, key, None, RPC_CHOICES, choose_params(), "anonymous Work choices")
 
