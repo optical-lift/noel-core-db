@@ -60,8 +60,12 @@ class TrustedAccess02(unittest.TestCase):
         # The exact ACCESS-02 probe MUST launch local GoTrue + PostgREST.
         # A DB-only startup silently fails when the signed test calls local_status().
         startup=H.split('startup_attempt=1',1)[1].split('phase="production custom-role restore"',1)[0]
-        self.assertEqual(startup.count('[ "$signed_access02_my_work_probe" = true ]; then'),2)
-        starts=startup.split('       [ "$signed_access02_my_work_probe" = true ]; then')
+        # Preserve the old ACCESS-02 real Auth+REST startup while adding
+        # ACCESS-03A as a second individually gated signed clone path.
+        joined=('       [ "$signed_access02_my_work_probe" = true ] ||\n'
+                '       [ "$signed_access03_zone_retirement_probe" = true ]; then')
+        self.assertEqual(startup.count(joined),2)
+        starts=startup.split(joined)
         self.assertEqual(len(starts),3)
         self.assertTrue(starts[1].lstrip().startswith('# The source-governed signed care'))
         self.assertTrue(starts[2].lstrip().startswith('supabase start -x'))
