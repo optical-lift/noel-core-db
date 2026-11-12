@@ -149,10 +149,10 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
           path: |
-            /home/runner/work/_temp/gate0-current-artifacts/summary.md
-            /home/runner/work/_temp/gate0-current-artifacts/candidate-fixture.log
-            /home/runner/work/_temp/gate0-current-artifacts/candidate-migration.log
-            /home/runner/work/_temp/gate0-current-artifacts/postconditions.log
-            /home/runner/work/_temp/gate0-current-artifacts/schema-lint-delta.json
-            /home/runner/work/_temp/gate0-current-artifacts/signed-access03-zone-retirement-summary.txt
-            /home/runner/work/_temp/gate0-current-artifacts/signed-access03-zone-retirement.log
+            ${{ runner.temp }}/gate0-current-artifacts/summary.md
+            ${{ runner.temp }}/gate0-current-artifacts/candidate-fixture.log
+            ${{ runner.temp }}/gate0-current-artifacts/candidate-migration.log
+            ${{ runner.temp }}/gate0-current-artifacts/postconditions.log
+            ${{ runner.temp }}/gate0-current-artifacts/schema-lint-delta.json
+            ${{ runner.temp }}/gate0-current-artifacts/signed-access03-zone-retirement-summary.txt
+            ${{ runner.temp }}/gate0-current-artifacts/signed-access03-zone-retirement.log
