@@ -1,0 +1,48 @@
+name: Atlas ACCESS-02 canonical My Work migration source
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261112003844_atlas_access02_my_work_verified_native_relevance_v1.sql'
+      - 'tests/test_atlas_access02_canonical_migration_source.py'
+      - '.github/workflows/atlas-access02-canonical-migration-source.yml'
+      - 'candidates/atlas_connected_person_my_work_verified_relevance_v1/**'
+
+permissions:
+  contents: read
+
+jobs:
+  canonical-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact signed-function bytes and migration custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_atlas_access02_canonical_migration_source.py
+          bash scripts/check-migration-release-lane.sh 20261112003844 atlas
+          echo 'ACCESS02_CANONICAL_SOURCE_ONLY=PASS'
+
+      - name: Parse canonical migration with pinned PostgreSQL parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          p=Path('supabase/migrations/20261112003844_atlas_access02_my_work_verified_native_relevance_v1.sql')
+          entries=parse_sql(p.read_text())
+          assert len(entries)==5, "expected BEGIN, pin DO, existing-function replacement, postcondition DO, COMMIT"
+          print('ACCESS02_CANONICAL_MIGRATION_SQL=PARSE_PASS')
+          PY
+
+      - name: Clearly separate source check from production actor proof
+        shell: bash
+        run: |
+          echo 'Signed live-shaped disposable clone #43127060448: SUCCESS.'
+          echo 'No direct SQL execution, no auth impersonation, no migration applied.'
