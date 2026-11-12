@@ -1,0 +1,163 @@
+name: Atlas ACCESS-03B native RLS two-table signed clone (TEST ONLY)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-access03b-two-table-native-rls-signed-clone.yml'
+      - 'scripts/validate-atlas-access03-zone-retirement-signed-http.py'
+      - 'candidates/atlas/atlas_access03b_governed_growing_crop_direct_read_v1/**'
+      - 'tests/test_atlas_access03b_two_table_source.py'
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate test-only source
+        run: |
+          set -euo pipefail
+          python3 tests/test_atlas_access03_trusted_signed_source.py
+          python3 tests/test_atlas_access03b_two_table_source.py
+          python3 -m py_compile scripts/validate-atlas-access03-zone-retirement-signed-http.py
+          bash -n scripts/validate-production-schema-clone.sh
+  signed-current-schema-clone:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas ACCESS-03B: protected signed two-table RLS repair test approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    concurrency:
+      group: atlas-access03b-two-table-clone-test-only
+      cancel-in-progress: false
+    steps:
+      - name: Resolve exact owner-approved source SHA
+        id: pin
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          hashes=re.findall(r"^source_sha:\s*([0-9a-f]{40})\s*$",os.environ.get("ISSUE_BODY",""),re.M)
+          if len(hashes)!=1: raise SystemExit("One exact immutable source_sha required")
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out: out.write(f"source_sha={hashes[0]}\n")
+          PY
+      - name: Checkout canonical main and verify source custody
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify immutable approval and contracts
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ steps.pin.outputs.source_sha }}"
+          bash scripts/check-custody.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash scripts/check-production-release-contract.sh
+          python3 tests/test_atlas_access03_trusted_signed_source.py
+          python3 tests/test_atlas_access03b_two_table_source.py
+      - name: Install pinned CLI and registry
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/gate0-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/gate0-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n 1)" = 2.116.0
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Snapshot Production schema and roles READ ONLY (no data)
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/access03b-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/access03b-schema.sql"
+          test -s "$RUNNER_TEMP/access03b-roles.sql"
+          test -s "$RUNNER_TEMP/access03b-schema.sql"
+      - name: Assemble EXACT ACCESS-03B candidate in scratch-only migration and fictional DML
+        id: scratch
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/access03b-two-table-scratch"
+          mkdir -p "$scratch"
+          (cd "$scratch" && supabase init --force && supabase migration new atlas_access03_zone_direct_reader_retirement_clone_only_v1)
+          migration="$(find "$scratch/supabase/migrations" -type f -name '*_atlas_access03_zone_direct_reader_retirement_clone_only_v1.sql')"
+          test -n "$migration"
+          test "$(printf '%s\n' "$migration" | wc -l)" -eq 1
+          # ACCESS-03A already released; scratch filename selects existing signed
+          # probe, but SQL bytes are the exact new ACCESS-03B candidate only.
+          # All writes happen ONLY after restore into disposable localhost.
+          source_dir=candidates/atlas/atlas_access03b_governed_growing_crop_direct_read_v1
+          test -s "$source_dir/candidate.sql"
+          cp "$source_dir/candidate.sql" "$migration"
+          cmp "$source_dir/candidate.sql" "$migration"
+          fixture="$source_dir/fixture.sql"
+          post="$source_dir/postconditions.sql"
+          test -s "$fixture" && test -s "$post"
+          echo "version=$(basename "$migration" | cut -d_ -f1)" >> "$GITHUB_OUTPUT"
+          echo "migration=$migration" >> "$GITHUB_OUTPUT"
+          echo "fixture=$fixture" >> "$GITHUB_OUTPUT"
+          echo "postconditions=$post" >> "$GITHUB_OUTPUT"
+      - name: Test independent signed local GoTrue users and alternate routes
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=25s 20m \
+            bash scripts/validate-production-schema-clone.sh \
+              --migration-version "${{ steps.scratch.outputs.version }}" \
+              --release-lane atlas \
+              --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+              --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+              --candidate-validation "${{ steps.scratch.outputs.postconditions }}" \
+              --roles-dump "$RUNNER_TEMP/access03b-roles.sql" \
+              --schema-dump "$RUNNER_TEMP/access03b-schema.sql" \
+              --artifacts-dir "$RUNNER_TEMP/access03b-two-table-artifacts"
+          test -s "$RUNNER_TEMP/access03b-two-table-artifacts/signed-access03-zone-retirement-summary.txt"
+          grep -q '^PASS ACCESS03B signed ' "$RUNNER_TEMP/access03b-two-table-artifacts/signed-access03-zone-retirement-summary.txt"
+      - name: Record bounded signed proof result
+        if: always()
+        run: |
+          set -euo pipefail
+          summary="$RUNNER_TEMP/access03b-two-table-artifacts/signed-access03-zone-retirement-summary.txt"
+          log="$RUNNER_TEMP/access03b-two-table-artifacts/signed-access03-zone-retirement.log"
+          if test -s "$summary" && grep -q '^PASS ACCESS03B signed ' "$summary"; then
+            echo 'ACCESS03B_SIGNED_RESULT=PASS_TESTED_TWO_TABLE_PATHS_ONLY' >> "$GITHUB_STEP_SUMMARY"
+          elif test -s "$summary" && grep -q '^UNSAFE GATE0 SIGNED LOCAL DIRECT TABLE READ:' "$summary"; then
+            echo 'ACCESS03B_SIGNED_RESULT=FAIL_UNSAFE_LEGACY_DIRECT_RLS' >> "$GITHUB_STEP_SUMMARY"
+            grep '^UNSAFE GATE0 SIGNED LOCAL DIRECT TABLE READ:' "$summary" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'ACCESS03B_SIGNED_RESULT=FAILED_OR_NOT_REACHED' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if test -s "$log"; then
+            grep -E '^(PASS GATE0|UNSAFE GATE0|GATE0 direct)' "$log" | tail -n 40 >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+          echo 'Read-only live schema snapshot; all signed users, DML and ACCESS03B candidate DDL on localhost ONLY. NOT a Production release.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload bounded disposable Gate 0 validation diagnostics (no Production dumps)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: access03b-two-table-signed-disposable-diagnostics
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/access03b-two-table-artifacts/summary.md
+            ${{ runner.temp }}/access03b-two-table-artifacts/candidate-fixture.log
+            ${{ runner.temp }}/access03b-two-table-artifacts/candidate-migration.log
+            ${{ runner.temp }}/access03b-two-table-artifacts/postconditions.log
+            ${{ runner.temp }}/access03b-two-table-artifacts/schema-lint-delta.json
+            ${{ runner.temp }}/access03b-two-table-artifacts/signed-access03-zone-retirement-summary.txt
+            ${{ runner.temp }}/access03b-two-table-artifacts/signed-access03-zone-retirement.log

@@ -4,6 +4,7 @@ import argparse
 import importlib.util
 import json
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -49,13 +50,38 @@ def request(api,key,token,path,method="GET",body=None):
         return exc.code,packet
 
 def private_missing(code,payload,label,signed):
+    # Diagnostic only: retain the exact negative assertion. Never print
+    # headers, tokens, private SQL response bodies or fictional row fields.
+    error_code=payload.get("code") if isinstance(payload,dict) else None
     check(code in (401,403) and isinstance(payload,dict),
-          label+" must be an actual SQL denial, never a missing API route")
+          label+" must be an actual SQL denial, never a missing API route;"
+          +" HTTP="+str(code)+" error_code="+str(error_code))
     if signed:
         check(payload.get("code")=="42501",label+" must be source privilege denial 42501")
     wire=json.dumps(payload)
     check(all(item not in wire for item in BLOCKED),label+" leaked a private hint")
     print("PASS ACCESS03",label)
+
+def wait_for_local_route_cache(api,key,token,paths):
+    # PostgREST can answer PGRST205 while its locally reloaded schema
+    # cache is rebuilding. This is TEST SETUP, never a valid privacy
+    # denial. Poll only the known fictional LOCAL routes and only for
+    # PGRST205; every other outcome proceeds to the UNCHANGED strict
+    # 401/403/42501 signed source assertions.
+    for label,path in paths:
+        for attempt in range(90):
+            status,packet=request(api,key,token,path)
+            error=packet.get("code") if isinstance(packet,dict) else None
+            if status==404 and error=="PGRST205":
+                if attempt<89:
+                    time.sleep(0.5)
+                continue
+            print("INFO ACCESS03 local route resolved: "+label)
+            break
+        else:
+            raise AssertionError(
+                "ACCESS03 LOCAL REST CACHE NOT READY: "+label+
+                " HTTP=404 error_code=PGRST205 after bounded 45s")
 
 def main():
     p=argparse.ArgumentParser()
@@ -88,6 +114,7 @@ def main():
        ("direct zone","/rest/v1/zones?select=id,label,metadata&farm_id=eq."+FARM),
        ("crop invoker view","/rest/v1/v_crop_cycle_registry?select=crop_cycle_id,crop_label,metadata&farm_id=eq."+FARM),
     )
+    wait_for_local_route_cache(api,key,tokens["owner"],paths)
     for label,path in paths:
         for actor in ("owner","worker","outsider","no-seat"):
             code,packet=request(api,key,tokens[actor],path)
@@ -167,26 +194,82 @@ def main():
          "/rest/v1/crop_cycles?select=id,crop_label,metadata&farm_id=eq."+FARM,
          CYCLE),
     )
+    # Failure invariant: no rows to a legacy manager lacking native governing root.
     direct_leaks=[]
     for relation,path,fictional_id in old_direct:
-        code,packet=request(api,key,tokens["worker"],path)
-        check(code!=404 and code!=406,
-              relation+" missing REST schema is not a valid security test")
+        # The canonical governing Ledger root must retain actual underlying
+        # row access. Without this positive, a blanket deny could falsely
+        # pass every old manager negative test while breaking useful readers.
+        code,packet=request(api,key,tokens["owner"],path)
+        check(code==200 and isinstance(packet,list) and
+              any(isinstance(row,dict) and row.get("id")==fictional_id
+                  for row in packet),
+              "native Ledger governor lost direct "+relation+" positive")
+        print("PASS ACCESS03B signed native governor "+relation+" positive")
+        for actor in ("worker","outsider","no-seat"):
+            code,packet=request(api,key,tokens[actor],path)
+            check(code not in (404,406),
+                  relation+" missing REST schema is not a negative test")
+            if code==200:
+                check(isinstance(packet,list),
+                      relation+" REST response must be JSON array")
+                if packet:
+                    direct_leaks.append(relation+" via "+actor)
+                    print("UNSAFE GATE0 SIGNED LOCAL DIRECT TABLE READ: "+
+                          relation+" returned private fictional rows to "+
+                          actor+" lacking native governing root")
+                else:
+                    print("PASS ACCESS03B signed "+relation+
+                          " no source rows for "+actor)
+            else:
+                private_missing(code,packet,
+                                relation+" denied to "+actor,True)
+        code,packet=request(api,key,None,path)
+        private_missing(code,packet,relation+" denied to anonymous",False)
+
+    # These two authenticated SECURITY INVOKER views depend on at least one
+    # target table. They MUST retain catalog grants/definitions and MUST NOT
+    # disclose a sampled row to a legacy role. Original ACCESS-03A revoked
+    # zone SELECT, so a root's view call MAY ALREADY fail with 42501 before
+    # ACCESS-03B. Record that pre-existing positive blocker explicitly; do
+    # not fabricate a view-positive result from metadata/ACL alone.
+    invoker_views=(
+        "farm_care_object_state_v1",
+        "v_farm_object_operational_state",
+    )
+    for view in invoker_views:
+        path="/rest/v1/"+view+"?select=farm_id,object_id&farm_id=eq."+FARM+"&limit=1"
+        code,packet=request(api,key,tokens["owner"],path)
+        check(code not in (404,406),"dependent view route not present: "+view)
         if code==200:
             check(isinstance(packet,list),
-                  relation+" JSON array REST result required")
-            if any(isinstance(row,dict) and row.get("id")==fictional_id
-                   for row in packet):
-                direct_leaks.append(relation)
-                print("UNSAFE GATE0 SIGNED LOCAL DIRECT TABLE READ: "+
-                      relation+" returned private fictional identity to "+
-                      "legacy manager lacking native governing root")
-            else:
-                print("GATE0 direct "+relation+
-                      " returned no named fictional row; do not claim "+
-                      "broad denial from this fixture alone")
+                  "owner dependent view must return a JSON array")
+            print("PASS ACCESS03B signed governor invoker view REST reachable: "+
+                  view+" rows="+str(len(packet)))
+        elif code in (401,403) and isinstance(packet,dict) and (
+                packet.get("code")=="42501"):
+            print("HELD ACCESS03B governor invoker view 42501 (possible "+
+                  "pre-existing ACCESS03A zone SELECT dependency): "+view)
         else:
-            private_missing(code,packet,relation+" manager direct denial",True)
+            raise AssertionError("ACCESS03B unexpected governor view response: "+
+                                 view+" HTTP "+str(code))
+        for actor in ("worker","outsider","no-seat"):
+            code,packet=request(api,key,tokens[actor],path)
+            check(code not in (404,406),
+                  view+" missing REST route is not an actor denial")
+            if code==200:
+                check(isinstance(packet,list),view+" response must be array")
+                if packet:
+                    direct_leaks.append(view+" via "+actor)
+                    print("UNSAFE GATE0 SIGNED LOCAL DIRECT TABLE READ: "+
+                          view+" revealed an operational row to "+actor)
+                else:
+                    print("PASS ACCESS03B signed invoker view no rows to "+actor)
+            else:
+                private_missing(code,packet,
+                                view+" withheld from "+actor,True)
+        code,packet=request(api,key,None,path)
+        private_missing(code,packet,view+" anonymous denied",False)
 
     # A separate legacy farm_hand state may not promote the same Person to
     # native root. This state change occurs ONLY on disposable localhost.
@@ -219,10 +302,75 @@ def main():
           "legacy manager/outsider/no-seat/farm_hand/anon negative; "+
           "sampled direct-table paths returned no fictional rows")
 
+
+    # This is the ONE authenticated-executable invoker function in the
+    # inspected source-function census that reads growing_objects directly.
+    # A legitimate governor must still detect a synthetic retired object;
+    # an old legacy manager lacking native root must not learn that fact.
+    retired_id="e5200000-0000-4000-8000-000000000b04"
+    c1.sql(args.db_url,f"""update atlas.growing_objects
+         set metadata=jsonb_set(metadata,'{{canonicalDeleted}}','"true"'::jsonb,true)
+         where id='{retired_id}'::uuid and farm_id='{FARM}'::uuid""")
+    retired_rpc="/rest/v1/rpc/is_retired_growing_object_v1?p_object_id="+retired_id
+    code,packet=request(api,key,tokens["owner"],retired_rpc)
+    check(code==200 and packet is True,
+          "native governor lost positive retired-object invoker check")
+    for actor in ("worker","outsider","no-seat"):
+        code,packet=request(api,key,tokens[actor],retired_rpc)
+        check(code==200 and packet is False,
+              "old role learned retired-object existence via invoker "+actor)
+    code,packet=request(api,key,None,retired_rpc)
+    private_missing(code,packet,"retired-object invoker anon denied",False)
+    print("PASS ACCESS03B signed retired-object invoker governor-positive, "+
+          "legacy/outsider/no-seat/anon negative")
+    c1.sql(args.db_url,f"""update atlas.growing_objects
+         set metadata=metadata-'canonicalDeleted'
+         where id='{retired_id}'::uuid and farm_id='{FARM}'::uuid""")
+    code,packet=request(api,key,tokens["owner"],retired_rpc)
+    check(code==200 and packet is False,
+          "retired-object invoker did not return to original false state")
+    print("PASS ACCESS03B synthetic retired-object marker fully restored")
+
+    # A valid *previously* signed owner JWT must stop reading after their
+    # native governing authority is ended; mutation is local clone ONLY.
+    c1.sql(args.db_url,f"""update atlas.principal_ledger_authorities
+        set status='ended', ended_at=now()
+        where id='{c1.ROOT_AUTHORITY}'::uuid and status='active'""")
+    check(c1.sql(args.db_url,f"""select count(*)
+        from atlas.principal_ledger_authorities
+        where id='{c1.ROOT_AUTHORITY}'::uuid
+          and status='ended' and ended_at IS NOT NULL""")=="1",
+          "native authority revocation fixture did not persist")
+    for relation,path,fictional_id in old_direct:
+        code,packet=request(api,key,tokens["owner"],path)
+        check(code not in (404,406),
+              relation+" revoked native owner REST route absent")
+        if code==200:
+            check(isinstance(packet,list) and
+                  not any(isinstance(row,dict) and
+                          row.get("id")==fictional_id for row in packet),
+                  "revoked native owner still reads "+relation)
+        else:
+            private_missing(code,packet,
+                            relation+" revoked native root denied",True)
+    print("PASS ACCESS03B native governing root revocation cuts both tables")
+    c1.sql(args.db_url,f"""update atlas.principal_ledger_authorities
+        set status='active', ended_at=NULL
+        where id='{c1.ROOT_AUTHORITY}'::uuid and status='ended'""")
+    for relation,path,fictional_id in old_direct:
+        code,packet=request(api,key,tokens["owner"],path)
+        check(code==200 and isinstance(packet,list) and
+              any(isinstance(row,dict) and row.get("id")==fictional_id
+                  for row in packet),
+              "restored native governing root did not restore "+relation)
+    print("PASS ACCESS03B exact root restoration returns both source rows")
+
     check(c1.sql(args.db_url,f"select count(*) from atlas.zones where id='{ZONE}'::uuid")=="1"
           and c1.sql(args.db_url,f"select count(*) from atlas.crop_cycles where id='{CYCLE}'::uuid")=="1",
           "historical/actual source rows were deleted")
-    Path(args.output).write_text("PASS ACCESS03 signed source retirement and no-loss\n")
+    Path(args.output).write_text(
+        "PASS ACCESS03 signed source retirement and no-loss\n"
+        "PASS ACCESS03B signed native two-table policy and no-loss\n")
     print("PASS ACCESS03 signed local direct-reader retirement and no-loss")
 
 if __name__=="__main__":
