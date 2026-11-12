@@ -30,3 +30,5 @@ Then use the canonical CLI-generated `atlas_` migration path,
 reviewed exact source and explicitly authorized protected database release.
 No live execute_sql mutation, no blind grant rewrite, no cascade.
 See [Atlas #445](https://github.com/optical-lift/atlas/issues/445).
+
+The generated-version full-schema clone starts with schema and roles, **not** fictional C1 data. The original 5-statement ACCESS-03A fixture relied on the separate Original Work fixture and failed intentionally at the first prerequisite assertion. This source-only repair prefixes the previously signed, DML-only C1 Original Work setup **verbatim through its legacy farm membership insert** (source blob `e877d93323ddc67d8778be8bea1dfa34319cc85c`), then runs the unchanged ACCESS-03A zone/crop fixture statements. Neither the approved migration SQL nor its postconditions change. This is a draft correction awaiting source/clone verification and owner approval; do not silently alter the earlier generated versioned PR or deploy it.
