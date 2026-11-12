@@ -630,31 +630,11 @@ config_path.write_text("".join(out), encoding="utf-8")
 print(f"Disposable local validation DB port: {port}")
 PY
 database_url="postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres"
-# Deliberately expose atlas ONLY in the disposable local ACCESS-03A test.
-# This makes direct table/view denial a real authorization test, not a
-# misleading 404/406 from an unexposed PostgREST schema.
-if [ "$signed_access03_zone_retirement_probe" = true ]; then
-  python3 - "$project_dir/supabase/config.toml" <<'PY'
-from pathlib import Path
-import re,sys
-p=Path(sys.argv[1])
-lines=p.read_text(encoding="utf-8").splitlines(keepends=True)
-section=""
-count=0
-for i,line in enumerate(lines):
-    stripped=line.strip()
-    if stripped.startswith("[") and stripped.endswith("]"):
-        section=stripped
-    if section=="[api]" and re.match(r"^schemas\s*=",stripped):
-        if "atlas" in line:
-            raise SystemExit("ACCESS03 expected isolated atlas schema to be absent initially")
-        lines[i]='schemas = ["public", "graphql_public", "atlas"]\n'
-        count+=1
-if count!=1:
-    raise SystemExit("ACCESS03 cannot establish explicit local PostgREST atlas schema")
-p.write_text("".join(lines),encoding="utf-8")
-PY
-fi
+# ACCESS-03A: startup must use the default exposed schemas. The production-
+# shaped atlas schema does not exist until the later schema restore. Exposing
+# atlas before startup makes PostgREST health check fail (PGRST002 / 3F000).
+# Only after restoration and local SQL postconditions are complete will this
+# one disposable clone enable atlas through database-local PostgREST config.
 local_started=true
 startup_attempt=1
 startup_max_attempts=4
@@ -833,6 +813,24 @@ if [ "$signed_access02_my_work_probe" = true ]; then
     >"$artifacts_dir/signed-access02-my-work.log" 2>&1
   test -s "$artifacts_dir/signed-access02-my-work-summary.txt"
   grep -q '^PASS ACCESS-02 signed ' "$artifacts_dir/signed-access02-my-work-summary.txt"
+fi
+
+if [ "$signed_access03_zone_retirement_probe" = true ]; then
+  phase="ACCESS-03A disposable PostgREST schema exposure AFTER schema restoration"
+  # This explicit local-only URL guard also protects the helper if the
+  # shared controller's earlier local-database guard changes in future.
+  if [[ ! "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo "ACCESS03 PostgREST schema exposure refuses nonlocal database" >&2
+    exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c \
+    "ALTER ROLE authenticator IN DATABASE postgres SET pgrst.db_schemas = 'public,graphql_public,atlas';" \
+    >"$artifacts_dir/access03-local-pgrst-exposure.log" 2>&1
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c \
+    "NOTIFY pgrst, 'reload config'; NOTIFY pgrst, 'reload schema';" \
+    >>"$artifacts_dir/access03-local-pgrst-exposure.log" 2>&1
+  # Database-specific settings override default container environment only
+  # on this disposable local instance; no production settings are touched.
 fi
 
 if [ "$signed_access03_zone_retirement_probe" = true ]; then

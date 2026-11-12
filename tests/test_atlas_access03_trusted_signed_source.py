@@ -12,10 +12,13 @@ class Access03Trusted(unittest.TestCase):
         self.assertIn("atlas_access03_zone_direct_reader_retirement_clone_only_v1",H)
         self.assertEqual(H.count("signed_access03_zone_retirement_probe=true"),1)
         self.assertEqual(H.count('[ "$signed_access03_zone_retirement_probe" = true ]; then'),4)
-        self.assertIn('"public", "graphql_public", "atlas"',H)
-        # Parser must match Supabase CLI's normal 'schemas = [...]' key.
-        self.assertIn('re.match(r"^schemas\\s*=",stripped)',H)
-        self.assertNotIn('re.match(r"^schemas\\\\s*=",stripped)',H)
+        self.assertIn("'public,graphql_public,atlas'",H)
+        self.assertIn("ALTER ROLE authenticator IN DATABASE postgres SET pgrst.db_schemas",H)
+        self.assertIn("NOTIFY pgrst, 'reload config'; NOTIFY pgrst, 'reload schema'",H)
+        self.assertIn("PostgREST schema exposure AFTER schema restoration",H)
+        self.assertLess(H.index('phase="production user-schema restore"'),
+                        H.index('phase="ACCESS-03A disposable PostgREST schema exposure AFTER schema restoration"'))
+        self.assertNotIn("lines[i]='schemas =",H)
         self.assertIn("genuine signed local ACCESS-03A legacy zone",H)
         self.assertIn("signed-access03-zone-retirement-summary.txt",H)
         self.assertIn("supabase start -x",H)
