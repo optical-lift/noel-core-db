@@ -57,6 +57,14 @@ class TrustedAccess02(unittest.TestCase):
         self.assertIn("validate-atlas-access02-my-work-signed-http.py",H)
         self.assertIn("signed-access02-my-work-summary.txt",H)
         self.assertIn("genuinely signed local ACCESS-02",H)
+        # The exact ACCESS-02 probe MUST launch local GoTrue + PostgREST.
+        # A DB-only startup silently fails when the signed test calls local_status().
+        startup=H.split('startup_attempt=1',1)[1].split('phase="production custom-role restore"',1)[0]
+        self.assertEqual(startup.count('[ "$signed_access02_my_work_probe" = true ]; then'),2)
+        self.assertIn('       [ "$signed_access02_my_work_probe" = true ]; then\\n    # The source-governed signed care',startup)
+        self.assertIn('       [ "$signed_access02_my_work_probe" = true ]; then\\n      supabase start -x',startup)
+        self.assertIn('supabase db start >"$startup_log" 2>&1',startup)
+
         self.assertIn("access02_my_work_relevance_signed_clone_only.sql",W)
         self.assertIn("atlas_universal_original_work_integrated_v1/fixture.sql",W)
         self.assertIn("timeout --signal=TERM --kill-after=25s 18m",W)
