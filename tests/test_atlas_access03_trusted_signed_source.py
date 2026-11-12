@@ -13,6 +13,9 @@ class Access03Trusted(unittest.TestCase):
         self.assertEqual(H.count("signed_access03_zone_retirement_probe=true"),1)
         self.assertEqual(H.count('[ "$signed_access03_zone_retirement_probe" = true ]; then'),4)
         self.assertIn('"public", "graphql_public", "atlas"',H)
+        # Parser must match Supabase CLI's normal 'schemas = [...]' key.
+        self.assertIn('re.match(r"^schemas\\s*=",stripped)',H)
+        self.assertNotIn('re.match(r"^schemas\\\\s*=",stripped)',H)
         self.assertIn("genuine signed local ACCESS-03A legacy zone",H)
         self.assertIn("signed-access03-zone-retirement-summary.txt",H)
         self.assertIn("supabase start -x",H)
