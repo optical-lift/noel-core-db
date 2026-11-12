@@ -276,6 +276,34 @@ def main():
           "sampled direct-table paths returned no fictional rows")
 
 
+    # This is the ONE authenticated-executable invoker function in the
+    # inspected source-function census that reads growing_objects directly.
+    # A legitimate governor must still detect a synthetic retired object;
+    # an old legacy manager lacking native root must not learn that fact.
+    retired_id="e5200000-0000-4000-8000-000000000b04"
+    c1.sql(args.db_url,f"""update atlas.growing_objects
+         set metadata=jsonb_set(metadata,'{canonicalDeleted}','"true"'::jsonb,true)
+         where id='{retired_id}'::uuid and farm_id='{FARM}'::uuid""")
+    retired_rpc="/rest/v1/rpc/is_retired_growing_object_v1?p_object_id="+retired_id
+    code,packet=request(api,key,tokens["owner"],retired_rpc)
+    check(code==200 and packet is True,
+          "native governor lost positive retired-object invoker check")
+    for actor in ("worker","outsider","no-seat"):
+        code,packet=request(api,key,tokens[actor],retired_rpc)
+        check(code==200 and packet is False,
+              "old role learned retired-object existence via invoker "+actor)
+    code,packet=request(api,key,None,retired_rpc)
+    private_missing(code,packet,"retired-object invoker anon denied",False)
+    print("PASS ACCESS03B signed retired-object invoker governor-positive, "+
+          "legacy/outsider/no-seat/anon negative")
+    c1.sql(args.db_url,f"""update atlas.growing_objects
+         set metadata=metadata-'canonicalDeleted'
+         where id='{retired_id}'::uuid and farm_id='{FARM}'::uuid""")
+    code,packet=request(api,key,tokens["owner"],retired_rpc)
+    check(code==200 and packet is False,
+          "retired-object invoker did not return to original false state")
+    print("PASS ACCESS03B synthetic retired-object marker fully restored")
+
     # A valid *previously* signed owner JWT must stop reading after their
     # native governing authority is ended; mutation is local clone ONLY.
     c1.sql(args.db_url,f"""update atlas.principal_ledger_authorities
