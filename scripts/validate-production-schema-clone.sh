@@ -28,6 +28,7 @@ candidate_validation=""
 roles_dump=""
 schema_dump=""
 artifacts_dir=""
+pre1_rest_proof=false
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -39,6 +40,7 @@ while [ "$#" -gt 0 ]; do
     --roles-dump) roles_dump="${2:-}"; shift 2 ;;
     --schema-dump) schema_dump="${2:-}"; shift 2 ;;
     --artifacts-dir) artifacts_dir="${2:-}"; shift 2 ;;
+    --pre1-rest-proof) pre1_rest_proof=true; shift ;;
     *) usage ;;
   esac
 done
@@ -71,6 +73,19 @@ if [ -n "$candidate_fixture" ]; then candidate_fixture="$(realpath "$candidate_f
 if [ -n "$candidate_validation" ]; then candidate_validation="$(realpath "$candidate_validation")"; fi
 roles_dump="$(realpath "$roles_dump")"
 schema_dump="$(realpath "$schema_dump")"
+
+# The additional PRE1 PostgREST proof is opt-in ONLY for exactly reviewed
+# dropped-v1 source under a generated disposable scratch migration basename.
+# Never allow this option to validate unrelated SQL with a false "route gone".
+if [ "$pre1_rest_proof" = true ]; then
+  if [ "$lane" != atlas ] ||
+     [[ "$(basename "$candidate_migration")" != *"_atlas_access03_zone_direct_reader_retirement_clone_only_v1.sql" ]] ||
+     [ "$(git hash-object "$candidate_migration")" != "ac8552f35e4de14f1ae337c29cfc1c2971af1c9b" ] ||
+     [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ]; then
+    echo "PRE1 REST proof requires exact reviewed local candidate, fixture and postconditions." >&2
+    exit 2
+  fi
+fi
 mkdir -p "$artifacts_dir"
 artifacts_dir="$(cd "$artifacts_dir" && pwd)"
 
@@ -841,6 +856,20 @@ if [ "$signed_access03_zone_retirement_probe" = true ]; then
     >"$artifacts_dir/signed-access03-zone-retirement.log" 2>&1
   test -s "$artifacts_dir/signed-access03-zone-retirement-summary.txt"
   grep -q '^PASS ACCESS03 signed ' "$artifacts_dir/signed-access03-zone-retirement-summary.txt"
+fi
+
+if [ "$pre1_rest_proof" = true ]; then
+  if [ "$signed_access03_zone_retirement_probe" != true ]; then
+    echo "PRE1 REST proof requires the existing signed ACCESS03 zone/RLS gate." >&2
+    exit 2
+  fi
+  phase="signed local PRE1 v1 REST RPC absence and retained v2 owner-positive"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-tending-rpc-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-access03c-pre1-rpc-summary.txt" \
+    >"$artifacts_dir/signed-access03c-pre1-rpc.log" 2>&1
+  test -s "$artifacts_dir/signed-access03c-pre1-rpc-summary.txt"
+  grep -q '^PASS ACCESS03C-PRE1 signed ' "$artifacts_dir/signed-access03c-pre1-rpc-summary.txt"
 fi
 
 if [ "$signed_access01_event_choices_probe" = true ]; then

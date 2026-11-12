@@ -20,13 +20,17 @@ class Access03CPre1Launcher(unittest.TestCase):
    "1e83ea45d4d7cf64c48ac246f1e0fc500a9d8010",
    'cmp "$dir/candidate.sql" "$migration"',
    "scripts/validate-production-schema-clone.sh",
-   "PRE1_CLONE_RESULT=PASS_EXISTING_SIGNED_GATES_AND_POSTCONDITIONS_ONLY",
-   "PRE1 HTTP RPC endpoint absence and unknown external clients remain separately HELD"):
+   "--pre1-rest-proof", "signed-access03c-pre1-rpc-summary.txt",
+   "PRE1_CLONE_RESULT=PASS_SIGNED_LOCAL_V1_RPC_ABSENCE_V2_POSITIVE",
+   "External or deployed clients, complete historical no-loss, and Production release remain separately HELD."):
    self.assertIn(required,WF)
   for forbidden in ("supabase db push","supabase migration up","scripts/release-production-migration.sh",
    "apply_migration","SUPABASE_SERVICE_ROLE_KEY","DROP FUNCTION atlas."):
    self.assertNotIn(forbidden,WF)
   self.assertEqual(WF.count("NOEL_CORE_DATABASE_URL: "),1)
+  self.assertIn('grep -q \'^PASS ACCESS03C-PRE1 signed \'', WF)
+  self.assertIn("tests/test_atlas_access03c_pre1_tending_rpc_source.py", WF)
+  self.assertIn("scripts/validate-atlas-access03c-pre1-tending-rpc-signed-http.py", WF)
   self.assertLess(WF.index("Verify exact held SQL"),WF.index("Snapshot Production schema"))
   self.assertLess(WF.index("Snapshot Production schema"),WF.index('cp "$dir/candidate.sql" "$migration"'))
  def test_no_production_dump_uploaded(self):
