@@ -1,0 +1,169 @@
+name: Atlas ACCESS-03C-PRE1 HELD pair signed clone TEST ONLY
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-access03c-pre1-protected-held-pair-clone.yml'
+      - 'tests/test_atlas_access03c_pre1_bootstrap_source.py'
+  issues:
+    types: [opened]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: |
+          set -euo pipefail
+          python3 tests/test_atlas_access03c_pre1_bootstrap_source.py
+          python3 tests/test_atlas_access03_trusted_signed_source.py
+          bash -n scripts/validate-production-schema-clone.sh
+  owner-signed-held-pair:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas ACCESS-03C-PRE1: protected held-pair signed clone test approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    concurrency:
+      group: atlas-access03c-pre1-local-clone-test-only
+      cancel-in-progress: false
+    steps:
+      - name: Verify exact owner request
+        id: pins
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          text=os.environ.get('ISSUE_BODY','')
+          vals={}
+          for key in ('candidate_sha','trusted_main_sha'):
+              found=re.findall(r'^'+key+r':\s*([0-9a-f]{40})\s*$',text,re.M)
+              if len(found)!=1: raise SystemExit('Exact '+key+' required')
+              vals[key]=found[0]
+          if vals['candidate_sha']!='909d95c198671f9c80e28ad4e58d7534ded22675':
+              raise SystemExit('PRE1 candidate not reviewed')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+              for key,val in vals.items(): output.write(key+'='+val+'\n')
+          PY
+      - name: Checkout trusted canonical main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check trusted main SHA and custody
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${{ steps.pins.outputs.trusted_main_sha }}"
+          bash scripts/check-custody.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash scripts/check-production-release-contract.sh
+          python3 tests/test_atlas_access03_trusted_signed_source.py
+          python3 tests/test_atlas_access03c_pre1_bootstrap_source.py
+      - name: Checkout exact unmerged PRE1 source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pins.outputs.candidate_sha }}
+          path: held
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Verify exact held SQL and postconditions before reading Production
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "${{ steps.pins.outputs.candidate_sha }}"
+          test -z "$(git -C held status --porcelain)"
+          (cd held && python3 tests/test_atlas_access03c_pre1_tending_v1_pair_source.py)
+          (cd held && python3 tests/test_atlas_access03_trusted_signed_source.py)
+          dir=held/candidates/atlas/atlas_access03c_pre1_tending_v1_pair_retirement_v1
+          test "$(git hash-object "$dir/candidate.sql")" = "ac8552f35e4de14f1ae337c29cfc1c2971af1c9b"
+          test "$(git hash-object "$dir/postconditions.sql")" = "aff86ae537a7dfbffefa4320e6d21328c32c78d7"
+          test "$(git hash-object candidates/atlas/atlas_access03b_governed_growing_crop_direct_read_v1/fixture.sql)" = "1e83ea45d4d7cf64c48ac246f1e0fc500a9d8010"
+      - name: Install pinned CLI v2.116.0
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n 1)" = 2.116.0
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Snapshot Production schema and roles READ ONLY, no data rows
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/pre1-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/pre1-schema.sql"
+          test -s "$RUNNER_TEMP/pre1-roles.sql"
+          test -s "$RUNNER_TEMP/pre1-schema.sql"
+      - name: Create scratch-only named migration containing exact PRE1 source
+        id: scratch
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/atlas-access03c-pre1"
+          mkdir -p "$scratch"
+          (cd "$scratch" && supabase init --force && supabase migration new atlas_access03_zone_direct_reader_retirement_clone_only_v1)
+          migration="$(find "$scratch/supabase/migrations" -type f -name '*_atlas_access03_zone_direct_reader_retirement_clone_only_v1.sql')"
+          test -n "$migration"
+          test "$(printf '%s\n' "$migration" | wc -l)" -eq 1
+          dir=held/candidates/atlas/atlas_access03c_pre1_tending_v1_pair_retirement_v1
+          cp "$dir/candidate.sql" "$migration"
+          cmp "$dir/candidate.sql" "$migration"
+          echo "version=$(basename "$migration" | cut -d_ -f1)" >> "$GITHUB_OUTPUT"
+          echo "migration=$migration" >> "$GITHUB_OUTPUT"
+          echo "post=$dir/postconditions.sql" >> "$GITHUB_OUTPUT"
+      - name: Run genuine existing signed ACCESS03B/zone regression plus PRE1 postconditions in disposable localhost
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=25s 20m \
+            bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+            --candidate-fixture candidates/atlas/atlas_access03b_governed_growing_crop_direct_read_v1/fixture.sql \
+            --candidate-validation "${{ steps.scratch.outputs.post }}" \
+            --roles-dump "$RUNNER_TEMP/pre1-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/pre1-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/pre1-local-artifacts"
+          test -s "$RUNNER_TEMP/pre1-local-artifacts/signed-access03-zone-retirement-summary.txt"
+          grep -q '^PASS ACCESS03B signed ' "$RUNNER_TEMP/pre1-local-artifacts/signed-access03-zone-retirement-summary.txt"
+      - name: Summarize TEST-ONLY results (never a release)
+        if: always()
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/pre1-local-artifacts/signed-access03-zone-retirement-summary.txt"
+          if test -s "$report" && grep -q '^PASS ACCESS03B signed ' "$report"; then
+            echo 'PRE1_CLONE_RESULT=PASS_EXISTING_SIGNED_GATES_AND_POSTCONDITIONS_ONLY' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'PRE1_CLONE_RESULT=FAILED_OR_NOT_REACHED' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo 'PRE1 HTTP RPC endpoint absence and unknown external clients remain separately HELD.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Production schema and roles READ ONLY; DDL, DML and signed identities on LOCALHOST only.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload bounded localhost diagnostics only (NO Production dumps)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: access03c-pre1-local-test-diagnostics
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/pre1-local-artifacts/summary.md
+            ${{ runner.temp }}/pre1-local-artifacts/candidate-fixture.log
+            ${{ runner.temp }}/pre1-local-artifacts/candidate-migration.log
+            ${{ runner.temp }}/pre1-local-artifacts/postconditions.log
+            ${{ runner.temp }}/pre1-local-artifacts/schema-lint-delta.json
+            ${{ runner.temp }}/pre1-local-artifacts/signed-access03-zone-retirement-summary.txt
+            ${{ runner.temp }}/pre1-local-artifacts/signed-access03-zone-retirement.log
