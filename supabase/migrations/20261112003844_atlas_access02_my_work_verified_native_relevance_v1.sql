@@ -171,8 +171,7 @@ BEGIN
     'optionalRequestsExcluded',true,'noPersonalTaskCreated',true
   );
 END
-$function$
-
+$function$;
 
 -- Fail transaction if the native reader or REST wrapper/ACL differs from the
 -- independently reviewed, signed-clone-tested source contract.
