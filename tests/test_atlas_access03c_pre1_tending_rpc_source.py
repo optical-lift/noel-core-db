@@ -26,12 +26,16 @@ class Pre1RpcProof(unittest.TestCase):
      "from auth.sessions", 'existing.request(api,key,tokens["owner"],V2,"POST",body)',
      'bed.get("taskTitle")==TITLE', 'bed.get("bedKey")==KEY',
      'bed.get("releasedTaskId")==TASK', 'bed.get("cropCycleId")==CYCLE',
+     'bed.get("isActionableNow") is False', "'general','skipped','water','farm_shared'",
+     "status='skipped' and visibility_scope='farm_shared'",
+     "except subprocess.CalledProcessError as exc",
      'existing.private_missing', 'require_missing_rpc(status,packet',
      'error=="PGRST202"', '"PGRST205","42883"', 'time.sleep(0.5)',
      'NOTIFY pgrst', 'select to_regprocedure', 'snapshot(db)==baseline',
      'delete from atlas.task_objects', 'delete from atlas.tasks',
      'delete from atlas.farm_memberships', 'PASS ACCESS03C-PRE1 signed '):
    self.assertIn(term,BODY)
+  self.assertNotIn("'general','open','water','farm_shared'",BODY)
   self.assertNotIn('https://',BODY)
   self.assertNotIn('SUPABASE_SERVICE_ROLE_KEY',BODY)
   self.assertIn("refuses nonlocal database",BODY)
