@@ -15,7 +15,7 @@ class HeldCandidateGuard(unittest.TestCase):
             "environment: production",
             "github.event.issue.title == 'Atlas ACCESS-03B: protected held-candidate signed clone test approval'",
             "'candidate_sha','trusted_main_sha'",
-            "b319381b8f3b55f7e7d19844b4868307b6e36338",
+            "85e2605bff94ae35ea39315ed705ef07cf728b60",
             "ref: main",
             "ref: ${{ steps.refs.outputs.candidate_sha }}",
             'test "$(git rev-parse HEAD)" = "${{ steps.refs.outputs.trusted_main_sha }}"',
