@@ -20,8 +20,8 @@ class Access02CanonicalSource(unittest.TestCase):
             VERSION+"_atlas_access02_my_work_verified_native_relevance_v1.sql")
         self.assertEqual(len(list(FILE.parent.glob(VERSION+"_*.sql"))),1)
         self.assertTrue(MIG.strip().endswith("COMMIT;"))
-        self.assertEqual(len(re.findall(r"(?m)^BEGIN;\\s*$",MIG)),1)
-        self.assertEqual(len(re.findall(r"(?m)^COMMIT;\\s*$",MIG)),1)
+        self.assertEqual(len(re.findall(r"(?m)^BEGIN;\s*$",MIG)),1)
+        self.assertEqual(len(re.findall(r"(?m)^COMMIT;\s*$",MIG)),1)
 
     def test_installed_function_body_equals_independently_signed_candidate(self):
         fn="CREATE OR REPLACE FUNCTION atlas.connected_person_my_work_self_api_v1("
@@ -50,7 +50,7 @@ class Access02CanonicalSource(unittest.TestCase):
     def test_scope_only_one_existing_private_reader_without_grants(self):
         self.assertEqual(len(re.findall(r"(?mi)^CREATE OR REPLACE FUNCTION",MIG)),1)
         self.assertNotIn("CREATE OR REPLACE FUNCTION public.",MIG)
-        self.assertNotRegex(MIG,re.compile(r"(?mi)^\\s*(GRANT|REVOKE|INSERT|UPDATE|DELETE|DROP|CREATE TABLE|ALTER TABLE)\\s"))
+        self.assertNotRegex(MIG,re.compile(r"(?mi)^\s*(GRANT|REVOKE|INSERT|UPDATE|DELETE|DROP|CREATE TABLE|ALTER TABLE)\s"))
         self.assertIn("STABLE SECURITY DEFINER",MIG)
         self.assertIn("SET search_path TO ''",MIG)
         self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY",MIG)
