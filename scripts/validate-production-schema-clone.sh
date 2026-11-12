@@ -749,6 +749,16 @@ phase="candidate migration application"
 psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration" \
   >"$artifacts_dir/candidate-migration.log" 2>&1
 
+# ACCESS-02 TEST ONLY: exact My Work wrapper clone-only anonymous ACL
+# parity, never a migration or permission change on a linked database.
+if [ "$signed_access02_my_work_probe" = true ]; then
+  phase="ACCESS-02 disposable anonymous REST ACL parity"
+  PGOPTIONS="-c access02.disposable_clone=true" \
+    psql "$database_url" -X -v ON_ERROR_STOP=1 \
+      -f "$repo_root/scripts/atlas-access02-disposable-anon-parity-held.sql" \
+      >"$artifacts_dir/access02-anon-parity.log" 2>&1
+fi
+
 # ACCESS-01 only: restore the *exact* expected anonymous-denial baseline
 # after a production-shaped user-schema restore, if the two PUBLIC REST wrapper
 # grants differ only by the known clone-specific extra anon grant.
