@@ -4,6 +4,7 @@ import argparse
 import importlib.util
 import json
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -61,6 +62,27 @@ def private_missing(code,payload,label,signed):
     check(all(item not in wire for item in BLOCKED),label+" leaked a private hint")
     print("PASS ACCESS03",label)
 
+def wait_for_local_route_cache(api,key,token,paths):
+    # PostgREST can answer PGRST205 while its locally reloaded schema
+    # cache is rebuilding. This is TEST SETUP, never a valid privacy
+    # denial. Poll only the known fictional LOCAL routes and only for
+    # PGRST205; every other outcome proceeds to the UNCHANGED strict
+    # 401/403/42501 signed source assertions.
+    for label,path in paths:
+        for attempt in range(90):
+            status,packet=request(api,key,token,path)
+            error=packet.get("code") if isinstance(packet,dict) else None
+            if status==404 and error=="PGRST205":
+                if attempt<89:
+                    time.sleep(0.5)
+                continue
+            print("INFO ACCESS03 local route resolved: "+label)
+            break
+        else:
+            raise AssertionError(
+                "ACCESS03 LOCAL REST CACHE NOT READY: "+label+
+                " HTTP=404 error_code=PGRST205 after bounded 45s")
+
 def main():
     p=argparse.ArgumentParser()
     p.add_argument("--db-url",required=True)
@@ -92,6 +114,7 @@ def main():
        ("direct zone","/rest/v1/zones?select=id,label,metadata&farm_id=eq."+FARM),
        ("crop invoker view","/rest/v1/v_crop_cycle_registry?select=crop_cycle_id,crop_label,metadata&farm_id=eq."+FARM),
     )
+    wait_for_local_route_cache(api,key,tokens["owner"],paths)
     for label,path in paths:
         for actor in ("owner","worker","outsider","no-seat"):
             code,packet=request(api,key,tokens[actor],path)
