@@ -1,0 +1,155 @@
+name: Atlas ACCESS-03A owner-protected signed legacy-zone retirement clone
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-access03-owner-protected-signed-clone.yml'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'scripts/validate-atlas-access03-zone-retirement-signed-http.py'
+      - 'tests/test_atlas_access03_trusted_signed_source.py'
+  issues:
+    types: [opened, edited, reopened]
+permissions:
+  contents: read
+  packages: read
+jobs:
+  trusted-source:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check controller and signed proof safety
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-atlas-access03-zone-retirement-signed-http.py
+          python3 tests/test_atlas_access03_trusted_signed_source.py
+          echo 'ACCESS03 SOURCE CHECK ONLY; NO PRODUCTION OR SIGNED CLONE RUN'
+  owner-gated-local-clone:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas ACCESS-03A: protected signed legacy zone retirement approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 55
+    concurrency:
+      group: atlas-access03-owner-signed-disposable
+      cancel-in-progress: false
+    steps:
+      - name: Require exact immutable candidate SHA
+        id: pinned
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          body=os.environ.get("ISSUE_BODY","")
+          expected="8aba5474f8a9fdab75c0c3b2729ccefb0a4e3a4f"
+          matches=re.findall(r"^candidate_sha:\s*([0-9a-f]{40})\s*$",body,re.M)
+          if matches!=[expected]:
+              raise SystemExit("ACCESS03 requires one exact held candidate")
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out:
+              out.write("candidate_sha="+expected+"\n")
+          PY
+      - name: Checkout current trusted Noel main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check custody and trusted source
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 tests/test_atlas_access03_trusted_signed_source.py
+      - name: Install pinned CLI and authenticated registry access
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/access03-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/access03-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n 1)" = 2.116.0
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Snapshot current Production schema and roles READ ONLY
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/access03-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/access03-schema.sql"
+          test -s "$RUNNER_TEMP/access03-roles.sql"
+          test -s "$RUNNER_TEMP/access03-schema.sql"
+      - name: Checkout exact held source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pinned.outputs.candidate_sha }}
+          path: held
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Assemble disposable candidate and fictional fixture
+        id: scratch
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "8aba5474f8a9fdab75c0c3b2729ccefb0a4e3a4f"
+          candidate="held/candidates/atlas/atlas_access03_retire_legacy_zone_direct_read_v1/candidate.sql"
+          post="held/candidates/atlas/atlas_access03_retire_legacy_zone_direct_read_v1/postconditions.sql"
+          fiction="held/candidates/atlas/atlas_access03_retire_legacy_zone_direct_read_v1/fixture.sql"
+          test -s "$candidate" && test -s "$post" && test -s "$fiction"
+          grep -q 'DROP POLICY zones_read_operations ON atlas.zones' "$candidate"
+          grep -q 'REVOKE SELECT ON TABLE atlas.v_crop_cycle_registry FROM authenticated' "$candidate"
+          scratch="$RUNNER_TEMP/access03-scratch"
+          mkdir -p "$scratch"
+          (cd "$scratch" && supabase init --force && supabase migration new atlas_access03_zone_direct_reader_retirement_clone_only_v1)
+          migration="$(find "$scratch/supabase/migrations" -type f -name '*_atlas_access03_zone_direct_reader_retirement_clone_only_v1.sql')"
+          test -n "$migration" && test "$(printf '%s\n' "$migration" | wc -l)" -eq 1
+          cp "$candidate" "$migration"
+          cp candidates/atlas/atlas_universal_original_work_integrated_v1/fixture.sql "$scratch/fixture.sql"
+          printf '\n' >> "$scratch/fixture.sql"
+          cat "$fiction" >> "$scratch/fixture.sql"
+          cp "$post" "$scratch/postconditions.sql"
+          echo "version=$(basename "$migration" | cut -d_ -f1)" >> "$GITHUB_OUTPUT"
+          echo "migration=$migration" >> "$GITHUB_OUTPUT"
+          echo "fixture=$scratch/fixture.sql" >> "$GITHUB_OUTPUT"
+          echo "postconditions=$scratch/postconditions.sql" >> "$GITHUB_OUTPUT"
+      - name: genuine signed ACCESS-03A local clone
+        run: |
+          set -euo pipefail
+          timeout --signal=TERM --kill-after=25s 20m \
+            bash scripts/validate-production-schema-clone.sh \
+              --migration-version "${{ steps.scratch.outputs.version }}" \
+              --release-lane atlas \
+              --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+              --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+              --candidate-validation "${{ steps.scratch.outputs.postconditions }}" \
+              --roles-dump "$RUNNER_TEMP/access03-roles.sql" \
+              --schema-dump "$RUNNER_TEMP/access03-schema.sql" \
+              --artifacts-dir "$RUNNER_TEMP/access03-clone-artifacts"
+          test -s "$RUNNER_TEMP/access03-clone-artifacts/signed-access03-zone-retirement-summary.txt"
+          grep -q '^PASS ACCESS03 signed ' "$RUNNER_TEMP/access03-clone-artifacts/signed-access03-zone-retirement-summary.txt"
+      - name: Redacted signed result (no private source dump)
+        if: always()
+        run: |
+          set -euo pipefail
+          file="$RUNNER_TEMP/access03-clone-artifacts/signed-access03-zone-retirement-summary.txt"
+          if test -s "$file" && grep -q '^PASS ACCESS03 signed ' "$file"; then
+            echo 'ACCESS03_DISPOSABLE_SIGNED_RESULT=PASS' >> "$GITHUB_STEP_SUMMARY"
+            echo 'ACCESS03_DISPOSABLE_SIGNED_RESULT=PASS'
+          else
+            echo 'ACCESS03_DISPOSABLE_SIGNED_RESULT=FAILED_OR_NOT_REACHED' >> "$GITHUB_STEP_SUMMARY"
+            echo 'ACCESS03_DISPOSABLE_SIGNED_RESULT=FAILED_OR_NOT_REACHED'
+          fi
+          echo 'Production schema/roles were read only; all candidate writes ran on synthetic localhost clone.' >> "$GITHUB_STEP_SUMMARY"

@@ -125,6 +125,19 @@ signed_person_mail_probe=false
 signed_venue_bed_probe=false
 signed_access01_event_choices_probe=false
 signed_access02_my_work_probe=false
+signed_access03_zone_retirement_probe=false
+# ACCESS-03A: exact synthetic retirement candidate, never a release lane.
+# The signed proof only accepts a synthetic postcondition and local fixture.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_access03_zone_direct_reader_retirement_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$repo_root/scripts/validate-atlas-access03-zone-retirement-signed-http.py" ]; then
+    echo "ACCESS-03A signed clone needs a fictional fixture and trusted probe." >&2
+    exit 2
+  fi
+  signed_access03_zone_retirement_probe=true
+fi
+
 # ACCESS-02: exact scratch-only signed My Work native relevance matrix.
 # This name is NOT a versioned production release migration. No implicit
 # signed acceptance is enabled for any other Atlas source.
@@ -617,6 +630,31 @@ config_path.write_text("".join(out), encoding="utf-8")
 print(f"Disposable local validation DB port: {port}")
 PY
 database_url="postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres"
+# Deliberately expose atlas ONLY in the disposable local ACCESS-03A test.
+# This makes direct table/view denial a real authorization test, not a
+# misleading 404/406 from an unexposed PostgREST schema.
+if [ "$signed_access03_zone_retirement_probe" = true ]; then
+  python3 - "$project_dir/supabase/config.toml" <<'PY'
+from pathlib import Path
+import re,sys
+p=Path(sys.argv[1])
+lines=p.read_text(encoding="utf-8").splitlines(keepends=True)
+section=""
+count=0
+for i,line in enumerate(lines):
+    stripped=line.strip()
+    if stripped.startswith("[") and stripped.endswith("]"):
+        section=stripped
+    if section=="[api]" and re.match(r"^schemas\\s*=",stripped):
+        if "atlas" in line:
+            raise SystemExit("ACCESS03 expected isolated atlas schema to be absent initially")
+        lines[i]='schemas = ["public", "graphql_public", "atlas"]\\n'
+        count+=1
+if count!=1:
+    raise SystemExit("ACCESS03 cannot establish explicit local PostgREST atlas schema")
+p.write_text("".join(lines),encoding="utf-8")
+PY
+fi
 local_started=true
 startup_attempt=1
 startup_max_attempts=4
@@ -659,7 +697,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_person_mail_probe" = true ] ||
        [ "$signed_venue_bed_probe" = true ] ||
        [ "$signed_access01_event_choices_probe" = true ] ||
-       [ "$signed_access02_my_work_probe" = true ]; then
+       [ "$signed_access02_my_work_probe" = true ] ||
+       [ "$signed_access03_zone_retirement_probe" = true ]; then
     # The source-governed signed care/Done test requires only PostgreSQL,
     # local GoTrue, PostgREST and the Kong API gateway. Pulling Studio,
     # analytics, Realtime, storage and auxiliary containers consumed the
@@ -674,7 +713,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
        [ "$signed_venue_bed_probe" = true ] ||
        [ "$signed_access01_event_choices_probe" = true ] ||
-       [ "$signed_access02_my_work_probe" = true ]; then
+       [ "$signed_access02_my_work_probe" = true ] ||
+       [ "$signed_access03_zone_retirement_probe" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
     else
       supabase start >"$startup_log" 2>&1
@@ -793,6 +833,16 @@ if [ "$signed_access02_my_work_probe" = true ]; then
     >"$artifacts_dir/signed-access02-my-work.log" 2>&1
   test -s "$artifacts_dir/signed-access02-my-work-summary.txt"
   grep -q '^PASS ACCESS-02 signed ' "$artifacts_dir/signed-access02-my-work-summary.txt"
+fi
+
+if [ "$signed_access03_zone_retirement_probe" = true ]; then
+  phase="genuine signed local ACCESS-03A legacy zone and crop direct read retirement"
+  python3 "$repo_root/scripts/validate-atlas-access03-zone-retirement-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-access03-zone-retirement-summary.txt" \
+    >"$artifacts_dir/signed-access03-zone-retirement.log" 2>&1
+  test -s "$artifacts_dir/signed-access03-zone-retirement-summary.txt"
+  grep -q '^PASS ACCESS03 signed ' "$artifacts_dir/signed-access03-zone-retirement-summary.txt"
 fi
 
 if [ "$signed_access01_event_choices_probe" = true ]; then
