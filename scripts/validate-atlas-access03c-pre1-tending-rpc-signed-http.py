@@ -7,6 +7,7 @@ PRE1 candidate clone. Never contacts Production, creates live users or releases 
 import argparse
 import importlib.util
 import re
+import subprocess
 import time
 from pathlib import Path
 
@@ -46,7 +47,16 @@ def snapshot(db):
                                "farm_memberships","task_objects"))
 
 def local_sql(db,query):
-    return c1.sql(db,query)
+    try:
+        return c1.sql(db,query)
+    except subprocess.CalledProcessError as exc:
+        # This runner uses only fictional source records and LOCALHOST.
+        # Log the PostgreSQL error without printing SQL, keys or row bodies.
+        errors=[line.strip() for line in (exc.stderr or "").splitlines()
+                if line.lstrip().startswith("ERROR:")]
+        detail=errors[0] if errors else "no SQL ERROR line supplied"
+        raise AssertionError("ACCESS03C-PRE1 local synthetic SQL rejected: "
+                             +detail[:500]) from None
 
 def verify_rest(api,key,tokens,db):
     # The earlier signed ACCESS03B pass proves the atlas REST schema exists.
@@ -65,12 +75,19 @@ def verify_rest(api,key,tokens,db):
         id,user_id,farm_id,role,worker_key,active,permissions)
         values('{OWNER_MEMBERSHIP}'::uuid,'{c1.OWNER}'::uuid,'{FARM}'::uuid,
         'owner','pre1-synthetic-owner',true,'{{"cloneFixture":true}}'::jsonb)""")
+    # v2 reads ANY non-archived Tending task. This is a historical RPC
+    # compatibility test, not a new active Work release. A synthetic open
+    # task needs real policy/occurrence evidence from the Work engine.
     local_sql(db,f"""insert into atlas.tasks(
         id,farm_id,organization_id,title,task_type,status,
-        action_key,visibility_scope,released_at,metadata)
+        action_key,visibility_scope,metadata)
         values('{TASK}'::uuid,'{FARM}'::uuid,'{ORG}'::uuid,'{TITLE}',
-        'general','open','water','farm_shared',now(),
-        '{{"cloneFixture":true}}'::jsonb)""")
+        'general','skipped','water','farm_shared',
+        '{{"cloneFixture":true,"pre1HistoricalRouteTest":true}}'::jsonb)""")
+    check(local_sql(db,f"""select count(*) from atlas.tasks
+      where id='{TASK}'::uuid and farm_id='{FARM}'::uuid
+        and status='skipped' and visibility_scope='farm_shared'""")=="1",
+          "non-active synthetic task changed unexpectedly by Work engine")
     local_sql(db,f"""insert into atlas.task_objects(id,task_id,object_id)
         values('{TASK_LINK}'::uuid,'{TASK}'::uuid,'{OBJECT}'::uuid)""")
     check(local_sql(db,f"""select count(*) from atlas.tending_task_track_v1
@@ -84,10 +101,11 @@ def verify_rest(api,key,tokens,db):
     bed=packet.get("bed") if isinstance(packet,dict) else None
     check(status==200 and isinstance(bed,dict)
           and bed.get("taskTitle")==TITLE and bed.get("bedKey")==KEY
-          and bed.get("releasedTaskId")==TASK and bed.get("cropCycleId")==CYCLE,
-          "signed native governor + existing legacy seat lost v2 real source "
+          and bed.get("releasedTaskId")==TASK and bed.get("cropCycleId")==CYCLE
+          and bed.get("isActionableNow") is False,
+          "signed native governor + existing legacy seat lost non-active v2 source "
           "positive; HTTP="+str(status))
-    print("PASS ACCESS03C-PRE1 signed retained v2 owner task/object/crop positive")
+    print("PASS ACCESS03C-PRE1 signed retained v2 owner non-active task/object/crop positive")
 
     for actor in ("worker","outsider","no-seat"):
         code,blocked=existing.request(api,key,tokens[actor],V2,"POST",body)
