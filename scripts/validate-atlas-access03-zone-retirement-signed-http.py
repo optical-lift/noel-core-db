@@ -286,7 +286,7 @@ def main():
     # an old legacy manager lacking native root must not learn that fact.
     retired_id="e5200000-0000-4000-8000-000000000b04"
     c1.sql(args.db_url,f"""update atlas.growing_objects
-         set metadata=jsonb_set(metadata,'{canonicalDeleted}','"true"'::jsonb,true)
+         set metadata=jsonb_set(metadata,'{{canonicalDeleted}}','"true"'::jsonb,true)
          where id='{retired_id}'::uuid and farm_id='{FARM}'::uuid""")
     retired_rpc="/rest/v1/rpc/is_retired_growing_object_v1?p_object_id="+retired_id
     code,packet=request(api,key,tokens["owner"],retired_rpc)
