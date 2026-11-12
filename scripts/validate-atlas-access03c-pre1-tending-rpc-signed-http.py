@@ -103,7 +103,7 @@ def verify_rest(api,key,tokens,db):
           and bed.get("taskTitle")==TITLE and bed.get("bedKey")==KEY
           and bed.get("releasedTaskId")==TASK and bed.get("cropCycleId")==CYCLE
           and bed.get("isActionableNow") is False,
-          "signed native governor + existing legacy seat lost non-active v2 source 
+          "signed native governor + existing legacy seat lost non-active v2 source "
           "positive; HTTP="+str(status))
     print("PASS ACCESS03C-PRE1 signed retained v2 owner non-active task/object/crop positive")
 
