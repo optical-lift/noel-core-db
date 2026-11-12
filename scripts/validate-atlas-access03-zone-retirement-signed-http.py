@@ -167,6 +167,7 @@ def main():
          "/rest/v1/crop_cycles?select=id,crop_label,metadata&farm_id=eq."+FARM,
          CYCLE),
     )
+    # Failure invariant: no rows to a legacy manager lacking native governing root.
     direct_leaks=[]
     for relation,path,fictional_id in old_direct:
         # The canonical governing Ledger root must retain actual underlying
