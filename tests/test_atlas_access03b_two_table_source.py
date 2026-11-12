@@ -108,6 +108,17 @@ class AtlasAccess03BGate0Test(unittest.TestCase):
 
     def test_true_positive_and_negative_signed_actor_assertions(self):
         ast.parse(PROBE)
+        # Local PostgREST schema reload is asynchronous. Only PGRST205
+        # may wait; it must NEVER count as successful source-level denial.
+        self.assertIn("def wait_for_local_route_cache(api,key,token,paths):",PROBE)
+        self.assertIn('status==404 and error=="PGRST205"',PROBE)
+        self.assertIn("for attempt in range(90):",PROBE)
+        self.assertIn("time.sleep(0.5)",PROBE)
+        self.assertIn("LOCAL REST CACHE NOT READY",PROBE)
+        self.assertIn('wait_for_local_route_cache(api,key,tokens["owner"],paths)',PROBE)
+        self.assertIn("check(code in (401,403) and isinstance(payload,dict)",PROBE)
+        self.assertIn('check(payload.get("code")=="42501"',PROBE)
+        self.assertNotIn('private_missing(404,',PROBE)
         # Fixture UPDATE is an f-string; SQL jsonb path braces MUST be escaped.
         self.assertIn("metadata=jsonb_set(metadata,'{{canonicalDeleted}}'",PROBE)
         self.assertNotIn("metadata=jsonb_set(metadata,'{canonicalDeleted}'",PROBE)
