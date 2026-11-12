@@ -51,6 +51,20 @@ class UniversalAtlasLegacyViewRetirement(unittest.TestCase):
         ):
             self.assertIn(source_hash,SQL)
 
+    def test_runtime_function_body_dependencies_fail_closed(self):
+        # pg_depend does not reliably capture PL/pgSQL SQL body relation use.
+        for content, message in (
+            (SQL, "ACCESS03C function-body consumers of obsolete views remain"),
+            (POST, "ACCESS03C residual runtime function-body dependency"),
+        ):
+            self.assertIn("pg_catalog.pg_proc", content)
+            self.assertIn("pg_catalog.pg_get_functiondef(p.oid)", content)
+            self.assertIn("p.prokind='f'", content)
+            self.assertIn("n.nspname='atlas'", content)
+            self.assertIn(message, content)
+            for view in EXPECTED:
+                self.assertIn(view, content)
+
     def test_preserve_universal_and_original_source(self):
         for name in (
             "connected_person_farm_current_inventory_self_api_v1",

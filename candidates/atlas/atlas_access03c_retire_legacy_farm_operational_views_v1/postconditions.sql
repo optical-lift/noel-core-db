@@ -26,6 +26,19 @@ BEGIN
     OR has_table_privilege('authenticated','atlas.zones','SELECT')
   THEN RAISE EXCEPTION 'ACCESS03C released 03A/03B security postconditions not preserved'; END IF;
 
+  -- A VIEW can be dropped despite runtime-only PL/pgSQL references.
+  -- Do not claim a successful retirement while any function body names it.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='atlas' AND p.prokind='f'
+      AND pg_catalog.pg_get_functiondef(p.oid) ~
+        '(farm_care_object_state_v1|farm_care_object_projection_v1|tending_task_track_v1|v_farm_object_operational_state)'
+  ) THEN
+    RAISE EXCEPTION 'ACCESS03C residual runtime function-body dependency';
+  END IF;
+
   IF to_regprocedure(
        'atlas.connected_person_farm_current_inventory_self_api_v1(uuid,uuid,uuid)') IS NULL
     OR to_regprocedure('atlas.governor_farm_current_inventory_options_self_api_v1(uuid)') IS NULL

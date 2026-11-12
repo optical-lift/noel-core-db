@@ -72,6 +72,22 @@ BEGIN
       AND c.oid<>d.refobjid AND c.relkind IN ('v','m')
   ) THEN RAISE EXCEPTION 'ACCESS03C unreviewed view family dependents'; END IF;
 
+  -- PL/pgSQL function bodies retain runtime relation references that are not
+  -- reliably represented as pg_depend view dependencies. In the current
+  -- production source, ten Atlas functions (including authenticated EXECUTE
+  -- surfaces) still use these views. Refuse deletion until they are governed
+  -- onto supported source readers or explicitly retired in a separate unit.
+  IF EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='atlas' AND p.prokind='f'
+      AND pg_catalog.pg_get_functiondef(p.oid) ~
+        '(farm_care_object_state_v1|farm_care_object_projection_v1|tending_task_track_v1|v_farm_object_operational_state)'
+  ) THEN
+    RAISE EXCEPTION 'ACCESS03C function-body consumers of obsolete views remain';
+  END IF;
+
   -- Replacing a farm-only projection must not remove universal current
   -- source APIs. No legacy farm role, membership, or owner task privilege
   -- may become an alternate path.
