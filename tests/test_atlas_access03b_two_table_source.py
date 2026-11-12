@@ -110,7 +110,7 @@ class AtlasAccess03BGate0Test(unittest.TestCase):
         ast.parse(PROBE)
         for required in (
             'tokens["owner"]','tokens["worker"]','"outsider"','"no-seat"',
-            '"farm_hand"','None,path',"c1.sign_in(api,key,name)",
+            "'farm_hand'",'None,path',"c1.sign_in(api,key,name)",
             "native Ledger governor lost direct", 
             "invoker_views", "farm_care_object_state_v1",
             "v_farm_object_operational_state",
