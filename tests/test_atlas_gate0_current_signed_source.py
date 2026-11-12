@@ -76,7 +76,7 @@ class Gate0CurrentSignedSource(unittest.TestCase):
         self.assertIn("synthetic-private-crop", f)
         self.assertIn("atlas.crop_cycles", f)
         self.assertIn("atlas.farm_memberships", f)
-        self.assertIn("zones_read_operations", p)
+        self.assertIn("cmd IN ('SELECT','ALL')", p)
         self.assertIn("atlas.v_crop_cycle_registry", p)
         self.assertNotIn("supabase.co", f)
         clean = re.sub(r"--[^\n]*", " ", f)
