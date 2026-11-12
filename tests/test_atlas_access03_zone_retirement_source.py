@@ -34,8 +34,14 @@ class Access03Source(unittest.TestCase):
         disallowed=re.compile(r"\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|reindex|cluster|refresh|copy|do|call|execute|prepare|deallocate|listen|notify|security)\b",re.I)
         self.assertIsNone(disallowed.search(clean))
         statements=[s.strip() for s in clean.split(";") if s.strip()]
-        self.assertEqual(len(statements),5)
+        self.assertEqual(len(statements),33)
         self.assertTrue(all(re.match(r"^(select|update|insert\s+into)\b",s,re.I) for s in statements))
+    def test_fixture_reuses_c1_prerequisite_exactly(self):
+        original=(ROOT/"validation/fixtures/20261026215011_atlas_universal_original_work_integrated_v1.sql").read_text()
+        prefix=original.split("-- Original Event signed regression fixture")[0].rstrip()+"\\n\\n"
+        self.assertIn("Original blob SHA e877d93323ddc67d8778be8bea1dfa34319cc85c",F)
+        self.assertIn(prefix,F)
+        self.assertIn("e5200000-0000-4000-8000-000000000b06",F)
     def test_sql_parses(self):
         try:
             from pglast import parse_sql
@@ -43,6 +49,6 @@ class Access03Source(unittest.TestCase):
             self.skipTest("Pinned SQL parser installed by protected workflow")
         self.assertEqual(len(parse_sql(C)),6)
         self.assertEqual(len(parse_sql(P)),1)
-        self.assertEqual(len(parse_sql(F)),5)
+        self.assertEqual(len(parse_sql(F)),33)
 if __name__=="__main__":
     unittest.main()
