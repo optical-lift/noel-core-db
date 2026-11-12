@@ -118,6 +118,9 @@ class AtlasAccess03BGate0Test(unittest.TestCase):
             "direct_leaks.append(", "UNSAFE GATE0 SIGNED LOCAL DIRECT TABLE READ",
             "native governing root revocation cuts both tables",
             "root restoration returns both source rows",
+            "is_retired_growing_object_v1",
+            "retired-object invoker governor-positive",
+            "synthetic retired-object marker fully restored",
             "PASS ACCESS03B signed native two-table policy and no-loss",
         ):
             self.assertIn(required,PROBE)
