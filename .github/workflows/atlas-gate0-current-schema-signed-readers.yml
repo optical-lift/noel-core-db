@@ -141,3 +141,18 @@ jobs:
             grep -E '^(PASS GATE0|UNSAFE GATE0|GATE0 direct)' "$log" | tail -n 40 >> "$GITHUB_STEP_SUMMARY" || true
           fi
           echo 'Read-only live schema snapshot; all session/data/NO-OP writes on localhost ONLY. NOT live user acceptance.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload bounded disposable Gate 0 validation diagnostics (no Production dumps)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate0-current-schema-signed-disposable-diagnostics
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/gate0-current-artifacts/summary.md
+            ${{ runner.temp }}/gate0-current-artifacts/candidate-fixture.log
+            ${{ runner.temp }}/gate0-current-artifacts/candidate-migration.log
+            ${{ runner.temp }}/gate0-current-artifacts/postconditions.log
+            ${{ runner.temp }}/gate0-current-artifacts/schema-lint-delta.json
+            ${{ runner.temp }}/gate0-current-artifacts/signed-access03-zone-retirement-summary.txt
+            ${{ runner.temp }}/gate0-current-artifacts/signed-access03-zone-retirement.log
