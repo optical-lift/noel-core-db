@@ -38,7 +38,7 @@ class Access03Source(unittest.TestCase):
         self.assertTrue(all(re.match(r"^(select|update|insert\s+into)\b",s,re.I) for s in statements))
     def test_fixture_reuses_c1_prerequisite_exactly(self):
         original=(ROOT/"validation/fixtures/20261026215011_atlas_universal_original_work_integrated_v1.sql").read_text()
-        prefix=original.split("-- Original Event signed regression fixture")[0].rstrip()+"\\n\\n"
+        prefix=original.split("-- Original Event signed regression fixture")[0].rstrip()+"\n\n"
         self.assertIn("Original blob SHA e877d93323ddc67d8778be8bea1dfa34319cc85c",F)
         self.assertIn(prefix,F)
         self.assertIn("e5200000-0000-4000-8000-000000000b06",F)
