@@ -11,7 +11,7 @@ class Access03Trusted(unittest.TestCase):
     def test_exact_clone_only_source_gate(self):
         self.assertIn("atlas_access03_zone_direct_reader_retirement_clone_only_v1",H)
         self.assertEqual(H.count("signed_access03_zone_retirement_probe=true"),1)
-        self.assertEqual(H.count('[ "$signed_access03_zone_retirement_probe" = true ]; then'),3)
+        self.assertEqual(H.count('[ "$signed_access03_zone_retirement_probe" = true ]; then'),4)
         self.assertIn('"public", "graphql_public", "atlas"',H)
         self.assertIn("genuine signed local ACCESS-03A legacy zone",H)
         self.assertIn("signed-access03-zone-retirement-summary.txt",H)

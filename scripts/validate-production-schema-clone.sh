@@ -648,7 +648,7 @@ for i,line in enumerate(lines):
     if section=="[api]" and re.match(r"^schemas\\s*=",stripped):
         if "atlas" in line:
             raise SystemExit("ACCESS03 expected isolated atlas schema to be absent initially")
-        lines[i]='schemas = ["public", "graphql_public", "atlas"]\\n'
+        lines[i]='schemas = ["public", "graphql_public", "atlas"]\n'
         count+=1
 if count!=1:
     raise SystemExit("ACCESS03 cannot establish explicit local PostgREST atlas schema")
