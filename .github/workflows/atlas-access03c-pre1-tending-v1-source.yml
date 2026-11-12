@@ -30,3 +30,25 @@ jobs:
           python3 tests/test_atlas_access03c_pre1_tending_v1_pair_source.py
           python3 tests/test_atlas_access03_trusted_signed_source.py
           # SOURCE ONLY: no database connection, SQL execution or release.
+      - name: Checkout exact farm-atlas main snapshot for independent source census
+        uses: actions/checkout@v4
+        with:
+          repository: optical-lift/farm-atlas
+          ref: 1090d872754c170c61760a03ad232182f0538476
+          path: external/farm-atlas
+          persist-credentials: false
+      - name: Verify locked external source against moving main and scan active calls
+        env:
+          EXPECTED_FARM_SHA: 1090d872754c170c61760a03ad232182f0538476
+        run: |
+          set -euo pipefail
+          test "$(git -C external/farm-atlas rev-parse HEAD)" = "$EXPECTED_FARM_SHA"
+          CURRENT_FARM_SHA="$(git ls-remote https://github.com/optical-lift/farm-atlas.git refs/heads/main | cut -f1)"
+          test -n "$CURRENT_FARM_SHA"
+          test "$CURRENT_FARM_SHA" = "$EXPECTED_FARM_SHA" || {
+            echo "farm-atlas main moved; re-audit new exact source before retirement"
+            exit 1
+          }
+          python3 candidates/atlas/atlas_access03c_pre1_tending_v1_pair_retirement_v1/audit_farm_atlas_consumers.py external/farm-atlas
+          # SOURCE-ONLY scan; no live SQL, no app deployment.
+

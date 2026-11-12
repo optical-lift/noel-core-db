@@ -69,6 +69,24 @@ class TendingV1PairRetirement(unittest.TestCase):
         self.assertIn("to_regprocedure('atlas.tending_task_context_v1(uuid,uuid,text)') IS NOT NULL",POST)
         self.assertIn("to_regprocedure('atlas.tending_card_json_v1(uuid,jsonb,boolean)') IS NOT NULL",POST)
 
+    def test_external_snapshot_census_is_pinned_read_only_and_historical(self):
+        scan=(DIR/"audit_farm_atlas_consumers.py").read_text()
+        workflow=(ROOT/".github/workflows/atlas-access03c-pre1-tending-v1-source.yml").read_text()
+        self.assertIn('TARGETS = ("tending_task_context_v1", "tending_card_json_v1")',scan)
+        self.assertIn("tests/atlas-narrow-tending-helpers.test.mjs",scan)
+        self.assertIn("source_inventory(repo)",scan)
+        self.assertIn('require(not hits',scan)
+        self.assertIn('rpc("tending_task_context_v2"',scan)
+        self.assertIn('rpc("tending_bed_v1"',scan)
+        self.assertIn('rpc("tending_board_v1"',scan)
+        self.assertIn("NOT PROVEN:",scan)
+        self.assertIn("repository: optical-lift/farm-atlas",workflow)
+        self.assertIn("1090d872754c170c61760a03ad232182f0538476",workflow)
+        self.assertIn("git ls-remote https://github.com/optical-lift/farm-atlas.git refs/heads/main",workflow)
+        self.assertIn("audit_farm_atlas_consumers.py external/farm-atlas",workflow)
+        self.assertNotIn("DROP FUNCTION",scan)
+        self.assertNotIn("supabase execute",scan)
+
     def test_no_claim_of_exhaustive_external_audit_or_release(self):
         self.assertIn("HELD SOURCE CANDIDATE", README)
         self.assertIn("incomplete", README)

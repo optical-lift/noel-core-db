@@ -27,3 +27,9 @@ The **current** `optical-lift/atlas` application has no direct literal callsite 
 6. Require separate principal approval for versioning, migration source merge and protected Production release. Never run this source candidate via direct live SQL.
 
 **Explicit non-goals:** no farm-first Owner root, no v2 removal, no privilege restoration, no fake upgrade of inherited farm membership to native governing Ledger authority, no four-view ACCESS-03C deletion, and no invitation of real outsider testers.
+
+## Pinned public legacy-client source evidence (not release authorization)
+
+A separate source-only CI gate now checks the active `farm-atlas` application at exact main commit `1090d872754c170c61760a03ad232182f0538476`; it refuses to succeed when `farm-atlas/main` moves without a new audit. It scans all supported JS/TS files recursively under active application roots, **not** migrations or historical tests, for the exact two v1 function names. It also proves that the old task-context route directly calls `tending_task_context_v2`, that bed/board routes still use their v1 RPCs (which PRE1 does **not** delete), and that the original migration-custody test retains the v1 expectations. The route's `X-Atlas-Read-Path: tending-task-context-v1` header is a historical label; its actual database RPC is v2. Do not use the header alone as caller evidence.
+
+This test addresses the current source snapshot of **one** known external repo, not all deployed client revisions, dynamic RPC construction, unknown agents, or non-Atlas clients. The PR remains held for those separate acceptance gates, signed clone, ACCESS-03B release and owner production approval.
