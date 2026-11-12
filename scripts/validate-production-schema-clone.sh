@@ -645,7 +645,7 @@ for i,line in enumerate(lines):
     stripped=line.strip()
     if stripped.startswith("[") and stripped.endswith("]"):
         section=stripped
-    if section=="[api]" and re.match(r"^schemas\\s*=",stripped):
+    if section=="[api]" and re.match(r"^schemas\s*=",stripped):
         if "atlas" in line:
             raise SystemExit("ACCESS03 expected isolated atlas schema to be absent initially")
         lines[i]='schemas = ["public", "graphql_public", "atlas"]\n'
