@@ -49,8 +49,12 @@ def request(api,key,token,path,method="GET",body=None):
         return exc.code,packet
 
 def private_missing(code,payload,label,signed):
+    # Diagnostic only: retain the exact negative assertion. Never print
+    # headers, tokens, private SQL response bodies or fictional row fields.
+    error_code=payload.get("code") if isinstance(payload,dict) else None
     check(code in (401,403) and isinstance(payload,dict),
-          label+" must be an actual SQL denial, never a missing API route")
+          label+" must be an actual SQL denial, never a missing API route;"
+          +" HTTP="+str(code)+" error_code="+str(error_code))
     if signed:
         check(payload.get("code")=="42501",label+" must be source privilege denial 42501")
     wire=json.dumps(payload)
