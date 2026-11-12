@@ -1,0 +1,32 @@
+name: Atlas ACCESS-03C-PRE1 Tending v1 paired retirement SOURCE ONLY
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas/atlas_access03c_pre1_tending_v1_pair_retirement_v1/**'
+      - 'tests/test_atlas_access03c_pre1_tending_v1_pair_source.py'
+      - '.github/workflows/atlas-access03c-pre1-tending-v1-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact candidate source commit
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Validate bounded two-function drop source and retained governance
+        run: |
+          set -euo pipefail
+          python3 tests/test_atlas_access03c_pre1_tending_v1_pair_source.py
+          python3 tests/test_atlas_access03_trusted_signed_source.py
+          # SOURCE ONLY: no database connection, SQL execution or release.
