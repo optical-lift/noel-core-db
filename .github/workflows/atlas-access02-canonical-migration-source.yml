@@ -37,7 +37,7 @@ jobs:
           from pglast import parse_sql
           p=Path('supabase/migrations/20261112003844_atlas_access02_my_work_verified_native_relevance_v1.sql')
           entries=parse_sql(p.read_text())
-          assert len(entries)==4, "expected BEGIN, pin DO, existing-function replacement, postcondition DO, COMMIT"
+          assert len(entries)==5, "expected BEGIN, pin DO, existing-function replacement, postcondition DO, COMMIT"
           print('ACCESS02_CANONICAL_MIGRATION_SQL=PARSE_PASS')
           PY
 
