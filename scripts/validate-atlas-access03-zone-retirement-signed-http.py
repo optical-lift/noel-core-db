@@ -122,6 +122,103 @@ def main():
           "native governor source inventory options unavailable")
     print("PASS ACCESS03 signed current native governor farm options preserved")
 
+
+    # Gate 0 CURRENT-SCHEMA extension. These are genuine separate localhost
+    # GoTrue sessions against a disposable clone of the live schema, not a
+    # live-production user test. The old manager is NOT a governing Ledger root.
+    other_readers=(
+        ("object crop bed map","object_crop_bed_map_v1",
+         {"p_object_id":"e5200000-0000-4000-8000-000000000b03"},
+         "objectId","e5200000-0000-4000-8000-000000000b03"),
+        ("farm care zone","farm_care_zone_v1",
+         {"p_farm_id":FARM,"p_zone_key":"fictional-zone-a",
+          "p_history_limit":10},"zoneId",ZONE),
+    )
+    for label,rpc_name,params,key_name,key_value in other_readers:
+        path="/rest/v1/rpc/"+rpc_name
+        code,packet=request(api,key,tokens["owner"],path,"POST",params)
+        check(code==200 and isinstance(packet,dict) and
+              packet.get(key_name)==key_value,
+              "governing source "+label+" must return its source identity")
+        print("PASS GATE0 signed governor "+label+" positive")
+        for actor in ("worker","outsider","no-seat"):
+            code,packet=request(api,key,tokens[actor],path,"POST",params)
+            private_missing(code,packet,label+" withheld from "+actor,True)
+        code,packet=request(api,key,None,path,"POST",params)
+        private_missing(code,packet,label+" anonymous denial",False)
+    # Missing and existing object IDs must not give a legacy manager a
+    # different source-existence signal.
+    code,packet=request(api,key,tokens["worker"],
+        "/rest/v1/rpc/object_crop_bed_map_v1","POST",
+        {"p_object_id":"e5200000-0000-4000-8000-000000000b99"})
+    private_missing(code,packet,"unknown object hidden from manager",True)
+
+    # Explicitly expose atlas on LOCALHOST to test actual old direct RLS
+    # paths rather than misreporting a 404/406 schema omission as a denial.
+    # A signed legacy manager is permitted by current old RLS policy even
+    # without native governing authority. A returned fictional source row
+    # is a FAILURE of the E05 disclosure criterion, not a production leak
+    # claim. Preserve evidence; never mutate live grants or rows.
+    old_direct=(
+        ("growing_objects",
+         "/rest/v1/growing_objects?select=id,label,metadata&farm_id=eq."+FARM,
+         "e5200000-0000-4000-8000-000000000b03"),
+        ("crop_cycles",
+         "/rest/v1/crop_cycles?select=id,crop_label,metadata&farm_id=eq."+FARM,
+         CYCLE),
+    )
+    direct_leaks=[]
+    for relation,path,fictional_id in old_direct:
+        code,packet=request(api,key,tokens["worker"],path)
+        check(code!=404 and code!=406,
+              relation+" missing REST schema is not a valid security test")
+        if code==200:
+            check(isinstance(packet,list),
+                  relation+" JSON array REST result required")
+            if any(isinstance(row,dict) and row.get("id")==fictional_id
+                   for row in packet):
+                direct_leaks.append(relation)
+                print("UNSAFE GATE0 SIGNED LOCAL DIRECT TABLE READ: "+
+                      relation+" returned private fictional identity to "+
+                      "legacy manager lacking native governing root")
+            else:
+                print("GATE0 direct "+relation+
+                      " returned no named fictional row; do not claim "+
+                      "broad denial from this fixture alone")
+        else:
+            private_missing(code,packet,relation+" manager direct denial",True)
+
+    # A separate legacy farm_hand state may not promote the same Person to
+    # native root. This state change occurs ONLY on disposable localhost.
+    c1.sql(args.db_url,f"""update atlas.farm_memberships set role='farm_hand'
+        where farm_id='{FARM}'::uuid and
+        user_id='{c1.WORKER}'::uuid and active""")
+    check(c1.sql(args.db_url,f"""select count(*) from atlas.farm_memberships
+         where farm_id='{FARM}'::uuid and user_id='{c1.WORKER}'::uuid
+         and role='farm_hand' and active""")=="1",
+          "local farmhand state transition did not persist")
+    for label,rpc_name,params,_,_ in (
+        ("zone registry","zone_registry_source_v1",{"p_farm_id":FARM},None,None),
+        *other_readers,
+    ):
+        code,packet=request(api,key,tokens["worker"],
+                 "/rest/v1/rpc/"+rpc_name,"POST",params)
+        private_missing(code,packet,label+" withheld from farm_hand",True)
+
+    # Assert before writing any PASS summary. This diagnostic deliberately
+    # remains red when the old RLS still exposes fictional source material.
+    if direct_leaks:
+        Path(args.output).write_text(
+            "UNSAFE GATE0 SIGNED LOCAL DIRECT TABLE READ: "+
+            ",".join(direct_leaks)+"\n")
+        raise AssertionError(
+            "GATE0 legacy manager obtained fictional source rows through "+
+            "direct table REST: "+",".join(direct_leaks)+
+            "; source-only RLS repair and signed retest required")
+    print("PASS GATE0 signed current-schema three broad RPCs; "+
+          "legacy manager/outsider/no-seat/farm_hand/anon negative; "+
+          "sampled direct-table paths returned no fictional rows")
+
     check(c1.sql(args.db_url,f"select count(*) from atlas.zones where id='{ZONE}'::uuid")=="1"
           and c1.sql(args.db_url,f"select count(*) from atlas.crop_cycles where id='{CYCLE}'::uuid")=="1",
           "historical/actual source rows were deleted")
