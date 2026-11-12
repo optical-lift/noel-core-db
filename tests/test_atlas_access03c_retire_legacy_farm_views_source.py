@@ -65,6 +65,42 @@ class UniversalAtlasLegacyViewRetirement(unittest.TestCase):
             for view in EXPECTED:
                 self.assertIn(view, content)
 
+    def test_exact_runtime_consumer_inventory_is_read_only_and_dispositioned(self):
+        census=(DIR/"consumer_census.sql").read_text()
+        disposition=(DIR/"CONSUMER_DISPOSITION.md").read_text()
+        self.assertTrue(census.startswith("-- ACCESS-03C consumer census: READ ONLY"))
+        self.assertIn("to_regprocedure(e.signature)",census)
+        self.assertIn("pg_get_functiondef(q.oid)",census)
+        self.assertIn("textual_references_not_proven_calls",census)
+        self.assertIn("six with",disposition)
+        self.assertIn("tending_task_context_v1",disposition)
+        self.assertIn("tending_card_json_v1",disposition)
+        self.assertIn("farm_care_zone_v1",disposition)
+        expected={
+            "atlas.farm_care_object_card_v1(uuid)": "912250a84abe2680e98890862316f1c3",
+            "atlas.farm_care_summary_v1(uuid,integer)": "48a41b97be1f51ce7aa7a12422777bf6",
+            "atlas.farm_care_zone_card_v1(uuid)": "36fe032b49403d4978385f24fb6b5822",
+            "atlas.farm_care_zone_v1(uuid,text,integer)": "d83dd57420af32defe491a3d1ece7b1b",
+            "atlas.tending_bed_v1(uuid,text,text)": "c9311300e2b5fb0bef2e0db5f87bca2d",
+            "atlas.tending_board_v1(uuid,text,date)": "2ad9b2467a2102e86ada62eb0cc5ae39",
+            "atlas.tending_card_json_v1(uuid,jsonb,boolean)": "510f783e3162b1052b6081fb8fa3271b",
+            "atlas.tending_card_json_v2(uuid,uuid,jsonb,boolean)": "5621f5f54676f0310f54ea726cf7340e",
+            "atlas.tending_task_context_v1(uuid,uuid,text)": "26ca1f7a3d1a16f1fc5b1aed9f2fae42",
+            "atlas.tending_task_context_v2(uuid,uuid,text,text)": "48a972d24a0b168211fbde6d8e6eb5d0",
+        }
+        self.assertEqual(census.count("'atlas."),len(expected))
+        for signature,source_hash in expected.items():
+            self.assertIn("'"+signature+"'",census)
+            self.assertIn(source_hash,census)
+            self.assertIn(signature.split(".")[1].split("(")[0],disposition)
+        # This file may be executed against a real schema for READ-ONLY audit;
+        # never allow DDL, DML or permission changes into that tool.
+        for forbidden in (
+            "DROP VIEW ", "DROP FUNCTION ", "ALTER ", "CREATE ", "GRANT ",
+            "REVOKE ", "DELETE FROM ", "UPDATE ", "INSERT INTO ", "TRUNCATE ",
+        ):
+            self.assertNotIn(forbidden,census.upper())
+
     def test_preserve_universal_and_original_source(self):
         for name in (
             "connected_person_farm_current_inventory_self_api_v1",
