@@ -9,6 +9,7 @@ W=(ROOT/".github/workflows/atlas-access02-owner-protected-signed-clone.yml").rea
 H=(ROOT/"scripts/validate-production-schema-clone.sh").read_text()
 P=(ROOT/"scripts/validate-atlas-access02-my-work-signed-http.py").read_text()
 F=(ROOT/"validation/fixtures/access02_my_work_relevance_signed_clone_only.sql").read_text()
+ACL=(ROOT/"scripts/atlas-access02-disposable-anon-parity-held.sql").read_text()
 
 class TrustedAccess02(unittest.TestCase):
     def test_owner_issue_gated_exact_held_source(self):
@@ -30,6 +31,11 @@ class TrustedAccess02(unittest.TestCase):
         self.assertIn('print("ACCESS02_DISPOSABLE_PHASE="+val)',protected)
         self.assertIn('"UNKNOWN"',protected)
         self.assertIn('"signed_my_work"',protected)
+        self.assertIn('print("ACCESS02_POSTCONDITION_REASON="+reason)',protected)
+        self.assertIn('reason=found[0] if len(found)==1 else "unknown_or_not_applicable"',protected)
+        self.assertIn('"wrapper_acl"',protected)
+        self.assertIn('"native_source_contract"',protected)
+        self.assertNotIn("print(message)",protected)
         self.assertNotIn("print(source)",protected)
         self.assertNotIn("print(raw)",protected)
         self.assertEqual(protected.count("NOEL_CORE_DATABASE_URL: "),1)
@@ -55,6 +61,25 @@ class TrustedAccess02(unittest.TestCase):
         self.assertIn("atlas_universal_original_work_integrated_v1/fixture.sql",W)
         self.assertIn("timeout --signal=TERM --kill-after=25s 18m",W)
         self.assertNotIn("supabase db push",H)
+
+    def test_exact_local_wrapper_acl_parity_only(self):
+        self.assertIn('PGOPTIONS="-c access02.disposable_clone=true"',H)
+        self.assertIn('scripts/atlas-access02-disposable-anon-parity-held.sql',H)
+        self.assertIn('phase="ACCESS-02 disposable anonymous REST ACL parity"',H)
+        self.assertEqual(ACL.count(
+            "REVOKE EXECUTE ON FUNCTION public.connected_person_my_work_self_api_v1(integer,uuid) FROM anon;"),1)
+        self.assertIn("REFUSE ACCESS02 ACL parity outside disposable clone",ACL)
+        self.assertIn("access02.disposable_clone",ACL)
+        self.assertIn("c47a7961a04f6b834b65a851253990da",ACL)
+        self.assertIn("AND coalesce(relevance.has_relevance,false)",ACL)
+        self.assertIn("has_function_privilege('authenticated',p.oid,'EXECUTE')",ACL)
+        self.assertIn("has_function_privilege('anon',v_rest,'EXECUTE')",ACL)
+        self.assertIn("aclexplode(p.proacl)",ACL)
+        self.assertEqual(ACL.count("DO $access02_parity_"),2)
+        self.assertEqual(ACL.count("COMMIT;"),1)
+        self.assertNotRegex(ACL,re.compile(r"\\bGRANT\\s+EXECUTE\\b",re.I))
+        self.assertNotIn("REVOKE EXECUTE ON FUNCTION atlas.",ACL)
+        self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY",ACL)
 
     def test_genuine_signed_fictional_cases_and_nonproduction_refusal(self):
         for required in (
