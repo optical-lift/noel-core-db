@@ -1,0 +1,24 @@
+name: Atlas ACCESS-03A direct legacy zone read retirement source
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-access03-zone-retirement-source.yml'
+      - 'candidates/atlas/atlas_access03_retire_legacy_zone_direct_read_v1/**'
+      - 'tests/test_atlas_access03_zone_retirement_source.py'
+permissions:
+  contents: read
+jobs:
+  bounded-source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Parse and constrain source-only removal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 tests/test_atlas_access03_zone_retirement_source.py
+          echo 'PASS ACCESS-03A SOURCE ONLY; signed clone and release NOT EXECUTED'
