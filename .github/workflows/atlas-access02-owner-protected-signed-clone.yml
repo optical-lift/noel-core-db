@@ -215,6 +215,7 @@ jobs:
               "baseline domain schema lint":"baseline_lint",
               "candidate validation fixture application":"fixture_apply",
               "candidate migration application":"candidate_apply",
+              "ACCESS-02 disposable anonymous REST ACL parity":"acl_parity",
               "candidate migration postconditions":"postconditions",
               "genuinely signed local ACCESS-02 My Work relevance grant-withdraw-restore":"signed_my_work",
               "candidate domain schema lint":"candidate_lint",
@@ -228,5 +229,20 @@ jobs:
           # Console-visible receipt is required because the linked Actions
           # interface cannot access GITHUB_STEP_SUMMARY through job log API.
           print("ACCESS02_DISPOSABLE_PHASE="+val)
+          # Only recognize exact literal exceptions from the reviewed held
+          # postcondition SQL; never surface raw SQL, stack traces or text.
+          raw=(base/"postconditions.log").read_text(encoding="utf-8",errors="replace")[:16000] if val=="postconditions" and (base/"postconditions.log").is_file() else ""
+          labels=(
+            ("ACCESS-02 native or REST Work reader missing","function_missing"),
+            ("ACCESS-02 native Work source shape changed","native_shape"),
+            ("ACCESS-02 relevance, identity, source or pagination guard missing","native_source_contract"),
+            ("ACCESS-02 public Work wrapper unexpectedly changed","wrapper_source"),
+            ("ACCESS-02 REST Work wrapper execution ACL differs from release baseline","wrapper_acl"),
+          )
+          found=[label for literal,label in labels if literal in raw]
+          reason=found[0] if len(found)==1 else "unknown_or_not_applicable"
+          print("ACCESS02_POSTCONDITION_REASON="+reason)
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a",encoding="utf-8") as f:
+              f.write("ACCESS02_POSTCONDITION_REASON="+reason+"\n")
           PY
           echo 'No production SQL write or release; only schema/role dumps read-only and fictional local clone mutations.' >> "$GITHUB_STEP_SUMMARY"
