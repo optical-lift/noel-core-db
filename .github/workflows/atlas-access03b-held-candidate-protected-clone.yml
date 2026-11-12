@@ -58,7 +58,7 @@ jobs:
               fields[key]=matches[0]
           # Exact reviewed SOURCE revision. The source cannot silently move
           # after the owner approves the test.
-          if fields['candidate_sha']!='14320b1e7a9695e40ca11cbf8cd7d65715d009c8':
+          if fields['candidate_sha']!='856f6fc7a7c6ba099269bfe58b822f4e2a1c31ae':
               raise SystemExit('Unexpected ACCESS03B candidate SHA')
           with open(os.environ['GITHUB_OUTPUT'],'a') as out:
               for key,value in fields.items(): out.write(key+'='+value+'\n')
