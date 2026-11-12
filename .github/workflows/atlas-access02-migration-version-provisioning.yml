@@ -1,0 +1,40 @@
+name: Atlas ACCESS-02 canonical migration filename (source-only)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-access02-migration-version-provisioning.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  provision-file-name:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Generate canonical migration name via pinned Supabase CLI v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase-cli.tgz" -C "$RUNNER_TEMP" supabase
+          test "$("$RUNNER_TEMP/supabase" --version | tail -n 1)" = "2.116.0"
+          dir="$RUNNER_TEMP/access02-migration"
+          mkdir -p "$dir"
+          cd "$dir"
+          "$RUNNER_TEMP/supabase" init --force
+          "$RUNNER_TEMP/supabase" migration new atlas_access02_my_work_verified_native_relevance_v1
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          found=list(Path("supabase/migrations").glob("*_atlas_access02_my_work_verified_native_relevance_v1.sql"))
+          assert len(found)==1, "expected one CLI-generated canonical filename"
+          name=found[0].name
+          assert re.fullmatch(r"[0-9]{14}_atlas_access02_my_work_verified_native_relevance_v1[.]sql",name)
+          print("ACCESS02_CLI_GENERATED_MIGRATION="+name)
+          print("SOURCE_ONLY_NO_PRODUCTION_CHANGE")
+          PY
