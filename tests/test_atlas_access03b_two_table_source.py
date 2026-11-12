@@ -108,6 +108,11 @@ class AtlasAccess03BGate0Test(unittest.TestCase):
 
     def test_true_positive_and_negative_signed_actor_assertions(self):
         ast.parse(PROBE)
+        # Fixture UPDATE is an f-string; SQL jsonb path braces MUST be escaped.
+        self.assertIn("metadata=jsonb_set(metadata,'{{canonicalDeleted}}'",PROBE)
+        self.assertNotIn("metadata=jsonb_set(metadata,'{canonicalDeleted}'",PROBE)
+        self.assertIn("metadata=metadata-'canonicalDeleted'",PROBE)
+        self.assertIn("synthetic retired-object marker fully restored",PROBE)
         for required in (
             'tokens["owner"]','tokens["worker"]','"outsider"','"no-seat"',
             "'farm_hand'",'None,path',"c1.sign_in(api,key,name)",
