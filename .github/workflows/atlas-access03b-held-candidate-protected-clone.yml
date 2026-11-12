@@ -144,7 +144,7 @@ jobs:
               bash scripts/validate-production-schema-clone.sh \
                 --migration-version "${{ steps.scratch.outputs.version }}" \
                 --release-lane atlas \
-                --candidate-migration "${{ github.workspace }}/${{ steps.scratch.outputs.migration }}" \
+                --candidate-migration "${{ steps.scratch.outputs.migration }}" \
                 --candidate-fixture "${{ github.workspace }}/${{ steps.scratch.outputs.fixture }}" \
                 --candidate-validation "${{ github.workspace }}/${{ steps.scratch.outputs.postconditions }}" \
                 --roles-dump "$RUNNER_TEMP/access03b-held-roles.sql" \
