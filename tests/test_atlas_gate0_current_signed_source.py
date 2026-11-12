@@ -66,6 +66,31 @@ class Gate0CurrentSignedSource(unittest.TestCase):
         self.assertLess(W.index("Snapshot Production schema and roles READ ONLY"),
                         W.index("Assemble NO-OP test-only"))
 
+    def test_failed_clone_preserves_only_disposable_bounded_artifacts(self):
+        upload = W.split("- name: Upload bounded disposable Gate 0 validation diagnostics", 1)
+        self.assertEqual(len(upload), 2)
+        section = upload[1]
+        self.assertIn("if: always()", section)
+        self.assertIn("uses: actions/upload-artifact@v4", section)
+        self.assertIn("if-no-files-found: warn", section)
+        self.assertIn("retention-days: 7", section)
+        self.assertIn("${{ runner.temp }}/gate0-current-artifacts/", section)
+        for required in (
+            "summary.md", "candidate-fixture.log", "candidate-migration.log",
+            "postconditions.log", "schema-lint-delta.json",
+            "signed-access03-zone-retirement-summary.txt",
+            "signed-access03-zone-retirement.log",
+        ):
+            self.assertIn(required, section)
+        for forbidden in (
+            "gate0-schema.sql", "gate0-roles.sql", "NOEL_CORE_DATABASE_URL",
+            "jwt", "token", "secret", "private-key",
+            "restore-schema.log", "restore-roles.log",
+        ):
+            self.assertNotIn(forbidden.lower(), section.lower())
+        self.assertEqual(
+            section.count("${{ runner.temp }}/gate0-current-artifacts/"), 7)
+
     def test_fictional_source_and_existing_postconditions(self):
         self.assertTrue(FIXTURE.is_file())
         self.assertTrue(POST.is_file())
