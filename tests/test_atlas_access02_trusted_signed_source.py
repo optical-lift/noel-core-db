@@ -61,8 +61,10 @@ class TrustedAccess02(unittest.TestCase):
         # A DB-only startup silently fails when the signed test calls local_status().
         startup=H.split('startup_attempt=1',1)[1].split('phase="production custom-role restore"',1)[0]
         self.assertEqual(startup.count('[ "$signed_access02_my_work_probe" = true ]; then'),2)
-        self.assertIn('       [ "$signed_access02_my_work_probe" = true ]; then\\n    # The source-governed signed care',startup)
-        self.assertIn('       [ "$signed_access02_my_work_probe" = true ]; then\\n      supabase start -x',startup)
+        starts=startup.split('       [ "$signed_access02_my_work_probe" = true ]; then')
+        self.assertEqual(len(starts),3)
+        self.assertTrue(starts[1].lstrip().startswith('# The source-governed signed care'))
+        self.assertTrue(starts[2].lstrip().startswith('supabase start -x'))
         self.assertIn('supabase db start >"$startup_log" 2>&1',startup)
 
         self.assertIn("access02_my_work_relevance_signed_clone_only.sql",W)
