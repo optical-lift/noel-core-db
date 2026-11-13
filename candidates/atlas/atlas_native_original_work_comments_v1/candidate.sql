@@ -281,17 +281,17 @@ BEGIN
     WHERE c.organization_id=p_organization_id
       AND c.ledger_id=p_ledger_id AND c.work_item_id=p_work_item_id
       AND (p_after_recorded_at IS NULL OR
-           (c.recorded_at,c.id)>(p_after_recorded_at,p_after_comment_id))
-    ORDER BY c.recorded_at,c.id LIMIT p_limit+1
+           (c.recorded_at,c.id)<(p_after_recorded_at,p_after_comment_id))
+    ORDER BY c.recorded_at DESC,c.id DESC LIMIT p_limit+1
   ), numbered AS (
-    SELECT b.*,row_number() OVER (ORDER BY b.recorded_at,b.id) AS rn
+    SELECT b.*,row_number() OVER (ORDER BY b.recorded_at DESC,b.id DESC) AS rn
     FROM bounded b
   )
   SELECT
     coalesce(jsonb_agg(jsonb_build_object(
       'commentId',s.id,'workItemId',p_work_item_id,'body',s.body,
       'recordedAt',s.recorded_at,'authoredBySelf',s.author_person_id=v_actor
-    ) ORDER BY s.recorded_at,s.id) FILTER(WHERE s.rn<=p_limit),'[]'::jsonb),
+    ) ORDER BY s.recorded_at DESC,s.id DESC) FILTER(WHERE s.rn<=p_limit),'[]'::jsonb),
     count(*)>p_limit,
     (array_agg(s.recorded_at ORDER BY s.rn)
       FILTER(WHERE s.rn=p_limit))[1],
