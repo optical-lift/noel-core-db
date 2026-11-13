@@ -54,7 +54,8 @@ BEGIN
   END IF;
   SELECT * INTO v_work FROM atlas.work_items w
   WHERE w.id=p_work_item_id AND w.organization_id=p_organization_id;
-  IF v_work.id IS NULL OR v_work.work_state NOT IN ('open','completed')
+  IF v_work.id IS NULL OR v_work.household_id IS NOT NULL
+     OR v_work.work_state NOT IN ('open','completed')
      OR (p_write AND v_work.work_state<>'open') THEN
     RAISE EXCEPTION 'Active source Work unavailable' USING ERRCODE='42501';
   END IF;
