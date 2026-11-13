@@ -5,6 +5,8 @@ No Production URL, roles/schema snapshot, Work fixture, user credentials,
 or signed acceptance. This tests supported Supabase local PG17+Auth startup
 and a random job-unique Docker database volume, with mandatory cleanup.
 """
+import argparse
+import importlib.util
 import ipaddress
 import json
 import os
@@ -88,7 +90,7 @@ def attested_volume(inspect,project,pgdata,dbport,sql_server_ip):
          "Unexpected local PG port mapping")
     return valid[0]["Name"]
 
-def run():
+def run(synthetic_restore=False):
     need(platform.system()=="Linux" and platform.machine()=="x86_64",
          "Only hosted Ubuntu x64 supports this synthetic test")
     raw=os.environ.get("RUNNER_TEMP","")
@@ -154,8 +156,22 @@ def run():
         except (OSError,urllib.error.HTTPError):
             raise Held("Local real Auth health unavailable") from None
         need(health==200,"Local managed Auth not healthy")
+        if synthetic_restore:
+            stage="SYNTHETIC_ROLES_AND_SCHEMA_RESTORE"
+            helper=Path(__file__).with_name("atlas-e05-hosted-synthetic-restore.py")
+            need(helper.is_file() and not helper.is_symlink(),
+                 "Exact Noel hosted synthetic restore module unavailable")
+            spec=importlib.util.spec_from_file_location("e05_hosted_restore",helper)
+            need(spec is not None and spec.loader is not None,
+                 "Hosted E05 synthetic restore module cannot load")
+            module=importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            try:
+                module.run_synthetic_restore(db,db_env,root)
+            except (module.Refused,OSError,ValueError,subprocess.SubprocessError):
+                raise Held("Hosted synthetic restore refused; private details withheld") from None
         print("E05_SUPPORTED_STACK=PASS; PG17=TRUE; AUTH=REAL_LOCAL; "+
-              "UNIQUE_VOLUME=TRUE; LIVE_DATA=NONE; E05_SIGNED=NOT_RUN")
+              "UNIQUE_VOLUME=TRUE; PRODUCTION_ROWS=NONE; E05_SIGNED=NOT_RUN")
         outcome=0
     except (Held,KeyError,IndexError,ValueError,subprocess.SubprocessError):
         print("E05_SUPPORTED_STACK=HELD; STAGE="+stage+"; PRIVATE_DIAGNOSTICS_WITHHELD")
@@ -178,7 +194,10 @@ def run():
     return outcome
 
 if __name__=="__main__":
-    try:raise SystemExit(run())
+    parser=argparse.ArgumentParser()
+    parser.add_argument("--synthetic-restore-probe",action="store_true")
+    flags=parser.parse_args()
+    try:raise SystemExit(run(synthetic_restore=flags.synthetic_restore_probe))
     except (Held,OSError,ValueError,subprocess.SubprocessError):
         print("E05_SUPPORTED_STACK=HELD; NO_PRODUCTION_ACCESS")
         raise SystemExit(1) from None
