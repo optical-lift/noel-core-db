@@ -199,8 +199,15 @@ def verify_rest(api,key,tokens,db):
     check(local_sql(db,"select count(*) from atlas.object_state where "+
                     derived_state_guard)=="1",
           "synthetic count-only object_state source drift; refuse cleanup")
-    check(local_sql(db,"delete from atlas.object_state where "+
-                    derived_state_guard+" returning 1")=="1",
+    # Query the affected-row COUNT as a SELECT. Direct DELETE ... RETURNING
+    # also emits a psql command tag, which is not a bare '1' and caused
+    # protected run #43344788552 to fail AFTER the exact row-shape guard.
+    # This changes only TEST OUTPUT verification; the guarded DELETE is
+    # identical and still runs solely on disposable localhost.
+    cleanup_sql=("with deleted as (delete from atlas.object_state where "+
+                 derived_state_guard+" returning object_id) "+
+                 "select count(*) from deleted")
+    check(local_sql(db,cleanup_sql)=="1",
           "synthetic object_state cleanup affected unexpected row count")
     check(local_sql(db,f"""select count(*) from atlas.object_state
           where object_id='{OBJECT}'::uuid""")=="0",
