@@ -79,7 +79,7 @@ python3 scripts/run-atlas-e05-isolated-riversong.py \
 ```
 
 The Atlas runner file must have git blob
-`d386ff1d752cceea631316a84692088d6257b94d` from Atlas
+`87401240aa913d57e8bc276af1f221ff5ddc9765` from Atlas
 [PR #571](https://github.com/optical-lift/atlas/pull/571). The bridge
 accepts the separately provided three fictional local credentials, local
 anonymous API key and `RUNNER_TEMP`; verifies the live database is really
