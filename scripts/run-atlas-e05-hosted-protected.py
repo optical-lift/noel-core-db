@@ -72,7 +72,7 @@ def db_start(runtime,native,temp,resources):
     # Bind mount a path whose string is identical on the HOST and IN Docker.
     # Existing Noel PGDATA guard independently verifies it belongs to
     # RUNNER_TEMP; the Docker volume default is not silently grandfathered.
-    private_command(['docker','run','--detach','--rm','--name',name,
+    private_command(['docker','run','--detach','--name',name,
         '--mount',f'type=bind,source={data},target={data}',
         '--publish',f'127.0.0.1:{port}:5432',
         '--env','PGDATA='+data,'--env','POSTGRES_DB='+database,
