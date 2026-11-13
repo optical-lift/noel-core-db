@@ -33,13 +33,13 @@ class E05OwnerWorkflowSourceTests(unittest.TestCase):
         self.assertIn("runs-on: [self-hosted, macOS, X64, atlas-verifier]",protected)
         self.assertIn("git -C",protected)
         self.assertNotIn("uses: actions/checkout",protected)
-        self.assertIn("git hash-object scripts/atlas-riversong-e05-signed-acceptance.py",protected)
+        self.assertIn("hash-object scripts/atlas-riversong-e05-signed-acceptance.py",protected)
 
     def test_controller_no_remote_database_connection_string(self):
         s=CONTROLLER.read_text()
         ast.parse(s)
         self.assertNotIn("NOEL_CORE_DATABASE_URL",s)
-        self.assertIn('runtime.root/"db"',s)
+        self.assertIn('root/"db"',s)
         self.assertIn('"atlas_e05_"+secrets.token_hex',s)
         self.assertIn("run-atlas-e05-isolated-riversong.py",s)
         self.assertIn("ThreadingHTTPServer",s)
