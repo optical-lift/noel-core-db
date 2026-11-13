@@ -188,4 +188,6 @@ jobs:
             ${{ runner.temp }}/pre1-local-artifacts/signed-access03c-pre1-rpc.log
             ${{ runner.temp }}/pre1-local-artifacts/pre1-local-row-integrity-baseline.log
             ${{ runner.temp }}/pre1-local-artifacts/pre1-local-row-integrity-after-candidate.log
+            ${{ runner.temp }}/pre1-local-artifacts/pre1-local-access03-fixture-transition.log
+            ${{ runner.temp }}/pre1-local-artifacts/pre1-local-after-access03-baseline.log
             ${{ runner.temp }}/pre1-local-artifacts/pre1-local-row-integrity-after-signed.log

@@ -880,6 +880,31 @@ if [ "$signed_access03_zone_retirement_probe" = true ]; then
   grep -q '^PASS ACCESS03 signed ' "$artifacts_dir/signed-access03-zone-retirement-summary.txt"
 fi
 
+# PRE1 TEST ONLY: the existing signed ACCESS03A/B test intentionally flips a
+# farm manager role, revokes/restores native authority, and toggles a
+# synthetic retired-object marker. Its associated local state triggers leave
+# full-row fingerprints changed in FOUR named relations. Prove this is the
+# exact known fixture transition and that ALL OTHER Atlas relations stayed
+# byte-for-byte unchanged. This is not a PRE1 candidate exemption.
+if [ "$pre1_rest_proof" = true ]; then
+  phase="PRE1 verify exact existing ACCESS03 signed fixture transition"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pre1_row_snapshot" --mode audit-access03 \
+    >"$artifacts_dir/pre1-local-access03-fixture-transition.log" 2>&1
+  grep -q '^PASS ACCESS03 signed fixture transition confined to four reviewed Atlas relations;' \
+    "$artifacts_dir/pre1-local-access03-fixture-transition.log"
+
+  # A distinct SECOND baseline begins PRE1's own signed REST probe.
+  # The PRE1 RPC must restore every Atlas row exactly relative to this state.
+  phase="PRE1 local full-row baseline after ACCESS03 actor fixture transitions"
+  pre1_post_access03_snapshot="$runtime_dir/pre1-post-access03-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pre1_post_access03_snapshot" --mode capture \
+    >"$artifacts_dir/pre1-local-after-access03-baseline.log" 2>&1
+  grep -q '^PRE1 LOCAL row-integrity baseline captured:' \
+    "$artifacts_dir/pre1-local-after-access03-baseline.log"
+fi
+
 if [ "$pre1_rest_proof" = true ]; then
   if [ "$signed_access03_zone_retirement_probe" != true ]; then
     echo "PRE1 REST proof requires the existing signed ACCESS03 zone/RLS gate." >&2
@@ -894,13 +919,16 @@ if [ "$pre1_rest_proof" = true ]; then
   grep -q '^PASS ACCESS03C-PRE1 signed ' "$artifacts_dir/signed-access03c-pre1-rpc-summary.txt"
 fi
 
-# Second full-row comparison catches synthetic signed-test cleanup drift.
-# This still does NOT prove real Production row-identity conservation:
-# this clone imported Production SCHEMA and ROLES, not private data rows.
+# Exact full-row equality after PRE1's own signed RPC and scoped cleanup,
+# against a separate post-ACCESS03 fixture baseline. Earlier expected ACCESS03
+# transitions were independently reviewed and checked in the exact four
+# named relations, rather than being silently ignored.
+# This still does NOT prove Production historical row survival: the clone
+# imported Production SCHEMA and ROLES, not private data rows.
 if [ "$pre1_rest_proof" = true ]; then
-  phase="PRE1 local all-Atlas-row unchanged after signed HTTP actor probes"
+  phase="PRE1 local all-Atlas-row unchanged after PRE1 signed HTTP cleanup"
   python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
-    --db-url "$database_url" --snapshot "$pre1_row_snapshot" --mode verify \
+    --db-url "$database_url" --snapshot "$pre1_post_access03_snapshot" --mode verify \
     >"$artifacts_dir/pre1-local-row-integrity-after-signed.log" 2>&1
   grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
     "$artifacts_dir/pre1-local-row-integrity-after-signed.log"
@@ -1217,7 +1245,7 @@ fi
 
 if [ "$pre1_rest_proof" = true ]; then
   # Print no row bodies, IDs, notes, metadata or row digests into artifact.
-  printf '\nPRE1 TEST ONLY: all Atlas base table full-row identity/content checks passed before/after candidate and after signed synthetic cleanup; no Production data was cloned.\n' \
+  printf '\nPRE1 TEST ONLY: all Atlas base tables unchanged before/after held SQL; exactly four known ACCESS03 fixture relations changed during its signed actor probe; all Atlas base tables unchanged before/after PRE1 signed REST cleanup. No Production data cloned.\n' \
     >> "$artifacts_dir/summary.md"
 fi
 
