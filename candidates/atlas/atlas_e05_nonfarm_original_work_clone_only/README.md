@@ -133,6 +133,81 @@ source unit tests capture mocked output privately. All subprocess output is
 withheld from workflow logs, and sensitive logs/credentials are never uploaded.
 If any precondition fails, the real signed gate stays **HELD**.
 
+## Newly authorized owner-gated workflow — DRAFT ONLY
+
+The owner authorized writing the **test-only protected workflow**, not a
+Production release or automatic merge. Its reviewed source is
+`.github/workflows/atlas-e05-owner-protected-current-schema-signed.yml`,
+and its source-only PR CI can execute now. The **owner issue** trigger will NOT
+be available until that workflow passes normal source review and is merged to
+Noel's default `main` through a separate owner decision.
+
+The protected job does not use the old `noel_schema_clone`. It requires the
+owner's **RiverSong** Intel/macOS `atlas-verifier` self-hosted runner to be
+**available to the Noel repository** as well as Atlas (this association has
+not been independently verified). That machine must have its existing native
+Postgres.app 17 binaries and a working local Docker runtime for the exactly
+SHA256-verified **Supabase CLI v2.116.0** schema/roles-only snapshot. If either
+prerequisite is unavailable, the protected job refuses before requesting the
+Production database secret.
+
+Protected GitHub Actions environment `production` must provide:
+
+- `NOEL_CORE_DATABASE_URL`: the existing approved read-only-use Production
+  snapshot connection. It is passed **only** to two `supabase db dump`
+  commands: `--role-only` and schema-only/default, never to the E05 test
+  controller. Both private dumps remain in the same RiverSong job's
+  `RUNNER_TEMP`, are **not uploaded as artifacts**, and are deleted.
+- `ATLAS_E05_SOURCE_READ_TOKEN`: a separate least-privileged, read-only
+  GitHub token with `Contents: Read` access to the **private**
+  `optical-lift/atlas` repository. This is not the database secret. A
+  Noel-scoped default `GITHUB_TOKEN` cannot be presumed to read private Atlas;
+  the job refuses if the protected credential has not been configured.
+
+After the workflow is reviewed and merged, the owner may create an issue
+in Noel with **exact title**:
+
+`Atlas E05: OWNER approved current-schema signed nonfarm disposable test`
+
+Its **complete body** must consist of the following fields, using actual
+immutable 40-character revision hashes instead of the placeholders:
+
+```text
+diagnostic_scope: atlas_e05_nonfarm_original_work_genuine_signed_v1
+production_target: zirqkouammpwxlqfbsvf
+noel_main_sha: <40-hex current reviewed Noel main HEAD>
+noel_test_sha: <40-hex exact reviewed Noel E05 source HEAD>
+atlas_test_sha: <40-hex exact reviewed Atlas E05 source HEAD>
+release_intent: none
+test_only: true
+data_scope: schema_and_roles_only
+```
+
+The issue must be created or edited by the actual repository **OWNER**, must
+remain open, must name the precise scope, and its main SHA must match the
+GitHub issue event's default-branch SHA. Even then, the protected GitHub
+`production` environment retains its ordinary approval control. No other
+issue title, PR, branch push, pull-request-only CI or automated rerun can
+activate the protected database snapshot.
+
+The owner-signed job pins the Atlas signed runner, transport, browser-preflight
+dependencies **and** the five Noel controller/fixture blobs to reviewed Git
+blob hashes **before** accessing the Production URL. It creates a NEW
+`atlas_e05_*` PostgreSQL 17 database whose cluster PGDATA lives within the
+current job's RUNNER_TEMP, restores the schema+roles-only snapshot there,
+checks the exact source/ACL/empty-state gate, and then starts **actual**
+locally built GoTrue plus PostgREST. A bounded localhost proxy routes calls
+to these real services, never to a mock backend. Only the unchanged Atlas
+signed runner can claim a three-independent-session source PASS. A missing
+extension, failed schema restore, unavailable local source tool, missing
+private read token, absent Noel runner association, or GoTrue migration error
+is a **HELD** result, not permission to weaken RLS or manufacture SQL.
+
+**Status as of source authoring:** the unprivileged PR-only workflow source
+checks passed; the protected issue-triggered step has NOT executed. A source
+green result is not a live signed E05 PASS. Existing production data, roles,
+grants, API and outsider invitations are unchanged.
+
 ## Gates still held
 
 - Local source-only/refusal tests: `python3 -m unittest tests/test_atlas_e05_nonfarm_fixture_source.py`.
