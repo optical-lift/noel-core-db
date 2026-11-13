@@ -77,6 +77,41 @@ class E05HostedRestoreTests(unittest.TestCase):
         self.assertIn('input_sql = sql + "\\n"',s)
         self.assertIn("PRODUCTION_SCHEMA=NOT_READ; E05_SIGNED=NOT_RUN",s)
 
+    def test_real_signed_synthetic_source_and_refusals(self):
+        import base64
+        import json
+        import uuid
+        good={"API_URL":"http://127.0.0.1:54321","ANON_KEY":"eyJ"+"a"*48}
+        self.assertEqual(m.local_api_key(good,54321),good["ANON_KEY"])
+        for wrong in ({"API_URL":"https://example.com","ANON_KEY":good["ANON_KEY"]},
+                      {"API_URL":"http://127.0.0.1:54322","ANON_KEY":good["ANON_KEY"]},
+                      {"API_URL":good["API_URL"],"SERVICE_ROLE_KEY":"secret"},
+                      {"API_URL":good["API_URL"],"ANON_KEY":"short"}):
+            with self.assertRaises(m.Refused):m.local_api_key(wrong,54321)
+        u=str(uuid.uuid4()); sid=str(uuid.uuid4())
+        def token(claims):
+            body=base64.urlsafe_b64encode(json.dumps(claims).encode()).decode().rstrip("=")
+            return "eyJhbGciOiJIUzI1NiJ9."+body+".fakesig"
+        self.assertEqual(m.jwt_claims(token(
+            {"sub":u,"session_id":sid,"role":"authenticated"})),(u,sid))
+        for claims in ({"sub":u,"session_id":sid,"role":"anon"},
+                       {"sub":u,"role":"authenticated"},
+                       {"sub":"not-uuid","session_id":sid,"role":"authenticated"}):
+            with self.assertRaises(m.Refused):m.jwt_claims(token(claims))
+        source=SOURCE.read_text()
+        self.assertIn('"/auth/v1/token?grant_type=password"',source)
+        self.assertIn('"/rest/v1/rpc/e05_probe_owned_count"',source)
+        self.assertIn("auth.sessions WHERE id IN",source)
+        self.assertIn("SECURITY INVOKER",source)
+        self.assertIn("ANON_RPC=DENIED",source)
+        self.assertNotIn("SECURITY DEFINER",source)
+        self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY",source)
+        with patch.object(m.subprocess,"run",side_effect=AssertionError("No process")):
+            with self.assertRaises(m.Refused):
+                m.run_signed_synthetic_auth_probe(
+                    "postgresql://postgres@production.example.com:5432/postgres",
+                    {},Path("/tmp"),54321,Path("/tmp/project"))
+
     def test_restore_not_run_on_checkout_or_nonlocal_url(self):
         with patch.object(m.subprocess,"run",side_effect=AssertionError("should not execute")):
             with self.assertRaises(m.Refused):
