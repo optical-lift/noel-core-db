@@ -103,6 +103,8 @@ class E05HostedRestoreTests(unittest.TestCase):
         self.assertIn('"/rest/v1/rpc/e05_probe_owned_count"',source)
         self.assertIn("auth.sessions WHERE id IN",source)
         self.assertIn("SECURITY INVOKER",source)
+        self.assertIn("public.e05_probe_owned_count() FROM PUBLIC, anon",source)
+        self.assertIn("NOT has_function_privilege('anon'",source)
         self.assertIn("ANON_RPC=DENIED",source)
         self.assertNotIn("SECURITY DEFINER",source)
         self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY",source)
