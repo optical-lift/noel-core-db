@@ -60,13 +60,14 @@ class PRE1RowIntegrity(unittest.TestCase):
                 with self.assertRaises(FileExistsError):
                     module.run(db, "capture", path)
 
-    def test_access03_fixture_transition_has_an_exact_scoped_four_table_boundary(self):
+    def test_access03_fixture_transition_has_an_exact_scoped_three_table_boundary(self):
         db = "postgresql://postgres:local@127.0.0.1:54322/postgres"
         expected = {
             "atlas.farm_memberships", "atlas.growing_objects",
-            "atlas.object_state", "atlas.principal_ledger_authorities",
+            "atlas.principal_ledger_authorities",
         }
         self.assertEqual(module.EXPECTED_ACCESS03_TRANSITION, expected)
+        self.assertNotIn('atlas.object_state', expected)
         original = {name: {"rows": 1, "digest": "a"*64}
                     for name in module.REQUIRED | expected}
         changed = {name: dict(value) for name, value in original.items()}
@@ -88,7 +89,7 @@ class PRE1RowIntegrity(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "fixture transition mismatch"):
                     module.run(db, "audit-access03", before)
             missing = {name: dict(value) for name, value in changed.items()}
-            missing["atlas.object_state"]["digest"] = "a"*64
+            missing["atlas.growing_objects"]["digest"] = "a"*64
             with mock.patch.object(module, "fingerprint", return_value=missing):
                 with self.assertRaisesRegex(RuntimeError, "fixture transition mismatch"):
                     module.run(db, "audit-access03", before)
