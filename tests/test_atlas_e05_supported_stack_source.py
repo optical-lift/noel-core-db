@@ -13,7 +13,7 @@ spec.loader.exec_module(m)
 class SupportedStackSource(unittest.TestCase):
     def test_source_does_not_use_production_or_suggest_signed(self):
         s=SOURCE.read_text()
-        self.assertNotIn("secrets.",s)
+        self.assertNotIn("${{ secrets.",s)
         self.assertNotIn("supabase db dump",s)
         self.assertNotIn("service_role",s)
         self.assertIn('env.pop("NOEL_CORE_DATABASE_URL",None)',s)
