@@ -87,11 +87,11 @@ BEGIN
     v_root := false;
   END;
   IF v_root IS NOT TRUE THEN
-    IF NOT atlas.person_has_native_ledger_connection_v1(
+    IF atlas.person_has_native_ledger_connection_v1(
       p_organization_id,p_ledger_id,v_person
-    ) OR NOT atlas.person_original_work_identity_disclosed_self_v1(
+    ) IS NOT TRUE OR atlas.person_original_work_identity_disclosed_self_v1(
       p_organization_id,p_ledger_id,p_work_item_id,v_person
-    ) THEN
+    ) IS NOT TRUE THEN
       RAISE EXCEPTION 'Work identity not disclosed to current Person'
         USING ERRCODE='42501';
     END IF;
@@ -102,9 +102,9 @@ BEGIN
       WHERE c.organization_id=p_organization_id
         AND c.work_item_id=p_work_item_id
         AND c.subject_domain='temporal' AND c.subject_kind='occurrence'
-        AND NOT atlas.has_current_subject_disclosure_v1(
+        AND atlas.has_current_subject_disclosure_v1(
           p_ledger_id,v_person,'event','occurrence',c.subject_id,'identity'
-        )
+        ) IS DISTINCT FROM TRUE
     ) THEN
       RAISE EXCEPTION 'Event identity not disclosed to current Person'
         USING ERRCODE='42501';
