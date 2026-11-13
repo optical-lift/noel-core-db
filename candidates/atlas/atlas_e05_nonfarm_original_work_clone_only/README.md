@@ -72,9 +72,9 @@ production data**, and bound real local GoTrue + PostgREST to that exact
 database, use the source-owned bounded bridge:
 
 ```sh
-python3 scripts/run-atlas-e05-isolated-riversong.py \\
-  --db-url "$ATLAS_E05_LOCAL_DB_URL" \\
-  --api-url "$ATLAS_E05_LOCAL_API_ORIGIN" \\
+python3 scripts/run-atlas-e05-isolated-riversong.py \
+  --db-url "$ATLAS_E05_LOCAL_DB_URL" \
+  --api-url "$ATLAS_E05_LOCAL_API_ORIGIN" \
   --atlas-runner "$ATLAS_E05_PINNED_ATLAS_RUNNER"
 ```
 
