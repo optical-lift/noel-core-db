@@ -9,7 +9,10 @@
 This SQL intentionally reuses the first canonical C1 identity/authority graph
 from `candidates/atlas/atlas_universal_original_work_integrated_v1/fixture.sql`,
 Git blob `e877d93323ddc67d8778be8bea1dfa34319cc85c`, stopping **before**
-its later Work and Farm inserts. It includes actual source-shaped
+its later Work and Farm inserts. The C1-only `ledger.actions` sensitive-action row is intentionally omitted:
+E05 neither reads nor writes that unrelated history surface, and the
+preserved RiverSong schema-only source does not contain that relation.
+It includes actual source-shaped
 `auth.users`, `reality.entities`, `reality.auth_person_bindings`,
 `atlas.people`, `atlas.person_auth_credentials`, the owner Principal,
 Ledger onboarding, two native Ledgers, active native seats, Organization,
