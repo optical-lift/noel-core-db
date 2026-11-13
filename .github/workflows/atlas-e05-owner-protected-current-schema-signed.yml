@@ -1,0 +1,231 @@
+name: Atlas E05 OWNER protected current-schema genuine signed nonfarm Work (TEST ONLY)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/atlas-e05-owner-protected-current-schema-signed.yml'
+      - 'scripts/run-atlas-e05-owner-protected-signed.py'
+      - 'scripts/check-atlas-e05-current-source.py'
+      - 'tests/test_atlas_e05_owner_protected_source.py'
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: atlas-e05-owner-protected-current-schema-test-only
+  cancel-in-progress: false
+
+jobs:
+  unprivileged-source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate test-only source without secrets or production access
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -ryaml -e 'YAML.load_file(".github/workflows/atlas-e05-owner-protected-current-schema-signed.yml")'
+          python3 -m py_compile scripts/run-atlas-e05-owner-protected-signed.py scripts/check-atlas-e05-current-source.py
+          python3 -m unittest discover -s tests -p 'test_atlas_e05_owner_protected_source.py' -v
+          python3 -m unittest discover -s tests -p 'test_atlas_e05_current_source.py' -v
+          python3 -m unittest discover -s tests -p 'test_atlas_e05_nonfarm_fixture_source.py' -v
+          python3 -m unittest discover -s tests -p 'test_atlas_e05_isolated_riversong_bridge.py' -v
+          echo 'E05 source CI ONLY; no protected snapshot, no signed actors'
+
+  owner-approved-disposable-signed:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.user.login == github.actor &&
+      github.event.issue.title == 'Atlas E05: OWNER approved current-schema signed nonfarm disposable test'
+    runs-on: [self-hosted, macOS, X64, atlas-verifier]
+    environment: production
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Require exact OWNER pinned scope BEFORE reading protected credentials
+        id: pins
+        shell: bash
+        env:
+          OWNER_REQUEST: ${{ github.event.issue.body }}
+          ISSUE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          fields={}
+          for line in os.environ.get('OWNER_REQUEST','').splitlines():
+              if not line.strip():continue
+              m=re.fullmatch(r'([a-z_]+):\s*([A-Za-z0-9_-]+)\s*',line.strip())
+              if not m:raise SystemExit('E05 REFUSE: owner request syntax')
+              key,value=m.groups()
+              if key in fields:raise SystemExit('E05 REFUSE: duplicate field')
+              fields[key]=value
+          approved={
+              'diagnostic_scope':'atlas_e05_nonfarm_original_work_genuine_signed_v1',
+              'production_target':'zirqkouammpwxlqfbsvf',
+              'release_intent':'none','test_only':'true',
+              'data_scope':'schema_and_roles_only',
+          }
+          pins=('noel_main_sha','noel_test_sha','atlas_test_sha')
+          if set(fields)!=(set(approved)|set(pins)):
+              raise SystemExit('E05 REFUSE: owner fields incomplete or unexpected')
+          if any(fields[key]!=v for key,v in approved.items()):
+              raise SystemExit('E05 REFUSE: diagnostic scope not approved')
+          if any(not re.fullmatch(r'[0-9a-f]{40}',fields[key]) for key in pins):
+              raise SystemExit('E05 REFUSE: nonimmutable test source')
+          if fields['noel_main_sha']!=os.environ['ISSUE_SHA']:
+              raise SystemExit('E05 REFUSE: main changed since owner approval')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:
+              for key in pins:f.write(key+'='+fields[key]+'\n')
+          print('E05_OWNER_SCOPE=PASS; RELEASE_INTENT=NONE; DATA_ROWS=NONE')
+          PY
+      - name: Check RiverSong PG17 and isolated job resources before using secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUNNER_OS" == macOS && "$RUNNER_ARCH" == X64 ]]
+          [[ "$RUNNER_TEMP" == /* && -d "$RUNNER_TEMP" && ! -L "$RUNNER_TEMP" ]]
+          test -x /Applications/Postgres.app/Contents/Versions/17/bin/initdb
+          test -x /Applications/Postgres.app/Contents/Versions/17/bin/pg_ctl
+          test -x /Applications/Postgres.app/Contents/Versions/17/bin/psql
+          docker version >/dev/null 2>&1
+          echo 'E05_PG17_AND_DOCKER=PASS; PRESERVED_CLONE_NOT_STARTED'
+      - name: Fetch exact immutable Noel main and reviewed E05 source, native Git only
+        shell: bash
+        env:
+          MAIN_SHA: ${{ steps.pins.outputs.noel_main_sha }}
+          TEST_SHA: ${{ steps.pins.outputs.noel_test_sha }}
+          REPO_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d "$RUNNER_TEMP/e05-noel.XXXXXXXX")"
+          echo "E05_NOEL_WORK=$work" >> "$GITHUB_ENV"
+          for name in canonical source; do
+            if [[ "$name" == canonical ]]; then sha="$MAIN_SHA"; else sha="$TEST_SHA"; fi
+            git -C "$work" init -q "$name"
+            git -C "$work/$name" remote add origin https://github.com/optical-lift/noel-core-db.git
+            header="$(printf 'x-access-token:%s' "$REPO_TOKEN" | base64 | tr -d '\n')"
+            git -C "$work/$name" -c "http.extraHeader=AUTHORIZATION: basic $header" \
+              fetch -q --no-tags --depth=1 origin "$sha"
+            git -C "$work/$name" checkout -q --detach FETCH_HEAD
+            test "$(git -C "$work/$name" rev-parse HEAD)" = "$sha"
+          done
+          unset REPO_TOKEN header
+          echo 'E05_NOEL_MAIN_AND_TEST_SOURCE_PINNED=PASS'
+      - name: Fetch exact private Atlas test source with scoped protected read token
+        shell: bash
+        env:
+          ATLAS_SHA: ${{ steps.pins.outputs.atlas_test_sha }}
+          ATLAS_READ_TOKEN: ${{ secrets.ATLAS_E05_SOURCE_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$ATLAS_READ_TOKEN" || { echo 'E05_HELD: protected private Atlas source token missing'; exit 1; }
+          work="$(mktemp -d "$RUNNER_TEMP/e05-atlas.XXXXXXXX")"
+          echo "E05_ATLAS_WORK=$work" >> "$GITHUB_ENV"
+          git -C "$work" init -q
+          git -C "$work" remote add origin https://github.com/optical-lift/atlas.git
+          header="$(printf 'x-access-token:%s' "$ATLAS_READ_TOKEN" | base64 | tr -d '\n')"
+          git -C "$work" -c "http.extraHeader=AUTHORIZATION: basic $header" \
+            fetch -q --no-tags --depth=1 origin "$ATLAS_SHA"
+          git -C "$work" checkout -q --detach FETCH_HEAD
+          test "$(git -C "$work" rev-parse HEAD)" = "$ATLAS_SHA"
+          test "$(git -C "$work" hash-object scripts/atlas-riversong-e05-signed-acceptance.py)" = 87401240aa913d57e8bc276af1f221ff5ddc9765
+          test "$(git -C "$work" hash-object scripts/atlas-riversong-signed-transport.py)" = 03a176e71a18065bae73aac805691a99d6d663ab
+          test "$(git -C "$work" hash-object scripts/atlas-riversong-browser-preflight.py)" = 55da4dfa7b376e83151e5091340c4f83d6d5fdfa
+          unset ATLAS_READ_TOKEN header
+          echo 'E05_PRIVATE_ATLAS_SIGNED_RUNNER_PINS=PASS'
+      - name: Verify controller source and exact test contract before snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C "$E05_NOEL_WORK/canonical" rev-parse HEAD)" = "${{ steps.pins.outputs.noel_main_sha }}"
+          test "$(git -C "$E05_NOEL_WORK/source" rev-parse HEAD)" = "${{ steps.pins.outputs.noel_test_sha }}"
+          test -s "$E05_NOEL_WORK/source/candidates/atlas/atlas_e05_nonfarm_original_work_clone_only/fixture.sql"
+          python3 -m py_compile "$E05_NOEL_WORK/source/scripts/run-atlas-e05-owner-protected-signed.py"
+          python3 "$E05_NOEL_WORK/source/tests/test_atlas_e05_owner_protected_source.py"
+          echo 'E05_GOVERNED_CONTROLLER_SOURCE=PASS'
+      - name: Install checksum-verified pinned Supabase CLI v2.116.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          cli="$RUNNER_TEMP/e05-cli"
+          mkdir -m 700 "$cli"
+          curl --proto '=https' --proto-redir '=https' -fsSL \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_darwin_amd64.tar.gz \
+            -o "$cli/supabase.tgz"
+          printf '%s  %s\n' 1e1dce66222fba539211624617960887e445fd7f27830d6f54bdb4eaf1d7c498 "$cli/supabase.tgz" | shasum -a 256 -c -
+          tar -xzf "$cli/supabase.tgz" -C "$cli" supabase
+          chmod 700 "$cli/supabase"
+          test "$("$cli/supabase" --version | tail -n 1)" = 2.116.0
+          echo "E05_CLI_DIR=$cli" >> "$GITHUB_ENV"
+          echo 'E05_CLI_V2_PIN_VERIFIED=PASS'
+      - name: Read-only Production schema and roles ONLY; private dumps remain on this runner
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$NOEL_CORE_DATABASE_URL" || { echo 'E05_HELD: protected Noel source URL unavailable'; exit 1; }
+          roles="$RUNNER_TEMP/e05-roles.sql"
+          schema="$RUNNER_TEMP/e05-schema.sql"
+          if ! "$E05_CLI_DIR/supabase" db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only --file "$roles" >"$RUNNER_TEMP/e05-roles-private.log" 2>&1; then
+            echo 'E05_READONLY_SNAPSHOT=HELD; ROLE_DUMP_FAILURE; DETAILS_WITHHELD'
+            exit 1
+          fi
+          if ! "$E05_CLI_DIR/supabase" db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$schema" >"$RUNNER_TEMP/e05-schema-private.log" 2>&1; then
+            echo 'E05_READONLY_SNAPSHOT=HELD; SCHEMA_DUMP_FAILURE; DETAILS_WITHHELD'
+            exit 1
+          fi
+          test -s "$roles" && test -s "$schema"
+          test ! -L "$roles" && test ! -L "$schema"
+          echo 'E05_PRODUCTION_SCHEMA_AND_ROLES_READONLY=PASS; ROW_DUMP=NONE'
+      - name: Restore current schema in job-owned E05 DB; run genuine GoTrue signed acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="/Applications/Postgres.app/Contents/Versions/17/bin:$PATH"
+          python3 "$E05_NOEL_WORK/source/scripts/run-atlas-e05-owner-protected-signed.py" \
+            --noel-source "$E05_NOEL_WORK/source" \
+            --atlas-source "$E05_ATLAS_WORK" \
+            --roles-dump "$RUNNER_TEMP/e05-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/e05-schema.sql"
+      - name: Remove private schema/role files and owned source checkouts; no artifacts
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in e05-roles.sql e05-schema.sql e05-roles-private.log e05-schema-private.log; do
+            rm -f -- "$RUNNER_TEMP/$name"
+          done
+          case "$E05_NOEL_WORK" in "$RUNNER_TEMP"/e05-noel.*) rm -rf -- "$E05_NOEL_WORK";; esac
+          case "$E05_ATLAS_WORK" in "$RUNNER_TEMP"/e05-atlas.*) rm -rf -- "$E05_ATLAS_WORK";; esac
+          case "$E05_CLI_DIR" in "$RUNNER_TEMP"/e05-cli) rm -rf -- "$E05_CLI_DIR";; esac
+          echo 'E05_CLEANUP_ATTEMPTED; NO_ARTIFACT_UPLOAD'
+      - name: State exact limits
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo '### E05 owner-gated signed source test (no deployment)'
+            echo 'Current Production SCHEMA and ROLES are read only, never application rows.'
+            echo 'Production DDL/DML/ACL, source release, merge, and real outsider invitation are NOT performed.'
+            echo 'Browser and independent recipient history remain NOT RUN.'
+            echo 'Only the genuine signed fixture step can establish a signed-source PASS.'
+            echo 'No tokens, SQL dumps, raw private logs, or passwords are uploaded.'
+          } >> "$GITHUB_STEP_SUMMARY"
