@@ -236,3 +236,221 @@ jobs:
           case "$RESULT" in success|failure|cancelled|skipped) ;; *) exit 2 ;; esac
           gh issue comment "$ISSUE_NUMBER" --body \
             "Atlas original Work self-assignment candidate full-schema and signed local GoTrue premerge proof: **$RESULT**. [View exact validation run]($RUN_URL). No source merge, generated migration, production release, Person grant or real Work mutation was created."
+
+  # W07 is an independent, additive gate in this existing owner-protected
+  # original Work clone workflow. It does not alter the self-assignment jobs.
+  w07-source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check W07 source-only admission and unchanged protected boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-work-self-assignment-premerge-clone.yml")'
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          workflow=Path(".github/workflows/atlas-work-self-assignment-premerge-clone.yml").read_text()
+          runner=Path("scripts/validate-production-schema-clone.sh").read_text()
+          assert "github.event.issue.author_association == 'OWNER'" in workflow
+          assert workflow.count("github.actor == github.repository_owner") >= 3
+          assert "environment: production" in workflow
+          assert "w07-signed-clone:" in workflow
+          assert "pulls/2767" in workflow
+          assert "candidate_sha:" in workflow
+          assert "NOEL_CORE_DATABASE_URL" in workflow
+          assert "Snapshot Production schema and roles READ ONLY for W07" in workflow
+          assert workflow.index("Snapshot Production schema and roles READ ONLY for W07") < workflow.index("Checkout exact HELD W07 candidate")
+          assert "supabase migration new atlas_native_original_work_comments_signed_clone_only_v1" in workflow
+          assert "signed-native-original-work-comments-summary.txt" in workflow
+          assert "validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" in workflow
+          assert "w07 signed source test" not in workflow.lower()
+          assert runner.count("signed_native_original_work_comments_probe=true")==1
+          assert "atlas_native_original_work_comments_signed_clone_only_v1[.]sql" in runner
+          assert "validate-atlas-native-original-work-comments-signed-http.py" in runner
+          for banned in ("supabase db push","supabase db reset --linked",
+                         "supabase migration repair","gh pr merge"):
+              assert banned not in workflow
+          print("PASS W07 owner-only signed clone admission is source-only; no secrets on PR")
+          PY
+
+  w07-signed-clone:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas W07 original Work comments: protected signed clone test approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: read
+    steps:
+      - name: Resolve exact W07 source authorization
+        id: pin
+        shell: bash
+        env:
+          BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          body=os.environ.get('BODY','')
+          match=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',body,re.M)
+          scope=re.findall(r'^scope:\s*([^\s]+)\s*$',body,re.M)
+          assert len(match)==1 and len(scope)==1 and scope[0]=='w07_signed_clone_test_only', 'W07 owner request must pin one SHA and scope'
+          with Path(os.environ['GITHUB_OUTPUT']).open('a') as f:
+              f.write('candidate_sha='+match[0]+'\n')
+          PY
+      - name: Checkout canonical protected clone controller from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify unchanged canonical custody contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash scripts/check-production-release-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Require exact still-held W07 review branch and signed source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PIN: ${{ steps.pin.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2767" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+          test "$state" = "open|true|work/atlas-original-work-comments-source-20261113|$PIN" ||
+            { echo "::error::W07 review PR closed, moved or not pinned"; exit 1; }
+      - name: Install pinned Supabase CLI v2
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          supabase --version
+          supabase db dump --help >/dev/null
+          supabase migration new --help >/dev/null
+      - name: Authenticate GHCR image pulls without publishing credentials
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      # The protected Production secret exists in this step ONLY.
+      # No data rows, password, signed user, fixture or candidate SQL is sent to Production.
+      - name: Snapshot Production schema and roles READ ONLY for W07
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/w07-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/w07-schema.sql"
+          test -s "$RUNNER_TEMP/w07-roles.sql"
+          test -s "$RUNNER_TEMP/w07-schema.sql"
+      - name: Checkout exact HELD W07 candidate after protected read-only snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.pin.outputs.candidate_sha }}
+          path: held
+          persist-credentials: false
+      - name: Review exact fixture, script and candidate source in local runner
+        shell: bash
+        env:
+          PIN: ${{ steps.pin.outputs.candidate_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "$PIN"
+          dir=held/candidates/atlas/atlas_native_original_work_comments_v1
+          for f in candidate.sql fixture.sql postconditions.sql README.md; do test -s "$dir/$f"; done
+          test -s held/scripts/validate-atlas-native-original-work-comments-signed-http.py
+          python3 -m py_compile held/scripts/validate-atlas-native-original-work-comments-signed-http.py
+          test ! -e held/supabase/migrations/20261113000000_atlas_native_original_work_comments_v1.sql
+          # Local fixture supplement MUST never include any DDL or privileged operation.
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          f=Path("held/candidates/atlas/atlas_native_original_work_comments_v1/fixture.sql").read_text()
+          raw=re.sub(r'/\*.*?\*/',' ',f,flags=re.S)
+          raw=re.sub(r'--[^\n]*',' ',raw)
+          assert all(re.match(r'^\s*(INSERT\s+INTO|UPDATE\s+|DELETE\s+FROM|SELECT\s+)',stmt,re.I) for stmt in raw.split(';') if stmt.strip())
+          assert "e5200000-0000-4000-8000-000000000983" in f
+          assert "person_connection_receiver_uptake" in f
+          print("PASS four-person synthetic W07 supplemental fixture: DML-only")
+          PY
+          sha256sum "$dir/candidate.sql" "$dir/fixture.sql" "$dir/postconditions.sql" held/scripts/validate-atlas-native-original-work-comments-signed-http.py
+      - name: Assemble disposable W07 scratch and unchanged trusted C1 fixture
+        id: scratch
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/w07-scratch"
+          mkdir -p "$scratch"
+          (cd "$scratch" && supabase init --force && supabase migration new atlas_native_original_work_comments_signed_clone_only_v1)
+          mapfile -t migrations < <(find "$scratch/supabase/migrations" -maxdepth 1 -name '*_atlas_native_original_work_comments_signed_clone_only_v1.sql')
+          test "${#migrations[@]}" -eq 1
+          candidate="$GITHUB_WORKSPACE/held/candidates/atlas/atlas_native_original_work_comments_v1"
+          cp "$candidate/candidate.sql" "${migrations[0]}"
+          cat validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql "$candidate/fixture.sql" > "$scratch/w07-fixture.sql"
+          cmp "$candidate/candidate.sql" "${migrations[0]}"
+          test -s "$scratch/w07-fixture.sql"
+          # Signed script stays local: never promoted into trusted main by this job.
+          cp held/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/
+          echo "migration=${migrations[0]}" >> "$GITHUB_OUTPUT"
+          echo "fixture=$scratch/w07-fixture.sql" >> "$GITHUB_OUTPUT"
+          echo "postconditions=$candidate/postconditions.sql" >> "$GITHUB_OUTPUT"
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Run existing isolated current-schema clone and genuine signed W07 proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.migration }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+            --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
+            --candidate-validation "${{ steps.scratch.outputs.postconditions }}" \
+            --roles-dump "$RUNNER_TEMP/w07-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/w07-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/w07-artifacts"
+          test -s "$RUNNER_TEMP/w07-artifacts/signed-native-original-work-comments-summary.txt"
+          grep -q '^PASS W07 signed local GoTrue' "$RUNNER_TEMP/w07-artifacts/signed-native-original-work-comments-summary.txt"
+      - name: Summarize only test result and no release
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'W07 SOURCE-GATED LOCAL CLONE TEST ONLY. No Production data rows, mutation, migration, release, Person permission or notifications.' >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f "$RUNNER_TEMP/w07-artifacts/summary.md" ]]; then
+            cat "$RUNNER_TEMP/w07-artifacts/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No completed test summary; inspect failure logs.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save non-sensitive W07 proof summary only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-w07-protected-signed-clone-summary
+          path: |
+            ${{ runner.temp }}/w07-artifacts/summary.md
+            ${{ runner.temp }}/w07-artifacts/signed-native-original-work-comments-summary.txt
+          if-no-files-found: ignore
+          retention-days: 14
