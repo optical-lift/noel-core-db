@@ -171,7 +171,35 @@ def run(synthetic_restore=False,signed_synthetic_auth=False):
                 if signed_synthetic_auth:
                     stage="REAL_GOTRUE_THREE_SESSION_SYNTHETIC_RLS"
                     module.run_signed_synthetic_auth_probe(db,db_env,root,apiport,project)
-            except (module.Refused,OSError,ValueError,subprocess.SubprocessError):
+            except module.Refused as exc:
+                # Only explicitly whitelisted fixed source messages may enter
+                # CI. Never disclose SQL, token, endpoint credential or stderr.
+                safe_reasons={
+                    "Invalid signed test API port":"API_PORT",
+                    "Only the attested job-owned Supabase project may supply API keys":"PROJECT_BOUNDARY",
+                    "Signed synthetic test requires empty local Auth":"AUTH_NOT_EMPTY",
+                    "Local Supabase status unavailable":"STATUS_UNAVAILABLE",
+                    "Local Supabase status refused; output withheld":"STATUS_REFUSED",
+                    "Local CLI status JSON malformed":"STATUS_JSON",
+                    "Local Auth/REST URL differs from attested project":"STATUS_API_MISMATCH",
+                    "Local anonymous API key absent or malformed":"STATUS_ANON_KEY",
+                    "Local GoTrue signup failed":"AUTH_SIGNUP",
+                    "Local GoTrue password session failed":"AUTH_PASSWORD_SESSION",
+                    "Local GoTrue session response invalid":"AUTH_RESPONSE",
+                    "GoTrue signed subject/session unreadable":"AUTH_SESSION_CLAIM",
+                    "Independent real GoTrue sessions required":"AUTH_NOT_INDEPENDENT",
+                    "GoTrue sessions not independently recorded in Auth":"AUTH_SESSION_CUSTODY",
+                    "Signed-only REST function privilege incorrect":"REST_PRIVILEGE",
+                    "Signed local REST error other than cache absence":"REST_SIGNED_ERROR",
+                    "Signed local RPC did not become source-visible":"REST_CACHE",
+                    "Signed REST response malformed":"REST_RESPONSE",
+                    "Real signed RLS read violated identity separation":"RLS_ISOLATION",
+                    "Anonymous request reached authenticated-only RLS reader":"REST_ANON_DENIAL",
+                }
+                code=safe_reasons.get(str(exc),"UNCLASSIFIED")
+                print("E05_HOSTED_SIGNED_DIAGNOSTIC="+code)
+                raise Held("Hosted synthetic restore refused; private details withheld") from None
+            except (OSError,ValueError,subprocess.SubprocessError):
                 raise Held("Hosted synthetic restore refused; private details withheld") from None
         print("E05_SUPPORTED_STACK=PASS; PG17=TRUE; AUTH=REAL_LOCAL; "+
               "UNIQUE_VOLUME=TRUE; PRODUCTION_ROWS=NONE; E05_SIGNED=NOT_RUN")
