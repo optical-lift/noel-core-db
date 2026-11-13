@@ -782,6 +782,17 @@ else
   echo 'No candidate validation fixture is defined.' >"$artifacts_dir/candidate-fixture.log"
 fi
 
+# PRE1 TEST ONLY: inspect ALL local Atlas base table rows, including original
+# Work IDs, physical history, and associated metadata, before function-only DROP.
+# Snapshot is kept in the disposable runtime directory and never uploaded.
+if [ "$pre1_rest_proof" = true ]; then
+  phase="PRE1 local all-Atlas-table identity/content baseline"
+  pre1_row_snapshot="$runtime_dir/pre1-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pre1_row_snapshot" --mode capture \
+    >"$artifacts_dir/pre1-local-row-integrity-baseline.log" 2>&1
+fi
+
 phase="candidate migration application"
 psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration" \
   >"$artifacts_dir/candidate-migration.log" 2>&1
@@ -818,6 +829,17 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+# PRE1: verify that the exact two-function DROP and its postconditions
+# changed ZERO row identities/values in ANY Atlas base relation.
+if [ "$pre1_rest_proof" = true ]; then
+  phase="PRE1 local all-Atlas-row unchanged after function retirement"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pre1_row_snapshot" --mode verify \
+    >"$artifacts_dir/pre1-local-row-integrity-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/pre1-local-row-integrity-after-candidate.log"
 fi
 
 if [ "$signed_access02_my_work_probe" = true ]; then
@@ -870,6 +892,18 @@ if [ "$pre1_rest_proof" = true ]; then
     >"$artifacts_dir/signed-access03c-pre1-rpc.log" 2>&1
   test -s "$artifacts_dir/signed-access03c-pre1-rpc-summary.txt"
   grep -q '^PASS ACCESS03C-PRE1 signed ' "$artifacts_dir/signed-access03c-pre1-rpc-summary.txt"
+fi
+
+# Second full-row comparison catches synthetic signed-test cleanup drift.
+# This still does NOT prove real Production row-identity conservation:
+# this clone imported Production SCHEMA and ROLES, not private data rows.
+if [ "$pre1_rest_proof" = true ]; then
+  phase="PRE1 local all-Atlas-row unchanged after signed HTTP actor probes"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pre1_row_snapshot" --mode verify \
+    >"$artifacts_dir/pre1-local-row-integrity-after-signed.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/pre1-local-row-integrity-after-signed.log"
 fi
 
 if [ "$signed_access01_event_choices_probe" = true ]; then
@@ -1179,6 +1213,12 @@ if printf '%s\n' "$help" | grep -q -- '--local'; then
   supabase db advisors --local >> "$artifacts_dir/advisors.log" 2>&1
 else
   echo 'Pinned Supabase CLI does not expose local db advisors.' >> "$artifacts_dir/advisors.log"
+fi
+
+if [ "$pre1_rest_proof" = true ]; then
+  # Print no row bodies, IDs, notes, metadata or row digests into artifact.
+  printf '\nPRE1 TEST ONLY: all Atlas base table full-row identity/content checks passed before/after candidate and after signed synthetic cleanup; no Production data was cloned.\n' \
+    >> "$artifacts_dir/summary.md"
 fi
 
 phase="complete"
