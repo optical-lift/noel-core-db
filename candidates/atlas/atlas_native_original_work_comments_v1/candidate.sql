@@ -185,16 +185,12 @@ BEGIN
     RAISE EXCEPTION 'Bounded body and stable action ID required'
       USING ERRCODE='22023';
   END IF;
+  -- A genuine same-action replay remains verifiable after an unrelated
+  -- actor completes Work. Read access remains independently authorized;
+  -- a new write still requires the Work to be open at its own locked point.
   v_actor := atlas.native_original_work_comment_actor_v1(
-    p_organization_id,p_ledger_id,p_work_item_id,true
+    p_organization_id,p_ledger_id,p_work_item_id,false
   );
-  -- Serialize against a concurrent original Work state transition.
-  PERFORM 1 FROM atlas.work_items w WHERE w.id=p_work_item_id
-    AND w.organization_id=p_organization_id AND w.work_state='open'
-    FOR UPDATE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Original Work no longer open' USING ERRCODE='42501';
-  END IF;
   SELECT * INTO v_comment FROM atlas.native_original_work_comments_v1 c
   WHERE c.organization_id=p_organization_id
     AND c.ledger_id=p_ledger_id AND c.work_item_id=p_work_item_id
@@ -213,6 +209,17 @@ BEGIN
       'isWorkResult',false,'notificationDelivered',false
     );
   END IF;
+  -- The original must still be open. Never append new ink using historical
+  -- permission from a completed or retired responsibility allocation.
+  PERFORM 1 FROM atlas.work_items w WHERE w.id=p_work_item_id
+    AND w.organization_id=p_organization_id AND w.work_state='open'
+    FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Original Work no longer open' USING ERRCODE='42501';
+  END IF;
+  PERFORM atlas.native_original_work_comment_actor_v1(
+    p_organization_id,p_ledger_id,p_work_item_id,true
+  );
   INSERT INTO atlas.native_original_work_comments_v1(
     organization_id,ledger_id,work_item_id,author_person_id,source_action_id,body
   ) VALUES(
