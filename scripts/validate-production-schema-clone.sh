@@ -882,8 +882,9 @@ fi
 
 # PRE1 TEST ONLY: the existing signed ACCESS03A/B test intentionally flips a
 # farm manager role, revokes/restores native authority, and toggles a
-# synthetic retired-object marker. Its associated local state triggers leave
-# full-row fingerprints changed in FOUR named relations. Prove this is the
+# synthetic retired-object marker. Its final full-row fingerprint differs
+# in THREE named relations. The PRE1 task-link trigger creates a separate
+# object_state row which its own synthetic probe must clean. Prove this is the
 # exact known fixture transition and that ALL OTHER Atlas relations stayed
 # byte-for-byte unchanged. This is not a PRE1 candidate exemption.
 if [ "$pre1_rest_proof" = true ]; then
@@ -891,7 +892,7 @@ if [ "$pre1_rest_proof" = true ]; then
   python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
     --db-url "$database_url" --snapshot "$pre1_row_snapshot" --mode audit-access03 \
     >"$artifacts_dir/pre1-local-access03-fixture-transition.log" 2>&1
-  grep -q '^PASS ACCESS03 signed fixture transition confined to four reviewed Atlas relations;' \
+  grep -q '^PASS ACCESS03 signed fixture transition confined to three reviewed Atlas relations;' \
     "$artifacts_dir/pre1-local-access03-fixture-transition.log"
 
   # A distinct SECOND baseline begins PRE1's own signed REST probe.
@@ -1245,7 +1246,7 @@ fi
 
 if [ "$pre1_rest_proof" = true ]; then
   # Print no row bodies, IDs, notes, metadata or row digests into artifact.
-  printf '\nPRE1 TEST ONLY: all Atlas base tables unchanged before/after held SQL; exactly four known ACCESS03 fixture relations changed during its signed actor probe; all Atlas base tables unchanged before/after PRE1 signed REST cleanup. No Production data cloned.\n' \
+  printf '\nPRE1 TEST ONLY: all Atlas base tables unchanged before/after held SQL; exactly three known ACCESS03 fixture relations changed during its signed actor probe; all Atlas base tables unchanged before/after PRE1 signed REST cleanup. No Production data cloned.\n' \
     >> "$artifacts_dir/summary.md"
 fi
 

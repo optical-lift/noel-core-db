@@ -36,7 +36,15 @@ class Pre1RpcProof(unittest.TestCase):
      'delete from atlas.farm_memberships', 'PASS ACCESS03C-PRE1 signed ',
      'class_baseline', 'operation_classes', 'water_nourish',
      "delete from atlas.operation_classes",
-     "local operation class is not the exact reviewed production source"):
+     "local operation class is not the exact reviewed production source",
+     "object_state", "pre-existing fictional object_state; refuse test-only cleanup",
+     "refresh_object_active_task_count_v1", "derived_state_guard",
+     "metadata ? 'task_count_synced_at'",
+     "synthetic count-only object_state source drift; refuse cleanup",
+     '"delete from atlas.object_state where "+',
+     'derived_state_guard+" returning 1"',
+     "synthetic object_state cleanup affected unexpected row count",
+     "synthetic object_state survived scoped cleanup"):
    self.assertIn(term,BODY)
   self.assertNotIn("'general','open','water','farm_shared'",BODY)
   self.assertNotIn('https://',BODY)
