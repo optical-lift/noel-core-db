@@ -19,7 +19,7 @@ import importlib.util
 
 HERE = Path(__file__).resolve().parent
 PREPARER = HERE / "prepare-atlas-e05-nonfarm-clone-fixture.py"
-EXPECTED_ATLAS_RUNNER_BLOB = "d386ff1d752cceea631316a84692088d6257b94d"
+EXPECTED_ATLAS_RUNNER_BLOB = "87401240aa913d57e8bc276af1f221ff5ddc9765"
 
 class Refused(RuntimeError):
     pass
