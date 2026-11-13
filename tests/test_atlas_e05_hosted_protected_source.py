@@ -57,6 +57,48 @@ class HostedE05SourceTests(unittest.TestCase):
         self.assertEqual(self.mod.PG_IMAGE,
             "supabase/postgres:17.6.1.136@sha256:f371b5f3f2ac0a05703f33d6e6134515fb2498cab708fb948a0aeb7481467c00")
 
+    def test_real_docker_bridge_sql_identity(self):
+        # A connection to host 127.0.0.1:port reaches PostgreSQL at the
+        # Docker bridge IP; this must be checked against docker inspect.
+        import copy
+        name="atlas-e05-0123456789abcdef"
+        data="/tmp/runner/e05-hosted-pg.abc/db"
+        port=55221
+        server_ip="172.19.0.4"
+        detail={
+            "Name":"/"+name,
+            "State":{"Running":True},
+            "Mounts":[{"Type":"bind","Source":data,"Destination":data,"RW":True}],
+            "NetworkSettings":{
+                "Ports":{"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":str(port)}]},
+                "Networks":{"e05bridge":{"IPAddress":server_ip}}
+            }
+        }
+        self.assertTrue(self.mod.attested_pg_connection(
+            detail,name,data,port,server_ip))
+        self.assertNotIn("p[1]=='127.0.0.1'",self.s)
+        mutations=(
+            lambda d:d["State"].update({"Running":False}),
+            lambda d:d.update({"Name":"/another-container"}),
+            lambda d:d["Mounts"][0].update({"Source":"/var/lib/postgresql/data"}),
+            lambda d:d["Mounts"][0].update({"Type":"volume"}),
+            lambda d:d["Mounts"][0].update({"RW":False}),
+            lambda d:d["NetworkSettings"]["Ports"]["5432/tcp"][0].update(
+                {"HostIp":"0.0.0.0"}),
+            lambda d:d["NetworkSettings"]["Ports"]["5432/tcp"][0].update(
+                {"HostPort":"5432"}),
+            lambda d:d["NetworkSettings"]["Networks"]["e05bridge"].update(
+                {"IPAddress":"172.19.0.9"}),
+        )
+        for mutation in mutations:
+            wrong=copy.deepcopy(detail)
+            mutation(wrong)
+            with self.assertRaises(self.mod.Held):
+                self.mod.attested_pg_connection(
+                    wrong,name,data,port,server_ip)
+        with self.assertRaises(self.mod.Held):
+            self.mod.attested_pg_connection(detail,name,data,port,"127.0.0.1")
+
     def test_fail_closed_on_other_platform(self):
         with patch.object(self.mod.platform,"system",return_value="Darwin"):
             with self.assertRaises(self.mod.Held):
