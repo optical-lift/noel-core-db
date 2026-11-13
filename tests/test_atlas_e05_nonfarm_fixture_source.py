@@ -107,6 +107,12 @@ class E05FixtureSourceTest(unittest.TestCase):
                         "postgresql://test:local@127.0.0.1:55433/atlas_e05_12345678",
                         temp)
 
+    def test_database_guard_uses_exact_normalized_loopback(self):
+        import inspect
+        source = inspect.getsource(e05.guard)
+        self.assertIn("host(inet_server_addr())", source)
+        self.assertIn('fields[1] == "127.0.0.1"', source)
+
     def test_job_temp_cannot_be_a_symlink(self):
         with tempfile.TemporaryDirectory() as root:
             real = Path(root) / "real-runner-temp"
