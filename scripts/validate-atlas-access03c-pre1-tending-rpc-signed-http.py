@@ -44,7 +44,7 @@ def snapshot(db):
     return tuple(c1.sql(db,"select count(*) from atlas."+table)
                  for table in ("tasks","work_items","growing_objects",
                                "crop_cycles","care_state_history","zones",
-                               "farm_memberships","task_objects",
+                               "farm_memberships","task_objects","object_state",
                                "operation_classes"))
 
 def local_sql(db,query):
@@ -71,6 +71,12 @@ def verify_rest(api,key,tokens,db):
         check(local_sql(db,f"select count(*) from atlas.{table} where id='{identifier}'::uuid")=="0",
               "synthetic test ID collision: "+table)
 
+    # The task-object link synchronizes a *derived* object_state record,
+    # even for a skipped/nonactive task. Reject any pre-existing state for
+    # this exact fictional object before permitting cleanup at test close.
+    check(local_sql(db,f"""select count(*) from atlas.object_state
+        where object_id='{OBJECT}'::uuid""")=="0",
+          "pre-existing fictional object_state; refuse test-only cleanup")
     baseline=snapshot(db)
 
     # Production's source-owned operation catalog is TABLE DATA, not DDL,
@@ -177,6 +183,28 @@ def verify_rest(api,key,tokens,db):
     local_sql(db,f"delete from atlas.task_objects where id='{TASK_LINK}'::uuid")
     local_sql(db,f"delete from atlas.tasks where id='{TASK}'::uuid")
     local_sql(db,f"delete from atlas.farm_memberships where id='{OWNER_MEMBERSHIP}'::uuid")
+    # The genuine task-link insert/delete trigger calls
+    # refresh_object_active_task_count_v1. Its count sync leaves a derived
+    # object_state row with task_count_synced_at after the link disappears.
+    # The baseline above proved this exact fictional object had NO such row.
+    # Delete only the count-only row created by this test. Fail closed on
+    # unexpected metadata or real care/operational state.
+    derived_state_guard=f"""object_id='{OBJECT}'::uuid
+        and farm_id='{FARM}'::uuid and active_task_count=0
+        and metadata ? 'task_count_synced_at'
+        and metadata=jsonb_build_object(
+            'task_count_synced_at',metadata->'task_count_synced_at')
+        and life_status='open' and care_state='unknown'
+        and operational_truth is null and last_touched_at is null"""
+    check(local_sql(db,"select count(*) from atlas.object_state where "+
+                    derived_state_guard)=="1",
+          "synthetic count-only object_state source drift; refuse cleanup")
+    check(local_sql(db,"delete from atlas.object_state where "+
+                    derived_state_guard+" returning 1")=="1",
+          "synthetic object_state cleanup affected unexpected row count")
+    check(local_sql(db,f"""select count(*) from atlas.object_state
+          where object_id='{OBJECT}'::uuid""")=="0",
+          "synthetic object_state survived scoped cleanup")
     if class_baseline=="0":
         local_sql(db, """delete from atlas.operation_classes
             where stable_key='water_nourish'
