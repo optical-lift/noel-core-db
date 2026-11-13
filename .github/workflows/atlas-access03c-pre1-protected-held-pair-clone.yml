@@ -166,6 +166,7 @@ jobs:
           else
             echo 'PRE1_CLONE_RESULT=FAILED_OR_NOT_REACHED' >> "$GITHUB_STEP_SUMMARY"
           fi
+          echo 'External or deployed clients, complete historical no-loss, and Production release remain separately HELD.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Local synthetic all-table row integrity is required when available; original Production history, external/deployed clients and Production release remain separately HELD.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Production schema and roles READ ONLY; DDL, DML and signed identities on LOCALHOST only.' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload bounded localhost diagnostics only (NO Production dumps)
