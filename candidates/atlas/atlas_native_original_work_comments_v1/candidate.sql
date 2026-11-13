@@ -80,13 +80,13 @@ BEGIN
   END IF;
 
   BEGIN
-    v_root := atlas.company_work_native_ledger_owner_self_v1(
+    v_root := coalesce(atlas.company_work_native_ledger_owner_self_v1(
       p_organization_id,p_ledger_id
-    ) = v_person;
+    ) = v_person,false);
   EXCEPTION WHEN SQLSTATE '42501' THEN
     v_root := false;
   END;
-  IF NOT v_root THEN
+  IF v_root IS NOT TRUE THEN
     IF NOT atlas.person_has_native_ledger_connection_v1(
       p_organization_id,p_ledger_id,v_person
     ) OR NOT atlas.person_original_work_identity_disclosed_self_v1(
