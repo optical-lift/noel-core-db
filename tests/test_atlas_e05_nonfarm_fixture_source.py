@@ -4,7 +4,10 @@
 These do NOT prove a signed test, a local schema-clone, source RLS or browser.
 """
 import importlib.util
+import json
+import os
 from pathlib import Path
+import stat
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -103,6 +106,58 @@ class E05FixtureSourceTest(unittest.TestCase):
                     e05.guard(
                         "postgresql://test:local@127.0.0.1:55433/atlas_e05_12345678",
                         temp)
+
+    def test_job_temp_cannot_be_a_symlink(self):
+        with tempfile.TemporaryDirectory() as root:
+            real = Path(root) / "real-runner-temp"
+            real.mkdir()
+            link = Path(root) / "symlink-to-runner-temp"
+            link.symlink_to(real, target_is_directory=True)
+            with patch.dict(os.environ, {"RUNNER_TEMP": str(link)}):
+                with self.assertRaises(e05.Refused):
+                    e05.job_temp()
+
+    def test_manifest_is_private_from_creation_and_does_not_store_credentials(self):
+        with tempfile.TemporaryDirectory() as root:
+            temp = Path(root)
+            data = temp / "postgres-owned-temp"
+            data.mkdir()
+            report = temp / "e05-fixture.json"
+            db = "postgresql://fixture:local@127.0.0.1:55433/atlas_e05_12345678"
+            variables = {
+                "RUNNER_TEMP": str(temp),
+                "ATLAS_E05_GOVERNOR_EMAIL": "e05-governor-one@example.invalid",
+                "ATLAS_E05_RECIPIENT_EMAIL": "e05-recipient-two@example.invalid",
+                "ATLAS_E05_OUTSIDER_EMAIL": "e05-outsider-three@example.invalid",
+                "ATLAS_E05_GOVERNOR_PASSWORD": "governor-local-1234",
+                "ATLAS_E05_RECIPIENT_PASSWORD": "recipient-local-5678",
+                "ATLAS_E05_OUTSIDER_PASSWORD": "outsider-local-4321",
+            }
+            mock_sql = [
+                "atlas_e05_12345678|127.0.0.1|" + str(data),
+                "0|0|0|0|0",
+                "",
+                "0|1|1",
+            ]
+            with patch.dict(os.environ, variables), \
+                 patch("sys.argv", ["e05", "--db-url", db, "--output", str(report)]), \
+                 patch.object(e05, "psql", side_effect=mock_sql) as called:
+                e05.main()
+            self.assertEqual(stat.S_IMODE(report.stat().st_mode), 0o600)
+            self.assertEqual(json.loads(report.read_text()), e05.manifest())
+            self.assertEqual(len(called.call_args_list), 4)
+            transaction = called.call_args_list[2].args[1]
+            self.assertTrue(transaction.startswith("BEGIN;"))
+            self.assertTrue(transaction.rstrip().endswith("COMMIT;"))
+            self.assertNotIn("real-person@", report.read_text())
+            self.assertNotIn("local-1234", report.read_text())
+            self.assertNotIn("local-5678", report.read_text())
+            with patch.dict(os.environ, variables), \
+                 patch("sys.argv", ["e05", "--db-url", db, "--output", str(report)]), \
+                 patch.object(e05, "psql", side_effect=AssertionError("Unnecessary SQL")):
+                with self.assertRaises(e05.Refused):
+                    e05.main()
+
 
 
 if __name__ == "__main__":
