@@ -83,7 +83,7 @@ def psql(db_url, sql):
 def guard(db_url, temp):
     database = db_name(db_url)
     columns = psql(db_url,
-        "SELECT current_database(), inet_server_addr()::text, current_setting('data_directory');")
+        "SELECT current_database(), host(inet_server_addr()), current_setting('data_directory');")
     fields = columns.split("|")
     require(len(fields) == 3 and fields[0] == database and fields[1] == "127.0.0.1",
             "Wrong local E05 source server")
