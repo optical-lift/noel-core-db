@@ -129,6 +129,7 @@ signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
 signed_universal_original_work_probe=false
 signed_work_self_assignment_probe=false
+signed_native_original_work_comments_probe=false
 signed_care_single_done_probe=false
 signed_native_work_release_probe=false
 signed_personal_task_amendment_probe=false
@@ -222,6 +223,17 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_work_self_assignment_probe=true
+fi
+
+# W07 exact scratch-only original Work comments, never a released migration.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_native_original_work_comments_signed_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$repo_root/scripts/validate-atlas-native-original-work-comments-signed-http.py" ]; then
+    echo "W07 requires a synthetic fixture, postconditions and signed local script." >&2
+    exit 2
+  fi
+  signed_native_original_work_comments_probe=true
 fi
 
 # Exact signed native progress for one original personal Task, local clone only.
@@ -682,6 +694,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_program_source_identity_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
        [ "$signed_work_self_assignment_probe" = true ] ||
+       [ "$signed_native_original_work_comments_probe" = true ] ||
        [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_personal_task_amendment_probe" = true ] ||
@@ -704,6 +717,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
+       [ "$signed_native_original_work_comments_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
        [ "$signed_venue_bed_probe" = true ] ||
@@ -1029,6 +1043,16 @@ if [ "$signed_work_self_assignment_probe" = true ]; then
   grep -q '^PASS' "$artifacts_dir/signed-work-self-assignment-summary.txt"
 fi
 
+if [ "$signed_native_original_work_comments_probe" = true ]; then
+  phase="genuine local signed W07 original Work comments and revocation"
+  python3 "$repo_root/scripts/validate-atlas-native-original-work-comments-signed-http.py" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-native-original-work-comments-summary.txt" \
+    >"$artifacts_dir/signed-native-original-work-comments.log" 2>&1
+  test -s "$artifacts_dir/signed-native-original-work-comments-summary.txt"
+  grep -q '^PASS W07 signed local GoTrue' "$artifacts_dir/signed-native-original-work-comments-summary.txt"
+fi
+
 if [ "$signed_universal_original_work_probe" = true ]; then
   phase="signed original Bed3/Bed4, worker disclosure denial and Household Laundry Actual"
   python3 "$repo_root/scripts/validate-atlas-universal-original-work-signed-http.py" \
@@ -1277,6 +1301,9 @@ if [ "$signed_personal_task_amendment_probe" = true ]; then
 fi
 if [ "$signed_native_work_release_probe" = true ]; then
   printf '\nSIGNED native Work editing/date/status: local independent GoTrue actors, original identity, stale edit, Result privacy, current plan and revoked seat all passed.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_native_original_work_comments_probe" = true ]; then
+  printf '\nSIGNED W07 original Work comments: four distinct local GoTrue sessions, scoped source read/write, denial, replay, paging and revocation. No Production writes.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_work_self_assignment_probe" = true ]; then
   printf '\\nSIGNED original Work: own-Person and other Person responsibility, exact idempotent replay, no forced plan/new Work, cross-Ledger denials and root/seat/session revocation passed on local clone.\\n' >> "$artifacts_dir/summary.md"
