@@ -193,7 +193,7 @@ def main():
     # failure Postgres rolls back, and the only returned result is a refusal.
     source = FIXTURE.read_text(encoding="utf-8")
     require("E05 SYNTHETIC nonprofit archive review" in source
-            and re.search(r"insert\\s+into\\s+atlas[.]farms\\b", source, re.I) is None,
+            and re.search(r"insert\s+into\s+atlas[.]farms\b", source, re.I) is None,
             "Unrecognized or agricultural E05 fixture source")
     psql(args.db_url, "BEGIN;\n" + source + "\n" + auth_sql(creds)
          + "\nCOMMIT;\n")
@@ -211,7 +211,7 @@ def main():
     descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         json.dump(manifest(), handle, indent=2)
-        handle.write("\\n")
+        handle.write("\n")
     print("E05_SYNTHETIC_NONFARM_FIXTURE_PREPARED; SIGNED_ACCEPTANCE_NOT_RUN")
 
 if __name__ == "__main__":
