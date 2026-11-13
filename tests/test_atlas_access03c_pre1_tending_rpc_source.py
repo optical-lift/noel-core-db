@@ -33,7 +33,10 @@ class Pre1RpcProof(unittest.TestCase):
      'error=="PGRST202"', '"PGRST205","42883"', 'time.sleep(0.5)',
      'NOTIFY pgrst', 'select to_regprocedure', 'snapshot(db)==baseline',
      'delete from atlas.task_objects', 'delete from atlas.tasks',
-     'delete from atlas.farm_memberships', 'PASS ACCESS03C-PRE1 signed '):
+     'delete from atlas.farm_memberships', 'PASS ACCESS03C-PRE1 signed ',
+     'class_baseline', 'operation_classes', 'water_nourish',
+     "delete from atlas.operation_classes",
+     "local operation class is not the exact reviewed production source"):
    self.assertIn(term,BODY)
   self.assertNotIn("'general','open','water','farm_shared'",BODY)
   self.assertNotIn('https://',BODY)
