@@ -213,9 +213,9 @@ jobs:
           for name in e05-roles.sql e05-schema.sql e05-roles-private.log e05-schema-private.log; do
             rm -f -- "$RUNNER_TEMP/$name"
           done
-          case "$E05_NOEL_WORK" in "$RUNNER_TEMP"/e05-noel.*) rm -rf -- "$E05_NOEL_WORK";; esac
-          case "$E05_ATLAS_WORK" in "$RUNNER_TEMP"/e05-atlas.*) rm -rf -- "$E05_ATLAS_WORK";; esac
-          case "$E05_CLI_DIR" in "$RUNNER_TEMP"/e05-cli) rm -rf -- "$E05_CLI_DIR";; esac
+          case "${E05_NOEL_WORK:-}" in "$RUNNER_TEMP"/e05-noel.*) rm -rf -- "$E05_NOEL_WORK";; esac
+          case "${E05_ATLAS_WORK:-}" in "$RUNNER_TEMP"/e05-atlas.*) rm -rf -- "$E05_ATLAS_WORK";; esac
+          case "${E05_CLI_DIR:-}" in "$RUNNER_TEMP"/e05-cli) rm -rf -- "$E05_CLI_DIR";; esac
           echo 'E05_CLEANUP_ATTEMPTED; NO_ARTIFACT_UPLOAD'
       - name: State exact limits
         if: always()
