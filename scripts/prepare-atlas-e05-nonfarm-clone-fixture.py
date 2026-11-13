@@ -57,8 +57,11 @@ def db_name(url):
 def job_temp():
     supplied = os.environ.get("RUNNER_TEMP")
     require(bool(supplied), "RUNNER_TEMP is required")
-    path = Path(supplied).resolve(strict=True)
-    require(path.is_dir() and not path.is_symlink(),
+    supplied_path = Path(supplied)
+    require(not supplied_path.is_symlink(),
+            "RUNNER_TEMP must not be a symbolic link")
+    path = supplied_path.resolve(strict=True)
+    require(path.is_dir(),
             "RUNNER_TEMP must be a real job-owned directory")
     return path
 
@@ -190,7 +193,7 @@ def main():
     # failure Postgres rolls back, and the only returned result is a refusal.
     source = FIXTURE.read_text(encoding="utf-8")
     require("E05 SYNTHETIC nonprofit archive review" in source
-            and "INSERT INTO atlas.farms" not in source,
+            and re.search(r"insert\\s+into\\s+atlas[.]farms\\b", source, re.I) is None,
             "Unrecognized or agricultural E05 fixture source")
     psql(args.db_url, "BEGIN;\n" + source + "\n" + auth_sql(creds)
          + "\nCOMMIT;\n")
@@ -203,10 +206,12 @@ def main():
                    AND seat_state='active');
     """)
     require(confirmed == "0|1|1", "E05 source postconditions not confirmed")
-    with output.open("x", encoding="utf-8") as handle:
-        os.fchmod(handle.fileno(), 0o600)
+    # Exclusive private creation: the manifest must never be world-readable,
+    # even between opening the file and applying a later chmod.
+    descriptor = os.open(output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
         json.dump(manifest(), handle, indent=2)
-        handle.write("\n")
+        handle.write("\\n")
     print("E05_SYNTHETIC_NONFARM_FIXTURE_PREPARED; SIGNED_ACCEPTANCE_NOT_RUN")
 
 if __name__ == "__main__":
