@@ -270,7 +270,7 @@ def run_signed_synthetic_auth_probe(db,env,root,api_port,project):
 CREATE FUNCTION public.e05_probe_owned_count()
 RETURNS integer LANGUAGE sql SECURITY INVOKER SET search_path = ''
 AS $e05$ SELECT count(*)::integer FROM e05_restore_probe.items $e05$;
-REVOKE EXECUTE ON FUNCTION public.e05_probe_owned_count() FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.e05_probe_owned_count() FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.e05_probe_owned_count() TO authenticated;
 COMMIT;
 NOTIFY pgrst, 'reload schema';""")
