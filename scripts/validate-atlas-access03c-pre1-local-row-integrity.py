@@ -31,14 +31,14 @@ REQUIRED = {
 # The older ACCESS03A/B signed authorization probe intentionally performs
 # local fixture transitions: manager -> farm_hand, native root revoke/restore,
 # synthetic retired-object marker add/remove, and their local state triggers.
-# The protected run #43339807118 independently identified exactly these four
-# changed relations before PRE1 signed RPC even began. This *audit boundary*
+# Protected rerun #43342788051 independently found exactly THREE changes
+# before PRE1 signed RPC; object_state is a *later PRE1 test-derived* row.
+# This *audit boundary*
 # never exempts the PRE1 function-only migration or PRE1 RPC cleanup from
-# all-table exact equality. Any fifth changed relation fails closed.
+# all-table exact equality. Any fourth changed relation fails closed.
 EXPECTED_ACCESS03_TRANSITION = frozenset({
     "atlas.farm_memberships",
     "atlas.growing_objects",
-    "atlas.object_state",
     "atlas.principal_ledger_authorities",
 })
 VERSION = 1
@@ -155,14 +155,14 @@ def run(db_url, mode, snapshot):
                      if current.get(name) != baseline.get(name))
     if mode == "audit-access03":
         # This scoped, explicit fixture transition is NOT a PRE1 no-loss pass.
-        # Require the exact complete four-table set, not a configurable ignore
+        # Require the exact complete three-table set, not a configurable ignore
         # list or permission to change other canonical Work/crop/care tables.
         if set(changed) != EXPECTED_ACCESS03_TRANSITION:
             raise RuntimeError(
                 "PRE1 ACCESS03 signed fixture transition mismatch; changed Atlas "
                 "relations: " + (", ".join(changed) if changed else "(none)")
             )
-        print("PASS ACCESS03 signed fixture transition confined to four "
+        print("PASS ACCESS03 signed fixture transition confined to three "
               "reviewed Atlas relations; all others identical")
         return
     if changed:
