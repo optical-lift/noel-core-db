@@ -44,7 +44,8 @@ def snapshot(db):
     return tuple(c1.sql(db,"select count(*) from atlas."+table)
                  for table in ("tasks","work_items","growing_objects",
                                "crop_cycles","care_state_history","zones",
-                               "farm_memberships","task_objects"))
+                               "farm_memberships","task_objects",
+                               "operation_classes"))
 
 def local_sql(db,query):
     try:
@@ -71,6 +72,27 @@ def verify_rest(api,key,tokens,db):
               "synthetic test ID collision: "+table)
 
     baseline=snapshot(db)
+
+    # Production's source-owned operation catalog is TABLE DATA, not DDL,
+    # and is absent from the schema-only clone. Pin exactly the reviewed
+    # canonical "water_nourish" catalog entry; never disable the foreign key
+    # or replace the real operation classifier with an invented code.
+    class_baseline=local_sql(db, """select count(*)
+        from atlas.operation_classes where stable_key='water_nourish'""")
+    check(class_baseline in ("0","1"),"local operation catalog identity drift")
+    if class_baseline=="0":
+        local_sql(db, """insert into atlas.operation_classes(
+            stable_key,label,operation_domain,definition,active,metadata)
+            values('water_nourish','Water / nourish','care',
+              'Supply water or comparable direct nourishment to sustain present growth.',
+              true,'{}'::jsonb)""")
+    check(local_sql(db, """select count(*) from atlas.operation_classes
+        where stable_key='water_nourish'
+          and label='Water / nourish' and operation_domain='care'
+          and definition='Supply water or comparable direct nourishment to sustain present growth.'
+          and active and metadata='{}'::jsonb""")=="1",
+          "local operation class is not the exact reviewed production source")
+
     local_sql(db,f"""insert into atlas.farm_memberships(
         id,user_id,farm_id,role,worker_key,active,permissions)
         values('{OWNER_MEMBERSHIP}'::uuid,'{c1.OWNER}'::uuid,'{FARM}'::uuid,
@@ -155,6 +177,12 @@ def verify_rest(api,key,tokens,db):
     local_sql(db,f"delete from atlas.task_objects where id='{TASK_LINK}'::uuid")
     local_sql(db,f"delete from atlas.tasks where id='{TASK}'::uuid")
     local_sql(db,f"delete from atlas.farm_memberships where id='{OWNER_MEMBERSHIP}'::uuid")
+    if class_baseline=="0":
+        local_sql(db, """delete from atlas.operation_classes
+            where stable_key='water_nourish'
+              and label='Water / nourish'
+              and operation_domain='care'
+              and metadata='{}'::jsonb""")
     check(snapshot(db)==baseline,
           "original synthetic Work/crop/care/zone and extra test-table counts changed")
     for table,identifier in (("tasks",TASK),("farm_memberships",OWNER_MEMBERSHIP),
