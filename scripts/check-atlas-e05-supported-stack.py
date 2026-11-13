@@ -90,7 +90,7 @@ def attested_volume(inspect,project,pgdata,dbport,sql_server_ip):
          "Unexpected local PG port mapping")
     return valid[0]["Name"]
 
-def run(synthetic_restore=False):
+def run(synthetic_restore=False,signed_synthetic_auth=False):
     need(platform.system()=="Linux" and platform.machine()=="x86_64",
          "Only hosted Ubuntu x64 supports this synthetic test")
     raw=os.environ.get("RUNNER_TEMP","")
@@ -156,7 +156,7 @@ def run(synthetic_restore=False):
         except (OSError,urllib.error.HTTPError):
             raise Held("Local real Auth health unavailable") from None
         need(health==200,"Local managed Auth not healthy")
-        if synthetic_restore:
+        if synthetic_restore or signed_synthetic_auth:
             stage="SYNTHETIC_ROLES_AND_SCHEMA_RESTORE"
             helper=Path(__file__).with_name("atlas-e05-hosted-synthetic-restore.py")
             need(helper.is_file() and not helper.is_symlink(),
@@ -168,6 +168,9 @@ def run(synthetic_restore=False):
             spec.loader.exec_module(module)
             try:
                 module.run_synthetic_restore(db,db_env,root)
+                if signed_synthetic_auth:
+                    stage="REAL_GOTRUE_THREE_SESSION_SYNTHETIC_RLS"
+                    module.run_signed_synthetic_auth_probe(db,db_env,root,apiport,project)
             except (module.Refused,OSError,ValueError,subprocess.SubprocessError):
                 raise Held("Hosted synthetic restore refused; private details withheld") from None
         print("E05_SUPPORTED_STACK=PASS; PG17=TRUE; AUTH=REAL_LOCAL; "+
@@ -196,8 +199,10 @@ def run(synthetic_restore=False):
 if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--synthetic-restore-probe",action="store_true")
+    parser.add_argument("--signed-synthetic-auth-probe",action="store_true")
     flags=parser.parse_args()
-    try:raise SystemExit(run(synthetic_restore=flags.synthetic_restore_probe))
+    try:raise SystemExit(run(synthetic_restore=flags.synthetic_restore_probe,
+                             signed_synthetic_auth=flags.signed_synthetic_auth_probe))
     except (Held,OSError,ValueError,subprocess.SubprocessError):
         print("E05_SUPPORTED_STACK=HELD; NO_PRODUCTION_ACCESS")
         raise SystemExit(1) from None
