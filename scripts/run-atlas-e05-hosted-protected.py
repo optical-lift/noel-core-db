@@ -44,6 +44,35 @@ def local_sql(db,query,env):
     return private_command(['psql',db,'-X','-A','-t','-v','ON_ERROR_STOP=1',
                             '-c',query],env=env,timeout=35)
 
+def attested_pg_connection(details,name,data,port,server_ip):
+    """Prove Docker's actual SQL server, local port and job bind mount match.
+
+    A host's 127.0.0.1 published endpoint normally reaches the container's
+    bridge IP: requiring inet_server_addr() == 127.0.0.1 would falsely reject
+    the valid hosted setup. Do not weaken this to an unchecked non-loopback IP.
+    """
+    require(isinstance(details,dict) and details.get('Name')=='/'+name
+            and details.get('State',{}).get('Running') is True,
+            'E05 Docker instance identity or state mismatch')
+    mounts=details.get('Mounts')
+    require(isinstance(mounts,list),'E05 Docker mount inventory missing')
+    matched=[m for m in mounts if m.get('Destination')==data]
+    require(len(matched)==1 and matched[0].get('Type')=='bind'
+            and matched[0].get('Source')==data
+            and matched[0].get('RW') is True,
+            'E05 PGDATA is not the exact job-owned bind mount')
+    bound=details.get('NetworkSettings',{}).get('Ports',{}).get('5432/tcp')
+    require(isinstance(bound,list) and len(bound)==1
+            and bound[0].get('HostIp')=='127.0.0.1'
+            and bound[0].get('HostPort')==str(port),
+            'E05 PostgreSQL must be published on the exact loopback port only')
+    networks=details.get('NetworkSettings',{}).get('Networks',{})
+    require(isinstance(networks,dict) and server_ip
+            and any(isinstance(n,dict) and n.get('IPAddress')==server_ip
+                    for n in networks.values()),
+            'E05 connected SQL interface does not belong to the attested container')
+    return True
+
 def clean_docker(resources,temp):
     name,root=resources.get('name'),resources.get('dbroot')
     if name:
@@ -94,11 +123,21 @@ def db_start(runtime,native,temp,resources):
         # An actual connected but mismatched server is a hard failure, not a
         # temporary network issue to conceal behind retries.
         p=row.split('|')
-        require(len(p)==4 and p[0]==database and p[1]=='127.0.0.1'
-                and p[2]==data and int(p[3])//10000==17,
-                'Disposable PG17 database, loopback or PGDATA mismatch')
+        require(len(p)==4 and p[0]==database and p[2]==data
+                and int(p[3])//10000==17,
+                'Disposable PG17 database or PGDATA mismatch')
         require(temp in Path(p[2]).resolve(strict=True).parents,
                 'Disposable image PGDATA not inside job temporary directory')
+        # The published host endpoint is loopback, but PostgreSQL reports
+        # its Docker network interface; verify that exact network identity.
+        try:
+            inspected=json.loads(private_command(
+                ['docker','container','inspect',name],timeout=25))
+        except (ValueError,TypeError):
+            raise Held('Invalid E05 Docker provenance response') from None
+        require(isinstance(inspected,list) and len(inspected)==1,
+                'Unrecognized E05 Docker provenance response')
+        attested_pg_connection(inspected[0],name,data,port,p[1])
         return db,env,port,passwd,database
     raise Held('Pinned container PostgreSQL 17 did not become ready')
 
