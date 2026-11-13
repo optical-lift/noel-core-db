@@ -154,6 +154,23 @@ jobs:
           test "$(git -C "$E05_NOEL_WORK/canonical" rev-parse HEAD)" = "${{ steps.pins.outputs.noel_main_sha }}"
           test "$(git -C "$E05_NOEL_WORK/source" rev-parse HEAD)" = "${{ steps.pins.outputs.noel_test_sha }}"
           test -s "$E05_NOEL_WORK/source/candidates/atlas/atlas_e05_nonfarm_original_work_clone_only/fixture.sql"
+          # All executable E05 source and the exact synthetic fixture are
+          # independently reviewed blob pins inside this main-branch workflow.
+          # An owner issue can select a revision but cannot silently change
+          # any of these source bodies without another reviewed workflow update.
+          while read -r relative expected; do
+            actual="$(git -C "$E05_NOEL_WORK/source" hash-object "$relative")"
+            test "$actual" = "$expected" || {
+              echo "E05_HELD: immutable Noel source blob changed: $relative"
+              exit 1
+            }
+          done <<'E05_SOURCE_BLOBS'
+scripts/run-atlas-e05-owner-protected-signed.py 06e86d61679cfaf4fc2cf0757a6ea7193fbcbae8
+scripts/check-atlas-e05-current-source.py 38d52c7e67c6419c49fbbbaef64c2de935862847
+scripts/prepare-atlas-e05-nonfarm-clone-fixture.py e57857657796d650377f73edafc9f87da4b7a302
+scripts/run-atlas-e05-isolated-riversong.py e3f4ef16ae2e2dd7d8f82e64dc9b28ddbb90c174
+candidates/atlas/atlas_e05_nonfarm_original_work_clone_only/fixture.sql 1d563fefa72b9747e88cd74043e53e8f15ffb3f6
+E05_SOURCE_BLOBS
           python3 -m py_compile "$E05_NOEL_WORK/source/scripts/run-atlas-e05-owner-protected-signed.py"
           python3 "$E05_NOEL_WORK/source/tests/test_atlas_e05_owner_protected_source.py"
           echo 'E05_GOVERNED_CONTROLLER_SOURCE=PASS'
