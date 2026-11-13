@@ -100,7 +100,17 @@ def fingerprint(db_url):
             ", '' ORDER BY " + row_digest + "),''),'UTF8')),'hex') AS digest "
             "FROM " + quote_ident("atlas") + "." + quote_ident(name) + " AS t"
         )
-    rows = select_only(db_url, " UNION ALL ".join(pieces) + " ORDER BY relation_name;")
+    # Several hundred Atlas relations exist. Small bounded batches avoid one
+    # massive UNION plan, while the final map still covers every base table.
+    rows = []
+    for start in range(0, len(pieces), 32):
+        batch = pieces[start:start + 32]
+        try:
+            rows.extend(select_only(db_url, " UNION ALL ".join(batch) +
+                                    " ORDER BY relation_name;"))
+        except RuntimeError as exc:
+            raise RuntimeError("PRE1 local Atlas relation fingerprint batch " +
+                               str(start // 32 + 1) + " failed") from exc
     result = {}
     for row in rows:
         if len(row) != 3 or row[0] in result or not row[1].isdigit():
