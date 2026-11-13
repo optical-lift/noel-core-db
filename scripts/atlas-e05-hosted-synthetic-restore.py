@@ -87,6 +87,7 @@ def psql(url, env, sql=None, script=None, sqlstate=False, expect_error=False):
             "Production connection environment must not enter this probe")
     args = ["psql", url, "-X", "-A", "-t", "-v", "ON_ERROR_STOP=1",
             "-v", "VERBOSITY=sqlstate" if sqlstate else "VERBOSITY=terse"]
+    input_sql = None
     if script is not None:
         require(Path(script).is_file() and not Path(script).is_symlink(),
                 "SQL file unavailable or symlinked")
@@ -94,9 +95,12 @@ def psql(url, env, sql=None, script=None, sqlstate=False, expect_error=False):
     else:
         require(isinstance(sql, str) and sql.strip() != "",
                 "Missing fixed local query")
-        args += ["-c", sql]
+        # stdin runs each statement independently in one psql connection,
+        # retaining SET LOCAL identity for the subsequent SELECT result.
+        input_sql = sql + "\n"
     try:
-        result = subprocess.run(args, env=env, capture_output=True, text=True,
+        result = subprocess.run(args, env=env, input=input_sql,
+                                capture_output=True, text=True,
                                 check=False, timeout=45)
     except (OSError, subprocess.SubprocessError):
         raise Refused("Disposable psql command unavailable") from None
