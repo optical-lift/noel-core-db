@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""E05 synthetic-only GitHub-hosted Supabase CLI startup attestation.
+
+No Production URL, roles/schema snapshot, Work fixture, user credentials,
+or signed acceptance. This tests supported Supabase local PG17+Auth startup
+and a random job-unique Docker database volume, with mandatory cleanup.
+"""
+import json
+import os
+from pathlib import Path,PurePosixPath
+import platform
+import re
+import secrets
+import shutil
+import socket
+import subprocess
+import tempfile
+import urllib.error
+import urllib.request
+
+class Held(RuntimeError): pass
+def need(ok,reason):
+    if not ok: raise Held(reason)
+
+def cmd(args,cwd=None,env=None,timeout=100,log=None):
+    try:
+        p=subprocess.run([str(x) for x in args],cwd=cwd,env=env,
+             capture_output=True,text=True,timeout=timeout,check=False)
+    except (OSError,subprocess.SubprocessError):
+        raise Held("Local stack command unavailable") from None
+    if log:
+        Path(log).write_text((p.stdout+p.stderr)[:250000],encoding="utf-8")
+        os.chmod(log,0o600)
+    need(p.returncode==0,"Isolated local stack command failed; details withheld")
+    return p.stdout.strip()
+
+def port():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1",0))
+        return sock.getsockname()[1]
+
+def configure(path,project,dbport,apiport):
+    need(re.fullmatch(r'e05host_[0-9a-f]{16}',project)!=None,"Bad job identity")
+    section=""
+    flags={"project":0,"db":0,"api":0}
+    lines=[]
+    for line in path.read_text().splitlines(keepends=True):
+        stripped=line.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):section=stripped
+        if section=="" and re.match(r'^project_id\s*=',stripped):
+            line=f'project_id = "{project}"\n';flags["project"]+=1
+        elif section=="[db]" and re.match(r'^port\s*=',stripped):
+            line=f'port = {dbport}\n';flags["db"]+=1
+        elif section=="[api]" and re.match(r'^port\s*=',stripped):
+            line=f'port = {apiport}\n';flags["api"]+=1
+        lines.append(line)
+    need(flags=={"project":1,"db":1,"api":1},"Unrecognized local Supabase config")
+    path.write_text("".join(lines))
+
+def attested_volume(inspect,project,pgdata,dbport):
+    need(inspect.get("Name")=="/supabase_db_"+project and
+         inspect.get("State",{}).get("Running") is True,
+         "Wrong running local DB container")
+    need(isinstance(pgdata,str) and pgdata.startswith("/"),
+         "Missing local PostgreSQL data-directory identity")
+    pg=PurePosixPath(pgdata)
+    mounts=inspect.get("Mounts",[])
+    valid=[m for m in mounts if m.get("Type")=="volume" and
+           isinstance(m.get("Name"),str) and m["Name"].endswith("_"+project)
+           and isinstance(m.get("Destination"),str)
+           and (PurePosixPath(m["Destination"])==pg or
+                PurePosixPath(m["Destination"]) in pg.parents)]
+    need(len(valid)==1,"Database PGDATA not in isolated project Docker volume")
+    bind=inspect.get("NetworkSettings",{}).get("Ports",{}).get("5432/tcp",[])
+    need(any(p.get("HostPort")==str(dbport) for p in (bind or [])),
+         "Unexpected local PG port mapping")
+    return valid[0]["Name"]
+
+def run():
+    need(platform.system()=="Linux" and platform.machine()=="x86_64",
+         "Only hosted Ubuntu x64 supports this synthetic test")
+    raw=os.environ.get("RUNNER_TEMP","")
+    need(raw and not Path(raw).is_symlink(),"Missing job-owned temporary root")
+    temp=Path(raw).resolve(strict=True)
+    need(temp.is_dir(),"Invalid job-owned temporary root")
+    need(cmd(["supabase","--version"]).splitlines()[-1]=="2.116.0",
+         "Unexpected Supabase CLI version")
+    cmd(["docker","info"],timeout=35)
+    need(shutil.which("psql") is not None,"PostgreSQL client missing")
+    os.umask(0o077)
+    root=Path(tempfile.mkdtemp(prefix="e05-supported-stack.",dir=temp))
+    project=root/"project"
+    project.mkdir(mode=0o700)
+    ident="e05host_"+secrets.token_hex(8)
+    dbport,apiport=port(),port()
+    need(dbport!=apiport,"Overlapping local ports")
+    env=dict(os.environ)
+    env.pop("NOEL_CORE_DATABASE_URL",None)
+    env.pop("SUPABASE_DB_URL",None)
+    started=False
+    volume=None
+    outcome=1
+    stage="INITIALIZE"
+    try:
+        cmd(["supabase","init","--force"],cwd=project,env=env,log=root/"init.log")
+        configure(project/"supabase/config.toml",ident,dbport,apiport)
+        stage="FRESH_PROJECT_IDENTITY"
+        try:cmd(["docker","container","inspect","supabase_db_"+ident],timeout=12)
+        except Held:pass
+        else:raise Held("Job project container existed before startup")
+        stage="SUPPORTED_SUPABASE_START"
+        started=True
+        cmd(["supabase","start","-x",
+             "realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"],
+            cwd=project,env=env,timeout=720,log=root/"start.log")
+        stage="LOCAL_PG17_MANAGED_AUTH"
+        db=f"postgresql://postgres@127.0.0.1:{dbport}/postgres"
+        db_env=dict(env,PGPASSWORD="postgres",PGCONNECT_TIMEOUT="5")
+        query=("SELECT current_database(),host(inet_server_addr()),"
+               "current_setting('data_directory'),current_setting('server_version_num'),"
+               "to_regclass('auth.users') IS NOT NULL,"
+               "to_regclass('auth.sessions') IS NOT NULL,"
+               "to_regclass('auth.identities') IS NOT NULL,"
+               "(SELECT count(*) FROM auth.users),(SELECT count(*) FROM auth.sessions);")
+        values=cmd(["psql",db,"-X","-A","-t","-v","ON_ERROR_STOP=1","-c",query],
+                   env=db_env,timeout=30).split("|")
+        need(len(values)==9 and values[0:2]==["postgres","127.0.0.1"]
+             and int(values[3])//10000==17 and values[4:]==["t","t","t","0","0"],
+             "Local PG17 managed Auth or empty-state mismatch")
+        stage="DOCKER_PROJECT_VOLUME"
+        info=json.loads(cmd(["docker","container","inspect","supabase_db_"+ident],
+                             timeout=30))[0]
+        volume=attested_volume(info,ident,values[2],dbport)
+        stage="LOCAL_GOTRUE_HEALTH"
+        opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        try:
+            with opener.open(f"http://127.0.0.1:{apiport}/auth/v1/health",
+                             timeout=12) as res:health=res.status
+        except (OSError,urllib.error.HTTPError):
+            raise Held("Local real Auth health unavailable") from None
+        need(health==200,"Local managed Auth not healthy")
+        print("E05_SUPPORTED_STACK=PASS; PG17=TRUE; AUTH=REAL_LOCAL; "+
+              "UNIQUE_VOLUME=TRUE; LIVE_DATA=NONE; E05_SIGNED=NOT_RUN")
+        outcome=0
+    except (Held,KeyError,IndexError,ValueError,subprocess.SubprocessError):
+        print("E05_SUPPORTED_STACK=HELD; STAGE="+stage+"; PRIVATE_DIAGNOSTICS_WITHHELD")
+    finally:
+        if started:
+            try:cmd(["supabase","stop","--no-backup"],cwd=project,
+                    env=env,timeout=240,log=root/"stop.log")
+            except Held:
+                print("E05_SUPPORTED_STACK_CLEANUP=HELD");outcome=1
+        if volume:
+            try:cmd(["docker","volume","inspect",volume],timeout=20)
+            except Held:pass
+            else:
+                print("E05_SUPPORTED_STACK_VOLUME_RETAINED=HELD");outcome=1
+        need(temp in root.resolve().parents and root.name.startswith("e05-supported-stack."),
+             "Refuse foreign temporary cleanup")
+        shutil.rmtree(root,ignore_errors=True)
+        if root.exists():
+            print("E05_SUPPORTED_STACK_TEMP_RETAINED=HELD");outcome=1
+    return outcome
+
+if __name__=="__main__":
+    try:raise SystemExit(run())
+    except (Held,OSError,ValueError,subprocess.SubprocessError):
+        print("E05_SUPPORTED_STACK=HELD; NO_PRODUCTION_ACCESS")
+        raise SystemExit(1) from None
