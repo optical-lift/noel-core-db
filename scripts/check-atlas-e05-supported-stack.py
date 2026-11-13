@@ -86,9 +86,18 @@ def attested_volume(inspect,project,pgdata,dbport,sql_server_ip):
                 PurePosixPath(m["Destination"]) in pg.parents)]
     need(len(valid)==1,"Database PGDATA not in isolated project Docker volume")
     bind=inspect.get("NetworkSettings",{}).get("Ports",{}).get("5432/tcp",[])
-    need(any(p.get("HostPort")==str(dbport) for p in (bind or [])),
-         "Unexpected local PG port mapping")
+    need(isinstance(bind,list) and len(bind)==1 and
+         bind[0].get("HostIp")=="127.0.0.1" and
+         bind[0].get("HostPort")==str(dbport),
+         "Database port must have one exact loopback-only mapping")
     return valid[0]["Name"]
+
+def attested_network(info,expected):
+    need(info.get("Name")==expected and info.get("Driver")=="bridge"
+         and info.get("Options",{}).get(
+             "com.docker.network.bridge.host_binding_ipv4")=="127.0.0.1",
+         "Docker network is not an exact dedicated loopback bridge")
+    return True
 
 def run(synthetic_restore=False,signed_synthetic_auth=False):
     need(platform.system()=="Linux" and platform.machine()=="x86_64",
@@ -112,6 +121,7 @@ def run(synthetic_restore=False,signed_synthetic_auth=False):
     env.pop("NOEL_CORE_DATABASE_URL",None)
     env.pop("SUPABASE_DB_URL",None)
     started=False
+    network=None
     volume=None
     outcome=1
     stage="INITIALIZE"
@@ -122,9 +132,22 @@ def run(synthetic_restore=False,signed_synthetic_auth=False):
         try:cmd(["docker","container","inspect","supabase_db_"+ident],timeout=12)
         except Held:pass
         else:raise Held("Job project container existed before startup")
+        stage="LOOPBACK_DOCKER_NETWORK"
+        name="e05net_"+secrets.token_hex(8)
+        need("--network-id" in cmd(["supabase","start","--help"],cwd=project,
+                                     env=env,timeout=35),
+             "Pinned Supabase CLI does not support an explicit network")
+        cmd(["docker","network","create","--driver","bridge",
+             "--opt","com.docker.network.bridge.host_binding_ipv4=127.0.0.1",
+             name],timeout=30)
+        network=name
+        network_info=json.loads(cmd(["docker","network","inspect",network],timeout=20))
+        need(isinstance(network_info,list) and len(network_info)==1,
+             "Docker network inspect did not return one job bridge")
+        attested_network(network_info[0],network)
         stage="SUPPORTED_SUPABASE_START"
         started=True
-        cmd(["supabase","start","-x",
+        cmd(["supabase","start","--network-id",network,"-x",
              "realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor"],
             cwd=project,env=env,timeout=720,log=root/"start.log")
         stage="LOCAL_PG17_MANAGED_AUTH"
@@ -212,6 +235,15 @@ def run(synthetic_restore=False,signed_synthetic_auth=False):
                     env=env,timeout=240,log=root/"stop.log")
             except Held:
                 print("E05_SUPPORTED_STACK_CLEANUP=HELD");outcome=1
+        if network:
+            try:
+                cmd(["docker","network","rm",network],timeout=35)
+            except Held:
+                print("E05_SUPPORTED_STACK_NETWORK_CLEANUP=HELD");outcome=1
+            try:cmd(["docker","network","inspect",network],timeout=15)
+            except Held:pass
+            else:
+                print("E05_SUPPORTED_STACK_NETWORK_RETAINED=HELD");outcome=1
         if volume:
             try:cmd(["docker","volume","inspect",volume],timeout=20)
             except Held:pass
