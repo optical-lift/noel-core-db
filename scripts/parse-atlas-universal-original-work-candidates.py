@@ -73,3 +73,48 @@ if functions < 20:
 print(f"PASS SQL and PL/pgSQL grammar on {len(paths)} held candidates and postconditions, "
       f"{functions} function bodies")
 print("PENDING disposable production-schema compilation and independent signed acceptance")
+
+# W07 ordinary comments are held source code, not an installed RPC. Validate
+# the local-only signed probe source on the same PR without any database access.
+w07=root/"atlas_native_original_work_comments_v1"
+if w07.is_dir():
+    import ast
+    probe=root.parents[1]/"scripts"/"validate-atlas-native-original-work-comments-signed-http.py"
+    if not probe.is_file():
+        raise SystemExit("W07 held candidate is missing its signed local probe")
+    source=probe.read_text()
+    ast.parse(source, filename=str(probe))
+    sql=(w07/"candidate.sql").read_text()
+    required_sql=(
+        "native_original_work_comments_v1",
+        "append_native_original_work_comment_self_api_v1",
+        "read_native_original_work_comments_self_api_v1",
+        "native_original_work_comment_actor_v1",
+        "BEFORE UPDATE OR DELETE",
+        "originalWorkStateUnchanged",
+        "notificationDelivered",
+        "isWorkResult",
+        "authorIdentityDisclosure",
+        "p_after_recorded_at",
+    )
+    required_signed=(
+        "127[.]0[.]0[.]1",
+        "c1.local_status()",
+        "base.setup_auth",
+        "c1.sign_in",
+        '"owner", "worker", "outsider", "no-seat"',
+        "revoked worker",
+        "different",
+        "original Work",
+        "work_execution_results",
+    )
+    for token in required_sql:
+        if token not in sql:
+            raise SystemExit("W07 SQL source required token absent: "+token)
+    for token in required_signed:
+        if token.lower() not in source.lower():
+            raise SystemExit("W07 signed local probe required token absent: "+token)
+    if "mcp.supabase.com" in source or "zirqkouammpwxlqfbsvf.supabase.co" in source:
+        raise SystemExit("W07 local-only signed probe contains a production endpoint")
+    print("PASS W07 source grammar plus parseable local-only signed GoTrue/REST probe")
+    print("PENDING W07 real protected disposable signed-clone execution")
