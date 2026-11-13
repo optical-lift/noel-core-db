@@ -52,6 +52,7 @@ class E05FixtureSourceTest(unittest.TestCase):
         self.assertEqual(sql.count("insert into atlas.work_items"), 1)
         self.assertEqual(sql.count("insert into atlas.company_work_native_ledger_relevance"), 1)
         self.assertNotIn("insert into atlas.farms", sql)
+        self.assertNotIn("insert into ledger.actions", sql)
         self.assertNotIn("grant ", sql)
         self.assertNotIn("create policy", sql)
         self.assertIn("ordinary_company_work_worker_attestation_v1", sql)
