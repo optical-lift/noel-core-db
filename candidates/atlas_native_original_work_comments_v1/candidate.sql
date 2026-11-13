@@ -352,4 +352,22 @@ GRANT EXECUTE ON FUNCTION public.read_native_original_work_comments_self_api_v1(
   uuid,uuid,uuid,integer,timestamptz,uuid
 ) TO authenticated;
 
+-- Even a privileged adapter may not silently rewrite the originally
+-- authored comment. Corrections require a separate explicitly governed event.
+CREATE OR REPLACE FUNCTION atlas.reject_native_original_work_comment_mutation_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $function$
+BEGIN
+  RAISE EXCEPTION 'Original Work comments are immutable; append a correction'
+    USING ERRCODE='42501';
+END
+$function$;
+REVOKE ALL ON FUNCTION atlas.reject_native_original_work_comment_mutation_v1()
+  FROM PUBLIC,anon,authenticated,service_role;
+DROP TRIGGER IF EXISTS reject_native_original_work_comment_mutation_v1
+  ON atlas.native_original_work_comments_v1;
+CREATE TRIGGER reject_native_original_work_comment_mutation_v1
+  BEFORE UPDATE OR DELETE ON atlas.native_original_work_comments_v1
+  FOR EACH ROW EXECUTE FUNCTION atlas.reject_native_original_work_comment_mutation_v1();
+
 COMMIT;
