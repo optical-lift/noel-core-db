@@ -41,7 +41,7 @@ class BridgeTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "data.txt"
             p.write_bytes(b"sample E05 bytes")
-            known = hashlib.sha1(b"blob 16\\0sample E05 bytes").hexdigest()
+            known = hashlib.sha1(b"blob 16\0sample E05 bytes").hexdigest()
             self.assertEqual(bridge.file_blob_sha(p), known)
 
     def test_remote_and_pathful_api_refused(self):
