@@ -414,6 +414,9 @@ jobs:
           test -s "$scratch/w07-fixture.sql"
           # Signed script stays local: never promoted into trusted main by this job.
           cp held/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/
+          version="$(basename "${migrations[0]}" | cut -d_ -f1)"
+          [[ "$version" =~ ^[0-9]{14}$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "migration=${migrations[0]}" >> "$GITHUB_OUTPUT"
           echo "fixture=$scratch/w07-fixture.sql" >> "$GITHUB_OUTPUT"
           echo "postconditions=$candidate/postconditions.sql" >> "$GITHUB_OUTPUT"
@@ -423,7 +426,7 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/validate-production-schema-clone.sh \
-            --migration-version "${{ steps.scratch.outputs.migration }}" \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
             --release-lane atlas \
             --candidate-migration "${{ steps.scratch.outputs.migration }}" \
             --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
