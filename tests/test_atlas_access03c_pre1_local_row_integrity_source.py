@@ -104,6 +104,33 @@ class PRE1RowIntegrity(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "atlas.work_items"):
                     module.run(db, "verify", later)
 
+    def test_protected_clone_keeps_three_independent_fail_closed_checkpoints(self):
+        harness = (ROOT / "scripts/validate-production-schema-clone.sh").read_text()
+        workflow = (ROOT / ".github/workflows/atlas-access03c-pre1-protected-held-pair-clone.yml").read_text()
+        self.assertIn('pre1_row_snapshot="$runtime_dir/pre1-all-atlas-row-fingerprints.json"', harness)
+        self.assertIn('pre1_post_access03_snapshot="$runtime_dir/pre1-post-access03-fingerprints.json"', harness)
+        self.assertIn('--snapshot "$pre1_row_snapshot" --mode audit-access03', harness)
+        self.assertIn('--snapshot "$pre1_post_access03_snapshot" --mode capture', harness)
+        self.assertIn('--snapshot "$pre1_post_access03_snapshot" --mode verify', harness)
+        candidate = harness.index('phase="PRE1 local all-Atlas-row unchanged after function retirement"')
+        existing = harness.index('phase="genuine signed local ACCESS-03A legacy zone')
+        audit = harness.index('phase="PRE1 verify exact existing ACCESS03 signed fixture transition"')
+        pre1 = harness.index('phase="signed local PRE1 v1 REST RPC absence')
+        cleanup = harness.index('phase="PRE1 local all-Atlas-row unchanged after PRE1 signed HTTP cleanup"')
+        self.assertLess(candidate, existing)
+        self.assertLess(existing, audit)
+        self.assertLess(audit, pre1)
+        self.assertLess(pre1, cleanup)
+        for log in (
+            "pre1-local-row-integrity-after-candidate.log",
+            "pre1-local-access03-fixture-transition.log",
+            "pre1-local-after-access03-baseline.log",
+            "pre1-local-row-integrity-after-signed.log",
+        ):
+            self.assertIn(log, workflow)
+        self.assertNotIn("DROP FUNCTION atlas.", workflow)
+        self.assertIn("environment: production", workflow)
+
     def test_generated_query_is_scoped_to_catalog_names_and_complete(self):
         sample = sorted(x.removeprefix("atlas.") for x in module.REQUIRED)
         row = ["atlas."+sample[0], "1", "a"*64]
