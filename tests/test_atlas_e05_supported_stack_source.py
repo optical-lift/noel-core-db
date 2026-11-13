@@ -49,7 +49,7 @@ class SupportedStackSource(unittest.TestCase):
            "State":{"Running":True},
            "Mounts":[{"Type":"volume","Name":"supabase_db_e05host_0123456789abcdef",
                       "Destination":"/var/lib/postgresql/data"}],
-           "NetworkSettings":{"Ports":{"5432/tcp":[{"HostPort":"50001"}]},
+           "NetworkSettings":{"Ports":{"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"50001"}]},
                               "Networks":{"supabase_network":{"IPAddress":"172.18.0.6"}}}}
         self.assertEqual(m.attested_volume(x,"e05host_0123456789abcdef",
                          "/var/lib/postgresql/data",50001,"172.18.0.6"),
@@ -60,6 +60,8 @@ class SupportedStackSource(unittest.TestCase):
            lambda y:y["Mounts"][0].update({"Name":"supabase_db_another"}),
            lambda y:y["Mounts"][0].update({"Type":"bind"}),
            lambda y:y["NetworkSettings"]["Ports"]["5432/tcp"][0].update({"HostPort":"54322"}),
+           lambda y:y["NetworkSettings"]["Ports"]["5432/tcp"][0].update({"HostIp":"0.0.0.0"}),
+           lambda y:y["NetworkSettings"]["Ports"]["5432/tcp"].append({"HostIp":"127.0.0.1","HostPort":"50001"}),
            lambda y:y["NetworkSettings"]["Networks"]["supabase_network"].update({"IPAddress":"172.18.0.7"}),
         ):
             import copy
@@ -68,6 +70,27 @@ class SupportedStackSource(unittest.TestCase):
             with self.assertRaises(m.Held):
                 m.attested_volume(altered,"e05host_0123456789abcdef",
                                  "/var/lib/postgresql/data",50001,"172.18.0.6")
+
+    def test_network_must_be_dedicated_loopback_bridge(self):
+        base={"Name":"e05net_0123456789abcdef","Driver":"bridge",
+              "Options":{"com.docker.network.bridge.host_binding_ipv4":"127.0.0.1"}}
+        self.assertTrue(m.attested_network(base,"e05net_0123456789abcdef"))
+        import copy
+        for mutate in (
+            lambda v:v.update({"Name":"foreign-network"}),
+            lambda v:v.update({"Driver":"overlay"}),
+            lambda v:v["Options"].update(
+                {"com.docker.network.bridge.host_binding_ipv4":"0.0.0.0"}),
+            lambda v:v.update({"Options":{}})
+        ):
+            wrong=copy.deepcopy(base)
+            mutate(wrong)
+            with self.assertRaises(m.Held):
+                m.attested_network(wrong,"e05net_0123456789abcdef")
+        s=SOURCE.read_text()
+        self.assertIn('"--network-id",network',s)
+        self.assertIn('com.docker.network.bridge.host_binding_ipv4=127.0.0.1',s)
+        self.assertIn('"docker","network","rm",network',s)
 
     def test_no_shell_injection_or_log_leaks(self):
         s=SOURCE.read_text()
