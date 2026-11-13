@@ -173,3 +173,142 @@ def main():
         forbidden(api,key,token,WRITE,write_args(ACTION_OWNER,"unauthorized"),
                   label+" write")
     forbidden(api,key,worker,READ,read_args(WRONG_WORK), "wrong original Work")
+    forbidden(api,key,worker,WRITE,
+              write_args(ACTION_OWNER,"wrong original",WRONG_WORK),
+              "worker cannot write unassigned Work")
+    forbidden(api,key,owner,READ,read_args(WORK,OTHER_LEDGER),
+              "native governor wrong Ledger read")
+    forbidden(api,key,owner,WRITE,
+              write_args(ACTION_OWNER,"wrong Ledger",WORK,OTHER_LEDGER),
+              "native governor wrong Ledger write")
+    forbidden(api,key,worker,READ,read_args(WORK,OTHER_LEDGER),
+              "worker wrong Ledger read")
+    forbidden(api,key,None,READ,read_args(),
+              "unsigned anonymous read")
+    forbidden(api,key,None,WRITE,write_args(ACTION_OWNER,"anonymous"),
+              "unsigned anonymous write")
+
+    owner_receipt=permitted(api,key,owner,WRITE,
+                            write_args(ACTION_OWNER,BODY_OWNER))
+    check(owner_receipt.get("contractVersion")==
+          "native_original_work_comment_write_v1"
+          and owner_receipt.get("workItemId")==WORK
+          and owner_receipt.get("ledgerId")==LEDGER
+          and owner_receipt.get("body")==BODY_OWNER
+          and owner_receipt.get("idempotent") is False
+          and owner_receipt.get("originalWorkStateUnchanged") is True
+          and owner_receipt.get("isWorkResult") is False
+          and owner_receipt.get("notificationDelivered") is False,
+          "Owner append was not canonical signed ordinary Work comment")
+    owner_id=owner_receipt.get("commentId")
+    check(owner_id and owner_receipt.get("recordedAt"),
+          "Original comment identity and source time missing")
+
+    other_view=permitted(api,key,worker,READ,read_args())
+    worker_items=check_read(other_view,[owner_id])
+    check(worker_items[0].get("body")==BODY_OWNER
+          and worker_items[0].get("authoredBySelf") is False,
+          "Responsible worker did not independently read owner's signed ink")
+
+    worker_receipt=permitted(api,key,worker,WRITE,
+                             write_args(ACTION_WORKER,BODY_WORKER))
+    worker_id=worker_receipt.get("commentId")
+    check(worker_id and worker_id!=owner_id
+          and worker_receipt.get("body")==BODY_WORKER
+          and worker_receipt.get("notificationDelivered") is False,
+          "Worker ordinary note created no distinct canonical comment")
+    owner_view=permitted(api,key,owner,READ,read_args())
+    owner_rows=check_read(owner_view,[owner_id,worker_id])
+    check({r.get("body") for r in owner_rows}=={BODY_OWNER,BODY_WORKER}
+          and any(r.get("commentId")==worker_id and
+                  r.get("authoredBySelf") is False for r in owner_rows),
+          "Owner cannot independently read second authorized author's note")
+    worker_view=permitted(api,key,worker,READ,read_args())
+    check_read(worker_view,[owner_id,worker_id])
+    check(any(r.get("commentId")==worker_id and
+              r.get("authoredBySelf") is True
+              for r in worker_view["items"]),
+          "Worker must recognize their own original authored note")
+
+    replay=permitted(api,key,owner,WRITE,
+                     write_args(ACTION_OWNER,BODY_OWNER))
+    check(replay.get("commentId")==owner_id
+          and replay.get("idempotent") is True
+          and replay.get("recordedAt")==owner_receipt.get("recordedAt"),
+          "Same action retry lost its original signed receipt")
+    conflict_status,conflict=rpc(api,key,owner,WRITE,
+                   write_args(ACTION_OWNER,"SYNTH_DIFFERENT_BODY"))
+    check(conflict_status==409 and isinstance(conflict,dict)
+          and conflict.get("code")=="23505",
+          "Same action ID attempted silent body overwrite")
+
+    third=permitted(api,key,owner,WRITE,
+                    write_args(ACTION_THIRD,BODY_THIRD))
+    third_id=third.get("commentId")
+    first_page=permitted(api,key,worker,READ,read_args(limit=2))
+    check(first_page.get("hasMore") is True
+          and first_page.get("nextRecordedAt")
+          and first_page.get("nextCommentId"),
+          "W07 bounded source-first page missing continuation")
+    first_ids={r.get("commentId") for r in first_page["items"]}
+    check(len(first_ids)==2, "W07 first page must contain exactly two")
+    cursor=(first_page["nextRecordedAt"],first_page["nextCommentId"])
+    second_page=permitted(api,key,worker,READ,
+                          read_args(limit=2,after=cursor))
+    check(second_page.get("hasMore") is False,
+          "W07 last page cannot claim an unknown continuation")
+    second_ids={r.get("commentId") for r in second_page["items"]}
+    check(first_ids.isdisjoint(second_ids)
+          and first_ids | second_ids=={owner_id,worker_id,third_id},
+          "W07 cursor skipped or duplicated an original comment")
+
+    invalid_status, invalid=rpc(api,key,owner,WRITE,
+                                write_args(ACTION_OWNER," "))
+    check(invalid_status in (400,422)
+          and isinstance(invalid,dict)
+          and invalid.get("code")=="22023",
+          "Blank body must reject before new Work comment")
+    check(sql(args.db_url, """
+        SELECT count(*) FROM atlas.native_original_work_comments_v1
+        WHERE organization_id='%s'::uuid
+          AND ledger_id='%s'::uuid AND work_item_id='%s'::uuid
+    """ % (ORG,LEDGER,WORK))=="3",
+          "Three unique signed actions must create only three comments")
+
+    # Revoke the synthetic worker's accepted responsibility. We do NOT
+    # impersonate a real account or mutate the user's Production Work.
+    sql(args.db_url, """
+      UPDATE atlas.work_allocations SET state='released',
+        released_at=now(),release_reason='clone:w07-access-withdrawn'
+      WHERE id='%s'::uuid AND work_item_id='%s'::uuid
+    """ % (ALLOC,WORK))
+    forbidden(api,key,worker,READ,read_args(),
+              "revoked worker must lose historical note read")
+    forbidden(api,key,worker,WRITE,
+              write_args(ACTION_WORKER,BODY_WORKER),
+              "revoked worker must not recover replay without current read")
+    check_read(permitted(api,key,owner,READ,read_args()),
+               [owner_id,worker_id,third_id])
+
+    check(sql(args.db_url,"SELECT count(*) FROM atlas.work_items")==
+          work_before,"W07 comments manufactured another original Work")
+    check(sql(args.db_url,
+              "SELECT count(*) FROM atlas.work_execution_results")==
+          results_before,"W07 ordinary comments manufactured a Work Result")
+    check(sql(args.db_url, """
+      SELECT count(*) FROM atlas.work_items
+      WHERE id='%s'::uuid AND work_state='open'
+    """ % WORK)=="1","W07 comments changed original Work state")
+    print("PASS W07 real synthetic GoTrue signed governor/worker readback and "
+          "source denial, exact Work/Ledger, immutable action replay, "
+          "cursor paging, revocation, no Work/Result/notification")
+    Path(args.output).write_text(
+      "PASS W07 signed local GoTrue 4 identities, exact Work read/write, "
+      "cross-person refresh, original idempotent replay and collision denial, "
+      "page cursor, signed revocation, no new Work or Work Result\n",
+      encoding="utf-8"
+    )
+
+
+if __name__ == "__main__":
+    main()
