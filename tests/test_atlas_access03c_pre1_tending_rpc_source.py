@@ -41,8 +41,9 @@ class Pre1RpcProof(unittest.TestCase):
      "refresh_object_active_task_count_v1", "derived_state_guard",
      "metadata ? 'task_count_synced_at'",
      "synthetic count-only object_state source drift; refuse cleanup",
-     '"delete from atlas.object_state where "+',
-     'derived_state_guard+" returning 1"',
+     '"with deleted as (delete from atlas.object_state where "+',
+     'derived_state_guard+" returning object_id) "+',
+     '"select count(*) from deleted"', "cleanup_sql",
      "synthetic object_state cleanup affected unexpected row count",
      "synthetic object_state survived scoped cleanup"):
    self.assertIn(term,BODY)
