@@ -115,7 +115,10 @@ BEGIN
       SELECT 1 FROM atlas.work_item_context_links c
       WHERE c.organization_id=p_organization_id
         AND c.work_item_id=p_work_item_id
-        AND c.subject_domain NOT IN ('spatial','temporal')
+        AND NOT (
+          (c.subject_domain='spatial' AND c.subject_kind='growing_object')
+          OR (c.subject_domain='temporal' AND c.subject_kind='occurrence')
+        )
     ) THEN
       RAISE EXCEPTION 'Additional subject disclosure still held'
         USING ERRCODE='42501';
