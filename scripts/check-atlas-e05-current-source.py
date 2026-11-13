@@ -92,6 +92,25 @@ def surface_sql():
             "'server',host(inet_server_addr()),'pgdata',current_setting('data_directory'),"
             "'surfaces',jsonb_build_object("+",".join(values)+"));")
 
+def require_source_surfaces(found):
+    """Source-only invariant common to native PGDATA and Docker-attested PGDATA.
+
+    Container/cluster provenance MUST be checked independently before call.
+    This never grants trust to a database simply because objects exist.
+    """
+    expected=set(RELATIONS)|set(FUNCTIONS)|{"role.anon","role.authenticated",
+        "role.authenticator","role.authenticator.authenticated",
+        "role.authenticator.anon","empty.auth.users","empty.atlas.work_items",
+        "empty.atlas.organizations","empty.ledger.seats","empty.reality.person"}
+    for name in PUBLIC_CALLS:
+        expected.update(("acl.authenticated."+name,"acl.anon.denied."+name))
+    need(isinstance(found,dict) and set(found)==expected,
+         "Incomplete E05 source surface inventory")
+    missing=sorted(name for name in expected if found[name] is not True)
+    need(not missing,"Required E05 source/ACL/empty-state surface HELD: "+", ".join(missing))
+    return len(expected)
+
+
 def check(result, database, temp):
     need(isinstance(result,dict) and
          set(result)=={"database","server","pgdata","surfaces"},
@@ -102,19 +121,9 @@ def check(result, database, temp):
     pgdata=Path(result["pgdata"]).resolve(strict=True)
     need(temp in pgdata.parents and pgdata.is_dir(),
          "PGDATA must belong to the fresh job's RUNNER_TEMP")
-    expected=set(RELATIONS)|set(FUNCTIONS)|{"role.anon","role.authenticated",
-        "role.authenticator","role.authenticator.authenticated",
-        "role.authenticator.anon","empty.auth.users","empty.atlas.work_items",
-        "empty.atlas.organizations","empty.ledger.seats","empty.reality.person"}
-    for name in PUBLIC_CALLS:
-        expected.update(("acl.authenticated."+name,"acl.anon.denied."+name))
-    found=result["surfaces"]
-    need(isinstance(found,dict) and set(found)==expected,
-         "Incomplete E05 source surface inventory")
-    missing=sorted(name for name in expected if found[name] is not True)
-    need(not missing,"Required E05 source/ACL/empty-state surface HELD: "+", ".join(missing))
+    count=require_source_surfaces(result["surfaces"])
     return {"state":"E05_SOURCE_ELIGIBLE_NOT_FULL_PARITY",
-            "testDatabase":database,"checkedSurfaces":len(expected),
+            "testDatabase":database,"checkedSurfaces":count,
             "productionSchemaAndRolesSnapshot":"REQUIRED_SEPARATELY",
             "signedSourceAcceptance":"NOT_RUN","browserUserJourney":"NOT_RUN",
             "productionChanges":False,"permissionsChanged":False}
