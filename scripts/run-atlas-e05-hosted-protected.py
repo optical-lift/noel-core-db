@@ -83,20 +83,23 @@ def db_start(runtime,native,temp,resources):
              PGUSER='postgres',PGPASSWORD=passwd,PGDATABASE=database,
              PGCONNECT_TIMEOUT='3',PSQLRC='/dev/null')
     db=f'postgresql://postgres@127.0.0.1:{port}/{database}'
-    for _ in range(75):
+    for _ in range(45):
         try:
             row=local_sql(db,('SELECT current_database(),host(inet_server_addr()),'
                               "current_setting('data_directory'),"
                               "current_setting('server_version_num');"),env)
-            p=row.split('|')
-            require(len(p)==4 and p[0]==database and p[1]=='127.0.0.1'
-                    and p[2]==data and int(p[3])//10000==17,
-                    'Disposable PG17 database, loopback or PGDATA mismatch')
-            require(temp in Path(p[2]).resolve(strict=True).parents,
-                    'Disposable image PGDATA not inside job temporary directory')
-            return db,env,port,passwd,database
         except Held:
             time.sleep(1)
+            continue
+        # An actual connected but mismatched server is a hard failure, not a
+        # temporary network issue to conceal behind retries.
+        p=row.split('|')
+        require(len(p)==4 and p[0]==database and p[1]=='127.0.0.1'
+                and p[2]==data and int(p[3])//10000==17,
+                'Disposable PG17 database, loopback or PGDATA mismatch')
+        require(temp in Path(p[2]).resolve(strict=True).parents,
+                'Disposable image PGDATA not inside job temporary directory')
+        return db,env,port,passwd,database
     raise Held('Pinned container PostgreSQL 17 did not become ready')
 
 def auth_start(runtime,native,db,env,port,password,database):
