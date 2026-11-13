@@ -5,6 +5,8 @@ on:
       - '.github/workflows/atlas-access03c-pre1-protected-held-pair-clone.yml'
       - 'tests/test_atlas_access03c_pre1_bootstrap_source.py'
       - 'tests/test_atlas_access03c_pre1_tending_rpc_source.py'
+      - 'tests/test_atlas_access03c_pre1_local_row_integrity_source.py'
+      - 'scripts/validate-atlas-access03c-pre1-local-row-integrity.py'
       - 'scripts/validate-atlas-access03c-pre1-tending-rpc-signed-http.py'
       - 'scripts/validate-production-schema-clone.sh'
   issues:
@@ -25,7 +27,8 @@ jobs:
           set -euo pipefail
           python3 tests/test_atlas_access03c_pre1_bootstrap_source.py
           python3 tests/test_atlas_access03c_pre1_tending_rpc_source.py
-          python3 -m py_compile scripts/validate-atlas-access03c-pre1-tending-rpc-signed-http.py
+          python3 tests/test_atlas_access03c_pre1_local_row_integrity_source.py
+          python3 -m py_compile scripts/validate-atlas-access03c-pre1-tending-rpc-signed-http.py scripts/validate-atlas-access03c-pre1-local-row-integrity.py
           python3 tests/test_atlas_access03_trusted_signed_source.py
           bash -n scripts/validate-production-schema-clone.sh
   owner-signed-held-pair:
@@ -76,7 +79,8 @@ jobs:
           python3 tests/test_atlas_access03_trusted_signed_source.py
           python3 tests/test_atlas_access03c_pre1_bootstrap_source.py
           python3 tests/test_atlas_access03c_pre1_tending_rpc_source.py
-          python3 -m py_compile scripts/validate-atlas-access03c-pre1-tending-rpc-signed-http.py
+          python3 tests/test_atlas_access03c_pre1_local_row_integrity_source.py
+          python3 -m py_compile scripts/validate-atlas-access03c-pre1-tending-rpc-signed-http.py scripts/validate-atlas-access03c-pre1-local-row-integrity.py
       - name: Checkout exact unmerged PRE1 source
         uses: actions/checkout@v4
         with:
@@ -163,6 +167,7 @@ jobs:
             echo 'PRE1_CLONE_RESULT=FAILED_OR_NOT_REACHED' >> "$GITHUB_STEP_SUMMARY"
           fi
           echo 'External or deployed clients, complete historical no-loss, and Production release remain separately HELD.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Local synthetic all-table row integrity is required when available; original Production history, external/deployed clients and Production release remain separately HELD.' >> "$GITHUB_STEP_SUMMARY"
           echo 'Production schema and roles READ ONLY; DDL, DML and signed identities on LOCALHOST only.' >> "$GITHUB_STEP_SUMMARY"
       - name: Upload bounded localhost diagnostics only (NO Production dumps)
         if: always()
@@ -181,3 +186,6 @@ jobs:
             ${{ runner.temp }}/pre1-local-artifacts/signed-access03-zone-retirement.log
             ${{ runner.temp }}/pre1-local-artifacts/signed-access03c-pre1-rpc-summary.txt
             ${{ runner.temp }}/pre1-local-artifacts/signed-access03c-pre1-rpc.log
+            ${{ runner.temp }}/pre1-local-artifacts/pre1-local-row-integrity-baseline.log
+            ${{ runner.temp }}/pre1-local-artifacts/pre1-local-row-integrity-after-candidate.log
+            ${{ runner.temp }}/pre1-local-artifacts/pre1-local-row-integrity-after-signed.log
