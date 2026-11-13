@@ -111,6 +111,10 @@ if w07.is_dir():
     for token in required_sql:
         if token not in sql:
             raise SystemExit("W07 SQL source required token absent: "+token)
+    if "m.user_id=auth.uid()" not in sql or "m.person_id=v_person" in sql:
+        raise SystemExit("W07 accepted membership must match signed Auth owner, not legacy Person ID")
+    if "'self_adoption'" in sql:
+        raise SystemExit("W07 must not admit a retired allocation establishment basis")
     for token in required_signed:
         if token.lower() not in source.lower():
             raise SystemExit("W07 signed local probe required token absent: "+token)
