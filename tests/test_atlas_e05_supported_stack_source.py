@@ -49,9 +49,10 @@ class SupportedStackSource(unittest.TestCase):
            "State":{"Running":True},
            "Mounts":[{"Type":"volume","Name":"supabase_db_e05host_0123456789abcdef",
                       "Destination":"/var/lib/postgresql/data"}],
-           "NetworkSettings":{"Ports":{"5432/tcp":[{"HostPort":"50001"}]}}}
+           "NetworkSettings":{"Ports":{"5432/tcp":[{"HostPort":"50001"}]},
+                              "Networks":{"supabase_network":{"IPAddress":"172.18.0.6"}}}}
         self.assertEqual(m.attested_volume(x,"e05host_0123456789abcdef",
-                         "/var/lib/postgresql/data",50001),
+                         "/var/lib/postgresql/data",50001,"172.18.0.6"),
                          "supabase_db_e05host_0123456789abcdef")
         for mutation in (
            lambda y:y["State"].update({"Running":False}),
@@ -59,13 +60,14 @@ class SupportedStackSource(unittest.TestCase):
            lambda y:y["Mounts"][0].update({"Name":"supabase_db_another"}),
            lambda y:y["Mounts"][0].update({"Type":"bind"}),
            lambda y:y["NetworkSettings"]["Ports"]["5432/tcp"][0].update({"HostPort":"54322"}),
+           lambda y:y["NetworkSettings"]["Networks"]["supabase_network"].update({"IPAddress":"172.18.0.7"}),
         ):
             import copy
             altered=copy.deepcopy(x)
             mutation(altered)
             with self.assertRaises(m.Held):
                 m.attested_volume(altered,"e05host_0123456789abcdef",
-                                 "/var/lib/postgresql/data",50001)
+                                 "/var/lib/postgresql/data",50001,"172.18.0.6")
 
     def test_no_shell_injection_or_log_leaks(self):
         s=SOURCE.read_text()
