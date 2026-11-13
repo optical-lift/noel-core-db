@@ -64,6 +64,37 @@ assignment, outsider/cross-Ledger/anonymous denial, seat revoke/restore,
 completion, identical accepted Result readback and unchanged Work count.
 Unit tests **cannot** supply this acceptance evidence.
 
+## RiverSong execution entry point (no new CI workflow)
+
+Once RiverSong has independently established the **fresh** job-local PostgreSQL
+cluster `atlas_e05_<nonce>`, restored the current Noel schema/roles **without
+production data**, and bound real local GoTrue + PostgREST to that exact
+database, use the source-owned bounded bridge:
+
+```sh
+python3 scripts/run-atlas-e05-isolated-riversong.py \\
+  --db-url "$ATLAS_E05_LOCAL_DB_URL" \\
+  --api-url "$ATLAS_E05_LOCAL_API_ORIGIN" \\
+  --atlas-runner "$ATLAS_E05_PINNED_ATLAS_RUNNER"
+```
+
+The Atlas runner file must have git blob
+`d386ff1d752cceea631316a84692088d6257b94d` from Atlas
+[PR #571](https://github.com/optical-lift/atlas/pull/571). The bridge
+accepts the separately provided three fictional local credentials, local
+anonymous API key and `RUNNER_TEMP`; verifies the live database is really
+job-local, fresh and empty; executes the fixture preparer and then the
+unchanged Atlas runner; and accepts only its genuine bounded signed receipt.
+It does not provision the clone, start/route API services, access production,
+forge sessions, change GitHub Actions workflows, or count mocks as acceptance.
+
+The only success line is
+`E05_SIGNED_SOURCE_ACCEPTANCE=PASS; BROWSER=NOT_RUN; RECIPIENT_HISTORY=HELD`.
+It is emitted by the live executor only after a **real** signed runner receipt;
+source unit tests capture mocked output privately. All subprocess output is
+withheld from workflow logs, and sensitive logs/credentials are never uploaded.
+If any precondition fails, the real signed gate stays **HELD**.
+
 ## Gates still held
 
 - Local source-only/refusal tests: `python3 -m unittest tests/test_atlas_e05_nonfarm_fixture_source.py`.
