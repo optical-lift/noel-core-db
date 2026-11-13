@@ -163,3 +163,145 @@ def run_synthetic_restore(url, env, root):
     print("E05_HOSTED_SYNTHETIC_RESTORE=PASS; ROLES=RESTORED; SCHEMA=RESTORED; "
           "ACL_DENIAL=42501; RLS_OWNER=1; RLS_OUTSIDER=0; "
           "PRODUCTION_SCHEMA=NOT_READ; E05_SIGNED=NOT_RUN")
+
+
+def local_api_key(status, api_port):
+    """Accept only this job's localhost Supabase anon key, never a remote key."""
+    require(isinstance(status,dict),"Unrecognized local CLI status")
+    require(status.get("API_URL")=="http://127.0.0.1:"+str(api_port),
+            "Local Auth/REST URL differs from attested project")
+    key=status.get("ANON_KEY")
+    require(isinstance(key,str) and len(key)>32
+            and (key.startswith("eyJ") or key.startswith("sb_publishable_")),
+            "Local anonymous API key absent or malformed")
+    return key
+
+
+def jwt_claims(token):
+    """Read (never forge) the session from GoTrue's real signed token."""
+    import base64
+    import json
+    import uuid
+    require(isinstance(token,str) and token.count(".")==2,
+            "Real GoTrue access token absent")
+    try:
+        body=token.split(".")[1]
+        payload=json.loads(base64.urlsafe_b64decode(body+"="*(-len(body)%4)))
+        require(isinstance(payload,dict) and payload.get("role")=="authenticated",
+                "GoTrue signed authenticated role absent")
+        return str(uuid.UUID(payload["sub"])),str(uuid.UUID(payload["session_id"]))
+    except (ValueError,TypeError,KeyError,UnicodeDecodeError,AttributeError):
+        raise Refused("GoTrue signed subject/session unreadable") from None
+
+
+def run_signed_synthetic_auth_probe(db,env,root,api_port,project):
+    """Three real local GoTrue logins with genuine PostgREST RLS, no Work."""
+    import json
+    import secrets
+    import subprocess
+    import urllib.request
+    import urllib.error
+    import time
+    local_url(db)
+    job_root(root)
+    require(isinstance(api_port,int) and 1<=api_port<=65535,
+            "Invalid signed test API port")
+    require(Path(project).resolve(strict=True)==root/"project",
+            "Only the attested job-owned Supabase project may supply API keys")
+    require(psql(db,env,sql="SELECT count(*) FROM auth.users;")=="0",
+            "Signed synthetic test requires empty local Auth")
+    try:
+        result=subprocess.run(["supabase","status","-o","json"],
+            cwd=project,env=env,capture_output=True,text=True,timeout=35,
+            check=False)
+    except (OSError,subprocess.SubprocessError):
+        raise Refused("Local Supabase status unavailable") from None
+    require(result.returncode==0,"Local Supabase status refused; output withheld")
+    try:
+        status=json.loads(result.stdout)
+    except (ValueError,TypeError):
+        raise Refused("Local CLI status JSON malformed") from None
+    key=local_api_key(status,api_port)
+    base="http://127.0.0.1:"+str(api_port)
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    def request(route,data,bearer):
+        require(route.startswith("/") and not route.startswith("//"),
+                "Only project-local API paths are permitted")
+        headers={"apikey":key,"Content-Type":"application/json",
+                 "Authorization":"Bearer "+bearer}
+        req=urllib.request.Request(base+route,data=json.dumps(data).encode(),
+                                   headers=headers,method="POST")
+        try:
+            with opener.open(req,timeout=12) as res:
+                return res.status,res.read(400000)
+        except urllib.error.HTTPError as error:
+            error.close()
+            return error.code,b""
+        except (OSError,urllib.error.URLError):
+            raise Refused("Local Auth/PostgREST unavailable") from None
+
+    actors={}
+    for role in ("governor","recipient","outsider"):
+        email="e05-"+role+"-"+secrets.token_hex(8)+"@example.invalid"
+        password=secrets.token_urlsafe(35)
+        code,_=request("/auth/v1/signup",
+                       {"email":email,"password":password},key)
+        require(code in (200,201),"Local GoTrue signup failed")
+        code,body=request("/auth/v1/token?grant_type=password",
+                          {"email":email,"password":password},key)
+        require(code==200,"Local GoTrue password session failed")
+        try:
+            signed=json.loads(body)
+            uid,sid=jwt_claims(signed.get("access_token"))
+            require(signed["user"]["id"]==uid,
+                    "GoTrue user and signed subject mismatch")
+        except (ValueError,TypeError,KeyError):
+            raise Refused("Local GoTrue session response invalid") from None
+        actors[role]={"uid":uid,"sid":sid,"token":signed["access_token"]}
+    require(len({v["uid"] for v in actors.values()})==3
+            and len({v["sid"] for v in actors.values()})==3
+            and len({v["token"] for v in actors.values()})==3,
+            "Independent real GoTrue sessions required")
+    sessions=",".join("'"+v["sid"]+"'::uuid" for v in actors.values())
+    require(psql(db,env,sql="SELECT count(*),count(DISTINCT user_id) "
+        "FROM auth.sessions WHERE id IN ("+sessions+");")=="3|3",
+        "GoTrue sessions not independently recorded in Auth")
+    psql(db,env,sql="""BEGIN;
+CREATE FUNCTION public.e05_probe_owned_count()
+RETURNS integer LANGUAGE sql SECURITY INVOKER SET search_path = ''
+AS $e05$ SELECT count(*)::integer FROM e05_restore_probe.items $e05$;
+REVOKE EXECUTE ON FUNCTION public.e05_probe_owned_count() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.e05_probe_owned_count() TO authenticated;
+COMMIT;
+NOTIFY pgrst, 'reload schema';""")
+    require(psql(db,env,sql="SELECT has_function_privilege('authenticated',"
+        "'public.e05_probe_owned_count()','EXECUTE'),"
+        "NOT has_function_privilege('anon',"
+        "'public.e05_probe_owned_count()','EXECUTE');")=="t|t",
+        "Signed-only REST function privilege incorrect")
+    uid=actors["governor"]["uid"]
+    psql(db,env,sql="INSERT INTO e05_restore_probe.items(id,owner_id) "
+        "VALUES ('e5200000-0000-4000-8000-000000000902','"+uid+"'::uuid);")
+    for role in ("governor","recipient","outsider"):
+        expected=1 if role=="governor" else 0
+        passed=False
+        for _ in range(8):
+            code,body=request("/rest/v1/rpc/e05_probe_owned_count",
+                              {},actors[role]["token"])
+            if code==200:
+                try:value=json.loads(body)
+                except (ValueError,TypeError):
+                    raise Refused("Signed REST response malformed") from None
+                require(type(value) is int and value==expected,
+                        "Real signed RLS read violated identity separation")
+                passed=True
+                break
+            require(code==404,"Signed local REST error other than cache absence")
+            time.sleep(1)
+        require(passed,"Signed local RPC did not become source-visible")
+    code,_=request("/rest/v1/rpc/e05_probe_owned_count",{},key)
+    require(code in (401,403,404),
+            "Anonymous request reached authenticated-only RLS reader")
+    print("E05_HOSTED_REAL_SIGNED_SYNTHETIC=PASS; REAL_GOTRUE_SESSIONS=3; "
+          "LOCAL_RLS_OWNER=1; LOCAL_RLS_FOREIGN=0; ANON_RPC=DENIED; "
+          "NOEL_SCHEMA=NOT_READ; ORIGINAL_WORK=NOT_RUN")
