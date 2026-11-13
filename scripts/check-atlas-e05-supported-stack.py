@@ -99,7 +99,8 @@ def attested_network(info,expected):
          "Docker network is not an exact dedicated loopback bridge")
     return True
 
-def run(synthetic_restore=False,signed_synthetic_auth=False):
+def run(synthetic_restore=False,signed_synthetic_auth=False,
+        docker_current_source_probe=False):
     need(platform.system()=="Linux" and platform.machine()=="x86_64",
          "Only hosted Ubuntu x64 supports this synthetic test")
     raw=os.environ.get("RUNNER_TEMP","")
@@ -179,6 +180,28 @@ def run(synthetic_restore=False,signed_synthetic_auth=False):
         except (OSError,urllib.error.HTTPError):
             raise Held("Local real Auth health unavailable") from None
         need(health==200,"Local managed Auth not healthy")
+        if docker_current_source_probe:
+            stage="DOCKER_ATTESTED_E05_CURRENT_SOURCE_GATE"
+            bridge=Path(__file__).with_name("check-atlas-e05-docker-current-source.py")
+            need(bridge.is_file() and not bridge.is_symlink(),
+                 "Reviewed Docker source eligibility gate absent")
+            spec=importlib.util.spec_from_file_location("e05_docker_source_gate",bridge)
+            need(spec is not None and spec.loader is not None,
+                 "Docker source eligibility gate unavailable")
+            gate=importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(gate)
+            try:
+                proof=gate.check(db,db_env,root,ident,network,volume,dbport)
+            except gate.Refused:
+                raise Held("Docker source gate refused; private output withheld") from None
+            need(proof.get("state")=="HELD_MISSING_CURRENT_SOURCE" and
+                 proof.get("dockerCustody")=="PASS" and
+                 proof.get("signedSourceAcceptance")=="NOT_RUN" and
+                 proof.get("productionChanges") is False,
+                 "Synthetic-only test should not have current Noel Source")
+            print("E05_DOCKER_CURRENT_SOURCE_CUSTODY=PASS; "+
+                  "NOEL_CURRENT_SCHEMA=HELD_MISSING_SURFACES; "+
+                  "ORIGINAL_WORK=NOT_RUN")
         if synthetic_restore or signed_synthetic_auth:
             stage="SYNTHETIC_ROLES_AND_SCHEMA_RESTORE"
             helper=Path(__file__).with_name("atlas-e05-hosted-synthetic-restore.py")
@@ -260,9 +283,11 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser()
     parser.add_argument("--synthetic-restore-probe",action="store_true")
     parser.add_argument("--signed-synthetic-auth-probe",action="store_true")
+    parser.add_argument("--docker-current-source-probe",action="store_true")
     flags=parser.parse_args()
     try:raise SystemExit(run(synthetic_restore=flags.synthetic_restore_probe,
-                             signed_synthetic_auth=flags.signed_synthetic_auth_probe))
+                             signed_synthetic_auth=flags.signed_synthetic_auth_probe,
+                             docker_current_source_probe=flags.docker_current_source_probe))
     except (Held,OSError,ValueError,subprocess.SubprocessError):
         print("E05_SUPPORTED_STACK=HELD; NO_PRODUCTION_ACCESS")
         raise SystemExit(1) from None
