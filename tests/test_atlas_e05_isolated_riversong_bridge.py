@@ -4,6 +4,8 @@ import hashlib
 import importlib.util
 import json
 import os
+from contextlib import redirect_stdout
+from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -106,7 +108,9 @@ class BridgeTest(unittest.TestCase):
                  patch.object(bridge, "file_blob_sha",
                               return_value=bridge.EXPECTED_ATLAS_RUNNER_BLOB), \
                  patch.object(bridge, "invoke", side_effect=mock_command):
-                self.assertEqual(bridge.execute(cfg), 0)
+                with redirect_stdout(StringIO()) as private_output:
+                    self.assertEqual(bridge.execute(cfg), 0)
+                self.assertIn("E05_SIGNED_SOURCE_ACCEPTANCE=PASS", private_output.getvalue())
                 self.assertEqual(len(commands), 2)
                 self.assertIn("prepare-atlas-e05-nonfarm-clone-fixture.py",
                               commands[0][0][1])
