@@ -39,7 +39,8 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_atlas_e05_nonfarm_fixture_source.py' -v
           python3 -m unittest discover -s tests -p 'test_atlas_e05_isolated_riversong_bridge.py' -v
           python3 -m unittest discover -s tests -p 'test_atlas_e05_current_source.py' -v
-          python3 -m py_compile scripts/prepare-atlas-e05-nonfarm-clone-fixture.py scripts/run-atlas-e05-isolated-riversong.py scripts/check-atlas-e05-current-source.py
+          python3 -m unittest discover -s tests -p 'test_atlas_e05_hosted_protected_source.py' -v
+          python3 -m py_compile scripts/prepare-atlas-e05-nonfarm-clone-fixture.py scripts/run-atlas-e05-isolated-riversong.py scripts/check-atlas-e05-current-source.py scripts/run-atlas-e05-hosted-protected.py
           echo 'E05 source tests only; real GoTrue and PostgREST signed journey NOT RUN'
 
       - name: Validate held Atlas original Work source candidates
