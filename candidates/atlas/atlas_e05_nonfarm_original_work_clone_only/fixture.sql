@@ -108,12 +108,8 @@ insert into atlas.principal_ledger_authorities(
  'e5200000-0000-4000-8000-000000000401',
  'root_governing','active','clone_validation_fixture');
 
-insert into ledger.actions(id,ledger_id,action_kind,occurred_at,payload) values
-('e5200000-0000-4000-8000-000000000701',
- 'e5200000-0000-4000-8000-000000000401',
- 'fixture_sensitive_action',now(),
- '{"title":"Owner-only validation movement","detail":"Not available through seat-only read"}');
-
+-- The C1-only sensitive Ledger Action was intentionally omitted: E05 tests
+-- original Work authority, not the unrelated Ledger Action privacy surface.
 
 -- Remove the *label* inherited from the C1 Farm test, not the native
 -- Organization identity. No atlas.farms row is ever created.
