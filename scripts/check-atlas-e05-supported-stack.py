@@ -5,6 +5,7 @@ No Production URL, roles/schema snapshot, Work fixture, user credentials,
 or signed acceptance. This tests supported Supabase local PG17+Auth startup
 and a random job-unique Docker database volume, with mandatory cleanup.
 """
+import ipaddress
 import json
 import os
 from pathlib import Path,PurePosixPath
@@ -57,13 +58,24 @@ def configure(path,project,dbport,apiport):
     need(flags=={"project":1,"db":1,"api":1},"Unrecognized local Supabase config")
     path.write_text("".join(lines))
 
-def attested_volume(inspect,project,pgdata,dbport):
+def attested_volume(inspect,project,pgdata,dbport,sql_server_ip):
     need(inspect.get("Name")=="/supabase_db_"+project and
          inspect.get("State",{}).get("Running") is True,
          "Wrong running local DB container")
     need(isinstance(pgdata,str) and pgdata.startswith("/"),
          "Missing local PostgreSQL data-directory identity")
     pg=PurePosixPath(pgdata)
+    # A host-to-Docker 127.0.0.1 port forward reaches the PostgreSQL
+    # container on its Docker-network IP, NOT the host loopback address.
+    # Prove the DB's actual server interface belongs to this exact container.
+    try:
+        server=ipaddress.ip_address(sql_server_ip)
+    except ValueError:
+        raise Held("Invalid PostgreSQL server interface") from None
+    nets=inspect.get("NetworkSettings",{}).get("Networks",{})
+    need(isinstance(nets,dict) and any(
+         n.get("IPAddress")==str(server) for n in nets.values()),
+         "Connected PostgreSQL server does not match job Docker container network")
     mounts=inspect.get("Mounts",[])
     valid=[m for m in mounts if m.get("Type")=="volume" and
            isinstance(m.get("Name"),str) and m["Name"].endswith("_"+project)
@@ -124,13 +136,16 @@ def run():
                "(SELECT count(*) FROM auth.users),(SELECT count(*) FROM auth.sessions);")
         values=cmd(["psql",db,"-X","-A","-t","-v","ON_ERROR_STOP=1","-c",query],
                    env=db_env,timeout=30).split("|")
-        need(len(values)==9 and values[0:2]==["postgres","127.0.0.1"]
-             and int(values[3])//10000==17 and values[4:]==["t","t","t","0","0"],
-             "Local PG17 managed Auth or empty-state mismatch")
+        need(len(values)==9 and values[0]=="postgres",
+             "Current local DB name or catalog response mismatch")
+        need(values[3].isdigit() and int(values[3])//10000==17,
+             "Local managed database is not PostgreSQL 17")
+        need(values[4:]==["t","t","t","0","0"],
+             "Local managed Auth missing or nonempty; refuse synthetic baseline")
         stage="DOCKER_PROJECT_VOLUME"
         info=json.loads(cmd(["docker","container","inspect","supabase_db_"+ident],
                              timeout=30))[0]
-        volume=attested_volume(info,ident,values[2],dbport)
+        volume=attested_volume(info,ident,values[2],dbport,values[1])
         stage="LOCAL_GOTRUE_HEALTH"
         opener=urllib.request.build_opener(urllib.request.ProxyHandler({}))
         try:
