@@ -2,7 +2,7 @@
 
 **Owning request:** [Noel #2764](https://github.com/optical-lift/noel-core-db/issues/2764).  
 **Consumer:** Atlas draft [#571](https://github.com/optical-lift/atlas/pull/571), script `scripts/atlas-riversong-e05-signed-acceptance.py`.  
-**State:** fixture **source prepared, NOT executed**. No release authority.
+**State:** fixture **source prepared; live RiverSong rollback-only attempts HELD against stale local schema; not committed as valid fixture and no signed run**. No release authority.
 
 ## Existing source reused
 
@@ -45,6 +45,41 @@ A trusted, separately reviewed owner-gated test launcher must establish:
    `ATLAS_E05_LOCAL_ANON_KEY` used by the Atlas runner. Never place bearer,
    credentials, schema/role dump or private SQL in artifacts or issue/PR
    comments.
+
+## Required fresh-source preflight (source-only)
+
+The previous local `noel_schema_clone` is **stale**: actual RiverSong
+[#43449919818](https://github.com/optical-lift/atlas/actions/runs/43449919818)
+reported the native exact-source helper, `ledger.booking_requests` and
+`ledger.booking_offerings` missing. It is not a permissible substitute for a
+**current** schema-and-roles-only snapshot. RiverSong copied that stopped source
+into job temp; the real SQL rollback probe refused, leaving no valid committed
+fixture or genuine signed acceptance.
+
+After an independently owner-approved, **read-only** Noel current schema/roles
+snapshot is restored directly into a brand-new `atlas_e05_<nonce>` database
+with PGDATA under RUNNER_TEMP, run the new no-mutation eligibility gate:
+
+```sh
+# PGPASSWORD stays in the private job environment; never put it in URLs/logs.
+python3 scripts/check-atlas-e05-current-source.py \
+  --db-url "postgresql://postgres@127.0.0.1:<port>/atlas_e05_<nonce>" \
+  --output "$RUNNER_TEMP/e05-current-source.json"
+```
+
+This checks a clean local starting state, exact source function and both booking
+tables, 7 public Work RPCs, actual authenticated EXECUTE and anonymous denial,
+and native authenticator roles. Receipt is private, inside the job only, with
+**FULL PRODUCTION PARITY NOT PROVEN** and **SIGNED NOT RUN**. It never accesses
+Production or changes a table, grant, role, user or schema. It cannot attest
+where a schema dump originated: a separately owner-approved protected snapshot
+workflow must prove that chain of custody, and must not publish the dumps as
+GitHub artifacts or move them to an untrusted runner. The current draft does
+**not** create or authorize such a privileged workflow.
+
+Once this gate truly passes, use the existing fixture preparer and genuinely
+signed Atlas consumer below. Do not bypass source preflight merely to turn a
+previously red fixture run green.
 
 After these are independently true, the fixture-only preparer is:
 
@@ -101,8 +136,9 @@ If any precondition fails, the real signed gate stays **HELD**.
 ## Gates still held
 
 - Local source-only/refusal tests: `python3 -m unittest tests/test_atlas_e05_nonfarm_fixture_source.py`.
-- The SQL and separate GoTrue/PostgREST runtimes have **not** been executed
-  on a fresh E05 cluster. No claimed three-actor pass.
+- RiverSong executed a real disposable PostgreSQL clone and rollback-only
+  E05 SQL diagnostic, but **not** a valid fixture on a current-source clone.
+  No independent GoTrue/Auth REST signed actor acceptance has run.
 - The Atlas runner itself is in an **unmerged draft** branch and must be
   pinned to an exact source SHA before the protected run.
 - Distinct recipient durable Work history remains [Noel #2765](https://github.com/optical-lift/noel-core-db/issues/2765).
