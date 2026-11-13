@@ -136,8 +136,7 @@ BEGIN
           'person_connection_receiver_uptake',
           'delegated_under_standing_scope',
           'ledger_connection_direct_assignment',
-          'original_subject_direct_assignment_v1',
-          'self_adoption'
+          'original_subject_direct_assignment_v1'
         )
         AND (a.state='active'
           OR (NOT p_write AND a.state='completed'
@@ -151,7 +150,7 @@ BEGIN
         JOIN atlas.organization_memberships m
           ON m.id=a.assignee_membership_id
           AND m.organization_id=a.organization_id
-          AND m.person_id=v_person
+          AND m.user_id=auth.uid()
         WHERE a.organization_id=p_organization_id
           AND a.work_item_id=p_work_item_id
           AND a.allocation_role IN ('participant','approver')
