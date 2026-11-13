@@ -121,7 +121,7 @@ def main():
     args = parser.parse_args()
     try:
         return execute(args)
-    except (Refused, OSError, ValueError) as exc:
+    except (Refused, RuntimeError, OSError, ValueError, subprocess.SubprocessError) as exc:
         # Do not log connection strings, environment, SQL or raw HTTP errors.
         print(str(exc) if isinstance(exc, Refused)
               else "E05 isolated signed execution unavailable")
