@@ -46,6 +46,12 @@ ACTION_RACE_DIFFERENT = "e5200000-0000-4000-8000-000000000d04"
 ACTION_RACE_IDENTICAL = "e5200000-0000-4000-8000-000000000d05"
 ACTION_PARTICIPATION_OWNER = "e5200000-0000-4000-8000-000000000d06"
 ACTION_PARTICIPATION_OTHER = "e5200000-0000-4000-8000-000000000d07"
+ACTION_OCCURRENCE_COMMENT = "e5200000-0000-4000-8000-000000000d08"
+OCCURRENCE_SUBJECT = "e5200000-0000-4000-8000-000000000a11"
+OCCURRENCE_LINK = "e5200000-0000-4000-8000-000000000a12"
+DISCLOSURE_GRANT_1 = "e5200000-0000-4000-8000-000000000a13"
+DISCLOSURE_WITHHOLD = "e5200000-0000-4000-8000-000000000a14"
+DISCLOSURE_GRANT_2 = "e5200000-0000-4000-8000-000000000a15"
 BODY_OWNER = "SYNTH_W07_OWNER_COMMENT_LOCAL_ONLY"
 BODY_WORKER = "SYNTH_W07_WORKER_COMMENT_LOCAL_ONLY"
 BODY_THIRD = "SYNTH_W07_OWNER_SECOND_LOCAL_ONLY"
@@ -270,6 +276,65 @@ def independently_accepted_participant_trial(db_url, api, key, owner, other, no_
     forbidden(api,key,no_seat,READ,read_args(work=w),
               "unconnected fourth Person never inherits collaboration")
 
+    # A linked occurrence's identity is a distinct gate. This probe uses
+    # a synthetic occurrence reference ID: it tests the current disclosure
+    # decision boundary, NOT original Event object creation/provenance.
+    sql(db_url, """
+      INSERT INTO atlas.work_item_context_links (
+        id,organization_id,work_item_id,subject_domain,subject_kind,
+        subject_id,relation_kind,created_by_membership_id,provenance
+      ) VALUES (
+        '%s'::uuid,'%s'::uuid,'%s'::uuid,'temporal','occurrence',
+        '%s'::uuid,'for','%s'::uuid,
+        '{"cloneFixture":true,"source":"synthetic_occurrence_disclosure_test"}'::jsonb
+      )
+    """ % (OCCURRENCE_LINK,ORG,w,OCCURRENCE_SUBJECT,OWNER_MEMBERSHIP))
+    forbidden(api,key,other,READ,read_args(work=w),
+              "accepted participant without linked occurrence identity must deny")
+    forbidden(api,key,other,WRITE,
+              write_args(ACTION_OCCURRENCE_COMMENT,"undisclosed",work=w),
+              "linked occurrence cannot leak through accepted Work write")
+    check(len(permitted(api,key,owner,READ,read_args(work=w))["items"])==2,
+          "Native Ledger governor retains original source during occurrence hold")
+
+    def record_decision(source_action_id,decision):
+        sql(db_url, """
+          INSERT INTO atlas.subject_disclosure_decision_events_v1 (
+            organization_id,ledger_id,target_person_id,subject_domain,
+            subject_kind,subject_id,disclosure_class,decision_kind,
+            source_action_id,reason,decided_by_person_id
+          ) VALUES (
+            '%s'::uuid,'%s'::uuid,'%s'::uuid,'event','occurrence',
+            '%s'::uuid,'identity','%s','%s'::uuid,
+            'Clone-only occurrence identity admission decision',
+            '%s'::uuid
+          )
+        """ % (ORG,LEDGER,PARTICIPANT_PERSON,OCCURRENCE_SUBJECT,
+               decision,source_action_id,OWNER_PERSON))
+
+    record_decision(DISCLOSURE_GRANT_1,"grant")
+    visible=permitted(api,key,other,READ,read_args(work=w))
+    check(len(visible.get("items") or [])==2,
+          "Signed occurrence identity grant did not restore Work read")
+    added=permitted(api,key,other,WRITE,
+          write_args(ACTION_OCCURRENCE_COMMENT,
+                     "SYNTH_W07_OCCURRENCE_GATE_WRITTEN",work=w))
+    check(added.get("commentId")
+          and len(permitted(api,key,owner,READ,read_args(work=w))["items"])==3,
+          "Signed linked-occurrence grant did not admit Work write")
+    record_decision(DISCLOSURE_WITHHOLD,"withhold")
+    forbidden(api,key,other,READ,read_args(work=w),
+              "newest occurrence identity withhold must override old grant")
+    forbidden(api,key,other,WRITE,
+              write_args(ACTION_OCCURRENCE_COMMENT,
+                         "SYNTH_W07_OCCURRENCE_GATE_WRITTEN",work=w),
+              "withheld occurrence must deny even saved-action replay")
+    record_decision(DISCLOSURE_GRANT_2,"grant")
+    check(len(permitted(api,key,other,READ,read_args(work=w))["items"])==3,
+          "current occurrence identity regrant did not restore existing notes")
+    print("PASS W07 signed synthetic occurrence reference deny/grant/withhold/regrant; "
+          "real Event source provenance remains untested")
+
     # Source withdrawal remains effective despite the membership/seat.
     sql(db_url, """
       UPDATE atlas.work_allocations SET state='released',
@@ -282,10 +347,11 @@ def independently_accepted_participant_trial(db_url, api, key, owner, other, no_
               write_args(ACTION_PARTICIPATION_OTHER,
                          "SYNTH_W07_PARTICIPATION_OTHER",work=w),
               "revoked accepted participant cannot replay old note")
-    check(len(permitted(api,key,owner,READ,read_args(work=w))["items"])==2,
+    check(len(permitted(api,key,owner,READ,read_args(work=w))["items"])==3,
           "Original Work retains participant's authorship after withdrawal")
     print("PASS W07 independently accepted third Person source-bound read/write, "
-          "membership/offer-only denial and revocation")
+          "membership/offer-only denial, synthetic linked-occurrence identity "
+          "disclosure and participant revocation")
 
 
 def check_read(packet, expected_ids):
@@ -565,7 +631,8 @@ def main():
       "PASS W07 signed local GoTrue 4 identities, exact Work read/write, "
       "cross-person refresh, original idempotent replay and collision denial, "
       "page cursor, parallel same-key same/different-body race, "
-      "signed revocation, independent accepted participant, no new Work or Work Result\n",
+      "signed revocation, independent accepted participant, synthetic "
+      "occurrence identity withhold/grant/regrant, no new Work or Work Result\n",
       encoding="utf-8"
     )
 
