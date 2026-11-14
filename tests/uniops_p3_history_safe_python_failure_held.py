@@ -31,6 +31,47 @@ P3_MARK="P3_6A_SIGNED_RESULT_SNAPSHOT=PASS"
 HISTORY_MARK="UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS"
 GOVERNOR_MARK="PASS genuine signed governor historic retirement:"
 MAX_BYTES=2_000_000
+HANDOFF_STAGES=frozenset((
+    "pre_snapshot_started","pre_snapshot_captured","fixture_adapter_ready",
+    "governor_started","governor_returned",
+    "conservation_started","conservation_verified"
+))
+FIXTURE_STAGES=frozenset((
+    "membership_preflight","membership_query_failed","membership_absent",
+    "membership_not_exactly_one","membership_confirmed",
+    "seed_apply_started","seed_apply_failed","seed_applied",
+    "allocation_preflight","allocation_query_failed",
+    "allocation_not_exactly_one","fixture_verified"
+))
+HANDOFF_PREFIX="UNI_OPS_HISTORY_HANDOFF_STAGE="
+FIXTURE_PREFIX="UNI_OPS_HISTORY_FIXTURE_STAGE="
+
+def classify_stage(private_log):
+    """Classify the last fixed source-owned stage, never arbitrary log contents.
+
+    Stage evidence is NOT an authenticated acceptance or conservation receipt.
+    """
+    if not isinstance(private_log,str):
+        return "log_unavailable"
+    if len(private_log.encode("utf8",errors="replace"))>MAX_BYTES:
+        return "log_oversize"
+    latest=None
+    for line in private_log.splitlines():
+        if line.startswith(HANDOFF_PREFIX):
+            value=line[len(HANDOFF_PREFIX):]
+            if value not in HANDOFF_STAGES:
+                return "unverified_stage"
+            latest="handoff_"+value
+        elif line.startswith(FIXTURE_PREFIX):
+            value=line[len(FIXTURE_PREFIX):]
+            if value not in FIXTURE_STAGES:
+                return "unverified_stage"
+            latest="fixture_"+value
+    if latest is not None:
+        return latest
+    if P3_MARK in {line.strip() for line in private_log.splitlines()}:
+        return "p3_checkpoint_before_handoff"
+    return "history_stage_not_reached"
 
 def classify(private_log):
     if not isinstance(private_log,str):
