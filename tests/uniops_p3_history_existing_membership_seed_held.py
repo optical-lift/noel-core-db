@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""HELD disposable-only C1 historical seed adaptation for EXISTING Person membership.
+
+A signed U2 first-mowing worker is already a canonical member of the test
+organization. The independent older historical fixture tried to INSERT a
+second membership for the same Person + organization. The current canon
+requires unique (organization_id,person_id). This test-only adapter binds the
+distinct obsolete Work to the EXISTING member's id, without changing any
+historical governor APIs, signed tokens, role grants, P3 SQL or held proof code.
+
+The historical companion remains loaded from its immutable Git blob. ONLY its
+one known fictional multi-statement SQL seed can pass this adapter, after a
+real read-only local PostgreSQL membership preflight. Never run remotely.
+"""
+import re
+import subprocess
+from types import SimpleNamespace
+
+ORG="e5200000-0000-4000-8000-000000000801"
+PERSON="e5200000-0000-4000-8000-000000000102"
+USER="e5200000-0000-4000-8000-000000000002"
+LEGACY="ec410000-0000-4000-8000-000000000201"
+WORK="ec410000-0000-4000-8000-000000000901"
+ALLOC="ec410000-0000-4000-8000-000000000301"
+
+MEMBER_INSERT=f"""      INSERT INTO atlas.organization_memberships(
+       id,organization_id,user_id,role,active,person_id)
+      VALUES('{LEGACY}'::uuid,'{ORG}'::uuid,
+       '{USER}'::uuid,
+       'member',true,'{PERSON}'::uuid);"""
+ORIGINAL_ALLOCATION=f"""      INSERT INTO atlas.work_allocations(
+       id,organization_id,work_item_id,assignee_membership_id,
+       allocation_role,state,establishment_basis_kind,establishment_basis)
+      VALUES('{ALLOC}'::uuid,'{ORG}'::uuid,'{WORK}'::uuid,'{LEGACY}'::uuid,
+       'responsible','active','self_adoption','{{"historical":true}}'::jsonb);"""
+BOUND_ALLOCATION=f"""      INSERT INTO atlas.work_allocations(
+       id,organization_id,work_item_id,assignee_membership_id,
+       allocation_role,state,establishment_basis_kind,establishment_basis)
+      SELECT '{ALLOC}'::uuid,'{ORG}'::uuid,'{WORK}'::uuid,m.id,
+       'responsible','active','self_adoption','{{"historical":true}}'::jsonb
+      FROM atlas.organization_memberships m
+      WHERE m.organization_id='{ORG}'::uuid
+        AND m.person_id='{PERSON}'::uuid
+        AND m.user_id='{USER}'::uuid
+        AND m.active IS TRUE;"""
+MEMBERSHIP_SQL=(
+    "select count(*) from atlas.organization_memberships m "
+    "where m.organization_id='"+ORG+"'::uuid "
+    "and m.person_id='"+PERSON+"'::uuid "
+    "and m.user_id='"+USER+"'::uuid and m.active is true")
+ALLOCATION_SQL=(
+    "select count(*) from atlas.work_allocations a "
+    "join atlas.organization_memberships m on m.id=a.assignee_membership_id "
+    "where a.id='"+ALLOC+"'::uuid "
+    "and a.work_item_id='"+WORK+"'::uuid "
+    "and m.organization_id='"+ORG+"'::uuid "
+    "and m.person_id='"+PERSON+"'::uuid "
+    "and m.user_id='"+USER+"'::uuid and m.active is true")
+
+class HistoricFixtureRefusal(AssertionError):
+    """Fixed source-owned refusal, no SQL, UUID, actor or private data text."""
+
+def adapt_known_seed(seed):
+    if not isinstance(seed,str):
+        raise HistoricFixtureRefusal("Historical seed is not text")
+    if (seed.count(MEMBER_INSERT)!=1
+            or seed.count(ORIGINAL_ALLOCATION)!=1
+            or seed.count("INSERT INTO atlas.")!=4
+            or seed.count("INSERT INTO atlas.work_items(")!=1
+            or seed.count("INSERT INTO atlas.company_work_native_ledger_relevance(")!=1
+            or BOUND_ALLOCATION in seed):
+        raise HistoricFixtureRefusal("Unreviewed historical seed shape")
+    # Retain exact historical Work, ledger-relevance rows, and source-owned
+    # governor fixture. Only reuse a Person-root relationship already in DB.
+    result=seed.replace(MEMBER_INSERT,"-- existing canonical Person membership reused",1)
+    result=result.replace(ORIGINAL_ALLOCATION,BOUND_ALLOCATION,1)
+    if (result.count("INSERT INTO atlas.")!=3 or MEMBER_INSERT in result
+            or ORIGINAL_ALLOCATION in result or result.count(BOUND_ALLOCATION)!=1):
+        raise HistoricFixtureRefusal("Historical Person-root seed adaptation drift")
+    return result
+
+class ExistingPersonFixture:
+    def __init__(self,original,reader):
+        if not callable(getattr(original,"sql",None)) or not callable(reader):
+            raise HistoricFixtureRefusal("Exact original local SQL helpers required")
+        self._original=original
+        self._reader=reader
+        self._used=False
+    def sql(self,db,seed):
+        if (not isinstance(db,str)
+                or re.fullmatch(
+                    r"postgres(?:ql)?://postgres:[^@/]+@127[.]0[.]0[.]1:[0-9]{4,5}/postgres",
+                    db) is None or self._used):
+            raise HistoricFixtureRefusal("Historical seed requires unique local invocation")
+        adapted=adapt_known_seed(seed)
+        self._used=True
+        if self._reader(db,MEMBERSHIP_SQL)!="1":
+            raise HistoricFixtureRefusal("One active signed canonical Person membership required")
+        print("UNI_OPS_HISTORY_EXISTING_PERSON_MEMBERSHIP=CONFIRMED",flush=True)
+        try:
+            self._original.sql(db,adapted)
+        except subprocess.CalledProcessError:
+            print("UNI_OPS_HISTORY_FIXTURE_SQL_STAGE=seed_apply_failed",flush=True)
+            raise
+        if self._reader(db,ALLOCATION_SQL)!="1":
+            raise HistoricFixtureRefusal("Obsolete Work failed to bind the existing Person membership")
+        print("UNI_OPS_HISTORY_FIXTURE_SQL_STAGE=seed_applied",flush=True)
+        return None
+
+def adapter(original,reader):
+    return SimpleNamespace(sql=ExistingPersonFixture(original,reader).sql)
