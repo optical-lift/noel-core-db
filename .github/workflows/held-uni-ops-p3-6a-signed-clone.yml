@@ -134,8 +134,8 @@ jobs:
           python3 -m py_compile p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
           python3 p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/24_test_signed_p3_snapshot_hook_held.py u4-source-contract/tests/uniops_u2_qualified_actual_followon_held.py
           (cd p3-source-contract && node --test candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs)
-          test "$(git hash-object tests/frame-uniops-p3-6a-disposable-sql.py)" = 0ab7fc8f77d3a679355ff064482cb94ac607b037
-          test "$(git hash-object tests/test_uniops_p3_6a_disposable_sql_framing.py)" = de3cd01978907b36dc3d22142716436acda50ed7
+          test "$(git hash-object tests/frame-uniops-p3-6a-disposable-sql.py)" = c55f330f82217818cdaa9935a8b88cd9812ae4b0
+          test "$(git hash-object tests/test_uniops_p3_6a_disposable_sql_framing.py)" = 375ccc19f36bb47fdca7fb415fa02dfaf175df28
           python3 -m py_compile tests/frame-uniops-p3-6a-disposable-sql.py tests/test_uniops_p3_6a_disposable_sql_framing.py
           python3 tests/test_uniops_p3_6a_disposable_sql_framing.py p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1
           python3 - <<'PY'
@@ -492,7 +492,7 @@ jobs:
           test -s "$origin" && test ! -e "$target"
           source_sha="$(sha256sum "$origin" | cut -d' ' -f1)"
           node p3-held/candidates/uni_ops_p3_no_auto_successor_v1/22_compose_mowing_6a_scratch_held.mjs "$origin" "$source_sha" "$target"
-          test "$(git -C canonical hash-object tests/frame-uniops-p3-6a-disposable-sql.py)" = 0ab7fc8f77d3a679355ff064482cb94ac607b037
+          test "$(git -C canonical hash-object tests/frame-uniops-p3-6a-disposable-sql.py)" = c55f330f82217818cdaa9935a8b88cd9812ae4b0
           python3 canonical/tests/frame-uniops-p3-6a-disposable-sql.py "$target" p3-held/candidates/uni_ops_p3_no_auto_successor_v1
           test -s "$target" && test ! -L "$target"
           cp p3-held/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py canonical/tests/uniops_p3_6a_snapshot_hook_held.py
