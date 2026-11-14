@@ -78,6 +78,48 @@ HISTORY_POST='''        print("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_returned",
         history_mark="UNI_OPS_SIGNED_HISTORY_CANCEL=PASS\\n"
 '''
 
+HISTORY_TRACE='''        # Held signed-history trace: public fixed enums only. No SQL, user ids,
+        # paths, RPC payload, raw error, JWT or actor credentials are emitted.
+        _history_sql_number=[0]
+        _history_rpc_number=[0]
+        _history_rpc_ops={
+            "governor_link_historical_self_adoption_self_api_v1":"link",
+            "governor_review_historical_self_adoption_self_api_v1":"review",
+            "governor_historical_retirement_preflight_self_api_v1":"preflight",
+            "governor_retire_historical_work_self_api_v1":"retire"
+        }
+        _history_roles={owner:"owner",worker:"worker",outsider:"outsider",
+                        signed["no-seat"][0]:"no_seat"}
+        def _history_sql_probe(_db,_statement):
+            _history_sql_number[0]+=1
+            _n=_history_sql_number[0]
+            check(1<=_n<=18,"Historical diagnostic SQL count outside fixed source")
+            _tag="sql_%02d" % _n
+            print("UNI_OPS_HISTORY_CALL_STAGE="+_tag+"_started",flush=True)
+            _result=sql(_db,_statement)
+            print("UNI_OPS_HISTORY_CALL_STAGE="+_tag+"_returned",flush=True)
+            return _result
+        def _history_rpc_probe(_api,_key,_token,_name,_params):
+            _history_rpc_number[0]+=1
+            _n=_history_rpc_number[0]
+            _op=_history_rpc_ops.get(_name)
+            _role=_history_roles.get(_token)
+            check(1<=_n<=18 and _op is not None and _role is not None,
+                  "Unrecognized signed history RPC diagnostic source")
+            _tag="rpc_%02d_%s_%s" % (_n,_op,_role)
+            print("UNI_OPS_HISTORY_CALL_STAGE="+_tag+"_started",flush=True)
+            _status,_payload=rpc(_api,_key,_token,_name,_params)
+            _http={200:"ok",400:"bad_request",401:"unauthorized",
+                   403:"forbidden",409:"conflict"}.get(_status,"other")
+            _code=_payload.get("code") if isinstance(_payload,dict) else None
+            _error={"42501":"permission_denied","40001":"stale_snapshot",
+                    "23514":"source_constraint","23505":"source_conflict",
+                    "42883":"missing_function"}.get(_code,"other" if _code is not None else "none")
+            print("UNI_OPS_HISTORY_CALL_HTTP_CLASS="+_http,flush=True)
+            print("UNI_OPS_HISTORY_CALL_ERROR_CLASS="+_error,flush=True)
+            print("UNI_OPS_HISTORY_CALL_STAGE="+_tag+"_returned",flush=True)
+            return _status,_payload
+'''
 class P3HistoricalRefusal(RuntimeError):
     pass
 
@@ -99,14 +141,14 @@ def prepare(driver,bridge,companion,guard,hook,preparer,compat):
         raise P3HistoricalRefusal("Original signed history driver insertion drift")
     if "UNI_OPS_P3_MOWING_AFTER_HISTORY" in prepared:
         raise P3HistoricalRefusal("History preservation already inserted")
-    prepared=prepared.replace(HISTORY_START,HISTORY_PRE+
+    prepared=prepared.replace(HISTORY_START,HISTORY_PRE+HISTORY_TRACE+
         '        print("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_started",flush=True)\n'+
         HISTORY_START,1)
     tail="sql=sql,rpc=rpc,c1=base.c1)"
     if prepared.count(tail)!=1:
         raise P3HistoricalRefusal("Historical signed actor adapter anchor drift")
     prepared=prepared.replace(tail,
-        "sql=sql,rpc=rpc,c1=_history_fixture_c1)",1)
+        "sql=_history_sql_probe,rpc=_history_rpc_probe,c1=_history_fixture_c1)",1)
     prepared=prepared.replace(HISTORY_SUCCESS,HISTORY_POST,1)
     for tok in ("--historical-retirement-followon",
                 "_mowing_before_history=_p3.capture",
@@ -115,6 +157,7 @@ def prepare(driver,bridge,companion,guard,hook,preparer,compat):
                 "_pres.require_preserved",
                 "_history_fixture_c1=_compat.adapter",
                 "c1=_history_fixture_c1)",
+                "_history_sql_probe", "_history_rpc_probe",
                 "UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS"):
         if prepared.count(tok)!=1:
             raise P3HistoricalRefusal("Historical signed source composition not unique")
