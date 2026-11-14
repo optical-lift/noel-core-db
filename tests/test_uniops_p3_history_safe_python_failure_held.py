@@ -51,5 +51,53 @@ class SafeHistoryDiagnostic(unittest.TestCase):
         self.assertEqual(m.classify("a"*(m.MAX_BYTES+1)),
             ("log_oversize","not_classified"))
 
+
+    def test_fixed_handoff_and_fixture_stages_are_distinct_from_final_pass(self):
+        cases=(
+            ("handoff","pre_snapshot_started"),
+            ("handoff","pre_snapshot_captured"),
+            ("handoff","fixture_adapter_ready"),
+            ("handoff","governor_started"),
+            ("fixture","membership_preflight"),
+            ("fixture","membership_absent"),
+            ("fixture","membership_not_exactly_one"),
+            ("fixture","membership_query_failed"),
+            ("fixture","membership_confirmed"),
+            ("fixture","seed_apply_started"),
+            ("fixture","seed_apply_failed"),
+            ("fixture","seed_applied"),
+            ("fixture","allocation_query_failed"),
+            ("fixture","allocation_not_exactly_one"),
+            ("fixture","fixture_verified"),
+            ("handoff","governor_returned"),
+            ("handoff","conservation_started"),
+            ("handoff","conservation_verified"),
+        )
+        for family,value in cases:
+            prefix=(m.HANDOFF_PREFIX if family=="handoff"
+                    else m.FIXTURE_PREFIX)
+            log=(m.P3_MARK+"\nprivate SQL and JWT intentionally withheld\n"
+                 +prefix+value+"\n")
+            with self.subTest(family=family,stage=value):
+                self.assertEqual(m.classify_stage(log),family+"_"+value)
+                self.assertNotIn("private",m.classify_stage(log))
+                self.assertEqual(m.classify(log)[0],
+                                 "mowing_p3_signed_before_history")
+
+    def test_last_stage_must_be_exact_and_unknown_never_leaks(self):
+        log=(m.P3_MARK+"\n"+m.HANDOFF_PREFIX+"governor_started\n"
+             +m.FIXTURE_PREFIX+"membership_preflight\n"
+             +m.FIXTURE_PREFIX+"membership_absent\n")
+        self.assertEqual(m.classify_stage(log),"fixture_membership_absent")
+        self.assertEqual(m.classify_stage(m.P3_MARK+"\n"),
+                         "p3_checkpoint_before_handoff")
+        self.assertEqual(m.classify_stage("unrelated"),"history_stage_not_reached")
+        self.assertEqual(m.classify_stage(None),"log_unavailable")
+        self.assertEqual(m.classify_stage("x"*(m.MAX_BYTES+1)),"log_oversize")
+        self.assertEqual(m.classify_stage(
+            m.HANDOFF_PREFIX+"secret path and SQL"),"unverified_stage")
+        self.assertEqual(m.classify_stage(
+            m.FIXTURE_PREFIX+"membership_absent with secret"),"unverified_stage")
+
 if __name__=="__main__":
     unittest.main(verbosity=2)

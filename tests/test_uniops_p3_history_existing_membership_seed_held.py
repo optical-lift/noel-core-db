@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """No-network fail-closed tests of immutable #2368 historical seed compatibility."""
 import argparse
+import io
+from contextlib import redirect_stdout
 import hashlib
 import importlib.util
 from pathlib import Path
@@ -113,6 +115,61 @@ class FixtureCompatibility(unittest.TestCase):
         a=m.adapter(SimpleNamespace(sql=fails),lambda db,q:"1")
         with self.assertRaises(subprocess.CalledProcessError):
             a.sql(PG,m.ORIGINAL_SEED)
+
+
+    def test_bounded_membership_absence_vs_nonunique_and_sql_failure(self):
+        for count,expected in (("0","membership_absent"),
+                               ("2","membership_not_exactly_one")):
+            output=io.StringIO()
+            fixture=m.adapter(SimpleNamespace(sql=lambda db,q:None),
+                              lambda db,q:count)
+            with self.subTest(count=count),redirect_stdout(output):
+                with self.assertRaises(m.HistoricFixtureRefusal):
+                    fixture.sql(PG,m.ORIGINAL_SEED)
+            self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE="+expected,
+                          output.getvalue())
+            self.assertNotIn(m.ORG,output.getvalue())
+            self.assertNotIn("postgresql://",output.getvalue())
+        output=io.StringIO()
+        def failed_reader(db,query):
+            raise subprocess.CalledProcessError(1,["psql","PRIVATE"])
+        with redirect_stdout(output):
+            with self.assertRaises(subprocess.CalledProcessError):
+                m.adapter(SimpleNamespace(sql=lambda db,q:None),
+                          failed_reader).sql(PG,m.ORIGINAL_SEED)
+        self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=membership_query_failed",
+                      output.getvalue())
+
+    def test_bounded_seed_failure_and_verified_allocation(self):
+        output=io.StringIO()
+        def fails(db,query):
+            raise subprocess.CalledProcessError(1,["psql","PRIVATE"])
+        with redirect_stdout(output):
+            with self.assertRaises(subprocess.CalledProcessError):
+                m.adapter(SimpleNamespace(sql=fails),
+                          lambda db,q:"1").sql(PG,m.ORIGINAL_SEED)
+        self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=seed_apply_failed",
+                      output.getvalue())
+        output=io.StringIO()
+        with redirect_stdout(output):
+            m.adapter(SimpleNamespace(sql=lambda db,q:None),
+                      lambda db,q:"1").sql(PG,m.ORIGINAL_SEED)
+        self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=fixture_verified",
+                      output.getvalue())
+        self.assertNotIn("PRIVATE",output.getvalue())
+
+    def test_postseed_allocation_failure_is_not_mislabeled_as_seed_failure(self):
+        output=io.StringIO()
+        def reader(db,query):
+            return "1" if query==m.MEMBERSHIP_SQL else "0"
+        with redirect_stdout(output):
+            with self.assertRaises(m.HistoricFixtureRefusal):
+                m.adapter(SimpleNamespace(sql=lambda db,q:None),
+                          reader).sql(PG,m.ORIGINAL_SEED)
+        self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=allocation_not_exactly_one",
+                      output.getvalue())
+        self.assertNotIn("UNI_OPS_HISTORY_FIXTURE_STAGE=seed_apply_failed",
+                         output.getvalue())
 
 if __name__=="__main__":
     unittest.main(argv=[sys.argv[0]],verbosity=2)

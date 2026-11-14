@@ -18,7 +18,7 @@ import prepare_uniops_historical_retirement_signed_followon_held as original
 PREPARER_BLOB="6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519"
 GUARD_BLOB="a0ab7523f10e9b79d3290871fd5faac777e6e733"
 P3_HOOK_BLOB="4efef70ea67209b04def420aade39b8a6fd44f38"
-COMPAT_BLOB="ad3116b025ad0eecdb989ed912a69fe2e48c4f0e"
+COMPAT_BLOB="2a5154d3cd8546f4f510dde4688a638d6cfc5ff1"
 SAFE_OUTPUT="validate-uniops-p3-historical-signed-local-only.py"
 
 HISTORY_START="        history_receipt=hist.prove(\n"
@@ -39,8 +39,10 @@ HISTORY_PRE='''        # Test-only: capture exact completed mowing source in thi
               "Pinned P3 historical preservation guard missing")
         _pres=importlib.util.module_from_spec(_pres_spec)
         _pres_spec.loader.exec_module(_pres)
+        print("UNI_OPS_HISTORY_HANDOFF_STAGE=pre_snapshot_started",flush=True)
         _mowing_before_history=_p3.capture(
             a.db_url,sql,_p3.ORG,_p3.STATE,new_work,"replay")
+        print("UNI_OPS_HISTORY_HANDOFF_STAGE=pre_snapshot_captured",flush=True)
         # The historical source companion stays immutable. Adapt ONLY its
         # fictional seed through a separately SHA-pinned Person-root wrapper.
         from hashlib import sha1 as _sha1
@@ -49,7 +51,7 @@ HISTORY_PRE='''        # Test-only: capture exact completed mowing source in thi
               "Reviewed history Person-root source missing")
         _compat_bytes=_compat_path.read_bytes()
         check(_sha1(b"blob "+str(len(_compat_bytes)).encode("ascii")+b"\\0"+
-                    _compat_bytes).hexdigest()=="ad3116b025ad0eecdb989ed912a69fe2e48c4f0e",
+                    _compat_bytes).hexdigest()=="2a5154d3cd8546f4f510dde4688a638d6cfc5ff1",
               "History Person-root source pin changed")
         _compat_spec=importlib.util.spec_from_file_location(
             "uniops_p3_history_existing_membership_seed_held",_compat_path)
@@ -58,12 +60,16 @@ HISTORY_PRE='''        # Test-only: capture exact completed mowing source in thi
         _compat=importlib.util.module_from_spec(_compat_spec)
         _compat_spec.loader.exec_module(_compat)
         _history_fixture_c1=_compat.adapter(base.c1,sql)
+        print("UNI_OPS_HISTORY_HANDOFF_STAGE=fixture_adapter_ready",flush=True)
 '''
-HISTORY_POST='''        _mowing_after_history=_p3.capture(
+HISTORY_POST='''        print("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_returned",flush=True)
+        _mowing_after_history=_p3.capture(
             a.db_url,sql,_p3.ORG,_p3.STATE,new_work,"replay")
+        print("UNI_OPS_HISTORY_HANDOFF_STAGE=conservation_started",flush=True)
         check(_pres.require_preserved(_mowing_before_history,
                                      _mowing_after_history) is True,
               "Governed mowing Work/Need changed during separate historic retirement")
+        print("UNI_OPS_HISTORY_HANDOFF_STAGE=conservation_verified",flush=True)
         print("UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS",flush=True)
         history_mark="UNI_OPS_SIGNED_HISTORY_CANCEL=PASS\\n"
 '''
@@ -89,7 +95,9 @@ def prepare(driver,bridge,companion,guard,hook,preparer,compat):
         raise P3HistoricalRefusal("Original signed history driver insertion drift")
     if "UNI_OPS_P3_MOWING_AFTER_HISTORY" in prepared:
         raise P3HistoricalRefusal("History preservation already inserted")
-    prepared=prepared.replace(HISTORY_START,HISTORY_PRE+HISTORY_START,1)
+    prepared=prepared.replace(HISTORY_START,HISTORY_PRE+
+        '        print("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_started",flush=True)\n'+
+        HISTORY_START,1)
     tail="sql=sql,rpc=rpc,c1=base.c1)"
     if prepared.count(tail)!=1:
         raise P3HistoricalRefusal("Historical signed actor adapter anchor drift")
