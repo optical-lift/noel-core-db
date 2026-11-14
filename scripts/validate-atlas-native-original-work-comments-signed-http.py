@@ -24,6 +24,8 @@ ORG = c1.ORG
 LEDGER = c1.LEDGER_A
 OTHER_LEDGER = c1.LEDGER_B
 WORK = "e5200000-0000-4000-8000-000000000902"
+OFFER = "e5200000-0000-4000-8000-000000000982"
+WORKER_PERSON = "e5200000-0000-4000-8000-000000000102"
 WRONG_WORK = "e5200000-0000-4000-8000-000000000901"
 ALLOC = "e5200000-0000-4000-8000-000000000983"
 ACTION_OWNER = "e5200000-0000-4000-8000-000000000d01"
@@ -137,8 +139,19 @@ def main():
           AND assignee_canonical_person_id='%s'::uuid
           AND state='active'
           AND establishment_basis_kind='person_connection_receiver_uptake'
-    """ % (ALLOC, WORK, "e5200000-0000-4000-8000-000000000102")) == "1",
-          "Real synthetic receiver-accepted responsibility required")
+          AND establishment_basis->>'offerId'='%s'
+          AND establishment_basis->>'uptakeKind'='recipient_self_accepted'
+          AND establishment_basis->>'contractVersion'='exact_work_responsibility_establishment_v2'
+    """ % (ALLOC, WORK, WORKER_PERSON, OFFER)) == "1",
+          "Synthetic Work allocation must preserve exact governed receiver-uptake source")
+    check(sql(args.db_url, """
+        SELECT count(*) FROM atlas.company_work_initial_responsibility_offers
+        WHERE id='%s'::uuid
+          AND work_item_id='%s'::uuid
+          AND target_person_id='%s'::uuid
+          AND offer_state='offered'
+    """ % (OFFER,WORK,WORKER_PERSON)) == "1",
+          "Exact synthetic original Work offer must exist")
     check(sql(args.db_url,
         "SELECT count(*) FROM atlas.native_original_work_comments_v1") == "0",
         "W07 local comments must begin empty")
