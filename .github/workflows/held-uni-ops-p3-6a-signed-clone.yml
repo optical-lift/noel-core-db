@@ -124,7 +124,7 @@ jobs:
           ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-p3-6a-signed-clone.yml")'
           python3 -m py_compile p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
           python3 p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/24_test_signed_p3_snapshot_hook_held.py u4-source-contract/tests/uniops_u2_qualified_actual_followon_held.py
-          node --test p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs
+          (cd p3-source-contract && node --test candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs)
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-uni-ops-p3-6a-signed-clone.yml').read_text()
@@ -468,7 +468,7 @@ jobs:
           test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/18_disposable_signed_result_snapshot.sql)" = 8acc6ddae19a1e2b7e7f08695406648246023106
           test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/19_compare_signed_result_snapshots.mjs)" = 618ea32d80a6794e637b9428b90b34b366b031c4
           test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/20_mowing_6a_core_postconditions_held.sql)" = 210c42f97ceebc8dde2b493e898d23747cce7787
-          node --test p3-held/candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs
+          (cd p3-held && node --test candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs)
           origin="$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
           target="$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
           test -s "$origin" && test ! -e "$target"
