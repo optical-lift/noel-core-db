@@ -29,6 +29,10 @@ on:
       - 'tests/test_uniops_p3_history_existing_membership_seed_held.py'
       - 'tests/uniops_p3_history_safe_python_failure_held.py'
       - 'tests/test_uniops_p3_history_safe_python_failure_held.py'
+      - 'tests/append_uniops_history_http409_disposable_held.py'
+      - 'tests/test_uniops_history_http409_overlay_source_only.py'
+      - 'tests/test_uniops_history_stale_409_source_only.py'
+      - 'candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql'
 permissions:
   contents: read
   packages: read
