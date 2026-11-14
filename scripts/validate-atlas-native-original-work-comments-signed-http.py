@@ -30,12 +30,22 @@ OFFER = "e5200000-0000-4000-8000-000000000982"
 OWNER_PERSON = "e5200000-0000-4000-8000-000000000101"
 WORKER_PERSON = "e5200000-0000-4000-8000-000000000102"
 WRONG_WORK = "e5200000-0000-4000-8000-000000000901"
+WORK_PARTICIPATION = "e5200000-0000-4000-8000-000000000903"
+PARTICIPANT_PERSON = "e5200000-0000-4000-8000-000000000103"
+OWNER_MEMBERSHIP = "e5200000-0000-4000-8000-000000000971"
+PARTICIPANT_MEMBERSHIP = "e5200000-0000-4000-8000-000000000973"
+OWNER_ALLOCATION = "e5200000-0000-4000-8000-000000000984"
+PARTICIPATION_OFFER = "e5200000-0000-4000-8000-000000000985"
+PARTICIPANT_ALLOCATION = "e5200000-0000-4000-8000-000000000986"
+PARTICIPANT_SEAT = "e5200000-0000-4000-8000-000000000573"
 ALLOC = "e5200000-0000-4000-8000-000000000983"
 ACTION_OWNER = "e5200000-0000-4000-8000-000000000d01"
 ACTION_WORKER = "e5200000-0000-4000-8000-000000000d02"
 ACTION_THIRD = "e5200000-0000-4000-8000-000000000d03"
 ACTION_RACE_DIFFERENT = "e5200000-0000-4000-8000-000000000d04"
 ACTION_RACE_IDENTICAL = "e5200000-0000-4000-8000-000000000d05"
+ACTION_PARTICIPATION_OWNER = "e5200000-0000-4000-8000-000000000d06"
+ACTION_PARTICIPATION_OTHER = "e5200000-0000-4000-8000-000000000d07"
 BODY_OWNER = "SYNTH_W07_OWNER_COMMENT_LOCAL_ONLY"
 BODY_WORKER = "SYNTH_W07_WORKER_COMMENT_LOCAL_ONLY"
 BODY_THIRD = "SYNTH_W07_OWNER_SECOND_LOCAL_ONLY"
@@ -111,6 +121,171 @@ def simultaneous_writes(api, key, token, action, bodies):
     with ThreadPoolExecutor(max_workers=2) as pool:
         futures = [pool.submit(send, body) for body in bodies]
         return [future.result(timeout=30) for future in futures]
+
+
+def independently_accepted_participant_trial(db_url, api, key, owner, other, no_seat):
+    """Only a fictional, separately accepted membership participant on Work 903.
+
+    Preserve the preexisting C1 Work 902 Person-native responsibility unchanged.
+    The signed third actor is originally denied and must remain denied after
+    receiving a membership and native Ledger seat but BEFORE receiver acceptance.
+    Work participation uses the existing guarded offer/acceptance source.
+    """
+    w = WORK_PARTICIPATION
+    forbidden(api, key, other, READ, read_args(work=w),
+              "third Person without accepted participation denied")
+
+    # The recipient has both an exact native Ledger connection AND an active
+    # institutional compatibility carrier; neither alone discloses Work.
+    sql(db_url, """
+      INSERT INTO atlas.organization_memberships
+        (id,organization_id,user_id,person_id,role,active)
+      VALUES
+        ('%s'::uuid,'%s'::uuid,'%s'::uuid,'%s'::uuid,'owner',true),
+        ('%s'::uuid,'%s'::uuid,'%s'::uuid,'%s'::uuid,'member',true)
+    """ % (OWNER_MEMBERSHIP,ORG,c1.OWNER,OWNER_PERSON,
+           PARTICIPANT_MEMBERSHIP,ORG,c1.OUTSIDER,PARTICIPANT_PERSON))
+    sql(db_url, """
+      INSERT INTO ledger.seats
+        (id,ledger_id,person_entity_id,seat_state,seat_basis)
+      VALUES ('%s'::uuid,'%s'::uuid,'%s'::uuid,'active',
+              '{"cloneFixture":true}'::jsonb)
+    """ % (PARTICIPANT_SEAT,LEDGER,PARTICIPANT_PERSON))
+    forbidden(api,key,other,READ,read_args(work=w),
+              "native Ledger seat and membership do not admit third Person")
+    forbidden(api,key,other,WRITE,
+              write_args(ACTION_PARTICIPATION_OTHER,"not accepted",work=w),
+              "native Ledger seat without accepted allocation cannot append")
+
+    # Responsibility is separately attached to an existing original Work via
+    # the governed membership self-adoption provenance of this fictional C1 Work.
+    sql(db_url, """
+      INSERT INTO atlas.work_allocations(
+        id,organization_id,work_item_id,assignee_membership_id,
+        assigned_by_membership_id,allocation_role,state,
+        establishment_basis_kind,establishment_basis,metadata
+      ) VALUES (
+        '%s'::uuid,'%s'::uuid,'%s'::uuid,'%s'::uuid,
+        '%s'::uuid,'responsible','active',
+        'self_adoption',
+        jsonb_build_object(
+          'contractVersion','exact_work_responsibility_establishment_v2',
+          'basisKind','self_adoption',
+          'organizationId','%s','workItemId','%s',
+          'assigneeMembershipId','%s','actorMembershipId','%s',
+          'sourceKind','synthetic_original_work','sourceId','%s'
+        ),
+        '{"cloneFixture":"w07_member_source"}'::jsonb
+      )
+    """ % (OWNER_ALLOCATION,ORG,w,OWNER_MEMBERSHIP,
+           OWNER_MEMBERSHIP,ORG,w,OWNER_MEMBERSHIP,OWNER_MEMBERSHIP,w))
+
+    sql(db_url, """
+      INSERT INTO atlas.company_work_participation_offers (
+        id,organization_id,work_item_id,
+        offered_from_responsibility_allocation_id,
+        offered_by_person_entity_id,offered_by_membership_id_compatibility,
+        target_person_entity_id,target_membership_id_compatibility,
+        allocation_role,offer_state,reason
+      ) VALUES (
+        '%s'::uuid,'%s'::uuid,'%s'::uuid,'%s'::uuid,
+        '%s'::uuid,'%s'::uuid,'%s'::uuid,'%s'::uuid,
+        'participant','offered','Synthetic third Person participation case'
+      )
+    """ % (PARTICIPATION_OFFER,ORG,w,OWNER_ALLOCATION,
+           OWNER_PERSON,OWNER_MEMBERSHIP,
+           PARTICIPANT_PERSON,PARTICIPANT_MEMBERSHIP))
+    forbidden(api,key,other,READ,read_args(work=w),
+              "offered but unaccepted third Person cannot read Work")
+    forbidden(api,key,other,WRITE,
+              write_args(ACTION_PARTICIPATION_OTHER,"offer only",work=w),
+              "unaccepted offer cannot grant comment writing")
+
+    sql(db_url, """
+      INSERT INTO atlas.work_allocations(
+        id,organization_id,work_item_id,assignee_membership_id,
+        assigned_by_membership_id,allocation_role,state,
+        establishment_basis_kind,establishment_basis,metadata
+      ) VALUES (
+        '%s'::uuid,'%s'::uuid,'%s'::uuid,'%s'::uuid,
+        '%s'::uuid,'participant','active',
+        'receiver_acceptance',
+        jsonb_build_object(
+          'contractVersion','company_work_participation_establishment_v1',
+          'basisKind','receiver_acceptance',
+          'organizationId','%s','workItemId','%s',
+          'assigneeMembershipId','%s','actorMembershipId','%s',
+          'allocationRole','participant',
+          'sourceKind','company_work_participation_offer',
+          'sourceId','%s'
+        ),
+        '{"cloneFixture":"w07_accepted_participant"}'::jsonb
+      )
+    """ % (PARTICIPANT_ALLOCATION,ORG,w,PARTICIPANT_MEMBERSHIP,
+           PARTICIPANT_MEMBERSHIP,ORG,w,
+           PARTICIPANT_MEMBERSHIP,PARTICIPANT_MEMBERSHIP,PARTICIPATION_OFFER))
+    sql(db_url, """
+      UPDATE atlas.company_work_participation_offers SET
+        offer_state='accepted',resolved_at=now(),
+        resolved_by_person_entity_id='%s'::uuid,
+        resolved_by_membership_id_compatibility='%s'::uuid,
+        accepted_allocation_id='%s'::uuid
+      WHERE id='%s'::uuid
+    """ % (PARTICIPANT_PERSON,PARTICIPANT_MEMBERSHIP,
+           PARTICIPANT_ALLOCATION,PARTICIPATION_OFFER))
+    check(sql(db_url, """
+      SELECT count(*) FROM atlas.company_work_participation_offers o
+      JOIN atlas.work_allocations a ON a.id=o.accepted_allocation_id
+      WHERE o.id='%s'::uuid AND o.offer_state='accepted'
+        AND o.resolved_by_person_entity_id='%s'::uuid
+        AND a.assignee_membership_id='%s'::uuid
+        AND a.establishment_basis->>'sourceId'='%s'
+        AND a.allocation_role='participant' AND a.state='active'
+    """ % (PARTICIPATION_OFFER,PARTICIPANT_PERSON,
+           PARTICIPANT_MEMBERSHIP,PARTICIPATION_OFFER))=="1",
+          "Third Person participation must trace the actual accepted offer")
+
+    empty=permitted(api,key,other,READ,read_args(work=w))
+    check(empty.get("workItemId")==w and empty.get("items")==[],
+          "Accepted participant failed independently scoped empty Work read")
+    note=permitted(api,key,owner,WRITE,
+        write_args(ACTION_PARTICIPATION_OWNER,
+                   "SYNTH_W07_PARTICIPATION_OWNER",work=w))
+    view=permitted(api,key,other,READ,read_args(work=w))
+    check(len(view.get("items") or [])==1
+          and view["items"][0].get("commentId")==note.get("commentId")
+          and view["items"][0].get("body")=="SYNTH_W07_PARTICIPATION_OWNER"
+          and view["items"][0].get("authoredBySelf") is False,
+          "Independently accepted Person could not read owner's original ink")
+    response=permitted(api,key,other,WRITE,
+        write_args(ACTION_PARTICIPATION_OTHER,
+                   "SYNTH_W07_PARTICIPATION_OTHER",work=w))
+    after=permitted(api,key,owner,READ,read_args(work=w))
+    check(response.get("commentId")!=note.get("commentId")
+          and response.get("body")=="SYNTH_W07_PARTICIPATION_OTHER"
+          and any(item.get("commentId")==response.get("commentId")
+                  and item.get("authoredBySelf") is False
+                  for item in after.get("items",[])),
+          "Native governor could not independently read accepted participant")
+    forbidden(api,key,no_seat,READ,read_args(work=w),
+              "unconnected fourth Person never inherits collaboration")
+
+    # Source withdrawal remains effective despite the membership/seat.
+    sql(db_url, """
+      UPDATE atlas.work_allocations SET state='released',
+        released_at=now(),release_reason='clone:w07-participation-withdrawn'
+      WHERE id='%s'::uuid AND work_item_id='%s'::uuid
+    """ % (PARTICIPANT_ALLOCATION,w))
+    forbidden(api,key,other,READ,read_args(work=w),
+              "revoked accepted participant loses historical note read")
+    forbidden(api,key,other,WRITE,
+              write_args(ACTION_PARTICIPATION_OTHER,
+                         "SYNTH_W07_PARTICIPATION_OTHER",work=w),
+              "revoked accepted participant cannot replay old note")
+    check(len(permitted(api,key,owner,READ,read_args(work=w))["items"])==2,
+          "Original Work retains participant's authorship after withdrawal")
+    print("PASS W07 independently accepted third Person source-bound read/write, "
+          "membership/offer-only denial and revocation")
 
 
 def check_read(packet, expected_ids):
@@ -370,6 +545,9 @@ def main():
                [owner_id,worker_id,third_id,
                 winner["commentId"],same[0][1]["commentId"]])
 
+    independently_accepted_participant_trial(
+        args.db_url, api, key, owner, outsider, no_seat)
+
     check(sql(args.db_url,"SELECT count(*) FROM atlas.work_items")==
           work_before,"W07 comments manufactured another original Work")
     check(sql(args.db_url,
@@ -387,7 +565,7 @@ def main():
       "PASS W07 signed local GoTrue 4 identities, exact Work read/write, "
       "cross-person refresh, original idempotent replay and collision denial, "
       "page cursor, parallel same-key same/different-body race, "
-      "signed revocation, no new Work or Work Result\n",
+      "signed revocation, independent accepted participant, no new Work or Work Result\n",
       encoding="utf-8"
     )
 
