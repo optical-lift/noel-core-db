@@ -135,3 +135,38 @@ test('nonterminal Full/Blocked cannot pretend to close original Work',()=>{
   assert.notEqual(runCompare(b,{...after(b,'partial'),originalWorkState:'completed'},'partial').status,0);
   assert.notEqual(runCompare(b,{...after(b,'blocked'),satisfactionTotal:1},'blocked').status,0);
 });
+
+
+test('disposable 18-stage U4 scratch gains exactly eight source-pinned P3 stages',()=>{
+  const root=mkdtempSync(join(tmpdir(),'uniops-p3-assembly-'));
+  try {
+    const oldSql=join(root,'UNI_OPS_U4_DISPOSABLE_ONLY.sql');
+    const out=join(root,'UNI_OPS_P3_6A_SYNTHETIC_TEST_ONLY.sql');
+    const stage=Array.from({length:18},(_,i)=>
+      '-- BEGIN PINNED STAGE fictional_'+(i+1)+'\\n-- END PINNED STAGE fictional_'+(i+1)+'\\n').join('');
+    const input=stage+'-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:3e09b66e54c15e100110c2b50f43dc9c7593e51a\\n';
+    writeFileSync(oldSql,input);
+    const digest=createHash('sha256').update(input).digest('hex');
+    const assembler=new URL('22_compose_mowing_6a_scratch_held.mjs',base);
+    const cmd=(sha,target)=>spawnSync(process.execPath,[assembler.pathname,oldSql,sha,target],
+      {encoding:'utf8',timeout:12000});
+    const first=cmd(digest,out);
+    assert.equal(first.status,0,(first.stderr||'').slice(0,1200));
+    assert.match(first.stdout,/P3_6A_SOURCE_STAGE_COUNT=8/);
+    const combined=readFileSync(out,'utf8');
+    assert.equal((combined.match(/-- BEGIN PINNED STAGE /g)||[]).length,18);
+    assert.equal((combined.match(/-- BEGIN PINNED P3 6A HELD STAGE /g)||[]).length,8);
+    assert.match(combined,/P3 evaluator source fingerprint drift; stop/);
+    assert.match(combined,/CORE_MOWING_P3_STRUCTURE=PASS/);
+    assert.notEqual(cmd(digest,out).status,0,'existing output must never be overwritten');
+    assert.notEqual(cmd('0'.repeat(64),
+      join(root,'UNI_OPS_P3_6A_FORGED_TEST_ONLY.sql')).status,0,
+      'forged U4 input hash must be denied');
+    const missing=join(root,'UNI_OPS_BAD_DISPOSABLE_ONLY.sql');
+    writeFileSync(missing,stage);
+    const missingDigest=createHash('sha256').update(stage).digest('hex');
+    const rejected=spawnSync(process.execPath,[assembler.pathname,missing,missingDigest,
+      join(root,'UNI_OPS_P3_6A_MISSING_TEST_ONLY.sql')],{encoding:'utf8',timeout:12000});
+    assert.notEqual(rejected.status,0,'U4 signed transport provenance must be present');
+  }finally{rmSync(root,{recursive:true,force:true});}
+});
