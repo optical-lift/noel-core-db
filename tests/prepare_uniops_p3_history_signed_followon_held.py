@@ -18,6 +18,7 @@ import prepare_uniops_historical_retirement_signed_followon_held as original
 PREPARER_BLOB="6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519"
 GUARD_BLOB="a0ab7523f10e9b79d3290871fd5faac777e6e733"
 P3_HOOK_BLOB="4efef70ea67209b04def420aade39b8a6fd44f38"
+COMPAT_BLOB="ad3116b025ad0eecdb989ed912a69fe2e48c4f0e"
 SAFE_OUTPUT="validate-uniops-p3-historical-signed-local-only.py"
 
 HISTORY_START="        history_receipt=hist.prove(\n"
@@ -40,6 +41,23 @@ HISTORY_PRE='''        # Test-only: capture exact completed mowing source in thi
         _pres_spec.loader.exec_module(_pres)
         _mowing_before_history=_p3.capture(
             a.db_url,sql,_p3.ORG,_p3.STATE,new_work,"replay")
+        # The historical source companion stays immutable. Adapt ONLY its
+        # fictional seed through a separately SHA-pinned Person-root wrapper.
+        from hashlib import sha1 as _sha1
+        _compat_path=ROOT/"tests"/"uniops_p3_history_existing_membership_seed_held.py"
+        check(_compat_path.is_file() and not _compat_path.is_symlink(),
+              "Reviewed history Person-root source missing")
+        _compat_bytes=_compat_path.read_bytes()
+        check(_sha1(b"blob "+str(len(_compat_bytes)).encode("ascii")+b"\\0"+
+                    _compat_bytes).hexdigest()=="ad3116b025ad0eecdb989ed912a69fe2e48c4f0e",
+              "History Person-root source pin changed")
+        _compat_spec=importlib.util.spec_from_file_location(
+            "uniops_p3_history_existing_membership_seed_held",_compat_path)
+        check(_compat_spec is not None and _compat_spec.loader is not None,
+              "History Person-root fixture adapter unavailable")
+        _compat=importlib.util.module_from_spec(_compat_spec)
+        _compat_spec.loader.exec_module(_compat)
+        _history_fixture_c1=_compat.adapter(base.c1,sql)
 '''
 HISTORY_POST='''        _mowing_after_history=_p3.capture(
             a.db_url,sql,_p3.ORG,_p3.STATE,new_work,"replay")
@@ -56,11 +74,12 @@ class P3HistoricalRefusal(RuntimeError):
 def git_blob(payload):
     return hashlib.sha1(b"blob "+str(len(payload)).encode()+b"\0"+payload).hexdigest()
 
-def prepare(driver,bridge,companion,guard,hook,preparer):
+def prepare(driver,bridge,companion,guard,hook,preparer,compat):
     for data,pin,label in (
         (preparer,PREPARER_BLOB,"historical preparer"),
         (guard,GUARD_BLOB,"P3 preservation guard"),
-        (hook,P3_HOOK_BLOB,"signed P3 snapshot source")):
+        (hook,P3_HOOK_BLOB,"signed P3 snapshot source"),
+        (compat,COMPAT_BLOB,"Person-root historical seed compatibility")):
         if not isinstance(data,bytes) or git_blob(data)!=pin:
             raise P3HistoricalRefusal("Reviewed "+label+" source drift")
     # The existing history preparer authenticates ALL THREE genuine source
@@ -71,12 +90,19 @@ def prepare(driver,bridge,companion,guard,hook,preparer):
     if "UNI_OPS_P3_MOWING_AFTER_HISTORY" in prepared:
         raise P3HistoricalRefusal("History preservation already inserted")
     prepared=prepared.replace(HISTORY_START,HISTORY_PRE+HISTORY_START,1)
+    tail="sql=sql,rpc=rpc,c1=base.c1)"
+    if prepared.count(tail)!=1:
+        raise P3HistoricalRefusal("Historical signed actor adapter anchor drift")
+    prepared=prepared.replace(tail,
+        "sql=sql,rpc=rpc,c1=_history_fixture_c1)",1)
     prepared=prepared.replace(HISTORY_SUCCESS,HISTORY_POST,1)
     for tok in ("--historical-retirement-followon",
                 "_mowing_before_history=_p3.capture",
                 "history_receipt=hist.prove",
                 "_mowing_after_history=_p3.capture",
                 "_pres.require_preserved",
+                "_history_fixture_c1=_compat.adapter",
+                "c1=_history_fixture_c1)",
                 "UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS"):
         if prepared.count(tok)!=1:
             raise P3HistoricalRefusal("Historical signed source composition not unique")
@@ -84,7 +110,7 @@ def prepare(driver,bridge,companion,guard,hook,preparer):
 
 def main():
     p=argparse.ArgumentParser()
-    for arg in ("driver","bridge","companion","guard","p3-hook","preparer","output"):
+    for arg in ("driver","bridge","companion","guard","p3-hook","preparer","compat","output"):
         p.add_argument("--"+arg,required=True,type=Path)
     a=p.parse_args()
     runner=os.environ.get("RUNNER_TEMP")
@@ -95,7 +121,7 @@ def main():
     if (not out.is_absolute() or out.parent.resolve()!=root
             or out.name!=SAFE_OUTPUT or out.exists()):
         raise P3HistoricalRefusal("Exact new disposable driver file required")
-    inputs=[a.driver,a.bridge,a.companion,a.guard,a.p3_hook,a.preparer]
+    inputs=[a.driver,a.bridge,a.companion,a.guard,a.p3_hook,a.preparer,a.compat]
     if any(not inp.is_file() or inp.is_symlink() for inp in inputs):
         raise P3HistoricalRefusal("Reviewed ordinary input file missing")
     data=prepare(*(i.read_bytes() for i in inputs))
