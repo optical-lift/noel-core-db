@@ -76,6 +76,20 @@ ALLOCATION_SQL=(
 class HistoricFixtureRefusal(AssertionError):
     """Fixed source-owned refusal, no SQL, UUID, actor or private data text."""
 
+FIXTURE_STAGES=frozenset((
+    "membership_preflight","membership_query_failed","membership_absent",
+    "membership_not_exactly_one","membership_confirmed",
+    "seed_apply_started","seed_apply_failed","seed_applied",
+    "allocation_preflight","allocation_query_failed",
+    "allocation_not_exactly_one","fixture_verified"
+))
+
+def emit_fixture_stage(stage):
+    # Only fixed source-owned labels are reported, never SQL or identities.
+    if stage not in FIXTURE_STAGES:
+        raise HistoricFixtureRefusal("Unrecognized historical diagnostic stage")
+    print("UNI_OPS_HISTORY_FIXTURE_STAGE="+stage,flush=True)
+
 def adapt_known_seed(seed):
     if not isinstance(seed,str):
         raise HistoricFixtureRefusal("Historical seed is not text")
@@ -107,16 +121,38 @@ class ExistingPersonFixture:
             raise HistoricFixtureRefusal("Historical seed requires unique local invocation")
         adapted=adapt_known_seed(seed)
         self._used=True
-        if self._reader(db,MEMBERSHIP_SQL)!="1":
+        emit_fixture_stage("membership_preflight")
+        try:
+            membership_count=self._reader(db,MEMBERSHIP_SQL)
+        except subprocess.CalledProcessError:
+            emit_fixture_stage("membership_query_failed")
+            raise
+        if membership_count=="0":
+            emit_fixture_stage("membership_absent")
+            raise HistoricFixtureRefusal("Existing signed canonical Person membership absent")
+        if membership_count!="1":
+            emit_fixture_stage("membership_not_exactly_one")
             raise HistoricFixtureRefusal("One active signed canonical Person membership required")
+        emit_fixture_stage("membership_confirmed")
         print("UNI_OPS_HISTORY_EXISTING_PERSON_MEMBERSHIP=CONFIRMED",flush=True)
+        emit_fixture_stage("seed_apply_started")
         try:
             self._original.sql(db,adapted)
         except subprocess.CalledProcessError:
+            emit_fixture_stage("seed_apply_failed")
             print("UNI_OPS_HISTORY_FIXTURE_SQL_STAGE=seed_apply_failed",flush=True)
             raise
-        if self._reader(db,ALLOCATION_SQL)!="1":
+        emit_fixture_stage("seed_applied")
+        emit_fixture_stage("allocation_preflight")
+        try:
+            allocation_count=self._reader(db,ALLOCATION_SQL)
+        except subprocess.CalledProcessError:
+            emit_fixture_stage("allocation_query_failed")
+            raise
+        if allocation_count!="1":
+            emit_fixture_stage("allocation_not_exactly_one")
             raise HistoricFixtureRefusal("Obsolete Work failed to bind the existing Person membership")
+        emit_fixture_stage("fixture_verified")
         print("UNI_OPS_HISTORY_FIXTURE_SQL_STAGE=seed_applied",flush=True)
         return None
 
