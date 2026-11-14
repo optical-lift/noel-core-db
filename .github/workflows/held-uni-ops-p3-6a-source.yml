@@ -1,0 +1,29 @@
+name: HELD UNI-OPS P3 6A no-successor source-only (never release)
+on:
+  pull_request:
+    paths:
+      - 'candidates/uni_ops_p3_no_auto_successor_v1/**'
+      - '.github/workflows/held-uni-ops-p3-6a-source.yml'
+permissions:
+  contents: read
+concurrency:
+  group: held-uniops-p3-6a-source-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout held source without persistent credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exercise P3 frozen delta and synthetic no-auto-successor contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs
+          echo 'SOURCE_ONLY_P3_6A=PASS'
+          echo 'SIGNED_POST_RESULT_6A=NOT_RUN'
+          echo 'PRODUCTION_MUTATION=NONE'
