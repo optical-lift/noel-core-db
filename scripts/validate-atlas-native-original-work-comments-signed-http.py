@@ -403,8 +403,23 @@ def historical_completed_work_trial(db_url, api, key, owner, worker):
           "Historical test requires separate open original without Result contract")
     before_results = sql(db_url, "SELECT count(*) FROM atlas.work_execution_results")
     mark_stage("history-initial-signed-write")
-    receipt=permitted(api,key,owner,WRITE,
-                      write_args(ACTION_COMPLETED_SOURCE,body,work=work))
+    history_status,history_packet=rpc(
+        api,key,owner,WRITE,write_args(ACTION_COMPLETED_SOURCE,body,work=work))
+    if (history_status != 200 or not isinstance(history_packet,dict)
+            or history_packet.get("ok") is not True):
+        # Only fixed-format HTTP class and SQLSTATE are eligible to leave
+        # the protected runner. Never surface message, detail, token or URL.
+        safe_http = str(history_status) if history_status in (
+            200,400,401,403,404,409,422,500,503) else "other"
+        raw_sqlstate = (history_packet.get("code") if
+                        isinstance(history_packet,dict) else None)
+        safe_sqlstate = (raw_sqlstate if isinstance(raw_sqlstate,str)
+                         and re.fullmatch(r"[0-9A-Z]{5}",raw_sqlstate)
+                         else "none")
+        mark_stage("history-initial-write-http-%s-sqlstate-%s" %
+                   (safe_http,safe_sqlstate))
+        check(False,"Historical original Work signed initial write failed")
+    receipt=history_packet
     check(receipt.get("commentId") and receipt.get("idempotent") is False
           and receipt.get("isWorkResult") is False,
           "Pre-completion comment is not a canonical ordinary comment")
