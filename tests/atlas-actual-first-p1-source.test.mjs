@@ -57,6 +57,26 @@ test('no retrospective original creation, Work creation or responsibility creati
   assert.doesNotMatch(executable,/\bINSERT\s+INTO\s+atlas.work_allocations\b/i);
   assert.match(sql,/'retrospectiveOriginalCreated',false/);
 });
+test('completed and nonterminal native Actual receipts use their distinct exact contracts',()=>{
+  // Cross-source witness only; this does NOT run PostgreSQL, signed auth or
+  // authorize a campaign original. Previously signed P1 blob remains historical.
+  const care=readFileSync(new URL(
+    '../candidates/atlas/20261028235811_atlas_care_single_done_signed_proof_v1.sql',
+    import.meta.url),'utf8');
+  assert.match(care,/'physicalActualContractVersion','continuing_care_actual_v1'/);
+  assert.match(care,/'contractVersion','continuing_care_actual_v1',[\s\S]*?'workState','open'/);
+  assert.match(sql,/v_receipt->>'physicalActualContractVersion'='continuing_care_actual_v1'/);
+  assert.match(sql,/v_receipt->>'physicalActualContractVersion' IS NULL/);
+  assert.match(sql,/v_receipt->>'contractVersion'='continuing_care_actual_v1'/);
+  assert.match(sql,/v_receipt->>'workState'='open'/);
+  assert.match(sql,/v_receipt->>'noNewWorkCreated' IS DISTINCT FROM 'true'/);
+  assert.match(sql,/v_receipt->>'noClockAdmission' IS DISTINCT FROM 'true'/);
+  assert.match(sql,/a.acceptance_kind='source_qualified_physical_actual'/);
+  assert.match(sql,/v_work.metadata \? 'sourceStandingCampaignId'/);
+  // Only two admissible version envelopes: no fallback to arbitrary JSON.
+  assert.doesNotMatch(sql,/coalesce\(v_receipt->>'physicalActualContractVersion',[^)]*'continuing_care_actual_v1'/);
+});
+
 test('old standing campaign successor path is blocked',()=>{
   assert.match(sql,/v_work.metadata \? 'sourceStandingCampaignId'/);
   assert.match(sql,/requires no-successor source cutover/);
