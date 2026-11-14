@@ -42,6 +42,19 @@ const fixed=[
 ];
 for(const key of fixed)eq(before,after,key,'unexpected successor or issuer side effect: '+key);
 
+// A legacy queue may release an ALREADY EXISTING Task or occurrence without
+// changing row counts. Make that illicit transition observable as well.
+// Previous released/eligible source identities may complete legitimately,
+// but Result must not ADD a newly released/eligible carrier.
+for(const key of ['legacyReleasedTaskIds','eligibleOrReleasedOccurrenceIds',
+  'releasedOccurrenceIds']){
+  assert.ok(Array.isArray(before[key]) && Array.isArray(after[key]),
+    key+' missing from source snapshot');
+  const prior=new Set(before[key]);
+  assert.ok(after[key].every(id=>prior.has(id)),
+    'Result made an old Task/occurrence independently eligible or released: '+key);
+}
+
 for(const key of ['workResultTotal','originalResultTotal','originalAcceptanceTotal',
   'physicalCareResultTotal','physicalCareObservationTotal']){
   delta(before,after,key,1);
@@ -73,7 +86,8 @@ if(replayFile){
   for(const key of [...fixed,'workResultTotal','originalResultTotal',
     'originalAcceptanceTotal','physicalCareResultTotal','physicalCareObservationTotal',
     'satisfactionTotal','originalWorkState','rhythmState',
-    'qualifyingSatisfactionId','nextEligibleAt','observedPhysicalCondition']){
+    'qualifyingSatisfactionId','nextEligibleAt','observedPhysicalCondition',
+    'legacyReleasedTaskIds','eligibleOrReleasedOccurrenceIds','releasedOccurrenceIds']){
     eq(after,replay,key,'exact action replay created or revised source state: '+key);
   }
 }
