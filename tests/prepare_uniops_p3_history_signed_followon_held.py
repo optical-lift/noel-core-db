@@ -96,7 +96,7 @@ def prepare(driver,bridge,companion,guard,hook,preparer,compat):
     if "UNI_OPS_P3_MOWING_AFTER_HISTORY" in prepared:
         raise P3HistoricalRefusal("History preservation already inserted")
     prepared=prepared.replace(HISTORY_START,HISTORY_PRE+
-        '        print("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_started",flush=True)\\n'+
+        '        print("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_started",flush=True)\n'+
         HISTORY_START,1)
     tail="sql=sql,rpc=rpc,c1=base.c1)"
     if prepared.count(tail)!=1:
