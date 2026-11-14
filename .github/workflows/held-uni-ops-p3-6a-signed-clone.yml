@@ -553,6 +553,51 @@ jobs:
           python3 -m py_compile canonical/tests/uniops_u2_qualified_actual_followon_held.py canonical/tests/uniops_p3_6a_snapshot_hook_held.py
           bash -n canonical/scripts/validate-production-schema-clone.sh
           echo 'PASS exact source-pinned P3 overlay and snapshot attached only to disposable runner'
+      - name: Checkout immutable historical governor companion after P3
+        if: github.event_name == 'issues' && github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate'
+        uses: actions/checkout@v4
+        with:
+          ref: ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          path: history-signed
+          persist-credentials: false
+      - name: Attach independently approved historical source after P3
+        if: github.event_name == 'issues' && github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C history-signed rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          test "$(git -C history-signed hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
+          test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
+          test "$(git -C canonical hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519
+          test "$(git -C canonical hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
+          test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = ff0ece011040923180384793b77ab872753bcc9b
+          test "$(git -C canonical hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
+          test "$(git -C canonical hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 1f4b370561d126f0defe8707066a3cb659bc8144
+          test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
+          cp history-signed/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py
+          python3 canonical/tests/prepare_uniops_p3_history_signed_followon_held.py \
+            --driver u4-test/tests/validate-uniops-option-a-u2-accepted-first-signed.py \
+            --bridge canonical/tests/uniops_historical_retirement_signed_bridge_held.py \
+            --companion canonical/tests/validate-atlas-native-historical-retirement-signed-http.py \
+            --guard canonical/tests/uniops_p3_historical_preservation_check_held.py \
+            --p3-hook canonical/tests/uniops_p3_6a_snapshot_hook_held.py \
+            --preparer canonical/tests/prepare_uniops_historical_retirement_signed_followon_held.py \
+            --output "$RUNNER_TEMP/validate-uniops-p3-historical-signed-local-only.py"
+          cp "$RUNNER_TEMP/validate-uniops-p3-historical-signed-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
+          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/uniops_p3_historical_preservation_check_held.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('canonical/scripts/validate-production-schema-clone.sh')
+          assert p.is_file() and not p.is_symlink()
+          text=p.read_text(encoding='utf8')
+          anchor='--u4-actual-followon'
+          assert text.count(anchor)==1 and '--historical-retirement-followon' not in text
+          text=text.replace(anchor,anchor+' --historical-retirement-followon',1)
+          assert text.count('--historical-retirement-followon')==1
+          p.write_text(text,encoding='utf8')
+          print('PASS independently approved historical opt-in attached to disposable U2/U4/P3 only')
+          PY
+          bash -n canonical/scripts/validate-production-schema-clone.sh
       - name: Run canonical authentic-schema disposable clone, no release
         id: integration
         shell: bash
