@@ -193,3 +193,52 @@ test('release eligibility records live-missing C1 prerequisite identities and cl
   assert.match(combined,/\nCOMMIT;\s*$/);
   assert.match(review,/No P1 migration until this is reconciled/);
 });
+
+
+test('separate P1 Partial/Blocked overlay is an exact one-expression source delta',()=>{
+  // This MUST NOT alter original P1 blob 476e85b1; the owner-signed clone
+  // still executes the unmodified source and cannot be credited to the overlay.
+  const parent=readFileSync(new URL('../candidates/atlas_actual_first_p1_assigned_care_activity_v1/01_assigned_activity_recognition_held.sql',import.meta.url),'utf8');
+  const overlay=readFileSync(new URL('../candidates/atlas_actual_first_p1_assigned_care_activity_v1/18_nonterminal_actual_receipt_overlay_held.sql',import.meta.url),'utf8');
+  const origSha=createHash('sha1').update('blob '+Buffer.byteLength(parent)+'\0').update(parent).digest('hex');
+  assert.equal(origSha,'476e85b1e6f46d7ac996dce9ea0e51b89c50f28c',
+    'original previously signed P1 source must remain exact');
+  const start='CREATE FUNCTION atlas.recognize_assigned_care_activity_self_api_v1(';
+  const overStart='CREATE OR REPLACE FUNCTION atlas.recognize_assigned_care_activity_self_api_v1(';
+  const getBody=(value,needle)=>{
+    const i=value.indexOf(needle);
+    const j=value.indexOf('$recognize$;',i);
+    assert.ok(i>=0 && j>i,'exact P1 private function not present');
+    return value.slice(i,j+'$recognize$;'.length);
+  };
+  const baseline=getBody(parent,start);
+  const candidate=getBody(overlay,overStart).replace(overStart,start);
+  const oldReceipt=`    OR v_receipt->>'physicalActualContractVersion'
+       IS DISTINCT FROM 'continuing_care_actual_v1'
+`;
+  const newReceipt=`    OR NOT (
+      -- Completed care returns the universal lifecycle envelope plus
+      -- physicalActualContractVersion. Partial/Blocked care returns the
+      -- nonterminal native Actual contractVersion and keeps Work open.
+      -- Both are source-qualified Result receipts; neither is a next issuer.
+      v_receipt->>'physicalActualContractVersion'='continuing_care_actual_v1'
+      OR (
+        v_receipt->>'physicalActualContractVersion' IS NULL
+        AND v_receipt->>'contractVersion'='continuing_care_actual_v1'
+        AND v_receipt->>'workState'='open'
+      )
+    )
+`;
+  assert.ok(candidate.includes(newReceipt),'new exact nonterminal receipt branch missing');
+  assert.equal(candidate.replace(newReceipt,oldReceipt),baseline,
+    'overlay may alter only the Result receipt discriminator');
+  assert.match(candidate,/v_work.metadata \? 'sourceStandingCampaignId'/);
+  assert.match(candidate,/requires no-successor source cutover/);
+  assert.match(candidate,/a.acceptance_kind='source_qualified_physical_actual'/);
+  assert.match(candidate,/v_receipt->>'noNewWorkCreated' IS DISTINCT FROM 'true'/);
+  assert.match(candidate,/v_receipt->>'noClockAdmission' IS DISTINCT FROM 'true'/);
+  assert.match(overlay,/REVOKE ALL ON FUNCTION atlas.recognize_assigned_care_activity_self_api_v1/);
+  assert.doesNotMatch(overlay,/CREATE\s+(?:OR REPLACE\s+)?TABLE\s+atlas/i);
+  assert.doesNotMatch(overlay,/\bGRANT\s+EXECUTE\b/i);
+  assert.doesNotMatch(overlay,/CREATE\s+(?:OR REPLACE\s+)?FUNCTION\s+public\./i);
+});
