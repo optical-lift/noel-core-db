@@ -194,7 +194,7 @@ jobs:
           assert 'UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' in p
           assert 'UNI_OPS_SIGNED_HISTORY_FIRST_PYTHON_EXCEPTION=' in p
           assert '80c51f05d96a4b10b49f3fbdbf1c82d069beb1c8' in p
-          assert '6be83aaf2cb29cf075a2d2400a368b981c883035' in p
+          assert '6be83aaf2cb29cf075a2d2400a368b981c883035' in w
           assert '--historical-retirement-followon' in p
           assert p.index('Attach independently approved historical source after P3') < p.index('Run canonical authentic-schema disposable clone, no release')
           assert 'correct_uniops_p3_6a_postcondition_deppath_held.py' in p
