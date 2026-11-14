@@ -1,0 +1,207 @@
+{
+  "contract": "atlas_p1_current_live_carrier_schema_parity_v1",
+  "capturedAt": "2026-11-05",
+  "origin": "Noel live pg_catalog read-only metadata inspection; not a database dump or proof of permission parity",
+  "sourceAuthority": "Noel canonical",
+  "scope": "P1 signed Work/Result carrier closure; 5 existing tables + 14 existing functions",
+  "entryCount": 19,
+  "objects": [
+    {
+      "kind": "function",
+      "identity": "atlas.capture_clock_placement_event_occurrence_v1()",
+      "resolved": "atlas.capture_clock_placement_event_occurrence_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "983303287ca78c047915b0d9b9d62cf9",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.capture_clock_placement_occurrence_v1()",
+      "resolved": "atlas.capture_clock_placement_occurrence_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "830a3b6ee143d21e0cdc6374302e35e5",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.carry_company_work_plan_after_elapsed_worker_day_v1()",
+      "resolved": "atlas.carry_company_work_plan_after_elapsed_worker_day_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "e936aa29ebc606504eed1b39eaec887c",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.company_work_execution_membership_check_v1(uuid,uuid,date)",
+      "resolved": "atlas.company_work_execution_membership_check_v1(uuid,uuid,date)",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "464b6ec33c7ae2dd88cda6fe15e434d9",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.inherit_legacy_quick_complete_result_contract_trigger_v1()",
+      "resolved": "atlas.inherit_legacy_quick_complete_result_contract_trigger_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "63a24f39f12f6df14c0ee6fb5c058f6e",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.log_clock_placement_occurrence_rebase_v1()",
+      "resolved": "atlas.log_clock_placement_occurrence_rebase_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "510a068ce5a8d1902b5ebbb66af546da",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.reconcile_company_work_execution_plan_responsibility_v1(uuid)",
+      "resolved": "atlas.reconcile_company_work_execution_plan_responsibility_v1(uuid)",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "c5d25315d84fd4791000dd2010ecb844",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.sync_company_work_execution_plan_carrier_v1(uuid)",
+      "resolved": "atlas.sync_company_work_execution_plan_carrier_v1(uuid)",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "660dc1efedd0637cacb3fb8b6b1b99df",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.sync_company_work_plan_after_adapter_task_v1()",
+      "resolved": "atlas.sync_company_work_plan_after_adapter_task_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "a2d6b4ccc0bb846188aa1ca7bde4964a",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.sync_worker_day_resource_preflight_from_placement_v1()",
+      "resolved": "atlas.sync_worker_day_resource_preflight_from_placement_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "7207d86a91dc0ab6e6cf5bde8f4fc4eb",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.validate_worker_day_optional_capacity_claim_v1()",
+      "resolved": "atlas.validate_worker_day_optional_capacity_claim_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "4979e5679b4989443b17a60f8aea0bae",
+      "security_definer": false
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.worker_day_validate_resource_session_capacity_v1()",
+      "resolved": "atlas.worker_day_validate_resource_session_capacity_v1()",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "b5f79a97b3381cbbc6cceccc64281a21",
+      "security_definer": true
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.worker_task_day_window_v1(text,text,jsonb)",
+      "resolved": "atlas.worker_task_day_window_v1(text,text,jsonb)",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "edb7b8eecd0ce3517c55d17c0ff4b233",
+      "security_definer": false
+    },
+    {
+      "kind": "function",
+      "identity": "atlas.worker_task_order_v1(text,text,jsonb)",
+      "resolved": "atlas.worker_task_order_v1(text,text,jsonb)",
+      "column_count": null,
+      "constraint_count": null,
+      "trigger_count": null,
+      "definition_md5": "b35d6f68e482ecc2873095d0f1a37d2d",
+      "security_definer": false
+    },
+    {
+      "kind": "table",
+      "identity": "atlas.company_work_initial_responsibility_offers",
+      "resolved": "atlas.company_work_initial_responsibility_offers",
+      "column_count": 14,
+      "constraint_count": 13,
+      "trigger_count": 0,
+      "definition_md5": null,
+      "security_definer": null
+    },
+    {
+      "kind": "table",
+      "identity": "atlas.object_state",
+      "resolved": "atlas.object_state",
+      "column_count": 34,
+      "constraint_count": 12,
+      "trigger_count": 1,
+      "definition_md5": null,
+      "security_definer": null
+    },
+    {
+      "kind": "table",
+      "identity": "atlas.work_execution_adapters",
+      "resolved": "atlas.work_execution_adapters",
+      "column_count": 13,
+      "constraint_count": 10,
+      "trigger_count": 2,
+      "definition_md5": null,
+      "security_definer": null
+    },
+    {
+      "kind": "table",
+      "identity": "atlas.worker_day_task_placement_events",
+      "resolved": "atlas.worker_day_task_placement_events",
+      "column_count": 18,
+      "constraint_count": 11,
+      "trigger_count": 1,
+      "definition_md5": null,
+      "security_definer": null
+    },
+    {
+      "kind": "table",
+      "identity": "atlas.worker_day_task_placements",
+      "resolved": "atlas.worker_day_task_placements",
+      "column_count": 17,
+      "constraint_count": 11,
+      "trigger_count": 6,
+      "definition_md5": null,
+      "security_definer": null
+    }
+  ],
+  "limitations": [
+    "Metadata does not contain source data, migrations, grants, RLS policy bodies or trigger definitions.",
+    "Existence, column counts and signatures are necessary but not sufficient for full schema or authority parity.",
+    "No production or retained-clone changes authorized.",
+    "Do not use fixture-only reconstructed tables as proof of production-equivalent signed behavior.",
+    "Positive P1 gated until source-verified full carrier closure and signed Result/replay/denial/concurrency tests pass."
+  ]
+}
