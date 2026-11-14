@@ -16,7 +16,7 @@ import sys
 import prepare_uniops_historical_retirement_signed_followon_held as original
 
 PREPARER_BLOB="6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519"
-GUARD_BLOB="REPLACE_WITH_REAL_GIT_BLOB"
+GUARD_BLOB="a0ab7523f10e9b79d3290871fd5faac777e6e733"
 P3_HOOK_BLOB="4efef70ea67209b04def420aade39b8a6fd44f38"
 SAFE_OUTPUT="validate-uniops-p3-historical-signed-local-only.py"
 
