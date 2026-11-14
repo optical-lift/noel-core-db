@@ -117,11 +117,11 @@ def patch_exact_disposable_u4(path):
     original=raw.decode("utf8")
     before='    status, response = call("worker")\n    if status != 200 or not accepted_receipt(response,work):'
     after=('    require(count("atlas.work_items",\n'
-           '                   "id="+work_ref+" and work_state=\'completed\'")==1\n'
+           '                  "id="+work_ref+" and work_state=\'completed\'")==1\n'
            '            and count("atlas.work_lifecycle_events_v1",\n'
-           '                       "work_item_id="+work_ref+\n'
-           '                       " and event_kind=\'work_transition_applied\'")==1,\n'
-           '             "U4 qualified Result did not create one canonical terminal transition")')
+           '                      "work_item_id="+work_ref+\n'
+           '                      " and event_kind=\'work_transition_applied\'")==1,\n'
+           '            "U4 qualified Result did not create one canonical terminal transition")')
     replay=('    require(status==200 and accepted_receipt(replay,work)\n'
             '            and replay["workResultId"]==response["workResultId"]\n'
             '            and replay.get("idempotent") is True,\n'
