@@ -22,7 +22,7 @@ const files=[
 ];
 const sha256=b=>createHash('sha256').update(b).digest('hex');
 const gitBlob=b=>createHash('sha1')
-  .update(Buffer.from('blob '+b.length+'\\0'.replace('\\0','\0'))).update(b).digest('hex');
+  .update(Buffer.from('blob '+b.length+'\0')).update(b).digest('hex');
 function insistTemp(path){
   assert.ok(isAbsolute(path),'disposable scratch path must be absolute');
   const parent=realpathSync(dirname(path));
