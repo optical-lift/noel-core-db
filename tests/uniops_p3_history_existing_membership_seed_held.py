@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """HELD disposable-only C1 historical seed adaptation for EXISTING Person membership.
 
-A signed U2 first-mowing worker is already a canonical member of the test
-organization. The independent older historical fixture tried to INSERT a
-second membership for the same Person + organization. The current canon
-requires unique (organization_id,person_id). This test-only adapter binds the
-distinct obsolete Work to the EXISTING member's id, without changing any
-historical governor APIs, signed tokens, role grants, P3 SQL or held proof code.
+U2 establishes the canonical Auth/Person/principal for the signed worker but
+does not itself establish a matching organization_memberships row. In a
+disposable clone, the frozen historical fixture may use its EXACT original
+membership INSERT only when there is no member for that organization+Person,
+the signed worker's existing Auth/Person/principal roots match, and no
+conflicting/inactive membership exists. When one exact active membership
+already exists, the adapter reuses it and drops only the duplicate INSERT.
+This never changes governor APIs, tokens, grants, P3 SQL, or held proof code.
 
 The historical companion remains loaded from its immutable Git blob. ONLY its
 one known fictional multi-statement SQL seed can pass this adapter, after a
@@ -59,6 +61,23 @@ RELEVANCE_INSERT=f"""      INSERT INTO atlas.company_work_native_ledger_relevanc
        'serves_purpose','owner_attested','clone:obsolete-review',
        'Fictional original Work context for retirement review','{OWNER}'::uuid);"""
 ORIGINAL_SEED=(MEMBER_INSERT+"\n"+WORK_INSERT+"\n"+ORIGINAL_ALLOCATION+"\n"+RELEVANCE_INSERT)
+PERSON_MEMBERSHIP_SQL=(
+    "select count(*) from atlas.organization_memberships m "
+    "where m.organization_id='"+ORG+"'::uuid "
+    "and m.person_id='"+PERSON+"'::uuid")
+IDENTITY_SQL=(
+    "select case when "
+    "(select count(*) from auth.users u "
+    "where u.id='"+USER+"'::uuid)=1 and "
+    "(select count(*) from reality.auth_person_bindings b "
+    "where b.auth_user_id='"+USER+"'::uuid "
+    "and b.person_entity_id='"+PERSON+"'::uuid "
+    "and b.binding_state='active' and b.retired_at is null)=1 and "
+    "(select count(*) from atlas.principals p "
+    "where p.user_id='"+USER+"'::uuid "
+    "and p.person_id='"+PERSON+"'::uuid "
+    "and p.status='active')=1 "
+    "then 'aligned' else 'misaligned' end")
 MEMBERSHIP_SQL=(
     "select count(*) from atlas.organization_memberships m "
     "where m.organization_id='"+ORG+"'::uuid "
@@ -79,6 +98,9 @@ class HistoricFixtureRefusal(AssertionError):
 FIXTURE_STAGES=frozenset((
     "membership_preflight","membership_query_failed","membership_absent",
     "membership_not_exactly_one","membership_confirmed",
+    "person_identity_preflight","identity_query_failed",
+    "person_identity_misaligned","membership_create_authorized",
+    "membership_postseed_not_one","membership_created",
     "seed_apply_started","seed_apply_failed","seed_applied",
     "allocation_preflight","allocation_query_failed",
     "allocation_not_exactly_one","fixture_verified"
@@ -124,25 +146,55 @@ class ExistingPersonFixture:
         emit_fixture_stage("membership_preflight")
         try:
             membership_count=self._reader(db,MEMBERSHIP_SQL)
+            person_memberships=self._reader(db,PERSON_MEMBERSHIP_SQL)
         except subprocess.CalledProcessError:
             emit_fixture_stage("membership_query_failed")
             raise
-        if membership_count=="0":
+        if membership_count=="1" and person_memberships=="1":
+            mode="existing"
+            selected=adapted
+            emit_fixture_stage("membership_confirmed")
+            print("UNI_OPS_HISTORY_EXISTING_PERSON_MEMBERSHIP=CONFIRMED",flush=True)
+        elif membership_count=="0" and person_memberships=="0":
             emit_fixture_stage("membership_absent")
-            raise HistoricFixtureRefusal("Existing signed canonical Person membership absent")
-        if membership_count!="1":
+            emit_fixture_stage("person_identity_preflight")
+            try:
+                identity=self._reader(db,IDENTITY_SQL)
+            except subprocess.CalledProcessError:
+                emit_fixture_stage("identity_query_failed")
+                raise
+            if identity!="aligned":
+                emit_fixture_stage("person_identity_misaligned")
+                raise HistoricFixtureRefusal("Signed canonical Person root absent or mismatched")
+            # This is the unchanged four-INSERT frozen fictional companion seed.
+            # Never manufacture, replace or update an existing Person membership.
+            selected=seed
+            mode="new"
+            emit_fixture_stage("membership_create_authorized")
+        else:
+            # This includes inactive, rekeyed or duplicate Person memberships.
+            # Never switch their identity to force a governor proof.
             emit_fixture_stage("membership_not_exactly_one")
-            raise HistoricFixtureRefusal("One active signed canonical Person membership required")
-        emit_fixture_stage("membership_confirmed")
-        print("UNI_OPS_HISTORY_EXISTING_PERSON_MEMBERSHIP=CONFIRMED",flush=True)
+            raise HistoricFixtureRefusal("Conflicting Person-root membership; no fixture writes")
         emit_fixture_stage("seed_apply_started")
         try:
-            self._original.sql(db,adapted)
+            self._original.sql(db,selected)
         except subprocess.CalledProcessError:
             emit_fixture_stage("seed_apply_failed")
             print("UNI_OPS_HISTORY_FIXTURE_SQL_STAGE=seed_apply_failed",flush=True)
             raise
         emit_fixture_stage("seed_applied")
+        if mode=="new":
+            try:
+                now_active=self._reader(db,MEMBERSHIP_SQL)
+                now_person=self._reader(db,PERSON_MEMBERSHIP_SQL)
+            except subprocess.CalledProcessError:
+                emit_fixture_stage("membership_query_failed")
+                raise
+            if now_active!="1" or now_person!="1":
+                emit_fixture_stage("membership_postseed_not_one")
+                raise HistoricFixtureRefusal("Frozen member insert failed canonical readback")
+            emit_fixture_stage("membership_created")
         emit_fixture_stage("allocation_preflight")
         try:
             allocation_count=self._reader(db,ALLOCATION_SQL)
@@ -151,7 +203,7 @@ class ExistingPersonFixture:
             raise
         if allocation_count!="1":
             emit_fixture_stage("allocation_not_exactly_one")
-            raise HistoricFixtureRefusal("Obsolete Work failed to bind the existing Person membership")
+            raise HistoricFixtureRefusal("Obsolete Work allocation not bound to canonical Person")
         emit_fixture_stage("fixture_verified")
         print("UNI_OPS_HISTORY_FIXTURE_SQL_STAGE=seed_applied",flush=True)
         return None
