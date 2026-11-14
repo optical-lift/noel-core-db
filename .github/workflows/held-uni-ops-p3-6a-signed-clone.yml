@@ -417,6 +417,35 @@ jobs:
           print('PASS exact immutable U4 probe attached to local-only test harness')
           PY
           bash -n canonical/scripts/validate-production-schema-clone.sh
+
+      - name: Checkout immutable P3 6A held source AFTER snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
+          path: p3-held
+          persist-credentials: false
+      - name: Install exact P3 6A source and signed snapshot hook into disposable COPY
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C p3-held rev-parse HEAD)" = '7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e'
+          test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/18_disposable_signed_result_snapshot.sql)" = 8acc6ddae19a1e2b7e7f08695406648246023106
+          test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/19_compare_signed_result_snapshots.mjs)" = 618ea32d80a6794e637b9428b90b34b366b031c4
+          test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/20_mowing_6a_core_postconditions_held.sql)" = 210c42f97ceebc8dde2b493e898d23747cce7787
+          node --test p3-held/candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs
+          origin="$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
+          target="$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
+          test -s "$origin" && test ! -e "$target"
+          source_sha="$(sha256sum "$origin" | cut -d' ' -f1)"
+          node p3-held/candidates/uni_ops_p3_no_auto_successor_v1/22_compose_mowing_6a_scratch_held.mjs "$origin" "$source_sha" "$target"
+          test -s "$target" && test ! -L "$target"
+          cp p3-held/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py canonical/tests/uniops_p3_6a_snapshot_hook_held.py
+          cp p3-held/candidates/uni_ops_p3_no_auto_successor_v1/18_disposable_signed_result_snapshot.sql canonical/tests/uniops_p3_6a_snapshot.sql
+          cp p3-held/candidates/uni_ops_p3_no_auto_successor_v1/19_compare_signed_result_snapshots.mjs canonical/tests/uniops_p3_6a_compare.mjs
+          python3 p3-held/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py canonical/tests/uniops_u2_qualified_actual_followon_held.py
+          python3 -m py_compile canonical/tests/uniops_u2_qualified_actual_followon_held.py canonical/tests/uniops_p3_6a_snapshot_hook_held.py
+          bash -n canonical/scripts/validate-production-schema-clone.sh
+          echo 'PASS exact source-pinned P3 overlay and snapshot attached only to disposable runner'
       - name: Run canonical authentic-schema disposable clone, no release
         id: integration
         shell: bash
