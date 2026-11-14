@@ -409,7 +409,8 @@ def historical_completed_work_trial(db_url, api, key, owner, worker):
           and receipt.get("isWorkResult") is False,
           "Pre-completion comment is not a canonical ordinary comment")
     comment_id=receipt["commentId"]
-    check_read(permitted(api,key,owner,READ,read_args(work=work)),[comment_id])
+    check_read(permitted(api,key,owner,READ,read_args(work=work)),
+               [comment_id],work=work)
 
     mark_stage("history-synthetic-completion-update")
     sql(db_url, """
@@ -426,7 +427,7 @@ def historical_completed_work_trial(db_url, api, key, owner, worker):
 
     mark_stage("history-completed-signed-read")
     old=permitted(api,key,owner,READ,read_args(work=work))
-    check_read(old,[comment_id])
+    check_read(old,[comment_id],work=work)
     check(old["items"][0].get("body")==body,
           "Original Work comment disappeared when synthetic Work completed")
     mark_stage("history-completed-signed-replay")
@@ -458,11 +459,11 @@ def historical_completed_work_trial(db_url, api, key, owner, worker):
           "new append denied on completed no-contract Work")
 
 
-def check_read(packet, expected_ids):
+def check_read(packet, expected_ids, work=WORK):
     check(packet.get("contractVersion") == "native_original_work_comments_v1"
           and packet.get("organizationId") == ORG
           and packet.get("ledgerId") == LEDGER
-          and packet.get("workItemId") == WORK
+          and packet.get("workItemId") == work
           and packet.get("containsWorkResults") is False
           and packet.get("isNotificationInbox") is False
           and packet.get("authorsPreservedInCanonicalSource") is True
@@ -474,7 +475,7 @@ def check_read(packet, expected_ids):
     check({x.get("commentId") for x in rows} == set(expected_ids)
           and len(rows) == len(expected_ids),
           "W07 signed read lost or duplicated original comment IDs")
-    check(all(x.get("workItemId") == WORK and
+    check(all(x.get("workItemId") == work and
               isinstance(x.get("authoredBySelf"), bool) and
               x.get("recordedAt") for x in rows),
           "W07 original read must include signed source timestamp / self flag")
