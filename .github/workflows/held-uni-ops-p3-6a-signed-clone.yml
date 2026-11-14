@@ -109,6 +109,42 @@ jobs:
           assert "No production feature source SQL / permission / migration" in workflow
           print("PASS source-only true-signed U2 bounded runner/fixture contract; NOT runtime acceptance")
           PY
+
+      - name: Checkout pinned held P3 for unprivileged source-only checks
+        uses: actions/checkout@v4
+        with:
+          ref: 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
+          path: p3-source-contract
+          persist-credentials: false
+      - name: Verify exact P3 source and owner-only signed gate without database access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C p3-source-contract rev-parse HEAD)" = '7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e'
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-p3-6a-signed-clone.yml")'
+          python3 -m py_compile p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
+          python3 p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/24_test_signed_p3_snapshot_hook_held.py u4-source-contract/tests/uniops_u2_qualified_actual_followon_held.py
+          node --test p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path('.github/workflows/held-uni-ops-p3-6a-signed-clone.yml').read_text()
+          p=w.split('\n  validate-protected:\n',1)[1]
+          assert 'github.actor == github.repository_owner' in p
+          assert "github.event.issue.author_association == 'OWNER'" in p
+          assert 'environment: production' in p
+          assert 'p3_source_sha' in p
+          assert 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' in p
+          assert 'UNI_OPS_P3_MOWING_RESULT_6A=' in p
+          assert 'UNI_OPS_SIGNED_POST_RESULT_6A=NOT_RUN' in p
+          assert "--candidate-migration \"$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql\"" in p
+          for forbidden in ('supabase db '+'push','supabase migration '+'up',
+                            'apply_'+'migration','secrets.SUPABASE_'+'SERVICE_ROLE_KEY'):
+              assert forbidden not in p,forbidden
+          assert p.index('READ-ONLY snapshot exact production schema and roles, no data') < p.index('Checkout immutable P3 6A held source AFTER snapshot')
+          assert p.index('Attach immutable U4 signed follow-on ONLY to disposable validator COPY') < p.index('Install exact P3 6A source and signed snapshot hook into disposable COPY')
+          assert p.index('Install exact P3 6A source and signed snapshot hook into disposable COPY') < p.index('Run canonical authentic-schema disposable clone, no release')
+          print('PASS owner-only P3 6A source-pin, signed hook, clone isolation and no release')
+          PY
   validate-protected:
     if: >-
       github.event_name == 'issues' &&
