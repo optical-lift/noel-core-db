@@ -22,6 +22,9 @@ on:
       - 'tests/test_uniops_p3_6a_postcondition_failure_category.py'
       - 'tests/correct_uniops_p3_6a_postcondition_deppath_held.py'
       - 'tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py'
+      - 'tests/prepare_uniops_p3_history_signed_followon_held.py'
+      - 'tests/uniops_p3_historical_preservation_check_held.py'
+      - 'tests/test_uniops_p3_history_signed_followon_held.py'
 permissions:
   contents: read
   packages: read
@@ -129,6 +132,12 @@ jobs:
           ref: 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
           path: p3-source-contract
           persist-credentials: false
+      - name: Checkout immutable historical governor companion for new source contract
+        uses: actions/checkout@v4
+        with:
+          ref: ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          path: history-source-contract
+          persist-credentials: false
       - name: Verify exact P3 source and owner-only signed gate without database access
         shell: bash
         run: |
@@ -149,6 +158,16 @@ jobs:
           test "$(git hash-object tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py)" = 25e33be51209b653f8d52624d52f04ce826c8b33
           python3 -m py_compile tests/correct_uniops_p3_6a_postcondition_deppath_held.py tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py
           python3 tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1
+          test "$(git -C history-source-contract rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          test "$(git -C history-source-contract hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
+          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = ff0ece011040923180384793b77ab872753bcc9b
+          test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
+          test "$(git hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 1f4b370561d126f0defe8707066a3cb659bc8144
+          python3 tests/test_uniops_p3_history_signed_followon_held.py \
+            --driver u4-source-contract/tests/validate-uniops-option-a-u2-accepted-first-signed.py \
+            --bridge tests/uniops_historical_retirement_signed_bridge_held.py \
+            --companion history-source-contract/tests/validate-atlas-native-historical-retirement-signed-http.py \
+            --p3-hook p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-uni-ops-p3-6a-signed-clone.yml').read_text()
@@ -162,6 +181,11 @@ jobs:
           assert "'p3-result-only-evaluator'" in p
           assert "'p3-signal-guard'" in p
           assert 'UNI_OPS_P3_POSTCONDITION_CHECK=' in p
+          assert 'UNI-OPS P3 historical governor cancellation signed conservation gate' in p
+          assert 'signed_u2_result_need_history_conservation_v1' in p
+          assert 'UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' in p
+          assert '--historical-retirement-followon' in p
+          assert p.index('Attach independently approved historical source after P3') < p.index('Run canonical authentic-schema disposable clone, no release')
           assert 'correct_uniops_p3_6a_postcondition_deppath_held.py' in p
           assert 'P3_6A_POSTCONDITION_REAL_DEPENDENCY=EXACT_SCRATCH_ONLY' not in p or 'a941a8cab70c89014eccecbdbd7d8fdb1937dfd2' in p
           assert '979eb9ba07e374518989183440ce3c617592a6c1' in p
@@ -182,7 +206,8 @@ jobs:
       github.event.issue.state == 'open' &&
       github.event.issue.author_association == 'OWNER' &&
       github.actor == github.repository_owner &&
-      github.event.issue.title == 'UNI-OPS P3 6A protected signed Result no-successor gate'
+      (github.event.issue.title == 'UNI-OPS P3 6A protected signed Result no-successor gate' ||
+       github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate')
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 55
@@ -191,6 +216,7 @@ jobs:
         shell: bash
         env:
           OWNER_BODY: ${{ github.event.issue.body }}
+          OWNER_TITLE: ${{ github.event.issue.title }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -207,6 +233,13 @@ jobs:
               'u4_test_sha':'075919564dc340ad86be8e969a2ad2d02ec19a15',
               'test_goal':'signed_u2_result_need_no_successor_v1',
               'p3_source_sha':'7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e'}
+          title=os.environ.get('OWNER_TITLE','')
+          if title=='UNI-OPS P3 historical governor cancellation signed conservation gate':
+              expected['test_goal']='signed_u2_result_need_history_conservation_v1'
+              expected['history_source_sha']='ddfb0bf5374798301fe076a61d2b944dfb52ff63'
+              expected['history_composer_sha']='15bb6a15f60b357050f44ab1bc43f64778523d93'
+          elif title!='UNI-OPS P3 6A protected signed Result no-successor gate':
+              raise SystemExit('Unrecognized protected history or P3 test goal')
           for line in os.environ.get('OWNER_BODY','').splitlines():
               match=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
               if match and match[1] in expected:
@@ -520,10 +553,57 @@ jobs:
           python3 -m py_compile canonical/tests/uniops_u2_qualified_actual_followon_held.py canonical/tests/uniops_p3_6a_snapshot_hook_held.py
           bash -n canonical/scripts/validate-production-schema-clone.sh
           echo 'PASS exact source-pinned P3 overlay and snapshot attached only to disposable runner'
+      - name: Checkout immutable historical governor companion after P3
+        if: github.event_name == 'issues' && github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate'
+        uses: actions/checkout@v4
+        with:
+          ref: ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          path: history-signed
+          persist-credentials: false
+      - name: Attach independently approved historical source after P3
+        if: github.event_name == 'issues' && github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C history-signed rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          test "$(git -C history-signed hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
+          test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
+          test "$(git -C canonical hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519
+          test "$(git -C canonical hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
+          test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = ff0ece011040923180384793b77ab872753bcc9b
+          test "$(git -C canonical hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
+          test "$(git -C canonical hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 1f4b370561d126f0defe8707066a3cb659bc8144
+          test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
+          cp history-signed/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py
+          python3 canonical/tests/prepare_uniops_p3_history_signed_followon_held.py \
+            --driver u4-test/tests/validate-uniops-option-a-u2-accepted-first-signed.py \
+            --bridge canonical/tests/uniops_historical_retirement_signed_bridge_held.py \
+            --companion canonical/tests/validate-atlas-native-historical-retirement-signed-http.py \
+            --guard canonical/tests/uniops_p3_historical_preservation_check_held.py \
+            --p3-hook canonical/tests/uniops_p3_6a_snapshot_hook_held.py \
+            --preparer canonical/tests/prepare_uniops_historical_retirement_signed_followon_held.py \
+            --output "$RUNNER_TEMP/validate-uniops-p3-historical-signed-local-only.py"
+          cp "$RUNNER_TEMP/validate-uniops-p3-historical-signed-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
+          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/uniops_p3_historical_preservation_check_held.py
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('canonical/scripts/validate-production-schema-clone.sh')
+          assert p.is_file() and not p.is_symlink()
+          text=p.read_text(encoding='utf8')
+          anchor='--u4-actual-followon'
+          assert text.count(anchor)==1 and '--historical-retirement-followon' not in text
+          text=text.replace(anchor,anchor+' --historical-retirement-followon',1)
+          assert text.count('--historical-retirement-followon')==1
+          p.write_text(text,encoding='utf8')
+          print('PASS independently approved historical opt-in attached to disposable U2/U4/P3 only')
+          PY
+          bash -n canonical/scripts/validate-production-schema-clone.sh
       - name: Run canonical authentic-schema disposable clone, no release
         id: integration
         shell: bash
         working-directory: canonical
+        env:
+          OWNER_TEST_TITLE: ${{ github.event.issue.title }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/uniops-private-diagnostics"
@@ -540,8 +620,15 @@ jobs:
               grep -q '^PASS genuine separate signed local' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
               grep -q '^U4_SIGNED_ACTUAL_RESULT_DONE=PASS$' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
               grep -qx 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed.log"
-               echo 'PASS signed U2/U4 Actual/Result plus first mowing P3 6A no-auto issuer snapshot; disposable only'
-              echo 'HOLD historical cancellation, P1 manual Activity, farm operational writers and Company decision reconciliation'
+              echo 'PASS signed U2/U4 Actual/Result plus first mowing P3 6A no-auto issuer snapshot; disposable only'
+              if [[ "${OWNER_TEST_TITLE}" == "UNI-OPS P3 historical governor cancellation signed conservation gate" ]]; then
+                grep -qx 'UNI_OPS_SIGNED_HISTORY_CANCEL=PASS' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
+                grep -qx 'UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed.log"
+                echo 'PASS separately approved historical governor cancellation and P3 original/Need conservation; disposable only'
+                echo 'HOLD nonempty prior-mowing Task/occurrence fixture, full U1A overlap, P1 Activity and Company decision'
+              else
+                echo 'HOLD historical cancellation, P1 manual Activity, farm operational writers and Company decision reconciliation'
+              fi
           else
               echo 'HELD authentic-schema clone SQL test; diagnostic classification follows'
               exit 1
@@ -876,7 +963,13 @@ jobs:
               if 'U4_SIGNED_ACTUAL_RESULT_DONE=PASS' in signed.read_text(encoding='utf-8',errors='replace').splitlines():
                   u4_mark='PASS'
           print('UNI_OPS_U4_SIGNED_ACTUAL_RESULT_DONE='+u4_mark)
-          print('UNI_OPS_SIGNED_HISTORY_CANCEL=NOT_RUN')
+          historical_summary_lines=signed.read_text(encoding='utf-8',errors='replace').splitlines() if signed.is_file() else []
+          historical_log=root/'uniops-u2-signed.log'
+          historical_actor_lines=historical_log.read_text(errors='replace').splitlines() if historical_log.is_file() else []
+          history_pass='UNI_OPS_SIGNED_HISTORY_CANCEL=PASS' in historical_summary_lines
+          mowing_preserved='UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' in historical_actor_lines
+          print('UNI_OPS_SIGNED_HISTORY_CANCEL='+('PASS' if history_pass and mowing_preserved else 'NOT_RUN'))
+          print('UNI_OPS_P3_MOWING_AFTER_HISTORY='+('PASS' if history_pass and mowing_preserved else 'NOT_RUN'))
           print('UNI_OPS_SIGNED_FULL_U1A_OVERLAP=NOT_RUN')
           p3actor=root/'uniops-u2-signed.log'
           p3_ok=p3actor.is_file() and 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' in p3actor.read_text(errors='replace').splitlines()
@@ -892,6 +985,7 @@ jobs:
           set -euo pipefail
           rm -f -- "$RUNNER_TEMP/uniops-snapshot-schema.sql" "$RUNNER_TEMP/uniops-snapshot-roles.sql"
           rm -f -- "$RUNNER_TEMP/uniops-private-clone.log" "$RUNNER_TEMP/uniops-manifest.json"
+          rm -f -- "$RUNNER_TEMP/validate-uniops-p3-historical-signed-local-only.py"
           rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
           rm -f -- "$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
           case "${UNI_OPS_PIN_ROOT:-}" in
