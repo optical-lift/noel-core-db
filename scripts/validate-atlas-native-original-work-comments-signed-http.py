@@ -27,6 +27,7 @@ LEDGER = c1.LEDGER_A
 OTHER_LEDGER = c1.LEDGER_B
 WORK = "e5200000-0000-4000-8000-000000000902"
 OFFER = "e5200000-0000-4000-8000-000000000982"
+OWNER_PERSON = "e5200000-0000-4000-8000-000000000101"
 WORKER_PERSON = "e5200000-0000-4000-8000-000000000102"
 WRONG_WORK = "e5200000-0000-4000-8000-000000000901"
 ALLOC = "e5200000-0000-4000-8000-000000000983"
@@ -331,7 +332,7 @@ def main():
         SELECT count(*) FROM atlas.native_original_work_comments_v1
         WHERE organization_id='%s'::uuid AND work_item_id='%s'::uuid
           AND author_person_id='%s'::uuid AND source_action_id='%s'::uuid
-    """ % (ORG,WORK,c1.OWNER_PERSON,ACTION_RACE_DIFFERENT)) == "1",
+    """ % (ORG,WORK,OWNER_PERSON,ACTION_RACE_DIFFERENT)) == "1",
           "W07 concurrent different-body race duplicated the original action")
 
     same_body = "SYNTH_W07_RACE_REPLAY_LOCAL_ONLY"
@@ -349,7 +350,7 @@ def main():
         SELECT count(*) FROM atlas.native_original_work_comments_v1
         WHERE organization_id='%s'::uuid AND work_item_id='%s'::uuid
           AND author_person_id='%s'::uuid AND source_action_id='%s'::uuid
-    """ % (ORG,WORK,c1.OWNER_PERSON,ACTION_RACE_IDENTICAL)) == "1",
+    """ % (ORG,WORK,OWNER_PERSON,ACTION_RACE_IDENTICAL)) == "1",
           "W07 concurrent replay duplicated the original action")
     print("PASS W07 real simultaneous differing-body collision and same-body replay")
 
