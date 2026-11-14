@@ -179,6 +179,14 @@ jobs:
           test "$(git hash-object tests/test_uniops_p3_history_safe_python_failure_held.py)" = b70ecc80f338f86c52441673ace5884f666285e8
           python3 -m py_compile tests/uniops_p3_history_safe_python_failure_held.py tests/test_uniops_p3_history_safe_python_failure_held.py
           python3 -m unittest discover -s tests -p 'test_uniops_p3_history_safe_python_failure_held.py' -v
+          test "$(git hash-object candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql)" = da3ddafc8f479327df02fbe16e418eb0b094072d
+          test "$(git hash-object tests/test_uniops_history_stale_409_source_only.py)" = 1d8d0ecf3e00d21cb3241f3bda49ad3e1b24762a
+          test "$(git hash-object tests/append_uniops_history_http409_disposable_held.py)" = 9442c3d161e6288a547ecd6558e7c399af245d41
+          test "$(git hash-object tests/test_uniops_history_http409_overlay_source_only.py)" = 0b4594aa940b84a51ef8b558fd1e0de064a5ae25
+          test "$(git -C history-source-contract hash-object candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql)" = 93f7b9cf0bad5eb536ffa90d3973aabfe75542d9
+          python3 -m py_compile tests/test_uniops_history_stale_409_source_only.py tests/append_uniops_history_http409_disposable_held.py
+          python3 tests/test_uniops_history_stale_409_source_only.py --frozen history-source-contract/candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql --candidate candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql
+          python3 tests/test_uniops_history_http409_overlay_source_only.py
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-uni-ops-p3-6a-signed-clone.yml').read_text()
@@ -626,6 +634,23 @@ jobs:
           print('PASS independently approved historical opt-in attached to disposable U2/U4/P3 only')
           PY
           bash -n canonical/scripts/validate-production-schema-clone.sh
+      - name: Append separately reviewed historical HTTP409 candidate to disposable scratch ONLY
+        if: github.event_name == 'issues' && github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C canonical hash-object candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql)" = da3ddafc8f479327df02fbe16e418eb0b094072d
+          test "$(git -C canonical hash-object tests/test_uniops_history_stale_409_source_only.py)" = 1d8d0ecf3e00d21cb3241f3bda49ad3e1b24762a
+          test "$(git -C canonical hash-object tests/append_uniops_history_http409_disposable_held.py)" = 9442c3d161e6288a547ecd6558e7c399af245d41
+          test "$(git -C history-signed hash-object candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql)" = 93f7b9cf0bad5eb536ffa90d3973aabfe75542d9
+          python3 canonical/tests/test_uniops_history_stale_409_source_only.py \
+            --frozen history-signed/candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql \
+            --candidate canonical/candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql
+          python3 canonical/tests/test_uniops_history_http409_overlay_source_only.py
+          python3 canonical/tests/append_uniops_history_http409_disposable_held.py \
+            "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql" \
+            canonical/candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql
+          echo 'PASS source-pinned historical stale HTTP409 override appended to protected disposable clone SQL ONLY'
       - name: Run canonical authentic-schema disposable clone, no release
         id: integration
         shell: bash
