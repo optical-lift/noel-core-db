@@ -34,7 +34,7 @@ INSERT INTO atlas.company_work_initial_responsibility_offers (
   'e5200000-0000-4000-8000-000000000401',
   'e5200000-0000-4000-8000-000000000101',
   'e5200000-0000-4000-8000-000000000102',
-  'Disposable original Work comment authorization fixture only',
+  'Disposable original Work authorization fixture only',
   'offered'
 );
 
