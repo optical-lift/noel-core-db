@@ -58,8 +58,11 @@ def check_sources(root):
         raise AssertionError("Accepted-standing writer unexpectedly in guard body")
     if trigger_body.count("uni_ops_accepted_first_original_source_receipt_held_v1")!=1:
         raise AssertionError("Trigger does not depend on the single accepted-first source receipt")
-    if deferred.count("atlas.resolve_governed_canonical_farm_rule_authority_v1(")!=1:
-        raise AssertionError("Commit-stage Rulebook authority call missing")
+    if deferred.count("atlas.resolve_governed_canonical_farm_rule_authority_v1(")!=2:
+        raise AssertionError("Commit-stage Rulebook preflight and call missing")
+    defer_body=deferred.split("AS $final_commit$",1)[1].split("$final_commit$;",1)[0]
+    if defer_body.count("atlas.resolve_governed_canonical_farm_rule_authority_v1(")!=1:
+        raise AssertionError("Actual deferred COMMIT authority call missing")
     if "CREATE CONSTRAINT TRIGGER z_uni_ops_governed_original_finalization_v1" not in deferred:
         raise AssertionError("Commit-time deferred trigger absent in source")
     if post.count(OLD)!=1:
