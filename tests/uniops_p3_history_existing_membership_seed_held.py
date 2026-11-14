@@ -22,6 +22,8 @@ USER="e5200000-0000-4000-8000-000000000002"
 LEGACY="ec410000-0000-4000-8000-000000000201"
 WORK="ec410000-0000-4000-8000-000000000901"
 ALLOC="ec410000-0000-4000-8000-000000000301"
+LEDGER="e5200000-0000-4000-8000-000000000401"
+OWNER="e5200000-0000-4000-8000-000000000101"
 
 MEMBER_INSERT=f"""      INSERT INTO atlas.organization_memberships(
        id,organization_id,user_id,role,active,person_id)
@@ -43,6 +45,20 @@ BOUND_ALLOCATION=f"""      INSERT INTO atlas.work_allocations(
         AND m.person_id='{PERSON}'::uuid
         AND m.user_id='{USER}'::uuid
         AND m.active IS TRUE;"""
+WORK_INSERT=f"""      INSERT INTO atlas.work_items(
+       id,organization_id,title,work_state,source_object_type,
+       source_object_id,stable_key)
+      VALUES('{WORK}'::uuid,'{ORG}'::uuid,'Fictional obsolete archived duty',
+       'open','legacy_task_slice',
+       'ec410000-0000-4000-8000-000000000902'::uuid,
+       'clone:historical-retirement-proof');"""
+RELEVANCE_INSERT=f"""      INSERT INTO atlas.company_work_native_ledger_relevance(
+       organization_id,work_item_id,ledger_id,relation_kind,evidence_kind,
+       attestation_source_ref,attestation_reason,established_by_person_id)
+      VALUES('{ORG}'::uuid,'{WORK}'::uuid,'{LEDGER}'::uuid,
+       'serves_purpose','owner_attested','clone:obsolete-review',
+       'Fictional original Work context for retirement review','{OWNER}'::uuid);"""
+ORIGINAL_SEED=(MEMBER_INSERT+"\\n"+WORK_INSERT+"\\n"+ORIGINAL_ALLOCATION+"\\n"+RELEVANCE_INSERT)
 MEMBERSHIP_SQL=(
     "select count(*) from atlas.organization_memberships m "
     "where m.organization_id='"+ORG+"'::uuid "
@@ -63,11 +79,8 @@ class HistoricFixtureRefusal(AssertionError):
 def adapt_known_seed(seed):
     if not isinstance(seed,str):
         raise HistoricFixtureRefusal("Historical seed is not text")
-    if (seed.count(MEMBER_INSERT)!=1
-            or seed.count(ORIGINAL_ALLOCATION)!=1
+    if (seed.strip()!=ORIGINAL_SEED.strip()
             or seed.count("INSERT INTO atlas.")!=4
-            or seed.count("INSERT INTO atlas.work_items(")!=1
-            or seed.count("INSERT INTO atlas.company_work_native_ledger_relevance(")!=1
             or BOUND_ALLOCATION in seed):
         raise HistoricFixtureRefusal("Unreviewed historical seed shape")
     # Retain exact historical Work, ledger-relevance rows, and source-owned
