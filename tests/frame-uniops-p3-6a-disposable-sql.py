@@ -66,8 +66,8 @@ def frame(source,bodies):
             raise AssertionError("Missing/duplicate exact P3 stage markers")
         prefix,remaining=result.split(begin,1)
         body,suffix=remaining.split(end,1)
-        # The frozen 22 composer adds exactly ONE newline after source text.
-        if body!=bodies[name]+"\n":
+        # The frozen 22 composer adds the newline belonging to the END marker.
+        if body!=bodies[name]:
             raise AssertionError("P3 held source differs from pinned body")
         if name.startswith("01_"):
             patched=bodies[name].rstrip()+";\n\n"
@@ -76,8 +76,8 @@ def frame(source,bodies):
                 "end;$function$\n\nCOMMIT;",
                 "end;$function$;\n\nCOMMIT;",1)
         # Source is never edited; only its scratch SQL representation gets a
-        # required terminator. Exactly one trailing assembler newline remains.
-        result=prefix+begin+patched+"\n"+end+suffix
+        # required terminator. The END-marker separator remains unchanged.
+        result=prefix+begin+patched+end+suffix
     if result.count("-- BEGIN PINNED P3 6A HELD STAGE ")!=8 or (
             result.count("-- END PINNED P3 6A HELD STAGE ")!=8):
         raise AssertionError("Stage identities changed")
