@@ -39,6 +39,9 @@ HANDOFF_STAGES=frozenset((
 FIXTURE_STAGES=frozenset((
     "membership_preflight","membership_query_failed","membership_absent",
     "membership_not_exactly_one","membership_confirmed",
+    "person_identity_preflight","identity_query_failed",
+    "person_identity_misaligned","membership_create_authorized",
+    "membership_postseed_not_one","membership_created",
     "seed_apply_started","seed_apply_failed","seed_applied",
     "allocation_preflight","allocation_query_failed",
     "allocation_not_exactly_one","fixture_verified"
