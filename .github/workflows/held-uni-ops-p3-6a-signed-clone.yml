@@ -164,19 +164,19 @@ jobs:
           python3 tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1
           test "$(git -C history-source-contract rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
           test "$(git -C history-source-contract hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
-          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 924668856d4e0db4b67cacf251fae8692ca1310e
+          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 8669114f838fc65f8541fa07c9929ed080820164
           test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
           test "$(git hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = ec216f446a251350e833d84909b4bcd8ba914490
-          test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = cc080b7aebd9b86b84c002e8845c11d1c7cb9d2b
-          test "$(git hash-object tests/test_uniops_p3_history_existing_membership_seed_held.py)" = 97b6b4327fc1235a64f1b840af67b25403ea6cfc
+          test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 5e88f69697f015ad04f61236e2403c7e0dc71752
+          test "$(git hash-object tests/test_uniops_p3_history_existing_membership_seed_held.py)" = 397adfc86545c2fcf4f035c9e0e1f344f076f6ec
           python3 tests/test_uniops_p3_history_existing_membership_seed_held.py --companion history-source-contract/tests/validate-atlas-native-historical-retirement-signed-http.py
           python3 tests/test_uniops_p3_history_signed_followon_held.py \
             --driver u4-source-contract/tests/validate-uniops-option-a-u2-accepted-first-signed.py \
             --bridge tests/uniops_historical_retirement_signed_bridge_held.py \
             --companion history-source-contract/tests/validate-atlas-native-historical-retirement-signed-http.py \
             --p3-hook p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
-          test "$(git hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = 7a97143fec868b7030cce4a50c44c9ff5efbfd87
-          test "$(git hash-object tests/test_uniops_p3_history_safe_python_failure_held.py)" = 8612912be8d5da3df8dcd67612a1a62e876ea6fc
+          test "$(git hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = ea2888a16475ddd85defc22350bb014bd97d64f7
+          test "$(git hash-object tests/test_uniops_p3_history_safe_python_failure_held.py)" = f5e271987d7ab583631cbc682ecf8322894a5fa8
           python3 -m py_compile tests/uniops_p3_history_safe_python_failure_held.py tests/test_uniops_p3_history_safe_python_failure_held.py
           python3 -m unittest discover -s tests -p 'test_uniops_p3_history_safe_python_failure_held.py' -v
           python3 - <<'PY'
@@ -199,8 +199,10 @@ jobs:
           assert 'UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' in p
           assert 'UNI_OPS_SIGNED_HISTORY_FIRST_PYTHON_EXCEPTION=' in p
           assert 'UNI_OPS_SIGNED_HISTORY_DIAGNOSTIC_STAGE=' in p
-          assert '7a97143fec868b7030cce4a50c44c9ff5efbfd87' in p
-          assert '8612912be8d5da3df8dcd67612a1a62e876ea6fc' in w
+          assert 'UNI_OPS_SIGNED_HISTORY_SEED_SQL_KIND=' in p
+          assert 'UNI_OPS_SIGNED_HISTORY_SEED_PROGRESS=' in p
+          assert 'ea2888a16475ddd85defc22350bb014bd97d64f7' in p
+          assert 'f5e271987d7ab583631cbc682ecf8322894a5fa8' in w
           assert '--historical-retirement-followon' in p
           assert 'uniops_p3_history_existing_membership_seed_held.py' in p
           assert p.index('Attach independently approved historical source after P3') < p.index('Run canonical authentic-schema disposable clone, no release')
@@ -590,11 +592,11 @@ jobs:
           test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
           test "$(git -C canonical hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519
           test "$(git -C canonical hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
-          test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 924668856d4e0db4b67cacf251fae8692ca1310e
+          test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 8669114f838fc65f8541fa07c9929ed080820164
           test "$(git -C canonical hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
-          test "$(git -C canonical hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = 7a97143fec868b7030cce4a50c44c9ff5efbfd87
+          test "$(git -C canonical hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = ea2888a16475ddd85defc22350bb014bd97d64f7
           test "$(git -C canonical hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = ec216f446a251350e833d84909b4bcd8ba914490
-          test "$(git -C canonical hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = cc080b7aebd9b86b84c002e8845c11d1c7cb9d2b
+          test "$(git -C canonical hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 5e88f69697f015ad04f61236e2403c7e0dc71752
           test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
           cp history-signed/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py
           python3 canonical/tests/prepare_uniops_p3_history_signed_followon_held.py \
@@ -993,24 +995,31 @@ jobs:
           history_phase='not_verified'
           history_exception='not_verified'
           history_stage='not_verified'
+          history_seed_kind='not_verified'
+          history_seed_progress='not_verified'
           if helper.is_file() and not helper.is_symlink() and historical_log.is_file():
               try:
                   raw=helper.read_bytes()
                   h=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
-                  if h=='7a97143fec868b7030cce4a50c44c9ff5efbfd87':
+                  if h=='ea2888a16475ddd85defc22350bb014bd97d64f7':
                       spec=importlib.util.spec_from_file_location('history_sanitized_failure',helper)
                       mod=importlib.util.module_from_spec(spec)
                       spec.loader.exec_module(mod)
                       history_text=historical_log.read_text(errors='replace')
                       history_phase,history_exception=mod.classify(history_text)
                       history_stage=mod.classify_stage(history_text)
+                      history_seed_kind,history_seed_progress=mod.classify_seed_detail(history_text)
               except (OSError,ValueError,AttributeError,TypeError,ImportError):
                   history_phase='unverified_classifier'
                   history_exception='unverified_classifier'
                   history_stage='unverified_classifier'
+                  history_seed_kind='unverified_classifier'
+                  history_seed_progress='unverified_classifier'
           print('UNI_OPS_SIGNED_HISTORY_LAST_SAFE_PHASE='+history_phase)
           print('UNI_OPS_SIGNED_HISTORY_FIRST_PYTHON_EXCEPTION='+history_exception)
           print('UNI_OPS_SIGNED_HISTORY_DIAGNOSTIC_STAGE='+history_stage)
+          print('UNI_OPS_SIGNED_HISTORY_SEED_SQL_KIND='+history_seed_kind)
+          print('UNI_OPS_SIGNED_HISTORY_SEED_PROGRESS='+history_seed_progress)
           history_pass='UNI_OPS_SIGNED_HISTORY_CANCEL=PASS' in historical_summary_lines
           mowing_preserved='UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' in historical_actor_lines
           print('UNI_OPS_SIGNED_HISTORY_CANCEL='+('PASS' if history_pass and mowing_preserved else 'NOT_RUN'))
