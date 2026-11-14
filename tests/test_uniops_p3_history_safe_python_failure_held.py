@@ -105,5 +105,30 @@ class SafeHistoryDiagnostic(unittest.TestCase):
         self.assertEqual(m.classify_stage(
             m.FIXTURE_PREFIX+"membership_absent with secret"),"unverified_stage")
 
+
+    def test_safe_seed_error_markers_reject_arbitrary_private_data(self):
+        for kind in m.SEED_SQL_KINDS:
+            for progress in m.SEED_PROGRESS:
+                with self.subTest(kind=kind,progress=progress):
+                    private="PRIVATE_SQL_CREDENTIAL"
+                    log=("PRIVATE SQL: "+private+"\n"
+                         +m.SEED_KIND_PREFIX+kind+"\n"
+                         +m.SEED_PROGRESS_PREFIX+progress+"\n")
+                    self.assertEqual(m.classify_seed_detail(log),(kind,progress))
+                    self.assertNotIn(private,str(m.classify_seed_detail(log)))
+        self.assertEqual(m.classify_seed_detail("No marker"),
+                         ("not_reported","not_reported"))
+        self.assertEqual(m.classify_seed_detail(None),
+                         ("log_unavailable","log_unavailable"))
+        self.assertEqual(m.classify_seed_detail("A"*(m.MAX_BYTES+1)),
+                         ("log_oversize","log_oversize"))
+        self.assertEqual(m.classify_seed_detail(
+            m.SEED_KIND_PREFIX+"foreign_key_constraint with secret"),
+            ("unverified","unverified"))
+        self.assertEqual(m.classify_seed_detail(
+            m.SEED_PROGRESS_PREFIX+"after_one_insert_tag with SQL"),
+            ("unverified","unverified"))
+
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
