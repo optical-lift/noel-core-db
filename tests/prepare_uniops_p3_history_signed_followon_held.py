@@ -18,7 +18,7 @@ import prepare_uniops_historical_retirement_signed_followon_held as original
 PREPARER_BLOB="6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519"
 GUARD_BLOB="a0ab7523f10e9b79d3290871fd5faac777e6e733"
 P3_HOOK_BLOB="4efef70ea67209b04def420aade39b8a6fd44f38"
-COMPAT_BLOB="88c33ac4a3d65340bf7e24ba4818f054806e3371"
+COMPAT_BLOB="ad3116b025ad0eecdb989ed912a69fe2e48c4f0e"
 SAFE_OUTPUT="validate-uniops-p3-historical-signed-local-only.py"
 
 HISTORY_START="        history_receipt=hist.prove(\n"
@@ -49,7 +49,7 @@ HISTORY_PRE='''        # Test-only: capture exact completed mowing source in thi
               "Reviewed history Person-root source missing")
         _compat_bytes=_compat_path.read_bytes()
         check(_sha1(b"blob "+str(len(_compat_bytes)).encode("ascii")+b"\\0"+
-                    _compat_bytes).hexdigest()=="88c33ac4a3d65340bf7e24ba4818f054806e3371",
+                    _compat_bytes).hexdigest()=="ad3116b025ad0eecdb989ed912a69fe2e48c4f0e",
               "History Person-root source pin changed")
         _compat_spec=importlib.util.spec_from_file_location(
             "uniops_p3_history_existing_membership_seed_held",_compat_path)
