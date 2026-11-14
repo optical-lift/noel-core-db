@@ -5,6 +5,7 @@ DO $post$
 DECLARE
  v_eval text;
  v_receipt text;
+ v_signal text;
 BEGIN
  IF pg_catalog.to_regprocedure(
    'atlas.evaluate_rhythm_binding_v1(uuid,timestamptz,text)'
@@ -137,17 +138,25 @@ BEGIN
  )=0 THEN
   RAISE EXCEPTION 'Thursday Harvest Done-to-owner automatic successor not yet staged';
  END IF;
- IF pg_catalog.md5(pg_catalog.pg_get_functiondef(
+ -- File 11 enforces the exact original source MD5 BEFORE replacing it.
+ -- After installation that original hash must differ. Checking it here
+ -- would reject the successful source-guard overlay unconditionally.
+ -- The assembled postcondition checks the held branch AND retention of
+ -- the independently sourced release path; signed behavior remains open.
+ SELECT pg_catalog.pg_get_functiondef(
    'atlas.signal_work_occurrence_v1(uuid,text,jsonb)'::regprocedure
- )) IS DISTINCT FROM '44878fb25c583320a0af033e4266d25b'
- THEN
-  RAISE EXCEPTION 'Shared independent source signal has drifted; review before cutover';
- END IF;
-
- IF position('governed_rhythm_clock_signal_held' IN
-  pg_catalog.pg_get_functiondef(
-   'atlas.signal_work_occurrence_v1(uuid,text,jsonb)'::regprocedure)
- )=0 OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
+ ) INTO v_signal;
+ IF v_signal IS NULL
+    OR position('governed_rhythm_clock_signal_held' IN v_signal)=0
+    OR position('automatic_task_release_authorized' IN v_signal)=0
+    OR position('noAutomaticNextTask' IN v_signal)=0
+    OR position('release_eligible_work_v1' IN v_signal)=0
+    OR position('gate_satisfied_at' IN v_signal)=0
+    OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
+       pg_catalog.pg_get_functiondef(
+         'atlas.ensure_rhythm_task_v1_base(uuid,text,timestamptz)'::regprocedure)
+    )=0
+    OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
   pg_catalog.pg_get_functiondef(
    'atlas.ensure_rhythm_task_v1_base(uuid,text,timestamptz)'::regprocedure)
  )=0 OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
