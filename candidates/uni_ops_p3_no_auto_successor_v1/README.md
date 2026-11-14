@@ -1,5 +1,23 @@
 # P3 / U1A–U2C held source build, dependency and deferred acceptance
 
+## November 14, 2026 — source-only first-mowing 6A subset PASS; protected run HELD
+
+A previously undercredited genuine owner-protected, independently signed U2→U4 mowing **Actual/Result/one Done** was already exercised on November 9: [run #42709128622](https://github.com/optical-lift/noel-core-db/actions/runs/42709128622) reported `UNI_OPS_U4_SIGNED_ACTUAL_RESULT_DONE=PASS`, `UNI_OPS_SIGNED_U2_ACCEPTED_FIRST=PASS` and `PRODUCTION_MUTATION=NONE`. **The same run expressly reported `UNI_OPS_SIGNED_POST_RESULT_6A=NOT_RUN`.** Do not rerun or appropriate its separately granted one-time signed authorization to prove P3.
+
+The new bounded **test-only** files separate the *first accepted mowing original* no-successor contract from P3's uninstalled Harvest/Seed/farm-owner-attention adapters and from the mutually exclusive Company decision history in Noel #2567:
+
+- `20_mowing_6a_core_postconditions_held.sql` verifies the 01/02/03/04/06/11/12 source-specific Result evaluator, accepted-first original, deferred COMMIT, governed legacy Task/occurrence cutover and private API deny surface. This is **a proposed isolated PG17 postcondition, NOT executed**. It intentionally does not claim direct Goal, older Done, farm Harvest, Seed, or broader legacy source closure.
+- `21_mowing_6a_source.test.mjs` executes the existing P3 original-fingerprint reversal and synthetic BEFORE/AFTER/REPLAY `18`/`19` comparator for completed, partial, blocked, forged/missing accepted Result, newly created Work/offer/plan/obligation, and newly eligible/released existing legacy carriers.
+- `22_compose_mowing_6a_scratch_held.mjs` requires an independently SHA256-verified 18-stage U2→U4 scratch source containing the exact signed public C1 transport; checks eight immutable P3 Git blobs, refuses duplicate installation/source drift, includes a live-baseline `evaluate_rhythm_binding_v1` MD5 guard **before** its replacement, and writes only a new, chmod-private `*_TEST_ONLY.sql` scratch file beneath a temporary directory. It neither executes SQL nor modifies protected workflow source.
+
+New `.github/workflows/held-uni-ops-p3-6a-source.yml` runs only the no-network Node source tests on the held PR and has **no DB secret, production environment, deploy or migration step**. [GitHub run #43605901467](https://github.com/optical-lift/noel-core-db/actions/runs/43605901467) **10/10 PASS**, after fixing a missing test-only Node crypto import in an earlier failed attempt. Its emitted `SIGNED_POST_RESULT_6A=NOT_RUN` is binding: neither the proposed 8-stage bundle nor its isolated SQL postconditions have been executed or authenticated. The separate general Database Custody status does not promote these source-only receipts.
+
+**NEXT:** independent source-owner/runner review of the exact staged P3 subset, then an explicitly owner-gated disposable current-schema PG17/GoTrue test using the **already signed** U2→U4 path as baseline plus these P3 stages, with a signed worker's mowing Actual, Need/physical-state and previous-source row checks, actor/outsider/revocation, replay, and no illicit legacy Task/occurrence release. Any untested P3 05/07/09/10/13/14/15 and Company governor reconciliation remain **separate OPEN acceptance** and cannot be credited by that first mowing PASS. No production SQL/data, real identity, feature branch merge or release authorization.
+
+---
+
+
+
 **Date:** November 6, 2026. **Status:** Authored source, **NOT compiled, NOT signed-tested, NOT migrated, NOT merged, NOT released**. The user's direction is build-first; collected runtime tests only when necessary to connect safely or approve release.
 
 ## Bounded result
