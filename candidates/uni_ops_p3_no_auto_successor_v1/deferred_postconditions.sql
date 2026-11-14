@@ -153,10 +153,6 @@ BEGIN
     OR position('release_eligible_work_v1' IN v_signal)=0
     OR position('gate_satisfied_at' IN v_signal)=0
     OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
-       pg_catalog.pg_get_functiondef(
-         'atlas.ensure_rhythm_task_v1_base(uuid,text,timestamptz)'::regprocedure)
-    )=0
-    OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
   pg_catalog.pg_get_functiondef(
    'atlas.ensure_rhythm_task_v1_base(uuid,text,timestamptz)'::regprocedure)
  )=0 OR position('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1' IN
