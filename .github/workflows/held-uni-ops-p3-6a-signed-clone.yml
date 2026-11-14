@@ -183,6 +183,8 @@ jobs:
           assert 'UNI_OPS_P3_POSTCONDITION_CHECK=' in p
           assert 'UNI-OPS P3 historical governor cancellation signed conservation gate' in p
           assert 'signed_u2_result_need_history_conservation_v1' in p
+          assert 'github.event.issue.number == 2784' in p
+          assert "expected['owner_run_approval']='signed_history_governor_conservation_2784_v1'" in p
           assert 'UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' in p
           assert '--historical-retirement-followon' in p
           assert p.index('Attach independently approved historical source after P3') < p.index('Run canonical authentic-schema disposable clone, no release')
@@ -207,7 +209,8 @@ jobs:
       github.event.issue.author_association == 'OWNER' &&
       github.actor == github.repository_owner &&
       (github.event.issue.title == 'UNI-OPS P3 6A protected signed Result no-successor gate' ||
-       github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate')
+       (github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate' &&
+        github.event.issue.number == 2784))
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 55
@@ -238,6 +241,7 @@ jobs:
               expected['test_goal']='signed_u2_result_need_history_conservation_v1'
               expected['history_source_sha']='ddfb0bf5374798301fe076a61d2b944dfb52ff63'
               expected['history_composer_sha']='15bb6a15f60b357050f44ab1bc43f64778523d93'
+              expected['owner_run_approval']='signed_history_governor_conservation_2784_v1'
           elif title!='UNI-OPS P3 6A protected signed Result no-successor gate':
               raise SystemExit('Unrecognized protected history or P3 test goal')
           for line in os.environ.get('OWNER_BODY','').splitlines():
