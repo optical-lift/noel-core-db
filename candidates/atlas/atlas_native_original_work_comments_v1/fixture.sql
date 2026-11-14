@@ -59,3 +59,56 @@ INSERT INTO atlas.work_allocations (
     '"uptakeKind":"recipient_self_accepted"}'::jsonb,
   '{"cloneFixture":"w07_signed_ordinary_comment_v1"}'::jsonb
 );
+
+-- Separate synthetic physically sourced original Work 903, governed by the
+-- real legacy Task/farm/zone/bed correspondence. No disclosure is implied.
+-- The current owner must later establish crop custody and the Work link by
+-- signed, source-protected public RPCs during the local test.
+INSERT INTO atlas.farms (
+  id,stable_key,name,organization_id,organization_unit_id,metadata
+) VALUES (
+  'e5200000-0000-4000-8000-000000000b31',
+  'w07-synthetic-physical-farm','W07 Synthetic Physical Farm',
+  'e5200000-0000-4000-8000-000000000801',
+  'e5200000-0000-4000-8000-000000000802',
+  '{"cloneFixture":true}'::jsonb
+);
+
+INSERT INTO atlas.zones (id,farm_id,stable_key,label,metadata)
+VALUES (
+  'e5200000-0000-4000-8000-000000000b32',
+  'e5200000-0000-4000-8000-000000000b31',
+  'w07-synthetic-physical-zone','W07 Synthetic Physical Zone',
+  '{"cloneFixture":true}'::jsonb
+);
+
+INSERT INTO atlas.growing_objects (
+  id,farm_id,zone_id,stable_key,label,object_type,metadata
+) VALUES (
+  'e5200000-0000-4000-8000-000000000b33',
+  'e5200000-0000-4000-8000-000000000b31',
+  'e5200000-0000-4000-8000-000000000b32',
+  'w07-synthetic-physical-bed','W07 Synthetic Physical Bed',
+  'bed','{"cloneFixture":true}'::jsonb
+);
+
+INSERT INTO atlas.tasks (
+  id,organization_id,farm_id,zone_id,title,task_type,status,
+  visibility_scope,task_scope,origin_kind,metadata
+) VALUES (
+  'e5200000-0000-4000-8000-000000000b34',
+  'e5200000-0000-4000-8000-000000000801',
+  'e5200000-0000-4000-8000-000000000b31',
+  'e5200000-0000-4000-8000-000000000b32',
+  'W07 Synthetic Task for One Physical Bed','general','open',
+  'system_internal','farm_operation','legacy',
+  '{"cloneFixture":true}'::jsonb
+);
+
+UPDATE atlas.work_items SET
+  source_object_type='legacy_task',
+  source_object_id='e5200000-0000-4000-8000-000000000b34'::uuid,
+  organization_unit_id='e5200000-0000-4000-8000-000000000802'::uuid,
+  stable_key='w07-original-work-903-physical'
+WHERE id='e5200000-0000-4000-8000-000000000903'::uuid
+  AND organization_id='e5200000-0000-4000-8000-000000000801'::uuid;
