@@ -28,3 +28,30 @@ assert.match(fn,/v_state\.lease_started_at/);
 assert.match(fn,/atlas\.record_rhythm_transition_v1/);
 assert.match(fn,/update atlas\.rhythm_state/);
 console.log('P3 exact-live-source one-expression delta verified; NO SQL, signed runtime or release acceptance');
+
+// Phase split: file 11 checks its exact original MD5 BEFORE replacing the
+// signal function; deferred_postconditions.sql runs AFTER that replacement.
+// Requiring the original MD5 again afterward would make a successful
+// assembled overlay fail by construction. This is source-only, not PG proof.
+const signalOverlay=readFileSync(
+  'candidates/uni_ops_p3_no_auto_successor_v1/11_governed_rhythm_clock_signal_specific_hold_held.sql','utf8');
+const assembledPost=readFileSync(
+  'candidates/uni_ops_p3_no_auto_successor_v1/deferred_postconditions.sql','utf8');
+assert.match(signalOverlay,/IS DISTINCT FROM '44878fb25c583320a0af033e4266d25b'/,
+  'pre-install live-source drift pin must remain');
+assert.doesNotMatch(assembledPost,/44878fb25c583320a0af033e4266d25b/,
+  'post-install assertions may not demand the replaced live-source fingerprint');
+for(const name of [
+  'v_signal text;',
+  'INTO v_signal;',
+  "position('governed_rhythm_clock_signal_held' IN v_signal)",
+  "position('automatic_task_release_authorized' IN v_signal)",
+  "position('noAutomaticNextTask' IN v_signal)",
+  "position('release_eligible_work_v1' IN v_signal)",
+  "position('gate_satisfied_at' IN v_signal)",
+]){
+  assert.ok(assembledPost.includes(name),`missing post-install signal assertion: ${name}`);
+}
+assert.match(signalOverlay,/release_eligible_work_v1/,
+  'unrelated independent signal sources must retain their original release path');
+console.log('P3 pre-install source pin / post-install overlay split source-verified; runtime acceptance HELD');
