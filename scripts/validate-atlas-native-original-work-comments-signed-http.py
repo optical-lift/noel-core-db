@@ -60,6 +60,14 @@ BODY_THIRD = "SYNTH_W07_OWNER_SECOND_LOCAL_ONLY"
 READ = "read_native_original_work_comments_self_api_v1"
 WRITE = "append_native_original_work_comment_self_api_v1"
 
+# Only constant, secret-free test stage labels are written on failure.
+# Underlying local DB/JWT/HTTP diagnostics remain in protected runner scratch.
+W07_STAGE = "setup"
+
+def mark_stage(label):
+    global W07_STAGE
+    W07_STAGE = label
+
 
 def check(value, message):
     base.check(value, message)
@@ -384,6 +392,7 @@ def historical_completed_work_trial(db_url, api, key, owner, worker):
     This tests W07 reader/replay behavior, not genuine completion authorization
     or the separately governed accepted Work Result mechanics.
     """
+    mark_stage("history-open-original-preflight")
     work = WRONG_WORK
     body = "SYNTH_W07_HISTORY_BEFORE_COMPLETE"
     check(sql(db_url, """
@@ -393,6 +402,7 @@ def historical_completed_work_trial(db_url, api, key, owner, worker):
     """ % (work, ORG))=="1",
           "Historical test requires separate open original without Result contract")
     before_results = sql(db_url, "SELECT count(*) FROM atlas.work_execution_results")
+    mark_stage("history-initial-signed-write")
     receipt=permitted(api,key,owner,WRITE,
                       write_args(ACTION_COMPLETED_SOURCE,body,work=work))
     check(receipt.get("commentId") and receipt.get("idempotent") is False
@@ -401,6 +411,7 @@ def historical_completed_work_trial(db_url, api, key, owner, worker):
     comment_id=receipt["commentId"]
     check_read(permitted(api,key,owner,READ,read_args(work=work)),[comment_id])
 
+    mark_stage("history-synthetic-completion-update")
     sql(db_url, """
         UPDATE atlas.work_items SET work_state='completed',completed_at=now()
         WHERE id='%s'::uuid AND organization_id='%s'::uuid
@@ -413,23 +424,28 @@ def historical_completed_work_trial(db_url, api, key, owner, worker):
     """ % (work, ORG))=="1",
           "Synthetic original completion transition not recorded")
 
+    mark_stage("history-completed-signed-read")
     old=permitted(api,key,owner,READ,read_args(work=work))
     check_read(old,[comment_id])
     check(old["items"][0].get("body")==body,
           "Original Work comment disappeared when synthetic Work completed")
+    mark_stage("history-completed-signed-replay")
     replay=permitted(api,key,owner,WRITE,
                      write_args(ACTION_COMPLETED_SOURCE,body,work=work))
     check(replay.get("commentId")==comment_id
           and replay.get("idempotent") is True,
           "Completing original Work must not erase original saved-action replay")
+    mark_stage("history-completed-deny-new-write")
     status,packet=rpc(api,key,owner,WRITE,
                       write_args(ACTION_COMPLETED_NEW,
                                  "SYNTH_W07_NEW_AFTER_COMPLETE",work=work))
     check(status in (401,403) and isinstance(packet,dict)
           and packet.get("code")=="42501",
           "Completed original Work must reject a NEW signed comment")
+    mark_stage("history-completed-unassigned-denial")
     forbidden(api,key,worker,READ,read_args(work=work),
               "unassigned worker cannot read closed other Work")
+    mark_stage("history-completed-comment-count")
     check(sql(db_url, """
         SELECT count(*) FROM atlas.native_original_work_comments_v1
         WHERE organization_id='%s'::uuid AND work_item_id='%s'::uuid
@@ -554,6 +570,7 @@ def main():
     forbidden(api,key,None,WRITE,write_args(ACTION_OWNER,"anonymous"),
               "unsigned anonymous write")
 
+    mark_stage("notification-baseline-count")
     side_effect_baseline=comment_side_effect_snapshot(args.db_url)
 
     owner_receipt=permitted(api,key,owner,WRITE,
@@ -683,6 +700,7 @@ def main():
           AND author_person_id='%s'::uuid AND source_action_id='%s'::uuid
     """ % (ORG,WORK,OWNER_PERSON,ACTION_RACE_IDENTICAL)) == "1",
           "W07 concurrent replay duplicated the original action")
+    mark_stage("notification-postcomment-count")
     check(comment_side_effect_snapshot(args.db_url)==side_effect_baseline,
           "Ordinary comment RPCs created notification, communication, Event or Work Result rows")
     print("PASS W07 no notification, communication, Event or Work Result table mutations")
@@ -704,9 +722,11 @@ def main():
                [owner_id,worker_id,third_id,
                 winner["commentId"],same[0][1]["commentId"]])
 
+    mark_stage("accepted-participant-regression")
     independently_accepted_participant_trial(
         args.db_url, api, key, owner, outsider, no_seat)
     historical_completed_work_trial(args.db_url, api, key, owner, worker)
+    mark_stage("all-signed-cases-complete")
 
     check(sql(args.db_url,"SELECT count(*) FROM atlas.work_items")==
           work_before,"W07 comments manufactured another original Work")
@@ -734,4 +754,16 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as exc:
+        # No raw SQL, database URL, JWT, response payload or exception message.
+        import sys
+        if "--output" in sys.argv:
+            i = sys.argv.index("--output")
+            if i + 1 < len(sys.argv):
+                Path(sys.argv[i + 1]).write_text(
+                    "FAILED W07 signed disposable clone stage: %s; class: %s\n"
+                    % (W07_STAGE, type(exc).__name__), encoding="utf-8"
+                )
+        raise
