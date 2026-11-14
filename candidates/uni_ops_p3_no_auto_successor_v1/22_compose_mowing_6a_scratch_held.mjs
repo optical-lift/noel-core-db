@@ -33,10 +33,11 @@ function insistTemp(path){
 const [input,expectedDigest,output]=process.argv.slice(2);
 assert.ok(input && expectedDigest && output &&
   /^[0-9a-f]{64}$/.test(expectedDigest),
-  'Usage: node 22_compose_mowing_6a_scratch_held.mjs ABSOLUTE_U4_DISPOSABLE_ONLY.sql INPUT_SHA256 ABSOLUTE_UNI_OPS_P3_6A_TEST_ONLY.sql');
+  'Usage: node 22_compose_mowing_6a_scratch_held.mjs ABSOLUTE_U4_DISPOSABLE_ONLY.sql INPUT_SHA256 ABSOLUTE_20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql');
 insistTemp(input);insistTemp(output);
 assert.match(basename(input),/DISPOSABLE_ONLY[.]sql$/);
-assert.match(basename(output),/^UNI_OPS_P3_6A_[A-Za-z0-9_-]+_TEST_ONLY[.]sql$/);
+assert.equal(basename(output),'20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql',
+  'exact disposable Atlas validation version and TEST_ONLY filename required');
 assert.notEqual(resolve(input),resolve(output));
 const baseline=readFileSync(input);
 assert.equal(sha256(baseline),expectedDigest,'immutable verified U4 scratch digest changed');
