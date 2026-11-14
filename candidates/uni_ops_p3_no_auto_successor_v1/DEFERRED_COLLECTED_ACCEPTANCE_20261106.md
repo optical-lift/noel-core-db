@@ -1,5 +1,16 @@
 # Deferred collected acceptance — P3/one original source assembly
 
+
+## November 13 test route clarified — direct signed C1, not the P1 campaign bypass
+
+**Chosen exact core positive:** first perform the already separately signed U2C **mowing** recipient-offer/worker-accept/current-root-finalized original in the same approved disposable current-schema clone. Then call the held **public signed C1 physical Result adapter** `public.record_continuing_care_actual_self_api_v1` as that original's genuinely signed, currently allocated worker, with `mowed_full` / `resting`. C1's owning source already checks exact native Subject/Ledger/worker, writes physical care Result + observation, accepted canonical Work Result, a legitimate Rhythm satisfaction and one native Done; **P3 must prevent all transitive automatic successor carriers**. This route does **not** use `recognize_assigned_care_activity_self_api_v1` or invent a manual Activity first. P1's independent `sourceStandingCampaignId` denial remains intact until separately governed campaign-P1 review; it is not required for the core first-Work→signed-C1-Actual proof.
+
+**Source-only test aid, unexecuted:** `18_disposable_signed_result_snapshot.sql` reads exact original/Need identity, physical condition, accepted Result and the before/after counts of Work, Task, planned occurrence, prework offer, allocation, plan and Principal obligations, plus newly released legacy Task/eligible occurrence identities. It detects U2E campaign schema presence and requires a separate campaign census if installed. `19_compare_signed_result_snapshots.mjs` compares separate BEFORE and AFTER signed-event snapshots, requires exactly one Result/acceptance/physical care event and zero unsolicited release or new issuance, and optionally compares an exact-action REPLAY. In a clean *separate* fixture, `mowed_partial` / `partial` should leave the original open and Need recovering; `too_wet` / `too_wet` should leave the original open and no false satisfaction. Neither a count-only check nor an asserted receipt substitutes for actual signed HTTP, source permissions, Result→Need history or fresh schema compilation.
+
+**No test has been run by these files.** Correct composite source precedence, actual owner-signed clone authorization, complete legacy negative/source actors, P3 16/17 vs canonical Company #2567 decision-history conflict, release migration and production remain independent HOLDS. Do not install the held farm operational attention decision history alongside #2567 or reinterpret `service_role` as a governor.
+
+---
+
 **2026-11-06 · NOT EXECUTED**. Source owner: Noel. Coordinating Atlas source: UNI-OPS-01 #532, one existing completion register. Owner directed source building before collected integration tests. This matrix is an acceptance specification, **not** a passing report or permission for migration.
 
 ## What must be assembled
