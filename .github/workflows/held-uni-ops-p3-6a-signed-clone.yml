@@ -25,6 +25,8 @@ on:
       - 'tests/prepare_uniops_p3_history_signed_followon_held.py'
       - 'tests/uniops_p3_historical_preservation_check_held.py'
       - 'tests/test_uniops_p3_history_signed_followon_held.py'
+      - 'tests/uniops_p3_history_safe_python_failure_held.py'
+      - 'tests/test_uniops_p3_history_safe_python_failure_held.py'
 permissions:
   contents: read
   packages: read
@@ -168,6 +170,10 @@ jobs:
             --bridge tests/uniops_historical_retirement_signed_bridge_held.py \
             --companion history-source-contract/tests/validate-atlas-native-historical-retirement-signed-http.py \
             --p3-hook p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
+          test "$(git hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = 80c51f05d96a4b10b49f3fbdbf1c82d069beb1c8
+          test "$(git hash-object tests/test_uniops_p3_history_safe_python_failure_held.py)" = 6be83aaf2cb29cf075a2d2400a368b981c883035
+          python3 -m py_compile tests/uniops_p3_history_safe_python_failure_held.py tests/test_uniops_p3_history_safe_python_failure_held.py
+          python3 -m unittest discover -s tests -p 'test_uniops_p3_history_safe_python_failure_held.py' -v
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-uni-ops-p3-6a-signed-clone.yml').read_text()
@@ -186,6 +192,9 @@ jobs:
           assert 'github.event.issue.number == 2784' in p
           assert "expected['owner_run_approval']='signed_history_governor_conservation_2784_v1'" in p
           assert 'UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' in p
+          assert 'UNI_OPS_SIGNED_HISTORY_FIRST_PYTHON_EXCEPTION=' in p
+          assert '80c51f05d96a4b10b49f3fbdbf1c82d069beb1c8' in p
+          assert '6be83aaf2cb29cf075a2d2400a368b981c883035' in w
           assert '--historical-retirement-followon' in p
           assert p.index('Attach independently approved historical source after P3') < p.index('Run canonical authentic-schema disposable clone, no release')
           assert 'correct_uniops_p3_6a_postcondition_deppath_held.py' in p
@@ -576,6 +585,7 @@ jobs:
           test "$(git -C canonical hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
           test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = ff0ece011040923180384793b77ab872753bcc9b
           test "$(git -C canonical hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
+          test "$(git -C canonical hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = 80c51f05d96a4b10b49f3fbdbf1c82d069beb1c8
           test "$(git -C canonical hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 1f4b370561d126f0defe8707066a3cb659bc8144
           test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
           cp history-signed/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py
@@ -970,6 +980,23 @@ jobs:
           historical_summary_lines=signed.read_text(encoding='utf-8',errors='replace').splitlines() if signed.is_file() else []
           historical_log=root/'uniops-u2-signed.log'
           historical_actor_lines=historical_log.read_text(errors='replace').splitlines() if historical_log.is_file() else []
+          helper=pathlib.Path('canonical/tests/uniops_p3_history_safe_python_failure_held.py')
+          history_phase='not_verified'
+          history_exception='not_verified'
+          if helper.is_file() and not helper.is_symlink() and historical_log.is_file():
+              try:
+                  raw=helper.read_bytes()
+                  h=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
+                  if h=='80c51f05d96a4b10b49f3fbdbf1c82d069beb1c8':
+                      spec=importlib.util.spec_from_file_location('history_sanitized_failure',helper)
+                      mod=importlib.util.module_from_spec(spec)
+                      spec.loader.exec_module(mod)
+                      history_phase,history_exception=mod.classify(historical_log.read_text(errors='replace'))
+              except (OSError,ValueError,AttributeError,TypeError,ImportError):
+                  history_phase='unverified_classifier'
+                  history_exception='unverified_classifier'
+          print('UNI_OPS_SIGNED_HISTORY_LAST_SAFE_PHASE='+history_phase)
+          print('UNI_OPS_SIGNED_HISTORY_FIRST_PYTHON_EXCEPTION='+history_exception)
           history_pass='UNI_OPS_SIGNED_HISTORY_CANCEL=PASS' in historical_summary_lines
           mowing_preserved='UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS' in historical_actor_lines
           print('UNI_OPS_SIGNED_HISTORY_CANCEL='+('PASS' if history_pass and mowing_preserved else 'NOT_RUN'))
