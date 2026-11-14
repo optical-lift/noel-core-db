@@ -47,6 +47,8 @@ ACTION_RACE_IDENTICAL = "e5200000-0000-4000-8000-000000000d05"
 ACTION_PARTICIPATION_OWNER = "e5200000-0000-4000-8000-000000000d06"
 ACTION_PARTICIPATION_OTHER = "e5200000-0000-4000-8000-000000000d07"
 ACTION_OCCURRENCE_COMMENT = "e5200000-0000-4000-8000-000000000d08"
+ACTION_COMPLETED_SOURCE = "e5200000-0000-4000-8000-000000000d09"
+ACTION_COMPLETED_NEW = "e5200000-0000-4000-8000-000000000d0a"
 OCCURRENCE_SUBJECT = "e5200000-0000-4000-8000-000000000a11"
 OCCURRENCE_LINK = "e5200000-0000-4000-8000-000000000a12"
 DISCLOSURE_GRANT_1 = "e5200000-0000-4000-8000-000000000a13"
@@ -354,6 +356,92 @@ def independently_accepted_participant_trial(db_url, api, key, owner, other, no_
           "disclosure and participant revocation")
 
 
+def comment_side_effect_snapshot(db_url):
+    """Compare source tables immediately around COMMENT RPCs only.
+
+    Fixture membership, Work allocation, completion and independent disclosure
+    setup are intentionally excluded; their own lawful records are unrelated.
+    """
+    return sql(db_url, """
+        SELECT jsonb_build_object(
+          'communication', (SELECT count(*) FROM atlas.communication_events),
+          'outbound', (SELECT count(*) FROM atlas.communication_outbound_event_links),
+          'communication_attention', (SELECT count(*) FROM atlas.communication_attention_events),
+          'bell_receipts', (SELECT count(*) FROM atlas.bell_event_receipts),
+          'attention', (SELECT count(*) FROM atlas.attention_events),
+          'work_responsibility', (SELECT count(*) FROM atlas.event_work_responsibility_changes_v1),
+          'occurrence_actions', (SELECT count(*) FROM atlas.ledger_occurrence_work_actions_v1),
+          'work_results', (SELECT count(*) FROM atlas.work_execution_results),
+          'result_acceptances', (SELECT count(*) FROM atlas.work_result_acceptances)
+        )::text
+    """)
+
+
+def historical_completed_work_trial(db_url, api, key, owner, worker):
+    """Root-governed original Work 901, no result-contract completion adapter.
+
+    The disposable clone marks a synthetic no-contract original completed.
+    This tests W07 reader/replay behavior, not genuine completion authorization
+    or the separately governed accepted Work Result mechanics.
+    """
+    work = WRONG_WORK
+    body = "SYNTH_W07_HISTORY_BEFORE_COMPLETE"
+    check(sql(db_url, """
+        SELECT count(*) FROM atlas.work_items
+        WHERE id='%s'::uuid AND organization_id='%s'::uuid
+          AND work_state='open' AND result_contract_key IS NULL
+    """ % (work, ORG))=="1",
+          "Historical test requires separate open original without Result contract")
+    before_results = sql(db_url, "SELECT count(*) FROM atlas.work_execution_results")
+    receipt=permitted(api,key,owner,WRITE,
+                      write_args(ACTION_COMPLETED_SOURCE,body,work=work))
+    check(receipt.get("commentId") and receipt.get("idempotent") is False
+          and receipt.get("isWorkResult") is False,
+          "Pre-completion comment is not a canonical ordinary comment")
+    comment_id=receipt["commentId"]
+    check_read(permitted(api,key,owner,READ,read_args(work=work)),[comment_id])
+
+    sql(db_url, """
+        UPDATE atlas.work_items SET work_state='completed',completed_at=now()
+        WHERE id='%s'::uuid AND organization_id='%s'::uuid
+          AND work_state='open' AND result_contract_key IS NULL
+    """ % (work,ORG))
+    check(sql(db_url, """
+        SELECT count(*) FROM atlas.work_items
+        WHERE id='%s'::uuid AND organization_id='%s'::uuid
+          AND work_state='completed'
+    """ % (work, ORG))=="1",
+          "Synthetic original completion transition not recorded")
+
+    old=permitted(api,key,owner,READ,read_args(work=work))
+    check_read(old,[comment_id])
+    check(old["items"][0].get("body")==body,
+          "Original Work comment disappeared when synthetic Work completed")
+    replay=permitted(api,key,owner,WRITE,
+                     write_args(ACTION_COMPLETED_SOURCE,body,work=work))
+    check(replay.get("commentId")==comment_id
+          and replay.get("idempotent") is True,
+          "Completing original Work must not erase original saved-action replay")
+    status,packet=rpc(api,key,owner,WRITE,
+                      write_args(ACTION_COMPLETED_NEW,
+                                 "SYNTH_W07_NEW_AFTER_COMPLETE",work=work))
+    check(status in (401,403) and isinstance(packet,dict)
+          and packet.get("code")=="42501",
+          "Completed original Work must reject a NEW signed comment")
+    forbidden(api,key,worker,READ,read_args(work=work),
+              "unassigned worker cannot read closed other Work")
+    check(sql(db_url, """
+        SELECT count(*) FROM atlas.native_original_work_comments_v1
+        WHERE organization_id='%s'::uuid AND work_item_id='%s'::uuid
+    """ % (ORG,work))=="1",
+          "Completing original Work created duplicate or erased existing ink")
+    check(sql(db_url,"SELECT count(*) FROM atlas.work_execution_results")==
+          before_results,
+          "Historical comment/replay created a Work Result")
+    print("PASS W07 signed historical original Work read and exact replay; "
+          "new append denied on completed no-contract Work")
+
+
 def check_read(packet, expected_ids):
     check(packet.get("contractVersion") == "native_original_work_comments_v1"
           and packet.get("organizationId") == ORG
@@ -465,6 +553,8 @@ def main():
               "unsigned anonymous read")
     forbidden(api,key,None,WRITE,write_args(ACTION_OWNER,"anonymous"),
               "unsigned anonymous write")
+
+    side_effect_baseline=comment_side_effect_snapshot(args.db_url)
 
     owner_receipt=permitted(api,key,owner,WRITE,
                             write_args(ACTION_OWNER,BODY_OWNER))
@@ -593,6 +683,9 @@ def main():
           AND author_person_id='%s'::uuid AND source_action_id='%s'::uuid
     """ % (ORG,WORK,OWNER_PERSON,ACTION_RACE_IDENTICAL)) == "1",
           "W07 concurrent replay duplicated the original action")
+    check(comment_side_effect_snapshot(args.db_url)==side_effect_baseline,
+          "Ordinary comment RPCs created notification, communication, Event or Work Result rows")
+    print("PASS W07 no notification, communication, Event or Work Result table mutations")
     print("PASS W07 real simultaneous differing-body collision and same-body replay")
 
     # Revoke the synthetic worker's accepted responsibility. We do NOT
@@ -613,6 +706,7 @@ def main():
 
     independently_accepted_participant_trial(
         args.db_url, api, key, owner, outsider, no_seat)
+    historical_completed_work_trial(args.db_url, api, key, owner, worker)
 
     check(sql(args.db_url,"SELECT count(*) FROM atlas.work_items")==
           work_before,"W07 comments manufactured another original Work")
@@ -632,7 +726,9 @@ def main():
       "cross-person refresh, original idempotent replay and collision denial, "
       "page cursor, parallel same-key same/different-body race, "
       "signed revocation, independent accepted participant, synthetic "
-      "occurrence identity withhold/grant/regrant, no new Work or Work Result\n",
+      "occurrence identity withhold/grant/regrant, historical original Work "
+      "replay/read and new-write denial, no notification/Event table mutation, "
+      "no new Work or Work Result\n",
       encoding="utf-8"
     )
 
