@@ -35,6 +35,10 @@ def synthetic(bodies):
             name="11_governed_rhythm_clock_signal_specific_hold_held.sql"
             pin=frame.REVIEWED[name]
             body=bodies[name]
+        elif i==6:
+            name="12_direct_rhythm_base_writers_governed_hold_held.sql"
+            pin=frame.REVIEWED[name]
+            body=bodies[name]
         else:
             name=f"other-reviewed-{i:02d}.sql"
             pin="f"*40
@@ -50,10 +54,10 @@ class P3StrictFraming(unittest.TestCase):
             raise AssertionError("Immutable P3 source checkout argument required")
         cls.bodies=frame.source_bytes(SOURCE_PATH)
 
-    def test_exact_two_punctuation_insertions_only(self):
+    def test_exact_four_punctuation_insertions_only(self):
         raw=synthetic(self.bodies)
         revised=frame.frame(raw,self.bodies)
-        self.assertEqual(len(revised),len(raw)+2)
+        self.assertEqual(len(revised),len(raw)+4)
         self.assertEqual(revised.count("-- BEGIN PINNED STAGE "),18)
         self.assertEqual(revised.count("-- BEGIN PINNED P3 6A HELD STAGE "),8)
         self.assertEqual(revised.count("-- END PINNED P3 6A HELD STAGE "),8)
@@ -61,11 +65,15 @@ class P3StrictFraming(unittest.TestCase):
         self.assertNotEqual(revised,raw)
         one=self.bodies["01_result_only_rhythm_evaluator_held.sql"]
         eleven=self.bodies["11_governed_rhythm_clock_signal_specific_hold_held.sql"]
+        twelve=self.bodies["12_direct_rhythm_base_writers_governed_hold_held.sql"]
         self.assertEqual(raw.count(one),1)
         self.assertEqual(raw.count(eleven),1)
+        self.assertEqual(raw.count(twelve),1)
+        self.assertEqual(twelve.count("\n$function$\n"),2)
         expected=raw.replace(one,one.rstrip()+";\n\n",1).replace(
             eleven,eleven.replace("end;$function$\n\nCOMMIT;",
-                         "end;$function$;\n\nCOMMIT;",1),1)
+                         "end;$function$;\n\nCOMMIT;",1),1).replace(
+            twelve,twelve.replace("\n$function$\n","\n$function$;\n"),1)
         self.assertEqual(revised,expected,
             "An assembler punctuation repair MUST NOT rewrite source logic")
         with self.assertRaises(AssertionError):
@@ -80,6 +88,11 @@ class P3StrictFraming(unittest.TestCase):
                            "SECURITY DEFINER","SECURITY INVOKER",1),1),
            raw.replace("11_governed_rhythm_clock_signal_specific_hold_held.sql",
                        "11_synthetic.sql",1),
+           raw.replace("12_direct_rhythm_base_writers_governed_hold_held.sql",
+                       "12_synthetic.sql",1),
+           raw.replace(self.bodies["12_direct_rhythm_base_writers_governed_hold_held.sql"],
+                       self.bodies["12_direct_rhythm_base_writers_governed_hold_held.sql"].replace(
+                           "SECURITY DEFINER","SECURITY INVOKER",1),1),
            raw+"\n-- BEGIN PINNED P3 6A HELD STAGE not-authorized",
            raw.replace("-- BEGIN PINNED STAGE s00",
                        "-- BEGIN PINNED STAGE invalid",1).replace(
