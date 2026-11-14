@@ -31,7 +31,7 @@ class SourceRefusal(AssertionError):
     """Fixed safe refusal: never report SQL or actor details."""
 
 def git_blob(raw):
-    return hashlib.sha1(b"blob "+str(len(raw)).encode("ascii")+b"\\0"+raw).hexdigest()
+    return hashlib.sha1(b"blob "+str(len(raw)).encode("ascii")+b"\0"+raw).hexdigest()
 
 def verify(original_bytes,candidate_text):
     if not isinstance(original_bytes,bytes) or git_blob(original_bytes)!=PINNED_BLOB:
@@ -40,7 +40,7 @@ def verify(original_bytes,candidate_text):
     if old.count(START)!=1 or old.count(END)!=1 or old.count(OLD)!=1:
         raise SourceRefusal("Frozen governor SQL structure changed")
     function=START+old.split(START,1)[1].split(END,1)[0]
-    if not function.endswith("\\n") or function.count("USING ERRCODE='40001'")!=1:
+    if not function.endswith("\n") or function.count("USING ERRCODE='40001'")!=1:
         raise SourceRefusal("Frozen error scope not unique")
     expected=HEADER+function.replace(OLD,NEW,1)
     if candidate_text!=expected:
@@ -74,7 +74,7 @@ def main():
                       candidate.replace("apply_work_lifecycle_transition_internal_v1",
                                         "unreviewed_work_writer",1),
                       candidate.replace("md5(v_impact::text)","true",1),
-                      candidate+"\\nGRANT EXECUTE TO anon;"):
+                      candidate+"\nGRANT EXECUTE TO anon;"):
         try:
             verify(original,corrupted)
         except SourceRefusal:
