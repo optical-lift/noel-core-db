@@ -164,10 +164,10 @@ jobs:
           python3 tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1
           test "$(git -C history-source-contract rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
           test "$(git -C history-source-contract hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
-          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 31b6970bfdfeac62999da5d56e750188d3e9d9ed
+          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 9c3aa9e2f68e041a1abbf3768f1f53756a05ba06
           test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
           test "$(git hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = cddb29814fd7ecb55f2186eb9b0198dce1997b7b
-          test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 88c33ac4a3d65340bf7e24ba4818f054806e3371
+          test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = ad3116b025ad0eecdb989ed912a69fe2e48c4f0e
           test "$(git hash-object tests/test_uniops_p3_history_existing_membership_seed_held.py)" = 4d1f63ad9b9a03e6c0a34dbbe2d458c14090064f
           python3 tests/test_uniops_p3_history_existing_membership_seed_held.py --companion history-source-contract/tests/validate-atlas-native-historical-retirement-signed-http.py
           python3 tests/test_uniops_p3_history_signed_followon_held.py \
@@ -589,11 +589,11 @@ jobs:
           test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
           test "$(git -C canonical hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519
           test "$(git -C canonical hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
-          test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 31b6970bfdfeac62999da5d56e750188d3e9d9ed
+          test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 9c3aa9e2f68e041a1abbf3768f1f53756a05ba06
           test "$(git -C canonical hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
           test "$(git -C canonical hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = 80c51f05d96a4b10b49f3fbdbf1c82d069beb1c8
           test "$(git -C canonical hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = cddb29814fd7ecb55f2186eb9b0198dce1997b7b
-          test "$(git -C canonical hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 88c33ac4a3d65340bf7e24ba4818f054806e3371
+          test "$(git -C canonical hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = ad3116b025ad0eecdb989ed912a69fe2e48c4f0e
           test "$(git -C p3-held hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
           cp history-signed/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py
           python3 canonical/tests/prepare_uniops_p3_history_signed_followon_held.py \
