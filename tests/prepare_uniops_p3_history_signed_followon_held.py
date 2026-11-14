@@ -157,7 +157,8 @@ def prepare(driver,bridge,companion,guard,hook,preparer,compat):
                 "_pres.require_preserved",
                 "_history_fixture_c1=_compat.adapter",
                 "c1=_history_fixture_c1)",
-                "_history_sql_probe", "_history_rpc_probe",
+                "def _history_sql_probe(_db,_statement):",
+                "def _history_rpc_probe(_api,_key,_token,_name,_params):",
                 "UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS"):
         if prepared.count(tok)!=1:
             raise P3HistoricalRefusal("Historical signed source composition not unique")
