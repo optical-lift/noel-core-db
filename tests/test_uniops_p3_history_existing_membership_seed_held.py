@@ -75,7 +75,7 @@ class FixtureCompatibility(unittest.TestCase):
         adapter=m.adapter(original,reader)
         self.assertIsNone(adapter.sql(PG,m.ORIGINAL_SEED))
         self.assertEqual(writer_calls,[m.adapt_known_seed(m.ORIGINAL_SEED)])
-        self.assertEqual(selects,[m.MEMBERSHIP_SQL,m.ALLOCATION_SQL])
+        self.assertEqual(selects,[m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL,m.ALLOCATION_SQL])
         with self.assertRaises(m.HistoricFixtureRefusal):
             adapter.sql(PG,m.ORIGINAL_SEED)
         # The source's historical membership INSERT was NOT performed.
@@ -161,7 +161,7 @@ class FixtureCompatibility(unittest.TestCase):
     def test_postseed_allocation_failure_is_not_mislabeled_as_seed_failure(self):
         output=io.StringIO()
         def reader(db,query):
-            return "1" if query==m.MEMBERSHIP_SQL else "0"
+            return "1" if query in (m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL) else "0"
         with redirect_stdout(output):
             with self.assertRaises(m.HistoricFixtureRefusal):
                 m.adapter(SimpleNamespace(sql=lambda db,q:None),
@@ -170,6 +170,82 @@ class FixtureCompatibility(unittest.TestCase):
                       output.getvalue())
         self.assertNotIn("UNI_OPS_HISTORY_FIXTURE_STAGE=seed_apply_failed",
                          output.getvalue())
+
+
+    def test_absent_person_membership_uses_exact_frozen_original_seed(self):
+        state={"member":False,"statements":[],"queries":[]}
+        def reader(db,q):
+            state["queries"].append(q)
+            if q==m.IDENTITY_SQL:return "aligned"
+            if q in (m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL):
+                return "1" if state["member"] else "0"
+            if q==m.ALLOCATION_SQL:return "1" if state["member"] else "0"
+            self.fail("Unreviewed read in absent-member fixture")
+        def writer(db,q):
+            self.assertEqual(q,m.ORIGINAL_SEED)
+            state["statements"].append(q)
+            state["member"]=True
+        sink=io.StringIO()
+        with redirect_stdout(sink):
+            self.assertIsNone(m.adapter(SimpleNamespace(sql=writer),reader).
+                              sql(PG,m.ORIGINAL_SEED))
+        self.assertEqual(state["statements"],[m.ORIGINAL_SEED])
+        self.assertEqual(state["queries"],[
+            m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL,m.IDENTITY_SQL,
+            m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL,m.ALLOCATION_SQL])
+        self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=membership_created",
+                      sink.getvalue())
+        self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=fixture_verified",
+                      sink.getvalue())
+        self.assertNotIn("postgresql://",sink.getvalue())
+
+    def test_no_auth_person_principal_identity_no_membership_insert(self):
+        statements=[]
+        reads=[]
+        def reader(db,q):
+            reads.append(q)
+            return "misaligned" if q==m.IDENTITY_SQL else "0"
+        sink=io.StringIO()
+        with redirect_stdout(sink):
+            with self.assertRaises(m.HistoricFixtureRefusal):
+                m.adapter(SimpleNamespace(sql=lambda db,q:statements.append(q)),
+                          reader).sql(PG,m.ORIGINAL_SEED)
+        self.assertEqual(statements,[])
+        self.assertEqual(reads,[
+            m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL,m.IDENTITY_SQL])
+        self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=person_identity_misaligned",
+                      sink.getvalue())
+
+    def test_conflicting_or_inactive_person_membership_never_overwritten(self):
+        for active,total in (("0","1"),("1","2"),("2","2")):
+            statements=[];sink=io.StringIO()
+            def reader(db,q):
+                if q==m.MEMBERSHIP_SQL:return active
+                if q==m.PERSON_MEMBERSHIP_SQL:return total
+                self.fail("Conflicting Person must not enter identity or SQL writes")
+            with self.subTest(active=active,total=total),redirect_stdout(sink):
+                with self.assertRaises(m.HistoricFixtureRefusal):
+                    m.adapter(SimpleNamespace(sql=lambda db,q:statements.append(q)),
+                              reader).sql(PG,m.ORIGINAL_SEED)
+            self.assertEqual(statements,[])
+            self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=membership_not_exactly_one",
+                          sink.getvalue())
+
+    def test_absent_member_cannot_claim_pass_without_insert_readback(self):
+        statements=[];sink=io.StringIO()
+        def reader(db,q):
+            if q==m.IDENTITY_SQL:return "aligned"
+            if q in (m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL):return "0"
+            self.fail("Allocation must not be reached")
+        with redirect_stdout(sink):
+            with self.assertRaises(m.HistoricFixtureRefusal):
+                m.adapter(SimpleNamespace(sql=lambda db,q:statements.append(q)),
+                          reader).sql(PG,m.ORIGINAL_SEED)
+        self.assertEqual(statements,[m.ORIGINAL_SEED])
+        self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=membership_postseed_not_one",
+                      sink.getvalue())
+        self.assertNotIn("UNI_OPS_HISTORY_FIXTURE_STAGE=fixture_verified",
+                         sink.getvalue())
 
 if __name__=="__main__":
     unittest.main(argv=[sys.argv[0]],verbosity=2)
