@@ -94,9 +94,14 @@ class HistoryFirstMowingConservation(unittest.TestCase):
                "uniops_p3_historical_preservation_check_held.py").read_bytes()
         preparer=(Path(__file__).parent/
                   "prepare_uniops_historical_retirement_signed_followon_held.py").read_bytes()
-        output=composite.prepare(driver,bridge,companion,guard,hook,preparer)
+        compat=(Path(__file__).parent/
+                "uniops_p3_history_existing_membership_seed_held.py").read_bytes()
+        output=composite.prepare(driver,bridge,companion,guard,hook,preparer,compat)
         code=output.decode("utf8")
         self.assertIn("UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS",code)
+        self.assertIn("_history_fixture_c1=_compat.adapter(base.c1,sql)",code)
+        self.assertIn("sql=sql,rpc=rpc,c1=_history_fixture_c1)",code)
+        self.assertNotIn("sql=sql,rpc=rpc,c1=base.c1)",code)
         self.assertEqual(code.count("history_receipt=hist.prove("),1)
         self.assertEqual(code.count("historical-retirement-followon"),1)
         self.assertEqual(code.count("_mowing_before_history=_p3.capture"),1)
@@ -124,7 +129,9 @@ class HistoryFirstMowingConservation(unittest.TestCase):
                "uniops_p3_historical_preservation_check_held.py").read_bytes()
         preparer=(Path(__file__).parent/
                   "prepare_uniops_historical_retirement_signed_followon_held.py").read_bytes()
-        parts=[driver,bridge,companion,guard,hook,preparer]
+        compat=(Path(__file__).parent/
+                "uniops_p3_history_existing_membership_seed_held.py").read_bytes()
+        parts=[driver,bridge,companion,guard,hook,preparer,compat]
         for i in range(len(parts)):
             corrupted=parts[:]
             corrupted[i]+=b"\n# unreviewed amendment"
@@ -134,7 +141,7 @@ class HistoryFirstMowingConservation(unittest.TestCase):
                     composite.prepare(*corrupted)
         with self.assertRaises((composite.P3HistoricalRefusal,
                                composite.original.HeldHookRefusal)):
-            composite.prepare(b"",bridge,companion,guard,hook,preparer)
+            composite.prepare(b"",bridge,companion,guard,hook,preparer,compat)
 
 if __name__=="__main__":
     unittest.main(argv=[sys.argv[0]],verbosity=2)
