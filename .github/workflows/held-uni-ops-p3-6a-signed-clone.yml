@@ -1,0 +1,758 @@
+name: HELD UNI-OPS U2 to U4 signed Actual disposable clone (test only)
+on:
+  issues:
+    types: [edited, reopened]
+  pull_request:
+    paths:
+      - '.github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml'
+      - 'tests/uniops-option-a-first-mowing-signed-fixture.sql'
+      - 'tests/validate-uniops-option-a-u2-accepted-first-signed.py'
+      - 'tests/uniops_u2_namefree_guard_owner.py'
+      - 'tests/test_uniops_u2_namefree_guard_owner.py'
+      - 'tests/uniops_u2_local_stack_evidence.py'
+      - 'tests/test_uniops_u2_local_stack_evidence.py'
+      - 'tests/prepare_reviewed_uniops_u2c_context_scratch.py'
+      - 'tests/test_prepare_reviewed_uniops_u2c_context_scratch.py'
+      - 'tests/install-uniops-u2-first-original-signed-hook.py'
+permissions:
+  contents: read
+  packages: read
+  issues: read
+concurrency:
+  group: held-uni-ops-u2-u4-signed-actual-only
+  cancel-in-progress: false
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      # Validate this exact immutable test revision without DB credentials
+      # before any expensive owner-triggered protected schema snapshot.
+      - name: Checkout immutable U4 no-network source for CI contract
+        uses: actions/checkout@v4
+        with:
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
+          path: u4-source-contract
+          persist-credentials: false
+      - name: Verify exact U4 helper blobs and no-network unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C u4-source-contract rev-parse HEAD)" = 075919564dc340ad86be8e969a2ad2d02ec19a15
+          test "$(git -C u4-source-contract hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
+          test "$(git -C u4-source-contract hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 2e180aa2363201e75ca0d717eeeddd5a708193ab
+          test "$(git -C u4-source-contract hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = 5a9a2fe1e7f4eaa047396627baefd24a76c0398a
+          python3 -m py_compile u4-source-contract/tests/validate-uniops-option-a-u2-accepted-first-signed.py u4-source-contract/tests/uniops_u2_qualified_actual_followon_held.py u4-source-contract/tests/test_uniops_u2_qualified_actual_followon_held.py
+          python3 -m unittest discover -s u4-source-contract/tests -p 'test_uniops_u2_qualified_actual_followon_held.py' -v
+      - name: Compile and audit exact disposable-only signed fixture and runner contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml")'
+          python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/uniops_u2_namefree_guard_owner.py tests/test_uniops_u2_namefree_guard_owner.py tests/uniops_u2_local_stack_evidence.py tests/test_uniops_u2_local_stack_evidence.py tests/prepare_reviewed_uniops_u2c_context_scratch.py tests/test_prepare_reviewed_uniops_u2c_context_scratch.py tests/install-uniops-u2-first-original-signed-hook.py
+          python3 -m unittest discover -s tests -p 'test_uniops_u2_namefree_guard_owner.py' -v
+          python3 -m unittest discover -s tests -p 'test_uniops_u2_local_stack_evidence.py' -v
+          python3 -m unittest discover -s tests -p 'test_prepare_reviewed_uniops_u2c_context_scratch.py' -v
+          # Bind both new test-only files exactly before executing no-network matrix.
+          test "$(git hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = a4073038eaf38ce399f4fe7d3d85ce97259ed784
+          test "$(git hash-object tests/test_uniops_u4_mowing_rule_fixture_held.py)" = 3811bc84e86918ceef5c12d074d78b5e88d8a999
+          python3 -m unittest discover -s tests -p 'test_uniops_u4_mowing_rule_fixture_held.py' -v
+          python3 - <<'PY'
+          from pathlib import Path
+          workflow=Path(".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml").read_text()
+          p=Path("tests/validate-uniops-option-a-u2-accepted-first-signed.py").read_text()
+          fixture=Path("tests/uniops-option-a-first-mowing-signed-fixture.sql").read_text()
+          hook=Path("tests/install-uniops-u2-first-original-signed-hook.py").read_text()
+          protected=workflow.split("  validate-protected:\n",1)[1]
+          assert protected.count("github.actor == github.repository_owner")==1
+          assert "github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'" in workflow
+          assert "source_choice':'a_full_current_completion_plus_history'" in workflow
+          assert "signed_contract':'u1b_u2_mowing_accepted_first_v1'" in workflow
+          assert "NOEL_CORE_DATABASE_URL" in workflow and "supabase db dump" in workflow
+          assert not any(needle in protected for needle in ("supabase db push","apply_migration","CREATE ROLE "))
+          for tok in ("c1.sign_in", "auth.sessions", "governor_set_subject_disclosure_self_api_v1",
+                      "propose_native_ledger_standing_scope_owner_self_api_v1",
+                      "respond_native_ledger_standing_scope_self_api_v1",
+                      "adopt_governed_farm_rulebook_scope_self_api_v1",
+                      "offer_next_governed_prework_candidate_self_api_v1",
+                      "respond_governed_prework_candidate_self_api_v1",
+                      "finalize_accepted_governed_prework_self_api_v1",
+                      "originalWorkCreatedNow", "nextOriginalNotPrecreated", "U2_SOURCE_SELECTION",
+                      "U2_GOVERNOR_FINALIZE_HTTP_CLASS", "U2_GOVERNOR_FINALIZE_SOURCE_GUARD",
+                      "work_execution_results", "work_result_acceptances",
+                      "U2_WORKER_RESPONSE_GUARD"):
+              assert tok in p,tok
+          assert "SET uniops.disposable_signed" in fixture
+          assert "CREATE TABLE" not in fixture
+          assert "INSERT INTO atlas.governed_prework_candidate_offers_v1" not in fixture
+          assert "INSERT INTO atlas.work_items" not in fixture
+          assert "U2_GOVERNOR_FINALIZE_SOURCE_FAMILY" in p
+          assert "U2_GOVERNOR_FINALIZE_GUARD_ORDINAL" in p
+          assert "U2_GOVERNOR_FINALIZE_CALL_FRAME_EVIDENCE" in p
+          assert "U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE" in p
+          assert "tests/uniops_u2_namefree_guard_owner.py" in workflow
+          assert "tests/test_uniops_u2_namefree_guard_owner.py" in workflow
+          assert "source_review" in workflow and "u2c_context_guard_two_blobs_v1" in workflow
+          assert "prepare_reviewed_uniops_u2c_context_scratch.py" in workflow
+          assert "signed_accepted_first_probe" in hook
+          assert "39f526cd8671f0aadbaab61c66dfc4971ef52131" in hook
+          assert "U4_SIGNED_ACTUAL_RESULT_DONE=PASS" in workflow
+          assert "github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'" in workflow
+          assert "u4_test_sha" in workflow and "test_goal" in workflow
+          assert 'ref: 075919564dc340ad86be8e969a2ad2d02ec19a15' in workflow
+          assert "--u4-actual-followon" in workflow
+          assert protected.count("NOEL_CORE_DATABASE_URL:") == 1
+          assert "No production feature source SQL / permission / migration" in workflow
+          print("PASS source-only true-signed U2 bounded runner/fixture contract; NOT runtime acceptance")
+          PY
+  validate-protected:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 55
+    steps:
+      - name: Authorize exact held test scope, never release
+        shell: bash
+        env:
+          OWNER_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os
+          import re
+          pairs={}
+          expected={
+              'diagnostic_scope':'uni_ops_a_u2_signed_disposable_schema_v1',
+              'source_choice':'a_full_current_completion_plus_history',
+              'signed_contract':'u1b_u2_mowing_accepted_first_v1',
+              'source_review':'u2c_context_guard_two_blobs_v1',
+              'production_target':'zirqkouammpwxlqfbsvf',
+              'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1',
+              'u4_test_sha':'075919564dc340ad86be8e969a2ad2d02ec19a15',
+              'test_goal':'signed_u2_result_done_v1'}
+          for line in os.environ.get('OWNER_BODY','').splitlines():
+              match=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
+              if match and match[1] in expected:
+                  if match[1] in pairs:raise SystemExit("Duplicate owner source selector")
+                  pairs[match[1]]=match[2]
+          if pairs!=expected:raise SystemExit("Unrecognized immutable owner test selection")
+          print("PASS owner-selected frozen U2 plus U4 signed Result/Done; disposable test only")
+          PY
+      - name: Checkout existing main custody and zero-cost signed schema clone harness
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: canonical
+          persist-credentials: false
+      - name: Verify trusted Noel migration custody
+        shell: bash
+        working-directory: canonical
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          import json
+          d=json.load(open('custody/production-baseline-v1.json'))
+          assert d['inheritedHistory']['migrationCount']==2022
+          assert d['inheritedHistory']['throughVersion']=='20260825203448'
+          print("PASS frozen inherited migration baseline; no history replays")
+          PY
+      - name: Install SHA256-pinned existing Supabase CLI 2.116.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/supabase-2.116.0.tar.gz"
+          curl -fLsS --proto '=https' --tlsv1.2 --max-time 240 \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_2.116.0_linux_amd64.tar.gz \
+            -o "$archive"
+          echo "5b3031cb297d51b25be4c284e4c852254460ec722ec221d3b81b07d55acfd158  $archive" | sha256sum -c --status
+          tar -xzf "$archive" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -1)" = 2.116.0
+          command -v psql
+          docker info >/dev/null
+      - name: Authorize read-only GHCR image pulls
+        shell: bash
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin >/dev/null
+      - name: READ-ONLY snapshot exact production schema and roles, no data
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$NOEL_CORE_DATABASE_URL" || {
+            echo 'BLOCKED existing protected read-only schema credential unavailable'
+            exit 1
+          }
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only --file "$RUNNER_TEMP/uniops-snapshot-roles.sql" >/dev/null
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/uniops-snapshot-schema.sql" >/dev/null
+          test -s "$RUNNER_TEMP/uniops-snapshot-roles.sql"
+          test -s "$RUNNER_TEMP/uniops-snapshot-schema.sql"
+          echo 'PASS existing production schema-only read; no table rows or mutations'
+      - name: Pin six separate held revisions and one exact Noel assembler
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          pin_root="$(mktemp -d "$RUNNER_TEMP/uniops-full-clone.XXXXXXXX")"
+          echo "UNI_OPS_PIN_ROOT=$pin_root" >> "$GITHUB_ENV"
+          # One independent shallow repository per immutable source commit.
+          # Sharing .git/shallow across sequential fetches can fail with
+          # "shallow file has changed since we read it" (run #42445200175).
+          # No widening of source pins, network credentials or feature code.
+          while read -r label sha; do
+            test -n "$label" && [[ "$sha" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$label" =~ ^(lifecycle|r02|u1a|u1b|u2|u2c|u2c_review|harness|c1fixture)$ ]]
+            root="$pin_root/$label"
+            test ! -e "$root"
+            git init -q "$root"
+            git -C "$root" remote add origin https://github.com/optical-lift/noel-core-db.git
+            git -C "$root" -c credential.helper= fetch -q --depth=1 --no-tags origin "$sha"
+            test "$(git -C "$root" rev-parse FETCH_HEAD)" = "$sha"
+            git -C "$root" -c advice.detachedHead=false checkout --quiet --detach "$sha"
+            test "$(git -C "$root" rev-parse HEAD)" = "$sha"
+          done <<'PINNED'
+          lifecycle ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          r02 d48cd444fd261fd5f8c91655b789e50730c1b9f7
+          u1a f9c372d3487ea6af4d29a4ee3b22579b9d94c5ae
+          u1b 18be5996faaa0f7a0def1d07c262f53b39e73605
+          u2 2be045d7fa51b83416a57c76b1a5508e815b8445
+          u2c 1fd28856ff8d3fd99997fc0ae1fcf8714407a407
+          u2c_review aa117383d693d33dbfe12bdc46fd6c7ae64a7911
+          harness 5d28e2584736b8dd9cab928a34a6d5dc39ba38c1
+          c1fixture 9af4ab9b203877f048af09e23bac58bf86cd58fe
+          PINNED
+          path="candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/tests/prepare_pinned_accepted_first_scratch.py"
+          test "$(git -C "$pin_root/harness" hash-object "$path")" = f3a2de3a345d63cb51feba6f848ccb9a4ab74bb0
+          test "$(git -C canonical hash-object scripts/prepare-uni-ops-a-full-history-clone-only.py)" = 286a5ca2a3f779053da88d8ec7a77d32c8eedc6e
+          test "$(git -C "$pin_root/u2c_review" hash-object candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/02_native_original_writer_acceptance_guard_held.sql)" = e07cacd0c5035f05a4017de651cd615a97b2f0f6
+          test "$(git -C "$pin_root/u2c_review" hash-object candidates/atlas_uni_ops_c_u2c_single_rulebook_cutover_v1/04_postconditions_held.sql)" = 6ac485dc5d11038d8d0d8df5536174791418f046
+          test "$(git -C canonical hash-object tests/prepare_reviewed_uniops_u2c_context_scratch.py)" = 928182c76ab70b8d8a8fab9d685838c4593487ab
+          python3 -m py_compile canonical/scripts/prepare-uni-ops-a-full-history-clone-only.py canonical/tests/prepare_reviewed_uniops_u2c_context_scratch.py
+          test "$(git -C "$pin_root/c1fixture" hash-object validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql)" = e877d93323ddc67d8778be8bea1dfa34319cc85c
+          echo 'PASS exact pinned source revisions, fictional C1 baseline and option A test-only assembler'
+      - name: Assemble exactly 18 original-and-historical SQL stages, scratch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          script="canonical/scripts/prepare-uni-ops-a-full-history-clone-only.py"
+          scratch="$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
+          python3 "$script" \
+            --harness "$UNI_OPS_PIN_ROOT/harness" \
+            --lifecycle "$UNI_OPS_PIN_ROOT/lifecycle" \
+            --r02 "$UNI_OPS_PIN_ROOT/r02" \
+            --u1a "$UNI_OPS_PIN_ROOT/u1a" \
+            --u1b "$UNI_OPS_PIN_ROOT/u1b" \
+            --u2 "$UNI_OPS_PIN_ROOT/u2" \
+            --u2c "$UNI_OPS_PIN_ROOT/u2c" \
+            --output "$scratch" > "$RUNNER_TEMP/uniops-manifest.json"
+          python3 - "$RUNNER_TEMP/uniops-manifest.json" "$scratch" <<'PY'
+          import hashlib,json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d['kind']=='UNI_OPS_A_FULL_HISTORY_DISPOSABLE_ONLY' and d['success'] is True
+          assert d['stage_count']==18 and len(d['stages'])==18
+          assert len({x['stage'] for x in d['stages']})==18
+          assert sum(x['stage'].startswith('history-') for x in d['stages'])==7
+          assert all(x['ref'] and x['blob'] and x['sha256'] for x in d['stages'])
+          assert hashlib.sha256(open(sys.argv[2],'rb').read()).hexdigest()==d['scratch_file_sha256']
+          print('PASS 11 immutable originals plus seven exact historical #2368 sources; disposable only')
+          PY
+          # The exact old 18-stage source stays immutable. Produce an
+          # independent scratch copy with ONLY the two reviewed U2C source
+          # blobs. Neither protected production schema nor source checkout
+          # is changed; all source receipts remain byte-bound in the manifest.
+          reviewed="$RUNNER_TEMP/UNI_OPS_U2C_CONTEXT_${GITHUB_RUN_ID}_TEST_ONLY.sql"
+          python3 canonical/tests/prepare_reviewed_uniops_u2c_context_scratch.py \
+            --original "$scratch" \
+            --original-manifest "$RUNNER_TEMP/uniops-manifest.json" \
+            --review-checkout "$UNI_OPS_PIN_ROOT/u2c_review" \
+            --output "$reviewed" \
+            --output-manifest "$RUNNER_TEMP/uniops-u2c-review-manifest.json"
+          python3 - "$RUNNER_TEMP/uniops-manifest.json" "$RUNNER_TEMP/uniops-u2c-review-manifest.json" "$reviewed" <<'PY'
+          import hashlib,json,sys
+          baseline=json.load(open(sys.argv[1]))
+          amended=json.load(open(sys.argv[2]))
+          assert amended['kind']=='UNI_OPS_U2C_CONTEXT_REVIEW_DISPOSABLE_ONLY'
+          assert amended['stage_count']==18 and len(amended['stages'])==18
+          changed=[(old,new) for old,new in zip(baseline['stages'],amended['stages'])
+                   if old!=new]
+          assert len(changed)==2
+          assert {new['stage'] for _,new in changed}=={
+            'u2c-accepted-only-original-guard','u2c-schema-and-acl-postconditions'}
+          assert all(old['checkout']=='u2c' and new['checkout']=='u2c_review'
+                     for old,new in changed)
+          assert all(old['stage']==new['stage']
+                     for old,new in zip(baseline['stages'],amended['stages']))
+          assert sum(x['stage'].startswith('history-') for x in amended['stages'])==7
+          assert hashlib.sha256(open(sys.argv[3],'rb').read()).hexdigest()==amended['scratch_file_sha256']
+          print('PASS 16 frozen source stages and exactly two independently pinned U2C context-review stages; scratch only')
+          PY
+          # Keep the exact 18 native/history stages unchanged in the reviewed manifest.
+          # Add one separately pinned public SIGNED transport only to the disposable
+          # local migration after the 18-stage source hash has been verified.
+          # This source is ALREADY tracked in the same immutable R02 checkout.
+          transport="$UNI_OPS_PIN_ROOT/r02/candidates/atlas_universal_continuing_original_work_v1/12_care_signed_http_rpc_candidate.sql"
+          test "$(git -C "$UNI_OPS_PIN_ROOT/r02" hash-object candidates/atlas_universal_continuing_original_work_v1/12_care_signed_http_rpc_candidate.sql)" = 3e09b66e54c15e100110c2b50f43dc9c7593e51a
+          python3 - "$reviewed" "$RUNNER_TEMP/uniops-u2c-review-manifest.json" "$transport" \
+            "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" <<'PY'
+          import hashlib,json,pathlib,sys
+          reviewed,manifest_path,source_path,out=(pathlib.Path(p) for p in sys.argv[1:])
+          manifest=json.loads(manifest_path.read_text(encoding='utf-8'))
+          before=reviewed.read_bytes()
+          assert manifest['kind']=='UNI_OPS_U2C_CONTEXT_REVIEW_DISPOSABLE_ONLY'
+          assert manifest['stage_count']==18 and len(manifest['stages'])==18
+          assert hashlib.sha256(before).hexdigest()==manifest['scratch_file_sha256']
+          assert before.count(b'-- BEGIN PINNED STAGE ')==18
+          assert before.count(b'-- END PINNED STAGE ')==18
+          assert b'public.record_continuing_care_actual_self_api_v1' not in before
+          assert out.parent==pathlib.Path(__import__('os').environ['RUNNER_TEMP'])
+          assert out.name=='20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql'
+          assert not out.exists() and not out.is_symlink()
+          source=source_path.read_bytes()
+          blob=hashlib.sha1(b'blob '+str(len(source)).encode()+b'\0'+source).hexdigest()
+          assert blob=='3e09b66e54c15e100110c2b50f43dc9c7593e51a'
+          for invariant in (
+              b'CREATE OR REPLACE FUNCTION public.record_continuing_care_actual_self_api_v1(',
+              b'SECURITY DEFINER SET search_path TO',
+              b'IF auth.uid() IS NULL OR atlas.current_person_id_v1() IS NULL',
+              b'RETURN atlas.record_continuing_care_actual_self_api_v1(',
+              b'FROM PUBLIC,anon,authenticated,service_role;',
+              b'TO authenticated;',
+              b"pg_notify('pgrst','reload schema')",
+              b'REVOKE ALL ON FUNCTION atlas.record_continuing_care_actual_self_api_v1(',
+          ):
+              assert invariant in source, 'Missing guarded source bridge invariant'
+          signature='public.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)'
+          preflight=(
+              '\nDO $u4_public_preflight$ BEGIN\n'
+              " IF to_regprocedure('"+signature+"') IS NOT NULL THEN\n"
+              "  RAISE EXCEPTION 'Preexisting public care Actual source requires separate review';\n"
+              ' END IF;\nEND;$u4_public_preflight$;\n'
+          ).encode()
+          post=(
+              '\nDO $u4_public_postconditions$ BEGIN\n'
+              " IF to_regprocedure('"+signature+"') IS NULL\n"
+              " OR NOT has_function_privilege('authenticated',to_regprocedure('"+signature+"'),'EXECUTE')\n"
+              " OR has_function_privilege('anon',to_regprocedure('"+signature+"'),'EXECUTE')\n"
+              " OR has_function_privilege('authenticated',to_regprocedure('atlas.record_continuing_care_actual_self_api_v1(uuid,uuid,text,text,integer,text,date)'),'EXECUTE')\n"
+              " THEN RAISE EXCEPTION 'Disposable public signed transport ACL not exact';\n"
+              ' END IF;\nEND;$u4_public_postconditions$;\n'
+          ).encode()
+          payload=(
+              before+b'\n-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:'
+              +blob.encode()+b'\n'+preflight+source+b'\n'+post
+              +b'-- END U4 DISPOSABLE PUBLIC TRANSPORT\n'
+          )
+          with out.open('xb') as fh:
+              fh.write(payload)
+          assert out.stat().st_size==len(payload)
+          print('PASS 18 immutable source stages plus exact R02 public signed-transport fixture; disposable only')
+          PY
+      - name: Attach exact genuine signed U2 test to a disposable local validator COPY
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C canonical hash-object tests/uniops-option-a-first-mowing-signed-fixture.sql)" = a4073038eaf38ce399f4fe7d3d85ce97259ed784
+          test "$(git -C canonical hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 8fcaedc6623c4d9e01dee85facd56364561aa96e
+          test "$(git -C canonical hash-object tests/uniops_u2_local_stack_evidence.py)" = 9e79cf36cec2db349802aa58f4ce83c87b2e50e5
+          test "$(git -C canonical hash-object tests/uniops_u2_namefree_guard_owner.py)" = 79bb547611ebec962bd4e5624af709e87b0675e2
+          test "$(git -C canonical hash-object tests/install-uniops-u2-first-original-signed-hook.py)" = a97a602f59608b49e9c7e1bc52913a421877bd1a
+          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/uniops_u2_namefree_guard_owner.py canonical/tests/uniops_u2_local_stack_evidence.py canonical/tests/install-uniops-u2-first-original-signed-hook.py
+          python3 canonical/tests/install-uniops-u2-first-original-signed-hook.py canonical/scripts/validate-production-schema-clone.sh
+          bash -n canonical/scripts/validate-production-schema-clone.sh
+          echo 'PASS only disposable local validator-copy U1B/U2 true GoTrue test hook installed; production validator unchanged'
+      # Separate CI source authorization required before installation in main.
+      - name: Checkout immutable U4 test-only source AFTER snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
+          path: u4-test
+          persist-credentials: false
+      - name: Attach immutable U4 signed follow-on ONLY to disposable validator COPY
+        shell: bash
+        run: |
+          set -euo pipefail
+          # No production feature source SQL / permission / migration changes.
+          test "$(git -C u4-test rev-parse HEAD)" = 075919564dc340ad86be8e969a2ad2d02ec19a15
+          test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
+          test "$(git -C u4-test hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 2e180aa2363201e75ca0d717eeeddd5a708193ab
+          test "$(git -C u4-test hash-object tests/test_uniops_u2_qualified_actual_followon_held.py)" = 5a9a2fe1e7f4eaa047396627baefd24a76c0398a
+          cp u4-test/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/
+          cp u4-test/tests/uniops_u2_qualified_actual_followon_held.py canonical/tests/
+          cp u4-test/tests/test_uniops_u2_qualified_actual_followon_held.py canonical/tests/
+          python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/uniops_u2_qualified_actual_followon_held.py
+          python3 -m unittest discover -s canonical/tests -p 'test_uniops_u2_qualified_actual_followon_held.py' -v
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("canonical/scripts/validate-production-schema-clone.sh")
+          assert p.is_file() and not p.is_symlink()
+          text=p.read_text(encoding='utf-8')
+          original='python3 "$repo_root/tests/validate-uniops-option-a-u2-accepted-first-signed.py" --db-url "$database_url" --output "$artifacts_dir/uniops-u2-signed-summary.txt"'
+          assert text.count(original)==1 and '--u4-actual-followon' not in text
+          text=text.replace(original,original+' --u4-actual-followon',1)
+          assert text.count('--u4-actual-followon')==1
+          p.write_text(text,encoding='utf-8')
+          print('PASS exact immutable U4 probe attached to local-only test harness')
+          PY
+          bash -n canonical/scripts/validate-production-schema-clone.sh
+      - name: Run canonical authentic-schema disposable clone, no release
+        id: integration
+        shell: bash
+        working-directory: canonical
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/uniops-private-diagnostics"
+          if bash scripts/validate-production-schema-clone.sh \
+            --migration-version 20261107211000 \
+            --release-lane atlas \
+            --candidate-migration "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" \
+            --candidate-fixture "$UNI_OPS_PIN_ROOT/c1fixture/validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql" \
+            --roles-dump "$RUNNER_TEMP/uniops-snapshot-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/uniops-snapshot-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/uniops-private-diagnostics" \
+            > "$RUNNER_TEMP/uniops-private-clone.log" 2>&1; then
+              test -s "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
+              grep -q '^PASS genuine separate signed local' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
+              grep -q '^U4_SIGNED_ACTUAL_RESULT_DONE=PASS$' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
+              echo 'PASS 18 option A stages, accepted-first original, signed physical Actual, one Result and Done; synthetic only'
+              echo 'HOLD historical cancellation, P1 manual Activity and other P3 writers remain separate gates'
+          else
+              echo 'HELD authentic-schema clone SQL test; diagnostic classification follows'
+              exit 1
+          fi
+      - name: Report only bounded failure class and source stage
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/uniops-private-diagnostics" \
+            "$RUNNER_TEMP/uniops-private-clone.log" \
+            "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" <<'PY'
+          import json,pathlib,re,sys
+          root=pathlib.Path(sys.argv[1]); summary=pathlib.Path(sys.argv[2])
+          candidate=root/'candidate-migration.log'
+          sql=pathlib.Path(sys.argv[3])
+          class_map={'42P01':'missing_relation','42703':'missing_column','42883':'missing_function',
+           '42710':'duplicate_object','42P07':'duplicate_relation','42601':'syntax',
+           '42501':'privilege','23505':'uniqueness','23514':'check_constraint','3F000':'missing_schema'}
+          stage='not_reached'; category='not_classified'
+          if candidate.is_file() and sql.is_file():
+              err=candidate.read_text(errors='replace')
+              # Standard psql errors omit SQLSTATE; match the first error line
+              # independently of whether VERBOSITY includes a five-character code.
+              m=re.search(r'(?m)^psql:[^:\n]+:(\d+):\s*(?:ERROR|FATAL):\s*(?:([A-Z0-9]{5}):\s*)?',err)
+              if m:
+                  if m[2]:
+                      category=class_map.get(m[2],'other_sqlstate')
+                  else:
+                      # Read only a private error line. Emit a fixed category,
+                      # never the statement, relation name, or error message.
+                      detail=err[m.end():].splitlines()[0].lower()
+                      patterns=(
+                          ('missing_schema',r'\bschema\b.*\bdoes not exist\b'),
+                          ('missing_relation',r'\brelation\b.*\bdoes not exist\b'),
+                          ('missing_column',r'\bcolumn\b.*\bdoes not exist\b'),
+                          ('missing_function',r'\bfunction\b.*\bdoes not exist\b'),
+                          ('syntax',r'\bsyntax error\b'),
+                          ('privilege',r'\bpermission denied\b'),
+                          ('uniqueness',r'\bduplicate key\b'),
+                          ('check_constraint',r'\bcheck constraint\b'),
+                          ('duplicate_object',r'\balready exists\b'))
+                      category=next((name for name,pattern in patterns if re.search(pattern,detail)),
+                                    'unclassified_sql_error')
+                  for i,line in enumerate(sql.read_text(errors='replace').splitlines(),1):
+                      marker=re.match(r'^-- BEGIN PINNED STAGE ([a-z0-9-]+) blob:[0-9a-f]{40}$',line)
+                      if marker:stage=marker[1]
+                      if i>=int(m[1]):break
+          log=summary.read_text(errors='replace') if summary.is_file() else ''
+          report=root/'summary.md'
+          report_text=report.read_text(errors='replace') if report.is_file() else ''
+          allowed=('release-lane custody check','validation fixture safety check',
+                   'schema dump sanitation','disposable database startup',
+                   'production custom-role restore','production user-schema restore',
+                   'baseline domain schema lint','candidate validation fixture application',
+                   'candidate migration application','candidate migration postconditions',
+                   'candidate domain schema lint','candidate lint delta comparison','local database advisors',
+                   'signed integrated U1B source and U2 accepted-first original')
+          phase=next((x for x in allowed
+                     if ('Validation command exited during ' + chr(96)+x+chr(96)) in report_text
+                     or ('**FAILED during '+x+'.**') in report_text),'not_reported')
+          print('UNI_OPS_FIRST_SOURCE='+stage)
+          print('UNI_OPS_SQL_ERROR_CLASS='+category)
+          print('UNI_OPS_LOCAL_PHASE='+phase)
+          # The canonical clone's private summary holds the actual failed phase.
+          # These are allowlisted component labels, NOT private SQL, errors or JWTs.
+          if phase=='not_reported':
+              markers=(
+                 ('uniops-u2-signed.log','signed_u2_actor_probe'),
+                 ('uniops-u2-fictional-fixture.log','fictional_mowing_fixture'),
+                 ('postconditions.log','after_candidate_postconditions'),
+                 ('candidate-migration.log','after_18_source_sql_apply'),
+                 ('candidate-fixture.log','at_or_after_c1_fixture'),
+                 ('restore-schema.log','at_or_after_schema_restore'),
+                 ('restore-roles.log','at_or_after_roles_restore'),
+                 ('schema-lint-baseline.raw.log','at_or_after_baseline_lint'),
+              )
+              locus=next((name for fname,name in markers if (root/fname).is_file()),'before_schema_restore')
+          else:
+              locus='phase_reported'
+          print('UNI_OPS_FAILURE_LOCUS='+locus)
+          # Restrict signed-test failure reporting to file-presence, bounded
+          # checkpoint count and allowlisted error class. Never emit raw
+          # Python traceback, SQL output, JWT, Person/Subject or row contents.
+          if phase=='signed integrated U1B source and U2 accepted-first original':
+              u4_probe=u4_gate='not_reached'
+              u4_http=u4_error=u4_receipt='not_reached'
+              actorlog=root/'uniops-u2-signed.log'
+              fixturelog=root/'uniops-u2-fictional-fixture.log'
+              if actorlog.is_file():
+                  subphase='actor_rpc_assertions'
+                  actor_text=actorlog.read_text(errors='replace')[:150000]
+                  checks=sum(1 for line in actor_text.splitlines()
+                             if re.match(r'^PASS(?:\s|$)',line))
+                  checks=min(checks,99)
+                  choices=re.findall(r'(?m)^U2_SOURCE_SELECTION=(exact_source_offered|no_eligible_source|unexpected_offered_source|unrecognized_receipt)$',actor_text)
+                  selection=choices[-1] if choices else 'not_reached'
+                  preflights=re.findall(r'(?m)^U2_WORKER_ACCEPT_SOURCE_PREFLIGHT=(eligible|ineligible|unclassified)$',actor_text)
+                  accept_http=re.findall(r'(?m)^U2_WORKER_ACCEPT_HTTP_CLASS=(bad_request|unauthorized|forbidden|not_found|conflict|server_failure|other_status)$',actor_text)
+                  accept_errors=re.findall(r'(?m)^U2_WORKER_ACCEPT_ERROR_CLASS=(source_permission|source_constraint|source_conflict|source_argument|missing_function|missing_relation|other_or_unspecified)$',actor_text)
+                  preflight=preflights[-1] if preflights else 'not_reached'
+                  http_class=accept_http[-1] if accept_http else 'not_reached'
+                  accept_class=accept_errors[-1] if accept_errors else 'not_reached'
+                  identity_values=re.findall(r'(?m)^U2_WORKER_IDENTITY_FIXTURE=(aligned|misaligned|unclassified)$',actor_text)
+                  inbox_results=re.findall(r'(?m)^U2_WORKER_INBOX_RESULT=(one_matching|empty|other_or_unrecognized)$',actor_text)
+                  inbox_http=re.findall(r'(?m)^U2_WORKER_INBOX_HTTP_CLASS=(bad_request|unauthorized|forbidden|not_found|conflict|server_failure|other_status)$',actor_text)
+                  inbox_errors=re.findall(r'(?m)^U2_WORKER_INBOX_ERROR_CLASS=(source_permission|source_constraint|source_conflict|source_argument|missing_function|missing_relation|other_or_unspecified)$',actor_text)
+                  identity_check=identity_values[-1] if identity_values else 'not_reached'
+                  inbox_result=inbox_results[-1] if inbox_results else 'not_reached'
+                  inbox_http_class=inbox_http[-1] if inbox_http else 'not_reached'
+                  inbox_error_class=inbox_errors[-1] if inbox_errors else 'not_reached'
+                  guards=re.findall(r'(?m)^U2_WORKER_RESPONSE_GUARD=(accepted|signed_person_principal_guard|recipient_identity_guard|current_source_guard|other_42501_guard|already_resolved_guard|other_http_or_sql_guard)$',actor_text)
+                  worker_guard=guards[-1] if guards else 'not_reached'
+                  # Only finite labels: local private RPC response stays private.
+                  final_http_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_HTTP_CLASS=(ok|bad_request|unauthorized|forbidden|not_found|conflict|server_failure|other_status)$',actor_text)
+                  final_error_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_ERROR_CLASS=(none|source_permission|source_constraint|source_conflict|source_argument|missing_function|missing_relation|missing_column|other_or_unspecified)$',actor_text)
+                  final_guard_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_SOURCE_GUARD=(accepted_receipt|worker_acceptance_precondition|current_source_precondition|native_original_writer_contract|allocation_plan_contract|current_root_precondition|exact_offer_identity_guard|offer_absent|missing_exact_offer|accepted_offer_missing|accepted_offer_identity_mismatch|accepted_offer_stale|native_standing_scope_denied|worker_subject_disclosure_denied|governor_adapter_source_denied|wrong_custody_branch|original_writer_custody_denied|sql_object_privilege_denied|sql_row_policy_denied|other_refusal)$',actor_text)
+                  final_http=final_http_hits[-1] if final_http_hits else 'not_reached'
+                  final_error=final_error_hits[-1] if final_error_hits else 'not_reached'
+                  final_guard=final_guard_hits[-1] if final_guard_hits else 'not_reached'
+                  # Report finite actor categories only; private PG frames stay local.
+                  frames=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_CALL_FRAME_EVIDENCE=(raise_frame_match|call_path_match|different_origin|unobservable|not_applicable)$',actor_text)
+                  stages=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE=(u2b_finalizer|r02_adapter|r01_writer|canonical_original|native_allocation|native_governor|accepted_first_guard|inherited_or_other|unverified)$',actor_text)
+                  call_frame=frames[-1] if frames else 'not_reached'
+                  call_stage=stages[-1] if stages else 'not_reached'
+                  if ((call_frame in ('not_applicable','unobservable','different_origin') and call_stage!='unverified') or (call_frame in ('raise_frame_match','call_path_match') and call_stage in ('unverified','not_reached')) or ((call_frame=='not_reached')!=(call_stage=='not_reached'))):
+                      call_frame=call_stage='not_reached'
+                  family_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_SOURCE_FAMILY=(not_applicable|atlas_source|public_transport|ledger_source|reality_source|auth_source|unmapped|ambiguous|catalog_error)$',actor_text)
+                  ordinal_hits=re.findall(r'(?m)^U2_GOVERNOR_FINALIZE_GUARD_ORDINAL=([0-9]{4})$',actor_text)
+                  final_family=family_hits[-1] if family_hits else 'not_reached'
+                  final_ordinal=ordinal_hits[-1] if ordinal_hits else 'not_reached'
+                  if (final_family in ('not_applicable','unmapped','ambiguous','catalog_error') and final_ordinal!='0000') or (final_family in ('atlas_source','public_transport','ledger_source','reality_source','auth_source') and final_ordinal in ('0000','not_reached')) or ((final_family=='not_reached')!=(final_ordinal=='not_reached')):
+                      final_family=final_ordinal='not_reached'
+                  # Source-authored U4 finite gate only; never publish
+                  # response bodies, actor tokens, SQL or private traceback.
+                  entered=re.findall(r'(?m)^U4_SIGNED_PROBE_ENTERED=yes$',actor_text)
+                  u4_probe=('yes' if len(entered)==1 else
+                      'not_reached' if not entered else 'ambiguous')
+                  failure_hits=re.findall(r'(?m)^U4_SIGNED_FAILURE_GATE=(local_only_gate|original_work_id_gate|signed_actor_sessions_gate|source_table_name_gate|public_actual_signature_gate|public_actual_execute_gate|campaign_original_gate|responsible_person_gate|native_ledger_gate|physical_subject_gate|pre_result_empty_gate|nonrecipient_permission_gate|invalid_condition_gate|negative_result_mutation_gate|signed_result_done_receipt_gate|qualified_result_acceptance_gate|one_terminal_transition_gate|idempotent_replay_gate|zero_successor_gate|single_result_after_replay_gate|unclassified_probe_assertion)$',actor_text)
+                  u4_gate=(failure_hits[0] if len(failure_hits)==1 else
+                      'not_reported' if not failure_hits else 'ambiguous')
+                  # Finite-only classes generated by the exact U4 test helper.
+                  # Never forward source error messages, JWTs, SQL or receipts.
+                  actual_http_hits=re.findall(r'(?m)^U4_ACTUAL_HTTP_CLASS=(ok|bad_request|unauthorized|forbidden|not_found|conflict|server_failure|other_status)$',actor_text)
+                  actual_error_hits=re.findall(r'(?m)^U4_ACTUAL_ERROR_CLASS=(source_permission|source_constraint|source_argument|source_conflict|missing_function|missing_relation|missing_column|none_or_other)$',actor_text)
+                  actual_receipt_hits=re.findall(r'(?m)^U4_ACTUAL_RECEIPT_FIELD=(non_object|not_ok|work_item_mismatch|actual_contract_mismatch|not_completed|new_work_not_absent|clock_not_absent|result_id_not_uuid|accepted|not_checked)$',actor_text)
+                  u4_http=(actual_http_hits[0] if len(actual_http_hits)==1 else
+                      'not_reported' if not actual_http_hits else 'ambiguous')
+                  u4_error=(actual_error_hits[0] if len(actual_error_hits)==1 else
+                      'not_reported' if not actual_error_hits else 'ambiguous')
+                  u4_receipt=(actual_receipt_hits[0] if len(actual_receipt_hits)==1 else
+                      'not_reported' if not actual_receipt_hits else 'ambiguous')
+                  if 'AssertionError' in actor_text:
+                      failure_class='python_assertion'
+                  elif 'Traceback (most recent call last)' in actor_text:
+                      failure_class='python_exception'
+                  else:
+                      failure_class='other_actor_failure'
+              elif fixturelog.is_file():
+                  subphase='fictional_source_fixture'
+                  preflight='not_reached'
+                  http_class='not_reached'
+                  accept_class='not_reached'
+                  identity_check='not_reached'
+                  inbox_result='not_reached'
+                  inbox_http_class='not_reached'
+                  inbox_error_class='not_reached'
+                  worker_guard='not_reached'
+                  final_http=final_error=final_guard='not_reached'
+                  final_family=final_ordinal='not_reached'
+                  call_frame=call_stage='not_reached'
+                  selection='not_reached'
+                  checks=0
+                  fixture_text=fixturelog.read_text(errors='replace')[-150000:].lower()
+                  categories=(('foreign_key',r'foreign key constraint'),
+                              ('check_constraint',r'check constraint'),
+                              ('not_null',r'not-null constraint'),
+                              ('duplicate_key',r'duplicate key'),
+                              ('missing_relation',r'relation .* does not exist'),
+                              ('missing_column',r'column .* does not exist'),
+                              ('invalid_input',r'invalid input syntax'),
+                              ('permission_denied',r'permission denied'),
+                              ('sql_syntax',r'syntax error'))
+                  failure_class=next((label for label,pat in categories
+                     if re.search(pat,fixture_text)),'other_fixture_failure')
+              else:
+                  subphase='before_fictional_fixture'
+                  preflight='not_reached'
+                  http_class='not_reached'
+                  accept_class='not_reached'
+                  identity_check='not_reached'
+                  inbox_result='not_reached'
+                  inbox_http_class='not_reached'
+                  inbox_error_class='not_reached'
+                  worker_guard='not_reached'
+                  final_http=final_error=final_guard='not_reached'
+                  final_family=final_ordinal='not_reached'
+                  call_frame=call_stage='not_reached'
+                  selection='not_reached'
+                  checks=0
+                  failure_class='pre_fixture'
+              print('UNI_OPS_SIGNED_U2_SUBPHASE='+subphase)
+              print('UNI_OPS_SIGNED_U2_SOURCE_SELECTION='+selection)
+              print('UNI_OPS_SIGNED_U2_WORKER_SOURCE_PREFLIGHT='+preflight)
+              print('UNI_OPS_SIGNED_U2_WORKER_ACCEPT_HTTP_CLASS='+http_class)
+              print('UNI_OPS_SIGNED_U2_WORKER_ACCEPT_ERROR_CLASS='+accept_class)
+              print('UNI_OPS_SIGNED_U2_WORKER_IDENTITY_FIXTURE='+identity_check)
+              print('UNI_OPS_SIGNED_U2_WORKER_INBOX_RESULT='+inbox_result)
+              print('UNI_OPS_SIGNED_U2_WORKER_INBOX_HTTP_CLASS='+inbox_http_class)
+              print('UNI_OPS_SIGNED_U2_WORKER_INBOX_ERROR_CLASS='+inbox_error_class)
+              print('UNI_OPS_SIGNED_U2_WORKER_RESPONSE_GUARD='+worker_guard)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_HTTP_CLASS='+final_http)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_ERROR_CLASS='+final_error)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_SOURCE_GUARD='+final_guard)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_SOURCE_FAMILY='+final_family)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_GUARD_ORDINAL='+final_ordinal)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_CALL_FRAME_EVIDENCE='+call_frame)
+              print('UNI_OPS_SIGNED_U2_GOVERNOR_FINALIZE_CALL_SOURCE_STAGE='+call_stage)
+              print('UNI_OPS_SIGNED_U2_PASS_CHECKPOINTS='+str(checks))
+              print('UNI_OPS_SIGNED_U2_FAILURE_CLASS='+failure_class)
+              print('UNI_OPS_U4_SIGNED_PROBE_ENTERED='+u4_probe)
+              print('UNI_OPS_U4_SIGNED_FAILURE_GATE='+u4_gate)
+              print('UNI_OPS_U4_ACTUAL_HTTP_CLASS='+u4_http)
+              print('UNI_OPS_U4_ACTUAL_ERROR_CLASS='+u4_error)
+              print('UNI_OPS_U4_ACTUAL_RECEIPT_FIELD='+u4_receipt)
+          # Report only fixed aggregate categories; private function names,
+          # SQL, identity, relation names and raw lint messages stay local.
+          delta=root/'schema-lint-delta.json'
+          if not delta.is_file():
+              print('UNI_OPS_LINT_DELTA_STATUS=report_absent')
+          else:
+              try:
+                  payload=json.loads(delta.read_text(errors='replace'))
+                  findings=payload['introduced']
+                  count=payload['introduced_count']
+                  if not isinstance(findings,list) or not isinstance(count,int) or count!=len(findings):
+                      raise ValueError('invalid counts')
+                  groups={}
+                  classes={'42883':'missing_function','42703':'missing_column',
+                           '42P01':'missing_relation','3F000':'missing_schema',
+                           '42601':'syntax','42501':'privilege','42702':'ambiguous_column',
+                           '23514':'check_constraint'}
+                  for entry in findings:
+                      issue=entry.get('issue',{}) if isinstance(entry,dict) else {}
+                      code=str(issue.get('sqlState','')) if isinstance(issue,dict) else ''
+                      label=classes.get(code,'other_or_unspecified')
+                      groups[label]=groups.get(label,0)+1
+                  # Resolve a lint function to a public pinned-source ordinal only.
+                  # The original private function name and SQL remain unprinted.
+                  allowed_stages=set(('lifecycle-shadow','lifecycle-single-transition',
+                      'history-record-and-rls','history-governor-readback',
+                      'history-review-postconditions','history-public-transport',
+                      'history-retirement-bridge','history-retirement-preflight',
+                      'history-retirement-postconditions',
+                      'r01-r02-composed-native','u1a-exact-foundry-rulebook',
+                      'u1b-native-scope-history','u2a-preoriginal-offer',
+                      'u2b-signed-root-finalize','u2c-single-authority-arbiter',
+                      'u2c-accepted-only-original-guard',
+                      'u2c-close-old-standing-bypasses',
+                      'u2c-schema-and-acl-postconditions'))
+                  ownership={}
+                  if sql.is_file():
+                      current=None
+                      ordinal=0
+                      for line in sql.read_text(errors='replace').splitlines():
+                          if line.startswith('-- BEGIN PINNED STAGE '):
+                              tokens=line.split()
+                              current=tokens[4] if len(tokens)==6 and tokens[4] in allowed_stages else None
+                              ordinal=0
+                              continue
+                          if line.startswith('-- END PINNED STAGE '):
+                              current=None
+                              continue
+                          if current:
+                              match=re.search(r'(?i)\bCREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+([a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*)\s*\(',line)
+                              if match:
+                                  ordinal+=1
+                                  ownership[match[1].lower()]=(current,ordinal)
+                  locations=set()
+                  for item in findings:
+                      name=str(item.get('function','')).split('(',1)[0].strip().lower() if isinstance(item,dict) else ''
+                      label,ordinal=ownership.get(name,('outside_or_unmatched',0))
+                      locations.add(label+':'+str(ordinal))
+                  print('UNI_OPS_LINT_SOURCE_LOCATIONS='+(','.join(sorted(locations)) if locations else 'none'))
+                  print('UNI_OPS_LINT_DELTA_STATUS='+('introduced_errors' if count else 'no_new_errors'))
+                  print('UNI_OPS_LINT_INTRODUCED_COUNT='+str(count))
+                  print('UNI_OPS_LINT_ERROR_CLASSES='+
+                        (','.join(k+':'+str(groups[k]) for k in sorted(groups)) if groups else 'none'))
+              except (OSError,ValueError,KeyError,TypeError,AttributeError):
+                  print('UNI_OPS_LINT_DELTA_STATUS=unreadable_report')
+          signed=root/'uniops-u2-signed-summary.txt'
+          print('UNI_OPS_SIGNED_U2_ACCEPTED_FIRST='+('PASS' if signed.is_file() and signed.read_text(errors='replace').startswith('PASS genuine separate signed local') else 'NOT_VERIFIED'))
+          u4_mark='NOT_VERIFIED'
+          if signed.is_file():
+              if 'U4_SIGNED_ACTUAL_RESULT_DONE=PASS' in signed.read_text(encoding='utf-8',errors='replace').splitlines():
+                  u4_mark='PASS'
+          print('UNI_OPS_U4_SIGNED_ACTUAL_RESULT_DONE='+u4_mark)
+          print('UNI_OPS_SIGNED_HISTORY_CANCEL=NOT_RUN')
+          print('UNI_OPS_SIGNED_FULL_U1A_OVERLAP=NOT_RUN')
+          print('UNI_OPS_SIGNED_POST_RESULT_6A=NOT_RUN')
+          print('UNI_OPS_PRODUCTION_MUTATION=NONE')
+          print('UNI_OPS_PAID_BRANCH=NONE')
+          PY
+      - name: Delete private test-only schema, role snapshot, source and logs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f -- "$RUNNER_TEMP/uniops-snapshot-schema.sql" "$RUNNER_TEMP/uniops-snapshot-roles.sql"
+          rm -f -- "$RUNNER_TEMP/uniops-private-clone.log" "$RUNNER_TEMP/uniops-manifest.json"
+          rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
+          rm -f -- "$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
+          case "${UNI_OPS_PIN_ROOT:-}" in
+            "$RUNNER_TEMP"/uniops-full-clone.*) rm -rf -- "$UNI_OPS_PIN_ROOT" ;;
+          esac
+          if [[ -d "$RUNNER_TEMP/uniops-private-diagnostics" && ! -L "$RUNNER_TEMP/uniops-private-diagnostics" ]]; then
+            rm -rf -- "$RUNNER_TEMP/uniops-private-diagnostics"
+          fi
+          echo 'PASS no schema dump, role dump or diagnostic artifact retained/uploaded'
