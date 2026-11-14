@@ -10,6 +10,8 @@ import argparse
 import importlib.util
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -31,6 +33,8 @@ ALLOC = "e5200000-0000-4000-8000-000000000983"
 ACTION_OWNER = "e5200000-0000-4000-8000-000000000d01"
 ACTION_WORKER = "e5200000-0000-4000-8000-000000000d02"
 ACTION_THIRD = "e5200000-0000-4000-8000-000000000d03"
+ACTION_RACE_DIFFERENT = "e5200000-0000-4000-8000-000000000d04"
+ACTION_RACE_IDENTICAL = "e5200000-0000-4000-8000-000000000d05"
 BODY_OWNER = "SYNTH_W07_OWNER_COMMENT_LOCAL_ONLY"
 BODY_WORKER = "SYNTH_W07_WORKER_COMMENT_LOCAL_ONLY"
 BODY_THIRD = "SYNTH_W07_OWNER_SECOND_LOCAL_ONLY"
@@ -87,6 +91,25 @@ def read_args(work=WORK, ledger=LEDGER, limit=40, after=None):
             "p_limit": limit,
             "p_after_recorded_at": after[0] if after else None,
             "p_after_comment_id": after[1] if after else None}
+
+
+def simultaneous_writes(api, key, token, action, bodies):
+    """Exactly two independent simultaneous localhost HTTP requests.
+
+    This exercises database locking and the unique action receipt. It cannot
+    be used against a remote API because main() validates the local endpoint.
+    Each thread creates its own PostgREST connection; no shared SQL session.
+    """
+    check(len(bodies) == 2, "W07 race must use precisely two writers")
+    gate = Barrier(2, timeout=10)
+
+    def send(body):
+        gate.wait()
+        return rpc(api, key, token, WRITE, write_args(action, body))
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(send, body) for body in bodies]
+        return [future.result(timeout=30) for future in futures]
 
 
 def check_read(packet, expected_ids):
@@ -288,6 +311,48 @@ def main():
     """ % (ORG,LEDGER,WORK))=="3",
           "Three unique signed actions must create only three comments")
 
+    # Actual concurrent requests: sequential retries alone are not evidence
+    # of a unique action receipt under racing database transactions.
+    mixed_bodies = ("SYNTH_W07_RACE_A_LOCAL_ONLY",
+                    "SYNTH_W07_RACE_B_LOCAL_ONLY")
+    mixed = simultaneous_writes(api, key, owner, ACTION_RACE_DIFFERENT,
+                                mixed_bodies)
+    check(sorted(status for status, _ in mixed) == [200, 409],
+          "W07 concurrent different-body action must yield one save and one 23505")
+    winner = next(payload for status, payload in mixed if status == 200)
+    loser = next(payload for status, payload in mixed if status == 409)
+    check(winner.get("ok") is True
+          and winner.get("body") in mixed_bodies
+          and winner.get("idempotent") is False
+          and winner.get("commentId")
+          and isinstance(loser, dict) and loser.get("code") == "23505",
+          "W07 parallel differing bodies must retain one original immutable ink")
+    check(sql(args.db_url, """
+        SELECT count(*) FROM atlas.native_original_work_comments_v1
+        WHERE organization_id='%s'::uuid AND work_item_id='%s'::uuid
+          AND author_person_id='%s'::uuid AND source_action_id='%s'::uuid
+    """ % (ORG,WORK,c1.OWNER_PERSON,ACTION_RACE_DIFFERENT)) == "1",
+          "W07 concurrent different-body race duplicated the original action")
+
+    same_body = "SYNTH_W07_RACE_REPLAY_LOCAL_ONLY"
+    same = simultaneous_writes(api, key, owner, ACTION_RACE_IDENTICAL,
+                               (same_body, same_body))
+    check(all(status == 200 and isinstance(packet, dict)
+              and packet.get("ok") is True and packet.get("body") == same_body
+              for status, packet in same),
+          "W07 parallel same-body action must both return canonical receipts")
+    check(len({packet.get("commentId") for _, packet in same}) == 1
+          and all(packet.get("commentId") for _, packet in same)
+          and {packet.get("idempotent") for _, packet in same} == {True, False},
+          "W07 concurrent replay must return one create, one replay and one ID")
+    check(sql(args.db_url, """
+        SELECT count(*) FROM atlas.native_original_work_comments_v1
+        WHERE organization_id='%s'::uuid AND work_item_id='%s'::uuid
+          AND author_person_id='%s'::uuid AND source_action_id='%s'::uuid
+    """ % (ORG,WORK,c1.OWNER_PERSON,ACTION_RACE_IDENTICAL)) == "1",
+          "W07 concurrent replay duplicated the original action")
+    print("PASS W07 real simultaneous differing-body collision and same-body replay")
+
     # Revoke the synthetic worker's accepted responsibility. We do NOT
     # impersonate a real account or mutate the user's Production Work.
     sql(args.db_url, """
@@ -301,7 +366,8 @@ def main():
               write_args(ACTION_WORKER,BODY_WORKER),
               "revoked worker must not recover replay without current read")
     check_read(permitted(api,key,owner,READ,read_args()),
-               [owner_id,worker_id,third_id])
+               [owner_id,worker_id,third_id,
+                winner["commentId"],same[0][1]["commentId"]])
 
     check(sql(args.db_url,"SELECT count(*) FROM atlas.work_items")==
           work_before,"W07 comments manufactured another original Work")
@@ -314,11 +380,13 @@ def main():
     """ % WORK)=="1","W07 comments changed original Work state")
     print("PASS W07 real synthetic GoTrue signed governor/worker readback and "
           "source denial, exact Work/Ledger, immutable action replay, "
-          "cursor paging, revocation, no Work/Result/notification")
+          "cursor paging, simultaneous idempotent race, revocation, "
+          "no Work/Result/notification")
     Path(args.output).write_text(
       "PASS W07 signed local GoTrue 4 identities, exact Work read/write, "
       "cross-person refresh, original idempotent replay and collision denial, "
-      "page cursor, signed revocation, no new Work or Work Result\n",
+      "page cursor, parallel same-key same/different-body race, "
+      "signed revocation, no new Work or Work Result\n",
       encoding="utf-8"
     )
 
