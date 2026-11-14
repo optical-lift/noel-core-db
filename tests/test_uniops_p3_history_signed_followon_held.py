@@ -102,6 +102,19 @@ class HistoryFirstMowingConservation(unittest.TestCase):
         self.assertIn("_history_fixture_c1=_compat.adapter(base.c1,sql)",code)
         self.assertIn("sql=sql,rpc=rpc,c1=_history_fixture_c1)",code)
         self.assertNotIn("sql=sql,rpc=rpc,c1=base.c1)",code)
+        for stage in (
+            "pre_snapshot_started","pre_snapshot_captured",
+            "fixture_adapter_ready","governor_started",
+            "governor_returned","conservation_started","conservation_verified"
+        ):
+            self.assertEqual(code.count(
+                "UNI_OPS_HISTORY_HANDOFF_STAGE="+stage),1)
+        self.assertLess(code.index("UNI_OPS_HISTORY_HANDOFF_STAGE=pre_snapshot_started"),
+                        code.index("_mowing_before_history=_p3.capture"))
+        self.assertLess(code.index("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_started"),
+                        code.index("history_receipt=hist.prove("))
+        self.assertLess(code.index("history_receipt=hist.prove("),
+                        code.index("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_returned"))
         self.assertEqual(code.count("history_receipt=hist.prove("),1)
         self.assertEqual(code.count("historical-retirement-followon"),1)
         self.assertEqual(code.count("_mowing_before_history=_p3.capture"),1)
