@@ -456,7 +456,7 @@ jobs:
           if bash scripts/validate-production-schema-clone.sh \
             --migration-version 20261107211000 \
             --release-lane atlas \
-            --candidate-migration "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" \
+            --candidate-migration "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql" \
             --candidate-fixture "$UNI_OPS_PIN_ROOT/c1fixture/validation/fixtures/20261028235811_atlas_care_single_done_signed_proof_v1.sql" \
             --roles-dump "$RUNNER_TEMP/uniops-snapshot-roles.sql" \
             --schema-dump "$RUNNER_TEMP/uniops-snapshot-schema.sql" \
@@ -465,8 +465,9 @@ jobs:
               test -s "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
               grep -q '^PASS genuine separate signed local' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
               grep -q '^U4_SIGNED_ACTUAL_RESULT_DONE=PASS$' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed-summary.txt"
-              echo 'PASS 18 option A stages, accepted-first original, signed physical Actual, one Result and Done; synthetic only'
-              echo 'HOLD historical cancellation, P1 manual Activity and other P3 writers remain separate gates'
+              grep -qx 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' "$RUNNER_TEMP/uniops-private-diagnostics/uniops-u2-signed.log"
+               echo 'PASS signed U2/U4 Actual/Result plus first mowing P3 6A no-auto issuer snapshot; disposable only'
+              echo 'HOLD historical cancellation, P1 manual Activity, farm operational writers and Company decision reconciliation'
           else
               echo 'HELD authentic-schema clone SQL test; diagnostic classification follows'
               exit 1
@@ -478,7 +479,7 @@ jobs:
           set -euo pipefail
           python3 - "$RUNNER_TEMP/uniops-private-diagnostics" \
             "$RUNNER_TEMP/uniops-private-clone.log" \
-            "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" <<'PY'
+            "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql" <<'PY'
           import json,pathlib,re,sys
           root=pathlib.Path(sys.argv[1]); summary=pathlib.Path(sys.argv[2])
           candidate=root/'candidate-migration.log'
@@ -766,6 +767,9 @@ jobs:
           print('UNI_OPS_U4_SIGNED_ACTUAL_RESULT_DONE='+u4_mark)
           print('UNI_OPS_SIGNED_HISTORY_CANCEL=NOT_RUN')
           print('UNI_OPS_SIGNED_FULL_U1A_OVERLAP=NOT_RUN')
+          p3actor=root/'uniops-u2-signed.log'
+          p3_ok=p3actor.is_file() and 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' in p3actor.read_text(errors='replace').splitlines()
+          print('UNI_OPS_P3_MOWING_RESULT_6A='+('PASS' if p3_ok and u4_mark=='PASS' else 'NOT_VERIFIED'))
           print('UNI_OPS_SIGNED_POST_RESULT_6A=NOT_RUN')
           print('UNI_OPS_PRODUCTION_MUTATION=NONE')
           print('UNI_OPS_PAID_BRANCH=NONE')
@@ -777,7 +781,7 @@ jobs:
           set -euo pipefail
           rm -f -- "$RUNNER_TEMP/uniops-snapshot-schema.sql" "$RUNNER_TEMP/uniops-snapshot-roles.sql"
           rm -f -- "$RUNNER_TEMP/uniops-private-clone.log" "$RUNNER_TEMP/uniops-manifest.json"
-          rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql"
+          rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
           rm -f -- "$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
           case "${UNI_OPS_PIN_ROOT:-}" in
             "$RUNNER_TEMP"/uniops-full-clone.*) rm -rf -- "$UNI_OPS_PIN_ROOT" ;;
