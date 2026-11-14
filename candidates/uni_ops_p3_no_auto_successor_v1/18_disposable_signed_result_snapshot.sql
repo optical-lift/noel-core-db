@@ -53,6 +53,20 @@ SELECT jsonb_build_object(
  'legacyTaskTotal',(SELECT count(*) FROM atlas.tasks t WHERE t.organization_id=p.org_id),
  'plannedOccurrenceTotal',(SELECT count(*) FROM atlas.planned_work_occurrences o
        WHERE o.farm_id=(SELECT s.farm_id FROM actual_state s)),
+ 'legacyReleasedTaskIds',(
+    SELECT coalesce(jsonb_agg(t.id ORDER BY t.id),'[]'::jsonb)
+    FROM atlas.tasks t
+    WHERE t.organization_id=p.org_id AND t.released_at IS NOT NULL),
+ 'eligibleOrReleasedOccurrenceIds',(
+    SELECT coalesce(jsonb_agg(o.id ORDER BY o.id),'[]'::jsonb)
+    FROM atlas.planned_work_occurrences o
+    WHERE o.farm_id=(SELECT s.farm_id FROM actual_state s)
+      AND o.state IN ('eligible','released')),
+ 'releasedOccurrenceIds',(
+    SELECT coalesce(jsonb_agg(o.id ORDER BY o.id),'[]'::jsonb)
+    FROM atlas.planned_work_occurrences o
+    WHERE o.farm_id=(SELECT s.farm_id FROM actual_state s)
+      AND o.released_task_id IS NOT NULL),
  'governedOfferTotal',(SELECT count(*) FROM atlas.governed_prework_candidate_offers_v1 o
        WHERE o.organization_id=p.org_id),
  'workAllocationTotal',(SELECT count(*) FROM atlas.work_allocations a WHERE a.organization_id=p.org_id),
