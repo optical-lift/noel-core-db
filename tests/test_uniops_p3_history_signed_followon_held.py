@@ -100,8 +100,15 @@ class HistoryFirstMowingConservation(unittest.TestCase):
         code=output.decode("utf8")
         self.assertIn("UNI_OPS_P3_MOWING_AFTER_HISTORY=PASS",code)
         self.assertIn("_history_fixture_c1=_compat.adapter(base.c1,sql)",code)
-        self.assertIn("sql=sql,rpc=rpc,c1=_history_fixture_c1)",code)
+        self.assertIn("sql=_history_sql_probe,rpc=_history_rpc_probe,c1=_history_fixture_c1)",code)
+        self.assertNotIn("sql=sql,rpc=rpc,c1=_history_fixture_c1)",code)
         self.assertNotIn("sql=sql,rpc=rpc,c1=base.c1)",code)
+        self.assertIn("def _history_sql_probe(_db,_statement):",code)
+        self.assertIn("def _history_rpc_probe(_api,_key,_token,_name,_params):",code)
+        self.assertIn("UNI_OPS_HISTORY_CALL_STAGE=",code)
+        self.assertIn("UNI_OPS_HISTORY_CALL_HTTP_CLASS=",code)
+        self.assertIn("UNI_OPS_HISTORY_CALL_ERROR_CLASS=",code)
+        self.assertIn("check(1<=_n<=18",code)
         for stage in (
             "pre_snapshot_started","pre_snapshot_captured",
             "fixture_adapter_ready","governor_started",
