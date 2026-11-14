@@ -20,6 +20,8 @@ on:
       - 'tests/test_uniops_p3_6a_disposable_sql_framing.py'
       - 'tests/uniops_p3_6a_postcondition_failure_category.py'
       - 'tests/test_uniops_p3_6a_postcondition_failure_category.py'
+      - 'tests/correct_uniops_p3_6a_postcondition_deppath_held.py'
+      - 'tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py'
 permissions:
   contents: read
   packages: read
@@ -143,6 +145,10 @@ jobs:
           test "$(git hash-object tests/uniops_p3_6a_postcondition_failure_category.py)" = 979eb9ba07e374518989183440ce3c617592a6c1
           test "$(git hash-object tests/test_uniops_p3_6a_postcondition_failure_category.py)" = 550df75f76b0af7208a47bdfa47df3c15b5046ab
           python3 tests/test_uniops_p3_6a_postcondition_failure_category.py p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/20_mowing_6a_core_postconditions_held.sql
+          test "$(git hash-object tests/correct_uniops_p3_6a_postcondition_deppath_held.py)" = a941a8cab70c89014eccecbdbd7d8fdb1937dfd2
+          test "$(git hash-object tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py)" = 25e33be51209b653f8d52624d52f04ce826c8b33
+          python3 -m py_compile tests/correct_uniops_p3_6a_postcondition_deppath_held.py tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py
+          python3 tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-uni-ops-p3-6a-signed-clone.yml').read_text()
@@ -156,6 +162,8 @@ jobs:
           assert "'p3-result-only-evaluator'" in p
           assert "'p3-signal-guard'" in p
           assert 'UNI_OPS_P3_POSTCONDITION_CHECK=' in p
+          assert 'correct_uniops_p3_6a_postcondition_deppath_held.py' in p
+          assert 'P3_6A_POSTCONDITION_REAL_DEPENDENCY=EXACT_SCRATCH_ONLY' not in p or 'a941a8cab70c89014eccecbdbd7d8fdb1937dfd2' in p
           assert '979eb9ba07e374518989183440ce3c617592a6c1' in p
           assert 'UNI_OPS_P3_MOWING_RESULT_6A=' in p
           assert 'UNI_OPS_SIGNED_POST_RESULT_6A=NOT_RUN' in p
@@ -502,6 +510,8 @@ jobs:
           node p3-held/candidates/uni_ops_p3_no_auto_successor_v1/22_compose_mowing_6a_scratch_held.mjs "$origin" "$source_sha" "$target"
           test "$(git -C canonical hash-object tests/frame-uniops-p3-6a-disposable-sql.py)" = c55f330f82217818cdaa9935a8b88cd9812ae4b0
           python3 canonical/tests/frame-uniops-p3-6a-disposable-sql.py "$target" p3-held/candidates/uni_ops_p3_no_auto_successor_v1
+          test "$(git -C canonical hash-object tests/correct_uniops_p3_6a_postcondition_deppath_held.py)" = a941a8cab70c89014eccecbdbd7d8fdb1937dfd2
+          python3 canonical/tests/correct_uniops_p3_6a_postcondition_deppath_held.py "$target" p3-held/candidates/uni_ops_p3_no_auto_successor_v1
           test -s "$target" && test ! -L "$target"
           cp p3-held/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py canonical/tests/uniops_p3_6a_snapshot_hook_held.py
           cp p3-held/candidates/uni_ops_p3_no_auto_successor_v1/18_disposable_signed_result_snapshot.sql canonical/tests/uniops_p3_6a_snapshot.sql
