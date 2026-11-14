@@ -1,5 +1,8 @@
 # UNI-OPS-01 — U2D issuance authority decision record (PENDING PRINCIPAL)
 
+> **Supersession notice (November 13, 2026):** The three issuer/campaign decisions below are historical *pre-November-4* questions, not pending owner choices. Binding choices U2E **1C / 2C / 3C** and Actual-first **6A** are recorded in [06_binding_u2e_actual_first_owner_decisions_20261113.md](06_binding_u2e_actual_first_owner_decisions_20261113.md). They do **not** confer a registered carrier, signed mandate or automatic next issuance. Retain this older evidence unchanged below.
+
+
 **Source-only architecture proposal.** NOT an authorization, migration, table, active delegate, scheduled task, or Work writer.
 
 **Owned by:** Noel's source-governed Work and Ledger authority. Consumer: Atlas's `issuer-authority-proposal.mjs` inert parser in held draft #535. Existing accepted-offer path stays held as implemented in Noel draft #2485.
