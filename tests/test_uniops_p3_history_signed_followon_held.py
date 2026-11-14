@@ -108,6 +108,15 @@ class HistoryFirstMowingConservation(unittest.TestCase):
         self.assertIn("UNI_OPS_HISTORY_CALL_STAGE=",code)
         self.assertIn("UNI_OPS_HISTORY_CALL_HTTP_CLASS=",code)
         self.assertIn("UNI_OPS_HISTORY_CALL_ERROR_CLASS=",code)
+        # Source-only: no raw status/body escapes the approved enum trace.
+        self.assertIn('500:"internal_error"',code)
+        self.assertIn('"PGRST121":"postgrest_custom_json_invalid"',code)
+        self.assertIn('"PGRST202":"postgrest_function_cache_missing"',code)
+        self.assertIn('"PT409":"postgrest_native_conflict"',code)
+        self.assertIn('return _status,_payload',code)
+        self.assertNotIn('print(_payload',code)
+        self.assertNotIn('print(_code',code)
+        self.assertNotIn('print(_status',code)
         self.assertIn("check(1<=_n<=18",code)
         for stage in (
             "pre_snapshot_started","pre_snapshot_captured",
