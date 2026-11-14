@@ -58,7 +58,7 @@ RELEVANCE_INSERT=f"""      INSERT INTO atlas.company_work_native_ledger_relevanc
       VALUES('{ORG}'::uuid,'{WORK}'::uuid,'{LEDGER}'::uuid,
        'serves_purpose','owner_attested','clone:obsolete-review',
        'Fictional original Work context for retirement review','{OWNER}'::uuid);"""
-ORIGINAL_SEED=(MEMBER_INSERT+"\\n"+WORK_INSERT+"\\n"+ORIGINAL_ALLOCATION+"\\n"+RELEVANCE_INSERT)
+ORIGINAL_SEED=(MEMBER_INSERT+"\n"+WORK_INSERT+"\n"+ORIGINAL_ALLOCATION+"\n"+RELEVANCE_INSERT)
 MEMBERSHIP_SQL=(
     "select count(*) from atlas.organization_memberships m "
     "where m.organization_id='"+ORG+"'::uuid "
