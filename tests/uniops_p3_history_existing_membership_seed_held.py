@@ -112,6 +112,74 @@ def emit_fixture_stage(stage):
         raise HistoricFixtureRefusal("Unrecognized historical diagnostic stage")
     print("UNI_OPS_HISTORY_FIXTURE_STAGE="+stage,flush=True)
 
+SEED_SQL_KINDS=frozenset((
+    "unique_constraint","foreign_key_constraint","check_constraint",
+    "not_null_constraint","row_security","permission_denied",
+    "missing_column","missing_relation","invalid_enum","data_type",
+    "other_postgres_error","unclassified"
+))
+SEED_PROGRESS=frozenset((
+    "not_located","after_one_insert_tag","after_two_insert_tags",
+    "after_three_insert_tags"
+))
+
+def classify_seed_sql_failure(exc):
+    """Diagnostic of captured local psql error, never an authority decision.
+
+    The original frozen seed remains one psql invocation; no SQL retry, split
+    operation, altered transaction boundary or private stderr publication.
+    """
+    stderr=getattr(exc,"stderr",None)
+    kind="unclassified"
+    if isinstance(stderr,str) and len(stderr)<=100_000:
+        errors=[line.split("ERROR:",1)[1].lower()
+                for line in stderr.splitlines()
+                if line.count("ERROR:")==1]
+        if len(errors)==1:
+            msg=errors[0]
+            if "duplicate key value" in msg or "violates unique constraint" in msg:
+                kind="unique_constraint"
+            elif "foreign key constraint" in msg:
+                kind="foreign_key_constraint"
+            elif "check constraint" in msg:
+                kind="check_constraint"
+            elif "not-null constraint" in msg or "null value in column" in msg:
+                kind="not_null_constraint"
+            elif "row-level security policy" in msg:
+                kind="row_security"
+            elif "permission denied" in msg:
+                kind="permission_denied"
+            elif "column " in msg and "does not exist" in msg:
+                kind="missing_column"
+            elif "relation " in msg and "does not exist" in msg:
+                kind="missing_relation"
+            elif "invalid input value for enum" in msg:
+                kind="invalid_enum"
+            elif "type " in msg and ("does not exist" in msg or
+                                      "cannot be cast" in msg):
+                kind="data_type"
+            else:
+                kind="other_postgres_error"
+    stdout=getattr(exc,"stdout",None)
+    progress="not_located"
+    if isinstance(stdout,str) and len(stdout)<=100_000:
+        tags=sum(line.strip()=="INSERT 0 1" for line in stdout.splitlines())
+        progress={
+            1:"after_one_insert_tag",
+            2:"after_two_insert_tags",
+            3:"after_three_insert_tags"
+        }.get(tags,"not_located")
+    # These outputs are a safe enum heuristic, not SQLSTATE, and do not claim
+    # any INSERT committed; PostgreSQL may roll back the multi-statement call.
+    if kind not in SEED_SQL_KINDS or progress not in SEED_PROGRESS:
+        raise HistoricFixtureRefusal("Unreviewed seed diagnostic class")
+    return kind,progress
+
+def emit_seed_sql_failure(exc):
+    kind,progress=classify_seed_sql_failure(exc)
+    print("UNI_OPS_HISTORY_SEED_SQL_KIND="+kind,flush=True)
+    print("UNI_OPS_HISTORY_SEED_PROGRESS="+progress,flush=True)
+
 def adapt_known_seed(seed):
     if not isinstance(seed,str):
         raise HistoricFixtureRefusal("Historical seed is not text")
@@ -179,7 +247,8 @@ class ExistingPersonFixture:
         emit_fixture_stage("seed_apply_started")
         try:
             self._original.sql(db,selected)
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as exc:
+            emit_seed_sql_failure(exc)
             emit_fixture_stage("seed_apply_failed")
             print("UNI_OPS_HISTORY_FIXTURE_SQL_STAGE=seed_apply_failed",flush=True)
             raise
