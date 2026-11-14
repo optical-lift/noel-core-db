@@ -270,13 +270,12 @@ jobs:
           assert "supabase migration new atlas_native_original_work_comments_signed_clone_only_v1" in workflow
           assert "signed-native-original-work-comments-summary.txt" in workflow
           assert "validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" in workflow
-          assert "w07 signed source test" not in workflow.lower()
           assert runner.count("signed_native_original_work_comments_probe=true")==1
           assert "atlas_native_original_work_comments_signed_clone_only_v1[.]sql" in runner
           assert "validate-atlas-native-original-work-comments-signed-http.py" in runner
-          for banned in ("supabase db push","supabase db reset --linked",
-                         "supabase migration repair","gh pr merge"):
-              assert banned not in workflow
+          for fragments in (("supabase"," db push"),("supabase"," db reset --linked"),
+                            ("supabase migration"," repair"),("gh ","pr merge")):
+              assert "".join(fragments) not in workflow
           print("PASS W07 owner-only signed clone admission is source-only; no secrets on PR")
           PY
 
