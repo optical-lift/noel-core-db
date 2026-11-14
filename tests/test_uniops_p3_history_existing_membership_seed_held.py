@@ -172,7 +172,7 @@ class FixtureCompatibility(unittest.TestCase):
                          output.getvalue())
 
 
-    def test_absent_person_membership_uses_exact_frozen_original_seed(self):
+    def test_absent_person_membership_retains_frozen_member_work_relevance(self):
         state={"member":False,"statements":[],"queries":[]}
         def reader(db,q):
             state["queries"].append(q)
@@ -182,14 +182,14 @@ class FixtureCompatibility(unittest.TestCase):
             if q==m.ALLOCATION_SQL:return "1" if state["member"] else "0"
             self.fail("Unreviewed read in absent-member fixture")
         def writer(db,q):
-            self.assertEqual(q,m.ORIGINAL_SEED)
+            self.assertEqual(q,m.adapt_absent_seed(m.ORIGINAL_SEED))
             state["statements"].append(q)
             state["member"]=True
         sink=io.StringIO()
         with redirect_stdout(sink):
             self.assertIsNone(m.adapter(SimpleNamespace(sql=writer),reader).
                               sql(PG,m.ORIGINAL_SEED))
-        self.assertEqual(state["statements"],[m.ORIGINAL_SEED])
+        self.assertEqual(state["statements"],[m.adapt_absent_seed(m.ORIGINAL_SEED)])
         self.assertEqual(state["queries"],[
             m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL,m.IDENTITY_SQL,
             m.MEMBERSHIP_SQL,m.PERSON_MEMBERSHIP_SQL,m.ALLOCATION_SQL])
@@ -241,7 +241,7 @@ class FixtureCompatibility(unittest.TestCase):
             with self.assertRaises(m.HistoricFixtureRefusal):
                 m.adapter(SimpleNamespace(sql=lambda db,q:statements.append(q)),
                           reader).sql(PG,m.ORIGINAL_SEED)
-        self.assertEqual(statements,[m.ORIGINAL_SEED])
+        self.assertEqual(statements,[m.adapt_absent_seed(m.ORIGINAL_SEED)])
         self.assertIn("UNI_OPS_HISTORY_FIXTURE_STAGE=membership_postseed_not_one",
                       sink.getvalue())
         self.assertNotIn("UNI_OPS_HISTORY_FIXTURE_STAGE=fixture_verified",
@@ -302,6 +302,62 @@ class FixtureCompatibility(unittest.TestCase):
             subprocess.CalledProcessError(1,["psql"],output=None,
                                            stderr=None)),
             ("unclassified","not_located"))
+
+
+
+    def test_synthetic_self_adoption_matches_source_governed_contract(self):
+        # Source-owned signed actor is the only holder of this synthetic
+        # membership. No separate Person or real-world consent is inferred.
+        stmt=m.BOUND_ALLOCATION
+        for required in (
+            "assigned_by_membership_id", "m.id,m.id",
+            "'responsible','active','self_adoption'",
+            "'contractVersion','exact_work_responsibility_establishment_v2'",
+            "'basisKind','self_adoption'",
+            "'organizationId','"+m.ORG+"'",
+            "'workItemId','"+m.WORK+"'",
+            "'actorMembershipId',m.id",
+            "'assigneeMembershipId',m.id",
+            "'sourceKind','disposable_historical_retirement_fixture'",
+            "'sourceId','"+m.WORK+"'",
+            "'syntheticOnly',true",
+            "m.person_id='"+m.PERSON+"'",
+            "m.user_id='"+m.USER+"'",
+            "m.active IS TRUE"
+        ):
+            with self.subTest(contract_part=required):
+                self.assertIn(required,stmt)
+        self.assertNotIn('{"historical":true}',stmt)
+        for result in (m.adapt_known_seed(m.ORIGINAL_SEED),
+                       m.adapt_absent_seed(m.ORIGINAL_SEED)):
+            self.assertIn(stmt,result)
+            self.assertNotIn(m.ORIGINAL_ALLOCATION,result)
+            self.assertIn(m.WORK_INSERT,result)
+            self.assertIn(m.RELEVANCE_INSERT,result)
+            self.assertEqual(result.count(stmt),1)
+        absent=m.adapt_absent_seed(m.ORIGINAL_SEED)
+        self.assertIn(m.MEMBER_INSERT,absent)
+        self.assertEqual(absent.count("INSERT INTO atlas."),4)
+        self.assertNotIn("existing canonical Person membership reused",absent)
+        present=m.adapt_known_seed(m.ORIGINAL_SEED)
+        self.assertNotIn(m.MEMBER_INSERT,present)
+        self.assertEqual(present.count("INSERT INTO atlas."),3)
+        self.assertIn("assigned_by_membership_id=m.id",m.ALLOCATION_SQL)
+        self.assertIn(
+            "a.establishment_basis->>'sourceKind'='disposable_historical_retirement_fixture'",
+            m.ALLOCATION_SQL)
+
+    def test_absent_path_rejects_unreviewed_legacy_sql(self):
+        for q in (
+            m.ORIGINAL_SEED.replace("'self_adoption'","'delegated_under_standing_scope'"),
+            m.ORIGINAL_SEED.replace('{"historical":true}','{"consent":true}'),
+            m.ORIGINAL_SEED.replace("legacy_task_slice","original_proof"),
+            m.ORIGINAL_SEED+m.ORIGINAL_SEED,
+            "",None
+        ):
+            with self.subTest(shape=str(q)[:14]):
+                with self.assertRaises(m.HistoricFixtureRefusal):
+                    m.adapt_absent_seed(q)
 
 
 if __name__=="__main__":

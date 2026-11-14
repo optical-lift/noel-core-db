@@ -18,7 +18,7 @@ import prepare_uniops_historical_retirement_signed_followon_held as original
 PREPARER_BLOB="6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519"
 GUARD_BLOB="a0ab7523f10e9b79d3290871fd5faac777e6e733"
 P3_HOOK_BLOB="4efef70ea67209b04def420aade39b8a6fd44f38"
-COMPAT_BLOB="5e88f69697f015ad04f61236e2403c7e0dc71752"
+COMPAT_BLOB="7bcd3719aeea3e150770fe4bb4172416a815a38c"
 SAFE_OUTPUT="validate-uniops-p3-historical-signed-local-only.py"
 
 HISTORY_START="        history_receipt=hist.prove(\n"
@@ -45,15 +45,17 @@ HISTORY_PRE='''        # Test-only: capture exact completed mowing source in thi
         print("UNI_OPS_HISTORY_HANDOFF_STAGE=pre_snapshot_captured",flush=True)
         # The historical source companion stays immutable. Adapt ONLY its
         # fictional seed through a separately SHA-pinned Person-root wrapper.
-        # Retain original fictional membership INSERT if absent; reuse exact
-        # matching canonical membership if present; refuse any conflicting root.
+        # Retain original fictional member INSERT if absent; reuse exact
+        # existing canonical membership if present; refuse conflicting roots.
+        # Only the frozen fictional self_adoption allocation is adapted to
+        # current governed synthetic responsibility provenance, not real consent.
         from hashlib import sha1 as _sha1
         _compat_path=ROOT/"tests"/"uniops_p3_history_existing_membership_seed_held.py"
         check(_compat_path.is_file() and not _compat_path.is_symlink(),
               "Reviewed history Person-root source missing")
         _compat_bytes=_compat_path.read_bytes()
         check(_sha1(b"blob "+str(len(_compat_bytes)).encode("ascii")+b"\\0"+
-                    _compat_bytes).hexdigest()=="5e88f69697f015ad04f61236e2403c7e0dc71752",
+                    _compat_bytes).hexdigest()=="7bcd3719aeea3e150770fe4bb4172416a815a38c",
               "History Person-root source pin changed")
         _compat_spec=importlib.util.spec_from_file_location(
             "uniops_p3_history_existing_membership_seed_held",_compat_path)

@@ -6,8 +6,12 @@ does not itself establish a matching organization_memberships row. In a
 disposable clone, the frozen historical fixture may use its EXACT original
 membership INSERT only when there is no member for that organization+Person,
 the signed worker's existing Auth/Person/principal roots match, and no
-conflicting/inactive membership exists. When one exact active membership
-already exists, the adapter reuses it and drops only the duplicate INSERT.
+conflicting/inactive membership exists. When one exact active membership already exists, the adapter reuses it
+and drops only the duplicate INSERT. The exact frozen companion's declared
+fictional self_adoption allocation is re-expressed using the current canon's
+required synthetic basis and actor=assignee member; the unverifiable
+'{"historical":true}' placeholder is never treated as authority.
+No real adoption is inferred. No other Work/relevance/governor SQL changes.
 This never changes governor APIs, tokens, grants, P3 SQL, or held proof code.
 
 The historical companion remains loaded from its immutable Git blob. ONLY its
@@ -39,9 +43,20 @@ ORIGINAL_ALLOCATION=f"""      INSERT INTO atlas.work_allocations(
        'responsible','active','self_adoption','{{"historical":true}}'::jsonb);"""
 BOUND_ALLOCATION=f"""      INSERT INTO atlas.work_allocations(
        id,organization_id,work_item_id,assignee_membership_id,
-       allocation_role,state,establishment_basis_kind,establishment_basis)
-      SELECT '{ALLOC}'::uuid,'{ORG}'::uuid,'{WORK}'::uuid,m.id,
-       'responsible','active','self_adoption','{{"historical":true}}'::jsonb
+       assigned_by_membership_id,allocation_role,state,
+       establishment_basis_kind,establishment_basis)
+      SELECT '{ALLOC}'::uuid,'{ORG}'::uuid,'{WORK}'::uuid,m.id,m.id,
+       'responsible','active','self_adoption',
+       jsonb_build_object(
+         'contractVersion','exact_work_responsibility_establishment_v2',
+         'basisKind','self_adoption',
+         'organizationId','{ORG}',
+         'workItemId','{WORK}',
+         'actorMembershipId',m.id,
+         'assigneeMembershipId',m.id,
+         'sourceKind','disposable_historical_retirement_fixture',
+         'sourceId','{WORK}',
+         'syntheticOnly',true)
       FROM atlas.organization_memberships m
       WHERE m.organization_id='{ORG}'::uuid
         AND m.person_id='{PERSON}'::uuid
@@ -88,6 +103,13 @@ ALLOCATION_SQL=(
     "join atlas.organization_memberships m on m.id=a.assignee_membership_id "
     "where a.id='"+ALLOC+"'::uuid "
     "and a.work_item_id='"+WORK+"'::uuid "
+    "and a.assigned_by_membership_id=m.id "
+    "and a.establishment_basis_kind='self_adoption' "
+    "and a.establishment_basis->>'contractVersion'='exact_work_responsibility_establishment_v2' "
+    "and a.establishment_basis->>'sourceKind'='disposable_historical_retirement_fixture' "
+    "and a.establishment_basis->>'sourceId'='"+WORK+"' "
+    "and a.establishment_basis->>'actorMembershipId'=m.id::text "
+    "and a.establishment_basis->>'assigneeMembershipId'=m.id::text "
     "and m.organization_id='"+ORG+"'::uuid "
     "and m.person_id='"+PERSON+"'::uuid "
     "and m.user_id='"+USER+"'::uuid and m.active is true")
@@ -196,6 +218,19 @@ def adapt_known_seed(seed):
         raise HistoricFixtureRefusal("Historical Person-root seed adaptation drift")
     return result
 
+def adapt_absent_seed(seed):
+    # The frozen companion's fictional membership, Work and Ledger relevance
+    # are retained byte-for-byte. Only the unusable placeholder self-adoption
+    # allocation acquires the required synthetic provenance contract.
+    adapt_known_seed(seed)  # fail closed on every unreviewed source variation
+    result=seed.replace(ORIGINAL_ALLOCATION,BOUND_ALLOCATION,1)
+    if (result.count("INSERT INTO atlas.")!=4 or
+            MEMBER_INSERT not in result or ORIGINAL_ALLOCATION in result or
+            result.count(BOUND_ALLOCATION)!=1 or
+            WORK_INSERT not in result or RELEVANCE_INSERT not in result):
+        raise HistoricFixtureRefusal("Historical absent-member source drift")
+    return result
+
 class ExistingPersonFixture:
     def __init__(self,original,reader):
         if not callable(getattr(original,"sql",None)) or not callable(reader):
@@ -234,9 +269,11 @@ class ExistingPersonFixture:
             if identity!="aligned":
                 emit_fixture_stage("person_identity_misaligned")
                 raise HistoricFixtureRefusal("Signed canonical Person root absent or mismatched")
-            # This is the unchanged four-INSERT frozen fictional companion seed.
-            # Never manufacture, replace or update an existing Person membership.
-            selected=seed
+            # Retain the frozen fictional membership, Work and relevance
+            # statements, but encode the companion's already-claimed synthetic
+            # self_adoption using current canon's exact contract. No real
+            # consent, historical event or member identity is manufactured.
+            selected=adapt_absent_seed(seed)
             mode="new"
             emit_fixture_stage("membership_create_authorized")
         else:
