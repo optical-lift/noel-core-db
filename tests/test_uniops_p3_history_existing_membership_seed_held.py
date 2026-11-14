@@ -247,5 +247,62 @@ class FixtureCompatibility(unittest.TestCase):
         self.assertNotIn("UNI_OPS_HISTORY_FIXTURE_STAGE=fixture_verified",
                          sink.getvalue())
 
+
+    def test_sql_error_classification_never_exposes_captured_private_error(self):
+        cases=(
+            ("duplicate key value violates unique constraint","unique_constraint"),
+            ("insert or update violates foreign key constraint","foreign_key_constraint"),
+            ("new row violates check constraint","check_constraint"),
+            ("null value in column violates not-null constraint","not_null_constraint"),
+            ("new row violates row-level security policy","row_security"),
+            ("permission denied for relation","permission_denied"),
+            ("column secret does not exist","missing_column"),
+            ("relation secret does not exist","missing_relation"),
+            ("invalid input value for enum kind","invalid_enum"),
+            ("type custom cannot be cast","data_type"),
+            ("another PostgreSQL error","other_postgres_error")
+        )
+        for msg,expected in cases:
+            with self.subTest(expected=expected):
+                private="PRIVATE_VALUE_DO_NOT_DISCLOSE"
+                exc=subprocess.CalledProcessError(
+                    1,["psql",private],
+                    output="INSERT 0 1\nINSERT 0 1\n",
+                    stderr="psql: ERROR:  "+msg+"\nDETAIL: "+private)
+                self.assertEqual(m.classify_seed_sql_failure(exc),
+                                 (expected,"after_two_insert_tags"))
+                out=io.StringIO()
+                with redirect_stdout(out):
+                    m.emit_seed_sql_failure(exc)
+                self.assertIn("UNI_OPS_HISTORY_SEED_SQL_KIND="+expected,out.getvalue())
+                self.assertIn("UNI_OPS_HISTORY_SEED_PROGRESS=after_two_insert_tags",
+                              out.getvalue())
+                self.assertNotIn(private,out.getvalue())
+                self.assertNotIn("secret",out.getvalue())
+
+    def test_sql_error_classifier_fails_to_safe_unknown(self):
+        for exc in (
+            subprocess.CalledProcessError(
+                1,["psql","secret"],output="private sql",
+                stderr="SECRET SQL TOKEN"),
+            subprocess.CalledProcessError(
+                1,["psql","secret"],output=None,stderr=None),
+            subprocess.CalledProcessError(
+                1,["psql","secret"],output="INSERT 0 1\n"*9,
+                stderr="ERROR:  private surprise"),
+            subprocess.CalledProcessError(
+                1,["psql","secret"],output="",
+                stderr=("ERROR: surprise\n"*2))
+        ):
+            kind,progress=m.classify_seed_sql_failure(exc)
+            self.assertIn(kind,m.SEED_SQL_KINDS)
+            self.assertIn(progress,m.SEED_PROGRESS)
+            self.assertNotIn("secret",str((kind,progress)).lower())
+        self.assertEqual(m.classify_seed_sql_failure(
+            subprocess.CalledProcessError(1,["psql"],output=None,
+                                           stderr=None)),
+            ("unclassified","not_located"))
+
+
 if __name__=="__main__":
     unittest.main(argv=[sys.argv[0]],verbosity=2)
