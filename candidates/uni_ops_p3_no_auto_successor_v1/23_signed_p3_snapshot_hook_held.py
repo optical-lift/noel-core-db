@@ -125,7 +125,7 @@ def patch_exact_disposable_u4(path):
     replay=('    require(status==200 and accepted_receipt(replay,work)\n'
             '            and replay["workResultId"]==response["workResultId"]\n'
             '            and replay.get("idempotent") is True,\n'
-            '             "U4 signed retry produced a second Result or changed its identity")')
+            '            "U4 signed retry produced a second Result or changed its identity")')
     for anchor in (before,after,replay):
         if original.count(anchor)!=1:
             raise AssertionError("P3 U4 injection anchor source drift")
