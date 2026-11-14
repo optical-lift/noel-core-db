@@ -87,10 +87,15 @@ CALL_PREFIX="UNI_OPS_HISTORY_CALL_STAGE="
 CALL_HTTP_PREFIX="UNI_OPS_HISTORY_CALL_HTTP_CLASS="
 CALL_ERROR_PREFIX="UNI_OPS_HISTORY_CALL_ERROR_CLASS="
 CALL_HTTP=frozenset(("ok","bad_request","unauthorized","forbidden",
-                     "conflict","other"))
+                     "not_found","conflict","unprocessable","rate_limited",
+                     "internal_error","bad_gateway","unavailable",
+                     "gateway_timeout","other"))
 CALL_ERROR=frozenset(("none","permission_denied","stale_snapshot",
                       "source_constraint","source_conflict",
-                      "missing_function","other"))
+                      "missing_function","postgrest_custom_json_invalid",
+                      "postgrest_function_cache_missing",
+                      "postgrest_custom_unparsed",
+                      "postgrest_native_conflict","other"))
 CALL_RE=re.compile(
     r"^(?:sql_(?:0[1-9]|1[0-8])|"
     r"rpc_(?:0[1-9]|1[0-8])_(?:link|review|preflight|retire)_"
