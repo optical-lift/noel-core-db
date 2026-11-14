@@ -49,6 +49,39 @@ FIXTURE_STAGES=frozenset((
 HANDOFF_PREFIX="UNI_OPS_HISTORY_HANDOFF_STAGE="
 FIXTURE_PREFIX="UNI_OPS_HISTORY_FIXTURE_STAGE="
 
+SEED_SQL_KINDS=frozenset((
+    "unique_constraint","foreign_key_constraint","check_constraint",
+    "not_null_constraint","row_security","permission_denied",
+    "missing_column","missing_relation","invalid_enum","data_type",
+    "other_postgres_error","unclassified"
+))
+SEED_PROGRESS=frozenset((
+    "not_located","after_one_insert_tag","after_two_insert_tags",
+    "after_three_insert_tags"
+))
+SEED_KIND_PREFIX="UNI_OPS_HISTORY_SEED_SQL_KIND="
+SEED_PROGRESS_PREFIX="UNI_OPS_HISTORY_SEED_PROGRESS="
+
+def classify_seed_detail(private_log):
+    """Safe finite enums only; no private SQL, psql stdout or stderr exposed."""
+    if not isinstance(private_log,str):
+        return "log_unavailable","log_unavailable"
+    if len(private_log.encode("utf8",errors="replace"))>MAX_BYTES:
+        return "log_oversize","log_oversize"
+    kind,progress="not_reported","not_reported"
+    for line in private_log.splitlines():
+        if line.startswith(SEED_KIND_PREFIX):
+            value=line[len(SEED_KIND_PREFIX):]
+            if value not in SEED_SQL_KINDS:
+                return "unverified","unverified"
+            kind=value
+        elif line.startswith(SEED_PROGRESS_PREFIX):
+            value=line[len(SEED_PROGRESS_PREFIX):]
+            if value not in SEED_PROGRESS:
+                return "unverified","unverified"
+            progress=value
+    return kind,progress
+
 def classify_stage(private_log):
     """Classify the last fixed source-owned stage, never arbitrary log contents.
 
