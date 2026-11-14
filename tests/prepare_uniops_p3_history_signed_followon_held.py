@@ -109,12 +109,23 @@ HISTORY_TRACE='''        # Held signed-history trace: public fixed enums only. N
             _tag="rpc_%02d_%s_%s" % (_n,_op,_role)
             print("UNI_OPS_HISTORY_CALL_STAGE="+_tag+"_started",flush=True)
             _status,_payload=rpc(_api,_key,_token,_name,_params)
+            # Explicit transport categories differentiate PostgREST custom
+            # error parsing (PGRST121) from SQLSTATE 40001 mapping; neither
+            # result is accepted as a signed success without the original proof.
             _http={200:"ok",400:"bad_request",401:"unauthorized",
-                   403:"forbidden",409:"conflict"}.get(_status,"other")
+                   403:"forbidden",404:"not_found",409:"conflict",
+                   422:"unprocessable",429:"rate_limited",
+                   500:"internal_error",502:"bad_gateway",
+                   503:"unavailable",504:"gateway_timeout"}.get(_status,"other")
             _code=_payload.get("code") if isinstance(_payload,dict) else None
             _error={"42501":"permission_denied","40001":"stale_snapshot",
                     "23514":"source_constraint","23505":"source_conflict",
-                    "42883":"missing_function"}.get(_code,"other" if _code is not None else "none")
+                    "42883":"missing_function",
+                    "PGRST121":"postgrest_custom_json_invalid",
+                    "PGRST202":"postgrest_function_cache_missing",
+                    "PGRST":"postgrest_custom_unparsed",
+                    "PT409":"postgrest_native_conflict"}.get(
+                        _code,"other" if _code is not None else "none")
             print("UNI_OPS_HISTORY_CALL_HTTP_CLASS="+_http,flush=True)
             print("UNI_OPS_HISTORY_CALL_ERROR_CLASS="+_error,flush=True)
             print("UNI_OPS_HISTORY_CALL_STAGE="+_tag+"_returned",flush=True)
