@@ -49,6 +49,17 @@ ACTION_PARTICIPATION_OTHER = "e5200000-0000-4000-8000-000000000d07"
 ACTION_OCCURRENCE_COMMENT = "e5200000-0000-4000-8000-000000000d08"
 ACTION_COMPLETED_SOURCE = "e5200000-0000-4000-8000-000000000d09"
 ACTION_COMPLETED_NEW = "e5200000-0000-4000-8000-000000000d0a"
+ACTION_PHYSICAL_COMMENT = "e5200000-0000-4000-8000-000000000d0b"
+PHYSICAL_FARM = "e5200000-0000-4000-8000-000000000b31"
+PHYSICAL_ZONE = "e5200000-0000-4000-8000-000000000b32"
+PHYSICAL_BED = "e5200000-0000-4000-8000-000000000b33"
+PHYSICAL_TASK = "e5200000-0000-4000-8000-000000000b34"
+PHYSICAL_WORK_KEY = "w07-original-work-903-physical"
+PHYSICAL_BED_KEY = "w07-synthetic-physical-bed"
+PHYSICAL_ID_GRANT = "e5200000-0000-4000-8000-000000000b35"
+PHYSICAL_CONDITION_GRANT = "e5200000-0000-4000-8000-000000000b36"
+PHYSICAL_CONDITION_WITHHOLD = "e5200000-0000-4000-8000-000000000b37"
+PHYSICAL_CONDITION_REGRANT = "e5200000-0000-4000-8000-000000000b38"
 OCCURRENCE_SUBJECT = "e5200000-0000-4000-8000-000000000a11"
 OCCURRENCE_LINK = "e5200000-0000-4000-8000-000000000a12"
 DISCLOSURE_GRANT_1 = "e5200000-0000-4000-8000-000000000a13"
@@ -345,6 +356,120 @@ def independently_accepted_participant_trial(db_url, api, key, owner, other, no_
     print("PASS W07 signed synthetic occurrence reference deny/grant/withhold/regrant; "
           "real Event source provenance remains untested")
 
+    # The next source is a *physically grounded* (synthetic) farm-zone-bed
+    # relationship, distinct from the unsupported Event provenance case above.
+    # Its guard must be satisfied by a signed governor and the actual Work
+    # source Task, not by postulating a Work-to-bed identifier in test SQL.
+    mark_stage("physical-source-preflight")
+    check(sql(db_url, """
+      SELECT count(*) FROM atlas.work_items w
+      JOIN atlas.tasks t ON t.id=w.source_object_id
+      JOIN atlas.farms f ON f.id=t.farm_id
+      JOIN atlas.zones z ON z.id=t.zone_id AND z.farm_id=f.id
+      JOIN atlas.growing_objects g ON g.farm_id=f.id AND g.zone_id=z.id
+      WHERE w.id='%s'::uuid AND w.organization_id='%s'::uuid
+        AND w.organization_unit_id=f.organization_unit_id
+        AND w.source_object_type='legacy_task'
+        AND w.stable_key='%s'
+        AND g.id='%s'::uuid AND g.stable_key='%s'
+        AND t.id='%s'::uuid AND f.id='%s'::uuid
+    """ % (w,ORG,PHYSICAL_WORK_KEY,PHYSICAL_BED,PHYSICAL_BED_KEY,
+           PHYSICAL_TASK,PHYSICAL_FARM)) == "1",
+          "A real synthetic farm, matching Task, zone, bed and original Work source are mandatory")
+
+    mark_stage("physical-crop-custody-signed-establish")
+    status,custody=rpc(api,key,owner,
+        "establish_farm_crop_ledger_custody_self_api_v1",{
+          "p_farm_id":PHYSICAL_FARM,"p_ledger_id":LEDGER,
+          "p_review":{"cropLedgerBoundaryReviewed":True,
+                      "authorityDomain":"farm_crop_operations"}})
+    check(status==200 and isinstance(custody,dict)
+          and custody.get("ok") is True
+          and custody.get("confersPersonAccess") is False
+          and custody.get("created") is True,
+          "Signed root must establish exact farm crop Ledger custody without Person grants")
+    mark_stage("physical-governed-link-signed-establish")
+    status,link=rpc(api,key,owner,
+        "establish_work_growing_object_context_self_api_v1",{
+          "p_ledger_id":LEDGER,"p_work_item_id":w,
+          "p_object_id":PHYSICAL_BED,
+          "p_review":{"humanConfirmed":True,
+                      "reviewedWorkStableKey":PHYSICAL_WORK_KEY,
+                      "reviewedObjectKey":PHYSICAL_BED_KEY}})
+    check(status==200 and isinstance(link,dict)
+          and link.get("ok") is True and link.get("created") is True
+          and link.get("confersAccess") is False
+          and link.get("workItemId")==w and link.get("contextId"),
+          "Governor could not sign physically verified original Work-bed context")
+    check(sql(db_url, """
+      SELECT count(*) FROM atlas.work_item_context_links l
+      JOIN atlas.work_items w ON w.id=l.work_item_id
+      JOIN atlas.tasks t ON t.id=w.source_object_id
+      JOIN atlas.growing_objects g ON g.id=l.subject_id
+      JOIN atlas.farm_crop_ledger_custody_v1 c ON c.farm_id=g.farm_id
+      WHERE l.id='%s'::uuid AND l.work_item_id='%s'::uuid
+        AND l.subject_domain='spatial' AND l.subject_kind='growing_object'
+        AND t.zone_id=g.zone_id AND t.farm_id=g.farm_id
+        AND c.ledger_id='%s'::uuid AND c.custody_state='active'
+        AND l.metadata->>'confersAccess'='false'
+    """ % (link["contextId"],w,LEDGER)) == "1",
+          "Signed physical source must retain exact Task-zone-farm-bed custody evidence")
+    mark_stage("physical-no-disclosure-denial")
+    forbidden(api,key,other,READ,read_args(work=w),
+              "accepted participant denied physically linked undisclosed bed")
+    forbidden(api,key,other,WRITE,
+              write_args(ACTION_PHYSICAL_COMMENT,"withheld bed",work=w),
+              "undisclosed physical condition cannot leak in ordinary note")
+
+    def physical_disclosure(action,category,decision):
+        sql(db_url, """
+          INSERT INTO atlas.subject_disclosure_decision_events_v1 (
+            organization_id,ledger_id,target_person_id,
+            subject_domain,subject_kind,subject_id,
+            disclosure_class,decision_kind,source_action_id,reason,
+            decided_by_person_id
+          ) VALUES (
+            '%s'::uuid,'%s'::uuid,'%s'::uuid,
+            'spatial','growing_object','%s'::uuid,
+            '%s','%s','%s'::uuid,
+            'Clone-only independently reviewed source-bound physical disclosure',
+            '%s'::uuid
+          )
+        """ % (ORG,LEDGER,PARTICIPANT_PERSON,PHYSICAL_BED,category,
+               decision,action,OWNER_PERSON))
+
+    mark_stage("physical-identity-only-denial")
+    physical_disclosure(PHYSICAL_ID_GRANT,"identity","grant")
+    forbidden(api,key,other,READ,read_args(work=w),
+              "bed identity alone cannot disclose growing condition")
+    mark_stage("physical-condition-grant-read-write")
+    physical_disclosure(PHYSICAL_CONDITION_GRANT,"condition","grant")
+    readable=permitted(api,key,other,READ,read_args(work=w))
+    check(len(readable.get("items") or [])==3,
+          "Both physical identity and condition required for existing Work read")
+    physical_note=permitted(api,key,other,WRITE,
+        write_args(ACTION_PHYSICAL_COMMENT,
+                   "SYNTH_W07_PHYSICAL_SCOPE_NOTE",work=w))
+    check(physical_note.get("commentId")
+          and len(permitted(api,key,owner,READ,read_args(work=w))["items"])==4,
+          "Independent participant physical disclosure did not admit signed read/write")
+
+    mark_stage("physical-condition-withhold-denial")
+    physical_disclosure(PHYSICAL_CONDITION_WITHHOLD,"condition","withhold")
+    forbidden(api,key,other,READ,read_args(work=w),
+              "withdrawn bed condition revokes all prior ordinary note read")
+    forbidden(api,key,other,WRITE,
+              write_args(ACTION_PHYSICAL_COMMENT,
+                         "SYNTH_W07_PHYSICAL_SCOPE_NOTE",work=w),
+              "withdrawn condition also revokes saved-action replay")
+    mark_stage("physical-condition-regrant-read")
+    physical_disclosure(PHYSICAL_CONDITION_REGRANT,"condition","grant")
+    restored=permitted(api,key,other,READ,read_args(work=w))
+    check(len(restored.get("items") or [])==4,
+          "Independent physical condition regrant must recover canonical history")
+    print("PASS W07 signed farm/zone/Task/bed source plus independent identity "
+          "and condition disclosure; withholding and regrant enforced")
+
     # Source withdrawal remains effective despite the membership/seat.
     sql(db_url, """
       UPDATE atlas.work_allocations SET state='released',
@@ -357,7 +482,7 @@ def independently_accepted_participant_trial(db_url, api, key, owner, other, no_
               write_args(ACTION_PARTICIPATION_OTHER,
                          "SYNTH_W07_PARTICIPATION_OTHER",work=w),
               "revoked accepted participant cannot replay old note")
-    check(len(permitted(api,key,owner,READ,read_args(work=w))["items"])==3,
+    check(len(permitted(api,key,owner,READ,read_args(work=w))["items"])==4,
           "Original Work retains participant's authorship after withdrawal")
     print("PASS W07 independently accepted third Person source-bound read/write, "
           "membership/offer-only denial, synthetic linked-occurrence identity "
@@ -763,7 +888,9 @@ def main():
       "page cursor, parallel same-key same/different-body race, "
       "signed revocation, independent accepted participant, synthetic "
       "occurrence identity withhold/grant/regrant, historical original Work "
-      "replay/read and new-write denial, no notification/Event table mutation, "
+      "replay/read and new-write denial, signed farm/zone/Task/bed physical "
+      "disclosure identity and condition withhold/regrant, "
+      "no notification/Event table mutation, "
       "no new Work or Work Result\n",
       encoding="utf-8"
     )
