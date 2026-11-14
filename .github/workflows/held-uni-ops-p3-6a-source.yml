@@ -19,10 +19,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Checkout immutable previously signed U4 test source
+        uses: actions/checkout@v4
+        with:
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
+          path: pinned-u4
+          persist-credentials: false
       - name: Exercise P3 frozen delta and synthetic no-auto-successor contract
         shell: bash
         run: |
           set -euo pipefail
+          test "$(git -C pinned-u4 hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 2e180aa2363201e75ca0d717eeeddd5a708193ab
+          python3 -m py_compile candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py candidates/uni_ops_p3_no_auto_successor_v1/24_test_signed_p3_snapshot_hook_held.py
+          python3 candidates/uni_ops_p3_no_auto_successor_v1/24_test_signed_p3_snapshot_hook_held.py pinned-u4/tests/uniops_u2_qualified_actual_followon_held.py
           node --test candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs
           echo 'SOURCE_ONLY_P3_6A=PASS'
           echo 'SIGNED_POST_RESULT_6A=NOT_RUN'
