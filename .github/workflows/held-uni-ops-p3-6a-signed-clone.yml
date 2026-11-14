@@ -16,6 +16,8 @@ on:
       - 'tests/install-uniops-u2-first-original-signed-hook.py'
       - 'tests/install-uniops-p3-6a-current-validator-copy.py'
       - 'tests/test_uniops_p3_6a_current_validator_copy.py'
+      - 'tests/frame-uniops-p3-6a-disposable-sql.py'
+      - 'tests/test_uniops_p3_6a_disposable_sql_framing.py'
 permissions:
   contents: read
   packages: read
@@ -132,6 +134,10 @@ jobs:
           python3 -m py_compile p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
           python3 p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/24_test_signed_p3_snapshot_hook_held.py u4-source-contract/tests/uniops_u2_qualified_actual_followon_held.py
           (cd p3-source-contract && node --test candidates/uni_ops_p3_no_auto_successor_v1/21_mowing_6a_source.test.mjs)
+          test "$(git hash-object tests/frame-uniops-p3-6a-disposable-sql.py)" = 0ab7fc8f77d3a679355ff064482cb94ac607b037
+          test "$(git hash-object tests/test_uniops_p3_6a_disposable_sql_framing.py)" = de3cd01978907b36dc3d22142716436acda50ed7
+          python3 -m py_compile tests/frame-uniops-p3-6a-disposable-sql.py tests/test_uniops_p3_6a_disposable_sql_framing.py
+          python3 tests/test_uniops_p3_6a_disposable_sql_framing.py p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-uni-ops-p3-6a-signed-clone.yml').read_text()
@@ -141,6 +147,9 @@ jobs:
           assert 'environment: production' in p
           assert 'p3_source_sha' in p
           assert 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' in p
+          assert 'frame-uniops-p3-6a-disposable-sql.py' in p
+          assert "'p3-result-only-evaluator'" in p
+          assert "'p3-signal-guard'" in p
           assert 'UNI_OPS_P3_MOWING_RESULT_6A=' in p
           assert 'UNI_OPS_SIGNED_POST_RESULT_6A=NOT_RUN' in p
           assert "--candidate-migration \"$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql\"" in p
@@ -483,6 +492,8 @@ jobs:
           test -s "$origin" && test ! -e "$target"
           source_sha="$(sha256sum "$origin" | cut -d' ' -f1)"
           node p3-held/candidates/uni_ops_p3_no_auto_successor_v1/22_compose_mowing_6a_scratch_held.mjs "$origin" "$source_sha" "$target"
+          test "$(git -C canonical hash-object tests/frame-uniops-p3-6a-disposable-sql.py)" = 0ab7fc8f77d3a679355ff064482cb94ac607b037
+          python3 canonical/tests/frame-uniops-p3-6a-disposable-sql.py "$target" p3-held/candidates/uni_ops_p3_no_auto_successor_v1
           test -s "$target" && test ! -L "$target"
           cp p3-held/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py canonical/tests/uniops_p3_6a_snapshot_hook_held.py
           cp p3-held/candidates/uni_ops_p3_no_auto_successor_v1/18_disposable_signed_result_snapshot.sql canonical/tests/uniops_p3_6a_snapshot.sql
@@ -557,9 +568,23 @@ jobs:
                           ('duplicate_object',r'\balready exists\b'))
                       category=next((name for name,pattern in patterns if re.search(pattern,detail)),
                                     'unclassified_sql_error')
+                  stage_names={
+                    '01_result_only_rhythm_evaluator_held.sql':'p3-result-only-evaluator',
+                    '02_accepted_first_original_readiness_held.sql':'p3-source-receipt',
+                    '03_governed_rulebook_legacy_clock_cutover_held.sql':'p3-native-rulebook-guard',
+                    '04_canonical_original_acceptance_guard_held.sql':'p3-original-acceptance',
+                    '06_deferred_governed_original_finalization_held.sql':'p3-deferred-original-finalizer',
+                    '11_governed_rhythm_clock_signal_specific_hold_held.sql':'p3-signal-guard',
+                    '12_direct_rhythm_base_writers_governed_hold_held.sql':'p3-direct-legacy-writers',
+                    '20_mowing_6a_core_postconditions_held.sql':'p3-mowing-postconditions'}
                   for i,line in enumerate(sql.read_text(errors='replace').splitlines(),1):
                       marker=re.match(r'^-- BEGIN PINNED STAGE ([a-z0-9-]+) blob:[0-9a-f]{40}$',line)
                       if marker:stage=marker[1]
+                      if line.startswith('-- BEFORE P3 file 01:'):
+                        stage='p3-source-fingerprint-preflight'
+                      p3=re.fullmatch(r'-- BEGIN PINNED P3 6A HELD STAGE ([a-z0-9_.]+) [0-9a-f]{40}',line)
+                      if p3:
+                        stage=stage_names.get(p3[1],'p3-unrecognized-stage')
                       if i>=int(m[1]):break
           log=summary.read_text(errors='replace') if summary.is_file() else ''
           report=root/'summary.md'
