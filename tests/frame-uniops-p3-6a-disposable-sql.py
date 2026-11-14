@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """HELD first-mowing P3 scratch SQL framing, never a source/migration edit.
 
-PostgreSQL pg_get_functiondef source (held P3 01 and 11) deliberately has no
+PostgreSQL pg_get_functiondef source (held P3 01, 11 and 12) deliberately has no
 terminating SQL statement semicolon. The frozen P3 assembler preserves those
 source bytes, but an executable psql file needs a statement delimiter after
-each dollar-quoted function body. Add ONLY two exact delimiters to a verified
+each dollar-quoted function body. Add ONLY four exact delimiters to a verified
 TEST_ONLY scratch file. Refuse any unknown source, filename or output drift.
 No database or credentials are used.
 """
@@ -22,6 +22,7 @@ SOURCE_SHA256="0b765e95d9a5c6ce0f5f38954ee2ab3cc37f15b51c73c7920aeba148aa5b64bd"
 REVIEWED={
  "01_result_only_rhythm_evaluator_held.sql":"155bb1c154903becdbb489c6bddb895aa9a6b597",
  "11_governed_rhythm_clock_signal_specific_hold_held.sql":"95b93e896ceaae90d9bfe59eefda695dad204e72",
+ "12_direct_rhythm_base_writers_governed_hold_held.sql":"3b602219316e132dcc7e5562724308b3c093148f",
 }
 
 def git_blob(payload):
@@ -48,10 +49,15 @@ def source_bytes(parent):
     if bodies["11_governed_rhythm_clock_signal_specific_hold_held.sql"].count(
             "end;$function$\n\nCOMMIT;")!=1:
         raise AssertionError("Exact signal function source framing drift")
+    # Both frozen legacy writers end in a raw pg_get_functiondef delimiter
+    # lacking its outer SQL statement terminator.
+    if bodies["12_direct_rhythm_base_writers_governed_hold_held.sql"].count(
+            "\n$function$\n")!=2:
+        raise AssertionError("Exact pair of direct legacy writer function terminators drift")
     return bodies
 
 def frame(source,bodies):
-    """Return ONLY two punctuation insertions for exact verified P3 stages."""
+    """Return ONLY four punctuation insertions for exact verified P3 stages."""
     if source.count("-- BEGIN PINNED STAGE ")!=18 or (
             source.count("-- END PINNED STAGE ")!=18):
         raise AssertionError("Expected intact 18-stage U2/U4 provenance")
@@ -71,19 +77,25 @@ def frame(source,bodies):
             raise AssertionError("P3 held source differs from pinned body")
         if name.startswith("01_"):
             patched=bodies[name].rstrip()+";\n\n"
-        else:
+        elif name.startswith("11_"):
             patched=bodies[name].replace(
                 "end;$function$\n\nCOMMIT;",
                 "end;$function$;\n\nCOMMIT;",1)
+        elif name.startswith("12_"):
+            # Two independently pinned raw function bodies, no SQL logic edits.
+            patched=bodies[name].replace("\n$function$\n","\n$function$;\n")
+        else:
+            raise AssertionError("Unexpected P3 SQL framing stage")
         # Source is never edited; only its scratch SQL representation gets a
         # required terminator. The END-marker separator remains unchanged.
         result=prefix+begin+patched+end+suffix
     if result.count("-- BEGIN PINNED P3 6A HELD STAGE ")!=8 or (
             result.count("-- END PINNED P3 6A HELD STAGE ")!=8):
         raise AssertionError("Stage identities changed")
-    # Both targeted source functions need one semicolon; no other modification.
-    if result.count("end;$function$;\n\nCOMMIT;")<1:
-        raise AssertionError("Signal function terminator absent")
+    # One terminator for evaluator, one for signal, and two for direct writers.
+    if result.count("end;$function$;\n\nCOMMIT;")<1 or (
+            result.count("\n$function$;\n")<2):
+        raise AssertionError("Required P3 source function terminator absent")
     return result
 
 def main(argv):
@@ -119,7 +131,7 @@ def main(argv):
     finally:
         if os.path.exists(filename):
             os.unlink(filename)
-    print("P3_6A_SQL_STATEMENT_TERMINATORS=2_EXACT_PINNED_SCRATCH_ONLY")
+    print("P3_6A_SQL_STATEMENT_TERMINATORS=4_EXACT_PINNED_SCRATCH_ONLY")
     print("P3_6A_FRAMED_SCRATCH_SHA256="+hashlib.sha256(
         revised.encode("utf8")).hexdigest())
     print("PRODUCTION_MUTATION=NONE")
