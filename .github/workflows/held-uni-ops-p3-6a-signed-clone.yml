@@ -1,10 +1,10 @@
-name: HELD UNI-OPS U2 to U4 signed Actual disposable clone (test only)
+name: HELD UNI-OPS P3 6A signed Result no-successor disposable clone (owner-only)
 on:
   issues:
     types: [edited, reopened]
   pull_request:
     paths:
-      - '.github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml'
+      - '.github/workflows/held-uni-ops-p3-6a-signed-clone.yml'
       - 'tests/uniops-option-a-first-mowing-signed-fixture.sql'
       - 'tests/validate-uniops-option-a-u2-accepted-first-signed.py'
       - 'tests/uniops_u2_namefree_guard_owner.py'
@@ -19,7 +19,7 @@ permissions:
   packages: read
   issues: read
 concurrency:
-  group: held-uni-ops-u2-u4-signed-actual-only
+  group: held-uni-ops-p3-6a-signed-no-successor
   cancel-in-progress: false
 jobs:
   source-contract:
@@ -52,7 +52,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml")'
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uni-ops-p3-6a-signed-clone.yml")'
           python3 -m py_compile tests/validate-uniops-option-a-u2-accepted-first-signed.py tests/uniops_u2_namefree_guard_owner.py tests/test_uniops_u2_namefree_guard_owner.py tests/uniops_u2_local_stack_evidence.py tests/test_uniops_u2_local_stack_evidence.py tests/prepare_reviewed_uniops_u2c_context_scratch.py tests/test_prepare_reviewed_uniops_u2c_context_scratch.py tests/install-uniops-u2-first-original-signed-hook.py
           python3 -m unittest discover -s tests -p 'test_uniops_u2_namefree_guard_owner.py' -v
           python3 -m unittest discover -s tests -p 'test_uniops_u2_local_stack_evidence.py' -v
@@ -63,13 +63,13 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_uniops_u4_mowing_rule_fixture_held.py' -v
           python3 - <<'PY'
           from pathlib import Path
-          workflow=Path(".github/workflows/held-uni-ops-u2-u4-signed-actual-clone.yml").read_text()
+          workflow=Path(".github/workflows/held-uni-ops-p3-6a-signed-clone.yml").read_text()
           p=Path("tests/validate-uniops-option-a-u2-accepted-first-signed.py").read_text()
           fixture=Path("tests/uniops-option-a-first-mowing-signed-fixture.sql").read_text()
           hook=Path("tests/install-uniops-u2-first-original-signed-hook.py").read_text()
           protected=workflow.split("  validate-protected:\n",1)[1]
           assert protected.count("github.actor == github.repository_owner")==1
-          assert "github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'" in workflow
+          assert "github.event.issue.title == 'UNI-OPS P3 6A protected signed Result no-successor gate'" in workflow
           assert "source_choice':'a_full_current_completion_plus_history'" in workflow
           assert "signed_contract':'u1b_u2_mowing_accepted_first_v1'" in workflow
           assert "NOEL_CORE_DATABASE_URL" in workflow and "supabase db dump" in workflow
@@ -101,7 +101,7 @@ jobs:
           assert "signed_accepted_first_probe" in hook
           assert "39f526cd8671f0aadbaab61c66dfc4971ef52131" in hook
           assert "U4_SIGNED_ACTUAL_RESULT_DONE=PASS" in workflow
-          assert "github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'" in workflow
+          assert "github.event.issue.title == 'UNI-OPS P3 6A protected signed Result no-successor gate'" in workflow
           assert "u4_test_sha" in workflow and "test_goal" in workflow
           assert 'ref: 075919564dc340ad86be8e969a2ad2d02ec19a15' in workflow
           assert "--u4-actual-followon" in workflow
@@ -115,7 +115,7 @@ jobs:
       github.event.issue.state == 'open' &&
       github.event.issue.author_association == 'OWNER' &&
       github.actor == github.repository_owner &&
-      github.event.issue.title == 'UNI-OPS U2 to U4 protected signed Actual gate'
+      github.event.issue.title == 'UNI-OPS P3 6A protected signed Result no-successor gate'
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 55
@@ -138,7 +138,8 @@ jobs:
               'production_target':'zirqkouammpwxlqfbsvf',
               'harness_head':'5d28e2584736b8dd9cab928a34a6d5dc39ba38c1',
               'u4_test_sha':'075919564dc340ad86be8e969a2ad2d02ec19a15',
-              'test_goal':'signed_u2_result_done_v1'}
+              'test_goal':'signed_u2_result_need_no_successor_v1',
+              'p3_source_sha':'7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e'}
           for line in os.environ.get('OWNER_BODY','').splitlines():
               match=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
               if match and match[1] in expected:
