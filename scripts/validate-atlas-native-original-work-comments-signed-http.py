@@ -137,7 +137,7 @@ def main():
           AND assignee_canonical_person_id='%s'::uuid
           AND state='active'
           AND establishment_basis_kind='person_connection_receiver_uptake'
-    """ % (ALLOC, WORK, c1.WORKER)) == "1",
+    """ % (ALLOC, WORK, "e5200000-0000-4000-8000-000000000102")) == "1",
           "Real synthetic receiver-accepted responsibility required")
     check(sql(args.db_url,
         "SELECT count(*) FROM atlas.native_original_work_comments_v1") == "0",
