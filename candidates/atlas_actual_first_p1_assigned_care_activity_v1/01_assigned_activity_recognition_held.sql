@@ -166,8 +166,18 @@ BEGIN
     v_work.id,v_activity.id,v_kind,v_after,NULL,v_activity.summary_sentence,NULL);
   IF v_receipt->>'ok' IS DISTINCT FROM 'true'
     OR v_receipt->>'workItemId' IS DISTINCT FROM v_work.id::text
-    OR v_receipt->>'physicalActualContractVersion'
-       IS DISTINCT FROM 'continuing_care_actual_v1'
+    OR NOT (
+      -- Completed care returns the universal lifecycle envelope plus
+      -- physicalActualContractVersion. Partial/Blocked care returns the
+      -- nonterminal native Actual contractVersion and keeps Work open.
+      -- Both are source-qualified Result receipts; neither is a next issuer.
+      v_receipt->>'physicalActualContractVersion'='continuing_care_actual_v1'
+      OR (
+        v_receipt->>'physicalActualContractVersion' IS NULL
+        AND v_receipt->>'contractVersion'='continuing_care_actual_v1'
+        AND v_receipt->>'workState'='open'
+      )
+    )
     OR v_receipt->>'noNewWorkCreated' IS DISTINCT FROM 'true'
     OR v_receipt->>'noClockAdmission' IS DISTINCT FROM 'true'
     OR nullif(v_receipt->>'workResultId','') IS NULL
