@@ -1,0 +1,25 @@
+name: HELD UNI-OPS C2 source-only native Ledger Case Work scope review
+on:
+  pull_request:
+    paths:
+      - 'docs/review/uniops_c2_native_ledger_requirement_work_scope_held/**'
+      - 'tests/test_uniops_c2_native_ledger_case_link_source_held.py'
+      - '.github/workflows/held-uniops-c2-native-ledger-case-work-source-review.yml'
+permissions:
+  contents: read
+jobs:
+  source-only-case-ledger-scope:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify exact installed source snapshot and one-block guard proposal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_uniops_c2_native_ledger_case_link_source_held.py
+          python3 -m unittest discover -s tests -p 'test_uniops_c2_native_ledger_case_link_source_held.py' -v
+          echo 'PASS source proposal only: no SQL executed; no permission or release accepted'
