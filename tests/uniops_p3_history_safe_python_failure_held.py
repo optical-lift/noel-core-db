@@ -22,6 +22,7 @@ EXCEPTION_CLASSES={
     "PermissionError":"local_file_permission",
     "RuntimeError":"python_runtime_error",
     "CalledProcessError":"local_sql_subprocess_error",
+    "HeldProofRefusal":"historical_signed_assertion_refusal",
     "TimeoutExpired":"local_process_timeout",
     "JSONDecodeError":"python_json_error",
     "SystemExit":"python_system_exit",
@@ -81,6 +82,45 @@ def classify_seed_detail(private_log):
                 return "unverified","unverified"
             progress=value
     return kind,progress
+
+CALL_PREFIX="UNI_OPS_HISTORY_CALL_STAGE="
+CALL_HTTP_PREFIX="UNI_OPS_HISTORY_CALL_HTTP_CLASS="
+CALL_ERROR_PREFIX="UNI_OPS_HISTORY_CALL_ERROR_CLASS="
+CALL_HTTP=frozenset(("ok","bad_request","unauthorized","forbidden",
+                     "conflict","other"))
+CALL_ERROR=frozenset(("none","permission_denied","stale_snapshot",
+                      "source_constraint","source_conflict",
+                      "missing_function","other"))
+CALL_RE=re.compile(
+    r"^(?:sql_(?:0[1-9]|1[0-8])|"
+    r"rpc_(?:0[1-9]|1[0-8])_(?:link|review|preflight|retire)_"
+    r"(?:owner|worker|outsider|no_seat))_(?:started|returned)$"
+)
+
+def classify_call(private_log):
+    """Latest safe local SQL/signed HTTP boundary; never a PASS receipt."""
+    if not isinstance(private_log,str):
+        return "log_unavailable","log_unavailable","log_unavailable"
+    if len(private_log.encode("utf8",errors="replace"))>MAX_BYTES:
+        return "log_oversize","log_oversize","log_oversize"
+    last_stage,last_http,last_error="not_reported","not_reported","not_reported"
+    for line in private_log.splitlines():
+        if line.startswith(CALL_PREFIX):
+            value=line[len(CALL_PREFIX):]
+            if CALL_RE.fullmatch(value) is None:
+                return "unverified","unverified","unverified"
+            last_stage=value
+        elif line.startswith(CALL_HTTP_PREFIX):
+            value=line[len(CALL_HTTP_PREFIX):]
+            if value not in CALL_HTTP:
+                return "unverified","unverified","unverified"
+            last_http=value
+        elif line.startswith(CALL_ERROR_PREFIX):
+            value=line[len(CALL_ERROR_PREFIX):]
+            if value not in CALL_ERROR:
+                return "unverified","unverified","unverified"
+            last_error=value
+    return last_stage,last_http,last_error
 
 def classify_stage(private_log):
     """Classify the last fixed source-owned stage, never arbitrary log contents.

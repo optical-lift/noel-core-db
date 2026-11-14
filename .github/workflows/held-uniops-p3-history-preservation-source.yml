@@ -52,14 +52,14 @@ jobs:
           test "$(git -C signed-history-source hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
           test "$(git -C signed-p3-source hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
           test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
-          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 87ab6fcc4e26f096974c7fa0b95b1e49b1c3d556
-          test "$(git hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = ec216f446a251350e833d84909b4bcd8ba914490
+          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = 85f68d11d9e70c625590e29f620a5042dc57c2bc
+          test "$(git hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 1320e2c892e74463e7e1099b99bdc997d2eed632
           test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 7bcd3719aeea3e150770fe4bb4172416a815a38c
           test "$(git hash-object tests/test_uniops_p3_history_existing_membership_seed_held.py)" = 8e2aab33ce2ebc69c36eee2abd8979881fdbce84
           python3 -m py_compile tests/uniops_p3_historical_preservation_check_held.py tests/prepare_uniops_p3_history_signed_followon_held.py tests/test_uniops_p3_history_signed_followon_held.py tests/uniops_p3_history_existing_membership_seed_held.py tests/test_uniops_p3_history_existing_membership_seed_held.py
           python3 tests/test_uniops_p3_history_existing_membership_seed_held.py --companion signed-history-source/tests/validate-atlas-native-historical-retirement-signed-http.py
-          test "$(git hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = ea2888a16475ddd85defc22350bb014bd97d64f7
-          test "$(git hash-object tests/test_uniops_p3_history_safe_python_failure_held.py)" = f5e271987d7ab583631cbc682ecf8322894a5fa8
+          test "$(git hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = b81e203c9f7f2f2d1a4c7f5fb836823cb6f9923e
+          test "$(git hash-object tests/test_uniops_p3_history_safe_python_failure_held.py)" = b70ecc80f338f86c52441673ace5884f666285e8
           python3 -m unittest discover -s tests -p 'test_uniops_p3_history_safe_python_failure_held.py' -v
           python3 tests/test_uniops_p3_history_signed_followon_held.py \
             --driver signed-u2-u4-source/tests/validate-uniops-option-a-u2-accepted-first-signed.py \

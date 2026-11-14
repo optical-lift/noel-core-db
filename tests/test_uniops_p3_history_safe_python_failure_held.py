@@ -130,5 +130,44 @@ class SafeHistoryDiagnostic(unittest.TestCase):
             ("unverified","unverified"))
 
 
+
+    def test_finite_signed_history_sql_and_rpc_call_trace(self):
+        private="PRIVATE_QUERY_TOKEN_NEVER_EXPOSE"
+        for stage in (
+            "sql_01_started","sql_18_returned",
+            "rpc_01_link_worker_started","rpc_02_link_owner_returned",
+            "rpc_03_review_worker_started","rpc_04_review_owner_returned",
+            "rpc_05_preflight_outsider_started",
+            "rpc_06_preflight_no_seat_returned",
+            "rpc_11_retire_owner_started","rpc_18_retire_owner_returned"
+        ):
+            for http in m.CALL_HTTP:
+                for error in m.CALL_ERROR:
+                    with self.subTest(stage=stage,http=http,error=error):
+                        captured=(private+"\n"+m.CALL_PREFIX+stage+"\n"
+                                  +m.CALL_HTTP_PREFIX+http+"\n"
+                                  +m.CALL_ERROR_PREFIX+error+"\n")
+                        result=m.classify_call(captured)
+                        self.assertEqual(result,(stage,http,error))
+                        self.assertNotIn(private,str(result))
+        self.assertEqual(m.classify_call("private only"),
+                         ("not_reported","not_reported","not_reported"))
+        self.assertEqual(m.classify_call(None),
+                         ("log_unavailable","log_unavailable","log_unavailable"))
+        self.assertEqual(m.classify_call("x"*(m.MAX_BYTES+1)),
+                         ("log_oversize","log_oversize","log_oversize"))
+
+    def test_unreviewed_history_trace_is_not_reported(self):
+        for bad in (
+            m.CALL_PREFIX+"sql_99_started",
+            m.CALL_PREFIX+"rpc_01_delete_all_owner_started",
+            m.CALL_PREFIX+"rpc_01_link_private_token_started",
+            m.CALL_PREFIX+"sql_01_started extra private text",
+            m.CALL_HTTP_PREFIX+"200 SQL injection",
+            m.CALL_ERROR_PREFIX+"private database exception",
+        ):
+            self.assertEqual(m.classify_call(bad),
+                             ("unverified","unverified","unverified"))
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
