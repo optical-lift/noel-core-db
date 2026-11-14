@@ -28,7 +28,7 @@ WITH requested AS (
  FROM atlas.work_items w CROSS JOIN requested p
  WHERE w.id=p.work_id AND w.organization_id=p.org_id
 ), actual_state AS (
- SELECT s.id,s.organization_id,s.farm_id,s.state,
+ SELECT s.id,s.organization_id,s.farm_id,s.subject_id,s.state,
         s.last_qualifying_satisfaction_id,s.warning_at,s.due_at,s.failure_at
  FROM atlas.rhythm_state s CROSS JOIN requested p
  WHERE s.id=p.rhythm_id AND s.organization_id=p.org_id
@@ -64,6 +64,23 @@ SELECT jsonb_build_object(
  'originalAcceptanceTotal',(SELECT count(*) FROM atlas.work_result_acceptances a
        WHERE a.organization_id=p.org_id AND a.work_item_id=p.work_id
          AND a.decision='accepted' AND a.acceptance_kind='source_qualified_physical_actual'),
+ 'observedPhysicalCondition',(
+    SELECT c.condition_state FROM atlas.care_current_state c
+    JOIN actual_state a ON a.farm_id=c.scope_id
+      AND c.subject_id=a.subject_id::text
+    WHERE c.scope_kind='farm' AND c.subject_domain='farm'
+      AND c.subject_kind='growing_object'
+    ORDER BY c.last_observed_at DESC,c.id DESC LIMIT 1),
+ 'physicalCareResultTotal',(
+    SELECT count(*) FROM atlas.care_result_events e JOIN actual_state a
+      ON e.scope_id=a.farm_id AND e.subject_id=a.subject_id::text
+    WHERE e.scope_kind='farm' AND e.source_kind='continuing_care_actual'
+      AND e.metadata->>'workItemId'=p.work_id::text),
+ 'physicalCareObservationTotal',(
+    SELECT count(*) FROM atlas.care_observation_events e JOIN actual_state a
+      ON e.scope_id=a.farm_id AND e.subject_id=a.subject_id::text
+    WHERE e.scope_kind='farm' AND e.source_kind='continuing_care_actual_observation'
+      AND e.metadata->>'workItemId'=p.work_id::text),
  'satisfactionTotal',(SELECT count(*) FROM atlas.rhythm_satisfactions s
        WHERE s.organization_id=p.org_id AND s.rhythm_state_id=p.rhythm_id),
  'principalObligationTotal',(SELECT count(*) FROM atlas.owner_obligations),
