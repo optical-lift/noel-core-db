@@ -20,7 +20,7 @@ class HeldOverlayRefusal(AssertionError):
     pass
 
 def git_blob(raw):
-    return hashlib.sha1(b"blob "+str(len(raw)).encode("ascii")+b"\\0"+raw).hexdigest()
+    return hashlib.sha1(b"blob "+str(len(raw)).encode("ascii")+b"\0"+raw).hexdigest()
 
 def append_only(base,candidate):
     if not isinstance(base,str) or not isinstance(candidate,bytes):
@@ -39,8 +39,8 @@ def append_only(base,candidate):
         or sql.count('DETAIL=\'{"status":409}\'')!=1
         or "USING ERRCODE='40001'" in sql):
         raise HeldOverlayRefusal("Stale transport candidate no longer reviewed")
-    result=(base.rstrip()+"\\n\\n"+BEGIN_MARK+"\\nBEGIN;\\n"+
-            sql.rstrip()+"\\nCOMMIT;\\n"+END_MARK+"\\n")
+    result=(base.rstrip()+"\n\n"+BEGIN_MARK+"\nBEGIN;\n"+
+            sql.rstrip()+"\nCOMMIT;\n"+END_MARK+"\n")
     if result.count(BEGIN_MARK)!=1 or result.count(END_MARK)!=1:
         raise HeldOverlayRefusal("Overlay not unique")
     return result
