@@ -14,7 +14,7 @@ import sys
 import prepare_uniops_p3_history_signed_followon_held as parent
 
 PARENT_BLOB="e0240feabf26a3c19b7f86aa7f4de22d70635523"
-FIXTURE_BLOB="4687c4a0f44d2f5581ee4361f6d8c56d92175c1a"
+FIXTURE_BLOB="7e1d4b9f0b55d676affceca392a6365769e86cb5"
 SAFE_OUTPUT="validate-uniops-preexisting-mowing-signed-local-only.py"
 SEED_ANCHOR="    count_before=int(sql(a.db_url,"
 BEFORE_ANCHOR='        print("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_started",flush=True)\n'
@@ -30,7 +30,7 @@ PREPARE_SEED='''    # Synthetic previously existing old-queue carriers must pred
     _legacy_bytes=_legacy_path.read_bytes()
     check(_legacy_hashlib.sha1(b"blob "+str(len(_legacy_bytes)).encode("ascii")
           +b"\\0"+_legacy_bytes).hexdigest()
-          =="4687c4a0f44d2f5581ee4361f6d8c56d92175c1a",
+          =="7e1d4b9f0b55d676affceca392a6365769e86cb5",
           "Prior mowing fixture changed")
     _legacy_spec=importlib.util.spec_from_file_location(
         "uniops_preexisting_mowing_carriers_held",_legacy_path)
