@@ -12,7 +12,7 @@ import sys
 import tempfile
 
 SCRATCH_NAME="20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
-CANDIDATE_BLOB="da3ddafc8f479327df02fbe16e418eb0b094072d"
+CANDIDATE_BLOB="0318ac92492d34adcd1475255304cc21dca449e6"
 BEGIN_MARK="-- BEGIN PINNED HISTORICAL STALE HTTP409 OVERRIDE blob:"+CANDIDATE_BLOB
 END_MARK="-- END PINNED HISTORICAL STALE HTTP409 OVERRIDE"
 
@@ -36,7 +36,7 @@ def append_only(base,candidate):
     sql=candidate.decode("utf8")
     if (sql.count("CREATE OR REPLACE FUNCTION atlas.governor_retire_historical_work_self_api_v1(")!=1
         or sql.count("RAISE SQLSTATE 'PGRST'")!=1
-        or sql.count('DETAIL=\'{"status":409}\'')!=1
+        or sql.count('DETAIL=\'{"status":409,"headers":{}}\'')!=1
         or "USING ERRCODE='40001'" in sql):
         raise HeldOverlayRefusal("Stale transport candidate no longer reviewed")
     result=(base.rstrip()+"\n\n"+BEGIN_MARK+"\nBEGIN;\n"+
