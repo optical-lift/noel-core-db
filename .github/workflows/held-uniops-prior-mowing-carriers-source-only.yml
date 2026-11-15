@@ -1,0 +1,72 @@
+name: HELD UNI-OPS prior mowing Task-occurrence physical custody (source-only)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-uniops-prior-mowing-carriers-source-only.yml'
+      - 'candidates/uni_ops_prior_mowing_legacy_carriers_v1/**'
+      - 'tests/uniops_preexisting_mowing_carriers_held.py'
+      - 'tests/prepare_uniops_preexisting_mowing_signed_held.py'
+      - 'tests/test_uniops_preexisting_mowing_carriers_held.py'
+      - 'tests/test_uniops_preexisting_mowing_composition_source_only.py'
+permissions:
+  contents: read
+jobs:
+  source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout held source under review (never production)
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout exact IMMUTABLE previously signed U2/U4 driver, NO execution
+        uses: actions/checkout@v4
+        with:
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
+          path: signed-u2-u4-source
+          persist-credentials: false
+      - name: Checkout exact IMMUTABLE historical companion, NO execution
+        uses: actions/checkout@v4
+        with:
+          ref: ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          path: signed-history-source
+          persist-credentials: false
+      - name: Checkout exact IMMUTABLE passing P3 source, NO execution
+        uses: actions/checkout@v4
+        with:
+          ref: 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
+          path: signed-p3-source
+          persist-credentials: false
+      - name: Verify all frozen source blobs, syntactic test-only scope and no-network negatives
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C signed-u2-u4-source rev-parse HEAD)" = 075919564dc340ad86be8e969a2ad2d02ec19a15
+          test "$(git -C signed-history-source rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          test "$(git -C signed-p3-source rev-parse HEAD)" = 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
+          test "$(git -C signed-u2-u4-source hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
+          test "$(git -C signed-history-source hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
+          test "$(git -C signed-history-source hash-object candidates/atlas_universal_work_lifecycle_v1/06_single_transition_authority_private.sql)" = a6947ae7d5c5d31a75740c2cd2672e9832a7fee8
+          test "$(git -C signed-p3-source hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
+          test "$(git hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = 473358d8e56e67ecfae0d02823307a14c1bc1507
+          test "$(git hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 50567bc02c3542e4e2ba97414b7bb9c63fea3f62
+          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = e0240feabf26a3c19b7f86aa7f4de22d70635523
+          test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
+          test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 7bcd3719aeea3e150770fe4bb4172416a815a38c
+          test "$(git hash-object tests/uniops_preexisting_mowing_carriers_held.py)" = d6385ad3fbcfa17baf22c6058e762a12a04126aa
+          test "$(git hash-object tests/prepare_uniops_preexisting_mowing_signed_held.py)" = 126bcedc40949cd35aee591dedd96a66968c8d8a
+          test "$(git hash-object tests/test_uniops_preexisting_mowing_carriers_held.py)" = 2397c6dfafb27d503ecdd76acf829865d49addf4
+          test "$(git hash-object tests/test_uniops_preexisting_mowing_composition_source_only.py)" = 64f2533e6fae7023b7cd5546260dfdeedab3b6f7
+          python3 -m py_compile tests/uniops_preexisting_mowing_carriers_held.py tests/prepare_uniops_preexisting_mowing_signed_held.py tests/test_uniops_preexisting_mowing_carriers_held.py tests/test_uniops_preexisting_mowing_composition_source_only.py
+          PYTHONPATH=tests python3 -m unittest -v test_uniops_preexisting_mowing_carriers_held
+          PYTHONPATH=tests python3 tests/test_uniops_preexisting_mowing_composition_source_only.py \
+            --driver signed-u2-u4-source/tests/validate-uniops-option-a-u2-accepted-first-signed.py \
+            --bridge tests/uniops_historical_retirement_signed_bridge_held.py \
+            --companion signed-history-source/tests/validate-atlas-native-historical-retirement-signed-http.py \
+            --guard tests/uniops_p3_historical_preservation_check_held.py \
+            --p3-hook signed-p3-source/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py \
+            --preparer tests/prepare_uniops_historical_retirement_signed_followon_held.py \
+            --compat tests/uniops_p3_history_existing_membership_seed_held.py \
+            --fixture tests/uniops_preexisting_mowing_carriers_held.py
+          echo 'PASS no-network frozen U2/U4/P3/history plus held prior mowing carrier composition; NO SQL or signed runtime'
