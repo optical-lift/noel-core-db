@@ -1,0 +1,83 @@
+name: Noel Mark synthetic PostgreSQL 17 validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "candidates/noel_mark_bulk_photo_review_kernel_v1/**"
+      - "scripts/verify_private_mark_packet.py"
+      - "scripts/test_verify_private_mark_packet.py"
+      - ".github/workflows/noel-mark-bulk-synthetic-pg17.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-source-check:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'proposal/mark-bulk-source-review-owner-bridge-20261114'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      syntheticpg:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: synthetic-only-no-production
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - name: Checkout unprivileged PR merge source
+        uses: actions/checkout@v4
+      - name: Prepare empty synthetic Mark registry (not a production snapshot)
+        env:
+          DB_CONTAINER: ${{ job.services.syntheticpg.id }}
+        run: |
+          set -euo pipefail
+          docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE ROLE anon NOLOGIN;
+          CREATE ROLE authenticated NOLOGIN;
+          CREATE ROLE service_role NOLOGIN;
+          CREATE SCHEMA mark AUTHORIZATION postgres;
+          CREATE TABLE mark.captures (
+            capture_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            capture_key text NOT NULL UNIQUE CHECK (btrim(capture_key) <> ''),
+            capture_kind text NOT NULL CHECK (btrim(capture_kind) <> ''),
+            sha256 text CHECK (sha256 IS NULL OR sha256 ~ '^[0-9a-f]{64}$'),
+            width_px integer CHECK (width_px IS NULL OR width_px > 0),
+            height_px integer CHECK (height_px IS NULL OR height_px > 0),
+            capture_status text NOT NULL DEFAULT 'registered_remote'
+              CHECK (capture_status IN ('registered_remote','bytes_verified','derived','unavailable')),
+            record_status text NOT NULL DEFAULT 'draft'
+              CHECK (record_status IN ('draft','reviewed','frozen')),
+            frozen_at timestamptz,
+            CHECK ((record_status = 'frozen') = (frozen_at IS NOT NULL))
+          );
+          SQL
+      - name: Apply fictional fixture, draft DDL, and source-only postconditions
+        env:
+          DB_CONTAINER: ${{ job.services.syntheticpg.id }}
+        run: |
+          set -euo pipefail
+          cd candidates/noel_mark_bulk_photo_review_kernel_v1
+          docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 < fixture.sql
+          docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 < candidate.sql
+          docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 < postconditions.sql
+          docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE count_tables integer;
+          BEGIN
+            SELECT count(*) INTO count_tables
+              FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+             WHERE n.nspname='mark' AND c.relkind='r' AND c.relname LIKE 'photo_%';
+            IF count_tables<>5 THEN RAISE EXCEPTION 'Missing synthetic Mark tables'; END IF;
+          END;
+          $$;
+          SQL
+      - name: Run synthetic packet integrity tests
+        run: python -m unittest discover -v -s scripts -p 'test_verify_private_mark_packet.py'
+
+# No production environment, URL, private photograph, secrets, owner principal,
+# schema snapshot, or model training. Does not replace protected full clone.
