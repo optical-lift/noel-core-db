@@ -7,6 +7,8 @@ on:
       - '.github/workflows/held-uniops-prior-mowing-protected-signed.yml'
       - 'tests/uniops_prior_mowing_finite_stage_held.py'
       - 'tests/test_uniops_prior_mowing_finite_stage_held.py'
+      - 'tests/uniops_prior_mowing_release_policy_fixture_patch_held.py'
+      - 'tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py'
 permissions:
   contents: read
   packages: read
@@ -305,6 +307,35 @@ jobs:
           assert new.count('UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS')==1
           print('PASS exact frozen prior-mowing signed driver plus only bounded no-private-data finite stages')
           PY
+      - name: Verify release-policy physical binding fixture patch against frozen source (NO SQL)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tests/uniops_prior_mowing_release_policy_fixture_patch_held.py)" = 425f000e58b6ff61fd89300ee349b17ef27debe8
+          test "$(git hash-object tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py)" = 4fc8bcf640e9316c00ba165652d3661bf3ddb251
+          python3 -m py_compile tests/uniops_prior_mowing_release_policy_fixture_patch_held.py tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py
+          UNI_OPS_PINNED_FIXTURE_SOURCE=prior-mowing-source/tests/uniops_preexisting_mowing_carriers_held.py \
+            UNI_OPS_SOURCE_STAGED_DRIVER="$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py" \
+            PYTHONPATH=tests python3 -m unittest -v test_uniops_prior_mowing_release_policy_fixture_patch_held
+          python3 tests/uniops_prior_mowing_release_policy_fixture_patch_held.py \
+            --fixture prior-mowing-source/tests/uniops_preexisting_mowing_carriers_held.py \
+            --staged-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py" \
+            --output-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" \
+            --output-fixture "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py"
+          python3 -m py_compile "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py"
+          python3 - <<'PY'
+          import hashlib,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          fixture=(root/'uniops-preexisting-mowing-fixture-fixed-local-only.py').read_bytes()
+          driver=(root/'validate-uniops-prior-mowing-fixed-signed-local-only.py').read_text()
+          blob=hashlib.sha1(b'blob '+str(len(fixture)).encode()+b'\0'+fixture).hexdigest()
+          assert driver.count(blob)==1
+          assert 'UNI_OPS_PRIOR_MOWING_PHASE=initial_capture_complete' in driver
+          assert '_legacy.install(a.db_url,_prior_mowing_traced_sql)' in driver
+          assert 'and release_policy_id=\'{POLICY}\'::uuid' in fixture.decode()
+          print('PASS exact missing release-policy binding corrected only in disposable signed fixture; NO execution')
+          PY
   validate-protected:
     if: >-
       github.event_name == 'issues' &&
@@ -345,11 +376,12 @@ jobs:
               'history_composer_sha':'15bb6a15f60b357050f44ab1bc43f64778523d93',
               'prior_carrier_source_sha':'d810cde585a2df02f41425fd349ae5a1c5348d30',
               'owner_run_approval':'signed_prior_mowing_carriers_2800_v1',
-              'owner_stage_probe_approval':'signed_prior_mowing_stage_probe_2800_v2'}
+              'owner_stage_probe_approval':'signed_prior_mowing_stage_probe_2800_v2',
+              'owner_release_policy_patch_approval':'signed_prior_mowing_release_binding_2800_v3'}
           title=os.environ.get('OWNER_TITLE','')
           if title!='UNI-OPS nonempty prior mowing Task-occurrence protected signed conservation gate':
               raise SystemExit('Wrong owner test goal')
-          approval='Approved one disposable signed prior mowing phase diagnostic after finite-stage source review'
+          approval='Approved one disposable signed prior mowing Task release-policy binding correction after controller review'
           body_lines=os.environ.get('OWNER_BODY','').splitlines()
           prior_lines=os.environ.get('OWNER_PREVIOUS_BODY','').splitlines()
           if body_lines.count(approval)!=1 or approval in prior_lines:
@@ -719,7 +751,15 @@ jobs:
           python3 canonical/tests/uniops_prior_mowing_finite_stage_held.py \
             --source "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py" \
             --output "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py"
-          cp "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
+          test "$(git -C canonical hash-object tests/uniops_prior_mowing_release_policy_fixture_patch_held.py)" = 425f000e58b6ff61fd89300ee349b17ef27debe8
+          test "$(git -C canonical hash-object tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py)" = 4fc8bcf640e9316c00ba165652d3661bf3ddb251
+          python3 canonical/tests/uniops_prior_mowing_release_policy_fixture_patch_held.py \
+            --fixture canonical/tests/uniops_preexisting_mowing_carriers_held.py \
+            --staged-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py" \
+            --output-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" \
+            --output-fixture "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py"
+          cp "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py" canonical/tests/uniops_preexisting_mowing_carriers_held.py
+          cp "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/uniops_p3_historical_preservation_check_held.py canonical/tests/uniops_preexisting_mowing_carriers_held.py canonical/tests/prepare_uniops_preexisting_mowing_signed_held.py
           python3 - <<'PY'
           from pathlib import Path
@@ -1204,6 +1244,7 @@ jobs:
           rm -f -- "$RUNNER_TEMP/uniops-private-clone.log" "$RUNNER_TEMP/uniops-manifest.json"
           rm -f -- "$RUNNER_TEMP/validate-uniops-p3-historical-signed-local-only.py"
           rm -f -- "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py" "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py"
+          rm -f -- "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py"
           rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
           rm -f -- "$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
           case "${UNI_OPS_PIN_ROOT:-}" in
