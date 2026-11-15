@@ -67,7 +67,7 @@ def inject(source):
         raise FiniteStageRefusal("Signed legacy composer custody changed")
     output=text.replace(SEED_ANCHOR,STAGE_PATCH,1)
     ast.parse(output)
-    if output.count("UNI_OPS_PRIOR_MOWING_PHASE=")!=7:
+    if output.count("UNI_OPS_PRIOR_MOWING_PHASE=")!=5:
         raise FiniteStageRefusal("Finite stage cardinality changed")
     return output.encode("utf8")
 
