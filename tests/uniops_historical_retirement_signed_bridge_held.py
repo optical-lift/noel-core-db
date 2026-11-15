@@ -53,9 +53,17 @@ def load_pinned_companion(source_path):
 
 
 def expected_denial_code(label):
-    """Exact known source denial: stale snapshot is serialization failure."""
+    """Match each frozen negative at the exact source-owned failure branch.
+
+    An attempted *second* retirement uses the original private core's
+    already-terminal Work constraint (23514), not a missing governor (42501).
+    Other actor denials retain the exact authorization code. This mapping
+    does not admit additional success statuses or bypass final state checks.
+    """
     if label == "Stale dependency snapshot must not cancel Work":
         return "40001"
+    if label == "A second action may not retire the same original again":
+        return "23514"
     return "42501"
 
 
