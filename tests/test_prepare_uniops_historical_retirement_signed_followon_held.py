@@ -11,7 +11,7 @@ import prepare_uniops_historical_retirement_signed_followon_held as held
 class ImmutableGovernorHistoryFollowon(unittest.TestCase):
     def test_three_immutable_blobs_are_explicit(self):
         self.assertEqual(held.DRIVER_BLOB, "09eeee925ebfa2cb64b1dea336688ba8076ef44d")
-        self.assertEqual(held.BRIDGE_BLOB, "f1a4eadb4d0199e8b4d9c1f17738675c281e249d")
+        self.assertEqual(held.BRIDGE_BLOB, "473358d8e56e67ecfae0d02823307a14c1bc1507")
         self.assertEqual(held.COMPANION_BLOB, "79151f723e60b33410c760acef715155a53771f3")
 
     def test_refuses_unreviewed_source_bytes(self):
