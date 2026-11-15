@@ -21,8 +21,8 @@ class ExactPriorMowingStage(unittest.TestCase):
         self.assertEqual(out.count("_legacy.install("),1)
         self.assertEqual(out.count("_legacy_initial=_legacy.capture("),1)
         self.assertEqual(out.count("UNI_OPS_PRIOR_MOWING_PHASE="),5)
-        self.assertTrue(out.index("PHASE=install_entered")<out.index("PHASE=before_census_called"))
-        self.assertTrue(out.index("PHASE=after_census_called")<out.index("PHASE=fixture_install_complete"))
+        self.assertTrue(out.index("PHASE=install_entered")<out.index('_next="before_census_called"'))
+        self.assertTrue(out.index('_next="after_census_called"')<out.index("PHASE=fixture_install_complete"))
         for token in ("_legacy.NONCARRIER_CENSUS_SQL","_legacy.INSTALL_SQL",
                       "UNI_OPS_PRIOR_MOWING_PHASE=initial_capture_complete",
                       "UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS"):
