@@ -10,6 +10,10 @@ on:
       - 'tests/test_uniops_p3_history_existing_membership_seed_held.py'
       - 'tests/uniops_p3_history_safe_python_failure_held.py'
       - 'tests/test_uniops_p3_history_safe_python_failure_held.py'
+      - 'tests/uniops_historical_retirement_signed_bridge_held.py'
+      - 'tests/test_uniops_historical_retirement_signed_bridge_held.py'
+      - 'tests/prepare_uniops_historical_retirement_signed_followon_held.py'
+      - 'tests/test_prepare_uniops_historical_retirement_signed_followon_held.py'
 permissions:
   contents: read
 jobs:
@@ -47,12 +51,29 @@ jobs:
           test "$(git -C signed-history-source rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
           test "$(git -C signed-p3-source rev-parse HEAD)" = 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
           test "$(git -C signed-u2-u4-source hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
-          test "$(git hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
-          test "$(git hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519
+          test "$(git hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = 473358d8e56e67ecfae0d02823307a14c1bc1507
+          test "$(git hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 50567bc02c3542e4e2ba97414b7bb9c63fea3f62
+          test "$(git hash-object tests/test_prepare_uniops_historical_retirement_signed_followon_held.py)" = d6c5c39c587bc64d1c6bfe699406460eb9b1044b
+          PYTHONPATH=tests python3 -m unittest -v test_prepare_uniops_historical_retirement_signed_followon_held
           test "$(git -C signed-history-source hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
+          test "$(git hash-object tests/test_uniops_historical_retirement_signed_bridge_held.py)" = 7c885ecf3dce9ad98d5345c22d12f908ce65f258
+          test "$(git -C signed-history-source hash-object candidates/atlas_universal_work_lifecycle_v1/06_single_transition_authority_private.sql)" = a6947ae7d5c5d31a75740c2cd2672e9832a7fee8
+          python3 - <<'PY'
+          from pathlib import Path
+          core=Path('signed-history-source/candidates/atlas_universal_work_lifecycle_v1/06_single_transition_authority_private.sql').read_text()
+          companion=Path('signed-history-source/tests/validate-atlas-native-historical-retirement-signed-http.py').read_text()
+          bridge=Path('tests/uniops_historical_retirement_signed_bridge_held.py').read_text()
+          assert core.count("Only an original open historical Work may be retired'") == 1
+          branch=core.split("Only an original open historical Work may be retired'",1)[1].split("END IF;",1)[0]
+          assert "USING ERRCODE='23514'" in branch
+          assert companion.count('"A second action may not retire the same original again"') == 1
+          assert bridge.count('if label == "A second action may not retire the same original again":') == 1
+          print('PASS frozen private 23514 terminal guard and one exact signed second-action label; no SQL run')
+          PY
+          PYTHONPATH=tests python3 -m unittest -v test_uniops_historical_retirement_signed_bridge_held
           test "$(git -C signed-p3-source hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
           test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
-          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = aa51bb1466ae3f1cdef0670b8262a8b28a2857c1
+          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = e0240feabf26a3c19b7f86aa7f4de22d70635523
           test "$(git hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 51db89390727e74fea0efe5a438c8d6a73fe9bbf
           test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 7bcd3719aeea3e150770fe4bb4172416a815a38c
           test "$(git hash-object tests/test_uniops_p3_history_existing_membership_seed_held.py)" = 8e2aab33ce2ebc69c36eee2abd8979881fdbce84

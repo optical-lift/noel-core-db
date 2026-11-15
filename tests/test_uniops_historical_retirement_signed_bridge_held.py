@@ -99,6 +99,37 @@ class ImmutableHistoricalRetirementAdmission(unittest.TestCase):
                 "Outsider cannot cancel reviewed original"
             ), "42501"
         )
+        # Frozen #2368 private cancel branch returns 23514 for a different
+        # action after the first valid cancellation. All other actor denials
+        # still require 42501; stale impact remains 40001.
+        self.assertEqual(
+            held.expected_denial_code(
+                "A second action may not retire the same original again"
+            ), "23514"
+        )
+        self.assertEqual(
+            held.expected_denial_code(
+                "Worker cannot review obsolete historic Work"
+            ), "42501"
+        )
+        self.assertEqual(
+            held.expected_denial_code(
+                "No-seat Person cannot read retirement dependencies"
+            ), "42501"
+        )
+
+    def test_pinned_core_and_companion_bind_second_action_to_23514(self):
+        # The signed companion is pinned externally. These exact source
+        # constants are checked again by the GitHub source-only workflow.
+        self.assertEqual(
+            held.PINNED_SOURCE_BLOB,
+            "79151f723e60b33410c760acef715155a53771f3"
+        )
+        self.assertEqual(
+            held.expected_denial_code(
+                "A second action may not retire the same original again"
+            ), "23514"
+        )
 
 
 if __name__ == "__main__":
