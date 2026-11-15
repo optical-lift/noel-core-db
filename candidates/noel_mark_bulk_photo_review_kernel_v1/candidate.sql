@@ -201,6 +201,28 @@ $$;
 CREATE TRIGGER photo_review_rectangle_gate BEFORE INSERT ON mark.photo_owner_review_decisions
  FOR EACH ROW EXECUTE FUNCTION mark.photo_verify_review_rectangle();
 
+-- Commit-time check: reject incomplete/empty ASSIGN batches, including attempts
+-- to commit a header before inserting its source-linked decision rows.
+-- Runs at transaction end; a legitimate writer inserts header + decisions atomically.
+CREATE FUNCTION mark.photo_verify_review_event_complete() RETURNS trigger
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $
+DECLARE n bigint;
+BEGIN
+ SELECT count(*) INTO n FROM mark.photo_owner_review_decisions WHERE event_id=NEW.event_id;
+ IF NEW.action='ASSIGN' AND (n<1 OR n>600) THEN
+  RAISE EXCEPTION 'Owner review ASSIGN requires 1 to 600 source decisions in one transaction';
+ END IF;
+ IF NEW.action='UNDO' AND n<>0 THEN
+  RAISE EXCEPTION 'Owner review UNDO must not contain source decisions';
+ END IF;
+ RETURN NULL;
+END;
+$;
+CREATE CONSTRAINT TRIGGER photo_review_event_requires_decisions
+ AFTER INSERT ON mark.photo_owner_review_events
+ DEFERRABLE INITIALLY DEFERRED
+ FOR EACH ROW EXECUTE FUNCTION mark.photo_verify_review_event_complete();
+
 CREATE FUNCTION mark.photo_deny_evidence_mutation() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $$
 BEGIN
@@ -254,6 +276,6 @@ REVOKE ALL ON SEQUENCE mark.photo_owner_review_events_event_id_seq
 REVOKE ALL ON FUNCTION mark.photo_verify_catalogue_source(),
  mark.photo_verify_component_source(),mark.photo_verify_catalogue_admission(),
  mark.photo_verify_owner_event(),mark.photo_verify_review_rectangle(),
- mark.photo_deny_evidence_mutation()
+ mark.photo_verify_review_event_complete(),mark.photo_deny_evidence_mutation()
  FROM PUBLIC,anon,authenticated,service_role;
 COMMIT;
