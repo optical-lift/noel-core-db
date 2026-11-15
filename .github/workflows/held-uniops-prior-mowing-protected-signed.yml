@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - '.github/workflows/held-uniops-prior-mowing-protected-signed.yml'
+      - 'tests/uniops_prior_mowing_finite_stage_held.py'
+      - 'tests/test_uniops_prior_mowing_finite_stage_held.py'
 permissions:
   contents: read
   packages: read
@@ -266,6 +268,43 @@ jobs:
               assert unsafe not in p
           print('PASS independent owner issue 2800 approval gate + immutable signed sources; NO execution')
           PY
+      - name: Verify finite-stage-only overlay against frozen actual driver (NO runtime)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tests/uniops_prior_mowing_finite_stage_held.py)" = 7b7d9020d999ba0e76bdd59bbe89d8c36cd5bf1a
+          test "$(git hash-object tests/test_uniops_prior_mowing_finite_stage_held.py)" = cedce6acf2221ef4bf2691ba466716004892333e
+          python3 -m py_compile tests/uniops_prior_mowing_finite_stage_held.py tests/test_uniops_prior_mowing_finite_stage_held.py
+          PYTHONPATH=tests python3 -m unittest -v test_uniops_prior_mowing_finite_stage_held
+          python3 prior-mowing-source/tests/prepare_uniops_preexisting_mowing_signed_held.py \
+            --driver u4-source-contract/tests/validate-uniops-option-a-u2-accepted-first-signed.py \
+            --bridge prior-mowing-source/tests/uniops_historical_retirement_signed_bridge_held.py \
+            --companion history-source-contract/tests/validate-atlas-native-historical-retirement-signed-http.py \
+            --guard prior-mowing-source/tests/uniops_p3_historical_preservation_check_held.py \
+            --p3-hook p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py \
+            --preparer prior-mowing-source/tests/prepare_uniops_historical_retirement_signed_followon_held.py \
+            --compat prior-mowing-source/tests/uniops_p3_history_existing_membership_seed_held.py \
+            --fixture prior-mowing-source/tests/uniops_preexisting_mowing_carriers_held.py \
+            --output "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py"
+          python3 tests/uniops_prior_mowing_finite_stage_held.py \
+            --source "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py" \
+            --output "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py"
+          python3 -m py_compile "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py"
+          python3 - <<'PY'
+          from pathlib import Path
+          original=Path(__import__('os').environ['RUNNER_TEMP'])/'validate-uniops-preexisting-mowing-signed-local-only.py'
+          staged=Path(__import__('os').environ['RUNNER_TEMP'])/'validate-uniops-prior-mowing-staged-local-only.py'
+          old=original.read_text()
+          new=staged.read_text()
+          assert 'UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS' in new
+          assert '_legacy.install(a.db_url,sql)' not in new
+          assert '_legacy.install(a.db_url,_prior_mowing_traced_sql)' in new
+          assert old.count('_legacy.install(a.db_url,sql)')==1
+          assert new.count('history_receipt=hist.prove(')==old.count('history_receipt=hist.prove(')==1
+          assert new.count('P3_6A_SIGNED_RESULT_SNAPSHOT=PASS')==old.count('P3_6A_SIGNED_RESULT_SNAPSHOT=PASS')
+          assert new.count('UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS')==1
+          print('PASS exact frozen prior-mowing signed driver plus only bounded no-private-data finite stages')
+          PY
   validate-protected:
     if: >-
       github.event_name == 'issues' &&
@@ -305,11 +344,12 @@ jobs:
               'history_source_sha':'ddfb0bf5374798301fe076a61d2b944dfb52ff63',
               'history_composer_sha':'15bb6a15f60b357050f44ab1bc43f64778523d93',
               'prior_carrier_source_sha':'d810cde585a2df02f41425fd349ae5a1c5348d30',
-              'owner_run_approval':'signed_prior_mowing_carriers_2800_v1'}
+              'owner_run_approval':'signed_prior_mowing_carriers_2800_v1',
+              'owner_stage_probe_approval':'signed_prior_mowing_stage_probe_2800_v2'}
           title=os.environ.get('OWNER_TITLE','')
           if title!='UNI-OPS nonempty prior mowing Task-occurrence protected signed conservation gate':
               raise SystemExit('Wrong owner test goal')
-          approval='Approved one disposable signed prior mowing Task-occurrence integration after controller #2801 is merged'
+          approval='Approved one disposable signed prior mowing phase diagnostic after finite-stage source review'
           body_lines=os.environ.get('OWNER_BODY','').splitlines()
           prior_lines=os.environ.get('OWNER_PREVIOUS_BODY','').splitlines()
           if body_lines.count(approval)!=1 or approval in prior_lines:
@@ -675,7 +715,11 @@ jobs:
             --compat canonical/tests/uniops_p3_history_existing_membership_seed_held.py \
             --fixture canonical/tests/uniops_preexisting_mowing_carriers_held.py \
             --output "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py"
-          cp "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
+          test "$(git -C canonical hash-object tests/uniops_prior_mowing_finite_stage_held.py)" = 7b7d9020d999ba0e76bdd59bbe89d8c36cd5bf1a
+          python3 canonical/tests/uniops_prior_mowing_finite_stage_held.py \
+            --source "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py" \
+            --output "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py"
+          cp "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/uniops_p3_historical_preservation_check_held.py canonical/tests/uniops_preexisting_mowing_carriers_held.py canonical/tests/prepare_uniops_preexisting_mowing_signed_held.py
           python3 - <<'PY'
           from pathlib import Path
@@ -1126,6 +1170,23 @@ jobs:
           print('UNI_OPS_P3_MOWING_AFTER_HISTORY='+('PASS' if history_pass and mowing_preserved else 'NOT_RUN'))
           prior_mowing_mark='UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS' in historical_actor_lines
           print('UNI_OPS_PRIOR_MOWING_CARRIERS='+('PASS' if history_pass and mowing_preserved and prior_mowing_mark else 'NOT_VERIFIED'))
+          # Only allowlisted diagnostic phases; never print private source/error.
+          _stage_helper=pathlib.Path('canonical/tests/uniops_prior_mowing_finite_stage_held.py')
+          _stage='not_reported'
+          if _stage_helper.is_file() and not _stage_helper.is_symlink() and historical_log.is_file():
+              try:
+                  _raw=_stage_helper.read_bytes()
+                  _hash=hashlib.sha1(b'blob '+str(len(_raw)).encode()+b'\0'+_raw).hexdigest()
+                  if _hash=='7b7d9020d999ba0e76bdd59bbe89d8c36cd5bf1a':
+                      _sp=importlib.util.spec_from_file_location('held_prior_stage',_stage_helper)
+                      _mod=importlib.util.module_from_spec(_sp)
+                      _sp.loader.exec_module(_mod)
+                      _stage=_mod.extract_stage(historical_log.read_text(errors='replace'))
+                  else:
+                      _stage='unverified_source'
+              except (OSError,ValueError,TypeError,AttributeError,ImportError):
+                  _stage='unverified_reader'
+          print('UNI_OPS_PRIOR_MOWING_DIAGNOSTIC_STAGE='+_stage)
           print('UNI_OPS_SIGNED_FULL_U1A_OVERLAP=NOT_RUN')
           p3actor=root/'uniops-u2-signed.log'
           p3_ok=p3actor.is_file() and 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' in p3actor.read_text(errors='replace').splitlines()
@@ -1142,7 +1203,7 @@ jobs:
           rm -f -- "$RUNNER_TEMP/uniops-snapshot-schema.sql" "$RUNNER_TEMP/uniops-snapshot-roles.sql"
           rm -f -- "$RUNNER_TEMP/uniops-private-clone.log" "$RUNNER_TEMP/uniops-manifest.json"
           rm -f -- "$RUNNER_TEMP/validate-uniops-p3-historical-signed-local-only.py"
-          rm -f -- "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py"
+          rm -f -- "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py" "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py"
           rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
           rm -f -- "$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
           case "${UNI_OPS_PIN_ROOT:-}" in
