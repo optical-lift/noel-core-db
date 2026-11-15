@@ -172,7 +172,7 @@ BEGIN
     (catalogue_id,action,owner_actor_key,verified_auth_receipt_key,
      client_event_id,client_sequence,original_capture_sha256,event_scope)
    VALUES (c_id,'ASSIGN','synthetic_owner','clone_no_auth_session',
-    gen_random_uuid(),50,repeat('a',64),'synthetic_empty_review');
+    gen_random_uuid(),1,repeat('a',64),'synthetic_empty_review');
    SET CONSTRAINTS ALL IMMEDIATE;
    RAISE EXCEPTION 'Missing required 1-to-600 event-decision count';
   EXCEPTION WHEN OTHERS THEN
@@ -217,6 +217,21 @@ BEGIN
    GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
    IF err NOT LIKE '%training_authorized%' THEN
     RAISE EXCEPTION 'Incorrect unauthorized training result: %',err;
+   END IF;
+  END;
+
+  -- A forged sequence gap cannot create another accepted owner event.
+  BEGIN
+   INSERT INTO mark.photo_owner_review_events
+    (catalogue_id,action,owner_actor_key,verified_auth_receipt_key,
+     client_event_id,client_sequence,original_capture_sha256,event_scope)
+   VALUES (c_id,'ASSIGN','synthetic_owner','clone_no_auth_session',
+    gen_random_uuid(),9,repeat('a',64),'synthetic_out_of_order');
+   RAISE EXCEPTION 'Missing ordered review event refusal';
+  EXCEPTION WHEN OTHERS THEN
+   GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+   IF err NOT LIKE '%Owner review sequence must be the next consecutive event%' THEN
+    RAISE EXCEPTION 'Incorrect review event sequence result: %',err;
    END IF;
   END;
 
