@@ -309,7 +309,7 @@ jobs:
           title=os.environ.get('OWNER_TITLE','')
           if title!='UNI-OPS nonempty prior mowing Task-occurrence protected signed conservation gate':
               raise SystemExit('Wrong owner test goal')
-          approval='Approved one disposable signed nonempty prior mowing Task-occurrence conservation after #2799 and controller review for #2800'
+          approval='Approved one disposable signed prior mowing Task-occurrence integration after controller #2801 is merged'
           body_lines=os.environ.get('OWNER_BODY','').splitlines()
           prior_lines=os.environ.get('OWNER_PREVIOUS_BODY','').splitlines()
           if body_lines.count(approval)!=1 or approval in prior_lines:
