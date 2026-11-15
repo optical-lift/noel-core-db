@@ -129,6 +129,7 @@ class FrozenPriorMowingFixture(unittest.TestCase):
         after=copy.deepcopy(before)
         snap=p3()
         self.assertTrue(prior.require_preserved(before,after,snap,copy.deepcopy(snap)))
+        self.assertTrue(prior.require_rows_unchanged(before,after))
         mutations=(
             ("legacyTask","status","done"),
             ("legacyTask","released_at",None),
@@ -203,8 +204,12 @@ class FrozenPriorMowingFixture(unittest.TestCase):
         code=composer.inject(specimen.encode(),fixture).decode()
         ast.parse(code)
         self.assertIn("_legacy.install(a.db_url,sql)",code)
+        self.assertIn("_legacy_initial=_legacy.capture(",code)
+        self.assertIn("_legacy.require_rows_unchanged(",code)
         self.assertIn("_legacy.require_preserved(",code)
         self.assertLess(code.index("_legacy.install("),code.index("count_before=int("))
+        self.assertLess(code.index("_legacy_initial=_legacy.capture"),
+                        code.index("_legacy_before=_legacy.capture"))
         self.assertLess(code.index("_legacy_before=_legacy.capture"),
                         code.index("history_receipt=hist.prove"))
         self.assertLess(code.index("history_receipt=hist.prove"),
