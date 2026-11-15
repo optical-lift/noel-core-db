@@ -222,13 +222,18 @@ def _require_prior_rows(record):
         raise PriorMowingRefusal("Prior mowing physical identity/state relationship failed")
     return True
 
-def require_preserved(before,after,p3_before,p3_after):
-    """Preserve entire known old rows AND source-owned P3 census/identity sets."""
+def require_rows_unchanged(before,after):
+    """Same old Task and occurrences must survive U2/U4/P3 AND history."""
     _require_prior_rows(before)
     _require_prior_rows(after)
     for key in ("legacyTask","releasedOccurrence","plannedOccurrence"):
         if before[key]!=after[key]:
-            raise PriorMowingRefusal("Historical retirement altered prior mowing carrier row")
+            raise PriorMowingRefusal("Transition altered a previously existing mowing carrier")
+    return True
+
+def require_preserved(before,after,p3_before,p3_after):
+    """Preserve full old rows AND source-owned P3 census/identity sets."""
+    require_rows_unchanged(before,after)
     for snap in (p3_before,p3_after):
         if not isinstance(snap,Mapping) or (
             snap.get("contract")!="uni_ops_p3_signed_result_snapshot_v1"
