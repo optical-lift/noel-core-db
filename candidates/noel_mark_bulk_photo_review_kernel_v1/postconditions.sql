@@ -13,20 +13,29 @@ BEGIN
   IF n<>5 THEN RAISE EXCEPTION 'The five private photo evidence tables must have enforced RLS'; END IF;
 
   SELECT count(*) INTO n
-  FROM information_schema.triggers
-  WHERE trigger_schema='mark' AND event_object_table IN
+  FROM pg_trigger t JOIN pg_class rel ON rel.oid=t.tgrelid
+   JOIN pg_namespace ns ON ns.oid=rel.relnamespace
+  WHERE ns.nspname='mark' AND rel.relname IN
    ('photo_component_catalogues','photo_component_proposals',
     'photo_catalogue_admissions','photo_owner_review_events','photo_owner_review_decisions')
-  AND trigger_name LIKE 'photo_%';
-  IF n<15 THEN RAISE EXCEPTION 'Missing append-only or source-geometry triggers'; END IF;
+    AND NOT t.tgisinternal AND t.tgname LIKE 'photo_%';
+  IF n<>11 THEN RAISE EXCEPTION 'Missing append-only, source or complete-event triggers'; END IF;
+  SELECT count(*) INTO n
+  FROM pg_trigger t JOIN pg_class rel ON rel.oid=t.tgrelid
+   JOIN pg_namespace ns ON ns.oid=rel.relnamespace
+  WHERE ns.nspname='mark' AND rel.relname='photo_owner_review_events'
+    AND t.tgname='photo_review_event_requires_decisions'
+    AND t.tgdeferrable AND t.tginitdeferred;
+  IF n<>1 THEN RAISE EXCEPTION 'Incomplete owner-review event must be refused at commit'; END IF;
 
   SELECT count(*) INTO n
   FROM pg_proc p JOIN pg_namespace s ON s.oid=p.pronamespace
   WHERE s.nspname='mark' AND p.proname IN
    ('photo_verify_catalogue_source','photo_verify_component_source',
     'photo_verify_catalogue_admission','photo_verify_owner_event',
-    'photo_verify_review_rectangle','photo_deny_evidence_mutation') AND NOT p.prosecdef;
-  IF n<>6 THEN RAISE EXCEPTION 'Photo guard functions must not run with definer rights'; END IF;
+    'photo_verify_review_rectangle','photo_verify_review_event_complete',
+    'photo_deny_evidence_mutation') AND NOT p.prosecdef;
+  IF n<>7 THEN RAISE EXCEPTION 'Photo guard functions must not run with definer rights'; END IF;
 
   IF has_schema_privilege('anon','mark','USAGE') OR
      has_schema_privilege('authenticated','mark','USAGE') OR
