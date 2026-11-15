@@ -127,6 +127,21 @@ SNAPSHOT_SQL = f"""SELECT jsonb_build_object(
        WHERE o.id='{PLANNED}'::uuid AND o.farm_id='{FARM}'::uuid)
 )::text"""
 
+# Fixture creation is NOT permission for old Task triggers to manufacture new
+# canonical Work, Result, allocation, offer, plan or principal obligation.
+# Read only total censuses before and after the synthetic carrier seed.
+NONCARRIER_CENSUS_SQL = f"""SELECT jsonb_build_object(
+ 'work',(SELECT count(*) FROM atlas.work_items WHERE organization_id='{ORG}'::uuid),
+ 'allocations',(SELECT count(*) FROM atlas.work_allocations WHERE organization_id='{ORG}'::uuid),
+ 'offers',(SELECT count(*) FROM atlas.governed_prework_candidate_offers_v1
+            WHERE organization_id='{ORG}'::uuid),
+ 'plans',(SELECT count(*) FROM atlas.work_execution_plans WHERE organization_id='{ORG}'::uuid),
+ 'results',(SELECT count(*) FROM atlas.work_execution_results WHERE organization_id='{ORG}'::uuid),
+ 'acceptances',(SELECT count(*) FROM atlas.work_result_acceptances
+                WHERE organization_id='{ORG}'::uuid),
+ 'ownerObligations',(SELECT count(*) FROM atlas.owner_obligations)
+)::text"""
+
 class PriorMowingRefusal(AssertionError):
     """Safe constant error: never emit captured rows, SQL, or actor details."""
 
@@ -134,12 +149,34 @@ def _loopback(db_url):
     if not isinstance(db_url,str) or not re.fullmatch(LOCAL_DB,db_url):
         raise PriorMowingRefusal("Prior mowing requires disposable loopback PG17")
 
+def _noncarrier_census(db_url,sql):
+    try:
+        raw=sql(db_url,NONCARRIER_CENSUS_SQL)
+        if not isinstance(raw,str) or raw.count("\n")>1:
+            raise ValueError("Not a single JSON census")
+        data=json.loads(raw)
+        if (not isinstance(data,dict)
+            or set(data)!={"work","allocations","offers","plans","results",
+                             "acceptances","ownerObligations"}
+            or any(type(v) is not int or v<0 for v in data.values())):
+            raise ValueError("Unrecognized noncarrier census")
+        return data
+    except Exception:
+        raise PriorMowingRefusal("Fixture noncarrier census unavailable") from None
+
 def install(db_url,sql):
     _loopback(db_url)
     if not callable(sql):
         raise PriorMowingRefusal("Exact isolated SQL carrier required")
+    before=_noncarrier_census(db_url,sql)
     # Never echo SQL or PostgreSQL result; errors are redacted by caller.
-    sql(db_url,INSTALL_SQL)
+    try:
+        sql(db_url,INSTALL_SQL)
+    except Exception:
+        raise PriorMowingRefusal("Prior mowing physical seed refused") from None
+    after=_noncarrier_census(db_url,sql)
+    if before!=after:
+        raise PriorMowingRefusal("Fixture manufactured additional native authority or Work")
 
 def capture(db_url,sql):
     _loopback(db_url)
