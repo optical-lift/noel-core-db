@@ -246,7 +246,7 @@ def require_preserved(before,after,p3_before,p3_after):
             or not isinstance(snap.get("eligibleOrReleasedOccurrenceIds"),list)
             or RELEASED not in snap["eligibleOrReleasedOccurrenceIds"]
             or not isinstance(snap.get("releasedOccurrenceIds"),list)
-            or RELEASED not in snap["releasedOccurrenceIds"])):
+            or RELEASED not in snap["releasedOccurrenceIds"]):
             raise PriorMowingRefusal("P3 never observed nonempty old mowing carriers")
     for key in ("legacyTaskTotal","plannedOccurrenceTotal",
                 "legacyReleasedTaskIds","eligibleOrReleasedOccurrenceIds",
