@@ -171,14 +171,21 @@ CREATE TRIGGER photo_catalogue_admission_gate BEFORE INSERT ON mark.photo_catalo
  FOR EACH ROW EXECUTE FUNCTION mark.photo_verify_catalogue_admission();
 
 CREATE FUNCTION mark.photo_verify_owner_event() RETURNS trigger
-LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $
-DECLARE c record; prior record;
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $$
+DECLARE c record; prior record; current_seq bigint;
 BEGIN
  -- Server-stamped transaction identity. Client input cannot choose/forge this value.
  NEW.event_transaction_id := pg_current_xact_id();
- SELECT capture_sha256 INTO c FROM mark.photo_component_catalogues WHERE catalogue_id=NEW.catalogue_id;
+ -- Serialize review sequence per physical catalogue to prevent concurrent gaps.
+ SELECT capture_sha256 INTO c FROM mark.photo_component_catalogues
+ WHERE catalogue_id=NEW.catalogue_id FOR UPDATE;
  IF NOT FOUND OR c.capture_sha256 IS DISTINCT FROM NEW.original_capture_sha256 THEN
   RAISE EXCEPTION 'Owner review capture mismatch';
+ END IF;
+ SELECT coalesce(max(client_sequence),0) INTO current_seq FROM mark.photo_owner_review_events
+ WHERE catalogue_id=NEW.catalogue_id AND owner_actor_key=NEW.owner_actor_key;
+ IF NEW.client_sequence<>current_seq+1 THEN
+  RAISE EXCEPTION 'Owner review sequence must be the next consecutive event';
  END IF;
  IF NEW.action='UNDO' THEN
   SELECT catalogue_id,owner_actor_key,action INTO prior
@@ -222,7 +229,7 @@ CREATE TRIGGER photo_review_rectangle_gate BEFORE INSERT ON mark.photo_owner_rev
 -- to commit a header before inserting its source-linked decision rows.
 -- Runs at transaction end; a legitimate writer inserts header + decisions atomically.
 CREATE FUNCTION mark.photo_verify_review_event_complete() RETURNS trigger
-LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $$
 DECLARE n bigint;
 BEGIN
  SELECT count(*) INTO n FROM mark.photo_owner_review_decisions WHERE event_id=NEW.event_id;
@@ -234,7 +241,7 @@ BEGIN
  END IF;
  RETURN NULL;
 END;
-$;
+$$;
 CREATE CONSTRAINT TRIGGER photo_review_event_requires_decisions
  AFTER INSERT ON mark.photo_owner_review_events
  DEFERRABLE INITIALLY DEFERRED
