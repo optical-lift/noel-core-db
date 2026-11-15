@@ -27,7 +27,7 @@ class PriorMowingPhysicalBindingSourceOnly(unittest.TestCase):
         self.assertIn("   planned_occurrence_id,release_policy_id,released_at,metadata)",after)
         self.assertIn(" '{RELEASED}'::uuid,'{POLICY}'::uuid",after)
         self.assertIn("and task.get(\"release_policy_id\")==POLICY",after)
-        self.assertIn("and release_policy_id='{POLICY}'::uuid",after)
+        self.assertIn("AND release_policy_id='{POLICY}'::uuid",after)
         self.assertEqual(after.count("INSERT INTO atlas.tasks"),1)
         self.assertEqual(after.count("UPDATE atlas.planned_work_occurrences"),1)
         self.assertEqual(after.count("COMMIT;"),1)
