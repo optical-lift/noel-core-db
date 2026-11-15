@@ -3,7 +3,9 @@ on:
   pull_request:
     paths:
       - 'candidates/atlas_uniops_historical_stale_transport_v2/**'
+      - 'candidates/atlas_uniops_historical_stale_transport_v3/**'
       - 'tests/test_uniops_history_stale_409_source_only.py'
+      - 'tests/test_uniops_history_stale_409_v3_source_only.py'
       - 'tests/append_uniops_history_http409_disposable_held.py'
       - 'tests/test_uniops_history_http409_overlay_source_only.py'
       - '.github/workflows/held-uniops-historical-stale-409-source-only.yml'
@@ -36,6 +38,10 @@ jobs:
           python3 tests/test_uniops_history_stale_409_source_only.py \
             --frozen frozen-governor-source/candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql \
             --candidate candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql
+          test "$(git hash-object candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql)" = da3ddafc8f479327df02fbe16e418eb0b094072d
+          test "$(git hash-object candidates/atlas_uniops_historical_stale_transport_v3/candidate.sql)" = 0318ac92492d34adcd1475255304cc21dca449e6
+          python3 -m py_compile tests/test_uniops_history_stale_409_v3_source_only.py
+          python3 tests/test_uniops_history_stale_409_v3_source_only.py
           python3 -m py_compile tests/append_uniops_history_http409_disposable_held.py tests/test_uniops_history_http409_overlay_source_only.py
           python3 tests/test_uniops_history_http409_overlay_source_only.py
           echo 'PASS held HTTP 409 candidate SOURCE REVIEW ONLY; NO DATABASE, SIGNED ACTOR OR RELEASE'
