@@ -1,6 +1,6 @@
 # Bulk photo review — exact protected validation handoff (2026-11-15)
 
-**Current status:** source static checks passed; candidate and synthetic fixture have NOT yet been executed in PostgreSQL. No production schema mutation. This packet must not be treated as release approval.
+**Current status (latest, 2026-11-15):** isolated PostgreSQL 17 synthetic migration and role-denial checks passed; protected full production-schema clone and real signed owner/outsider tests remain pending. No production schema mutation. This packet must not be treated as release approval.
 
 ## Candidate package on draft PR #2797
 
@@ -80,3 +80,36 @@ The clone-only SQL postconditions now include a **third, separate transaction** 
 
 The live Noel project is PostgreSQL 17.6; the `xid8` and `pg_current_xact_id()` APIs are documented for that version. The original Isaiah source is byte verified, capture ID 13, with `record_status='draft'`; its canonical/semantic/training authority is not elevated by this metadata. Neither `main`, any database schema nor Write Now runtime permissions were changed.
 
+
+## Isolated PostgreSQL execution now passed (2026-11-15)
+
+After the initial static review, the actual live Noel capture schema disclosed
+`mark.captures.capture_id` as `GENERATED ALWAYS AS IDENTITY`. The fictional
+capture fixture was corrected to `OVERRIDING SYSTEM VALUE`, as required by
+PostgreSQL 17 when explicitly assigning that synthetic ID.
+
+An independent no-secret, no-production, PostgreSQL 17 container workflow in
+`.github/workflows/noel-mark-bulk-synthetic-pg17.yml` now exercises:
+- a minimal synthetic `mark.captures` registry and fictional capture row;
+- actual candidate DDL (five private FORCE RLS tables, guard triggers, invoker view);
+- all clone-only postconditions, including incomplete event rejection, source
+  rectangle checks, late-attached review rejection, owner sequence continuity,
+  reclassification and append-only undo;
+- nine explicit denied SELECT probes as `anon`, `authenticated` and
+  `service_role` across source proposals, event headers and current review view;
+- nine local packet-verifier tests, with real 13,860-record private packet tested
+  only in the assistant's isolated research runtime (not in GitHub Actions).
+
+**Verified GitHub outcome:** [workflow run #43734180016](https://github.com/optical-lift/noel-core-db/actions/runs/43734180016)
+all steps passed on commit `f06379b0c28d645bcca28dcb234e747c479e6347`.
+[Database Custody CI run #43734180023](https://github.com/optical-lift/noel-core-db/actions/runs/43734180023)
+also passed. The private packet verifier and tests were independently checked
+to match their committed Git blobs byte-for-byte.
+
+**Do not confuse these probes with owner authorization:** the test database has
+neither live signed sessions nor full production schema/roles. The synthetic
+fixture's authentication-receipt string is fictional; current app roles cannot
+read `mark` directly by design. This is NOT production release authority.
+Source review/approval, canonical migration generation, protected full-schema
+clone, owner-vs-outsider signed identity proof, authenticated Write Now bridge
+and separately authorized production import remain outstanding.
