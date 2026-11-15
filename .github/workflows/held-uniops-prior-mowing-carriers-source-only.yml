@@ -54,8 +54,8 @@ jobs:
           test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = e0240feabf26a3c19b7f86aa7f4de22d70635523
           test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
           test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 7bcd3719aeea3e150770fe4bb4172416a815a38c
-          test "$(git hash-object tests/uniops_preexisting_mowing_carriers_held.py)" = d6385ad3fbcfa17baf22c6058e762a12a04126aa
-          test "$(git hash-object tests/prepare_uniops_preexisting_mowing_signed_held.py)" = 126bcedc40949cd35aee591dedd96a66968c8d8a
+          test "$(git hash-object tests/uniops_preexisting_mowing_carriers_held.py)" = ac3eb1ea158c4a6c43421e7d77932e7743f1026f
+          test "$(git hash-object tests/prepare_uniops_preexisting_mowing_signed_held.py)" = 68c35a3225a4a32ec2b5217b69a1c3cbae4d11d3
           test "$(git hash-object tests/test_uniops_preexisting_mowing_carriers_held.py)" = 2397c6dfafb27d503ecdd76acf829865d49addf4
           test "$(git hash-object tests/test_uniops_preexisting_mowing_composition_source_only.py)" = 64f2533e6fae7023b7cd5546260dfdeedab3b6f7
           python3 -m py_compile tests/uniops_preexisting_mowing_carriers_held.py tests/prepare_uniops_preexisting_mowing_signed_held.py tests/test_uniops_preexisting_mowing_carriers_held.py tests/test_uniops_preexisting_mowing_composition_source_only.py
