@@ -158,6 +158,13 @@ BEGIN
    END IF;
   END;
 
+  -- Read-only evidence: every review event is stamped with the server's xid8,
+  -- not a caller-selected transaction, and decision writes require that xid8.
+  SELECT count(*) INTO n FROM information_schema.columns
+  WHERE table_schema='mark' AND table_name='photo_owner_review_events'
+    AND column_name='event_transaction_id' AND udt_name='xid8';
+  IF n<>1 THEN RAISE EXCEPTION 'Owner event transaction seal column missing'; END IF;
+
   -- A naked ASSIGN header cannot commit without an owner decision.
   -- Check the deferred commit-time constraint using a savepoint-like block.
   BEGIN
@@ -256,4 +263,42 @@ BEGIN
   -- Reclassification and UNDO must never mutate existing review history.
   SELECT count(*) INTO n FROM mark.photo_owner_review_events WHERE catalogue_id=c_id;
   IF n<>3 THEN RAISE EXCEPTION 'Append-only owner event history changed unexpectedly'; END IF;
+END $$;
+
+
+-- Separate statement/transaction. A previously committed event cannot receive
+-- additional decisions even if fewer than 600 were originally submitted.
+-- This closes a gap that a DELETE/UPDATE-only guard would not prevent.
+DO $$
+DECLARE
+ prior_event bigint;
+ prior_catalogue uuid;
+ err text;
+ n int;
+BEGIN
+ SELECT e.event_id,e.catalogue_id INTO prior_event,prior_catalogue
+ FROM mark.photo_owner_review_events e
+ JOIN mark.photo_component_catalogues c ON c.catalogue_id=e.catalogue_id
+ WHERE c.capture_id=9200000001
+   AND e.owner_actor_key='synthetic_owner'
+   AND e.event_scope='synthetic_first_review'
+ ORDER BY e.event_id DESC LIMIT 1;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Missing synthetic committed review'; END IF;
+
+ BEGIN
+  INSERT INTO mark.photo_owner_review_decisions
+   (catalogue_id,event_id,component_id,reviewed_x,reviewed_y,
+    reviewed_width,reviewed_height,verdict)
+  VALUES (prior_catalogue,prior_event,2,69,18,26,60,'UNKNOWN');
+  RAISE EXCEPTION 'Late decision was accepted for a committed review event';
+ EXCEPTION WHEN OTHERS THEN
+  GET STACKED DIAGNOSTICS err=MESSAGE_TEXT;
+  IF err NOT LIKE '%Sealed owner review event: decisions must share the header transaction%' THEN
+   RAISE EXCEPTION 'Incorrect post-commit event seal result: %',err;
+  END IF;
+ END;
+
+ SELECT count(*) INTO n FROM mark.photo_owner_review_decisions
+ WHERE event_id=prior_event;
+ IF n<>1 THEN RAISE EXCEPTION 'Committed review batch was silently expanded'; END IF;
 END $$;
