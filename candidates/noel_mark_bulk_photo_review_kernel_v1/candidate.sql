@@ -54,6 +54,7 @@ CREATE TABLE mark.photo_owner_review_events (
  catalogue_id uuid NOT NULL REFERENCES mark.photo_catalogue_admissions(catalogue_id) ON DELETE RESTRICT,
  action text NOT NULL CHECK(action IN ('ASSIGN','UNDO')),
  owner_actor_key text NOT NULL CHECK(length(owner_actor_key) BETWEEN 4 AND 180),
+ event_transaction_id xid8 NOT NULL,
  verified_auth_receipt_key text NOT NULL CHECK(length(verified_auth_receipt_key) BETWEEN 8 AND 200),
  client_event_id uuid NOT NULL,
  client_sequence bigint NOT NULL CHECK(client_sequence>0),
@@ -170,9 +171,11 @@ CREATE TRIGGER photo_catalogue_admission_gate BEFORE INSERT ON mark.photo_catalo
  FOR EACH ROW EXECUTE FUNCTION mark.photo_verify_catalogue_admission();
 
 CREATE FUNCTION mark.photo_verify_owner_event() RETURNS trigger
-LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $$
+LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $
 DECLARE c record; prior record;
 BEGIN
+ -- Server-stamped transaction identity. Client input cannot choose/forge this value.
+ NEW.event_transaction_id := pg_current_xact_id();
  SELECT capture_sha256 INTO c FROM mark.photo_component_catalogues WHERE catalogue_id=NEW.catalogue_id;
  IF NOT FOUND OR c.capture_sha256 IS DISTINCT FROM NEW.original_capture_sha256 THEN
   RAISE EXCEPTION 'Owner review capture mismatch';
@@ -201,9 +204,12 @@ BEGIN
   OR NEW.reviewed_y+NEW.reviewed_height>c.image_height THEN
   RAISE EXCEPTION 'Owner review rectangle outside capture';
  END IF;
- SELECT action INTO e FROM mark.photo_owner_review_events
+ SELECT action,event_transaction_id INTO e FROM mark.photo_owner_review_events
  WHERE event_id=NEW.event_id AND catalogue_id=NEW.catalogue_id FOR UPDATE;
  IF NOT FOUND OR e.action<>'ASSIGN' THEN RAISE EXCEPTION 'No assignable owner event'; END IF;
+ IF e.event_transaction_id IS DISTINCT FROM pg_current_xact_id() THEN
+  RAISE EXCEPTION 'Sealed owner review event: decisions must share the header transaction';
+ END IF;
  SELECT count(*) INTO total FROM mark.photo_owner_review_decisions WHERE event_id=NEW.event_id;
  IF total>=600 THEN RAISE EXCEPTION 'Review batch exceeds 600'; END IF;
  RETURN NEW;
