@@ -5,6 +5,7 @@ No SQL is executed. No Auth, actors, production or disposable database is starte
 """
 import argparse
 import ast
+import sys
 from pathlib import Path
 import unittest
 
@@ -80,4 +81,4 @@ class NoNetworkFrozenSignedComposition(unittest.TestCase):
         self.assertIn(b"UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS",composed)
 
 if __name__=="__main__":
-    unittest.main(verbosity=2)
+    unittest.main(argv=[sys.argv[0]],verbosity=2)
