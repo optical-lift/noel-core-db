@@ -29,7 +29,7 @@ PREPARE_SEED='''    # Synthetic previously existing old-queue carriers must pred
           "Reviewed prior mowing fixture missing")
     _legacy_bytes=_legacy_path.read_bytes()
     check(_legacy_hashlib.sha1(b"blob "+str(len(_legacy_bytes)).encode("ascii")
-          +b"\\\\0"+_legacy_bytes).hexdigest()
+          +b"\\0"+_legacy_bytes).hexdigest()
           =="4687c4a0f44d2f5581ee4361f6d8c56d92175c1a",
           "Prior mowing fixture changed")
     _legacy_spec=importlib.util.spec_from_file_location(
