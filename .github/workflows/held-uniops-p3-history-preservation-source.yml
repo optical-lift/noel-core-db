@@ -73,7 +73,7 @@ jobs:
           PYTHONPATH=tests python3 -m unittest -v test_uniops_historical_retirement_signed_bridge_held
           test "$(git -C signed-p3-source hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
           test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
-          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = aa51bb1466ae3f1cdef0670b8262a8b28a2857c1
+          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = e0240feabf26a3c19b7f86aa7f4de22d70635523
           test "$(git hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 51db89390727e74fea0efe5a438c8d6a73fe9bbf
           test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 7bcd3719aeea3e150770fe4bb4172416a815a38c
           test "$(git hash-object tests/test_uniops_p3_history_existing_membership_seed_held.py)" = 8e2aab33ce2ebc69c36eee2abd8979881fdbce84
