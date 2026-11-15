@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 
 DRIVER_BLOB = "09eeee925ebfa2cb64b1dea336688ba8076ef44d"
-BRIDGE_BLOB = "f1a4eadb4d0199e8b4d9c1f17738675c281e249d"
+BRIDGE_BLOB = "473358d8e56e67ecfae0d02823307a14c1bc1507"
 COMPANION_BLOB = "79151f723e60b33410c760acef715155a53771f3"
 
 ARG_ANCHOR = "    a=p.parse_args()\n"
