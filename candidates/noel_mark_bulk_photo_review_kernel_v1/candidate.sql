@@ -109,9 +109,11 @@ CREATE FUNCTION mark.photo_verify_catalogue_source() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $$
 DECLARE c record;
 BEGIN
- SELECT sha256,width_px,height_px INTO c FROM mark.captures WHERE capture_id=NEW.capture_id;
+ SELECT sha256,width_px,height_px,capture_status INTO c
+  FROM mark.captures WHERE capture_id=NEW.capture_id;
  IF NOT FOUND OR c.sha256 IS DISTINCT FROM NEW.capture_sha256 OR
-  c.width_px IS DISTINCT FROM NEW.image_width OR c.height_px IS DISTINCT FROM NEW.image_height THEN
+  c.width_px IS DISTINCT FROM NEW.image_width OR c.height_px IS DISTINCT FROM NEW.image_height
+  OR c.capture_status IS DISTINCT FROM 'bytes_verified' THEN
   RAISE EXCEPTION 'Original source capture hash/dimensions mismatch';
  END IF;
  RETURN NEW;
@@ -142,10 +144,19 @@ CREATE FUNCTION mark.photo_verify_catalogue_admission() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $$
 DECLARE c record; n bigint;
 BEGIN
- SELECT capture_sha256,catalogue_digest,expected_count INTO c
- FROM mark.photo_component_catalogues WHERE catalogue_id=NEW.catalogue_id FOR UPDATE;
+ SELECT cat.capture_sha256,cat.catalogue_digest,cat.expected_count,
+  cat.image_width,cat.image_height,src.sha256 AS current_sha256,
+  src.width_px AS current_width,src.height_px AS current_height,
+  src.capture_status AS current_capture_status INTO c
+ FROM mark.photo_component_catalogues cat
+ JOIN mark.captures src ON src.capture_id=cat.capture_id
+ WHERE cat.catalogue_id=NEW.catalogue_id FOR UPDATE OF cat;
  IF NOT FOUND OR c.capture_sha256 IS DISTINCT FROM NEW.verified_sha256
-  OR c.catalogue_digest IS DISTINCT FROM NEW.verified_digest THEN
+  OR c.catalogue_digest IS DISTINCT FROM NEW.verified_digest
+  OR c.current_sha256 IS DISTINCT FROM c.capture_sha256
+  OR c.current_width IS DISTINCT FROM c.image_width
+  OR c.current_height IS DISTINCT FROM c.image_height
+  OR c.current_capture_status IS DISTINCT FROM 'bytes_verified' THEN
   RAISE EXCEPTION 'Catalogue hash verification failed';
  END IF;
  SELECT count(*) INTO n FROM mark.photo_component_proposals WHERE catalogue_id=NEW.catalogue_id;
