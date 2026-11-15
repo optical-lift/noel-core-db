@@ -31,6 +31,8 @@ on:
       - 'tests/test_uniops_p3_history_safe_python_failure_held.py'
       - 'tests/uniops_historical_retirement_signed_bridge_held.py'
       - 'tests/test_uniops_historical_retirement_signed_bridge_held.py'
+      - 'tests/prepare_uniops_historical_retirement_signed_followon_held.py'
+      - 'tests/test_prepare_uniops_historical_retirement_signed_followon_held.py'
       - 'tests/append_uniops_history_http409_disposable_held.py'
       - 'tests/test_uniops_history_http409_overlay_source_only.py'
       - 'tests/test_uniops_history_stale_409_source_only.py'
@@ -174,6 +176,8 @@ jobs:
           test "$(git -C history-source-contract hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
           test "$(git -C history-source-contract hash-object candidates/atlas_universal_work_lifecycle_v1/06_single_transition_authority_private.sql)" = a6947ae7d5c5d31a75740c2cd2672e9832a7fee8
           test "$(git hash-object tests/test_uniops_historical_retirement_signed_bridge_held.py)" = 7c885ecf3dce9ad98d5345c22d12f908ce65f258
+          test "$(git hash-object tests/test_prepare_uniops_historical_retirement_signed_followon_held.py)" = d6c5c39c587bc64d1c6bfe699406460eb9b1044b
+          PYTHONPATH=tests python3 -m unittest -v test_prepare_uniops_historical_retirement_signed_followon_held
           PYTHONPATH=tests python3 -m unittest -v test_uniops_historical_retirement_signed_bridge_held
           test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = aa51bb1466ae3f1cdef0670b8262a8b28a2857c1
           test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
@@ -616,7 +620,7 @@ jobs:
           test "$(git -C history-signed hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
           test "$(git -C history-signed hash-object candidates/atlas_universal_work_lifecycle_v1/06_single_transition_authority_private.sql)" = a6947ae7d5c5d31a75740c2cd2672e9832a7fee8
           test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
-          test "$(git -C canonical hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519
+          test "$(git -C canonical hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 50567bc02c3542e4e2ba97414b7bb9c63fea3f62
           test "$(git -C canonical hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = 473358d8e56e67ecfae0d02823307a14c1bc1507
           test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = aa51bb1466ae3f1cdef0670b8262a8b28a2857c1
           test "$(git -C canonical hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
