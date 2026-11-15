@@ -10,7 +10,7 @@ spec=importlib.util.spec_from_file_location(
 m=importlib.util.module_from_spec(spec)
 spec.loader.exec_module(m)
 CANDIDATE=(HERE.parent/"candidates"/
-           "atlas_uniops_historical_stale_transport_v2"/"candidate.sql")
+           "atlas_uniops_historical_stale_transport_v3"/"candidate.sql")
 
 def fixture():
     return ("-- BEGIN PINNED STAGE x\n-- END PINNED STAGE x\n"*18
@@ -28,7 +28,7 @@ class History409Overlay(unittest.TestCase):
         self.assertEqual(out.count(m.BEGIN_MARK),1)
         self.assertEqual(out.count(m.END_MARK),1)
         self.assertEqual(out.count("RAISE SQLSTATE 'PGRST'"),1)
-        self.assertIn('DETAIL=\'{"status":409}\'',out)
+        self.assertIn('DETAIL=\'{"status":409,"headers":{}}\'',out)
         self.assertIn(self.base.rstrip(),out)
         self.assertIn("\nBEGIN;\n",out)
         self.assertIn("\nCOMMIT;\n",out)

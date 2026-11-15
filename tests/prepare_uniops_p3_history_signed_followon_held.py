@@ -15,7 +15,7 @@ import sys
 
 import prepare_uniops_historical_retirement_signed_followon_held as original
 
-PREPARER_BLOB="6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519"
+PREPARER_BLOB="50567bc02c3542e4e2ba97414b7bb9c63fea3f62"
 GUARD_BLOB="a0ab7523f10e9b79d3290871fd5faac777e6e733"
 P3_HOOK_BLOB="4efef70ea67209b04def420aade39b8a6fd44f38"
 COMPAT_BLOB="7bcd3719aeea3e150770fe4bb4172416a815a38c"

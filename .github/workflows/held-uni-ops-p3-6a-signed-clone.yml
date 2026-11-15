@@ -29,10 +29,16 @@ on:
       - 'tests/test_uniops_p3_history_existing_membership_seed_held.py'
       - 'tests/uniops_p3_history_safe_python_failure_held.py'
       - 'tests/test_uniops_p3_history_safe_python_failure_held.py'
+      - 'tests/uniops_historical_retirement_signed_bridge_held.py'
+      - 'tests/test_uniops_historical_retirement_signed_bridge_held.py'
+      - 'tests/prepare_uniops_historical_retirement_signed_followon_held.py'
+      - 'tests/test_prepare_uniops_historical_retirement_signed_followon_held.py'
       - 'tests/append_uniops_history_http409_disposable_held.py'
       - 'tests/test_uniops_history_http409_overlay_source_only.py'
       - 'tests/test_uniops_history_stale_409_source_only.py'
       - 'candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql'
+      - 'candidates/atlas_uniops_historical_stale_transport_v3/candidate.sql'
+      - 'tests/test_uniops_history_stale_409_v3_source_only.py'
 permissions:
   contents: read
   packages: read
@@ -168,7 +174,12 @@ jobs:
           python3 tests/test_correct_uniops_p3_6a_postcondition_deppath_held.py p3-source-contract/candidates/uni_ops_p3_no_auto_successor_v1
           test "$(git -C history-source-contract rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
           test "$(git -C history-source-contract hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
-          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = aa51bb1466ae3f1cdef0670b8262a8b28a2857c1
+          test "$(git -C history-source-contract hash-object candidates/atlas_universal_work_lifecycle_v1/06_single_transition_authority_private.sql)" = a6947ae7d5c5d31a75740c2cd2672e9832a7fee8
+          test "$(git hash-object tests/test_uniops_historical_retirement_signed_bridge_held.py)" = 7c885ecf3dce9ad98d5345c22d12f908ce65f258
+          test "$(git hash-object tests/test_prepare_uniops_historical_retirement_signed_followon_held.py)" = d6c5c39c587bc64d1c6bfe699406460eb9b1044b
+          PYTHONPATH=tests python3 -m unittest -v test_prepare_uniops_historical_retirement_signed_followon_held
+          PYTHONPATH=tests python3 -m unittest -v test_uniops_historical_retirement_signed_bridge_held
+          test "$(git hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = e0240feabf26a3c19b7f86aa7f4de22d70635523
           test "$(git hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
           test "$(git hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 51db89390727e74fea0efe5a438c8d6a73fe9bbf
           test "$(git hash-object tests/uniops_p3_history_existing_membership_seed_held.py)" = 7bcd3719aeea3e150770fe4bb4172416a815a38c
@@ -184,12 +195,15 @@ jobs:
           python3 -m py_compile tests/uniops_p3_history_safe_python_failure_held.py tests/test_uniops_p3_history_safe_python_failure_held.py
           python3 -m unittest discover -s tests -p 'test_uniops_p3_history_safe_python_failure_held.py' -v
           test "$(git hash-object candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql)" = da3ddafc8f479327df02fbe16e418eb0b094072d
+          test "$(git hash-object candidates/atlas_uniops_historical_stale_transport_v3/candidate.sql)" = 0318ac92492d34adcd1475255304cc21dca449e6
+          test "$(git hash-object tests/test_uniops_history_stale_409_v3_source_only.py)" = ade74714f4e67eb33a78fd97f52252f4f3ccbaec
           test "$(git hash-object tests/test_uniops_history_stale_409_source_only.py)" = 1d8d0ecf3e00d21cb3241f3bda49ad3e1b24762a
-          test "$(git hash-object tests/append_uniops_history_http409_disposable_held.py)" = 9442c3d161e6288a547ecd6558e7c399af245d41
-          test "$(git hash-object tests/test_uniops_history_http409_overlay_source_only.py)" = 0b4594aa940b84a51ef8b558fd1e0de064a5ae25
+          test "$(git hash-object tests/append_uniops_history_http409_disposable_held.py)" = aee37fd0bdf68b245691ae8cb8b6ece5a6a4b77a
+          test "$(git hash-object tests/test_uniops_history_http409_overlay_source_only.py)" = da766c225550a15e7888232b44673e06f2ab8ef7
           test "$(git -C history-source-contract hash-object candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql)" = 93f7b9cf0bad5eb536ffa90d3973aabfe75542d9
           python3 -m py_compile tests/test_uniops_history_stale_409_source_only.py tests/append_uniops_history_http409_disposable_held.py
           python3 tests/test_uniops_history_stale_409_source_only.py --frozen history-source-contract/candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql --candidate candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql
+          python3 tests/test_uniops_history_stale_409_v3_source_only.py
           python3 tests/test_uniops_history_http409_overlay_source_only.py
           python3 - <<'PY'
           from pathlib import Path
@@ -604,10 +618,11 @@ jobs:
           set -euo pipefail
           test "$(git -C history-signed rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
           test "$(git -C history-signed hash-object tests/validate-atlas-native-historical-retirement-signed-http.py)" = 79151f723e60b33410c760acef715155a53771f3
+          test "$(git -C history-signed hash-object candidates/atlas_universal_work_lifecycle_v1/06_single_transition_authority_private.sql)" = a6947ae7d5c5d31a75740c2cd2672e9832a7fee8
           test "$(git -C u4-test hash-object tests/validate-uniops-option-a-u2-accepted-first-signed.py)" = 09eeee925ebfa2cb64b1dea336688ba8076ef44d
-          test "$(git -C canonical hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 6ff245eb3c2c3ce007b0a0a59e1d382d7ae0d519
-          test "$(git -C canonical hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
-          test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = aa51bb1466ae3f1cdef0670b8262a8b28a2857c1
+          test "$(git -C canonical hash-object tests/prepare_uniops_historical_retirement_signed_followon_held.py)" = 50567bc02c3542e4e2ba97414b7bb9c63fea3f62
+          test "$(git -C canonical hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = 473358d8e56e67ecfae0d02823307a14c1bc1507
+          test "$(git -C canonical hash-object tests/prepare_uniops_p3_history_signed_followon_held.py)" = e0240feabf26a3c19b7f86aa7f4de22d70635523
           test "$(git -C canonical hash-object tests/uniops_p3_historical_preservation_check_held.py)" = a0ab7523f10e9b79d3290871fd5faac777e6e733
           test "$(git -C canonical hash-object tests/uniops_p3_history_safe_python_failure_held.py)" = 27c0d3d80f76e0480ea1f7743719844aa0880523
           test "$(git -C canonical hash-object tests/test_uniops_p3_history_signed_followon_held.py)" = 51db89390727e74fea0efe5a438c8d6a73fe9bbf
@@ -644,16 +659,19 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C canonical hash-object candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql)" = da3ddafc8f479327df02fbe16e418eb0b094072d
+          test "$(git -C canonical hash-object candidates/atlas_uniops_historical_stale_transport_v3/candidate.sql)" = 0318ac92492d34adcd1475255304cc21dca449e6
+          test "$(git -C canonical hash-object tests/test_uniops_history_stale_409_v3_source_only.py)" = ade74714f4e67eb33a78fd97f52252f4f3ccbaec
           test "$(git -C canonical hash-object tests/test_uniops_history_stale_409_source_only.py)" = 1d8d0ecf3e00d21cb3241f3bda49ad3e1b24762a
-          test "$(git -C canonical hash-object tests/append_uniops_history_http409_disposable_held.py)" = 9442c3d161e6288a547ecd6558e7c399af245d41
+          test "$(git -C canonical hash-object tests/append_uniops_history_http409_disposable_held.py)" = aee37fd0bdf68b245691ae8cb8b6ece5a6a4b77a
           test "$(git -C history-signed hash-object candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql)" = 93f7b9cf0bad5eb536ffa90d3973aabfe75542d9
           python3 canonical/tests/test_uniops_history_stale_409_source_only.py \
             --frozen history-signed/candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql \
             --candidate canonical/candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql
+          python3 canonical/tests/test_uniops_history_stale_409_v3_source_only.py
           python3 canonical/tests/test_uniops_history_http409_overlay_source_only.py
           python3 canonical/tests/append_uniops_history_http409_disposable_held.py \
             "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql" \
-            canonical/candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql
+            canonical/candidates/atlas_uniops_historical_stale_transport_v3/candidate.sql
           echo 'PASS source-pinned historical stale HTTP409 override appended to protected disposable clone SQL ONLY'
       - name: Run canonical authentic-schema disposable clone, no release
         id: integration
