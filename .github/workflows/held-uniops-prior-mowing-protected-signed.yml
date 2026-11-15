@@ -312,7 +312,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git hash-object tests/uniops_prior_mowing_release_policy_fixture_patch_held.py)" = 425f000e58b6ff61fd89300ee349b17ef27debe8
-          test "$(git hash-object tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py)" = 4fc8bcf640e9316c00ba165652d3661bf3ddb251
+          test "$(git hash-object tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py)" = c0d828e82e46df1cc6671d12a613b47320b17ac7
           python3 -m py_compile tests/uniops_prior_mowing_release_policy_fixture_patch_held.py tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py
           UNI_OPS_PINNED_FIXTURE_SOURCE=prior-mowing-source/tests/uniops_preexisting_mowing_carriers_held.py \
             UNI_OPS_SOURCE_STAGED_DRIVER="$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py" \
@@ -333,7 +333,7 @@ jobs:
           assert driver.count(blob)==1
           assert 'UNI_OPS_PRIOR_MOWING_PHASE=initial_capture_complete' in driver
           assert '_legacy.install(a.db_url,_prior_mowing_traced_sql)' in driver
-          assert 'and release_policy_id=\'{POLICY}\'::uuid' in fixture.decode()
+          assert 'AND release_policy_id=\'{POLICY}\'::uuid' in fixture.decode()
           print('PASS exact missing release-policy binding corrected only in disposable signed fixture; NO execution')
           PY
   validate-protected:
@@ -752,7 +752,7 @@ jobs:
             --source "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py" \
             --output "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py"
           test "$(git -C canonical hash-object tests/uniops_prior_mowing_release_policy_fixture_patch_held.py)" = 425f000e58b6ff61fd89300ee349b17ef27debe8
-          test "$(git -C canonical hash-object tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py)" = 4fc8bcf640e9316c00ba165652d3661bf3ddb251
+          test "$(git -C canonical hash-object tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py)" = c0d828e82e46df1cc6671d12a613b47320b17ac7
           python3 canonical/tests/uniops_prior_mowing_release_policy_fixture_patch_held.py \
             --fixture canonical/tests/uniops_preexisting_mowing_carriers_held.py \
             --staged-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py" \
