@@ -14,7 +14,7 @@ import sys
 import prepare_uniops_p3_history_signed_followon_held as parent
 
 PARENT_BLOB="e0240feabf26a3c19b7f86aa7f4de22d70635523"
-FIXTURE_BLOB="7e1d4b9f0b55d676affceca392a6365769e86cb5"
+FIXTURE_BLOB="d6385ad3fbcfa17baf22c6058e762a12a04126aa"
 SAFE_OUTPUT="validate-uniops-preexisting-mowing-signed-local-only.py"
 SEED_ANCHOR="    count_before=int(sql(a.db_url,"
 BEFORE_ANCHOR='        print("UNI_OPS_HISTORY_HANDOFF_STAGE=governor_started",flush=True)\n'
@@ -30,7 +30,7 @@ PREPARE_SEED='''    # Synthetic previously existing old-queue carriers must pred
     _legacy_bytes=_legacy_path.read_bytes()
     check(_legacy_hashlib.sha1(b"blob "+str(len(_legacy_bytes)).encode("ascii")
           +b"\\0"+_legacy_bytes).hexdigest()
-          =="7e1d4b9f0b55d676affceca392a6365769e86cb5",
+          =="d6385ad3fbcfa17baf22c6058e762a12a04126aa",
           "Prior mowing fixture changed")
     _legacy_spec=importlib.util.spec_from_file_location(
         "uniops_preexisting_mowing_carriers_held",_legacy_path)
@@ -39,9 +39,12 @@ PREPARE_SEED='''    # Synthetic previously existing old-queue carriers must pred
     _legacy=importlib.util.module_from_spec(_legacy_spec)
     _legacy_spec.loader.exec_module(_legacy)
     _legacy.install(a.db_url,sql)
+    _legacy_initial=_legacy.capture(a.db_url,sql)
     print("UNI_OPS_PRIOR_MOWING_FIXTURE=SEEDED_BEFORE_GOVERNANCE",flush=True)
 '''
 PRE_HISTORY='''        _legacy_before=_legacy.capture(a.db_url,sql)
+        check(_legacy.require_rows_unchanged(_legacy_initial,_legacy_before) is True,
+              "Signed U2/U4/P3 changed a prior mowing carrier")
         print("UNI_OPS_PRIOR_MOWING_HISTORY_BEFORE=CAPTURED",flush=True)
 '''
 POST_HISTORY='''        _legacy_after=_legacy.capture(a.db_url,sql)
@@ -74,6 +77,8 @@ def inject(reviewed_composite,fixture):
     code=code.replace(AFTER_ANCHOR,POST_HISTORY+AFTER_ANCHOR,1)
     for fragment in (
         "_legacy.install(a.db_url,sql)",
+        "_legacy_initial=_legacy.capture(a.db_url,sql)",
+        "_legacy.require_rows_unchanged(",
         "_legacy_before=_legacy.capture(a.db_url,sql)",
         "_legacy_after=_legacy.capture(a.db_url,sql)",
         "_legacy.require_preserved(",
