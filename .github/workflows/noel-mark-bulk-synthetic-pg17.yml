@@ -76,6 +76,25 @@ jobs:
           END;
           $$;
           SQL
+      - name: Prove anonymous, authenticated and service roles cannot directly read Mark evidence
+        env:
+          DB_CONTAINER: ${{ job.services.syntheticpg.id }}
+        run: |
+          set -euo pipefail
+          for role in anon authenticated service_role; do
+            for relation in mark.photo_component_proposals mark.photo_owner_review_events mark.photo_owner_current_reviews; do
+              if docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -X -v ON_ERROR_STOP=1 \
+                -c "SET ROLE $role; SELECT count(*) FROM $relation;" >"$RUNNER_TEMP/denial.log" 2>&1; then
+                echo "FAIL: unrestricted Mark evidence read for $role" >&2
+                exit 1
+              fi
+              if ! grep -qi 'permission denied' "$RUNNER_TEMP/denial.log"; then
+                echo "FAIL: denial did not originate from an access control check for $role" >&2
+                exit 1
+              fi
+            done
+          done
+          echo "Nine direct Mark read-denial probes passed using synthetic roles."
       - name: Run synthetic packet integrity tests
         run: python -m unittest discover -v -s scripts -p 'test_verify_private_mark_packet.py'
 
