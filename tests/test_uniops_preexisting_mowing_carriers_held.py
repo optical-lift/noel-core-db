@@ -95,8 +95,34 @@ class FrozenPriorMowingFixture(unittest.TestCase):
 
     def test_install_executes_only_preapproved_disposable_seed(self):
         calls=[]
-        prior.install(FAKE_LOCAL,lambda db,statement:calls.append((db,statement)))
-        self.assertEqual(calls,[(FAKE_LOCAL,prior.INSTALL_SQL)])
+        census=json.dumps(dict(work=1,allocations=1,offers=0,plans=0,
+                               results=0,acceptances=0,ownerObligations=0))
+        def sql(db,statement):
+            calls.append((db,statement))
+            return census if statement==prior.NONCARRIER_CENSUS_SQL else ""
+        prior.install(FAKE_LOCAL,sql)
+        self.assertEqual(calls,[
+            (FAKE_LOCAL,prior.NONCARRIER_CENSUS_SQL),
+            (FAKE_LOCAL,prior.INSTALL_SQL),
+            (FAKE_LOCAL,prior.NONCARRIER_CENSUS_SQL)])
+
+    def test_seed_must_not_create_native_work_or_other_side_effects(self):
+        baseline=dict(work=1,allocations=1,offers=0,plans=0,results=0,
+                      acceptances=0,ownerObligations=0)
+        calls=[]
+        def sql(db,statement):
+            calls.append(statement)
+            if statement==prior.NONCARRIER_CENSUS_SQL:
+                data=dict(baseline)
+                if prior.INSTALL_SQL in calls:
+                    data["work"]=2
+                return json.dumps(data)
+            return ""
+        with self.assertRaises(prior.PriorMowingRefusal):
+            prior.install(FAKE_LOCAL,sql)
+        self.assertEqual(calls.count(prior.INSTALL_SQL),1)
+        with self.assertRaises(prior.PriorMowingRefusal):
+            prior.install(FAKE_LOCAL,lambda *_:"not a JSON census")
 
     def test_requires_nonempty_linked_state_and_identical_row_data(self):
         before=physical()
