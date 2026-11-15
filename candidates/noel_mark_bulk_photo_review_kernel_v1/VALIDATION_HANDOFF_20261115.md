@@ -65,3 +65,18 @@ The original 1QIsa(a) JPEG is already `mark.captures.capture_id=13`, byte verifi
 ## Local execution limitation of this work
 
 The current assistant runtime does not contain `psql`, `postgres`, `supabase` CLI or Docker, and external package retrieval is unavailable. Running candidate DDL through a transaction against the **live production database**, even with an intended rollback, would violate this repository's protected release boundary. No substitute such execution was attempted.
+
+## 2026-11-15 source audit and pre-clone corrections
+
+The proposal branch was merged forward from canonical `main` without merging this candidate into `main`. It is now GitHub-mergeable and retains the five unrelated Atlas-side commits unchanged.
+
+Closer inspection found a **real SQL parse defect**: two PL/pgSQL `AS` delimiters had been reduced to one dollar sign, and one closing delimiter was also incomplete. These were repaired; every one of seven trigger functions now has a matching `AS $$ ... $$;` pair. Previous superficial 16/16 checks did not detect this.
+
+Review-event custody also required a stricter transactional seal. `mark.photo_owner_review_events.event_transaction_id` is now PostgreSQL `xid8`, stamped **by the server-side BEFORE INSERT trigger** via `pg_current_xact_id()`. A new decision may be attached only when its current transaction ID matches the header's original transaction ID. That prevents adding new decisions to an already committed event. The event trigger also acquires a catalogue row lock and verifies consecutive per-owner sequence numbers, preventing out-of-order or competing concurrent event insertions. Original source proposals remain immutable; any correction must be a new owner event.
+
+The clone-only SQL postconditions now include a **third, separate transaction** that attempts to add a decision to an earlier committed event and demands an explicit rejection. They also attempt a sequence gap and require it to be refused. The empty ASSIGN test was corrected to sequence 1 so that the deferred 1-to-600-decision check, rather than the sequence guard, is what actually rejects it.
+
+**Validation after these corrections:** 17/17 source-structure checks pass on the actual GitHub blob contents, including seven balanced PL/pgSQL delimiters, five FORCE RLS tables, 11 guards, no role grants, immutable source SHA, transaction seal and corresponding synthetic tests. This is **NOT a passing PostgreSQL execution**; the clone and signed-permission gates remain outstanding, as do owner acceptance, migration generation and any production release.
+
+The live Noel project is PostgreSQL 17.6; the `xid8` and `pg_current_xact_id()` APIs are documented for that version. The original Isaiah source is byte verified, capture ID 13, with `record_status='draft'`; its canonical/semantic/training authority is not elevated by this metadata. Neither `main`, any database schema nor Write Now runtime permissions were changed.
+
