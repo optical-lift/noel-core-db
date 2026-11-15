@@ -124,7 +124,7 @@ CREATE FUNCTION mark.photo_verify_component_source() RETURNS trigger
 LANGUAGE plpgsql SECURITY INVOKER SET search_path=pg_catalog,mark AS $$
 DECLARE c record;
 BEGIN
- SELECT image_width,image_height INTO c FROM mark.photo_component_catalogues WHERE catalogue_id=NEW.catalogue_id;
+ SELECT image_width,image_height INTO c FROM mark.photo_component_catalogues WHERE catalogue_id=NEW.catalogue_id FOR UPDATE;
  IF NOT FOUND OR NEW.original_x + NEW.original_width > c.image_width
   OR NEW.original_y + NEW.original_height > c.image_height THEN
    RAISE EXCEPTION 'Original component rectangle outside capture';
