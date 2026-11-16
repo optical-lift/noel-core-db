@@ -20,7 +20,7 @@ Source [Atlas #653](https://github.com/optical-lift/atlas/pull/653), **merged**;
 
 `retire_held.sql` is a single atomic PL/pgSQL DO statement. It fails closed if the identity is not exact, the graph is not exactly the expected one, a native migration/ledger exists, any new direct FK or common unconstrained UUID reference targets the test identity, or a string Ledger Subject reference survives. It then deletes in dependency order: 1 root, 1 participation, 1 Ledger, 1 Organization. It has **no CASCADE, new schema, grant, auth change, Work issue, worker/Person mutation or trigger bypass**. The primary data identity has a unique governed stable key, creation window, current owner-requested test classification and supporting reconstructed metadata; a *name match alone* cannot pass.
 
-`pg17/fixture.sql` and `pg17/run_synthetic.sh` provide disposable **synthetic PG17** positive and seven negative cases. They have no production address or private Person IDs, and do not authorize release. Run only inside a newly isolated PostgreSQL 17 service with `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD` set; the runner creates independent ephemeral databases and never points at Noel or Supabase.
+`pg17/fixture.sql` and `pg17/run_synthetic.sh` provide disposable **synthetic PG17** positive and eight negative cases. They have no production address or private Person IDs, and do not authorize release. Run only inside a newly isolated PostgreSQL 17 service with `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD` set; the runner creates independent ephemeral databases and never points at Noel or Supabase.
 
 **Next mandatory gates before real deletion:**
 
