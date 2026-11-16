@@ -83,3 +83,52 @@ jobs:
           echo 'ISOLATED_SYNTHETIC_POSTGRES=YES'
           echo 'REAL_NOEL_SCHEMA_RESTORED=NO'
           echo 'PRODUCTION_MUTATION=NONE'
+
+  pg17-synthetic-legacy-ledger-retirement:
+    # Separate disposable fake records. Never reads live Feast Guild IDs.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: u2f_legacy_migration_synthetic
+          POSTGRES_PASSWORD: synthetic-only-no-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d u2f_legacy_migration_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: u2f_legacy_migration_synthetic
+      PGPASSWORD: synthetic-only-no-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Check legacy-to-native read-only preflight in synthetic PostgreSQL 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = '17'
+          python3 candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/test_legacy_ledger_retirement_preflight.py
+          echo 'PRIVATE_LIVE_SOURCE=NOT_ACCESSED'
+          echo 'REAL_IDENTITY_MAPPING=NOT_INFERRED'
+          echo 'REAL_ROOT_AUTHORITY_MIGRATED=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
