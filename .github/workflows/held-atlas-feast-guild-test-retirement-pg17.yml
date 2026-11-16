@@ -80,3 +80,38 @@ jobs:
           echo 'REAL_NOEL_SCHEMA_RESTORED=NO'
           echo 'REAL_FEAST_GUILD_DELETED=NO'
           echo 'PRODUCTION_MUTATION=NONE'
+
+  generate-held-release-migration-template:
+    # Creates only an EMPTY filename template with the official CLI.
+    # No database credentials, data, release, merge or migration deployment.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Generate canonical candidate filename with pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/supabase-2.116.0.tar.gz"
+          curl -fLsS --proto '=https' --tlsv1.2 --max-time 180 \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_2.116.0_linux_amd64.tar.gz \
+            -o "$archive"
+          echo "5b3031cb297d51b25be4c284e4c852254460ec722ec221d3b81b07d55acfd158  $archive" | sha256sum -c --status
+          tar -xzf "$archive" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = "2.116.0"
+          work="$(mktemp -d "$RUNNER_TEMP/feast-release-name.XXXXXXXX")"
+          cd "$work"
+          supabase init --force
+          supabase migration new atlas_feast_guild_test_only_retirement_v1
+          mapfile -t files < <(find "$work/supabase/migrations" -maxdepth 1 -type f \
+              -name '*_atlas_feast_guild_test_only_retirement_v1.sql')
+          test "${#files[@]}" -eq 1
+          name="$(basename "${files[0]}")"
+          echo "CLI_GENERATED_HELD_RELEASE_FILENAME=$name"
+          echo "NO_PRODUCTION_SQL_EXECUTED=YES"
+          echo "PRODUCTION_RELEASE_REQUIRES_SEPARATE_OWNER_APPROVAL=YES"
