@@ -1,0 +1,124 @@
+-- UNI-OPS U2F / P0 retirement-only, READ-ONLY native Ledger adjudication.
+-- Protected operator-side psql source, not a public API/function/migration.
+-- Explicit known legacy ID must come from source-authorized private custody.
+-- Never identify a Ledger by its display name or infer a native ID from names.
+-- Produces aggregate readiness flags only, no identities or row contents.
+-- Uses the old atlas authority tables ONLY to RETIRE them safely before launch.
+\set ON_ERROR_STOP on
+\if :{?legacy_ledger_id}
+\else
+  \echo 'BLOCKED: source-owned legacy_ledger_id missing'
+  \quit 3
+\endif
+
+WITH target AS (
+ SELECT :'legacy_ledger_id'::uuid AS id
+),
+legacy AS (
+ SELECT COUNT(*)::integer AS record_count,
+        COUNT(*) FILTER(WHERE l.status='active')::integer AS active_count
+ FROM atlas.ledgers l JOIN target t ON l.id=t.id
+),
+institution AS (
+ SELECT COUNT(*)::integer AS governing_count
+ FROM atlas.ledger_organization_participations lop
+ JOIN atlas.organizations o ON o.id=lop.organization_id
+ JOIN target t ON t.id=lop.ledger_id
+ WHERE lop.participation_kind='governing'
+   AND lop.is_compatibility_primary
+   AND lop.status='active' AND lop.ended_at IS NULL
+   AND o.status='active'
+),
+roots AS (
+ SELECT COUNT(*)::integer AS total_count,
+        COUNT(*) FILTER(
+          WHERE EXISTS (
+           SELECT 1 FROM ledger.ledgers l
+           JOIN ledger.seats s ON s.ledger_id=l.id
+           WHERE l.id=a.ledger_id
+             AND l.ledger_state='active' AND l.retired_at IS NULL
+             AND s.person_entity_id=p.person_id
+             AND s.seat_state='active'
+             AND s.began_at<=pg_catalog.now()
+             AND (s.ended_at IS NULL OR s.ended_at>pg_catalog.now())
+          )
+        )::integer AS matching_native_person_seats
+ FROM atlas.principal_ledger_authorities a
+ JOIN atlas.principals p ON p.id=a.principal_id
+ JOIN target t ON t.id=a.ledger_id
+ WHERE a.authority_kind='root_governing'
+   AND a.status='active' AND a.ended_at IS NULL
+   AND p.status='active' AND p.person_id IS NOT NULL
+),
+onboarding AS (
+ SELECT COUNT(*)::integer AS source_case_count,
+        COUNT(*) FILTER (
+         WHERE c.case_kind='legacy_adjudicated_migration'
+           AND c.onboarding_basis->>'migrationAdjudicated'='true'
+           AND c.onboarding_state='ready_to_activate'
+           AND EXISTS (
+             SELECT 1 FROM reality.entities e
+             WHERE e.id=c.subject_entity_id
+               AND e.entity_kind IN ('business','institution')
+               AND e.identity_state='canonical'
+           )
+        )::integer AS ready_canonical_subject_case_count
+ FROM ledger.onboarding_cases c JOIN target t
+    ON c.onboarding_basis->>'legacyLedgerId'=t.id::text
+),
+native AS (
+ SELECT COUNT(*) FILTER(
+          WHERE l.id=t.id AND l.ledger_state='active'
+            AND l.retired_at IS NULL
+       )::integer AS active_same_identity_count,
+        COUNT(*) FILTER(
+          WHERE l.id<>t.id
+       )::integer AS conflicting_native_identity_count
+ FROM ledger.ledgers l
+ JOIN ledger.onboarding_cases c ON c.id=l.onboarding_case_id
+ JOIN target t ON c.onboarding_basis->>'legacyLedgerId'=t.id::text
+)
+SELECT pg_catalog.jsonb_build_object(
+ 'contractVersion','uni_ops_u2f_legacy_to_native_ledger_readonly_preflight_v1',
+ 'legacyFound',legacy.record_count=1,
+ 'legacyActive',legacy.active_count=1,
+ 'activeGoverningInstitutionCount',institution.governing_count,
+ 'activeRootCount',roots.total_count,
+ 'nativeCurrentPersonSeatCount',roots.matching_native_person_seats,
+ 'nativeAdjudicationCaseCount',onboarding.source_case_count,
+ 'readyCanonicalInstitutionCaseCount',onboarding.ready_canonical_subject_case_count,
+ 'nativeActiveSameIdentity',native.active_same_identity_count=1,
+ 'nativeIdentityConflict',native.conflicting_native_identity_count<>0,
+ 'sourceReadyForSeparateActivationReview',
+  legacy.active_count=1 AND institution.governing_count=1
+    AND roots.total_count>0
+    AND onboarding.source_case_count=1
+    AND onboarding.ready_canonical_subject_case_count=1
+    AND native.active_same_identity_count=0
+    AND native.conflicting_native_identity_count=0,
+ 'nativeRootPersonSeatParityProved',
+    native.active_same_identity_count=1
+    AND roots.total_count>0
+    AND roots.matching_native_person_seats=roots.total_count
+    AND native.conflicting_native_identity_count=0,
+ 'nextReview',
+    CASE
+      WHEN legacy.active_count<>1 THEN 'legacy_source_unavailable'
+      WHEN institution.governing_count<>1 THEN 'institutional_governance_unresolved'
+      WHEN roots.total_count=0 THEN 'governing_root_custody_unresolved'
+      WHEN native.conflicting_native_identity_count<>0 THEN 'native_identity_collision_halt'
+      WHEN onboarding.source_case_count=0 THEN 'native_legacy_migration_onboarding_not_admitted'
+      WHEN onboarding.source_case_count<>1 THEN 'native_onboarding_case_ambiguous'
+      WHEN onboarding.ready_canonical_subject_case_count<>1 THEN 'canonical_institution_or_onboarding_not_ready'
+      WHEN native.active_same_identity_count<>1 THEN 'owner_review_native_ledger_activation'
+      WHEN roots.matching_native_person_seats<>roots.total_count THEN 'governing_person_native_seat_parity_unproven'
+      ELSE 'native_identity_parity_source_review'
+    END,
+ 'canActivateLedger',false,
+ 'workIssuerAuthorized',false,
+ 'originalWorkCreated',false,
+ 'legacyTableDropAuthorized',false,
+ 'productionMutation',false
+) AS report
+FROM legacy CROSS JOIN institution CROSS JOIN roots
+CROSS JOIN onboarding CROSS JOIN native;
