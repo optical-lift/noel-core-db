@@ -8,7 +8,7 @@
 \if :{?legacy_ledger_id}
 \else
   \echo 'BLOCKED: source-owned legacy_ledger_id missing'
-  \quit 3
+  SELECT 1/0 AS missing_source_scoped_legacy_ledger_id;
 \endif
 
 WITH target AS (
