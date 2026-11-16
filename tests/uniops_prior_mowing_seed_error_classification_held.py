@@ -34,8 +34,9 @@ PHASED_PATCH = '''        try:
                 check(_sc_path.is_file() and not _sc_path.is_symlink(),
                       "Reviewed physical seed category helper absent")
                 _sc_raw=_sc_path.read_bytes()
-                _sc_sha=hashlib.sha1(
-                    b"blob "+str(len(_sc_raw)).encode("ascii")+b"\\\\0"+_sc_raw
+                import hashlib as _sc_hashlib
+                _sc_sha=_sc_hashlib.sha1(
+                    b"blob "+str(len(_sc_raw)).encode("ascii")+b"\\0"+_sc_raw
                 ).hexdigest()
                 check(_sc_sha == "{classifier_blob}",
                       "Reviewed physical seed category helper changed")
