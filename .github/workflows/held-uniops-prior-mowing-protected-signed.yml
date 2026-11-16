@@ -9,6 +9,8 @@ on:
       - 'tests/test_uniops_prior_mowing_finite_stage_held.py'
       - 'tests/uniops_prior_mowing_release_policy_fixture_patch_held.py'
       - 'tests/test_uniops_prior_mowing_release_policy_fixture_patch_held.py'
+      - 'tests/uniops_prior_mowing_seed_error_classification_held.py'
+      - 'tests/test_uniops_prior_mowing_seed_error_classification_held.py'
 permissions:
   contents: read
   packages: read
@@ -336,6 +338,32 @@ jobs:
           assert 'AND release_policy_id=\'{POLICY}\'::uuid' in fixture.decode()
           print('PASS exact missing release-policy binding corrected only in disposable signed fixture; NO execution')
           PY
+      - name: Verify redacted physical seed SQL category against exact signed source (NO SQL)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tests/uniops_prior_mowing_seed_error_classification_held.py)" = 3847bebca7490bfc4bfbad7f629a6b26f64d7acd
+          test "$(git hash-object tests/test_uniops_prior_mowing_seed_error_classification_held.py)" = afb4960c58c7868ffbc83de32c6f1467694a7422
+          python3 -m py_compile tests/uniops_prior_mowing_seed_error_classification_held.py tests/test_uniops_prior_mowing_seed_error_classification_held.py
+          PYTHONPATH=tests python3 -m unittest -v test_uniops_prior_mowing_seed_error_classification_held
+          python3 tests/uniops_prior_mowing_seed_error_classification_held.py \
+            --fixed-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" \
+            --output "$RUNNER_TEMP/validate-uniops-prior-mowing-seed-classified-local-only.py"
+          python3 -m py_compile "$RUNNER_TEMP/validate-uniops-prior-mowing-seed-classified-local-only.py"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          before=(root/'validate-uniops-prior-mowing-fixed-signed-local-only.py').read_text()
+          after=(root/'validate-uniops-prior-mowing-seed-classified-local-only.py').read_text()
+          assert before.count('return sql(_db,_statement)')==after.count('return sql(_db,_statement)')==1
+          assert before.count('_legacy.install(a.db_url,_prior_mowing_traced_sql)')==after.count('_legacy.install(a.db_url,_prior_mowing_traced_sql)')==1
+          assert before.count('history_receipt=hist.prove(')==after.count('history_receipt=hist.prove(')==1
+          assert before.count('UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS')==after.count('UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS')==1
+          assert after.count('UNI_OPS_PRIOR_MOWING_SEED_SQL_ERROR_CLASS=')==1
+          assert after.count('ae5da30ca5953ad9bd7cb17ed09fd00ab4825dfc')==1
+          print('PASS only bounded seed error category added; no prior mowing SQL or signed-actor change')
+          PY
   validate-protected:
     if: >-
       github.event_name == 'issues' &&
@@ -377,11 +405,12 @@ jobs:
               'prior_carrier_source_sha':'d810cde585a2df02f41425fd349ae5a1c5348d30',
               'owner_run_approval':'signed_prior_mowing_carriers_2800_v1',
               'owner_stage_probe_approval':'signed_prior_mowing_stage_probe_2800_v2',
-              'owner_release_policy_patch_approval':'signed_prior_mowing_release_binding_2800_v3'}
+              'owner_release_policy_patch_approval':'signed_prior_mowing_release_binding_2800_v3',
+              'owner_seed_error_class_approval':'signed_prior_mowing_seed_error_class_2800_v4'}
           title=os.environ.get('OWNER_TITLE','')
           if title!='UNI-OPS nonempty prior mowing Task-occurrence protected signed conservation gate':
               raise SystemExit('Wrong owner test goal')
-          approval='Approved one disposable signed prior mowing Task release-policy binding correction after controller review'
+          approval='Approved one disposable signed prior mowing SQL seed error classification after controller source review'
           body_lines=os.environ.get('OWNER_BODY','').splitlines()
           prior_lines=os.environ.get('OWNER_PREVIOUS_BODY','').splitlines()
           if body_lines.count(approval)!=1 or approval in prior_lines:
@@ -759,7 +788,12 @@ jobs:
             --output-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" \
             --output-fixture "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py"
           cp "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py" canonical/tests/uniops_preexisting_mowing_carriers_held.py
-          cp "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
+          test "$(git -C canonical hash-object tests/uniops_prior_mowing_seed_error_classification_held.py)" = 3847bebca7490bfc4bfbad7f629a6b26f64d7acd
+          test "$(git -C canonical hash-object tests/test_uniops_prior_mowing_seed_error_classification_held.py)" = afb4960c58c7868ffbc83de32c6f1467694a7422
+          python3 canonical/tests/uniops_prior_mowing_seed_error_classification_held.py \
+            --fixed-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" \
+            --output "$RUNNER_TEMP/validate-uniops-prior-mowing-seed-classified-local-only.py"
+          cp "$RUNNER_TEMP/validate-uniops-prior-mowing-seed-classified-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/uniops_p3_historical_preservation_check_held.py canonical/tests/uniops_preexisting_mowing_carriers_held.py canonical/tests/prepare_uniops_preexisting_mowing_signed_held.py
           python3 - <<'PY'
           from pathlib import Path
@@ -1227,6 +1261,22 @@ jobs:
               except (OSError,ValueError,TypeError,AttributeError,ImportError):
                   _stage='unverified_reader'
           print('UNI_OPS_PRIOR_MOWING_DIAGNOSTIC_STAGE='+_stage)
+          _seed_class='not_reported'
+          _category_helper=pathlib.Path('canonical/tests/uniops_prior_mowing_seed_error_classification_held.py')
+          if _category_helper.is_file() and not _category_helper.is_symlink() and historical_log.is_file():
+              try:
+                  _raw_classifier=_category_helper.read_bytes()
+                  _classifier_sha=hashlib.sha1(b'blob '+str(len(_raw_classifier)).encode()+b'\0'+_raw_classifier).hexdigest()
+                  if _classifier_sha=='3847bebca7490bfc4bfbad7f629a6b26f64d7acd':
+                      _s_spec=importlib.util.spec_from_file_location('held_prior_mowing_error_category',_category_helper)
+                      _s_mod=importlib.util.module_from_spec(_s_spec)
+                      _s_spec.loader.exec_module(_s_mod)
+                      _seed_class=_s_mod.extract_category(historical_log.read_text(errors='replace'))
+                  else:
+                      _seed_class='untrusted_source'
+              except (OSError,ValueError,TypeError,AttributeError,ImportError):
+                  _seed_class='untrusted_source'
+          print('UNI_OPS_PRIOR_MOWING_SEED_SQL_ERROR_CLASS='+_seed_class)
           print('UNI_OPS_SIGNED_FULL_U1A_OVERLAP=NOT_RUN')
           p3actor=root/'uniops-u2-signed.log'
           p3_ok=p3actor.is_file() and 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' in p3actor.read_text(errors='replace').splitlines()
@@ -1245,6 +1295,7 @@ jobs:
           rm -f -- "$RUNNER_TEMP/validate-uniops-p3-historical-signed-local-only.py"
           rm -f -- "$RUNNER_TEMP/validate-uniops-preexisting-mowing-signed-local-only.py" "$RUNNER_TEMP/validate-uniops-prior-mowing-staged-local-only.py"
           rm -f -- "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py"
+          rm -f -- "$RUNNER_TEMP/validate-uniops-prior-mowing-seed-classified-local-only.py"
           rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
           rm -f -- "$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
           case "${UNI_OPS_PIN_ROOT:-}" in
