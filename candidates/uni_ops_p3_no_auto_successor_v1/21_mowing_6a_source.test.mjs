@@ -143,9 +143,16 @@ test('disposable 18-stage U4 scratch gains exactly eight source-pinned P3 stages
   try {
     const oldSql=join(root,'UNI_OPS_U4_DISPOSABLE_ONLY.sql');
     const out=join(root,'20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql');
-    const stage=Array.from({length:18},(_,i)=>
-      '-- BEGIN PINNED STAGE fictional_'+(i+1)+'\\n-- END PINNED STAGE fictional_'+(i+1)+'\\n').join('');
-    const input=stage+'-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:3e09b66e54c15e100110c2b50f43dc9c7593e51a\\n';
+    const stage=Array.from({length:18},(_,i)=>{
+      const label=i===0
+       ?'r01-r02-composed-native blob:75d1a83ae01116be9e71bdb778f159753b81327a'
+       :'fictional_'+(i+1);
+      const end=i===0?'r01-r02-composed-native':'fictional_'+(i+1);
+      return '-- BEGIN PINNED STAGE '+label+'\n'+
+       (i===0?'CREATE OR REPLACE FUNCTION atlas.record_continuing_care_actual_self_api_v1(\n':'')+
+       '-- END PINNED STAGE '+end+'\n';
+    }).join('');
+    const input=stage;
     writeFileSync(oldSql,input);
     const digest=createHash('sha256').update(input).digest('hex');
     const assembler=new URL('22_compose_mowing_6a_scratch_held.mjs',base);
@@ -157,6 +164,10 @@ test('disposable 18-stage U4 scratch gains exactly eight source-pinned P3 stages
     const combined=readFileSync(out,'utf8');
     assert.equal((combined.match(/-- BEGIN PINNED STAGE /g)||[]).length,18);
     assert.equal((combined.match(/-- BEGIN PINNED P3 6A HELD STAGE /g)||[]).length,8);
+    assert.equal((combined.match(/-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:/g)||[]).length,1);
+    assert.match(combined,/CREATE OR REPLACE FUNCTION public.record_continuing_care_actual_self_api_v1/);
+    assert.ok(combined.indexOf('-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:')<
+     combined.indexOf('-- BEGIN PINNED P3 6A HELD STAGE '));
     assert.match(combined,/P3 evaluator source fingerprint drift; stop/);
     assert.match(combined,/CORE_MOWING_P3_STRUCTURE=PASS/);
     assert.notEqual(cmd(digest,out).status,0,'existing output must never be overwritten');
@@ -168,10 +179,22 @@ test('disposable 18-stage U4 scratch gains exactly eight source-pinned P3 stages
       join(forgedDir,'20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql')).status,0,
       'forged U4 input hash must be denied');
     const missing=join(root,'UNI_OPS_BAD_DISPOSABLE_ONLY.sql');
-    writeFileSync(missing,stage);
-    const missingDigest=createHash('sha256').update(stage).digest('hex');
+    const noR02=stage.replace(
+     'r01-r02-composed-native blob:75d1a83ae01116be9e71bdb778f159753b81327a',
+     'fictional_standing_source');
+    writeFileSync(missing,noR02);
+    const missingDigest=createHash('sha256').update(noR02).digest('hex');
     const rejected=spawnSync(process.execPath,[assembler.pathname,missing,missingDigest,
       join(missingDir,'20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql')],{encoding:'utf8',timeout:12000});
-    assert.notEqual(rejected.status,0,'U4 signed transport provenance must be present');
+    assert.notEqual(rejected.status,0,'reviewed R02 Work/Actual provenance must be present');
+    const duplicateDir=join(root,'duplicate');
+    mkdirSync(duplicateDir);
+    const duplicate=join(root,'UNI_OPS_DUPLICATE_DISPOSABLE_ONLY.sql');
+    const alreadyGrafted=input+'-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:3e09b66e54c15e100110c2b50f43dc9c7593e51a\\n';
+    writeFileSync(duplicate,alreadyGrafted);
+    const dupeDigest=createHash('sha256').update(alreadyGrafted).digest('hex');
+    assert.notEqual(cmd(dupeDigest,
+     join(duplicateDir,'20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql')).status,0,
+     'pre-existing signed U4 public source must not be installed twice');
   }finally{rmSync(root,{recursive:true,force:true});}
 });
