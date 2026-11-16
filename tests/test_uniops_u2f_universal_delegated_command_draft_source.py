@@ -13,7 +13,7 @@ ALLOWLIST=(ROOT/"supabase/migrations/20260928003036_atlas_delegated_agent_explic
 TARGET=(ROOT/"supabase/migrations/20260928003952_atlas_delegated_agent_target_contract_v1.sql").read_text(encoding="utf8")
 SOURCE=re.sub(r"(?m)^\s*--[^\n]*","",SQL)
 NATIVE_IDENTITY=(FOLDER/"02_native_ledger_carrier_identity_held.sql").read_text(encoding="utf8")
-NATIVE_SOURCE=re.sub(r"(?m)^\\s*--[^\\n]*","",NATIVE_IDENTITY)
+NATIVE_SOURCE=re.sub(r"(?m)^\s*--[^\n]*","",NATIVE_IDENTITY)
 
 class UniversalDelegatedDraftOnly(unittest.TestCase):
     def test_existing_canonical_registry_not_new_table_or_second_work(self):
@@ -102,7 +102,7 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         for token in expected:
             with self.subTest(required=token):
                 self.assertIn(token,NATIVE_SOURCE)
-        self.assertEqual(len(re.findall(r"\\bCREATE\\s+FUNCTION\\b",NATIVE_SOURCE,re.I)),1)
+        self.assertEqual(len(re.findall(r"\bCREATE\s+FUNCTION\b",NATIVE_SOURCE,re.I)),1)
 
     def test_private_identity_does_not_become_original_work_authority(self):
         for flag in (
@@ -116,7 +116,7 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             with self.subTest(flag=flag):
                 self.assertIn(flag,NATIVE_SOURCE)
         self.assertNotRegex(NATIVE_SOURCE,
-            r"(?i)\\b(?:INSERT\\s+INTO|UPDATE\\s+atlas\\.|DELETE\\s+FROM|DROP\\s+|ALTER\\s+|GRANT\\s+|SECURITY\\s+DEFINER|SET\\s+ROLE|SET\\s+SESSION\\s+AUTHORIZATION)\\b")
+            r"(?i)\b(?:INSERT\s+INTO|UPDATE\s+atlas\.|DELETE\s+FROM|DROP\s+|ALTER\s+|GRANT\s+|SECURITY\s+DEFINER|SET\s+ROLE|SET\s+SESSION\s+AUTHORIZATION)\b")
         for obsolete in (
             "atlas.ledgers","atlas.principal_ledger_authorities",
             "atlas.tasks","atlas.task_release_queue_items",
