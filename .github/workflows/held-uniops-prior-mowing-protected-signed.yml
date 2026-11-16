@@ -15,6 +15,8 @@ on:
       - 'tests/test_uniops_prior_mowing_foreign_key_locus_held.py'
       - 'tests/uniops_prior_mowing_task_fk_refinement_held.py'
       - 'tests/test_uniops_prior_mowing_task_fk_refinement_held.py'
+      - 'tests/uniops_prior_mowing_task_fk_catalog_held.py'
+      - 'tests/test_uniops_prior_mowing_task_fk_catalog_held.py'
 permissions:
   contents: read
   packages: read
@@ -421,6 +423,35 @@ jobs:
           assert b.count('UNI_OPS_PRIOR_MOWING_TASK_FK_REFINEMENT=')==1
           print('PASS exact source only Task-FK category; existing signed Work/history unchanged')
           PY
+      - name: Verify read-only disposable Task FK catalog classifier after exact v6 class
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tests/uniops_prior_mowing_task_fk_catalog_held.py)" = 472a84cebf54067b57fbbaac254aa27bfc10053c
+          test "$(git hash-object tests/test_uniops_prior_mowing_task_fk_catalog_held.py)" = ef6c2a13318f95bf3361d9235d0dba02fcdc7c06
+          python3 -m py_compile tests/uniops_prior_mowing_task_fk_catalog_held.py tests/test_uniops_prior_mowing_task_fk_catalog_held.py
+          PYTHONPATH=tests python3 -m unittest -v test_uniops_prior_mowing_task_fk_catalog_held
+          python3 tests/uniops_prior_mowing_task_fk_catalog_held.py \
+            --v6-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-local-only.py" \
+            --output "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-catalog-local-only.py"
+          python3 -m py_compile "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-catalog-local-only.py"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          a=(root/'validate-uniops-prior-mowing-task-fk-local-only.py').read_text()
+          b=(root/'validate-uniops-prior-mowing-task-fk-catalog-local-only.py').read_text()
+          for token in ('UNI_OPS_PRIOR_MOWING_SEED_SQL_ERROR_CLASS=',
+                        'UNI_OPS_PRIOR_MOWING_FK_LOCUS=',
+                        'UNI_OPS_PRIOR_MOWING_TASK_FK_REFINEMENT=',
+                        '_legacy.install(a.db_url,_prior_mowing_traced_sql)',
+                        '_legacy.require_preserved(',
+                        'history_receipt=hist.prove(',
+                        'UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS'):
+              assert a.count(token)==b.count(token)==1
+          assert b.count('UNI_OPS_PRIOR_MOWING_TASK_FK_CATALOG=')==1
+          print('PASS catalog-only Task FK receipt; frozen actor, SQL, history and cleanup intact')
+          PY
   validate-protected:
     if: >-
       github.event_name == 'issues' &&
@@ -465,11 +496,12 @@ jobs:
               'owner_release_policy_patch_approval':'signed_prior_mowing_release_binding_2800_v3',
               'owner_seed_error_class_approval':'signed_prior_mowing_seed_error_class_2800_v4',
               'owner_fk_locus_approval':'signed_prior_mowing_fk_locus_2800_v5',
-              'owner_task_fk_refinement_approval':'signed_prior_mowing_task_fk_2800_v6'}
+              'owner_task_fk_refinement_approval':'signed_prior_mowing_task_fk_2800_v6',
+               'owner_task_fk_catalog_approval':'signed_prior_mowing_task_fk_catalog_2800_v7'}
           title=os.environ.get('OWNER_TITLE','')
           if title!='UNI-OPS nonempty prior mowing Task-occurrence protected signed conservation gate':
               raise SystemExit('Wrong owner test goal')
-          approval='Approved one disposable signed prior mowing Task foreign-key refinement after source review'
+          approval='Approved one disposable signed prior mowing in-clone Task FK catalog diagnostic after source review'
           body_lines=os.environ.get('OWNER_BODY','').splitlines()
           prior_lines=os.environ.get('OWNER_PREVIOUS_BODY','').splitlines()
           if body_lines.count(approval)!=1 or approval in prior_lines:
@@ -862,7 +894,12 @@ jobs:
           python3 canonical/tests/uniops_prior_mowing_task_fk_refinement_held.py \
             --fk-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-fk-locus-local-only.py" \
             --output "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-local-only.py"
-          cp "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
+          test "$(git -C canonical hash-object tests/uniops_prior_mowing_task_fk_catalog_held.py)" = 472a84cebf54067b57fbbaac254aa27bfc10053c
+          test "$(git -C canonical hash-object tests/test_uniops_prior_mowing_task_fk_catalog_held.py)" = ef6c2a13318f95bf3361d9235d0dba02fcdc7c06
+          python3 canonical/tests/uniops_prior_mowing_task_fk_catalog_held.py \
+            --v6-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-local-only.py" \
+            --output "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-catalog-local-only.py"
+          cp "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-catalog-local-only.py" canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py
           python3 -m py_compile canonical/tests/validate-uniops-option-a-u2-accepted-first-signed.py canonical/tests/validate-atlas-native-historical-retirement-signed-http.py canonical/tests/uniops_p3_historical_preservation_check_held.py canonical/tests/uniops_preexisting_mowing_carriers_held.py canonical/tests/prepare_uniops_preexisting_mowing_signed_held.py
           python3 - <<'PY'
           from pathlib import Path
@@ -1380,6 +1417,24 @@ jobs:
           if _seed_class!='foreign_key' or _fk_class!='task_other':
               _task_refinement='prior_stage_mismatch'
           print('UNI_OPS_PRIOR_MOWING_TASK_FK_REFINEMENT='+_task_refinement)
+          _cat_label='not_reported'
+          _cat_helper=pathlib.Path('canonical/tests/uniops_prior_mowing_task_fk_catalog_held.py')
+          if _cat_helper.is_file() and not _cat_helper.is_symlink() and historical_log.is_file():
+              try:
+                  _cat_raw=_cat_helper.read_bytes()
+                  _cat_hash=hashlib.sha1(b'blob '+str(len(_cat_raw)).encode()+b'\0'+_cat_raw).hexdigest()
+                  if _cat_hash=='472a84cebf54067b57fbbaac254aa27bfc10053c':
+                      _cat_spec=importlib.util.spec_from_file_location('held_prior_task_fk_catalog',_cat_helper)
+                      _cat_mod=importlib.util.module_from_spec(_cat_spec)
+                      _cat_spec.loader.exec_module(_cat_mod)
+                      _cat_label=_cat_mod.extract(historical_log.read_text(errors='replace'))
+                  else:
+                      _cat_label='untrusted_source'
+              except (OSError,ValueError,TypeError,AttributeError,ImportError):
+                  _cat_label='untrusted_source'
+          if _seed_class!='foreign_key' or _fk_class!='task_other' or _task_refinement!='task_unclassified':
+              _cat_label='prior_stage_mismatch'
+          print('UNI_OPS_PRIOR_MOWING_TASK_FK_CATALOG='+_cat_label)
           print('UNI_OPS_SIGNED_FULL_U1A_OVERLAP=NOT_RUN')
           p3actor=root/'uniops-u2-signed.log'
           p3_ok=p3actor.is_file() and 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' in p3actor.read_text(errors='replace').splitlines()
@@ -1400,7 +1455,7 @@ jobs:
           rm -f -- "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" "$RUNNER_TEMP/uniops-preexisting-mowing-fixture-fixed-local-only.py"
           rm -f -- "$RUNNER_TEMP/validate-uniops-prior-mowing-seed-classified-local-only.py"
           rm -f -- "$RUNNER_TEMP/validate-uniops-prior-mowing-fk-locus-local-only.py"
-          rm -f -- "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-local-only.py"
+          rm -f -- "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-local-only.py" "$RUNNER_TEMP/validate-uniops-prior-mowing-task-fk-catalog-local-only.py"
           rm -f -- "$RUNNER_TEMP/20261107211000_atlas_uni_ops_a_history_DISPOSABLE_ONLY.sql" "$RUNNER_TEMP/20261107211000_atlas_uni_ops_p3_6a_TEST_ONLY.sql"
           rm -f -- "$RUNNER_TEMP/UNI_OPS_A_FULL_HISTORY_${GITHUB_RUN_ID}_TEST_ONLY.sql"
           case "${UNI_OPS_PIN_ROOT:-}" in
