@@ -1,9 +1,10 @@
--- HELD SOURCE CANDIDATE ONLY. NOT A PRODUCTION MIGRATION OR RELEASE.
+-- Owner-authorized Feast Guild test-only retirement; production execution only through protected Noel release.
 -- Purpose: remove only the Sept 14, 2026 clean-room Feast Guild TEST
 -- Organization / old Atlas Ledger / participation / root authority, once
 -- separately signed current-schema clone and exact owner release are approved.
 -- Do not delete any Person, Work, Elm, historical audit or native Ledger.
 -- NO CASCADE; no direct production execution. This script is one transaction.
+BEGIN;
 DO $feast_test_retire$
 DECLARE
   v_organization_id uuid;
@@ -211,3 +212,4 @@ BEGIN
   THEN RAISE EXCEPTION 'Postcondition mismatch: protected institutions changed.'; END IF;
 END
 $feast_test_retire$;
+COMMIT;
