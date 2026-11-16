@@ -1261,6 +1261,22 @@ jobs:
               except (OSError,ValueError,TypeError,AttributeError,ImportError):
                   _stage='unverified_reader'
           print('UNI_OPS_PRIOR_MOWING_DIAGNOSTIC_STAGE='+_stage)
+          _seed_class='not_reported'
+          _category_helper=pathlib.Path('canonical/tests/uniops_prior_mowing_seed_error_classification_held.py')
+          if _category_helper.is_file() and not _category_helper.is_symlink() and historical_log.is_file():
+              try:
+                  _raw_classifier=_category_helper.read_bytes()
+                  _classifier_sha=hashlib.sha1(b'blob '+str(len(_raw_classifier)).encode()+b'\0'+_raw_classifier).hexdigest()
+                  if _classifier_sha=='3847bebca7490bfc4bfbad7f629a6b26f64d7acd':
+                      _s_spec=importlib.util.spec_from_file_location('held_prior_mowing_error_category',_category_helper)
+                      _s_mod=importlib.util.module_from_spec(_s_spec)
+                      _s_spec.loader.exec_module(_s_mod)
+                      _seed_class=_s_mod.extract_category(historical_log.read_text(errors='replace'))
+                  else:
+                      _seed_class='untrusted_source'
+              except (OSError,ValueError,TypeError,AttributeError,ImportError):
+                  _seed_class='untrusted_source'
+          print('UNI_OPS_PRIOR_MOWING_SEED_SQL_ERROR_CLASS='+_seed_class)
           print('UNI_OPS_SIGNED_FULL_U1A_OVERLAP=NOT_RUN')
           p3actor=root/'uniops-u2-signed.log'
           p3_ok=p3actor.is_file() and 'P3_6A_SIGNED_RESULT_SNAPSHOT=PASS' in p3actor.read_text(errors='replace').splitlines()
