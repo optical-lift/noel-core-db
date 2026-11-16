@@ -1,5 +1,7 @@
 # noel-core-db
 
+> **P0 ATLAS OWNER LAUNCH BLOCKER (2026-11-16):** The new universal Atlas will **NOT launch with any legacy Atlas operational table still installed**. Legacy Task, farm-membership, release-queue and other superseded operational tables must be physically deleted after necessary actual/history is lawfully reconciled to canonical source; no permanent compatibility/shadow tables. Valid `atlas.work_items` and other canonical authorities stay, regardless of origin date. **No destructive migration or bypass is approved by this policy itself.** Noel owns reviewed `atlas_` source migrations, independent signed no-loss/denial and separately approved production `DROP ... RESTRICT` proof. See [owner P0 issue #532](https://github.com/optical-lift/atlas/issues/532) and [current Atlas prelaunch inventory](https://github.com/optical-lift/atlas/blob/main/docs/integration/ATLAS_PRELAUNCH_LEGACY_TABLE_RETIREMENT_20261116.md).
+
 Executable database custody for the shared `noel-core` Supabase project.
 
 This repository owns canonical database migrations, database custody tests, schema ownership boundaries, and generated database contracts for the physical Supabase project used by Noel, Atlas, Titus, and Write Now.
