@@ -47,8 +47,8 @@ class FeastGuildTestOnlyRetirementSource(unittest.TestCase):
         self.assertTrue(self.source.lstrip().startswith("-- HELD SOURCE CANDIDATE ONLY"))
 
     def test_synthetic_tests_positive_and_negative(self):
-        self.assertIn("CREATE TABLE atlas.farms", self.fixture)
-        self.assertIn("CREATE TABLE atlas.nonfk_seat_probe", self.fixture)
+        self.assertIn("create table atlas.farms", self.fixture)
+        self.assertIn("create table atlas.nonfk_seat_probe", self.fixture)
         for case in [
             "positive", "foreign_key_block", "unguarded_uuid_block",
             "source_identity_mismatch", "native_ledger_block",
