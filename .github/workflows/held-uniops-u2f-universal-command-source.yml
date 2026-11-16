@@ -1,0 +1,37 @@
+name: HELD UNI-OPS U2F native delegated first-original command SOURCE ONLY
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/**'
+      - 'tests/test_uniops_u2f_universal_delegated_command_draft_source.py'
+      - '.github/workflows/held-uniops-u2f-universal-command-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Prove draft-only existing-registry admission and no database access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_uniops_u2f_universal_delegated_command_draft_source.py
+          python3 tests/test_uniops_u2f_universal_delegated_command_draft_source.py
+          echo 'UNI_OPS_U2F_UNIVERSAL_COMMAND_SOURCE=PASS'
+          echo 'NONHUMAN_CARRIER=UNBOUND'
+          echo 'CAN_ISSUE_WORK=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
