@@ -338,6 +338,32 @@ jobs:
           assert 'AND release_policy_id=\'{POLICY}\'::uuid' in fixture.decode()
           print('PASS exact missing release-policy binding corrected only in disposable signed fixture; NO execution')
           PY
+      - name: Verify redacted physical seed SQL category against exact signed source (NO SQL)
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git hash-object tests/uniops_prior_mowing_seed_error_classification_held.py)" = 3847bebca7490bfc4bfbad7f629a6b26f64d7acd
+          test "$(git hash-object tests/test_uniops_prior_mowing_seed_error_classification_held.py)" = afb4960c58c7868ffbc83de32c6f1467694a7422
+          python3 -m py_compile tests/uniops_prior_mowing_seed_error_classification_held.py tests/test_uniops_prior_mowing_seed_error_classification_held.py
+          PYTHONPATH=tests python3 -m unittest -v test_uniops_prior_mowing_seed_error_classification_held
+          python3 tests/uniops_prior_mowing_seed_error_classification_held.py \
+            --fixed-driver "$RUNNER_TEMP/validate-uniops-prior-mowing-fixed-signed-local-only.py" \
+            --output "$RUNNER_TEMP/validate-uniops-prior-mowing-seed-classified-local-only.py"
+          python3 -m py_compile "$RUNNER_TEMP/validate-uniops-prior-mowing-seed-classified-local-only.py"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          before=(root/'validate-uniops-prior-mowing-fixed-signed-local-only.py').read_text()
+          after=(root/'validate-uniops-prior-mowing-seed-classified-local-only.py').read_text()
+          assert before.count('return sql(_db,_statement)')==after.count('return sql(_db,_statement)')==1
+          assert before.count('_legacy.install(a.db_url,_prior_mowing_traced_sql)')==after.count('_legacy.install(a.db_url,_prior_mowing_traced_sql)')==1
+          assert before.count('history_receipt=hist.prove(')==after.count('history_receipt=hist.prove(')==1
+          assert before.count('UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS')==after.count('UNI_OPS_PRIOR_MOWING_AFTER_HISTORY=PASS')==1
+          assert after.count('UNI_OPS_PRIOR_MOWING_SEED_SQL_ERROR_CLASS=')==1
+          assert after.count('ae5da30ca5953ad9bd7cb17ed09fd00ab4825dfc')==1
+          print('PASS only bounded seed error category added; no prior mowing SQL or signed-actor change')
+          PY
   validate-protected:
     if: >-
       github.event_name == 'issues' &&
