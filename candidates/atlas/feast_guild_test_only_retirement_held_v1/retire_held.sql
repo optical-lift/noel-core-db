@@ -56,7 +56,12 @@ BEGIN
     FROM atlas.organizations o
     JOIN atlas.ledgers l ON l.id=v_ledger_id
     JOIN atlas.principal_ledger_authorities a ON a.ledger_id=l.id
+    JOIN atlas.principals pr ON pr.id=a.principal_id
     WHERE o.id=v_organization_id
+      AND pr.status='active'
+      AND pr.person_id IS NOT NULL
+      AND o.metadata->>'established_by_person_id'=pr.person_id::text
+      AND l.metadata->>'established_by_person_id'=pr.person_id::text
       AND o.metadata->>'established_by_principal_id'=a.principal_id::text
       AND l.metadata->>'established_by_principal_id'=a.principal_id::text
       AND o.metadata->>'established_by_person_id'=l.metadata->>'established_by_person_id'
