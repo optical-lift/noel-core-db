@@ -127,5 +127,33 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             self.assertNotIn(obsolete,NATIVE_SOURCE)
         self.assertNotIn("work.original.establish_one",NATIVE_SOURCE)
 
+    def test_readonly_legacy_to_native_adjudication_no_new_operating_tables(self):
+        preflight=(FOLDER/"03_legacy_ledger_retirement_readonly_preflight_held.psql").read_text(encoding="utf8")
+        pure=re.sub(r"(?m)^\s*--[^\n]*","",preflight)
+        pure="\n".join(line for line in pure.splitlines() if not line.lstrip().startswith("\\"))
+        self.assertNotRegex(pure, r"(?i)\b(?:INSERT|UPDATE|DELETE|TRUNCATE|CREATE|DROP|ALTER|GRANT|REVOKE)\s+(?:INTO|FROM|ON|TABLE|VIEW|FUNCTION|SCHEMA|POLICY|ROLE|INDEX)\b")
+        for token in (
+            ":'legacy_ledger_id'::uuid",
+            "atlas.ledger_organization_participations",
+            "atlas.principal_ledger_authorities",
+            "ledger.onboarding_cases",
+            "ledger.ledgers",
+            "ledger.seats",
+            "reality.entities",
+            "legacy_adjudicated_migration",
+            "migrationAdjudicated",
+            "legacyLedgerId",
+            "'canActivateLedger',false",
+            "'workIssuerAuthorized',false",
+            "'originalWorkCreated',false",
+            "'legacyTableDropAuthorized',false",
+            "'productionMutation',false",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token,preflight)
+        self.assertNotIn("Feast Guild",preflight)
+        self.assertNotIn("WHERE l.name=",preflight)
+        self.assertNotIn("security definer",preflight.lower())
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
