@@ -61,7 +61,7 @@ EXTRA='''                _fk_path=ROOT/"tests"/"uniops_prior_mowing_foreign_key_
                 _fk_bytes=_fk_path.read_bytes()
                 import hashlib as _fk_hashlib
                 _fk_sha=_fk_hashlib.sha1(
-                    b"blob "+str(len(_fk_bytes)).encode("ascii")+b"\\\\0"+_fk_bytes
+                    b"blob "+str(len(_fk_bytes)).encode("ascii")+b"\\0"+_fk_bytes
                 ).hexdigest()
                 check(_fk_sha=="{blob}",
                       "Reviewed foreign-key locus helper changed")
