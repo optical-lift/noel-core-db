@@ -57,6 +57,8 @@ run_case unguarded_uuid_block \
   "INSERT INTO atlas.nonfk_seat_probe VALUES ('50000000-0000-4000-8000-000000000002','10000000-0000-4000-8000-000000000001')" no
 run_case source_identity_mismatch \
   "UPDATE atlas.organizations SET metadata='{}'::jsonb WHERE stable_key='feast_guild'" no
+run_case reconstructed_root_mismatch \
+  "UPDATE atlas.principal_ledger_authorities SET principal_id='50000000-0000-4000-8000-000000000099' WHERE ledger_id='20000000-0000-4000-8000-000000000001'" no
 run_case native_ledger_block \
   "INSERT INTO ledger.ledgers VALUES ('20000000-0000-4000-8000-000000000001')" no
 run_case native_case_block \
@@ -65,4 +67,4 @@ run_case other_organization_join \
   "INSERT INTO atlas.ledger_organization_participations VALUES ('30000000-0000-4000-8000-000000000003','20000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000002','operating',false,'active',null)" no
 run_case text_reference \
   "INSERT INTO atlas.organization_ledger_subjects VALUES ('10000000-0000-4000-8000-000000000001')" no
-echo "Eight synthetic PG17 cases complete. No real identities or hosted database used."
+echo "Nine synthetic PG17 cases complete. No real identities or hosted database used."
