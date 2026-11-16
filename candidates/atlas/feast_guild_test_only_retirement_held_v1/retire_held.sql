@@ -48,6 +48,25 @@ BEGIN
     RAISE EXCEPTION 'Retirement withheld: Ledger has separately owned Organization custody.';
   END IF;
 
+  -- Live reconstruction provenance binds one existing Person's established
+  -- root Principal to BOTH test records. No names or fresh rights can substitute.
+  -- Do not delete a separately established or reassigned institution.
+  IF NOT EXISTS (
+    SELECT 1
+    FROM atlas.organizations o
+    JOIN atlas.ledgers l ON l.id=v_ledger_id
+    JOIN atlas.principal_ledger_authorities a ON a.ledger_id=l.id
+    WHERE o.id=v_organization_id
+      AND o.metadata->>'established_by_principal_id'=a.principal_id::text
+      AND l.metadata->>'established_by_principal_id'=a.principal_id::text
+      AND o.metadata->>'established_by_person_id'=l.metadata->>'established_by_person_id'
+      AND o.metadata ? 'established_by_person_id'
+      AND a.authority_kind='root_governing'
+      AND a.status='active'
+  ) THEN
+    RAISE EXCEPTION 'Retirement withheld: reconstructed Principal/Person custody mismatch.';
+  END IF;
+
   SELECT count(*) INTO v_org_count_before FROM atlas.organizations;
   SELECT count(*) INTO v_ledger_count_before FROM atlas.ledgers;
 
