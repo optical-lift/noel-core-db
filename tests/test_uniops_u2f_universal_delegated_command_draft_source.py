@@ -58,6 +58,8 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         self.assertIn("'one_independent_worker_acceptance'",SOURCE)
 
     def test_source_governance_flags_missing_crosswalk_and_u2e_limits(self):
+        # Presentation-only Markdown emphasis/case must not falsify a safety guard.
+        plain=README.replace("**","").lower()
         for term in (
             "ledger.ledgers","atlas.ledgers",
             "zero registered carriers","zero active authorizations",
@@ -66,7 +68,7 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             "one atomic writer","No automatic successor",
         ):
             with self.subTest(term=term):
-                self.assertIn(term,README)
+                self.assertIn(term.lower(),plain)
         self.assertNotIn("Already authorized",README)
 
 if __name__=="__main__":
