@@ -1,0 +1,37 @@
+# UNI-OPS-01 / U2F — universal first-original delegated command, DRAFT ONLY
+
+**Status (2026-11-16): SOURCE-CANDIDATE ONLY. NOT an executable Work writer, not compiled in PostgreSQL, not a production migration, not a carrier registration, not a signed test, and not launch authorization.** Under the [owner's Atlas P0 universal/deletion direction](https://github.com/optical-lift/atlas/issues/532), [single completion register](https://github.com/optical-lift/atlas/blob/main/docs/integration/ATLAS_INTEGRATION_COMPLETION_REGISTER.md) and [November 4 Actual-first 6A](https://github.com/optical-lift/atlas/blob/main/docs/integration/UNI_OPS_01_CURRENT_MAP_RECONCILIATION_20261113.md).
+
+## Actual source discovery: reuse instead of inventing authority
+
+The installed Noel-owned Atlas database **already** contains the generic delegated-agent kernel:
+- `atlas.delegated_agent_carriers`, `delegated_agent_authorizations`, and `delegated_agent_credentials` for independent carrier identity, source approval and revocable credentials;
+- `atlas.agent_command_definitions`, `agent_command_invocations` and append-only events for declared operation contracts, exact target, idempotency and execution attribution;
+- `atlas.evaluate_delegated_agent_command_authority_v1`, `evaluate_delegated_agent_command_target_authority_v1`, `begin_delegated_agent_command_service_v1`, and the separately exposed lifecycle confirmation/execution RPCs.
+
+Read-only live evidence, Nov 16: **zero** registered carriers; **zero** active authorizations; four active **booking** commands; **zero** Work/campaign commands. Installed `evaluate_delegated_agent_command_authority_v1(uuid,text,integer)` MD5 `28bbb95ce3874a7dbf641387c22ac1fd` explicitly rejects nonactive commands and checks the explicit allowlist plus execution class. The native target-authority function enforces a required target kind/ID and the authorization scope. Existing `begin_delegated_agent_command_service_v1` is a service-only credential path, not permission to borrow a root's session. Source migrations: `20260928002435`, `20260928003036`, `20260928003141`, `20260928003952`, `20260928003236`.
+
+**Critical identity boundary:** the generic agent authorization's `ledger_id` FK targets **`ledger.ledgers`**, while held [U2E campaign #2486](https://github.com/optical-lift/noel-core-db/pull/2486)'s `ledger_id` FK targets **`atlas.ledgers`**. The read-only catalog confirms both relations exist and there is exactly one former FK, zero latter FK on the delegated authorization. This is NOT evidence the two Ledger identifiers are equivalent. No crosswalk may be inferred from a matching label, location, Person or farm.
+
+## Scope of this candidate — one draft record, zero authority
+
+`candidate.sql` admits exactly **one DRAFT command catalog record**, `work.original.establish_one` version 1, using the **existing** `atlas.agent_command_definitions` table. The record states universal, source-accepted Work, independent Principal confirmation, commit-class action, one original maximum per approved campaign, no Result-triggered successor, no legacy Task/queue fallback and an explicitly **nonexistent held handler**. The database evaluator refuses its `status='draft'`; the command cannot enter the existing active-command approval API, nor execute or issue Work. It does NOT register an agent, create any campaign, materialize or accept a candidate, give credentials, insert Work, attach a trigger or create another table.
+
+Source preflight pins exact currently installed evaluator MD5, checks all native registry and canonical Work relations, and refuses a duplicate command identity. Postcondition requires `draft`, independent Principal confirmation, nonexecutable handler and no active Work command. No direct new permission or RLS changes. This SQL is **for a separately reviewed disposable clone only**. Running it in Production would need fresh canonical Noel migration and explicit owner approval.
+
+**The held farm-only U2E candidate is NOT the universal command source.** Its [U2E 01](https://github.com/optical-lift/noel-core-db/blob/candidate/atlas-uni-ops-c-u2e-seasonal-scheduler-20261104/candidates/atlas_uni_ops_c_u2e_seasonal_scheduler_mandate_v1/01_pending_campaign_root_source_held.sql) proposes three tables with `farm_id` and a `carrier_state='unbound'` CHECK; even if source-authored, it cannot represent a fully universal carrier or be activated by a credential alone. Preserve its specific 1C/2C/3C evidence and approvals as held farm-domain requirements; do not promote these proposed farm tables into Atlas's universal Work kernel or create them on Production as a shortcut.
+
+## What must be built before an original can be issued
+
+1. **Canonical offer/Need/Rulebook identity:** prove a genuine source-qualified offer accepted by its independent Person, current governing native Ledger/Subject/Rulebook and exact service-day/capacity; no `atlas.tasks`, release queue, old farm seats or impersonated root. A generic command target kind alone does **not** prove an accepted offer.
+2. **Native ledger crosswalk:** explicitly source-adjudicate `ledger.ledgers` vs `atlas.ledgers` identity and actual principal authority. The existence of both FKs is not a permitted equality.
+3. **Carrier fitness/identity:** specific registered nonhuman carrier, credential, command definition, signed owner-delegated limited authorization, revocation, and correct current source authority. The chosen type of carrier **1C** is not an identity, registration or permission.
+4. **One atomic writer:** separately source-owned, exact accepted-offer-to-one-existing-canonical-`atlas.work_items` transaction that *does not impersonate `auth.uid()`*, independently rechecks current issuer and recipient authority at COMMIT, locks campaign and Person-capacity, provides idempotent result/one original and denies replay/collision/cancelled/expired/revoked/outsider. No new Task store, no farm-specific universal issuer.
+5. **No automatic successor (6A):** a recognized Actual may qualify Need/state; it MUST NOT automatically create an offer, campaign, schedule, Clock, Task or new Work. Any later opportunity has separate new owner approval.
+6. **Full human and security proof:** source-positive signed governor/worker/denied other actor and nonfarm second-domain journey, genuine PG17 + GoTrue/PostgREST current-schema disposable acceptance, historical no-loss, P3 alternate legacy writers closed, separately authorized versioning and production release. Do not turn a standalone SQL parser PASS into release evidence.
+
+**STOP:** No source-approved generic accepted-first offer/actual issuer transaction or Ledger identity reconciliation is installed at this point. An automated issuer cannot be activated from this candidate. Returning `unavailable` in the Atlas held client until those sources truly exist is correct; do not reconnect the direct human-root finalizer or fake a credential to make an early demo.
+
+## Evidence and next one bounded increment
+
+PR-only no-network source tests for the exact draft catalog insertion and current evaluator source. No live query, migrations, release and no source branch merge requested by this candidate. **Next:** source-own a current-governed Ledger identity resolution and one exact accepted-offer/campaign-to-existing-command target contract; keep this registry as a shared universal authority, not a duplicate farm-specific Work database. Record exact evidence and remaining gate in the existing Atlas register.
