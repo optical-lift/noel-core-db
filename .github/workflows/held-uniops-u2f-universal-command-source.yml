@@ -35,3 +35,51 @@ jobs:
           echo 'NONHUMAN_CARRIER=UNBOUND'
           echo 'CAN_ISSUE_WORK=NO'
           echo 'PRODUCTION_MUTATION=NONE'
+
+  pg17-synthetic-native-identity:
+    # Separate from protected current-schema signed tests. No Supabase connection.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: u2f_synthetic
+          POSTGRES_PASSWORD: synthetic-only-no-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d u2f_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: u2f_synthetic
+      PGPASSWORD: synthetic-only-no-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact PR source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: PostgreSQL 17 synthetic native identity positive/negative proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = "17"
+          psql -X -v ON_ERROR_STOP=1 -f candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/runtime_checks.sql
+          echo 'ISOLATED_SYNTHETIC_POSTGRES=YES'
+          echo 'REAL_NOEL_SCHEMA_RESTORED=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
