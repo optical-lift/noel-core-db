@@ -32,7 +32,7 @@ class FeastGuildTestOnlyRetirementSource(unittest.TestCase):
             "select id into strict", "for update",
             "native ledger/onboarding source exists",
             "pg_constraint", "information_schema.columns",
-            "organization_ledger_subjects", "row_count",
+            "organization_ledger_subjects", "row_count", "established_by_principal_id", "established_by_person_id",
         ]:
             with self.subTest(needle=s):
                 self.assertIn(s, self.sql)
@@ -51,7 +51,7 @@ class FeastGuildTestOnlyRetirementSource(unittest.TestCase):
         self.assertIn("create table atlas.nonfk_seat_probe", self.fixture)
         for case in [
             "positive", "foreign_key_block", "unguarded_uuid_block",
-            "source_identity_mismatch", "native_ledger_block",
+            "source_identity_mismatch", "reconstructed_root_mismatch", "native_ledger_block",
             "native_case_block", "other_organization_join", "text_reference",
         ]:
             with self.subTest(case=case):
