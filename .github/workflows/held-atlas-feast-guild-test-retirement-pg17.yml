@@ -1,0 +1,82 @@
+name: HELD Atlas Feast Guild test-only deletion PG17 synthetic proof
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas/feast_guild_test_only_retirement_held_v1/**'
+      - 'tests/test_feast_guild_test_only_retirement_held_source.py'
+      - '.github/workflows/held-atlas-feast-guild-test-retirement-pg17.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-allowlist:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact reviewed PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Source guard and synthetic fixture inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_feast_guild_test_only_retirement_held_source.py
+          echo 'FOUR_TARGETS_ONLY=YES'
+          echo 'PRODUCTION_MUTATION=NONE'
+
+  pg17-synthetic-test-only-retirement:
+    # Disposable fake IDs: no Supabase connection, credential or private owner data.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: feast_synthetic
+          POSTGRES_PASSWORD: synthetic-only-no-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d feast_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: synthetic-only-no-secret
+      PGDATABASE: feast_synthetic
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact reviewed PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Run eight isolated transaction and no-loss cases
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = "17"
+          bash candidates/atlas/feast_guild_test_only_retirement_held_v1/pg17/run_synthetic.sh
+          echo 'REAL_NOEL_SCHEMA_RESTORED=NO'
+          echo 'REAL_FEAST_GUILD_DELETED=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
