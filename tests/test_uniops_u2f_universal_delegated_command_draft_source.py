@@ -12,6 +12,8 @@ KERNEL=(ROOT/"supabase/migrations/20260928002435_atlas_delegated_agent_command_k
 ALLOWLIST=(ROOT/"supabase/migrations/20260928003036_atlas_delegated_agent_explicit_allowlist_v1.sql").read_text(encoding="utf8")
 TARGET=(ROOT/"supabase/migrations/20260928003952_atlas_delegated_agent_target_contract_v1.sql").read_text(encoding="utf8")
 SOURCE=re.sub(r"(?m)^\s*--[^\n]*","",SQL)
+NATIVE_IDENTITY=(FOLDER/"02_native_ledger_carrier_identity_held.sql").read_text(encoding="utf8")
+NATIVE_SOURCE=re.sub(r"(?m)^\\s*--[^\\n]*","",NATIVE_IDENTITY)
 
 class UniversalDelegatedDraftOnly(unittest.TestCase):
     def test_existing_canonical_registry_not_new_table_or_second_work(self):
@@ -70,6 +72,60 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             with self.subTest(term=term):
                 self.assertIn(term.lower(),plain)
         self.assertNotIn("Already authorized",README)
+
+    def test_private_native_identity_alignment_uses_only_existing_canonical_carriers(self):
+        expected=(
+            "CREATE FUNCTION atlas.uni_ops_u2f_native_ledger_carrier_identity_held_v1(",
+            "STABLE", "SECURITY INVOKER", "SET search_path TO ''",
+            "atlas.delegated_agent_authorizations",
+            "atlas.delegated_agent_carriers",
+            "atlas.principals",
+            "ledger.ledgers",
+            "ledger.seats",
+            "a.ledger_id=p_native_ledger_id",
+            "a.delegating_seat_id IS NOT NULL",
+            "s.person_entity_id=p.person_id",
+            "s.ledger_id=l.id",
+            "s.seat_state='active'",
+            "l.ledger_state='active'",
+            "p.person_id IS NOT NULL",
+            "a.authorization_state='active'",
+            "c.status='active'",
+            "a.revoked_at IS NULL",
+            "s.began_at<=pg_catalog.now()",
+            "s.ended_at IS NULL OR s.ended_at>pg_catalog.now()",
+            "a.begins_at<=pg_catalog.now()",
+            "a.ends_at IS NULL OR a.ends_at>pg_catalog.now()",
+            "REVOKE ALL ON FUNCTION",
+            "FROM PUBLIC,anon,authenticated,service_role;",
+        )
+        for token in expected:
+            with self.subTest(required=token):
+                self.assertIn(token,NATIVE_SOURCE)
+        self.assertEqual(len(re.findall(r"\\bCREATE\\s+FUNCTION\\b",NATIVE_SOURCE,re.I)),1)
+
+    def test_private_identity_does_not_become_original_work_authority(self):
+        for flag in (
+            "'workIssuerAuthorized',false",
+            "'governingRootVerified',false",
+            "'workCandidateAccepted',false",
+            "'rulebookAndNeedVerified',false",
+            "'originalWorkCreated',false",
+            "'sourceOnly',true",
+        ):
+            with self.subTest(flag=flag):
+                self.assertIn(flag,NATIVE_SOURCE)
+        self.assertNotRegex(NATIVE_SOURCE,
+            r"(?i)\\b(?:INSERT\\s+INTO|UPDATE\\s+atlas\\.|DELETE\\s+FROM|DROP\\s+|ALTER\\s+|GRANT\\s+|SECURITY\\s+DEFINER|SET\\s+ROLE|SET\\s+SESSION\\s+AUTHORIZATION)\\b")
+        for obsolete in (
+            "atlas.ledgers","atlas.principal_ledger_authorities",
+            "atlas.tasks","atlas.task_release_queue_items",
+            "atlas.governed_prework_candidate_offers_v1",
+            "atlas.governed_seasonal_scheduler_campaigns_v1",
+            "auth.uid()",
+        ):
+            self.assertNotIn(obsolete,NATIVE_SOURCE)
+        self.assertNotIn("work.original.establish_one",NATIVE_SOURCE)
 
 if __name__=="__main__":
     unittest.main(verbosity=2)
