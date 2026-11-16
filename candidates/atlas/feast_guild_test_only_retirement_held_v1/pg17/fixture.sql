@@ -18,10 +18,16 @@ CREATE TABLE atlas.ledger_organization_participations(
  participation_kind text NOT NULL,is_compatibility_primary boolean NOT NULL,
  status text NOT NULL,ended_at timestamptz
 );
+CREATE TABLE atlas.principals(
+ id uuid PRIMARY KEY, person_id uuid NOT NULL, status text NOT NULL
+);
+INSERT INTO atlas.principals(id,person_id,status) VALUES
+ ('50000000-0000-4000-8000-000000000001','60000000-0000-4000-8000-000000000001','active'),
+ ('50000000-0000-4000-8000-000000000002','60000000-0000-4000-8000-000000000002','active');
 CREATE TABLE atlas.principal_ledger_authorities(
  id uuid PRIMARY KEY,
  ledger_id uuid NOT NULL REFERENCES atlas.ledgers(id) ON DELETE RESTRICT,
- principal_id uuid NOT NULL,
+ principal_id uuid NOT NULL REFERENCES atlas.principals(id) ON DELETE RESTRICT,
  authority_kind text NOT NULL,status text NOT NULL,ended_at timestamptz
 );
 CREATE TABLE atlas.farms(id uuid PRIMARY KEY,organization_id uuid NOT NULL REFERENCES atlas.organizations(id) ON DELETE RESTRICT);
