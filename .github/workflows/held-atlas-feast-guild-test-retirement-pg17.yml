@@ -67,7 +67,7 @@ jobs:
         env:
           EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-      - name: Run eight isolated transaction and no-loss cases
+      - name: Run nine isolated transaction and no-loss cases
         shell: bash
         run: |
           set -euo pipefail
