@@ -59,10 +59,12 @@ RESET ROLE;
 
 SELECT pg_temp.u2f_assert(false,'unknown authorization',
   '77777777-7777-4777-8777-777777777777');
-SELECT pg_temp.u2f_assert(false,'wrong native Ledger',DEFAULT,
+SELECT pg_temp.u2f_assert(false,'wrong native Ledger',
+  '66666666-6666-4666-8666-666666666666',
   '77777777-7777-4777-8777-777777777777');
 SELECT pg_temp.u2f_assert(false,'null authorization',NULL);
-SELECT pg_temp.u2f_assert(false,'null ledger',DEFAULT,NULL);
+SELECT pg_temp.u2f_assert(false,'null ledger',
+  '66666666-6666-4666-8666-666666666666',NULL);
 
 BEGIN;
 -- All mutations are deliberate negative synthetic tests and are rolled back.
