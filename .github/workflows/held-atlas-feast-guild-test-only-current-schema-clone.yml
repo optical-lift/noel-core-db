@@ -1,0 +1,212 @@
+name: HELD Atlas Feast Guild test-only retirement current-schema clone (owner gated)
+
+on:
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: held-atlas-feast-guild-test-only-owner-schema-clone
+  cancel-in-progress: false
+
+jobs:
+  current-schema-clone:
+    if: >-
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas Feast Guild test-only deletion: protected current-schema clone gate'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 55
+    steps:
+      - name: Authorize immutable exact source and TEST-ONLY scope from owner issue
+        id: source
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          expected_scope="atlas_feast_guild_test_only_retirement_local_clone_v1"
+          expected_target="zirqkouammpwxlqfbsvf"
+          pairs={}
+          for line in os.environ.get("ISSUE_BODY","").splitlines():
+              m=re.fullmatch(r"([a-z_]+):\s*([^\s]+)\s*",line)
+              if m and m.group(1) in {"diagnostic_scope","production_target","source_sha","source_blob_sha"}:
+                  if m.group(1) in pairs: raise SystemExit("Duplicate clone source selector")
+                  pairs[m.group(1)]=m.group(2)
+          if set(pairs)!={"diagnostic_scope","production_target","source_sha","source_blob_sha"}:
+              raise SystemExit("Missing exact owner clone selection")
+          if pairs["diagnostic_scope"]!=expected_scope or pairs["production_target"]!=expected_target:
+              raise SystemExit("Invalid test-only scope or protected project target")
+          if not all(re.fullmatch(r"[0-9a-f]{40}",pairs[k]) for k in ("source_sha","source_blob_sha")):
+              raise SystemExit("Immutable source identifiers must be full lowercase git SHAs")
+          with open(os.environ["GITHUB_OUTPUT"],"a") as f:
+              f.write("source_sha="+pairs["source_sha"]+"\n")
+              f.write("source_blob_sha="+pairs["source_blob_sha"]+"\n")
+          print("PASS exact owner-approved test-only schema clone gate. Production writes forbidden.")
+          PY
+
+      - name: Checkout trusted Noel main custody and local restore harness
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Verify canonical clone custody and release isolation
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash scripts/check-production-release-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+
+      - name: Install SHA256-pinned Supabase CLI and read-only GHCR access
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ github.token }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/supabase-clone-v2.116.0.tar.gz"
+          curl -fLsS --proto '=https' --tlsv1.2 --max-time 240 \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_2.116.0_linux_amd64.tar.gz \
+            -o "$archive"
+          echo "5b3031cb297d51b25be4c284e4c852254460ec722ec221d3b81b07d55acfd158  $archive" | sha256sum -c --status
+          tar -xzf "$archive" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n 1)" = "2.116.0"
+          command -v psql
+          docker info >/dev/null
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null
+
+      - name: READ-ONLY production roles and schema snapshot, NEVER data
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "${NOEL_CORE_DATABASE_URL:-}" || {
+            echo "BLOCKED protected schema-only credential absent" >&2
+            exit 1
+          }
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only \
+            --file "$RUNNER_TEMP/feast-schema-roles.sql" >/dev/null
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/feast-schema-only.sql" >/dev/null
+          test -s "$RUNNER_TEMP/feast-schema-roles.sql"
+          test -s "$RUNNER_TEMP/feast-schema-only.sql"
+          echo "PASS isolated read-only schema and role snapshots; no production row data"
+
+      - name: Checkout one owner-pinned immutable HELD candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.source_sha }}
+          path: held-candidate
+          persist-credentials: false
+
+      - name: Verify exact source content, four deletions and disposable-only fixture
+        shell: bash
+        env:
+          APPROVED_SHA: ${{ steps.source.outputs.source_sha }}
+          APPROVED_BLOB_SHA: ${{ steps.source.outputs.source_blob_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held-candidate rev-parse HEAD)" = "$APPROVED_SHA"
+          folder="held-candidate/candidates/atlas/feast_guild_test_only_retirement_held_v1"
+          src="$folder/retire_held.sql"
+          fixture="$folder/current_schema/fixture.sql"
+          post="$folder/current_schema/postconditions.sql"
+          test -s "$src" && test -s "$fixture" && test -s "$post"
+          test "$(git hash-object "$src")" = "$APPROVED_BLOB_SHA"
+          test ! -e "held-candidate/supabase/migrations/20261116_atlas_feast_guild_test_only_retirement.sql"
+          python3 - "$src" "$fixture" "$post" <<'PY'
+          from pathlib import Path
+          import re,sys
+          src,fixture,post=(Path(a).read_text() for a in sys.argv[1:])
+          sql=re.sub(r"--[^\n]*","",src).lower()
+          deletes=re.findall(r"\bdelete\s+from\s+([a-z_]+\.[a-z_]+)",sql)
+          if deletes!=[
+              "atlas.principal_ledger_authorities",
+              "atlas.ledger_organization_participations",
+              "atlas.ledgers",
+              "atlas.organizations",
+          ]: raise SystemExit("Unexpected deletion target/count/order")
+          required=[
+              "select id into strict","for update","established_by_principal_id",
+              "established_by_person_id","join atlas.principals",
+              "information_schema.columns","pg_constraint","row_count",
+              "retirement withheld: native ledger/onboarding source exists"
+          ]
+          if any(token not in sql for token in required):
+              raise SystemExit("Missing identity/dependency authorization guard")
+          forbidden=["cascade","truncate","alter table","drop table","create table",
+                     "grant ","revoke ","security definer","dblink","pg_net","http_post"]
+          if any(re.search(r"\b"+re.escape(token)+r"\b",sql) for token in forbidden):
+              raise SystemExit("Dangerous SQL found in protected test-only source")
+          for tag in ("'feast_guild'","'elm_farm'","'feast guild'"):
+              if tag not in fixture.lower(): raise SystemExit("Missing separated fictional identities")
+          if re.search(r"\b(create|alter|drop|truncate|grant|revoke|do|call|execute|copy)\b",
+                       re.sub(r"--[^\n]*","",fixture),re.I):
+              raise SystemExit("Fixture is not DML-only")
+          postclean=re.sub(r"--[^\n]*","",post).lower()
+          if re.search(r"\b(delete|insert|update|drop|truncate|alter|grant|revoke)\b",postclean):
+              raise SystemExit("Postconditions may not mutate synthetic state")
+          print("PASS pinned source, bounded no-cascade deletes and DML-only synthetic fixtures")
+          PY
+
+      - name: Generate scratch-only candidate with existing Supabase CLI
+        id: scratch
+        shell: bash
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d "$RUNNER_TEMP/fg-held-current.XXXXXXXX")"
+          cd "$tmp"
+          supabase init --force
+          supabase migration new atlas_feast_guild_test_only_retirement_clone_only_v1
+          mapfile -t files < <(find "$tmp/supabase/migrations" -maxdepth 1 -name '*_atlas_feast_guild_test_only_retirement_clone_only_v1.sql')
+          test "${#files[@]}" -eq 1
+          cp "$GITHUB_WORKSPACE/held-candidate/candidates/atlas/feast_guild_test_only_retirement_held_v1/retire_held.sql" "${files[0]}"
+          echo "candidate=${files[0]}" >> "$GITHUB_OUTPUT"
+          version="$(basename "${files[0]}" | cut -d_ -f1)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "PASS scratch-only migration generated; no Noel migration directory modified"
+
+      - name: Test exact deletion on DISPOSABLE actual-schema clone; NO PRODUCTION DML
+        shell: bash
+        env:
+          VERSION: ${{ steps.scratch.outputs.version }}
+          LOCAL_MIGRATION: ${{ steps.scratch.outputs.candidate }}
+        run: |
+          set -euo pipefail
+          folder="held-candidate/candidates/atlas/feast_guild_test_only_retirement_held_v1/current_schema"
+          timeout --signal=TERM --kill-after=25s 42m \
+            bash scripts/validate-production-schema-clone.sh \
+              --migration-version "$VERSION" \
+              --release-lane atlas \
+              --candidate-migration "$LOCAL_MIGRATION" \
+              --candidate-fixture "$folder/fixture.sql" \
+              --candidate-validation "$folder/postconditions.sql" \
+              --roles-dump "$RUNNER_TEMP/feast-schema-roles.sql" \
+              --schema-dump "$RUNNER_TEMP/feast-schema-only.sql" \
+              --artifacts-dir "$RUNNER_TEMP/feast-clone-results"
+          echo "PASS genuine current-schema clone; only fictional test data deleted"
+          echo "PRODUCTION_DELETION=NO"
+
+      - name: Publish non-sensitive clone result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -s "$RUNNER_TEMP/feast-clone-results/summary.md"; then
+            cat "$RUNNER_TEMP/feast-clone-results/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No validated clone summary exists; protected test did not complete.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo 'No production row data, role/schema dumps, secrets or private identities are uploaded.' >> "$GITHUB_STEP_SUMMARY"
