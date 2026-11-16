@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // HELD TEST ONLY: assemble first-mowing P3 6A overlays onto an independently
-// verified U2->U4 disposable 18-stage signed source. NO DB, no network,
+// verified U2 accepted-first 18-stage disposable source, then attach the
+// exact separately signed U4 public transport. NO DB, no network,
 // no roles, no release migration, no feature merge, no production access.
 // Caller MUST independently source-review U2/U4/P3 and enforce an owner-gated
 // disposable PG17/GoTrue clone before executing the output.
@@ -44,12 +45,44 @@ assert.equal(sha256(baseline),expectedDigest,'immutable verified U4 scratch dige
 const raw=baseline.toString('utf8');
 assert.equal((raw.match(/-- BEGIN PINNED STAGE /g)||[]).length,18);
 assert.equal((raw.match(/-- END PINNED STAGE /g)||[]).length,18);
-assert.ok(raw.includes('-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:3e09b66e54c15e100110c2b50f43dc9c7593e51a'),
- 'trusted U4 exact signed Actual transport not present');
+// Signed U4 transport is separately pinned below: the 18-stage R02 source
+// proves the domain writer but must not be mistaken for public HTTP grant.
 assert.ok(!raw.includes('uni_ops_legacy_rhythm_under_governed_rulebook_held_v1'),
   'P3 source already present: double installation or unreviewed composition');
 assert.ok(!raw.includes('-- BEGIN PINNED P3 6A HELD STAGE '),
   'P3 stage already present');
+// The previously accepted U2 18-stage source did NOT embed the public
+// U4 transport: it was independently staged by the signed local probe.
+// Verify the exact original canonical R02 stage and insert the unchanged,
+// separately pinned U4 transport ONCE in the disposable SQL. Never infer that
+// a missing marker authorizes skipping signed source/actor checks.
+const r02Header='-- BEGIN PINNED STAGE r01-r02-composed-native blob:75d1a83ae01116be9e71bdb778f159753b81327a';
+const r02End='-- END PINNED STAGE r01-r02-composed-native';
+assert.equal(raw.split(r02Header).length-1,1,
+ 'reviewed source-owned R02 Work/Actual stage must occur exactly once');
+assert.equal(raw.split(r02End).length-1,1,
+ 'reviewed R02 stage end missing or duplicated');
+const r02Start=raw.indexOf(r02Header),r02Stop=raw.indexOf(r02End,r02Start);
+assert.ok(r02Stop>r02Start,
+ 'R02 source stage boundaries are not ordered');
+const r02Source=raw.slice(r02Start,r02Stop);
+assert.ok(r02Source.includes(
+ 'CREATE OR REPLACE FUNCTION atlas.record_continuing_care_actual_self_api_v1('),
+ 'exact existing native typed Actual writer absent from signed baseline');
+const u4Marker='-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:3e09b66e54c15e100110c2b50f43dc9c7593e51a';
+assert.ok(!raw.includes(u4Marker),
+ 'signed U4 public transport already added to the baseline; refuse duplication');
+const u4TransportBytes=readFileSync(new URL(
+ '25_pinned_signed_u4_public_transport_test_only.sql',sourceDir));
+assert.equal(gitBlob(u4TransportBytes),
+ '3e09b66e54c15e100110c2b50f43dc9c7593e51a',
+ 'independently signed U4 HTTP transport changed');
+const u4Transport=u4TransportBytes.toString('utf8');
+assert.ok(u4Transport.includes(
+ 'CREATE OR REPLACE FUNCTION public.record_continuing_care_actual_self_api_v1(')
+ && u4Transport.includes('TO authenticated;')
+ && u4Transport.includes('FROM PUBLIC,anon,authenticated,service_role;'),
+ 'signed U4 public entrypoint or ACL guard missing');
 const stageBytes=files.map(([name,pin])=>{
   const b=readFileSync(new URL(name,sourceDir));
   assert.equal(gitBlob(b),pin,'P3 reviewed file changed: '+name);
@@ -71,11 +104,18 @@ BEGIN
 END
 $p3_fingerprint$;
 `;
-const chunks=[raw,preflight,...stageBytes.map(s=>
+const chunks=[
+ raw,
+ '\n'+u4Marker+'\n'+u4Transport+
+ '\n-- END U4 DISPOSABLE PUBLIC TRANSPORT SOURCE\n',
+ preflight,...stageBytes.map(s=>
   '\n-- BEGIN PINNED P3 6A HELD STAGE '+s.name+' '+s.pin+'\n'+
   s.body+'\n-- END PINNED P3 6A HELD STAGE '+s.name+'\n')];
 const combined=chunks.join('\n');
 assert.equal((combined.match(/-- BEGIN PINNED STAGE /g)||[]).length,18);
+assert.equal((combined.match(/-- BEGIN U4 DISPOSABLE PUBLIC TRANSPORT SOURCE BLOB:/g)||[]).length,1);
+assert.ok(combined.indexOf(u4Marker)<combined.indexOf('-- BEGIN PINNED P3 6A HELD STAGE '),
+ 'U4 signed transport must precede all P3 6A source overlays');
 assert.equal((combined.match(/-- BEGIN PINNED P3 6A HELD STAGE /g)||[]).length,8);
 writeFileSync(output,combined,{flag:'wx',mode:0o600});
 console.log('P3_6A_DISPOSABLE_SCRATCH_CREATED='+basename(output));
