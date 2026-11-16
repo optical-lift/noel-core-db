@@ -23,6 +23,13 @@ run_case() {
   if [[ "$mutation" != "none" ]]; then
     psql -X -q -v ON_ERROR_STOP=1 -d "$db" -c "$mutation"
   fi
+  # Record actual fixture state AFTER intentional negative-case mutations.
+  # A blocked deletion must leave exactly that state, not a hard-coded baseline.
+  local before_org before_ledger before_root before_part
+  before_org="$(psql -X -tA -v ON_ERROR_STOP=1 -d "$db" -c 'select count(*) from atlas.organizations')"
+  before_ledger="$(psql -X -tA -v ON_ERROR_STOP=1 -d "$db" -c 'select count(*) from atlas.ledgers')"
+  before_root="$(psql -X -tA -v ON_ERROR_STOP=1 -d "$db" -c 'select count(*) from atlas.principal_ledger_authorities')"
+  before_part="$(psql -X -tA -v ON_ERROR_STOP=1 -d "$db" -c 'select count(*) from atlas.ledger_organization_participations')"
   if psql -X -q -v ON_ERROR_STOP=1 -d "$db" -f "$retire" >"/tmp/${db}.log" 2>&1; then
     if [[ "$should_succeed" != "yes" ]]; then echo "FAIL: $name wrongly deleted guarded test institution" >&2; exit 1; fi
     check_count "$db" "select count(*) from atlas.organizations" 1
@@ -34,10 +41,12 @@ run_case() {
     check_count "$db" "select count(*) from atlas.organizations where stable_key='feast_guild'" 0
   else
     if [[ "$should_succeed" == "yes" ]]; then echo "FAIL: positive source rejected" >&2; cat "/tmp/${db}.log"; exit 1; fi
-    check_count "$db" "select count(*) from atlas.organizations" 2
-    check_count "$db" "select count(*) from atlas.ledgers" 2
-    check_count "$db" "select count(*) from atlas.principal_ledger_authorities" 2
-    check_count "$db" "select count(*) from atlas.ledger_organization_participations" 2
+    check_count "$db" "select count(*) from atlas.organizations" "$before_org"
+    check_count "$db" "select count(*) from atlas.ledgers" "$before_ledger"
+    check_count "$db" "select count(*) from atlas.principal_ledger_authorities" "$before_root"
+    check_count "$db" "select count(*) from atlas.ledger_organization_participations" "$before_part"
+    check_count "$db" "select count(*) from atlas.organizations where stable_key='feast_guild'" 1
+    check_count "$db" "select count(*) from atlas.organizations where stable_key='elm_farm'" 1
   fi
   echo "PASS: $name ($should_succeed)"
 }
