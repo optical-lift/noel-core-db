@@ -32,8 +32,11 @@ jobs:
           assert 'pg_catalog.pg_constraint' in src and 'pg_catalog.pg_trigger' in src
           assert 'not_disposable' in src and 'catalog_untrusted' in src
           assert 'classify_exception' in src and 'catalog_sql' in src
-          assert 'pull_request:' in wf and 'environment: production' not in wf
-          assert 'issues:' not in wf and 'workflow_dispatch:' not in wf
-          assert not any(token in wf for token in ('NOEL_CORE_DATABASE_URL','supabase db dump','apply_migration'))
+          # Inspect the actual workflow header, not these self-check literals.
+          header=wf.split('      - name: Verify held finite FK structure classifier',1)[0]
+          assert '\n  pull_request:' in header
+          assert '\n  issues:' not in header and '\n  workflow_dispatch:' not in header
+          assert '\n    environment:' not in header
+          assert not any(token in header for token in ('NOEL_CORE_DATABASE_URL','supabase db dump','apply_migration'))
           print('PASS: finite provenance labels only; no DB, test execution, release, secrets or owner-event trigger')
           PY
