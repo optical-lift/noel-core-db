@@ -23,7 +23,7 @@ test -n "${RUNNER_TEMP:-}" && test -n "${GITHUB_WORKSPACE:-}" || blocked
 stage=atlas_source_integrity
 root="$GITHUB_WORKSPACE/atlas-browser-ci"
 test -d "$root/.git" && test ! -L "$root" || blocked
-test "$(git -C "$root" rev-parse HEAD)" = 4db3dec31fdeb5e566bf0f0426872fa55dcfddb8 || blocked
+test "$(git -C "$root" rev-parse HEAD)" = d8cdfabe6701fbba57f2fd2234b5314dd42c6a16 || blocked
 test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = a410ce04096e8d734678613c1659786ac744e825 || blocked
 test "$(git -C "$root" hash-object tests/held-uniops-p3-browser-result-classification.mjs)" = 8cdd941e2cb2d5f881a7da877d04b15ede070aa3 || blocked
 test "$(git -C "$root" hash-object lib/unified-operating/held-auth-session-gate.mjs)" = f4827af35b884fe614e8abb8fa5c492ed4ae7016 || blocked

@@ -87,7 +87,7 @@ class BrowserHookSourceTests(unittest.TestCase):
         self.assertIn("governor_form_reset",workflow)
         self.assertIn("governor_button_disabled",workflow)
         self.assertIn("governor_submit_click",workflow)
-        self.assertIn("4db3dec31fdeb5e566bf0f0426872fa55dcfddb8",workflow)
+        self.assertIn("d8cdfabe6701fbba57f2fd2234b5314dd42c6a16",workflow)
         self.assertIn("a410ce04096e8d734678613c1659786ac744e825",workflow)
         self.assertIn("node --check atlas-browser-ci/tests/held-uniops-p3-browser-page-interaction.mjs",workflow)
         self.assertIn("hash-object tests/held-uniops-p3-browser-result-classification.mjs",shell)
