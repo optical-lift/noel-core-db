@@ -23,9 +23,12 @@ test -n "${RUNNER_TEMP:-}" && test -n "${GITHUB_WORKSPACE:-}" || blocked
 stage=atlas_source_integrity
 root="$GITHUB_WORKSPACE/atlas-browser-ci"
 test -d "$root/.git" && test ! -L "$root" || blocked
-test "$(git -C "$root" rev-parse HEAD)" = 8a3cf952b965be435f7621568e7d61809e4c30e6 || blocked
+test "$(git -C "$root" rev-parse HEAD)" = d8cdfabe6701fbba57f2fd2234b5314dd42c6a16 || blocked
 test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = a410ce04096e8d734678613c1659786ac744e825 || blocked
 test "$(git -C "$root" hash-object tests/held-uniops-p3-browser-result-classification.mjs)" = 8cdd941e2cb2d5f881a7da877d04b15ede070aa3 || blocked
+test "$(git -C "$root" hash-object lib/unified-operating/held-auth-session-gate.mjs)" = f4827af35b884fe614e8abb8fa5c492ed4ae7016 || blocked
+test "$(git -C "$root" hash-object lib/unified-operating/held-auth-session-gate.d.mts)" = 684d17962ae6b9bf2d3b4fb620dddecd981950ff || blocked
+test "$(git -C "$root" hash-object app/uni-ops-lab/OperatingContinuityClient.tsx)" = bf803abf7bd79dc9c41f3aedeffc4f90449fe4b0 || blocked
 test "$(git -C "$root" hash-object tests/held-uniops-p3-browser-page-interaction.mjs)" = 3c5e07bf8028ca9d8327eda89344c6f63a85bd97 || blocked
 
 stage=fictional_actor_fixture
@@ -82,6 +85,7 @@ stage=browser_source_contract
 cd "$root"
 node --check tests/held-uniops-p3-signed-browser-readback.mjs || blocked
 node --check tests/held-uniops-p3-browser-result-classification.mjs || blocked
+node --check lib/unified-operating/held-auth-session-gate.mjs || blocked
 node --check tests/held-uniops-p3-browser-page-interaction.mjs || blocked
 node --test tests/atlas-uniops-p3-signed-browser-source.test.mjs > "$log" 2>&1 || blocked
 stage=package_install
