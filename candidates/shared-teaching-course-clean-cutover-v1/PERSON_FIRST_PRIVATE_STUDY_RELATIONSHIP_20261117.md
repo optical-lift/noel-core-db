@@ -1,5 +1,8 @@
 # R0 → R2: Person-first private Course study relationship — source adjudication contract
 
+> **Historical use-case priority superseded November 17.** This file's SK 101/Marlene/Melody example does not determine product initialization, mandatory content, student identities, or the first customer. Titus is a universal **empty-first** app; all private-study and edition source operations must work for any properly authorized Course and genuinely consenting People **after** they create their own records. [Current governing Titus contract](https://github.com/optical-lift/titus/blob/work/titus-unified-manuscript-surface-20261106/docs/TITUS_UNIVERSAL_EMPTY_FIRST_BUILD_CONTRACT_20261117.md). No source publication or data seeding is authorized by this correction.
+
+
 **November 17, 2026 · HELD shared-source contract · no schema, grant, migration, data, account, invitation or release.**
 
 **Scope:** The first real use of Titus is **SK 101 — The Mechanics of Reality**, with its actual canonical author teaching **Marlene** and **Melody** as two independent consenting learners, before any McMillan institutional launch. The previously approved third learner can join later through the identical relationship type and checks. This is **one source-governed Person-origin Course**, not a Titus-specific Course or a duplicate Atlas Teaching Course. Song research/Noel content remains private unless separately authorized for author use and deliberately issued as teaching.
