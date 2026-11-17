@@ -2,6 +2,10 @@
 
 Status: SOURCE PLAN / NO LIVE MIGRATION. Date: 2026-11-07. Cross-domain structural lane: shared_. Repository owning SQL: optical-lift/noel-core-db.
 
+## November 17: M3.17A direct private-study relationship — executable candidate (HELD)
+
+The existing Course/source design now has a [single direct-study invitation→independent learner consent→terminal withdrawal candidate](./private_study_person_course_candidate.sql) and [fictional PG17 source tests](./private_study_person_course_tests_pg17.sql). It retains the same canonical Course; it does **not** create an institutional Offering/Enrollment or grant any instructional material. It is a proposed source record requiring review, not source authorization or live deployment. The [R0/R2 relationship contract](./PERSON_FIRST_PRIVATE_STUDY_RELATIONSHIP_20261117.md) records exact evidence, negative cases, and the still-HELD sealed Unit/edition release + genuine signed two-person acceptance gates. The existing M3.15–M3.16 institutional path is preserved as a distinct, **not reusable as-is**, Course-operation mode.
+
 ## November 17: R0 private Person-first SK 101 learner relationship fork (HELD)
 
 [Source adjudication contract and 24-case denial matrix](./PERSON_FIRST_PRIVATE_STUDY_RELATIONSHIP_20261117.md) now governs the first direct-teaching use: one real Course author, **Marlene and Melody as two separately consenting People**, optional third beta learner later, **no invented institution, duplicate Course, or Titus-only student source**. Current `atlas.teaching_enrollments` and M3.15–M3.16B require a real Ledger/Offering and cannot be used unchanged for a private author-to-learner Course. The canonical Reality relationship registry also lacks a teacher/student kind; adding one would not establish curriculum rights.
