@@ -31,11 +31,10 @@ SOURCE_NEGATIVES=(
     'status, replay = call("worker")',
     'U4 Result/Done produced an unauthorized successor, task, offer or plan',
     'U4 signed retry produced a second Result or changed its identity',
-    "and count(\"atlas.work_result_acceptances\"",
 )
 def git_blob(data):
     return hashlib.sha1(
-      b"blob "+str(len(data)).encode()+b"\\0"+data
+      b"blob "+str(len(data)).encode()+b"\0"+data
     ).hexdigest()
 
 def load_exact(path,blob,kind):
@@ -82,7 +81,7 @@ def splice(frozen,p3_script,preinstrumented,positive_module):
         raise ValueError("Source guard insertion points changed")
     result=original.replace(
         positive_module.HEADER,
-        positive_module.HEADER+positive_module.GUARD+"\\n",1
+        positive_module.HEADER+positive_module.GUARD+"\n",1
     ).replace(
         positive_module.DENIAL_MARKER,
         positive_module.DENIAL_MARKER+positive_module.MORE_DENIALS,1
