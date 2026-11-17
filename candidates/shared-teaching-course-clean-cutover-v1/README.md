@@ -5,6 +5,14 @@
 
 Status: SOURCE PLAN / NO LIVE MIGRATION. Date: 2026-11-07. Cross-domain structural lane: shared_. Repository owning SQL: optical-lift/noel-core-db.
 
+## November 17 — universal blank-first **executable source correction** (HELD)
+
+M1 `person_first_candidate.sql` no longer requires the presence of **exactly one** legacy SK 101 Course. That requirement was incorrectly placed in a baseline reusable Course schema. Historical M0 `sk101_clone_temporary_manifest.sql` and M2 `sk101_exact_adoption_candidate.sql` **retain their exact original counts and byte-preservation tests** for a separately authorized legacy adoption. No existing manuscript is seeded by M1.
+
+[`universal_blank_first_source_tests_pg17.sql`](./universal_blank_first_source_tests_pg17.sql) now runs BEFORE historical adoption in the **same** network-isolated [PG17 journey](./synthetic_pg17_journey.sql). It removes historic synthetic legacy rows **inside a savepoint only**, proves zero Courses/Units/manuscripts/license after source setup; a signed Person alone receives neither a Titus license nor a default Course; an expressly fictional-authorized Person can create the first **empty Course** and read it back; another Person sees only their own empty list and cannot read the first Course; then all bootstrap objects and rows rollback and the existing historical exact-byte adoption resumes unchanged. This specifically tests the universal **B0/B1** startup path without an institution, Class, Song, Marlene or students.
+
+**Verified executable commit:** `07b688aa78e4d827e6cd6e84aa4c0bb3f1ba869f`, [PG17 isolated run #44194214911](https://github.com/optical-lift/noel-core-db/actions/runs/44194214911) **SUCCESS**. This is only a source candidate on a disposable fictional PG17, NOT a genuine newly purchased user, protected restored production database, live auth/credit entitlement, migration, release or Titus deployment.
+
 ## November 17: M3.17B two independently authorized sealed Unit editions (HELD)
 
 The SAME canonical Course private-study source now also includes [author-issued exact sealed Unit/edition decisions and one-Unit learner read](./private_study_sealed_unit_candidate.sql), with [one integrated fictional two-student/Version test](./private_study_sealed_unit_tests_pg17.sql) in the existing [canonical Course PG17 journey](./synthetic_pg17_journey.sql). **[Executable PG17 #44191835159](https://github.com/optical-lift/noel-core-db/actions/runs/44191835159) succeeded** at `d820dcea`. A remains on E1 while B moves to E2; no implicit enrollment, other-Unit read, Course manuscript leak, or auto-Work. These are synthetic source-only proofs, **not** a live real-Person student beta, a protected restored database, owner-approved source migration, or release. The [governing direct-study contract](./PERSON_FIRST_PRIVATE_STUDY_RELATIONSHIP_20261117.md) states exact remaining identity, editorial, learner Index, Notebook, submission and production/preview holds.
