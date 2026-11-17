@@ -468,6 +468,12 @@ $outsider_material$;
 RESET ROLE;
 ROLLBACK TO SAVEPOINT authoring_rollback;
 
+-- M3.17A: PRIVATE Person-origin Course study. Two fictional learner identities,
+-- independently signed consent, no Offering or invented Enrollment. This
+-- source original is necessary but NEVER enough to read any sealed Unit.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_person_course_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_person_course_tests_pg17.sql
+
 -- M3.5: author initiates a relationship to one genuine Reality Ledger.
 -- This is only a private, retractable proposal. It grants NO institution power.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/operating_standing_proposal_candidate.sql
