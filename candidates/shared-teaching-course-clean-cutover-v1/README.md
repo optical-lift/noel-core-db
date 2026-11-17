@@ -1,5 +1,8 @@
 # Canonical Teaching Course — clean cutover candidate v1
 
+> **November 17 universal empty-first correction — supersedes SK 101-first delivery dependencies.** The shared Course, private-study invitation and per-learner edition candidates are **generic reusable source capabilities only**. Titus must be genuinely empty for a new authorized creator; no Song/Noel/McMillan Course, manuscript, Class, Person, institution, Offering, student, or research source is seeded or required before the product is usable. The **governing Titus contract is [universal empty-first](https://github.com/optical-lift/titus/blob/work/titus-unified-manuscript-surface-20261106/docs/TITUS_UNIVERSAL_EMPTY_FIRST_BUILD_CONTRACT_20261117.md)** under the Nov 4 blank-product constitution. Existing SK 101-specific proofs/UUID-preservation scenarios below are **historical source-custody tests only**, not the generic onboarding plan or release target. Preserve those originals without copying them into any new customer account. This does not authorize migration, deployment, real signup, invitation, or release.
+
+
 Status: SOURCE PLAN / NO LIVE MIGRATION. Date: 2026-11-07. Cross-domain structural lane: shared_. Repository owning SQL: optical-lift/noel-core-db.
 
 ## November 17: M3.17B two independently authorized sealed Unit editions (HELD)
