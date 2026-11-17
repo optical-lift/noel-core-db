@@ -15,6 +15,8 @@ on:
       - "tests/test_install_uniops_native_notebook_validator_copy_source.py"
       - "tests/classify_uniops_native_pre_u2_stage_held.py"
       - "tests/test_classify_uniops_native_pre_u2_stage_source.py"
+      - ".github/workflows/held-uniops-native-preu2-diagnostic-one-shot.yml"
+      - "tests/test_held_uniops_preu2_diagnostic_controller_source.py"
       - ".github/workflows/held-uniops-native-notebook-one-shot-signed-clone.yml"
       - "tests/test_held_uniops_native_owner_controller_source.py"
       - "tests/run-uniops-native-worker-actual-local.sh"
@@ -111,6 +113,13 @@ jobs:
           python3 -m py_compile tests/classify_uniops_native_pre_u2_stage_held.py tests/test_classify_uniops_native_pre_u2_stage_source.py
           python3 -m unittest discover -s tests -p 'test_classify_uniops_native_pre_u2_stage_source.py' -v
           echo 'PASS exact finite private pre-U2 governor source/grant classification; no DB or trigger'
+      - name: Audit distinct issue-2833 diagnostic one-shot controller without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_held_uniops_preu2_diagnostic_controller_source.py
+          python3 -m unittest discover -s tests -p 'test_held_uniops_preu2_diagnostic_controller_source.py' -v
+          echo 'PASS separate issue-2833 diagnostic owner gate and allowlisted native pre-U2 reporter; no protected run'
       - name: Node synthetic exact Work/Result/reporter source negatives
         run: node --test tests/atlas_uniops_governor_result_allocation_source.test.mjs
       - name: PostgreSQL top-level SQL syntax only; never install
