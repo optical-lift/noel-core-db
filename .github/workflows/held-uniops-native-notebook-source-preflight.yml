@@ -10,6 +10,9 @@ on:
       - "tests/test_prepare_uniops_native_worker_actual_hook_source.py"
       - "tests/prepare_uniops_native_p3_browser_composition_held.py"
       - "tests/test_prepare_uniops_native_p3_browser_composition_source.py"
+      - "tests/run-uniops-native-governor-readback-local.sh"
+      - "tests/install_uniops_native_notebook_validator_copy_held.py"
+      - "tests/test_install_uniops_native_notebook_validator_copy_source.py"
       - "tests/run-uniops-native-worker-actual-local.sh"
       - "tests/uniops_native_governor_test_access_local_held.py"
       - "tests/test_uniops_native_governor_test_access_source.py"
@@ -82,6 +85,14 @@ jobs:
             compile(result,'p3-u4-browser-copy','exec')
           print('PASS exact P3 snapshot BEFORE browser-positive and AFTER/REPLAY original; no execution')
           PY
+      - name: Check native owner projection and signed Notebook readback attach only to disposable validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/run-uniops-native-governor-readback-local.sh
+          python3 -m py_compile tests/install_uniops_native_notebook_validator_copy_held.py tests/test_install_uniops_native_notebook_validator_copy_source.py
+          python3 -m unittest discover -s tests -p 'test_install_uniops_native_notebook_validator_copy_source.py' -v
+          echo 'PASS held native signed validator-copy composition and no generic Work/Result writer; NOT RUN'
       - name: Node synthetic exact Work/Result/reporter source negatives
         run: node --test tests/atlas_uniops_governor_result_allocation_source.test.mjs
       - name: PostgreSQL top-level SQL syntax only; never install
