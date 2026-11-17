@@ -25,8 +25,8 @@ test -z "${NOEL_CORE_DATABASE_URL:-}" && test -z "${SUPABASE_SERVICE_ROLE_KEY:-}
 stage=source_integrity
 root="$GITHUB_WORKSPACE/atlas-browser-ci"
 test -d "$root/.git" && test ! -L "$root" || blocked
-test "$(git -C "$root" rev-parse HEAD)" = 39ebeb30fa5cda40cf6887def1fbaf43797a466c || blocked
-test "$(git -C "$root" hash-object tests/held-uniops-native-notebook-signed-browser-readback.mjs)" = 65a29519263994af632960c2ae7de4b01280b361 || blocked
+test "$(git -C "$root" rev-parse HEAD)" = 159c10041c2167c7dccbe56e397de4db9c33651c || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-native-notebook-signed-browser-readback.mjs)" = e4d1c60b11f9f32a0b15ec416f9207d90577a2bc || blocked
 
 stage=local_api
 mapfile -t local_api < <(python3 - <<'PY'
