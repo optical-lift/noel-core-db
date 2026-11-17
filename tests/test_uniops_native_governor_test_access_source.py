@@ -2,6 +2,8 @@
 """No-DB contract for source-owned fictional governor Personal Atlas access."""
 import importlib.util
 from pathlib import Path
+import os
+from unittest import mock
 import subprocess
 import sys
 import unittest
@@ -47,6 +49,74 @@ class NativeGovernorAccessSourceTests(unittest.TestCase):
          "GRANT EXECUTE", "DROP TABLE", "ALTER TABLE", "service_role:"):
             self.assertNotIn(forbidden,source)
         self.assertEqual(source.count("SELECT public.grant_personal_atlas_access_v1"),1)
+
+    def test_acl_failure_is_bounded_and_never_enters_grant(self):
+        q=module.source_queries()
+        for key in ("acl_exists","acl_anon","acl_authenticated","acl_postgres"):
+            self.assertTrue(q[key].startswith("SELECT CASE WHEN "))
+            self.assertIn(module.RPC,q[key])
+        base={"acl_exists":"1","acl_anon":"0","acl_authenticated":"0",
+              "acl_postgres":"1"}
+        cases=(
+            ({"acl_exists":"0"},"source_function_missing"),
+            ({"acl_anon":"1"},"source_anon_exposed"),
+            ({"acl_authenticated":"1"},"source_authenticated_exposed"),
+            ({"acl_postgres":"0"},"source_postgres_denied"),
+            ({"acl_anon":"1","acl_authenticated":"1"},"source_acl_multiple_mismatches"),
+            ({}, "source_acl_inconsistent"),
+            ({"acl_exists":"bad"},"source_acl_probe_refused"),
+            ({"acl_postgres":""},"source_acl_probe_refused"),
+        )
+        for changes,expected in cases:
+            vals={**base,**changes}
+            used=[]
+            def read(_db,query):
+                used.append(query)
+                return vals[next(k for k in base if q[k]==query)]
+            with self.subTest(expected=expected):
+                with mock.patch.object(module,"run_local",side_effect=read):
+                    self.assertEqual(module.classify_acl_refusal("local-test",q),expected)
+            self.assertNotIn(q["grant"],used)
+        with mock.patch.object(module,"run_local",side_effect=RuntimeError("PRIVATE")):
+            self.assertEqual(module.classify_acl_refusal("local-test",q),
+                             "source_acl_probe_refused")
+
+    def test_refused_acl_does_not_issue_grant(self):
+        q=module.source_queries()
+        vals={"actor":"1","acl":"0","acl_exists":"1","acl_anon":"1",
+              "acl_authenticated":"0","acl_postgres":"1"}
+        used=[]
+        def read(_db,query):
+            used.append(query)
+            return vals[next(k for k in vals if q[k]==query)]
+        env={"CI":"true","GITHUB_ACTIONS":"true",
+             "GITHUB_REPOSITORY":"optical-lift/noel-core-db",
+             "ATLAS_NATIVE_GOVERNOR_TEST_GRANT_ENABLED":"true"}
+        with mock.patch.dict(os.environ,env,clear=True):
+            with mock.patch.object(module,"run_local",side_effect=read):
+                with self.assertRaisesRegex(RuntimeError,"Canonical privileged grant source unavailable"):
+                    module.authorize("postgresql://postgres:dummy@127.0.0.1:54322/postgres")
+                self.assertEqual(module.stage,"source_anon_exposed")
+        self.assertNotIn(q["grant"],used)
+        self.assertNotIn(q["before"],used)
+
+    def test_acl_sql_exception_is_finite_and_never_enters_grant(self):
+        q=module.source_queries()
+        used=[]
+        def read(_db,query):
+            used.append(query)
+            if query==q["actor"]:
+                return "1"
+            raise RuntimeError("PRIVATE")
+        env={"CI":"true","GITHUB_ACTIONS":"true",
+             "GITHUB_REPOSITORY":"optical-lift/noel-core-db",
+             "ATLAS_NATIVE_GOVERNOR_TEST_GRANT_ENABLED":"true"}
+        with mock.patch.dict(os.environ,env,clear=True):
+            with mock.patch.object(module,"run_local",side_effect=read):
+                with self.assertRaises(RuntimeError):
+                    module.authorize("postgresql://postgres:dummy@127.0.0.1:54322/postgres")
+                self.assertEqual(module.stage,"source_acl_probe_refused")
+        self.assertNotIn(q["grant"],used)
 
     def test_unauthorized_caller_does_not_connect_or_write(self):
         script=subprocess.run([sys.executable,str(MODULE),"--db-url",

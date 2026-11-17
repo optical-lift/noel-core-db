@@ -38,6 +38,25 @@ class PreU2FailureStages(unittest.TestCase):
                 "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=source_acl\n"
                 "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=postcondition\n")
             self.assertEqual(m.diagnose(t),("grant_source_refused","unclassified"))
+            for injected in ("source_anon_exposed PRIVATE", "unknown_acl",
+                             "source_postgres_denied\r", "source_acl_probe_refusedX"):
+                (p/m.GRANT_LOG).write_text(
+                    "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE="+injected+"\n")
+                self.assertEqual(m.diagnose(t),("grant_source_refused","unclassified"))
+
+    def test_acl_substages_tied_only_to_grant_refusal(self):
+        expected={"source_function_missing","source_anon_exposed",
+                  "source_authenticated_exposed","source_postgres_denied",
+                  "source_acl_multiple_mismatches","source_acl_probe_refused",
+                  "source_acl_inconsistent"}
+        self.assertTrue(expected.issubset(m.GRANT_STAGES))
+        with tempfile.TemporaryDirectory() as t:
+            p=Path(t)
+            (p/m.GRANT_LOG).write_text(
+                "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=source_anon_exposed\n")
+            (p/m.MARKER).write_text(
+                "UNI_OPS_NATIVE_PRE_U2_STAGE=projection_install_refused\n")
+            self.assertEqual(m.diagnose(t),("projection_install_refused","not_applicable"))
 
     def test_untrusted_text_and_symlinks_do_not_become_diagnostics(self):
         with tempfile.TemporaryDirectory() as t:

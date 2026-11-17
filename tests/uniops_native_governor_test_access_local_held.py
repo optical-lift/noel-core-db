@@ -23,7 +23,11 @@ C1_LEDGER="e5200000-0000-4000-8000-000000000401"
 GRANT_KIND="uniops_disposable_native_governor_signed_test_v1"
 RPC="public.grant_personal_atlas_access_v1(uuid,text,jsonb)"
 STAGES=frozenset(("environment","actor_and_root","source_acl",
-                  "preexisting_access","canonical_grant","postcondition"))
+                  "source_function_missing","source_anon_exposed",
+                  "source_authenticated_exposed","source_postgres_denied",
+                  "source_acl_multiple_mismatches","source_acl_probe_refused",
+                  "source_acl_inconsistent","preexisting_access",
+                  "canonical_grant","postcondition"))
 stage="environment"
 
 
@@ -50,6 +54,22 @@ def source_queries():
         f"AND NOT has_function_privilege('authenticated',to_regprocedure('{RPC}'),'EXECUTE') "
         f"AND has_function_privilege('postgres',to_regprocedure('{RPC}'),'EXECUTE') "
         "THEN '1' ELSE '0' END")
+    # READ-ONLY diagnostics only after the unchanged ACL gate refuses.
+    # No diagnostic result authorizes the canonical grant.
+    acl_probes={
+        "acl_exists":(
+            f"SELECT CASE WHEN to_regprocedure('{RPC}') IS NOT NULL "
+            "THEN '1' ELSE '0' END"),
+        "acl_anon":(
+            f"SELECT CASE WHEN has_function_privilege('anon',to_regprocedure('{RPC}'),'EXECUTE') "
+            "THEN '1' ELSE '0' END"),
+        "acl_authenticated":(
+            f"SELECT CASE WHEN has_function_privilege('authenticated',to_regprocedure('{RPC}'),'EXECUTE') "
+            "THEN '1' ELSE '0' END"),
+        "acl_postgres":(
+            f"SELECT CASE WHEN has_function_privilege('postgres',to_regprocedure('{RPC}'),'EXECUTE') "
+            "THEN '1' ELSE '0' END"),
+    }
     before=(
         "SELECT count(*) FROM atlas.personal_atlas_access_grants "
         f"WHERE principal_id='{C1_PRINCIPAL}'::uuid AND state='active'")
@@ -68,7 +88,7 @@ def source_queries():
         "JOIN atlas.principals p ON p.id=g.principal_id "
         f"WHERE p.user_id IN ('{C1_WORKER}'::uuid,'{C1_OUTSIDER}'::uuid) "
         f"AND g.grant_kind='{GRANT_KIND}' AND g.state='active'")
-    return {"actor":actor,"acl":acl,"before":before,"grant":grant,
+    return {"actor":actor,"acl":acl,**acl_probes,"before":before,"grant":grant,
             "after":after,"negatives":negatives}
 
 
@@ -78,6 +98,35 @@ def run_local(db_url,query):
     if result.returncode:
         raise RuntimeError("Private local SQL failure")
     return result.stdout.strip()
+
+
+def classify_acl_refusal(db_url,sql):
+    """Classify a refused ACL with fixed read-only local probes; never grant."""
+    try:
+        exists=run_local(db_url,sql["acl_exists"])
+        if exists=="0":
+            return "source_function_missing"
+        if exists!="1":
+            return "source_acl_probe_refused"
+        expected={
+            "acl_anon":("0","source_anon_exposed"),
+            "acl_authenticated":("0","source_authenticated_exposed"),
+            "acl_postgres":("1","source_postgres_denied"),
+        }
+        mismatches=[]
+        for key,(wanted,label) in expected.items():
+            observed=run_local(db_url,sql[key])
+            if observed not in ("0","1"):
+                return "source_acl_probe_refused"
+            if observed!=wanted:
+                mismatches.append(label)
+        if len(mismatches)>1:
+            return "source_acl_multiple_mismatches"
+        if len(mismatches)==1:
+            return mismatches[0]
+        return "source_acl_inconsistent"
+    except Exception:
+        return "source_acl_probe_refused"
 
 
 def authorize(db_url):
@@ -96,7 +145,13 @@ def authorize(db_url):
     if run_local(db_url,sql["actor"])!="1":
         raise RuntimeError("Signed root source not exact")
     stage="source_acl"
-    if run_local(db_url,sql["acl"])!="1":
+    try:
+        acl_ok=run_local(db_url,sql["acl"])
+    except Exception:
+        stage="source_acl_probe_refused"
+        raise
+    if acl_ok!="1":
+        stage=classify_acl_refusal(db_url,sql)
         raise RuntimeError("Canonical privileged grant source unavailable")
     stage="preexisting_access"
     if run_local(db_url,sql["before"])!="0" or run_local(db_url,sql["negatives"])!="0":

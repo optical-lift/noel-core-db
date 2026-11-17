@@ -21,8 +21,11 @@ GATES=frozenset((
     "signed_u2_ready",
 ))
 GRANT_STAGES=frozenset((
-    "environment","actor_and_root","source_acl","preexisting_access",
-    "canonical_grant","postcondition"
+    "environment","actor_and_root","source_acl","source_function_missing",
+    "source_anon_exposed","source_authenticated_exposed","source_postgres_denied",
+    "source_acl_multiple_mismatches","source_acl_probe_refused",
+    "source_acl_inconsistent","preexisting_access","canonical_grant",
+    "postcondition"
 ))
 
 def read_bounded(path,maximum):
