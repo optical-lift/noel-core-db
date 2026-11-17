@@ -28,6 +28,16 @@ class NativeOneShotSourceContract(unittest.TestCase):
         self.assertIn("github.event.issue.title == '"+ISSUE_TITLE+"'",s)
         self.assertIn("'owner_run_approval':'held_atlas_native_2831_one_shot_v1'",s)
         self.assertIn("environment: production",s)
+        self.assertIn("Reject duplicate issue-2831 title authorization before any protected schema access",s)
+        self.assertIn("issues/2831/events?per_page=100&page=",s)
+        self.assertIn("e.get('event')=='renamed'",s)
+        self.assertIn("len(matches)!=1",s)
+        self.assertIn("issue history not verifiable",s)
+        self.assertIn("Bearer '+os.environ['OWNER_ISSUE_EVENTS_TOKEN']",s)
+        self.assertLess(s.index("Reject duplicate issue-2831 title authorization"),
+                        s.index("Authorize exact held test scope"))
+        self.assertLess(s.index("Authorize exact held test scope"),
+                        s.index("READ-ONLY snapshot exact production schema"))
         self.assertIn("group: held-uniops-native-notebook-one-shot-2831",s)
         self.assertEqual(s.count("NOEL_CORE_DATABASE_URL: "),1)
         self.assertNotIn("if: github.event.issue.number == 2822",s)
