@@ -41,7 +41,7 @@ class NativeOneShotSourceContract(unittest.TestCase):
         s=self.source
         for k in (
           "39ebeb30fa5cda40cf6887def1fbaf43797a466c",
-          "e22ee0172bd808105d90a3cebeff33bcc2057053",
+          "7fb30e776faf55d2a0b15d089eaa76e71db4b01d",
           "075919564dc340ad86be8e969a2ad2d02ec19a15",
           "7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e",
           "12568439f527ee083981a8903249f0b79b89bc6b",
