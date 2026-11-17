@@ -307,7 +307,13 @@ BEGIN
   WHERE decision='withhold')<>1
  OR (SELECT count(*) FROM atlas.teaching_course_version_curriculum_snapshots)<>2
  OR to_regclass('atlas.teaching_enrollments') IS NULL
- THEN RAISE EXCEPTION 'one Course/two immutable editions/source fixture altered'; END IF;
+ THEN RAISE EXCEPTION 'one Course/two immutable editions/source fixture altered: courses %, total %, allow %, withhold %, snapshots %, enrollment table %',
+  (SELECT count(*) FROM atlas.teaching_courses),
+  (SELECT count(*) FROM atlas.teaching_course_private_study_unit_decisions),
+  (SELECT count(*) FROM atlas.teaching_course_private_study_unit_decisions WHERE decision='allow'),
+  (SELECT count(*) FROM atlas.teaching_course_private_study_unit_decisions WHERE decision='withhold'),
+  (SELECT count(*) FROM atlas.teaching_course_version_curriculum_snapshots),
+  to_regclass('atlas.teaching_enrollments'); END IF;
  -- Institutional Enrollment stays at zero even after two direct learners.
  IF (SELECT count(*) FROM atlas.teaching_enrollments)<>0 THEN
   RAISE EXCEPTION 'private read minted institutional Enrollment'; END IF;
