@@ -15,9 +15,10 @@ BEGIN
  IF EXISTS (SELECT 1 FROM atlas.teaching_courses) THEN
   RAISE EXCEPTION 'canonical root not empty; review identity collisions first' USING ERRCODE='23514';
  END IF;
- IF (SELECT count(*) FROM titus.customer_course_drafts_v1) <> 1 THEN
-  RAISE EXCEPTION 'source snapshot drift; abort and recalculate protected inventory' USING ERRCODE='23514';
- END IF;
+ -- Universal first setup must also work when there are ZERO legacy
+ -- manuscripts/Courses. Historical adoption has its OWN exact source census
+ -- in sk101_clone_temporary_manifest.sql and sk101_exact_adoption_candidate.sql.
+ -- Do not conflate baseline Course schema with migration of a named Course.
 END;
 $guard$;
 
