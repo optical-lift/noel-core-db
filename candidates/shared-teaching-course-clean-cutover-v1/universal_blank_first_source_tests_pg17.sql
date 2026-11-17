@@ -75,18 +75,26 @@ BEGIN
  OR catalog->'courses'->0->>'title'<>'Untitled field notes'
  OR catalog->'courses'->0->>'courseId'<>v_course_id::text
  THEN RAISE EXCEPTION 'first created Course not source-confirmed'; END IF;
- IF (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=v_course_id)<>1 THEN
-  RAISE EXCEPTION 'first Course missing'; END IF;
- IF (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=v_course_id
+ -- No privileged table reads inside an authenticated Person session.
+ -- Source readback above is the user's only entitlement path.
+ PERFORM set_config('app.fictional_blank_course_id',v_course_id::text,true);
+END $create_first_empty_original$;
+RESET ROLE;
+-- Independent privileged aggregate: only the explicitly created Course root,
+-- no Course contents, institution or implicit student records.
+DO $blank_first_original_postconditions$
+DECLARE v_course_id uuid:=current_setting('app.fictional_blank_course_id')::uuid;
+BEGIN
+ IF (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=v_course_id)<>1
+ OR (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=v_course_id
   AND (c.ledger_id IS NOT NULL OR c.capability_activation_id IS NOT NULL
    OR c.created_by_principal_id IS NOT NULL))<>0
  OR (SELECT count(*) FROM atlas.teaching_course_units)<>0
  OR (SELECT count(*) FROM atlas.teaching_course_manuscript_revisions)<>0
  OR (SELECT count(*) FROM atlas.teaching_course_unit_revisions)<>0 THEN
-  RAISE EXCEPTION 'creating Course fabricated institution, Unit or manuscript';
+  RAISE EXCEPTION 'first Course fabricated institution, Unit or manuscript';
  END IF;
-END $create_first_empty_original$;
-RESET ROLE;
+END $blank_first_original_postconditions$;
 
 -- Another current Person never sees the new author's Course, even without
 -- needing a second institution, a Song permission, or a matching title.
@@ -101,7 +109,7 @@ BEGIN
  END IF;
  BEGIN
   PERFORM public.shared_teaching_course_material_read_self_api_v1(
-   (SELECT id FROM atlas.teaching_courses LIMIT 1));
+   current_setting('app.fictional_blank_course_id')::uuid);
  EXCEPTION WHEN insufficient_privilege THEN denied:=true;
  END;
  IF NOT denied THEN RAISE EXCEPTION 'other Person read owner Course'; END IF;
