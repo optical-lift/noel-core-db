@@ -12,7 +12,7 @@ test "$#" -eq 3 || blocked
 db_url="$1"
 work="$2"
 private="$3"
-[[ "$db_url" =~ ^postgres(ql)?://postgres:[^@/]+@127[.]0[.]1:[0-9]{4,5}/postgres$ ]] || blocked
+[[ "$db_url" =~ ^postgres(ql)?://postgres:[^@/]+@127[.]0[.]0[.]1:[0-9]{4,5}/postgres$ ]] || blocked
 [[ "$work" =~ ^[0-9a-f]{8}-([0-9a-f]{4}-){3}[0-9a-f]{12}$ ]] || blocked
 test "${CI:-}" = true && test "${GITHUB_ACTIONS:-}" = true || blocked
 test "${GITHUB_REPOSITORY:-}" = optical-lift/noel-core-db || blocked
