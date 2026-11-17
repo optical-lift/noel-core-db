@@ -8,6 +8,8 @@ on:
       - "tests/atlas_uniops_governor_result_allocation_source.test.mjs"
       - "tests/prepare_uniops_native_worker_actual_hook_held.py"
       - "tests/test_prepare_uniops_native_worker_actual_hook_source.py"
+      - "tests/prepare_uniops_native_p3_browser_composition_held.py"
+      - "tests/test_prepare_uniops_native_p3_browser_composition_source.py"
       - "tests/run-uniops-native-worker-actual-local.sh"
       - "tests/uniops_native_governor_test_access_local_held.py"
       - "tests/test_uniops_native_governor_test_access_source.py"
@@ -47,6 +49,39 @@ jobs:
           python3 -m unittest discover -s tests -p 'test_uniops_native_governor_test_access_source.py' -v
           echo 'PASS exact immutable U4 negatives, same-action replay and browser-only positive hook; NOT RUN'
           echo 'PASS existing canonical source-bound governor test access grant contract; NOT RUN'
+      - name: Checkout immutable P3 before/after/replay instrumentation for offline composition
+        uses: actions/checkout@v4
+        with:
+          ref: 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
+          path: pinned-p3
+          persist-credentials: false
+      - name: Reconcile one signed browser positive with exact frozen P3 snapshots
+        shell: bash
+        env:
+          FROZEN_U4_SOURCE: frozen-u4/tests/uniops_u2_qualified_actual_followon_held.py
+          PINNED_P3_SCRIPT: pinned-p3/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-p3 rev-parse HEAD)" = 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
+          test "$(git -C pinned-p3 hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
+          python3 -m py_compile tests/prepare_uniops_native_p3_browser_composition_held.py tests/test_prepare_uniops_native_p3_browser_composition_source.py
+          python3 -m unittest discover -s tests -p 'test_prepare_uniops_native_p3_browser_composition_source.py' -v
+          python3 - <<'PY'
+          import importlib.util,os,pathlib
+          from tempfile import TemporaryDirectory
+          script=pathlib.Path('tests/prepare_uniops_native_p3_browser_composition_held.py')
+          spec=importlib.util.spec_from_file_location('held_p3',script)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          frozen=pathlib.Path(os.environ['FROZEN_U4_SOURCE'])
+          p3=pathlib.Path(os.environ['PINNED_P3_SCRIPT'])
+          patcher=pathlib.Path('tests/prepare_uniops_native_worker_actual_hook_held.py')
+          with TemporaryDirectory(prefix='held-p3-composition-') as work:
+            previous=pathlib.Path(work)/'p3-instrumented-u4.py'
+            previous.write_bytes(m.p3_expected(frozen.read_bytes(),p3))
+            result=m.compose(frozen,p3,previous,patcher)
+            compile(result,'p3-u4-browser-copy','exec')
+          print('PASS exact P3 snapshot BEFORE browser-positive and AFTER/REPLAY original; no execution')
+          PY
       - name: Node synthetic exact Work/Result/reporter source negatives
         run: node --test tests/atlas_uniops_governor_result_allocation_source.test.mjs
       - name: PostgreSQL top-level SQL syntax only; never install
