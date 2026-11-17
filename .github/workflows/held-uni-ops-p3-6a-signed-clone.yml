@@ -67,7 +67,7 @@ jobs:
           bash -n tests/run-uniops-atlas-browser-readback-local.sh
           python3 -m py_compile tests/install-uniops-atlas-browser-readback-hook.py tests/test_uniops_atlas_browser_hook_source.py
           python3 -m unittest discover -s tests -p 'test_uniops_atlas_browser_hook_source.py' -v
-          test "$(git hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = 4d3c39528798e2ee33d852d9de06670644f64a1a
+          test "$(git hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = d948c9621ac18ff692b8c7e90af21abb79fbdbc5
           test "$(git hash-object tests/install-uniops-atlas-browser-readback-hook.py)" = 9caec6e20e24696f4b05a8709946fac16b4c53af
           echo 'PASS Atlas browser source-only no grant, no DB, no production access'
       - name: Checkout immutable U4 no-network source for CI contract
@@ -305,7 +305,7 @@ jobs:
               expected['history_composer_sha']='15bb6a15f60b357050f44ab1bc43f64778523d93'
               expected['owner_run_approval']='signed_history_governor_conservation_2784_v1'
           elif title=='HELD Atlas fictional governor Done browser readback gate':
-              expected['atlas_source_sha']='1d80f0b26be53df1e9e6b06295d98795853c96e0'
+              expected['atlas_source_sha']='117ae27c05b5d20c33d26bd10163c21acc9494f4'
               expected['browser_test_goal']='fictional_governor_done_outsider_denial_v1'
               expected['owner_run_approval']='held_atlas_browser_owner_gate_v1'
           elif title!='UNI-OPS P3 6A protected signed Result no-successor gate':
@@ -379,7 +379,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: optical-lift/atlas
-          ref: 1d80f0b26be53df1e9e6b06295d98795853c96e0
+          ref: 117ae27c05b5d20c33d26bd10163c21acc9494f4
           path: atlas-browser-ci
           persist-credentials: false
           token: ${{ secrets.ATLAS_REPO_READ_TOKEN }}
@@ -393,8 +393,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C atlas-browser-ci rev-parse HEAD)" = 1d80f0b26be53df1e9e6b06295d98795853c96e0
-          test "$(git -C atlas-browser-ci hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = 2170cb5fac7e0095b75aa949bfce162638cad525
+          test "$(git -C atlas-browser-ci rev-parse HEAD)" = 117ae27c05b5d20c33d26bd10163c21acc9494f4
+          test "$(git -C atlas-browser-ci hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = af0eddabc71bb1664c46342087f18c4fe76965ae
           node --check atlas-browser-ci/tests/held-uniops-p3-signed-browser-readback.mjs
           node --test atlas-browser-ci/tests/atlas-uniops-p3-signed-browser-source.test.mjs
           echo 'PASS pinned Atlas browser source only, no production access'
@@ -664,7 +664,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C canonical hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = 4d3c39528798e2ee33d852d9de06670644f64a1a
+          test "$(git -C canonical hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = d948c9621ac18ff692b8c7e90af21abb79fbdbc5
           test "$(git -C canonical hash-object tests/install-uniops-atlas-browser-readback-hook.py)" = 9caec6e20e24696f4b05a8709946fac16b4c53af
           python3 canonical/tests/install-uniops-atlas-browser-readback-hook.py canonical/scripts/validate-production-schema-clone.sh
           bash -n canonical/scripts/validate-production-schema-clone.sh
@@ -1167,7 +1167,7 @@ jobs:
           # Whitelist only finite labels. Never reveal local browser logs,
           # SQL, tokens, request bodies or runtime exceptions.
           browser_stages=re.findall(
-              r'(?m)^ATLAS_CI_BROWSER_FAILURE_STAGE=(environment_contract|atlas_source_integrity|fictional_actor_fixture|accepted_work_selection|local_api_configuration|browser_source_contract|package_install|chromium_install|next_server_ready|governor_readback_or_browser_start|outsider_denial|browser_acceptance_marker)$',
+              r'(?m)^ATLAS_CI_BROWSER_FAILURE_STAGE=(environment_contract|atlas_source_integrity|fictional_actor_fixture|accepted_work_selection|local_api_configuration|browser_source_contract|package_install|chromium_install|next_server_ready|governor_readback_or_browser_start|outsider_denial|browser_acceptance_marker|runner_contract|governor_signin|outsider_signin|chromium_launch|governor_page|governor_done|outsider_page)$',
               '\n'.join(browser_lines))
           if browser_ok:
               browser_stage='none'

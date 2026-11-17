@@ -73,6 +73,12 @@ class BrowserHookSourceTests(unittest.TestCase):
         shell=SHELL.read_text()
         workflow=WORKFLOW.read_text()
         permitted=['environment_contract','atlas_source_integrity','fictional_actor_fixture','accepted_work_selection','local_api_configuration','browser_source_contract','package_install','chromium_install','next_server_ready','governor_readback_or_browser_start','outsider_denial','browser_acceptance_marker']
+        for inner in ['runner_contract','governor_signin','outsider_signin','chromium_launch','governor_page','governor_done','outsider_page','outsider_denial']:
+            self.assertIn("ATLAS_CI_BROWSER_INNER_STAGE="+inner,shell)
+            self.assertIn("stage="+inner,shell)
+            self.assertIn(inner,workflow)
+        self.assertIn("case \"$(grep '^ATLAS_CI_BROWSER_INNER_STAGE=' \"$log\" || true)\" in",shell)
+        self.assertIn("stage=governor_readback_or_browser_start",shell)
         for stage in permitted:
             self.assertIn(stage,shell)
             self.assertIn(stage,workflow)

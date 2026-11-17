@@ -23,8 +23,8 @@ test -n "${RUNNER_TEMP:-}" && test -n "${GITHUB_WORKSPACE:-}" || blocked
 stage=atlas_source_integrity
 root="$GITHUB_WORKSPACE/atlas-browser-ci"
 test -d "$root/.git" && test ! -L "$root" || blocked
-test "$(git -C "$root" rev-parse HEAD)" = 1d80f0b26be53df1e9e6b06295d98795853c96e0 || blocked
-test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = 2170cb5fac7e0095b75aa949bfce162638cad525 || blocked
+test "$(git -C "$root" rev-parse HEAD)" = 117ae27c05b5d20c33d26bd10163c21acc9494f4 || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = af0eddabc71bb1664c46342087f18c4fe76965ae || blocked
 
 stage=fictional_actor_fixture
 test "$(psql "$database_url" -XAt -v ON_ERROR_STOP=1 -c "select count(*) from auth.users where email in ('atlas-c1-owner@example.invalid','atlas-c1-outsider@example.invalid')")" = 2 || blocked
@@ -112,11 +112,21 @@ done
 test "$ready" = true || blocked
 stage=governor_readback_or_browser_start
 if ! node tests/held-uniops-p3-signed-browser-readback.mjs > "$log" 2>&1; then
-  # This exact marker is emitted only after governor Done has passed.
-  # No private browser or database error text is forwarded.
+  # Only the exact, source-whitelisted marker is eligible for public output.
+  # Never forward the private browser error/response/JWT or raw log text.
   if grep -qx 'PASS ATLAS_CI_GOVERNOR_EXACT_DONE_READBACK=PASS' "$log"; then
     stage=outsider_denial
   fi
+  case "$(grep '^ATLAS_CI_BROWSER_INNER_STAGE=' "$log" || true)" in
+    ATLAS_CI_BROWSER_INNER_STAGE=runner_contract) stage=runner_contract ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_signin) stage=governor_signin ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=outsider_signin) stage=outsider_signin ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=chromium_launch) stage=chromium_launch ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_page) stage=governor_page ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_done) stage=governor_done ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=outsider_page) stage=outsider_page ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=outsider_denial) stage=outsider_denial ;;
+  esac
   blocked
 fi
 stage=browser_acceptance_marker
