@@ -6,6 +6,9 @@ on:
       - ".github/workflows/held-uniops-native-notebook-source-preflight.yml"
       - "candidates/atlas_uniops_governor_result_allocation_v1/**"
       - "tests/atlas_uniops_governor_result_allocation_source.test.mjs"
+      - "tests/prepare_uniops_native_worker_actual_hook_held.py"
+      - "tests/test_prepare_uniops_native_worker_actual_hook_source.py"
+      - "tests/run-uniops-native-worker-actual-local.sh"
 
 permissions:
   contents: read
@@ -19,6 +22,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - name: Checkout original signed U4 test source for exact offline patch test
+        uses: actions/checkout@v4
+        with:
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
+          path: frozen-u4
+          persist-credentials: false
+      - name: Validate native worker browser replacement preserves U4 negatives and retry
+        shell: bash
+        env:
+          FROZEN_U4_SOURCE: frozen-u4/tests/uniops_u2_qualified_actual_followon_held.py
+        run: |
+          set -euo pipefail
+          test "$(git -C frozen-u4 rev-parse HEAD)" = 075919564dc340ad86be8e969a2ad2d02ec19a15
+          test "$(git -C frozen-u4 hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 2e180aa2363201e75ca0d717eeeddd5a708193ab
+          python3 -m py_compile tests/prepare_uniops_native_worker_actual_hook_held.py tests/test_prepare_uniops_native_worker_actual_hook_source.py
+          python3 -m unittest discover -s tests -p 'test_prepare_uniops_native_worker_actual_hook_source.py' -v
+          python3 tests/prepare_uniops_native_worker_actual_hook_held.py             --source "$FROZEN_U4_SOURCE"             --output "$RUNNER_TEMP/uniops_u2_qualified_actual_browser_local_only.py"
+          python3 -m py_compile "$RUNNER_TEMP/uniops_u2_qualified_actual_browser_local_only.py"
+          bash -n tests/run-uniops-native-worker-actual-local.sh
+          echo 'PASS exact immutable U4 negatives, same-action replay and browser-only positive hook; NOT RUN'
       - name: Node synthetic exact Work/Result/reporter source negatives
         run: node --test tests/atlas_uniops_governor_result_allocation_source.test.mjs
       - name: PostgreSQL top-level SQL syntax only; never install
