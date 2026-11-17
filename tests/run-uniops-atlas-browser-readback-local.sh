@@ -23,8 +23,9 @@ test -n "${RUNNER_TEMP:-}" && test -n "${GITHUB_WORKSPACE:-}" || blocked
 stage=atlas_source_integrity
 root="$GITHUB_WORKSPACE/atlas-browser-ci"
 test -d "$root/.git" && test ! -L "$root" || blocked
-test "$(git -C "$root" rev-parse HEAD)" = 117ae27c05b5d20c33d26bd10163c21acc9494f4 || blocked
-test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = af0eddabc71bb1664c46342087f18c4fe76965ae || blocked
+test "$(git -C "$root" rev-parse HEAD)" = d3aad1c9fef9034bf57dc6143041e52eaa9fb88f || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = bf0c2227a4e628080515f98d4afbcd851f2d4f1d || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-p3-browser-page-interaction.mjs)" = abf24f372b4bffeb5575f3ea0d52e4d27cf931a5 || blocked
 
 stage=fictional_actor_fixture
 test "$(psql "$database_url" -XAt -v ON_ERROR_STOP=1 -c "select count(*) from auth.users where email in ('atlas-c1-owner@example.invalid','atlas-c1-outsider@example.invalid')")" = 2 || blocked
@@ -79,6 +80,7 @@ trap cleanup EXIT
 stage=browser_source_contract
 cd "$root"
 node --check tests/held-uniops-p3-signed-browser-readback.mjs || blocked
+node --check tests/held-uniops-p3-browser-page-interaction.mjs || blocked
 node --test tests/atlas-uniops-p3-signed-browser-source.test.mjs > "$log" 2>&1 || blocked
 stage=package_install
 npm ci --ignore-scripts --no-audit --no-fund >> "$log" 2>&1 || blocked
@@ -123,6 +125,13 @@ if ! node tests/held-uniops-p3-signed-browser-readback.mjs > "$log" 2>&1; then
     ATLAS_CI_BROWSER_INNER_STAGE=outsider_signin) stage=outsider_signin ;;
     ATLAS_CI_BROWSER_INNER_STAGE=chromium_launch) stage=chromium_launch ;;
     ATLAS_CI_BROWSER_INNER_STAGE=governor_page) stage=governor_page ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_navigation) stage=governor_navigation ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_banner) stage=governor_banner ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_headings) stage=governor_headings ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_organization) stage=governor_organization ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_ledger) stage=governor_ledger ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_work) stage=governor_work ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_submit) stage=governor_submit ;;
     ATLAS_CI_BROWSER_INNER_STAGE=governor_done) stage=governor_done ;;
     ATLAS_CI_BROWSER_INNER_STAGE=outsider_page) stage=outsider_page ;;
     ATLAS_CI_BROWSER_INNER_STAGE=outsider_denial) stage=outsider_denial ;;
