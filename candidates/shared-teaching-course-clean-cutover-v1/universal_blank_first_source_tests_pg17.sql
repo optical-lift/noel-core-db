@@ -53,7 +53,7 @@ VALUES('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $create_first_empty_original$
-DECLARE grant jsonb;catalog jsonb;created jsonb;again jsonb;id uuid;
+DECLARE grant jsonb;catalog jsonb;created jsonb;again jsonb;v_course_id uuid;
 BEGIN
  grant:=public.titus_authoring_access_self_api_v1();
  catalog:=public.shared_teaching_course_catalog_self_api_v1();
@@ -64,7 +64,7 @@ BEGIN
   'be000000-0000-4000-8000-000000000001','Untitled field notes');
  again:=public.shared_teaching_course_create_self_api_v1(
   'be000000-0000-4000-8000-000000000001','Untitled field notes');
- id:=(created->>'courseId')::uuid;
+ v_course_id:=(created->>'courseId')::uuid;
  IF created->>'alreadyExists'<>'false'
  OR again->>'alreadyExists'<>'true'
  OR again->>'courseId'<>created->>'courseId' THEN
@@ -73,11 +73,11 @@ BEGIN
  catalog:=public.shared_teaching_course_catalog_self_api_v1();
  IF jsonb_array_length(catalog->'courses')<>1
  OR catalog->'courses'->0->>'title'<>'Untitled field notes'
- OR catalog->'courses'->0->>'courseId'<>id::text
+ OR catalog->'courses'->0->>'courseId'<>v_course_id::text
  THEN RAISE EXCEPTION 'first created Course not source-confirmed'; END IF;
- IF (SELECT count(*) FROM atlas.teaching_courses WHERE id=id)<>1 THEN
+ IF (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=v_course_id)<>1 THEN
   RAISE EXCEPTION 'first Course missing'; END IF;
- IF (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=id
+ IF (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=v_course_id
   AND (c.ledger_id IS NOT NULL OR c.capability_activation_id IS NOT NULL
    OR c.created_by_principal_id IS NOT NULL))<>0
  OR (SELECT count(*) FROM atlas.teaching_course_units)<>0
