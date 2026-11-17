@@ -156,7 +156,15 @@ BEGIN
                 'assigneeCanonicalPersonId',report_allocation.assignee_canonical_person_id,
                 'allocationState',report_allocation.state,
                 'historicalNotCurrent',report_allocation.state<>'active',
-                'sameOriginalAndOrganizationProven',true
+                'sameOriginalAndOrganizationProven',true,
+                -- This is a recorded writer provenance check, NOT independent
+                -- proof of GoTrue session authenticity. The protected signed
+                -- actor test must establish that separately.
+                'recordedReporterMatchesAllocation',
+                  lr.reported_by_user_id IS NOT NULL
+                  AND lr.result_contract_key='continuing_care_actual_v1'
+                  AND lr.metadata->>'authenticatedReporterPersonId'
+                      =report_allocation.assignee_canonical_person_id::text
               ) ELSE NULL END
           ) END,
         'latestAcceptedResult',CASE WHEN ar.id IS NULL THEN NULL ELSE
@@ -295,6 +303,7 @@ BEGIN
     ) wp ON true
     LEFT JOIN LATERAL (
       SELECT r.id,r.result_kind,r.reported_at,r.responsible_allocation_id,
+             r.reported_by_user_id,r.result_contract_key,r.metadata,
              r.reported_by_institutional_person_record_id,
              (SELECT count(*)::integer FROM atlas.work_execution_results tied
               WHERE tied.organization_id=r.organization_id
