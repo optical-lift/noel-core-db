@@ -180,6 +180,38 @@ CREATE TABLE titus.course_authoring_access_grants (
 ALTER TABLE titus.course_authoring_access_grants ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON titus.course_authoring_access_grants FROM PUBLIC,anon,authenticated;
 
+-- Held product-access source: a prior authorized pilot/purchase receipt has
+-- immutable founding Person, issuer Auth, kind, receipt and issuance time.
+-- Suspension/revocation and valid_until are still mutable in this candidate
+-- only for the existing transition tests; they are NOT a released, audited
+-- issuer or complete status-event history. Do not expose direct grant writes
+-- to browser roles or mistake arbitrary owner SQL for verified purchase.
+CREATE FUNCTION titus.guard_course_authoring_grant_origin_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
+SET search_path TO pg_catalog
+AS $grant_origin$
+BEGIN
+ IF TG_OP='DELETE' THEN
+  RAISE EXCEPTION 'Titus product grant origin cannot be deleted'
+   USING ERRCODE='55000';
+ END IF;
+ IF OLD.person_entity_id IS DISTINCT FROM NEW.person_entity_id
+ OR OLD.grant_source_auth_user_id IS DISTINCT FROM NEW.grant_source_auth_user_id
+ OR OLD.grant_kind IS DISTINCT FROM NEW.grant_kind
+ OR OLD.grant_source_receipt IS DISTINCT FROM NEW.grant_source_receipt
+ OR OLD.granted_at IS DISTINCT FROM NEW.granted_at THEN
+  RAISE EXCEPTION 'Titus product grant origin is immutable'
+   USING ERRCODE='55000';
+ END IF;
+ RETURN NEW;
+END
+$grant_origin$;
+REVOKE ALL ON FUNCTION titus.guard_course_authoring_grant_origin_v1()
+ FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER titus_course_authoring_grant_origin_immutable_v1
+ BEFORE UPDATE OR DELETE ON titus.course_authoring_access_grants
+ FOR EACH ROW EXECUTE FUNCTION titus.guard_course_authoring_grant_origin_v1();
+
 -- Titus application/authoring use requires a separately granted and still
 -- active Person entitlement. It is not required for any other Atlas-based
 -- Person Course creation through the universal root.
