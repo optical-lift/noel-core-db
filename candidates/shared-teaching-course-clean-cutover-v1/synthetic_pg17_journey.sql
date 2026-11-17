@@ -609,6 +609,11 @@ $no_premature_operation$;
 -- snapshot. This NEVER becomes an implicit institution or learner read.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_course_curriculum_snapshot_tests_pg17.sql
 
+-- M3.17B: Two directly consenting Persons receive distinct author-approved
+-- SEALED Unit editions from the same private Course. No institutional
+-- Offering/Enrollment source is used for this material disclosure.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_sealed_unit_tests_pg17.sql
+
 -- M3.12: a sealed curriculum still requires a DIFFERENT, revocable,
 -- current author release for one accepted operating Ledger and Version.
 -- Institution governor read never grants teacher/learner or Offering opening.
