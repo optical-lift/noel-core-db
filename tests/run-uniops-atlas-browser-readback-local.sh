@@ -23,8 +23,9 @@ test -n "${RUNNER_TEMP:-}" && test -n "${GITHUB_WORKSPACE:-}" || blocked
 stage=atlas_source_integrity
 root="$GITHUB_WORKSPACE/atlas-browser-ci"
 test -d "$root/.git" && test ! -L "$root" || blocked
-test "$(git -C "$root" rev-parse HEAD)" = 3ae3405bc58c56abf1290223fb482c8cccd5b412 || blocked
-test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = 401ab4352f217a4061a3fd278bc0f4e3d2eb11dc || blocked
+test "$(git -C "$root" rev-parse HEAD)" = 8a3cf952b965be435f7621568e7d61809e4c30e6 || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = a410ce04096e8d734678613c1659786ac744e825 || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-p3-browser-result-classification.mjs)" = 8cdd941e2cb2d5f881a7da877d04b15ede070aa3 || blocked
 test "$(git -C "$root" hash-object tests/held-uniops-p3-browser-page-interaction.mjs)" = 3c5e07bf8028ca9d8327eda89344c6f63a85bd97 || blocked
 
 stage=fictional_actor_fixture
@@ -80,6 +81,7 @@ trap cleanup EXIT
 stage=browser_source_contract
 cd "$root"
 node --check tests/held-uniops-p3-signed-browser-readback.mjs || blocked
+node --check tests/held-uniops-p3-browser-result-classification.mjs || blocked
 node --check tests/held-uniops-p3-browser-page-interaction.mjs || blocked
 node --test tests/atlas-uniops-p3-signed-browser-source.test.mjs > "$log" 2>&1 || blocked
 stage=package_install
@@ -137,6 +139,12 @@ if ! node tests/held-uniops-p3-signed-browser-readback.mjs > "$log" 2>&1; then
     ATLAS_CI_BROWSER_INNER_STAGE=governor_button_disabled) stage=governor_button_disabled ;;
     ATLAS_CI_BROWSER_INNER_STAGE=governor_submit_click) stage=governor_submit_click ;;
     ATLAS_CI_BROWSER_INNER_STAGE=governor_done) stage=governor_done ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_no_terminal_ui) stage=governor_no_terminal_ui ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_source_error) stage=governor_source_error ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_work_unavailable) stage=governor_work_unavailable ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_work_without_verified_done) stage=governor_work_without_verified_done ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_work_without_done_indicator) stage=governor_work_without_done_indicator ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_snapshot_without_work_state) stage=governor_snapshot_without_work_state ;;
     ATLAS_CI_BROWSER_INNER_STAGE=outsider_page) stage=outsider_page ;;
     ATLAS_CI_BROWSER_INNER_STAGE=outsider_denial) stage=outsider_denial ;;
   esac

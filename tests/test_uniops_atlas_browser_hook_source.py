@@ -73,7 +73,7 @@ class BrowserHookSourceTests(unittest.TestCase):
         shell=SHELL.read_text()
         workflow=WORKFLOW.read_text()
         permitted=['environment_contract','atlas_source_integrity','fictional_actor_fixture','accepted_work_selection','local_api_configuration','browser_source_contract','package_install','chromium_install','next_server_ready','governor_readback_or_browser_start','outsider_denial','browser_acceptance_marker']
-        for inner in ['runner_contract','governor_signin','outsider_signin','chromium_launch','governor_page','governor_done','outsider_page','outsider_denial','governor_navigation','governor_banner','governor_headings','governor_organization','governor_ledger','governor_work','governor_submit','governor_hydration_readiness','governor_form_reset','governor_button_disabled','governor_submit_click']:
+        for inner in ['runner_contract','governor_signin','outsider_signin','chromium_launch','governor_page','governor_done','outsider_page','outsider_denial','governor_navigation','governor_banner','governor_headings','governor_organization','governor_ledger','governor_work','governor_submit','governor_hydration_readiness','governor_form_reset','governor_button_disabled','governor_submit_click','governor_no_terminal_ui','governor_source_error','governor_work_unavailable','governor_work_without_verified_done','governor_work_without_done_indicator','governor_snapshot_without_work_state']:
             self.assertIn("ATLAS_CI_BROWSER_INNER_STAGE="+inner,shell)
             self.assertIn("stage="+inner,shell)
             self.assertIn(inner,workflow)
@@ -87,9 +87,19 @@ class BrowserHookSourceTests(unittest.TestCase):
         self.assertIn("governor_form_reset",workflow)
         self.assertIn("governor_button_disabled",workflow)
         self.assertIn("governor_submit_click",workflow)
-        self.assertIn("3ae3405bc58c56abf1290223fb482c8cccd5b412",workflow)
-        self.assertIn("401ab4352f217a4061a3fd278bc0f4e3d2eb11dc",workflow)
+        self.assertIn("8a3cf952b965be435f7621568e7d61809e4c30e6",workflow)
+        self.assertIn("a410ce04096e8d734678613c1659786ac744e825",workflow)
         self.assertIn("node --check atlas-browser-ci/tests/held-uniops-p3-browser-page-interaction.mjs",workflow)
+        self.assertIn("hash-object tests/held-uniops-p3-browser-result-classification.mjs",shell)
+        self.assertIn("node --check atlas-browser-ci/tests/held-uniops-p3-browser-result-classification.mjs",workflow)
+        self.assertIn("8cdd941e2cb2d5f881a7da877d04b15ede070aa3",shell)
+        self.assertIn("8cdd941e2cb2d5f881a7da877d04b15ede070aa3",workflow)
+        self.assertIn("governor_no_terminal_ui",workflow)
+        self.assertIn("governor_source_error",workflow)
+        self.assertIn("governor_work_unavailable",workflow)
+        self.assertIn("governor_work_without_verified_done",workflow)
+        self.assertIn("governor_work_without_done_indicator",workflow)
+        self.assertIn("governor_snapshot_without_work_state",workflow)
         for stage in permitted:
             self.assertIn(stage,shell)
             self.assertIn(stage,workflow)
