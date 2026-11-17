@@ -362,6 +362,42 @@ jobs:
         run: |
           set -euo pipefail
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin >/dev/null
+      - name: Refuse missing read-only Atlas checkout token before production schema access
+        if: github.event.issue.number == 2822
+        shell: bash
+        env:
+          ATLAS_REPO_READ_TOKEN: ${{ secrets.ATLAS_REPO_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$ATLAS_REPO_READ_TOKEN" || {
+            echo 'BLOCKED: Atlas read-only checkout credential unavailable'
+            exit 1
+          }
+          echo 'PASS separate protected Atlas checkout credential present, not disclosed'
+      - name: Read exactly pinned held private Atlas source (browser option only)
+        if: github.event.issue.number == 2822
+        uses: actions/checkout@v4
+        with:
+          repository: optical-lift/atlas
+          ref: 1d80f0b26be53df1e9e6b06295d98795853c96e0
+          path: atlas-browser-ci
+          persist-credentials: false
+          token: ${{ secrets.ATLAS_REPO_READ_TOKEN }}
+      - name: Node 22 for isolated Atlas browser source
+        if: github.event.issue.number == 2822
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify frozen Atlas browser source before any production schema read
+        if: github.event.issue.number == 2822
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C atlas-browser-ci rev-parse HEAD)" = 1d80f0b26be53df1e9e6b06295d98795853c96e0
+          test "$(git -C atlas-browser-ci hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = 2170cb5fac7e0095b75aa949bfce162638cad525
+          node --check atlas-browser-ci/tests/held-uniops-p3-signed-browser-readback.mjs
+          node --test atlas-browser-ci/tests/atlas-uniops-p3-signed-browser-source.test.mjs
+          echo 'PASS pinned Atlas browser source only, no production access'
       - name: READ-ONLY snapshot exact production schema and roles, no data
         shell: bash
         env:
