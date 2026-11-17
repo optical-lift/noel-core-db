@@ -297,8 +297,8 @@ jobs:
               'u4_test_sha':'075919564dc340ad86be8e969a2ad2d02ec19a15',
               'test_goal':'native_notebook_worker_actual_governor_done_v1',
               'p3_source_sha':'7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e',
-              'atlas_source_sha':'6bc616db84854ea2d906dd51a017d8616ef0762d',
-              'noel_native_source_sha':'e22ee0172bd808105d90a3cebeff33bcc2057053',
+              'atlas_source_sha':'39ebeb30fa5cda40cf6887def1fbaf43797a466c',
+              'noel_native_source_sha':'7fb30e776faf55d2a0b15d089eaa76e71db4b01d',
               'browser_test_goal':'signed_native_worker_governor_outsider_v1',
               'owner_run_approval':'held_atlas_native_2831_one_shot_v1'}
           if os.environ.get('OWNER_TITLE','')!='HELD UNI-OPS native Notebook one-shot signed acceptance v1':
@@ -372,7 +372,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: optical-lift/atlas
-          ref: 6bc616db84854ea2d906dd51a017d8616ef0762d
+          ref: 39ebeb30fa5cda40cf6887def1fbaf43797a466c
           path: atlas-browser-ci
           persist-credentials: false
           token: ${{ secrets.ATLAS_REPO_READ_TOKEN }}
@@ -386,9 +386,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C atlas-browser-ci rev-parse HEAD)" = 6bc616db84854ea2d906dd51a017d8616ef0762d
+          test "$(git -C atlas-browser-ci rev-parse HEAD)" = 39ebeb30fa5cda40cf6887def1fbaf43797a466c
           test "$(git -C atlas-browser-ci hash-object tests/held-uniops-native-worker-actual-browser.mjs)" = 80b8448267c126f713c08fac30405e647c9e1d13
-          test "$(git -C atlas-browser-ci hash-object tests/held-uniops-native-notebook-signed-browser-readback.mjs)" = 98f148fed1e03d85e2c05375e0aaa325d10d4d63
+          test "$(git -C atlas-browser-ci hash-object tests/held-uniops-native-notebook-signed-browser-readback.mjs)" = 65a29519263994af632960c2ae7de4b01280b361
           test "$(git -C atlas-browser-ci hash-object app/PersonalConnectedPersonCompanyWork.tsx)" = f2462fc34e0074f5dbd254b257b6f782e19beea7
           test "$(git -C atlas-browser-ci hash-object app/AtlasTodayGovernorWorkLens.tsx)" = aeac60d5dae202cf94a960a3356e285a88f12eca
           test "$(git -C atlas-browser-ci hash-object app/ConnectedLedgerWorkNotebook.tsx)" = e36b5b79057cd229e31b34455f0fb06dd8d3d067
@@ -659,7 +659,7 @@ jobs:
       - name: Read only pinned native Noel candidate and local test scripts after protected schema snapshot
         uses: actions/checkout@v4
         with:
-          ref: e22ee0172bd808105d90a3cebeff33bcc2057053
+          ref: 7fb30e776faf55d2a0b15d089eaa76e71db4b01d
           path: held-native
           persist-credentials: false
       - name: Reconcile P3 immutable snapshots, one native worker Actual and governor readback in validator COPY only
@@ -667,12 +667,12 @@ jobs:
         run: |
           set -euo pipefail
           umask 077
-          test "$(git -C held-native rev-parse HEAD)" = e22ee0172bd808105d90a3cebeff33bcc2057053
+          test "$(git -C held-native rev-parse HEAD)" = 7fb30e776faf55d2a0b15d089eaa76e71db4b01d
           test "$(git -C held-native hash-object candidates/atlas_uniops_governor_result_allocation_v1/candidate.sql)" = 12568439f527ee083981a8903249f0b79b89bc6b
           test "$(git -C held-native hash-object tests/prepare_uniops_native_p3_browser_composition_held.py)" = 09d3be2ec9c7ae390387d74f7c9cde5fe591a035
           test "$(git -C held-native hash-object tests/install_uniops_native_notebook_validator_copy_held.py)" = 5964dd9a8729aa70609d52ab02cecc7e299fd89d
-          test "$(git -C held-native hash-object tests/run-uniops-native-worker-actual-local.sh)" = cf61f7671ce47829a2989b80edc6d886c377ed71
-          test "$(git -C held-native hash-object tests/run-uniops-native-governor-readback-local.sh)" = c93ab9d53f8d75917b8ab36aae87c8e2c47420e7
+          test "$(git -C held-native hash-object tests/run-uniops-native-worker-actual-local.sh)" = cac0ad64aedf8231448ab98728c6760cb7fef3d8
+          test "$(git -C held-native hash-object tests/run-uniops-native-governor-readback-local.sh)" = 10ef6c44a3fe496d22ec343941721452088191a5
           python3 -m py_compile held-native/tests/prepare_uniops_native_p3_browser_composition_held.py held-native/tests/install_uniops_native_notebook_validator_copy_held.py
           python3 held-native/tests/prepare_uniops_native_p3_browser_composition_held.py \
             --frozen-u4 u4-test/tests/uniops_u2_qualified_actual_followon_held.py \
