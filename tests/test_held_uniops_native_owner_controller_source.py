@@ -40,7 +40,7 @@ class NativeOneShotSourceContract(unittest.TestCase):
     def test_pinned_current_held_sources_and_exact_sequence(self):
         s=self.source
         for k in (
-          "6bc616db84854ea2d906dd51a017d8616ef0762d",
+          "39ebeb30fa5cda40cf6887def1fbaf43797a466c",
           "e22ee0172bd808105d90a3cebeff33bcc2057053",
           "075919564dc340ad86be8e969a2ad2d02ec19a15",
           "7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e",
