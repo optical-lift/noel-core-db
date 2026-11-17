@@ -19,15 +19,53 @@ test "${ATLAS_NATIVE_WORKER_BROWSER_ACTUAL_ENABLED:-}" = true
 test "${ATLAS_NATIVE_SIGNED_READBACK_ENABLED:-}" = true
 test -s "$repo_root/tests/uniops-native-governor-held-candidate.sql"
 test -s "$repo_root/tests/uniops_native_governor_test_access_local_held.py"
-psql "$database_url" -X -v ON_ERROR_STOP=1 \
+# A private *fixed vocabulary* marker records the first failed local source
+# gate without leaking PG error text, JWTs, SQL, fixture data or credentials.
+# The separately reviewed controller may classify only this one file.
+native_pre_u2_marker="$artifacts_dir/uniops-native-pre-u2-stage.safe"
+native_pre_u2_stage() {
+ case "$1" in
+  projection_fingerprint_check|projection_source_mismatch|projection_source_probe_refused|projection_install_refused|grant_source_refused|grant_receipt_refused|signed_u2_ready) ;;
+  *) return 1 ;;
+ esac
+ printf 'UNI_OPS_NATIVE_PRE_U2_STAGE=%s\n' "$1" > "$native_pre_u2_marker"
+}
+native_pre_u2_stage projection_fingerprint_check
+# The immutable owner projection already checks this exact source fingerprint.
+# This read-only precheck disambiguates source drift from PL/SQL compilation.
+if ! native_projection_md5="$(psql "$database_url" -XAt -v ON_ERROR_STOP=1 -c "
+ SELECT md5(pg_get_functiondef(p.oid)) FROM pg_proc p
+ JOIN pg_namespace n ON n.oid=p.pronamespace
+ WHERE n.nspname='atlas' AND
+ p.proname='company_work_accountability_native_ledger_self_api_v1'
+" 2> "$artifacts_dir/uniops-native-source-preflight-private.log")"; then
+ native_pre_u2_stage projection_source_probe_refused
+ exit 1
+fi
+if [ "$native_projection_md5" != '302be9714957f5bf76d665092c9609b1' ]; then
+ native_pre_u2_stage projection_source_mismatch
+ exit 1
+fi
+unset native_projection_md5
+if ! psql "$database_url" -X -v ON_ERROR_STOP=1 \
  -f "$repo_root/tests/uniops-native-governor-held-candidate.sql" \
- > "$artifacts_dir/uniops-native-owner-source-private.log" 2>&1
-ATLAS_NATIVE_GOVERNOR_TEST_GRANT_ENABLED=true \
+ > "$artifacts_dir/uniops-native-owner-source-private.log" 2>&1; then
+ native_pre_u2_stage projection_install_refused
+ exit 1
+fi
+if ! ATLAS_NATIVE_GOVERNOR_TEST_GRANT_ENABLED=true \
 python3 "$repo_root/tests/uniops_native_governor_test_access_local_held.py" \
  --db-url "$database_url" \
- > "$artifacts_dir/uniops-native-test-access-private.log" 2>&1
-grep -qx 'PASS ATLAS_NATIVE_GOVERNOR_AUTHORIZED_TEST_GRANT=PASS' \
- "$artifacts_dir/uniops-native-test-access-private.log"
+ > "$artifacts_dir/uniops-native-test-access-private.log" 2>&1; then
+ native_pre_u2_stage grant_source_refused
+ exit 1
+fi
+if ! grep -qx 'PASS ATLAS_NATIVE_GOVERNOR_AUTHORIZED_TEST_GRANT=PASS' \
+ "$artifacts_dir/uniops-native-test-access-private.log"; then
+ native_pre_u2_stage grant_receipt_refused
+ exit 1
+fi
+native_pre_u2_stage signed_u2_ready
 
 '''
 AFTER=r'''# Worker browser Actual/accepted Result/P3 snapshots must already be true.
