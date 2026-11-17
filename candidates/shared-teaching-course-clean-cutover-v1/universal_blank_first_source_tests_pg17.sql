@@ -32,11 +32,11 @@ END $zero_after_source_setup$;
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $blank_person$
-DECLARE grant jsonb;catalog jsonb;
+DECLARE v_grant jsonb;catalog jsonb;
 BEGIN
- grant:=public.titus_authoring_access_self_api_v1();
+ v_grant:=public.titus_authoring_access_self_api_v1();
  catalog:=public.shared_teaching_course_catalog_self_api_v1();
- IF grant->>'canUseTitus'<>'false'
+ IF v_grant->>'canUseTitus'<>'false'
  OR catalog->'courses'<>'[]'::jsonb THEN
   RAISE EXCEPTION 'login silently licensed author or created a Course';
  END IF;
@@ -53,11 +53,11 @@ VALUES('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $create_first_empty_original$
-DECLARE grant jsonb;catalog jsonb;created jsonb;again jsonb;v_course_id uuid;
+DECLARE v_grant jsonb;catalog jsonb;created jsonb;again jsonb;v_course_id uuid;
 BEGIN
- grant:=public.titus_authoring_access_self_api_v1();
+ v_grant:=public.titus_authoring_access_self_api_v1();
  catalog:=public.shared_teaching_course_catalog_self_api_v1();
- IF grant->>'canUseTitus'<>'true' OR catalog->'courses'<>'[]'::jsonb THEN
+ IF v_grant->>'canUseTitus'<>'true' OR catalog->'courses'<>'[]'::jsonb THEN
   RAISE EXCEPTION 'explicit Titus grant populated a default Course';
  END IF;
  created:=public.shared_teaching_course_create_self_api_v1(
