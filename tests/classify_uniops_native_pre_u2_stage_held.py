@@ -28,7 +28,9 @@ GRANT_STAGES=frozenset((
 def read_bounded(path,maximum):
     if not path.is_file() or path.is_symlink() or path.stat().st_size > maximum:
         raise ValueError("Required private diagnostic unavailable")
-    return path.read_text(encoding="utf8")
+    # Preserve raw line endings: universal-newline text reading would silently
+    # accept injected CRLF as the single canonical LF marker.
+    return path.read_bytes().decode("utf8")
 
 def diagnose(folder):
     path=Path(folder)
