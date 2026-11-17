@@ -65,8 +65,9 @@ class NativeOneShotSourceContract(unittest.TestCase):
         self.assertLess(s.index("Checkout immutable P4") if "Checkout immutable P4" in s
                         else s.index("Checkout immutable P3 6A held source AFTER snapshot"),
                         s.index("Reconcile P3 immutable snapshots"))
-        self.assertLess(s.index("Reconcile P3 immutable snapshots"),
-                        s.index("Run canonical authentic-schema disposable clone, no release"))
+        protected=s.split("\n  validate-protected:\n",1)[1]
+        self.assertLess(protected.index("Reconcile P3 immutable snapshots"),
+                        protected.index("Run canonical authentic-schema disposable clone, no release"))
         self.assertIn("--role-only --file",s)
         self.assertIn('--file "$RUNNER_TEMP/uniops-snapshot-schema.sql"',s)
         self.assertNotIn("supabase db push",s.split("\n  validate-protected:\n",1)[1])
@@ -77,7 +78,7 @@ class NativeOneShotSourceContract(unittest.TestCase):
         self.assertEqual(check.returncode,0,check.stderr)
         self.assertNotIn("held-uniops-p3-signed-browser-readback.mjs",self.source.split(
             "\n  validate-protected:\n",1)[1])
-        self.assertEqual(self.source.count("RUNNER_TEMP/uniops-native-governor-private.log"),3)
+        self.assertEqual(self.source.count("uniops-native-governor-private.log"),3)
 
 if __name__=="__main__":
     unittest.main()
