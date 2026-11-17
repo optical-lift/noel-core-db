@@ -29,6 +29,10 @@ SOURCE_NEGATIVES=(
     'for actor in ("outsider","owner"):',
     'status, response = call("worker",invalid)',
     'status, replay = call("worker")',
+)
+SOURCE_RESULT_ASSERTS=(
+    # Each appears once as the denial-class key and once as the callsite;
+    # removing either is a test regression, not a harmless textual cleanup.
     'U4 Result/Done produced an unauthorized successor, task, offer or plan',
     'U4 signed retry produced a second Result or changed its identity',
 )
@@ -83,6 +87,8 @@ def splice(frozen,p3_script,preinstrumented,positive_module):
         raise ValueError("Frozen negative/replay source marker cardinality: "+
                          ",".join(str(SOURCE_NEGATIVES.index(x))+"="+
                                   str(original.count(x)) for x in invalid))
+    if any(original.count(marker)!=2 for marker in SOURCE_RESULT_ASSERTS):
+        raise ValueError("Frozen U4 acceptance/replay assertion cardinality changed")
     if original.count(positive_module.NEEDLE)!=1:
         raise ValueError("Not exactly one first physical worker Result")
     if original.count(positive_module.HEADER)!=1 or (
@@ -99,7 +105,8 @@ def splice(frozen,p3_script,preinstrumented,positive_module):
     )
     if any(result.count(marker)!=1 for marker in P3_MARKERS):
         raise ValueError("P3 before/after/replay source was displaced")
-    if any(result.count(marker)!=1 for marker in SOURCE_NEGATIVES):
+    if any(result.count(marker)!=1 for marker in SOURCE_NEGATIVES) or (
+      any(result.count(marker)!=2 for marker in SOURCE_RESULT_ASSERTS)):
         raise ValueError("U4 negative/replay/zero-successor source was displaced")
     if result.count(positive_module.REPLACEMENT)!=1 or (
       positive_module.NEEDLE in result):
