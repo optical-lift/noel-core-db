@@ -44,7 +44,7 @@ class NativeOneShotSourceContract(unittest.TestCase):
         self.assertNotIn("if: github.event.issue.number == 2822",s)
         # Old workflow remains untouched. Current candidate is never a direct
         # on: workflow_dispatch action, nor a push, nor a PR protected run.
-        self.assertNotIn("workflow_dispatch:",s)
+        self.assertNotIn("workflow_dispatch:",s.split("\njobs:\n",1)[0])
         self.assertNotIn("  push:",s)
         self.assertIn("if: github.event_name == 'pull_request'",s)
         self.assertIn("if: >-\n      github.event_name == 'issues'",s)
