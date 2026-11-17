@@ -9,6 +9,8 @@ on:
       - "tests/prepare_uniops_native_worker_actual_hook_held.py"
       - "tests/test_prepare_uniops_native_worker_actual_hook_source.py"
       - "tests/run-uniops-native-worker-actual-local.sh"
+      - "tests/uniops_native_governor_test_access_local_held.py"
+      - "tests/test_uniops_native_governor_test_access_source.py"
 
 permissions:
   contents: read
@@ -41,7 +43,10 @@ jobs:
           python3 tests/prepare_uniops_native_worker_actual_hook_held.py             --source "$FROZEN_U4_SOURCE"             --output "$RUNNER_TEMP/uniops_u2_qualified_actual_browser_local_only.py"
           python3 -m py_compile "$RUNNER_TEMP/uniops_u2_qualified_actual_browser_local_only.py"
           bash -n tests/run-uniops-native-worker-actual-local.sh
+          python3 -m py_compile tests/uniops_native_governor_test_access_local_held.py tests/test_uniops_native_governor_test_access_source.py
+          python3 -m unittest discover -s tests -p 'test_uniops_native_governor_test_access_source.py' -v
           echo 'PASS exact immutable U4 negatives, same-action replay and browser-only positive hook; NOT RUN'
+          echo 'PASS existing canonical source-bound governor test access grant contract; NOT RUN'
       - name: Node synthetic exact Work/Result/reporter source negatives
         run: node --test tests/atlas_uniops_governor_result_allocation_source.test.mjs
       - name: PostgreSQL top-level SQL syntax only; never install
