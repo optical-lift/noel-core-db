@@ -47,6 +47,8 @@ def load_exact(path,blob,kind):
     return raw
 
 def import_script(path,name):
+    if not Path(path).is_file() or Path(path).is_symlink():
+        raise ValueError("Source-only script must be a regular file")
     spec=importlib.util.spec_from_file_location(name,str(path))
     if spec is None or spec.loader is None:
         raise ValueError("Source-only script import unavailable")
@@ -76,8 +78,11 @@ def splice(frozen,p3_script,preinstrumented,positive_module):
     original=expected.decode("utf-8")
     if any(original.count(marker)!=1 for marker in P3_MARKERS):
         raise ValueError("Missing one of the exact P3 snapshots")
-    if any(original.count(marker)!=1 for marker in SOURCE_NEGATIVES):
-        raise ValueError("Frozen independent U4 negatives or replay changed")
+    invalid=[marker for marker in SOURCE_NEGATIVES if original.count(marker)!=1]
+    if invalid:
+        raise ValueError("Frozen negative/replay source marker cardinality: "+
+                         ",".join(str(SOURCE_NEGATIVES.index(x))+"="+
+                                  str(original.count(x)) for x in invalid))
     if original.count(positive_module.NEEDLE)!=1:
         raise ValueError("Not exactly one first physical worker Result")
     if original.count(positive_module.HEADER)!=1 or (
