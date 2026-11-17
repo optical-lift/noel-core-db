@@ -38,6 +38,8 @@ class ComposedNativeP3Test(unittest.TestCase):
             self.assertEqual(s.count(marker),1,marker)
         for marker in composer.SOURCE_NEGATIVES:
             self.assertEqual(s.count(marker),1,marker)
+        for marker in composer.SOURCE_RESULT_ASSERTS:
+            self.assertEqual(s.count(marker),2,marker)
         self.assertEqual(s.count(patcher.REPLACEMENT),1)
         self.assertNotIn(patcher.NEEDLE,s)
         self.assertIn('payload["p_action_id"]=receipt["actionId"]',s)
