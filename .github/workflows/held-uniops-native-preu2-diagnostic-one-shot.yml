@@ -82,7 +82,7 @@ jobs:
           assert "UNI_OPS_NATIVE_PRE_U2_GATE=" in p
           assert p.index("Emit only allowlisted native pre-U2 gate classification before private cleanup") < p.index("Delete private test-only schema, role snapshot, source and logs")
           assert "len(matches)!=1" in p
-          assert p.index("Reject duplicate issue-2831 title authorization") < p.index("READ-ONLY snapshot exact production schema")
+          assert p.index("Reject duplicate issue-2833 title authorization") < p.index("READ-ONLY snapshot exact production schema")
           assert "environment: production" in p
           assert p.count("NOEL_CORE_DATABASE_URL:")==1
           assert "159c10041c2167c7dccbe56e397de4db9c33651c" in p
@@ -99,7 +99,7 @@ jobs:
           assert "supabase db push" not in p and "apply_migration" not in p
           assert not any(line.lstrip().startswith("NOEL_CORE_DATABASE_URL:")
                          for line in q.splitlines())
-          print("PASS independently self-audited issue-2831 title history, exact native source and read-only clone; no protected execution")
+          print("PASS independently self-audited issue-2833 title history, exact native source and read-only clone; no protected execution")
           PY
       # Validate this exact immutable test revision without DB credentials
       # before any expensive owner-triggered protected schema snapshot.
@@ -319,7 +319,7 @@ jobs:
     environment: production
     timeout-minutes: 55
     steps:
-      - name: Reject duplicate issue-2831 title authorization before any protected schema access
+      - name: Reject duplicate issue-2833 title authorization before any protected schema access
         shell: bash
         env:
           OWNER_ISSUE_EVENTS_TOKEN: ${{ github.token }}
