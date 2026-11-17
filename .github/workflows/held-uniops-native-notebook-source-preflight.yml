@@ -72,6 +72,14 @@ jobs:
           assert 'CREATE POLICY' not in sql and 'GRANT EXECUTE' not in sql
           statements=parse_sql(sql)
           assert len(statements)==2, 'Guard DO and one CREATE OR REPLACE FUNCTION only'
+          import importlib.util
+          spec=importlib.util.spec_from_file_location(
+            'test_governor_access','tests/uniops_native_governor_test_access_local_held.py')
+          module=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          for category,statement in module.source_queries().items():
+            assert len(parse_sql(statement))==1,category
+          print('PASS all six canonical governor-source fixture SQL clauses parse; NOT RUN')
           print('PASS held owner projection SQL top-level grammar and source custody')
           print('HELD_PLPGSQL_BODY_COMPILE=NOT_RUN')
           print('HELD_SIGNED_GOTRUE_BROWSER=NOT_RUN')
