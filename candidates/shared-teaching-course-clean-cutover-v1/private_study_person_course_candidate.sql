@@ -274,18 +274,36 @@ BEGIN
   RAISE EXCEPTION 'exact private study withdrawal required' USING ERRCODE='22023';
  END IF;
  v_person:=atlas.current_person_for_private_course_v1();
+ -- Check participant BEFORE locking private rows. Lock Course before
+ -- invitation everywhere a Course-author mutation can race with invite.
  SELECT i.* INTO v_inv
  FROM atlas.teaching_course_private_study_invitations i
- WHERE i.invitation_id=p_invitation_id FOR UPDATE;
- IF v_inv.invitation_id IS NULL OR v_person NOT IN(
-   v_inv.learner_person_entity_id,v_inv.invited_by_person_entity_id
- ) THEN RAISE EXCEPTION 'known current private study invitation required'
-   USING ERRCODE='42501'; END IF;
+ WHERE i.invitation_id=p_invitation_id
+  AND v_person IN (i.learner_person_entity_id,i.invited_by_person_entity_id);
+ IF v_inv.invitation_id IS NULL THEN
+  RAISE EXCEPTION 'known current private study invitation required'
+    USING ERRCODE='42501';
+ END IF;
  IF v_person=v_inv.invited_by_person_entity_id THEN
   PERFORM atlas.require_private_course_author_self_v1(v_inv.course_id,true);
   v_kind:='author_withdrew';
  ELSE
+  PERFORM 1 FROM atlas.teaching_courses c
+   WHERE c.id=v_inv.course_id AND c.status='active' FOR SHARE;
+  IF NOT FOUND THEN
+   RAISE EXCEPTION 'current private study Course required'
+    USING ERRCODE='42501';
+  END IF;
   v_kind:='learner_withdrew';
+ END IF;
+ SELECT i.* INTO v_inv
+ FROM atlas.teaching_course_private_study_invitations i
+ WHERE i.invitation_id=p_invitation_id
+  AND v_person IN (i.learner_person_entity_id,i.invited_by_person_entity_id)
+ FOR UPDATE;
+ IF v_inv.invitation_id IS NULL THEN
+  RAISE EXCEPTION 'current private study invitation required'
+    USING ERRCODE='42501';
  END IF;
  SELECT * INTO v_previous FROM atlas.teaching_course_private_study_terminations t
  WHERE t.invitation_id=v_inv.invitation_id;
