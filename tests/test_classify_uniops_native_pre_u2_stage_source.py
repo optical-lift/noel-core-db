@@ -80,7 +80,11 @@ class PreU2FailureStages(unittest.TestCase):
         self.assertEqual(content.count("native_pre_u2_stage projection_fingerprint_check"),1)
         self.assertEqual(content.count("native_pre_u2_stage projection_source_mismatch"),1)
         self.assertEqual(content.count("native_pre_u2_stage projection_install_refused"),1)
-        self.assertEqual(content.count("native_pre_u2_stage grant_source_refused"),1)
+        self.assertEqual(content.count("native_pre_u2_stage grant_source_refused"),2)
+        # One refusal belongs to clone ACL source parity; the second remains
+        # the original canonical entitlement grant source refusal.
+        self.assertLess(content.index("reconcile_uniops_native_governor_acl_local_held.py"),
+                        content.index("uniops_native_governor_test_access_local_held.py\" \\"))
         self.assertEqual(content.count("native_pre_u2_stage signed_u2_ready"),1)
         self.assertIn("302be9714957f5bf76d665092c9609b1",content)
         self.assertIn("pg_get_functiondef(p.oid)",content)
