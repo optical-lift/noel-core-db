@@ -67,7 +67,7 @@ jobs:
           bash -n tests/run-uniops-atlas-browser-readback-local.sh
           python3 -m py_compile tests/install-uniops-atlas-browser-readback-hook.py tests/test_uniops_atlas_browser_hook_source.py
           python3 -m unittest discover -s tests -p 'test_uniops_atlas_browser_hook_source.py' -v
-          test "$(git hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = 8790544cbaa3474c68f1658db56ecfd6c5d971be
+          test "$(git hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = 4d3c39528798e2ee33d852d9de06670644f64a1a
           test "$(git hash-object tests/install-uniops-atlas-browser-readback-hook.py)" = 9caec6e20e24696f4b05a8709946fac16b4c53af
           echo 'PASS Atlas browser source-only no grant, no DB, no production access'
       - name: Checkout immutable U4 no-network source for CI contract
@@ -664,7 +664,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C canonical hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = 8790544cbaa3474c68f1658db56ecfd6c5d971be
+          test "$(git -C canonical hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = 4d3c39528798e2ee33d852d9de06670644f64a1a
           test "$(git -C canonical hash-object tests/install-uniops-atlas-browser-readback-hook.py)" = 9caec6e20e24696f4b05a8709946fac16b4c53af
           python3 canonical/tests/install-uniops-atlas-browser-readback-hook.py canonical/scripts/validate-production-schema-clone.sh
           bash -n canonical/scripts/validate-production-schema-clone.sh
@@ -1164,7 +1164,21 @@ jobs:
           browser_lines=browser_log.read_text(errors='replace').splitlines() if browser_log.is_file() else []
           browser_ok=('PASS ATLAS_CI_GOVERNOR_EXACT_DONE_READBACK=PASS' in browser_lines
                       and 'PASS ATLAS_CI_OUTSIDER_WORK_DENIAL=PASS' in browser_lines)
+          # Whitelist only finite labels. Never reveal local browser logs,
+          # SQL, tokens, request bodies or runtime exceptions.
+          browser_stages=re.findall(
+              r'(?m)^ATLAS_CI_BROWSER_FAILURE_STAGE=(environment_contract|atlas_source_integrity|fictional_actor_fixture|accepted_work_selection|local_api_configuration|browser_source_contract|package_install|chromium_install|next_server_ready|governor_readback_or_browser_start|outsider_denial|browser_acceptance_marker)$',
+              '\n'.join(browser_lines))
+          if browser_ok:
+              browser_stage='none'
+          elif len(browser_stages)==1:
+              browser_stage=browser_stages[0]
+          elif len(browser_stages)>1:
+              browser_stage='ambiguous'
+          else:
+              browser_stage='not_reported'
           print('ATLAS_CI_BROWSER_READBACK='+('PASS' if browser_ok else 'NOT_VERIFIED'))
+          print('ATLAS_CI_BROWSER_FAILURE_STAGE='+browser_stage)
           print('UNI_OPS_SIGNED_POST_RESULT_6A=NOT_RUN')
           print('UNI_OPS_PRODUCTION_MUTATION=NONE')
           print('UNI_OPS_PAID_BRANCH=NONE')

@@ -2,11 +2,14 @@
 """No-network refusal tests for the disposable Atlas browser hook installer."""
 from pathlib import Path
 import subprocess
+import os
 import sys
 import tempfile
 import unittest
 
 SCRIPT=Path(__file__).resolve().parent/"install-uniops-atlas-browser-readback-hook.py"
+SHELL=Path(__file__).resolve().parent/"run-uniops-atlas-browser-readback-local.sh"
+WORKFLOW=Path(__file__).resolve().parent.parent/".github/workflows/held-uni-ops-p3-6a-signed-clone.yml"
 BASE='''signed_accepted_first_probe=true
 phase="signed integrated U1B source and U2 accepted-first original"
 python3 signer --u4-actual-followon
@@ -53,6 +56,34 @@ class BrowserHookSourceTests(unittest.TestCase):
         result,out=self.run_hook(text)
         self.assertNotEqual(result.returncode,0)
         self.assertEqual(out,text)
+
+    def test_bounded_failure_stage_without_leaking_input(self):
+        secret="synthetic-secret-for-offline-test"
+        for args in ([], [secret], ["postgresql://postgres:"+secret+"@elsewhere:5432/postgres"]):
+            with self.subTest(args=args):
+                result=subprocess.run(["bash",str(SHELL),*args],
+                   capture_output=True,text=True,env={**os.environ,"ATLAS_BROWSER_FICTIONAL_ONLY":"true"})
+                self.assertNotEqual(result.returncode,0)
+                self.assertEqual(result.stdout,
+                    "BLOCKED ATLAS_CI_BROWSER_READBACK=not_verified\n"
+                    "ATLAS_CI_BROWSER_FAILURE_STAGE=environment_contract\n")
+                self.assertNotIn(secret,result.stdout+result.stderr)
+
+    def test_diagnostic_stages_static_and_no_raw_output(self):
+        shell=SHELL.read_text()
+        workflow=WORKFLOW.read_text()
+        permitted=['environment_contract','atlas_source_integrity','fictional_actor_fixture','accepted_work_selection','local_api_configuration','browser_source_contract','package_install','chromium_install','next_server_ready','governor_readback_or_browser_start','outsider_denial','browser_acceptance_marker']
+        for stage in permitted:
+            self.assertIn(stage,shell)
+            self.assertIn(stage,workflow)
+        self.assertIn("ATLAS_CI_BROWSER_FAILURE_STAGE=",workflow)
+        self.assertIn("ATLAS_CI_BROWSER_FAILURE_STAGE=%s",shell)
+        self.assertNotIn('cat "$log"',shell)
+        self.assertNotIn('tail "$log"',shell)
+        self.assertNotIn('cat "$next_log"',shell)
+        self.assertIn("if ! node tests/held-uniops-p3-signed-browser-readback.mjs",shell)
+        self.assertIn("stage=outsider_denial",shell)
+        self.assertIn("elif len(browser_stages)==1",workflow)
 
     def test_invalid_arguments_rejected(self):
         result=subprocess.run([sys.executable,str(SCRIPT)],capture_output=True,text=True)
