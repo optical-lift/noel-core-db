@@ -21,6 +21,8 @@ on:
       - "tests/test_held_uniops_native_owner_controller_source.py"
       - "tests/run-uniops-native-worker-actual-local.sh"
       - "tests/uniops_native_governor_test_access_local_held.py"
+      - "tests/reconcile_uniops_native_governor_acl_local_held.py"
+      - "tests/test_reconcile_uniops_native_governor_acl_source.py"
       - "tests/test_uniops_native_governor_test_access_source.py"
 
 permissions:
@@ -91,6 +93,13 @@ jobs:
             compile(result,'p3-u4-browser-copy','exec')
           print('PASS exact P3 snapshot BEFORE browser-positive and AFTER/REPLAY original; no execution')
           PY
+      - name: Offline exact canonical ACL restore guard; no database connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/reconcile_uniops_native_governor_acl_local_held.py tests/test_reconcile_uniops_native_governor_acl_source.py
+          python3 -m unittest discover -s tests -p 'test_reconcile_uniops_native_governor_acl_source.py' -v
+          echo 'PASS function-specific canonical ACL source and all refusal paths; never executed against a DB'
       - name: Check native owner projection and signed Notebook readback attach only to disposable validator
         shell: bash
         run: |

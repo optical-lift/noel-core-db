@@ -47,6 +47,10 @@ class NativeValidatorCopySource(unittest.TestCase):
             self.assertEqual(amended.count('ATLAS_NATIVE_GOVERNOR_DONE=PASS'),1)
             self.assertEqual(amended.count('ATLAS_NATIVE_OUTSIDER_DENIAL=PASS'),1)
             self.assertIn('ATLAS_NATIVE_GOVERNOR_TEST_GRANT_ENABLED=true',amended)
+            self.assertIn('ATLAS_NATIVE_GOVERNOR_CLONE_ACL_RECONCILE_ENABLED=true',amended)
+            self.assertLess(amended.index('reconcile_uniops_native_governor_acl_local_held.py'),
+                            amended.index('uniops_native_governor_test_access_local_held.py" \\'))
+            self.assertIn('20260912203347_personal_atlas_access_grants_v1.sql',amended)
             self.assertIn('ATLAS_NATIVE_SIGNED_READBACK_ENABLED',amended)
             self.assertIn('native_work="$(psql "$database_url" -XAt',amended)
             self.assertIn('r.responsible_allocation_id IS NOT NULL',amended)

@@ -48,7 +48,7 @@ class PreU2FailureStages(unittest.TestCase):
         expected={"source_function_missing","source_anon_exposed",
                   "source_authenticated_exposed","source_postgres_denied",
                   "source_acl_multiple_mismatches","source_acl_probe_refused",
-                  "source_acl_inconsistent"}
+                  "source_acl_inconsistent","clone_acl_precondition_refused"}
         self.assertTrue(expected.issubset(m.GRANT_STAGES))
         with tempfile.TemporaryDirectory() as t:
             p=Path(t)

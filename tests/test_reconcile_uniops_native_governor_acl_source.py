@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+"""Offline, source-only negative tests for one exact clone-function ACL repair."""
+import importlib.util
+from pathlib import Path
+import subprocess
+import sys
+import unittest
+from unittest import mock
+
+ROOT=Path(__file__).resolve().parent
+MOD=ROOT/"reconcile_uniops_native_governor_acl_local_held.py"
+MIGRATION=ROOT.parent/"supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql"
+spec=importlib.util.spec_from_file_location("clone_acl_reconcile",MOD)
+m=importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+
+class CloneAclSource(unittest.TestCase):
+    def test_canonical_source_is_byte_pinned_and_has_exact_acl(self):
+        digest=m.source_fingerprint(MIGRATION)
+        self.assertRegex(digest,r"^[0-9a-f]{32}$")
+        sql=m.guarded_sql(digest)
+        self.assertIn(m.REVOKE,sql)
+        self.assertIn(m.GRANT,sql)
+        self.assertEqual(sql.count("REVOKE ALL ON FUNCTION".lower()),1)
+        self.assertIn("p.proacl IS NULL",sql)
+        self.assertIn("md5(p.prosrc)='"+digest+"'",sql)
+        self.assertIn("DO $clone_acl_guard$",sql)
+        self.assertNotIn("ALTER DEFAULT PRIVILEGES",sql)
+        self.assertNotIn("CREATE ROLE",sql)
+        self.assertNotIn("INSERT INTO",sql)
+        self.assertNotIn("supabase db push",sql)
+        with self.assertRaises(ValueError):
+            m.source_fingerprint(ROOT/"does_not_exist.sql")
+        with self.assertRaises(ValueError):
+            m.guarded_sql("untrusted")
+
+    def test_exact_default_only_and_all_other_acl_shapes_refused(self):
+        digest=m.source_fingerprint(MIGRATION)
+        prefix="postgres|t|"+digest+"|"
+        self.assertEqual(m.classify(prefix+"t|t|t|t|t",digest),
+                         "default_public_execute")
+        self.assertEqual(m.classify(prefix+"f|f|f|t|t",digest),"protected")
+        for bad in (prefix+"f|t|t|t|t",prefix+"t|f|t|t|t",
+                    prefix+"t|t|f|t|t",prefix+"t|t|t|f|t",
+                    prefix+"t|t|t|t|f","another|t|"+digest+"|t|t|t|t|t",
+                    "postgres|f|"+digest+"|t|t|t|t|t",
+                    prefix.replace(digest,"0"*32)+"t|t|t|t|t",
+                    "","postgres|t|"+digest+"|t|t|t|t"):
+            with self.subTest(bad=bad):
+                self.assertEqual(m.classify(bad,digest),"refused")
+
+    def test_local_url_and_environment_fail_closed_without_psql(self):
+        self.assertTrue(m.local_only("postgresql://postgres:test@127.0.0.1:54322/postgres"))
+        for url in ("postgres://host/prod",
+                    "postgresql://postgres:test@127.0.0.2:54322/postgres",
+                    "postgresql://postgres:test@localhost:54322/postgres",
+                    "postgresql://postgres:test@127.0.0.1:54322/other"):
+            self.assertFalse(m.local_only(url))
+        with mock.patch.object(m,"psql") as query:
+            with self.assertRaises(ValueError):
+                m.reconcile("postgresql://postgres:test@127.0.0.1:54322/postgres",
+                            MIGRATION)
+            query.assert_not_called()
+        process=subprocess.run([sys.executable,str(MOD),"--db-url",
+              "postgresql://postgres:test@remote.example:54322/postgres",
+              "--canonical-migration",str(MIGRATION)],
+              capture_output=True,text=True,timeout=15)
+        self.assertNotEqual(process.returncode,0)
+        self.assertEqual(process.stderr,"")
+        self.assertEqual(process.stdout,(
+              "BLOCKED ATLAS_NATIVE_GOVERNOR_CLONE_ACL=NOT_VERIFIED\n"
+              "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=clone_acl_precondition_refused\n"))
+
+    def test_exact_local_default_restores_only_after_source_guard(self):
+        digest=m.source_fingerprint(MIGRATION)
+        before="postgres|t|"+digest+"|t|t|t|t|t"
+        after="postgres|t|"+digest+"|f|f|f|t|t"
+        env={"CI":"true","GITHUB_ACTIONS":"true",
+             "GITHUB_REPOSITORY":"optical-lift/noel-core-db",
+             "ATLAS_NATIVE_NOTEBOOK_FICTIONAL_ONLY":"true",
+             "ATLAS_NATIVE_GOVERNOR_CLONE_ACL_RECONCILE_ENABLED":"true"}
+        url="postgresql://postgres:test@127.0.0.1:54322/postgres"
+        with mock.patch.dict("os.environ",env,clear=True):
+            with mock.patch.object(m,"psql",side_effect=[
+                    "postgres|postgres|f",before,"",after]) as query:
+                self.assertEqual(m.reconcile(url,MIGRATION),
+                                 "EXACT_CANONICAL_FUNCTION_ACL_RESTORED")
+                self.assertEqual(query.call_count,4)
+                self.assertEqual(query.call_args_list[2].kwargs,{"transaction":True})
+                sql=query.call_args_list[2].args[1]
+                self.assertIn(m.REVOKE,sql)
+                self.assertIn(m.GRANT,sql)
+            with mock.patch.object(m,"psql",side_effect=[
+                    "postgres|postgres|f",after]) as query:
+                self.assertEqual(m.reconcile(url,MIGRATION),"ALREADY_PROTECTED")
+                self.assertEqual(query.call_count,2)
+            with mock.patch.object(m,"psql",side_effect=[
+                    "postgres|postgres|f","postgres|t|"+digest+"|f|t|t|t|t"]) as query:
+                with self.assertRaisesRegex(ValueError,"unmatched clone ACL"):
+                    m.reconcile(url,MIGRATION)
+                self.assertEqual(query.call_count,2)
+            with mock.patch.object(m,"psql",side_effect=[
+                    "postgres|postgres|f",before,"",before]) as query:
+                with self.assertRaisesRegex(ValueError,"postcondition"):
+                    m.reconcile(url,MIGRATION)
+                self.assertEqual(query.call_count,4)
+            with mock.patch.dict("os.environ",{"NOEL_CORE_DATABASE_URL":"secret"},clear=False):
+                with mock.patch.object(m,"psql") as query:
+                    with self.assertRaisesRegex(ValueError,"production credentials"):
+                        m.reconcile(url,MIGRATION)
+                    query.assert_not_called()
+
+if __name__=="__main__":
+    unittest.main()

@@ -19,6 +19,8 @@ test "${ATLAS_NATIVE_WORKER_BROWSER_ACTUAL_ENABLED:-}" = true
 test "${ATLAS_NATIVE_SIGNED_READBACK_ENABLED:-}" = true
 test -s "$repo_root/tests/uniops-native-governor-held-candidate.sql"
 test -s "$repo_root/tests/uniops_native_governor_test_access_local_held.py"
+test -s "$repo_root/tests/reconcile_uniops_native_governor_acl_local_held.py"
+test -s "$repo_root/supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql"
 # A private *fixed vocabulary* marker records the first failed local source
 # gate without leaking PG error text, JWTs, SQL, fixture data or credentials.
 # The separately reviewed controller may classify only this one file.
@@ -51,6 +53,17 @@ if ! psql "$database_url" -X -v ON_ERROR_STOP=1 \
  -f "$repo_root/tests/uniops-native-governor-held-candidate.sql" \
  > "$artifacts_dir/uniops-native-owner-source-private.log" 2>&1; then
  native_pre_u2_stage projection_install_refused
+ exit 1
+fi
+# This optional function-specific ACL replay is safe only when the restored
+# function matches its pinned migration and has exact default PUBLIC EXECUTE.
+# Any other condition refuses; it never changes production or broad defaults.
+if ! ATLAS_NATIVE_GOVERNOR_CLONE_ACL_RECONCILE_ENABLED=true \
+python3 "$repo_root/tests/reconcile_uniops_native_governor_acl_local_held.py" \
+ --db-url "$database_url" \
+ --canonical-migration "$repo_root/supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql" \
+ > "$artifacts_dir/uniops-native-test-access-private.log" 2>&1; then
+ native_pre_u2_stage grant_source_refused
  exit 1
 fi
 if ! ATLAS_NATIVE_GOVERNOR_TEST_GRANT_ENABLED=true \
