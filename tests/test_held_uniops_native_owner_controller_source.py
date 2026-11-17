@@ -77,7 +77,7 @@ class NativeOneShotSourceContract(unittest.TestCase):
         self.assertEqual(check.returncode,0,check.stderr)
         self.assertNotIn("held-uniops-p3-signed-browser-readback.mjs",self.source.split(
             "\n  validate-protected:\n",1)[1])
-        self.assertEqual(self.source.count("RUNNER_TEMP/uniops-native-governor-private.log"),1 if False else 3)
+        self.assertEqual(self.source.count("RUNNER_TEMP/uniops-native-governor-private.log"),3)
 
 if __name__=="__main__":
     unittest.main()
