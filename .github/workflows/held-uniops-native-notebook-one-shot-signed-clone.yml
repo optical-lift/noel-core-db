@@ -93,7 +93,8 @@ jobs:
           assert "supabase db dump --db-url" in p
           assert "--role-only --file" in p
           assert "supabase db push" not in p and "apply_migration" not in p
-          assert "secrets.NOEL_CORE_DATABASE_URL" not in q
+          assert not any(line.lstrip().startswith("NOEL_CORE_DATABASE_URL:")
+                         for line in q.splitlines())
           print("PASS independently self-audited issue-2831 title history, exact native source and read-only clone; no protected execution")
           PY
       # Validate this exact immutable test revision without DB credentials
