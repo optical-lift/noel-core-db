@@ -39,6 +39,9 @@ on:
       - 'candidates/atlas_uniops_historical_stale_transport_v2/candidate.sql'
       - 'candidates/atlas_uniops_historical_stale_transport_v3/candidate.sql'
       - 'tests/test_uniops_history_stale_409_v3_source_only.py'
+      - 'tests/run-uniops-atlas-browser-readback-local.sh'
+      - 'tests/install-uniops-atlas-browser-readback-hook.py'
+      - 'tests/test_uniops_atlas_browser_hook_source.py'
 permissions:
   contents: read
   packages: read
@@ -57,6 +60,16 @@ jobs:
           persist-credentials: false
       # Validate this exact immutable test revision without DB credentials
       # before any expensive owner-triggered protected schema snapshot.
+      - name: Verify Atlas browser adapter source-only, no database credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/run-uniops-atlas-browser-readback-local.sh
+          python3 -m py_compile tests/install-uniops-atlas-browser-readback-hook.py tests/test_uniops_atlas_browser_hook_source.py
+          python3 -m unittest discover -s tests -p 'test_uniops_atlas_browser_hook_source.py' -v
+          test "$(git hash-object tests/run-uniops-atlas-browser-readback-local.sh)" = 8790544cbaa3474c68f1658db56ecfd6c5d971be
+          test "$(git hash-object tests/install-uniops-atlas-browser-readback-hook.py)" = 9caec6e20e24696f4b05a8709946fac16b4c53af
+          echo 'PASS Atlas browser source-only no grant, no DB, no production access'
       - name: Checkout immutable U4 no-network source for CI contract
         uses: actions/checkout@v4
         with:
@@ -257,7 +270,9 @@ jobs:
       github.actor == github.repository_owner &&
       (github.event.issue.title == 'UNI-OPS P3 6A protected signed Result no-successor gate' ||
        (github.event.issue.title == 'UNI-OPS P3 historical governor cancellation signed conservation gate' &&
-        github.event.issue.number == 2784))
+        github.event.issue.number == 2784) ||
+       (github.event.issue.title == 'HELD Atlas fictional governor Done browser readback gate' &&
+        github.event.issue.number == 2822))
     runs-on: ubuntu-24.04
     environment: production
     timeout-minutes: 55
@@ -289,8 +304,12 @@ jobs:
               expected['history_source_sha']='ddfb0bf5374798301fe076a61d2b944dfb52ff63'
               expected['history_composer_sha']='15bb6a15f60b357050f44ab1bc43f64778523d93'
               expected['owner_run_approval']='signed_history_governor_conservation_2784_v1'
+          elif title=='HELD Atlas fictional governor Done browser readback gate':
+              expected['atlas_source_sha']='1d80f0b26be53df1e9e6b06295d98795853c96e0'
+              expected['browser_test_goal']='fictional_governor_done_outsider_denial_v1'
+              expected['owner_run_approval']='held_atlas_browser_owner_gate_v1'
           elif title!='UNI-OPS P3 6A protected signed Result no-successor gate':
-              raise SystemExit('Unrecognized protected history or P3 test goal')
+              raise SystemExit('Unrecognized protected history, P3 or Atlas browser test goal')
           for line in os.environ.get('OWNER_BODY','').splitlines():
               match=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
               if match and match[1] in expected:
