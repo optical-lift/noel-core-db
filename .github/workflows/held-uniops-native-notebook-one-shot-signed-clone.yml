@@ -1,7 +1,7 @@
 name: HELD UNI-OPS native Notebook true-signed disposable clone (new one-shot owner gate)
 on:
   issues:
-    types: [edited, reopened]
+    types: [edited]
   pull_request:
     paths:
       - '.github/workflows/held-uniops-native-notebook-one-shot-signed-clone.yml'
@@ -47,7 +47,7 @@ permissions:
   packages: read
   issues: read
 concurrency:
-  group: held-uni-ops-p3-6a-signed-no-successor
+  group: held-uniops-native-notebook-one-shot-2831
   cancel-in-progress: false
 jobs:
   source-contract:
