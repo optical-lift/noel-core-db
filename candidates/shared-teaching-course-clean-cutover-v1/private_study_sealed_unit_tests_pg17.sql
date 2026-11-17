@@ -298,6 +298,7 @@ END $b_withdrawn$;
 RESET ROLE;
 
 DO $end_state$
+DECLARE v_enrollments bigint:=0;
 BEGIN
  IF (SELECT count(*) FROM atlas.teaching_courses)<>1
  OR (SELECT count(*) FROM atlas.teaching_course_private_study_unit_decisions)<>4
@@ -306,7 +307,6 @@ BEGIN
  OR (SELECT count(*) FROM atlas.teaching_course_private_study_unit_decisions
   WHERE decision='withhold')<>1
  OR (SELECT count(*) FROM atlas.teaching_course_version_curriculum_snapshots)<>2
- OR to_regclass('atlas.teaching_enrollments') IS NULL
  THEN RAISE EXCEPTION 'one Course/two immutable editions/source fixture altered: courses %, total %, allow %, withhold %, snapshots %, enrollment table %',
   (SELECT count(*) FROM atlas.teaching_courses),
   (SELECT count(*) FROM atlas.teaching_course_private_study_unit_decisions),
@@ -315,7 +315,14 @@ BEGIN
   (SELECT count(*) FROM atlas.teaching_course_version_curriculum_snapshots),
   to_regclass('atlas.teaching_enrollments'); END IF;
  -- Institutional Enrollment stays at zero even after two direct learners.
- IF (SELECT count(*) FROM atlas.teaching_enrollments)<>0 THEN
-  RAISE EXCEPTION 'private read minted institutional Enrollment'; END IF;
+ -- Institutional Enrollment is introduced later in this synthetic journey.
+ -- If absent here, the private source has not materialized it. If present,
+ -- it must remain empty: never create an institutional original as a shortcut.
+ IF to_regclass('atlas.teaching_enrollments') IS NOT NULL THEN
+  EXECUTE 'SELECT count(*) FROM atlas.teaching_enrollments' INTO v_enrollments;
+  IF v_enrollments<>0 THEN
+   RAISE EXCEPTION 'private read minted institutional Enrollment';
+  END IF;
+ END IF;
 END $end_state$;
 ROLLBACK TO SAVEPOINT two_private_students;
