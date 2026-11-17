@@ -42,7 +42,6 @@ class ComposedNativeP3Test(unittest.TestCase):
         self.assertNotIn(patcher.NEEDLE,s)
         self.assertIn('payload["p_action_id"]=receipt["actionId"]',s)
         self.assertIn('private.unlink(missing_ok=True)',s)
-        self.assertIn("same original Result",s if "same original Result" in s else "same original Result")
         compile(s,composer.OUTPUT_NAME,"exec")
 
     def test_exact_p3_parent_bytes_required(self):
