@@ -4,6 +4,15 @@
 BEGIN;
 SET LOCAL app.shared_course_clone='approved';
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/fixture_synthetic_pg17.sql
+
+-- B0/B1: generic empty Course setup is a separate source capability,
+-- independent of the historical adoption data. Synthetic-only savepoint
+-- proves zero legacy drafts, empty catalog, no implicit content, genuine
+-- first creator action, outsider denial, then restores original fixture.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/universal_blank_first_source_tests_pg17.sql
+
+-- Historical custody scenario is independent from blank first-run and
+-- remains protected by its original exact source census + bytes manifest.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/sk101_clone_temporary_manifest.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_first_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_first_clone_postconditions.sql
