@@ -73,17 +73,22 @@ class BrowserHookSourceTests(unittest.TestCase):
         shell=SHELL.read_text()
         workflow=WORKFLOW.read_text()
         permitted=['environment_contract','atlas_source_integrity','fictional_actor_fixture','accepted_work_selection','local_api_configuration','browser_source_contract','package_install','chromium_install','next_server_ready','governor_readback_or_browser_start','outsider_denial','browser_acceptance_marker']
-        for inner in ['runner_contract','governor_signin','outsider_signin','chromium_launch','governor_page','governor_done','outsider_page','outsider_denial','governor_navigation','governor_banner','governor_headings','governor_organization','governor_ledger','governor_work','governor_submit']:
+        for inner in ['runner_contract','governor_signin','outsider_signin','chromium_launch','governor_page','governor_done','outsider_page','outsider_denial','governor_navigation','governor_banner','governor_headings','governor_organization','governor_ledger','governor_work','governor_submit','governor_hydration_readiness','governor_form_reset','governor_button_disabled','governor_submit_click']:
             self.assertIn("ATLAS_CI_BROWSER_INNER_STAGE="+inner,shell)
             self.assertIn("stage="+inner,shell)
             self.assertIn(inner,workflow)
         self.assertIn("case \"$(grep '^ATLAS_CI_BROWSER_INNER_STAGE=' \"$log\" || true)\" in",shell)
         self.assertIn("stage=governor_readback_or_browser_start",shell)
         self.assertIn("hash-object tests/held-uniops-p3-browser-page-interaction.mjs",shell)
-        self.assertIn("abf24f372b4bffeb5575f3ea0d52e4d27cf931a5",shell)
-        self.assertIn("abf24f372b4bffeb5575f3ea0d52e4d27cf931a5",workflow)
-        self.assertIn("d3aad1c9fef9034bf57dc6143041e52eaa9fb88f",workflow)
-        self.assertIn("bf0c2227a4e628080515f98d4afbcd851f2d4f1d",workflow)
+        self.assertIn("3c5e07bf8028ca9d8327eda89344c6f63a85bd97",shell)
+        self.assertIn("3c5e07bf8028ca9d8327eda89344c6f63a85bd97",workflow)
+        self.assertIn("ATLAS_CI_BROWSER_FAILURE_STAGE=",workflow)
+        self.assertIn("governor_hydration_readiness",workflow)
+        self.assertIn("governor_form_reset",workflow)
+        self.assertIn("governor_button_disabled",workflow)
+        self.assertIn("governor_submit_click",workflow)
+        self.assertIn("3ae3405bc58c56abf1290223fb482c8cccd5b412",workflow)
+        self.assertIn("401ab4352f217a4061a3fd278bc0f4e3d2eb11dc",workflow)
         self.assertIn("node --check atlas-browser-ci/tests/held-uniops-p3-browser-page-interaction.mjs",workflow)
         for stage in permitted:
             self.assertIn(stage,shell)

@@ -23,9 +23,9 @@ test -n "${RUNNER_TEMP:-}" && test -n "${GITHUB_WORKSPACE:-}" || blocked
 stage=atlas_source_integrity
 root="$GITHUB_WORKSPACE/atlas-browser-ci"
 test -d "$root/.git" && test ! -L "$root" || blocked
-test "$(git -C "$root" rev-parse HEAD)" = d3aad1c9fef9034bf57dc6143041e52eaa9fb88f || blocked
-test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = bf0c2227a4e628080515f98d4afbcd851f2d4f1d || blocked
-test "$(git -C "$root" hash-object tests/held-uniops-p3-browser-page-interaction.mjs)" = abf24f372b4bffeb5575f3ea0d52e4d27cf931a5 || blocked
+test "$(git -C "$root" rev-parse HEAD)" = 3ae3405bc58c56abf1290223fb482c8cccd5b412 || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-p3-signed-browser-readback.mjs)" = 401ab4352f217a4061a3fd278bc0f4e3d2eb11dc || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-p3-browser-page-interaction.mjs)" = 3c5e07bf8028ca9d8327eda89344c6f63a85bd97 || blocked
 
 stage=fictional_actor_fixture
 test "$(psql "$database_url" -XAt -v ON_ERROR_STOP=1 -c "select count(*) from auth.users where email in ('atlas-c1-owner@example.invalid','atlas-c1-outsider@example.invalid')")" = 2 || blocked
@@ -132,6 +132,10 @@ if ! node tests/held-uniops-p3-signed-browser-readback.mjs > "$log" 2>&1; then
     ATLAS_CI_BROWSER_INNER_STAGE=governor_ledger) stage=governor_ledger ;;
     ATLAS_CI_BROWSER_INNER_STAGE=governor_work) stage=governor_work ;;
     ATLAS_CI_BROWSER_INNER_STAGE=governor_submit) stage=governor_submit ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_hydration_readiness) stage=governor_hydration_readiness ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_form_reset) stage=governor_form_reset ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_button_disabled) stage=governor_button_disabled ;;
+    ATLAS_CI_BROWSER_INNER_STAGE=governor_submit_click) stage=governor_submit_click ;;
     ATLAS_CI_BROWSER_INNER_STAGE=governor_done) stage=governor_done ;;
     ATLAS_CI_BROWSER_INNER_STAGE=outsider_page) stage=outsider_page ;;
     ATLAS_CI_BROWSER_INNER_STAGE=outsider_denial) stage=outsider_denial ;;
