@@ -34,10 +34,11 @@ class NativeOneShotSourceContract(unittest.TestCase):
         self.assertIn("len(matches)!=1",s)
         self.assertIn("issue history not verifiable",s)
         self.assertIn("Bearer '+os.environ['OWNER_ISSUE_EVENTS_TOKEN']",s)
-        self.assertLess(s.index("Reject duplicate issue-2831 title authorization"),
-                        s.index("Authorize exact held test scope"))
-        self.assertLess(s.index("Authorize exact held test scope"),
-                        s.index("READ-ONLY snapshot exact production schema"))
+        protected=s.split("\n  validate-protected:\n",1)[1]
+        self.assertLess(protected.index("Reject duplicate issue-2831 title authorization"),
+                        protected.index("Authorize exact held test scope"))
+        self.assertLess(protected.index("Authorize exact held test scope"),
+                        protected.index("READ-ONLY snapshot exact production schema"))
         self.assertIn("group: held-uniops-native-notebook-one-shot-2831",s)
         self.assertEqual(s.count("NOEL_CORE_DATABASE_URL: "),1)
         self.assertNotIn("if: github.event.issue.number == 2822",s)
@@ -57,8 +58,8 @@ class NativeOneShotSourceContract(unittest.TestCase):
           "12568439f527ee083981a8903249f0b79b89bc6b",
           "09d3be2ec9c7ae390387d74f7c9cde5fe591a035",
           "5964dd9a8729aa70609d52ab02cecc7e299fd89d",
-          "cf61f7671ce47829a2989b80edc6d886c377ed71",
-          "c93ab9d53f8d75917b8ab36aae87c8e2c47420e7",
+          "64f048b8a487f83a9869126c27c10c0dc9c6f682",
+          "4687caba9f750f33f41b09cda0291606322c911b",
           "uniops-native-governor-held-candidate.sql",
           "uniops_u2_qualified_actual_browser_p3_local_only.py",
           "install_uniops_native_notebook_validator_copy_held.py",
