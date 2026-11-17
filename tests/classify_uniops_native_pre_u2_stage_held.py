@@ -34,12 +34,16 @@ def diagnose(folder):
     path=Path(folder)
     if not path.is_dir() or path.is_symlink() or not path.is_absolute():
         raise ValueError("Private diagnostics directory not available")
-    try:
-        source=read_bounded(path/MARKER,256)
-        m=re.fullmatch(r"UNI_OPS_NATIVE_PRE_U2_STAGE=([a-z_]+)\n",source)
-        gate=m.group(1) if m and m.group(1) in GATES else "unclassified"
-    except (ValueError,UnicodeError,OSError):
+    marker=path/MARKER
+    if marker.is_symlink() or not marker.is_file():
         gate="not_recorded"
+    else:
+        try:
+            source=read_bounded(marker,256)
+            m=re.fullmatch(r"UNI_OPS_NATIVE_PRE_U2_STAGE=([a-z0-9_]+)\n",source)
+            gate=m.group(1) if m and m.group(1) in GATES else "unclassified"
+        except (ValueError,UnicodeError,OSError):
+            gate="unclassified"
     detail="not_applicable"
     if gate=="grant_source_refused":
         try:
