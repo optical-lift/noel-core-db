@@ -66,6 +66,10 @@ def p3_expected(frozen_u4,p3_script):
         return source.read_bytes()
 
 def splice(frozen,p3_script,preinstrumented,positive_module):
+    if git_blob(frozen)!=FROZEN_U4_BLOB:
+        raise ValueError("Frozen U4 input differs from approved source")
+    if git_blob(Path(p3_script).read_bytes())!=PINNED_P3_BLOB:
+        raise ValueError("P3 composer source differs from approved hook")
     expected=p3_expected(frozen,p3_script)
     if expected!=preinstrumented:
         raise ValueError("Previous P3 snapshot hook differs from exact source")
