@@ -2,6 +2,12 @@
 
 Status: SOURCE PLAN / NO LIVE MIGRATION. Date: 2026-11-07. Cross-domain structural lane: shared_. Repository owning SQL: optical-lift/noel-core-db.
 
+## November 17: R0 private Person-first SK 101 learner relationship fork (HELD)
+
+[Source adjudication contract and 24-case denial matrix](./PERSON_FIRST_PRIVATE_STUDY_RELATIONSHIP_20261117.md) now governs the first direct-teaching use: one real Course author, **Marlene and Melody as two separately consenting People**, optional third beta learner later, **no invented institution, duplicate Course, or Titus-only student source**. Current `atlas.teaching_enrollments` and M3.15–M3.16B require a real Ledger/Offering and cannot be used unchanged for a private author-to-learner Course. The canonical Reality relationship registry also lacks a teacher/student kind; adding one would not establish curriculum rights.
+
+**This is a bounded source-law gap, not an implemented API.** Before source SQL, adjudicate what original records Course-specific student participation and explicit consent, which source issuer can establish it, and how exact Unit disclosure and later learner-owned work remain separate. Do not insert a dummy institutional Offering, issue invitations, widen RLS, add a new table or claim a genuine two-student browser beta from held synthetic proofs. No change to existing M3.15–M3.16B code, operational SQL, migration, or production.
+
 ## Binding owner choices
 
 1A: A real Person creates a Course privately; an institution can later operate THAT SAME Course, without a second Course identity.
