@@ -19,6 +19,10 @@ test("new owner projection is an additive, exact-current-source guarded read",()
  assert.match(sql,/reportAllocation',CASE/);
  assert.match(sql,/sourceResultId',lr\.id/);
  assert.match(sql,/historicalNotCurrent',report_allocation\.state<>'active'/);
+ assert.match(sql,/recordedReporterMatchesAllocation'/);
+ assert.match(sql,/lr\.reported_by_user_id IS NOT NULL/);
+ assert.match(sql,/lr\.result_contract_key='continuing_care_actual_v1'/);
+ assert.match(sql,/authenticatedReporterPersonId'/);
  assert.match(sql,/report_allocation\.id=lr\.responsible_allocation_id/);
  assert.match(sql,/report_allocation\.organization_id=w\.organization_id/);
  assert.match(sql,/report_allocation\.work_item_id=w\.id/);
@@ -44,12 +48,17 @@ function sourceLinkedReportAllocation(report,allocation){
   assigneeCanonicalPersonId:allocation.assigneeCanonicalPersonId,
   allocationState:allocation.state,
   historicalNotCurrent:allocation.state!=="active",
-  sameOriginalAndOrganizationProven:true};
+  sameOriginalAndOrganizationProven:true,
+  recordedReporterMatchesAllocation:Boolean(report.reportedByUserId&&
+   report.resultContractKey==="continuing_care_actual_v1"&&
+   report.metadata?.authenticatedReporterPersonId===allocation.assigneeCanonicalPersonId)};
 }
 
 test("synthetic report FK admits only same-original current or historical responsibility",()=>{
  const r={resultId:"r",organizationId:"org",workItemId:"work",
-   responsibleAllocationId:"allocation",reportedAt:"2026-11-17T12:00:00Z"};
+   responsibleAllocationId:"allocation",reportedAt:"2026-11-17T12:00:00Z",
+   reportedByUserId:"signed-user",resultContractKey:"continuing_care_actual_v1",
+   metadata:{authenticatedReporterPersonId:"person"}};
  const a={id:"allocation",organizationId:"org",workItemId:"work",
    allocationRole:"responsible",state:"completed",
    assigneeCanonicalPersonId:"person",allocatedAt:"2026-11-16T12:00:00Z"};
@@ -81,4 +90,25 @@ test("historical-only unrelated allocation can never be substituted for the resu
    state:"completed",allocationRole:"responsible",assigneeCanonicalPersonId:"other",
    allocatedAt:"2026-11-15T12:00:00Z"};
  assert.equal(sourceLinkedReportAllocation(r,latestHistorical),null);
+});
+
+test("recorded reporter metadata is distinct from the Work allocation FK and cannot prove GoTrue signature alone",()=>{
+ const result={resultId:"r",organizationId:"org",workItemId:"work",
+  responsibleAllocationId:"alloc",reportedAt:"2026-11-17T12:00:00Z",
+  resultContractKey:"continuing_care_actual_v1",
+  reportedByUserId:"signed-user",
+  metadata:{authenticatedReporterPersonId:"reporter"}};
+ const allocation={id:"alloc",organizationId:"org",workItemId:"work",
+  allocationRole:"responsible",state:"completed",
+  assigneeCanonicalPersonId:"reporter",allocatedAt:"2026-11-16T12:00:00Z"};
+ assert.equal(sourceLinkedReportAllocation(result,allocation)?.recordedReporterMatchesAllocation,true);
+ for(const invalid of [
+  {...result,reportedByUserId:null},
+  {...result,resultContractKey:"ordinary_company_work_manager_acceptance_v1"},
+  {...result,metadata:{}},
+  {...result,metadata:{authenticatedReporterPersonId:"different"}},
+ ]){
+  const link=sourceLinkedReportAllocation(invalid,allocation);
+  assert.equal(link?.recordedReporterMatchesAllocation,false);
+ }
 });
