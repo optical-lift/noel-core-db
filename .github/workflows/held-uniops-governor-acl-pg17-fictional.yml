@@ -1,0 +1,50 @@
+name: HELD UNI-OPS fictional PG17 canonical governor ACL parity (no production)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/held-uniops-governor-acl-pg17-fictional.yml"
+      - "tests/reconcile_uniops_native_governor_acl_local_held.py"
+      - "tests/test_reconcile_uniops_native_governor_acl_source.py"
+      - "tests/verify_uniops_governor_acl_pg17_synthetic_held.py"
+      - "tests/install_uniops_native_notebook_validator_copy_held.py"
+      - "supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql"
+
+permissions:
+  contents: read
+
+jobs:
+  fictional-pg17:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "54322:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify a real but entirely fictional PG17 default ACL and refusal
+        shell: bash
+        env:
+          ATLAS_GOVERNOR_PG17_SYNTHETIC_ENABLED: "true"
+        run: |
+          set -euo pipefail
+          command -v psql >/dev/null
+          test -z "$(printenv NOEL_CORE_DATABASE_URL 2>/dev/null || true)"
+          test -z "$(printenv SUPABASE_SERVICE_ROLE_KEY 2>/dev/null || true)"
+          python3 -m py_compile tests/reconcile_uniops_native_governor_acl_local_held.py tests/verify_uniops_governor_acl_pg17_synthetic_held.py
+          python3 tests/verify_uniops_governor_acl_pg17_synthetic_held.py
+          echo "PASS local fictional PostgreSQL only; no remote source, no entitlement"
