@@ -68,8 +68,9 @@ jobs:
           s=Path('.github/workflows/held-uniops-native-notebook-one-shot-signed-clone.yml').read_text()
           p=s.split('\n  validate-protected:\n',1)[1]
           q=s.split('\n  validate-protected:\n',1)[0]
-          assert s.count('  validate-protected:')==1
-          assert "types: [edited]" in s and "workflow_dispatch:" not in s
+          assert s.splitlines().count('  validate-protected:')==1
+          triggers=s.split('\n',1)[1].split('\njobs:\n',1)[0]
+          assert "types: [edited]" in triggers and "workflow_dispatch:" not in triggers
           assert "github.event.issue.number == 2831" in p
           assert "github.actor == github.repository_owner" in p
           assert "github.event.issue.author_association == 'OWNER'" in p
