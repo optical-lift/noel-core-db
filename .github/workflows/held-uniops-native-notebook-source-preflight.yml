@@ -13,6 +13,8 @@ on:
       - "tests/run-uniops-native-governor-readback-local.sh"
       - "tests/install_uniops_native_notebook_validator_copy_held.py"
       - "tests/test_install_uniops_native_notebook_validator_copy_source.py"
+      - ".github/workflows/held-uniops-native-notebook-one-shot-signed-clone.yml"
+      - "tests/test_held_uniops_native_owner_controller_source.py"
       - "tests/run-uniops-native-worker-actual-local.sh"
       - "tests/uniops_native_governor_test_access_local_held.py"
       - "tests/test_uniops_native_governor_test_access_source.py"
@@ -93,6 +95,13 @@ jobs:
           python3 -m py_compile tests/install_uniops_native_notebook_validator_copy_held.py tests/test_install_uniops_native_notebook_validator_copy_source.py
           python3 -m unittest discover -s tests -p 'test_install_uniops_native_notebook_validator_copy_source.py' -v
           echo 'PASS held native signed validator-copy composition and no generic Work/Result writer; NOT RUN'
+      - name: Verify independent new owner-issue transition and source-only protected clone proposal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_held_uniops_native_owner_controller_source.py
+          python3 -m unittest discover -s tests -p 'test_held_uniops_native_owner_controller_source.py' -v
+          echo 'PASS only issue #2831 changed from prior review title can propose native signed test; NOT RUN'
       - name: Node synthetic exact Work/Result/reporter source negatives
         run: node --test tests/atlas_uniops_governor_result_allocation_source.test.mjs
       - name: PostgreSQL top-level SQL syntax only; never install
