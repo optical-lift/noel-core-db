@@ -1,0 +1,51 @@
+name: HELD UNI-OPS native Notebook Result allocation source preflight (no database)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/held-uniops-native-notebook-source-preflight.yml"
+      - "candidates/atlas_uniops_governor_result_allocation_v1/**"
+      - "tests/atlas_uniops_governor_result_allocation_source.test.mjs"
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Node synthetic exact Work/Result/reporter source negatives
+        run: node --test tests/atlas_uniops_governor_result_allocation_source.test.mjs
+      - name: PostgreSQL top-level SQL syntax only; never install
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          p=Path('candidates/atlas_uniops_governor_result_allocation_v1/candidate.sql')
+          sql=p.read_text(encoding='utf-8')
+          assert sql.count('CREATE OR REPLACE FUNCTION atlas.company_work_accountability_native_ledger_self_api_v1(')==1
+          assert '302be9714957f5bf76d665092c9609b1' in sql
+          assert 'company_work_native_ledger_owner_self_v1' in sql
+          assert "'reportAllocation',CASE" in sql
+          assert "'recordedReporterMatchesAllocation'," in sql
+          assert "report_allocation.id=lr.responsible_allocation_id" in sql
+          assert "report_allocation.work_item_id=w.id" in sql
+          assert "report_allocation.organization_id=w.organization_id" in sql
+          assert "lr.metadata->>'authenticatedReporterPersonId'" in sql
+          assert "lr.reported_by_user_id IS NOT NULL" in sql
+          assert 'CREATE POLICY' not in sql and 'GRANT EXECUTE' not in sql
+          statements=parse_sql(sql)
+          assert len(statements)==2, 'Guard DO and one CREATE OR REPLACE FUNCTION only'
+          print('PASS held owner projection SQL top-level grammar and source custody')
+          print('HELD_PLPGSQL_BODY_COMPILE=NOT_RUN')
+          print('HELD_SIGNED_GOTRUE_BROWSER=NOT_RUN')
+          print('HELD_PRODUCTION_CHANGE=NONE')
+          PY
