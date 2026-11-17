@@ -25,8 +25,8 @@ test -z "${NOEL_CORE_DATABASE_URL:-}" && test -z "${SUPABASE_SERVICE_ROLE_KEY:-}
 stage=atlas_source_integrity
 root="$GITHUB_WORKSPACE/atlas-browser-ci"
 test -d "$root/.git" && test ! -L "$root" || blocked
-test "$(git -C "$root" rev-parse HEAD)" = 478306286dd09356c8efe61ec5fb858e73f02061 || blocked
-test "$(git -C "$root" hash-object tests/held-uniops-native-worker-actual-browser.mjs)" = 78cea58f39eb2b58d56d8ada6c3957e4a2d8641d || blocked
+test "$(git -C "$root" rev-parse HEAD)" = a3171aacb91bd26a9287962c975b7cc3cb7db3c8 || blocked
+test "$(git -C "$root" hash-object tests/held-uniops-native-worker-actual-browser.mjs)" = 80b8448267c126f713c08fac30405e647c9e1d13 || blocked
 test "$(git -C "$root" hash-object app/PersonalConnectedPersonCompanyWork.tsx)" = f2462fc34e0074f5dbd254b257b6f782e19beea7 || blocked
 test "$(git -C "$root" hash-object app/ConnectedLedgerWorkNotebook.tsx)" = e36b5b79057cd229e31b34455f0fb06dd8d3d067 || blocked
 test "$(git -C "$root" hash-object app/CanonicalWorkFocusCareActual.tsx)" = 7ef7d117fff2ed3b4a99384c42a17165c25ba225 || blocked
