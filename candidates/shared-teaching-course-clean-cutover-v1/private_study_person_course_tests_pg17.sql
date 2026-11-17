@@ -196,6 +196,7 @@ RESET ROLE;
 
 -- Internal necessity-only predicate: accepted A yes; declined B no.
 DO $current_scope$
+DECLARE v_enrollments bigint:=0;
 BEGIN
  IF NOT atlas.private_course_study_current_v1(
   '11111111-1111-4111-8111-111111111111',
@@ -208,7 +209,10 @@ BEGIN
   'f8888888-8888-4888-8888-888888888881') THEN
   RAISE EXCEPTION 'Course-specific acceptance predicate leaked or failed';
  END IF;
- IF (SELECT count(*) FROM atlas.teaching_enrollments)<>0 THEN
+ IF to_regclass('atlas.teaching_enrollments') IS NOT NULL THEN
+  EXECUTE 'SELECT count(*) FROM atlas.teaching_enrollments' INTO v_enrollments;
+ END IF;
+ IF v_enrollments<>0 THEN
   RAISE EXCEPTION 'private invitation fabricated institutional Enrollment';
  END IF;
 END $current_scope$;
@@ -304,10 +308,16 @@ ROLLBACK TO SAVEPOINT private_study_fictional;
 
 -- No student data has crossed into an institution, Class or signed real account.
 DO $no_leak$
+DECLARE v_enrollments bigint:=0;
 BEGIN
  IF (SELECT count(*) FROM atlas.teaching_course_private_study_invitations)<>0
  OR (SELECT count(*) FROM atlas.teaching_course_private_study_responses)<>0
  OR (SELECT count(*) FROM atlas.teaching_course_private_study_terminations)<>0
- OR (SELECT count(*) FROM atlas.teaching_enrollments)<>0
  THEN RAISE EXCEPTION 'private study synthetic rows were not rolled back'; END IF;
+ IF to_regclass('atlas.teaching_enrollments') IS NOT NULL THEN
+  EXECUTE 'SELECT count(*) FROM atlas.teaching_enrollments' INTO v_enrollments;
+ END IF;
+ IF v_enrollments<>0 THEN
+  RAISE EXCEPTION 'private study minted institutional Enrollment';
+ END IF;
 END $no_leak$;
