@@ -155,6 +155,36 @@ def main():
              "WHERE n.nspname='public' AND p.proname IN "
              "('"+ADMIT+"','"+REVOKE+"')")==2,
             "STOP: only owner-protected clone wrapper may be used")
+    # Verify the ephemeral REST bridge actually presents the intended
+    # PostgREST grants. Function existence alone would conceal a broad
+    # accidental PUBLIC, anonymous or service-role EXECUTE grant.
+    for signature in (
+        "public.uni_ops_u2f_signed_clone_reaffirm_v1(uuid,uuid,text)",
+        "public.uni_ops_u2f_signed_clone_revoke_v1(uuid,text)",
+    ):
+        for role,expected in (
+            ("anon",0),("authenticated",1),("service_role",0),
+        ):
+            permitted=count(
+                a.db_url,
+                "SELECT count(*) FROM pg_catalog.pg_proc p "
+                "WHERE p.oid='"+signature+"'::regprocedure "
+                "AND pg_catalog.has_function_privilege("
+                "'"+role+"',p.oid,'EXECUTE')"
+            )
+            require(permitted==expected,
+                    "STOP: clone-only REST function EXECUTE deviates from exact role contract")
+        defining=count(
+            a.db_url,
+            "SELECT count(*) FROM pg_catalog.pg_proc p "
+            "WHERE p.oid='"+signature+"'::regprocedure "
+            "AND p.prosecdef "
+            "AND array_position(p.proconfig,'search_path=') IS NOT NULL"
+        )
+        require(defining==1,
+                "STOP: clone-only REST function security/search_path source drift")
+    print("PASS review-only clone bridge has exact authenticated-only EXECUTE",flush=True)
+
     before=count(a.db_url,"SELECT count(*) FROM atlas.work_items")
     # Existing code intentionally does not print bearer token/claims.
     if a.reuse_existing_signed_auth:
