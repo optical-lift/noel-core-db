@@ -65,10 +65,13 @@ jobs:
           assert protected.index("Verify exact Noel draft PR source before reading protected schema") < protected.index("Verify private Titus PR remains draft using least-privilege credential")
           assert protected.index("Verify private Titus PR remains draft using least-privilege credential") < protected.index("Snapshot production schema/roles READ ONLY")
           # The cross-repository credential is bound only to the private Titus check.
-          titus_step=protected.split("\n      - name: Verify private Titus PR remains draft using least-privilege credential\\n",1)[1].split("\n      - name: Install pinned Supabase CLI",1)[0]
+          titus_start=protected.index("      - name: Verify private Titus PR remains draft using least-privilege credential")
+          titus_end=protected.index("      - name: Install pinned Supabase CLI",titus_start)
+          noel_start=protected.index("      - name: Verify exact Noel draft PR source before reading protected schema")
+          titus_step=protected[titus_start:titus_end]
           assert "GH_TOKEN: $" + "{{ secrets.TITUS_PR_READ_TOKEN }}" in titus_step
           assert "NOEL_CORE_DATABASE_URL" not in titus_step
-          assert "secrets.TITUS_PR_READ_TOKEN" not in protected.split("\n      - name: Verify exact Noel draft PR source before reading protected schema\\n",1)[1].split("\n      - name: Verify private Titus PR",1)[0]
+          assert "secrets.TITUS_PR_READ_TOKEN" not in protected[noel_start:titus_start]
           assert 'upload-artifact' not in protected
           print('PASS protected credentials confined to read-only snapshot; owner-gated and no release')
           PY
