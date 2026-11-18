@@ -151,7 +151,8 @@ class TestSignedLocalSafety(unittest.TestCase):
         self.assertIn("shared_titus_current_person_signed_candidate.sql",
                       SCRIPT.read_text())
         candidate_sql="\n".join(line for line in candidate.splitlines()
-                                if not line.lstrip().startswith("--"))\n        self.assertNotIn("user_metadata",candidate_sql)
+                                if not line.lstrip().startswith("--"))
+        self.assertNotIn("user_metadata",candidate_sql)
         self.assertNotIn("service_role",candidate)
 
     def test_workflow_not_production_protected_trigger(self):
