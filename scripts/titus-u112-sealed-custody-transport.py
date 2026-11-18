@@ -135,6 +135,11 @@ def verify(args):
         reject("sealed capsule or witness missing")
     if not Path(args.certificate).is_file() or not Path(args.private_key).is_file():
         reject("recipient certificate or private key missing")
+    private_key = Path(args.private_key)
+    if (private_key.is_symlink()
+            or private_key.stat().st_uid != os.getuid()
+            or stat.S_IMODE(private_key.stat().st_mode) & 0o077):
+        reject("recipient private key must be caller-owned and unreadable by others")
     try:
         claim = json.loads(decrypt_small(args.certificate, args.private_key, witness))
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -179,9 +184,14 @@ def main():
     args = parser.parse_args()
     try:
         (seal if args.action == "seal" else verify)(args)
-    except (ValueError, OSError, subprocess.SubprocessError) as exc:
-        # Omit source bytes, IDs, paths, digests, command lines and secrets.
+    except ValueError as exc:
+        # Only authored, generic rejection messages may be emitted.
         print("BLOCKED sealed custody transport: " + str(exc), file=sys.stderr)
+        raise SystemExit(2)
+    except (OSError, subprocess.SubprocessError):
+        # OS errors may contain sensitive local vault/key paths: never print them.
+        print("BLOCKED sealed custody transport: local cryptographic operation failed",
+              file=sys.stderr)
         raise SystemExit(2)
 
 
