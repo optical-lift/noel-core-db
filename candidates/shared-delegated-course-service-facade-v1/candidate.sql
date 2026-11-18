@@ -46,7 +46,7 @@ BEGIN
    WHERE b.auth_user_id=u AND b.binding_state='active' AND b.retired_at IS NULL;
   IF person IS NOT NULL AND titus.authoring_grant_current_active_v1(person) THEN
    SELECT coalesce(jsonb_agg(jsonb_build_object('courseId',s.id,'title',s.title) ORDER BY s.title,s.id),'[]'::jsonb)
-    INTO courses FROM (SELECT id,title FROM atlas.teaching_courses WHERE created_by_person_entity_id=person AND status='active' AND ledger_id IS NULL ORDER BY title,id LIMIT 100) s;
+    INTO courses FROM (SELECT id,name AS title FROM atlas.teaching_courses WHERE created_by_person_entity_id=person AND status='active' AND ledger_id IS NULL ORDER BY name,id LIMIT 100) s;
   END IF;
  END IF;
  SELECT * INTO a FROM atlas.delegated_agent_authorizations WHERE principal_id=pid AND carrier_id=c.id
@@ -60,7 +60,7 @@ BEGIN
    'state',CASE WHEN a.authorization_state='active' AND a.ends_at<=clock_timestamp() THEN 'expired' ELSE a.authorization_state END,
    'endsAt',a.ends_at,'credentialActive',EXISTS(SELECT 1 FROM atlas.delegated_agent_credentials cr WHERE cr.authorization_id=a.id
     AND cr.credential_state='active' AND cr.begins_at<=clock_timestamp() AND (cr.expires_at IS NULL OR cr.expires_at>clock_timestamp())
-    AND a.authorization_state='active' AND (a.ends_at IS NULL OR a.ends_at>clock_timestamp()) AND c.status='active')) END);
+    AND a.authorization_state='active' AND a.begins_at<=clock_timestamp() AND (a.ends_at IS NULL OR a.ends_at>clock_timestamp()) AND c.status='active' AND EXISTS(SELECT 1 FROM atlas.principals WHERE id=pid AND status='active'))) END);
 END $status$;
 
 CREATE FUNCTION public.shared_private_atlas_carrier_enroll_self_api_v1(p_course_id uuid,p_ends_at timestamptz)
