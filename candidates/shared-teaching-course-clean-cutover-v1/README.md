@@ -5,11 +5,19 @@
 
 Status: SOURCE PLAN / NO LIVE MIGRATION. Date: 2026-11-07. Cross-domain structural lane: shared_. Repository owning SQL: optical-lift/noel-core-db.
 
+## November 17 — append-only Titus product access status (HELD)
+
+The held [Person-first Course source](./person_first_candidate.sql) now treats **all founding grant fields as immutable**, including original `state` and `valid_until`, and adds `titus.course_authoring_access_status_events` for subsequent separately recorded **suspend → resume → revoke** transitions. The [single internal effective-access predicate](./person_first_candidate.sql) used by both the Titus guard and `titus_authoring_access_self_api_v1` reads the latest event (or founding state before an event), while enforcing the **unchanged founding expiry**. A revoked state is terminal; events cannot be updated/deleted; concurrent state changes serialize on the grant original.
+
+The [universal blank-first PG17 tests](./universal_blank_first_source_tests_pg17.sql) now prove the original state/expiry cannot be rewritten, status rows are append-only, duplicate/no-op statuses are rejected, resume returns to the **same Course**, terminal revocation cannot revive, and each Person's status remains independent. [The historical adopted author grant test](./synthetic_pg17_journey.sql) now uses an append-only revocation event instead of rewriting the original grant. **[Synthetic source run #44205317843](https://github.com/optical-lift/noel-core-db/actions/runs/44205317843) passed at executable commit `c68543aa7ef9692ae83d4d9a916d8aa00e6c043e`.**
+
+**Not released or authorized:** issuance of new purchase/pilot grants, trustworthy authorization for who may append a transition event, verified purchase settlement, renewal after expiry, real user accounts, signed multi-person protected restore, actual Course cutover or Titus deployment. Event inserts in synthetic PG17 are made as the isolated fixture owner **only**; no client-facing event writer exists and `anon`/`authenticated` have no table/sequence privileges. The existing separate live migration custody failure must still be resolved by its real source owner before a production release.
+
 ## November 17 — Titus product grant origin is immutable (HELD)
 
 The existing [Person-first shared Course candidate](./person_first_candidate.sql) now includes `titus.guard_course_authoring_grant_origin_v1`, a **BEFORE UPDATE OR DELETE trigger** on the proposed `titus.course_authoring_access_grants` source. Even a privileged issuer cannot silently alter an established grant's recipient Person, original Auth issuer, purchase/pilot kind, source receipt, or original grant timestamp; an existing grant cannot be deleted. The [universal blank-first PG17 source tests](./universal_blank_first_source_tests_pg17.sql) exercise all five original fields and deletion as denied operations, while separately confirming that revoked access is no longer active for Titus without erasing the owner's Course.
 
-This is **origin integrity only**. The candidate still represents `state` and `valid_until` as mutable state, and does **not** implement the independently governed, append-only suspension/revocation event history, real purchase issuer, checked transaction settlement, or private-pilot authorization. No browser or authenticated role receives direct table writes. No real access grant or production migration was issued.
+**Subsequent M1 improvement:** The founding `state` and `valid_until` are now immutable, and an append-only status event source records subsequent suspension/resume/revocation, as documented above. A legitimate person-verified transition issuer, payment/pilot authorization and renewal law are **still not implemented**. No client role receives direct grant/event-table writes and no real access grant or production migration was issued.
 
 ## November 17 — two independent blank customers and product-issuer gate (HELD)
 
