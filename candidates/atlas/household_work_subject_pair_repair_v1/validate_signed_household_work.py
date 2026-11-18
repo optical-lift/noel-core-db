@@ -59,6 +59,19 @@ def main():
     base.check(replay["workItemId"]==work and replay["needOccurrenceId"]==need and replay["noNewWorkCreated"] is True,"No duplicate Work on retry")
     current=ok("household_laundry_current_self_api_v1")
     base.check(current["workItemId"]==work and current["needOccurrenceId"]==need and current["carrierAllocationId"]==allocation,"Signed current original receipt must match")
+    # Same original, independently signed native Person responsibility read.
+    params={"p_limit":50,"p_after_allocation_id":None}
+    packet=ok("household_person_my_work_self_api_v1",params)
+    mine=[w for w in packet["items"] if w["workItemId"]==work]
+    base.check(len(mine)==1 and mine[0]["allocationId"]==allocation and mine[0]["householdId"]==HOUSEHOLD
+      and mine[0]["scopeKind"]=="household" and mine[0]["organizationId"] is None and mine[0]["ledgerId"] is None
+      and mine[0]["scheduleState"]=="unscheduled" and mine[0]["workOn"] is None and mine[0]["clockAdmitted"] is False,
+      "The native My Work source must return the same undated original responsibility")
+    for actor in ("worker","outsider","no-seat"):
+        status,payload=base.rpc(api,key,tokens[actor],"household_person_my_work_self_api_v1",params)
+        base.check((status==200 and payload.get("ok") is True and all(w["workItemId"]!=work for w in payload["items"]))
+          or (status in (401,403) and payload.get("code")=="42501"),"Another Person cannot see this self-carried Work")
+    deny(None,"household_person_my_work_self_api_v1",params)
     focus={"p_household_id":HOUSEHOLD,"p_work_item_id":work}
     base.check(ok("household_original_work_focus_self_api_v1",focus)["workItemId"]==work,"Same original focus")
     for actor in ("worker","outsider","no-seat",None):
@@ -71,5 +84,7 @@ def main():
     base.check(again["idempotent"] is True and again["careResultId"]==receipt["careResultId"],"Same accepted physical result")
     now=ok("household_laundry_current_self_api_v1")
     base.check(now["workItemId"] is None and now["lastCompletedWorkItemId"]==work,"History retained, no automatic successor")
+    finished=ok("household_person_my_work_self_api_v1",params)
+    base.check(all(w["workItemId"]!=work for w in finished["items"]),"Accepted physical Actual removes only this original from open attention")
     Path(args.output).write_text("PASS signed original Household subject-pair seam: observation, exact Work/link/allocation, replay, independent denials, physical Actual and original history. No Clock admission or duplicate Work.\n")
 if __name__=="__main__": main()
