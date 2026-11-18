@@ -5,6 +5,7 @@ on:
       - candidate/shared-course-unification-clean-cutover-v1-20261107
     paths:
       - 'candidates/shared-teaching-course-clean-cutover-v1/titus_u1_local_gotrue_fixture.sql'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/shared_titus_current_person_signed_candidate.sql'
       - 'candidates/shared-teaching-course-clean-cutover-v1/titus_account_context_candidate.sql'
       - 'candidates/shared-teaching-course-clean-cutover-v1/titus_institution_account_admission_issuer_candidate.sql'
       - 'candidates/shared-teaching-course-clean-cutover-v1/shared_titus_institution_manager_governance_candidate.sql'
@@ -17,6 +18,7 @@ on:
   pull_request:
     paths:
       - 'candidates/shared-teaching-course-clean-cutover-v1/titus_u1_local_gotrue_fixture.sql'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/shared_titus_current_person_signed_candidate.sql'
       - 'candidates/shared-teaching-course-clean-cutover-v1/titus_account_context_candidate.sql'
       - 'candidates/shared-teaching-course-clean-cutover-v1/titus_institution_account_admission_issuer_candidate.sql'
       - 'candidates/shared-teaching-course-clean-cutover-v1/shared_titus_institution_manager_governance_candidate.sql'
