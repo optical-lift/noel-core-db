@@ -163,6 +163,10 @@ def main():
       "p_request_id":str(uuid.uuid4())}
     deny(api,key,outsider,invite,initial,"outsider cannot invite")
     deny(api,key,recipient,invite,initial,"recipient cannot issue own admission")
+    deny(api,key,manager,invite,
+       {"p_ledger_id":"88888888-8888-4888-8888-888888888888",
+        "p_recipient_person_id":RECIPIENT,"p_request_id":str(uuid.uuid4())},
+        "manager cannot issue to same institution via wrong Ledger")
     first=allow(api,key,manager,invite,initial,"genuine signed manager invitation")
     check(first.get("alreadyExists") is False,"First issue not an original")
     again=allow(api,key,manager,invite,initial,"idempotent manager invitation")
@@ -211,6 +215,21 @@ def main():
     check(allow(api,key,recipient,inbox,{},"accepted recipient has own exit reference")
       ["active"][0]["admissionId"]==admission,
       "Accepted admission must be recipient-private exit ID")
+    # The same Auth user can have a second independently minted REAL session;
+    # it sees the same Person and independently sourced account scopes.
+    later_status,later_data=req(api,key,"/auth/v1/token?grant_type=password",
+      {"email":"titus-u1-recipient@example.invalid","password":PASSWORD})
+    check(later_status==200 and later_data.get("access_token"),
+      "Second genuine signed session for ONE Auth user missing")
+    recipient_later=later_data["access_token"]
+    later_claims=claims(recipient_later)
+    check(later_claims["sub"]==signed["recipient"][1]["sub"] and
+      later_claims["session_id"]!=signed["recipient"][1]["session_id"],
+      "Second signed session changed human identity")
+    check(len(allow(api,key,recipient_later,context,{},
+      "same Person second signed session sees admitted institution")
+      ["institutions"])==1,"Separate signed session lost current scope")
+
     deny(api,key,manager,cancel,
       {"p_invitation_id":inv,"p_request_id":str(uuid.uuid4())},
       "accepted invitation may not be cancelled")
@@ -229,17 +248,85 @@ def main():
       {"p_invitation_id":inv,"p_request_id":receipt},
       "withdrawn historical accepted invitation cannot revive")
 
-    # A genuinely signed token's session can be invalidated while JWT remains
-    # cryptographically intact; the source must recheck auth.sessions.
+    check(allow(api,key,recipient_later,context,{},
+      "second signed session also lost withdrawn institution")
+      ["institutions"]==[],"Withdrawal not reflected in other live session")
+
+    # A second ORIGINAL invitation is required after leaving, and the manager
+    # may withdraw only using current exact institutional responsibility.
+    rejoin=allow(api,key,manager,invite,
+      {"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
+       "p_request_id":str(uuid.uuid4())},"re-invite as new source original")
+    rejoined=allow(api,key,recipient,accept,
+      {"p_invitation_id":rejoin["invitationId"],
+       "p_request_id":str(uuid.uuid4())},"new admission after withdrawal")
+    check(rejoined.get("admissionId")!=admission,
+      "Rejoining overwrote the withdrawn original")
+    allow(api,key,manager,withdraw,
+      {"p_admission_id":rejoined["admissionId"],
+       "p_request_id":str(uuid.uuid4())},"current exact manager withdrawal")
+    check(allow(api,key,recipient,context,{},
+      "manager withdrawal leaves signed personal context")
+      ["institutions"]==[],"Institution remained after manager withdrawal")
+
+    # A cancelled INVITATION cannot be accepted, distinct from withdrawal.
+    cancelled=allow(api,key,manager,invite,
+      {"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
+       "p_request_id":str(uuid.uuid4())},"issue cancellation probe invite")
+    allow(api,key,manager,cancel,
+      {"p_invitation_id":cancelled["invitationId"],
+       "p_request_id":str(uuid.uuid4())},"manager cancels unused invitation")
+    deny(api,key,recipient,accept,
+      {"p_invitation_id":cancelled["invitationId"],
+       "p_request_id":str(uuid.uuid4())},"cancelled invite cannot be accepted")
+    check(allow(api,key,recipient,inbox,{},
+      "cancelled invitation absent from signed inbox")
+      ["pending"]==[],"Cancelled invite remained pending")
+
+    # Issuer's live Reality authority must exist AT ACCEPTANCE, not merely
+    # when the original invitation was created.
+    pending_stale=allow(api,key,manager,invite,
+      {"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
+       "p_request_id":str(uuid.uuid4())},"issue invitation before manager exits")
+    sql(args.db_url,"update reality.responsibility_relations set "
+      "relation_state='ended',ended_at=clock_timestamp() "
+      "where id='99999999-9999-4999-8999-999999999999'::uuid")
+    deny(api,key,manager,invite,
+      {"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
+       "p_request_id":str(uuid.uuid4())},
+       "former manager cannot issue after source authority ended")
+    deny(api,key,recipient,accept,
+      {"p_invitation_id":pending_stale["invitationId"],
+       "p_request_id":str(uuid.uuid4())},
+       "recipient cannot accept stale-issued invitation")
+    check(allow(api,key,recipient,inbox,{},
+      "stale-issued pending invitation hidden")["pending"]==[],
+      "Former manager's source invitation leaked as actionable")
+
+    # A GoTrue-issued token can remain signed after its session is removed;
+    # source rechecks auth.sessions rather than trusting token validity alone.
+    later_id=later_claims["session_id"]
+    sql(args.db_url,f"delete from auth.sessions where id='{later_id}'::uuid")
+    deny(api,key,recipient_later,context,{},
+      "revoked second genuine JWT session cannot read account contexts")
+    check(allow(api,key,recipient,context,{},
+      "first genuine session remains valid after second session revocation")
+      ["personal"]["personId"]==RECIPIENT,
+      "Revoking one signed session destroyed another valid session")
+    # With one current Auth user, retiring its unique Person binding rejects
+    # this remaining good signed session without generating another Person.
     rid=signed["recipient"][1]["session_id"]
-    sql(args.db_url,f"delete from auth.sessions where id='{rid}'::uuid")
-    deny(api,key,recipient,context,{},"stale genuine JWT after session deletion")
+    sql(args.db_url,"update reality.auth_person_bindings set "
+      "binding_state='retired',retired_at=clock_timestamp() "
+      f"where auth_user_id='{signed['recipient'][1]['sub']}'::uuid")
+    deny(api,key,recipient,context,{},
+      "signed session cannot bypass retired canonical Person binding")
     check(sql(args.db_url,"select count(*) from "
-      "titus.institution_account_admissions_v1")=="1",
-      "Unexpected additional admission from session or scope switching")
+      "titus.institution_account_admissions_v1")=="2",
+      "Expected exactly two immutable original admissions after rejoin")
     check(sql(args.db_url,"select count(*) from "
-      "titus.institution_account_admission_withdrawals_v1")=="1",
-      "Withdrawal did not preserve immutable original")
+      "titus.institution_account_admission_withdrawals_v1")=="2",
+      "Expected exactly two immutable original withdrawals")
     check(sql(args.db_url,"select count(*) from auth.users")=="3",
       "Source minted an extra Auth user")
     Path(args.output).write_text(
