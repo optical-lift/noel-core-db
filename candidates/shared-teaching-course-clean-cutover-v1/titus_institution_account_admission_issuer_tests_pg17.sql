@@ -16,7 +16,11 @@ CREATE TABLE reality.responsibility_relations(
  permitted_operations text[] NOT NULL,
  began_at timestamptz NOT NULL,
  ended_at timestamptz,
- scope jsonb NOT NULL DEFAULT '{}'::jsonb
+ scope jsonb NOT NULL DEFAULT '{}'::jsonb,
+ title text NOT NULL DEFAULT 'Fictional responsibility',
+ establishment_kind text NOT NULL DEFAULT 'fictional_fixture',
+ source_person_entity_id uuid REFERENCES reality.entities(id),
+ establishment_basis jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 -- Exact positive-condition footprint of existing live Reality resolver.
 -- A standalone isolated fixture, not a new shared/Reality function candidate.
@@ -474,5 +478,114 @@ BEGIN
   RAISE EXCEPTION 'U1 admission test altered identity/license or Course baseline';
  END IF;
 END $u11_postcondition$;
+
+-- U1.3: source-governed appointment/transfer/revoke, synthetic-only.
+-- The independent root appears ONLY in this fictional fixture, never minted
+-- by the shared candidate. A manually pre-existing manager is dispositioned
+-- only by this fixture; source refuses to overwrite unrecognized originals.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_titus_institution_manager_governance_candidate.sql
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $u13_no_root$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.shared_titus_institution_manager_command_self_api_v1(
+  '77777777-7777-4777-8777-777777777777','appoint',NULL,
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'f1000000-0000-4000-8000-000000000031');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'manager created root by trying command'; END IF;
+END $u13_no_root$;
+RESET ROLE;
+
+-- Retire manually appointed earlier scratch manager and install fictional
+-- explicitly independent root authority for the next held source experiment.
+UPDATE reality.responsibility_relations SET relation_state='ended',
+ ended_at=clock_timestamp()
+WHERE id='f1000000-0000-4000-8000-000000000011';
+INSERT INTO reality.responsibility_relations(
+ id,carrier_person_entity_id,responsibility_key,jurisdiction_kind,
+ jurisdiction_entity_id,relation_state,permitted_operations,began_at,scope)
+VALUES('f1000000-0000-4000-8000-000000000030',
+ 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+ 'titus_institution_account_root_governance','entity',
+ '44444444-4444-4444-8444-444444444444','active',
+ ARRAY['appoint_manager','transfer_manager','revoke_manager']::text[],
+ clock_timestamp()-interval '1 hour',
+ '{"ledgerId":"77777777-7777-4777-8777-777777777777"}');
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $u13_non_root_denial$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+ PERFORM public.shared_titus_institution_manager_command_self_api_v1(
+  '77777777-7777-4777-8777-777777777777','appoint',NULL,
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'f1000000-0000-4000-8000-000000000031');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'non-root promoted themselves to manager'; END IF;
+END $u13_non_root_denial$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $u13_root_originals$
+DECLARE a jsonb;retry jsonb;transfer jsonb;revocation jsonb;
+ denied boolean:=false;
+BEGIN
+ a:=public.shared_titus_institution_manager_command_self_api_v1(
+  '77777777-7777-4777-8777-777777777777','appoint',NULL,
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'f1000000-0000-4000-8000-000000000031');
+ retry:=public.shared_titus_institution_manager_command_self_api_v1(
+  '77777777-7777-4777-8777-777777777777','appoint',NULL,
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'f1000000-0000-4000-8000-000000000031');
+ IF a->>'alreadyExists'<>'false' OR retry->>'alreadyExists'<>'true'
+ OR a->>'governanceId'<>retry->>'governanceId'
+ THEN RAISE EXCEPTION 'root manager appointment original replay changed'; END IF;
+ BEGIN
+  PERFORM public.shared_titus_institution_manager_command_self_api_v1(
+  '77777777-7777-4777-8777-777777777777','transfer',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'f1000000-0000-4000-8000-000000000032');
+ EXCEPTION WHEN invalid_parameter_value THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'same-person transfer was authorized'; END IF;
+ transfer:=public.shared_titus_institution_manager_command_self_api_v1(
+  '77777777-7777-4777-8777-777777777777','transfer',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+  'f1000000-0000-4000-8000-000000000033');
+ revocation:=public.shared_titus_institution_manager_command_self_api_v1(
+  '77777777-7777-4777-8777-777777777777','revoke',
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',NULL,
+  'f1000000-0000-4000-8000-000000000034');
+ IF transfer->>'alreadyExists'<>'false' OR
+ revocation->>'alreadyExists'<>'false'
+ THEN RAISE EXCEPTION 'transfer/revocation did not create original'; END IF;
+END $u13_root_originals$;
+RESET ROLE;
+DO $u13_provenance$
+DECLARE total bigint;active_count bigint;
+BEGIN
+ SELECT count(*) INTO total FROM titus.institution_account_manager_governance_v1;
+ SELECT count(*) INTO active_count FROM reality.responsibility_relations
+ WHERE responsibility_key='titus_institution_account_management'
+ AND relation_state='active' AND ended_at IS NULL
+ AND scope->>'ledgerId'='77777777-7777-4777-8777-777777777777';
+ IF total<>3 OR active_count<>0 THEN
+ RAISE EXCEPTION 'governed manager originals or final revocation incorrect'; END IF;
+ IF has_table_privilege('authenticated',
+ 'titus.institution_account_manager_governance_v1','SELECT')
+ OR has_function_privilege('anon',
+ 'public.shared_titus_institution_manager_command_self_api_v1(uuid,text,uuid,uuid,uuid)',
+ 'EXECUTE') THEN
+ RAISE EXCEPTION 'manager-governance origin exposed to browser or anon'; END IF;
+END $u13_provenance$;
 
 ROLLBACK TO SAVEPOINT titus_account_issuer_probe;
