@@ -180,6 +180,28 @@ def main():
     deny(api,key,manager,bootstrap,{"p_ledger_id":"88888888-8888-4888-8888-888888888888",
        "p_organization_id":organization,"p_request_id":str(uuid.uuid4())},
        "governing principal cannot bootstrap wrong Ledger")
+    # Atlas's active governing participation alone is NOT a source for a
+    # native Reality Ledger; neither is a compatibility name/identity bridge.
+    # This fixture mirrors the unresolved live *shape*, never the customer's data.
+    atlas_only_org="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    atlas_only_ledger="66666666-6666-4666-8666-666666666666"
+    orphan_request=lambda:{
+      "p_ledger_id":atlas_only_ledger,
+      "p_organization_id":atlas_only_org,
+      "p_request_id":str(uuid.uuid4())}
+    deny(api,key,manager,bootstrap,orphan_request(),
+      "Atlas-only governing pair without native Ledger cannot bootstrap")
+    sql(args.db_url,
+      "insert into compatibility.legacy_bindings("
+      "legacy_schema,legacy_table,legacy_key,disposition,"
+      "new_schema,new_table,new_id) values("
+      f"'atlas','organizations','{atlas_only_org}','maps_to',"
+      f"'reality','entities','{INSTITUTION}'::uuid)")
+    deny(api,key,manager,bootstrap,orphan_request(),
+      "adding Reality mapping alone cannot repair missing native Ledger")
+    check(sql(args.db_url,
+      "select count(*) from titus.institution_account_root_origins_v1")=="0",
+      "Orphaned Atlas source minted a Titus root")
     # A governing Principal for an Atlas Organization may not establish a
     # Titus institutional root unless the separate compatibility original
     # maps EXACTLY that organization to the native canonical Reality Entity.
