@@ -193,6 +193,45 @@ def run():
             if not differing or result!="acl_parity_clone_differs_from_canonical_source":
                 raise RuntimeError("fictional_managed_unexpected_parity")
             print("PG17_FICTIONAL_MANAGED_ACL_MISMATCH_FIELDS="+",".join(differing))
+            # Aggregate-only fictional provenance check: distinguish
+            # postgres GLOBAL defaults, PUBLIC-SCHEMA defaults, and
+            # explicit grants not explained by either. These counts are
+            # not ACL identities and are never obtained from production.
+            origin=fake.sql(local,("""
+SELECT count(*) FILTER (WHERE EXISTS (
+    SELECT 1 FROM pg_catalog.pg_default_acl d,
+         LATERAL pg_catalog.aclexplode(d.defaclacl) da
+    WHERE d.defaclrole='postgres'::regrole
+      AND d.defaclobjtype='f' AND d.defaclnamespace=0
+      AND da.grantee=a.grantee AND da.privilege_type='EXECUTE'
+)),
+count(*) FILTER (WHERE EXISTS (
+    SELECT 1 FROM pg_catalog.pg_default_acl d,
+         LATERAL pg_catalog.aclexplode(d.defaclacl) da
+    WHERE d.defaclrole='postgres'::regrole
+      AND d.defaclobjtype='f' AND d.defaclnamespace=p.pronamespace
+      AND da.grantee=a.grantee AND da.privilege_type='EXECUTE'
+)),
+count(*) FILTER (WHERE NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_default_acl d,
+         LATERAL pg_catalog.aclexplode(d.defaclacl) da
+    WHERE d.defaclrole='postgres'::regrole
+      AND d.defaclobjtype='f'
+      AND d.defaclnamespace IN (0,p.pronamespace)
+      AND da.grantee=a.grantee AND da.privilege_type='EXECUTE'
+)),
+count(*)
+FROM pg_catalog.pg_proc p,
+     LATERAL pg_catalog.aclexplode(p.proacl) a
+WHERE p.oid=to_regprocedure('public.grant_personal_atlas_access_v1(uuid,text,jsonb)')
+  AND a.privilege_type='EXECUTE'
+  AND a.grantee NOT IN (p.proowner,'service_role'::regrole)
+""").strip())
+            numbers=origin.split("|")
+            if len(numbers)!=4 or any(not n.isdigit() or len(n)>3 for n in numbers):
+                raise RuntimeError("fictional_default_origin_probe_refused")
+            print("PG17_FICTIONAL_MANAGED_EXTRA_EXECUTE_DEFAULT_ORIGIN_COUNTS="+
+                  ",".join(numbers))
             print("PG17_FICTIONAL_MANAGED_BEFORE_RESTORE_POSTGRES_DEFAULT_FUNCTION_ACL="+(
                 "PRESENT" if defaults=="t" else "ABSENT"))
             print("PG17_FICTIONAL_MANAGED_CLONE_ACL_OBSERVATION="+result)
