@@ -16,6 +16,10 @@
 -- UNIQUE(seat_id,responsibility_key) forbids re-granting the same key after
 -- revocation. Do not delete or rewrite old evidence to permit another grant.
 
+BEGIN;
+SET LOCAL lock_timeout = '5s';
+SET LOCAL statement_timeout = '20s';
+
 CREATE FUNCTION atlas.uni_ops_u2f_root_reaffirm_held_v1(
   p_original_root_id uuid,
   p_native_ledger_id uuid,
@@ -314,3 +318,4 @@ REVOKE ALL ON FUNCTION
 REVOKE ALL ON FUNCTION
  atlas.uni_ops_u2f_root_candidate_current_held_v1(uuid,uuid)
  FROM PUBLIC,anon,authenticated,service_role;
+COMMIT;
