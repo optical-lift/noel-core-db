@@ -24,7 +24,7 @@ def local_catalog(url, query):
     """Only two immutable SELECT forms plus the pinned nine-field ACL SELECT."""
     if (not acl.local_only(url)
         or query not in (acl.ACL,stage.DEFAULTS_SQL,stage.EXTRAS_SQL)
-        or not query.startswith(("SELECT ","SELECT\\n")) or ";" in query):
+        or not query.startswith(("SELECT ","SELECT\n")) or ";" in query):
         raise StageRefused("stage_local_catalog_refused")
     env=os.environ.copy()
     env["PGOPTIONS"]="-c default_transaction_read_only=on"
