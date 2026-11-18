@@ -262,12 +262,30 @@ WHERE p.oid=to_regprocedure('public.grant_personal_atlas_access_v1(uuid,text,jso
                            " FROM "+unknown+";")
             if fake.sql(local,acl.ACL)!=clone:
                 raise RuntimeError("fictional_poison_cleanup_not_exact")
+            # Independently refuse a delegable managed service_role grant.
+            # Do not broaden that grant or mutate its option on refusal.
+            fake.sql(local,"GRANT EXECUTE ON FUNCTION "+acl.RPC+
+                           " TO service_role WITH GRANT OPTION;")
+            delegable=fake.sql(local,acl.ACL)
+            try:
+                fictional_clone_only_rebalance(local,digest)
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("fictional_delegable_service_grant_not_refused")
+            if fake.sql(local,acl.ACL)!=delegable:
+                raise RuntimeError("fictional_refused_service_grant_was_modified")
+            fake.sql(local,"REVOKE GRANT OPTION FOR EXECUTE ON FUNCTION "+
+                           acl.RPC+" FROM service_role;")
+            if fake.sql(local,acl.ACL)!=clone:
+                raise RuntimeError("fictional_service_option_cleanup_not_exact")
             fictional_clone_only_rebalance(local,digest)
             corrected=fake.sql(local,acl.ACL)
             if (acl.compare_readonly_acl_observations(source,corrected,digest)
                     !="acl_parity_canonical_observations_match"):
                 raise RuntimeError("fictional_local_correction_not_canonical")
             print("PASS PG17_FICTIONAL_UNKNOWN_GRANTEE_REFUSED_WITHOUT_MUTATION")
+            print("PASS PG17_FICTIONAL_SERVICE_GRANT_OPTION_REFUSED_WITHOUT_MUTATION")
             print("PASS PG17_FICTIONAL_DEFAULT_ONLY_FUNCTION_ACL_CORRECTED_IN_LOCAL_CLONE")
             print("LIMIT TEST_ONLY_LOCAL_REBALANCE_NEVER_USED_IN_PROTECTED_CONTROLLER")
         finally:
