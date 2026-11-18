@@ -15,6 +15,7 @@ import tempfile
 import reconcile_uniops_native_governor_acl_local_held as acl
 import inspect_uniops_acl_readonly_source_clone_held as inspector
 import verify_uniops_pg17_cli_role_schema_roundtrip_held as fake
+import uniops_acl_stage_observations_held as stage
 
 CANONICAL=Path(__file__).resolve().parent.parent/"supabase/migrations"/acl.MIGRATION
 ALLOWED=frozenset((
@@ -173,9 +174,31 @@ def run():
                 raise RuntimeError("fictional_managed_default_acl_probe_refused")
             if fake.sql(local,"SELECT to_regprocedure('"+acl.RPC+"') IS NULL")!="t":
                 raise RuntimeError("fictional_managed_clone_preexisting_function")
-            inspector.restore_local(local,roles,clean)
+            # Read only bounded catalog metadata at all three local restore
+            # boundaries. Distinguish a match to CURRENT default ACL from
+            # historical proof of how any actual grant was introduced.
+            before_target=fake.sql(local,acl.ACL)
+            before_stage_defaults=fake.sql(local,stage.DEFAULTS_SQL)
+            if before_target:
+                raise RuntimeError("fictional_stage_preexisting_target_refused")
+            fake.restore(local,roles)
+            after_roles_target=fake.sql(local,acl.ACL)
+            after_roles_defaults=fake.sql(local,stage.DEFAULTS_SQL)
+            if after_roles_target:
+                raise RuntimeError("fictional_stage_target_present_after_roles")
+            fake.restore(local,clean)
+            after_schema_defaults=fake.sql(local,stage.DEFAULTS_SQL)
             clone=fake.sql(local,acl.ACL)
             result=acl.compare_readonly_acl_observations(source,clone,digest)
+            stage_decision=stage.classify_stages(
+                source,before_target,after_roles_target,clone,
+                before_stage_defaults,after_roles_defaults,after_schema_defaults,
+                fake.sql(local,stage.EXTRAS_SQL),digest)
+            if stage_decision.verdict not in (
+                    "stage_default_compatible_not_provenance",
+                    "stage_default_drift_ambiguous"):
+                raise RuntimeError("fictional_stage_unexpected_classification")
+            print(stage_decision.safe_line())
             if result not in ALLOWED:
                 raise RuntimeError("fictional_managed_clone_source_unverified")
             # Only immutable named observation indices are emitted from this
