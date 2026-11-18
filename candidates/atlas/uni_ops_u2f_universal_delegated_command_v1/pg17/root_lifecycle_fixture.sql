@@ -1,0 +1,39 @@
+-- Fictional standalone PostgreSQL 17 U2F 06 shape.
+-- \ir native_root_custody_fixture.sql uses only fabricated fixed UUIDs.
+\ir native_root_custody_fixture.sql
+CREATE SCHEMA auth;
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE ROLE service_role NOLOGIN;
+-- This is NOT real signed GoTrue; use only for synthetic SQL contract checks.
+CREATE FUNCTION auth.uid()
+RETURNS uuid LANGUAGE sql STABLE SET search_path TO ''
+AS $fake$
+  SELECT NULLIF(pg_catalog.current_setting('request.jwt.claim.sub',true),'')::uuid;
+$fake$;
+ALTER TABLE atlas.principals ADD COLUMN user_id uuid;
+UPDATE atlas.principals SET user_id = (
+ '00000000-0000-4000-8000-' || pg_catalog.lpad(
+  ((pg_catalog.right(person_id::text,12))::bigint + 1000)::text,12,'0')
+)::uuid;
+-- For each fake Principal: native Person N+200 -> JWT N+1200.
+ALTER TABLE ledger.seat_responsibilities
+ ADD COLUMN title text NOT NULL DEFAULT 'Held root candidate',
+ ADD COLUMN scope jsonb NOT NULL DEFAULT '{}'::jsonb,
+ ADD COLUMN began_at timestamptz NOT NULL DEFAULT pg_catalog.now(),
+ ADD COLUMN ended_at timestamptz,
+ ADD COLUMN updated_at timestamptz NOT NULL DEFAULT pg_catalog.now();
+CREATE UNIQUE INDEX native_root_one_record_per_seat_key
+ ON ledger.seat_responsibilities(seat_id,responsibility_key);
+CREATE TABLE ledger.actions (
+ id uuid PRIMARY KEY DEFAULT pg_catalog.gen_random_uuid(),
+ ledger_id uuid NOT NULL REFERENCES ledger.ledgers(id),
+ action_kind text NOT NULL,
+ performed_by_entity_id uuid,
+ occurred_at timestamptz NOT NULL,
+ payload jsonb NOT NULL DEFAULT '{}'::jsonb,
+ provenance jsonb NOT NULL DEFAULT '{}'::jsonb,
+ idempotency_key text,
+ created_at timestamptz NOT NULL DEFAULT pg_catalog.now(),
+ UNIQUE (ledger_id,idempotency_key)
+);
