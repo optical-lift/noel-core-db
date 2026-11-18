@@ -78,15 +78,66 @@ def check(catalog, prior):
             raise ValueError("invalid FK operation metadata")
     if observed != required:
         raise ValueError("historical FK topology drift; return to scope review")
+    expansion = verify_course_shell_root_extension(prior)
     return {
         "contract": CONTRACT,
         "catalogConstraintsReviewed": 170,
         "relationPairsMatched": 168,
+        "historicalRelationsWithOldCourseRoot": expansion["expandedRelations"],
+        "additionalCourseRootRelations": expansion["addedRelations"],
         "recordSelectionAuthorized": False,
         "customerDataRead": False,
         "backupCreated": False,
         "restoredRealData": False,
         "sourceMigrationAuthorized": False,
+        "deletionAuthorized": False,
+    }
+
+
+
+# U1.13's three roots purposely did NOT include the old public course root.
+# This fourth-root closure is a separate held structural review; it does not
+# authorize deletion of any of the 15 old shells or their shared descendants.
+EXPECTED_NEW_COURSE_ROOT_RELATIONS = {
+    "titus.courses",
+    "titus.course_slots",
+    "titus.course_slot_activity_log",
+    "titus.course_lesson_placements",
+    "titus.course_lesson_prerequisites",
+    "titus.course_teachers",
+}
+
+
+def verify_course_shell_root_extension(prior):
+    pairs = prior["foreignKeyPairs"]
+    children = {}
+    for edge in pairs:
+        children.setdefault(edge["parent"], set()).add(edge["child"])
+
+    def reachable(roots):
+        found = set(roots)
+        queue = list(roots)
+        for relation in queue:
+            for child in sorted(children.get(relation, ())):
+                if child not in found:
+                    found.add(child)
+                    queue.append(child)
+        return found
+
+    old_roots = (
+        "titus.customer_course_drafts_v1",
+        "titus.customer_workspace_entitlements_v1",
+        "titus.programs",
+    )
+    old_scope = reachable(old_roots)
+    extended_scope = reachable(old_roots + ("titus.courses",))
+    if (len(old_scope) != 39 or len(extended_scope) != 45
+            or extended_scope - old_scope != EXPECTED_NEW_COURSE_ROOT_RELATIONS):
+        raise ValueError("old Course-shell structural scope requires re-review")
+    return {
+        "expandedRelations": len(extended_scope),
+        "addedRelations": len(extended_scope - old_scope),
+        "rowSelectionAuthorized": False,
         "deletionAuthorized": False,
     }
 
