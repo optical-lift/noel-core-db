@@ -87,7 +87,7 @@ class TestTitusU111HistoricalCatalog(unittest.TestCase):
         ).read_text()
         statements = "\n".join(x for x in sql.splitlines()
                                if not x.lstrip().startswith("--")).strip()
-        self.assertTrue(statements.upper().startswith("SELECT "))
+        self.assertEqual(statements.split(maxsplit=1)[0].upper(), "SELECT")
         self.assertEqual(statements.count(";"), 1)
         for word in ("pg_constraint", "pg_class", "pg_namespace", "contype"):
             self.assertIn(word, statements)
