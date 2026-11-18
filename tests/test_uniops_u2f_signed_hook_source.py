@@ -35,7 +35,7 @@ class ExactU2FSignedCloneHookSource(unittest.TestCase):
             self.assertEqual(new.count('phase="signed reciprocal Ledger roots, private intake and Person identity"'),1)
             self.assertLess(new.index("U2F separately authorized signed-review-only clone check"),
                             new.index('phase="signed reciprocal Ledger roots, private intake and Person identity"'))
-            for token in ('"database_url" = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"',
+            for token in ('test "$database_url" = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"',
                           'PGOPTIONS="-c uniops.disposable_signed=u2f_owner_authorized_clone_only_v1"',
                           '06_signed_native_root_lifecycle_held.sql',
                           '08_signed_clone_only_rpc_bridge_held.sql',
@@ -78,7 +78,7 @@ class ExactU2FSignedCloneHookSource(unittest.TestCase):
                 capture_output=True,text=True,env=env,check=False
             )
             self.assertNotEqual(result.returncode,0)
-            self.assertIn("outside",result.stderr if "outside" in result.stderr else "may not modify canonical validator")
+            self.assertIn("may not modify canonical validator",result.stderr)
             self.assertEqual(git_blob(CANONICAL.read_bytes()),
                              "a965fcca2cb5e1c44f255eba2fa24cca2a4d21c5")
 
