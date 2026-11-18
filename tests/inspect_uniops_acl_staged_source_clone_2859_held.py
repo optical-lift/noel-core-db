@@ -203,6 +203,12 @@ def main():
     try:
         try:
             status=inspect()
+        except Refused as exc:
+            # Environment and canonical-source checks occur BEFORE inspect()
+            # enters its inner try. Preserve their finite safe refusal code;
+            # never print the error itself, the URL, or anything private.
+            code=str(exc)
+            status=code if code in REFUSALS else "stage_inspect_unknown_refused"
         except Exception:
             status="stage_inspect_unknown_refused"
     finally:
