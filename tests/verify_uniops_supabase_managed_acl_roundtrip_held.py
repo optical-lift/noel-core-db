@@ -73,6 +73,22 @@ def run():
             result=acl.compare_readonly_acl_observations(source,clone,digest)
             if result not in ALLOWED:
                 raise RuntimeError("fictional_managed_clone_source_unverified")
+            # Only immutable named observation indices are emitted from this
+            # fictional local database. No raw ACL, principal names beyond
+            # the public four canonical role categories, or SQL leaves CI.
+            if not acl._verified_acl_observation(clone,digest):
+                raise RuntimeError("fictional_managed_clone_identity_refused")
+            names=("default_acl","anon_exec","authenticated_exec",
+                   "postgres_exec","service_exec","explicit_grantees_confined")
+            source_fields=source.split("|")
+            clone_fields=clone.split("|")
+            if source_fields[:3]!=clone_fields[:3] or len(clone_fields)!=9:
+                raise RuntimeError("fictional_managed_core_identity_changed")
+            differing=tuple(names[i] for i in range(len(names))
+                            if source_fields[i+3]!=clone_fields[i+3])
+            if not differing or result!="acl_parity_clone_differs_from_canonical_source":
+                raise RuntimeError("fictional_managed_unexpected_parity")
+            print("PG17_FICTIONAL_MANAGED_ACL_MISMATCH_FIELDS="+",".join(differing))
             print("PG17_FICTIONAL_MANAGED_BEFORE_RESTORE_POSTGRES_DEFAULT_FUNCTION_ACL="+(
                 "PRESENT" if defaults=="t" else "ABSENT"))
             print("PG17_FICTIONAL_MANAGED_CLONE_ACL_OBSERVATION="+result)
