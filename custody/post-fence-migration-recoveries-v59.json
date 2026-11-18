@@ -1,0 +1,18 @@
+{
+  "contractVersion": 59,
+  "sealed": true,
+  "classification": "retrospective_post_fence_custody_recovery",
+  "inherits": "post-fence-migration-recoveries-v58.json",
+  "rule": "One already-executed, unprefixed Noel History structural migration reached the shared live ledger before canonical source custody on 2026-11-17. Its original exact 9299-byte executed body was restored at the same historical filename in Noel canonical Git. The restored Git blob exactly equals the live executed-body SHA-1. It defines eight private draft History tables and no research row seeds. This record seals only the historical original identity, never a replay, new unprefixed migration, new live permission, claim of approved source-first release, founder interpretation, or Atlas/Noel deployment.",
+  "recoveries": [
+    {
+      "version": "20261117234613",
+      "name": "history_story_parallels_research_only_v1",
+      "filename": "20261117234613_history_story_parallels_research_only_v1.sql",
+      "gitBlobSha1": "54eb7579152cf3326a208d4c5931b5d404898b5f",
+      "logicalOwner": "core",
+      "disposition": "recovered_exact_live_bytes",
+      "reason": "post_fence_live_migration_bypassed_source_custody"
+    }
+  ]
+}
