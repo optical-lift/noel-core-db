@@ -8,6 +8,8 @@ on:
       - "tests/test_reconcile_uniops_native_governor_acl_source.py"
       - "tests/verify_uniops_governor_acl_pg17_synthetic_held.py"
       - "tests/verify_uniops_pg17_schema_acl_roundtrip_held.py"
+      - "tests/verify_uniops_pg17_cli_role_schema_roundtrip_held.py"
+      - "tests/verify_uniops_supabase_managed_acl_roundtrip_held.py"
       - "tests/install_uniops_native_notebook_validator_copy_held.py"
       - "supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql"
 
@@ -18,7 +20,7 @@ jobs:
   fictional-pg17:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 12
+    timeout-minutes: 28
     services:
       postgres:
         image: postgres:17.11
@@ -28,6 +30,19 @@ jobs:
           POSTGRES_DB: postgres
         ports:
           - "54322:5432"
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 6
+      postgres_clone:
+        image: postgres:17.11
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - "54323:5432"
         options: >-
           --health-cmd "pg_isready -U postgres -d postgres"
           --health-interval 10s
@@ -62,3 +77,42 @@ jobs:
           python3 tests/verify_uniops_pg17_schema_acl_roundtrip_held.py
           echo "PASS fictional PG17 only; no production snapshot or restore"
 
+      - name: Install exact CLI 2.116.0 and test independent fictional PG17 role-first schema-second restore
+        shell: bash
+        env:
+          ATLAS_GOVERNOR_PG17_SYNTHETIC_ENABLED: "true"
+        run: |
+          set -euo pipefail
+          umask 077
+          test -z "$(printenv NOEL_CORE_DATABASE_URL 2>/dev/null || true)"
+          test -z "$(printenv SUPABASE_SERVICE_ROLE_KEY 2>/dev/null || true)"
+          command -v psql >/dev/null
+          command -v docker >/dev/null
+          curl -fLsS --proto '=https' --tlsv1.2 --max-time 240 \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_2.116.0_linux_amd64.tar.gz \
+            -o "$RUNNER_TEMP/uniops-2.116.0.tar.gz"
+          echo "5b3031cb297d51b25be4c284e4c852254460ec722ec221d3b81b07d55acfd158  $RUNNER_TEMP/uniops-2.116.0.tar.gz" | sha256sum -c --status
+          mkdir -p "$RUNNER_TEMP/uniops-bin"
+          tar -xzf "$RUNNER_TEMP/uniops-2.116.0.tar.gz" -C "$RUNNER_TEMP/uniops-bin" supabase
+          rm -f -- "$RUNNER_TEMP/uniops-2.116.0.tar.gz"
+          chmod 0755 "$RUNNER_TEMP/uniops-bin/supabase"
+          export PATH="$RUNNER_TEMP/uniops-bin:$PATH"
+          test "$(supabase --version | tail -1)" = "2.116.0"
+          supabase db dump --help >/dev/null
+          python3 -m py_compile tests/verify_uniops_pg17_cli_role_schema_roundtrip_held.py
+          python3 tests/verify_uniops_pg17_cli_role_schema_roundtrip_held.py
+          echo "PASS CLI role+schema fictional PG17 pair; no production credentials"
+      - name: Test fresh Supabase-managed fictional clone baseline and exact role/schema restore
+        shell: bash
+        env:
+          ATLAS_GOVERNOR_PG17_SYNTHETIC_ENABLED: "true"
+        run: |
+          set -euo pipefail
+          test -z "$(printenv NOEL_CORE_DATABASE_URL 2>/dev/null || true)"
+          test -z "$(printenv SUPABASE_SERVICE_ROLE_KEY 2>/dev/null || true)"
+          export PATH="$RUNNER_TEMP/uniops-bin:$PATH"
+          test "$(supabase --version | tail -1)" = "2.116.0"
+          python3 -m py_compile tests/verify_uniops_supabase_managed_acl_roundtrip_held.py
+          python3 tests/verify_uniops_supabase_managed_acl_roundtrip_held.py
+          rm -f -- "$RUNNER_TEMP/uniops-bin/supabase"
+          echo "PASS measured fresh fictional managed clone; NO production"

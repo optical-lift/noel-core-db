@@ -91,7 +91,10 @@ def main():
     # Ubuntu runner's pg_dump client is not guaranteed to match the PG17
     # service. Use *this same disposable service container's* pg_dump 17.11
     # binary, not a possibly older host client. No remote DB is contacted.
+    # Two independent PG17 services now exist. Select ONLY the fictional
+    # source fixture published on 54322, never the isolated target on 54323.
     containers=command(["docker","ps","--filter","ancestor=postgres:17.11",
+                        "--filter","publish=54322",
                         "--format","{{.ID}}"]).strip().splitlines()
     if len(containers)!=1 or not re.fullmatch(r"[0-9a-f]{12,64}",containers[0]):
         raise RuntimeError("fictional_pg17_container_identity_refused")
