@@ -29,17 +29,20 @@ def main():
     def sql(stmt): return base.sql(args.db_url,stmt)
     base.check(sql(f"select count(*) from atlas.household_kernel_instances where id='{INSTANCE}' and household_id='{HOUSEHOLD}' and state='active'")=="1","Original synthetic fixture required")
     base.check(sql(f"select count(*) from atlas.household_need_occurrences_v1 where household_id='{HOUSEHOLD}'")=="0","Fresh unused synthetic fixture required")
-    tokens={}
+    tokens={}; session_ids={}
     for name,uid in base.setup_auth(args.db_url):
         token,claims=c1.sign_in(api,key,name)
         sid=str(UUID(claims["session_id"]))
         base.check(claims.get("sub")==uid and sql(f"select count(*) from auth.sessions where id='{sid}' and user_id='{uid}'")=="1","Genuine independently signed session required")
-        tokens[name]=token
+        tokens[name]=token; session_ids[name]=sid
     def ok(name,body=None): return base.allow(api,key,tokens["owner"],name,body or {})
     def deny(actor,name,body):
         base.deny(api,key,tokens.get(actor),name,body,"original Household authority: "+str(actor))
     initial=ok("household_laundry_current_self_api_v1")
     base.check(initial["instanceId"]==INSTANCE and initial["workItemId"] is None,"No manufactured current Work")
+    params={"p_limit":50,"p_after_allocation_id":None}
+    before=ok("household_person_my_work_self_api_v1",params)
+    base.check(not before["items"],"Fresh owner fixture may not fabricate Household responsibility")
     obs=ok("record_household_laundry_observation_self_api_v1",{"p_kernel_instance_id":INSTANCE,
         "p_action_id":"e5200000-0000-4000-8000-000000000d04","p_observation":"Fictional test load is physically ready."})
     base.check(obs["workCreated"] is False,"Observation cannot itself create Work")
@@ -86,5 +89,36 @@ def main():
     base.check(now["workItemId"] is None and now["lastCompletedWorkItemId"]==work,"History retained, no automatic successor")
     finished=ok("household_person_my_work_self_api_v1",params)
     base.check(all(w["workItemId"]!=work for w in finished["items"]),"Accepted physical Actual removes only this original from open attention")
+    # A second real observation in the fictional clone can establish a
+    # distinct Work assigned to an actual signed member, not the governor.
+    next_obs=ok("record_household_laundry_observation_self_api_v1",{
+        "p_kernel_instance_id":INSTANCE,
+        "p_action_id":"e5200000-0000-4000-8000-000000000d14",
+        "p_observation":"Second fictional load is physically ready."})
+    member="e5200000-0000-4000-8000-000000000c02"
+    next_work=ok("establish_household_laundry_original_work_self_api_v1",dict(establish,
+       p_observation_id=next_obs["observationId"],
+       p_action_id="e5200000-0000-4000-8000-000000000d15",
+       p_self_carried=False,p_assignee_household_member_id=member))
+    next_id=str(UUID(next_work["workItemId"]))
+    base.check(next_id!=work,"New observation creates a separate original, not resurrection")
+    mine=ok("household_person_my_work_self_api_v1",params)
+    base.check(not any(w["workItemId"]==next_id for w in mine["items"]),
+      "Governance alone is not personal responsibility")
+    worker=base.allow(api,key,tokens["worker"],"household_person_my_work_self_api_v1",params)
+    base.check(sum(w["workItemId"]==next_id and w["allocationId"]==next_work["allocationId"]
+       and w["householdId"]==HOUSEHOLD for w in worker["items"])==1,
+       "Exact signed member allocation must be visible to that member")
+    # Local fixture change only; verify same live bearer loses access
+    # immediately on member revocation; no credential or permission change on production.
+    sql(f"update atlas.household_members set active=false where id='{member}' and household_id='{HOUSEHOLD}'")
+    worker=base.allow(api,key,tokens["worker"],"household_person_my_work_self_api_v1",params)
+    base.check(all(w["workItemId"]!=next_id for w in worker["items"]),"Revoked member cannot read assigned Household Work")
+    deny("worker","household_original_work_focus_self_api_v1",{"p_household_id":HOUSEHOLD,"p_work_item_id":next_id})
+    # Revoke the synthetic owner's actual GoTrue session without altering the
+    # still-issued bearer; it may no longer invoke the authenticated reader.
+    sql(f"delete from auth.sessions where id='{session_ids['owner']}' and user_id='{c1.OWNER}'")
+    deny("owner","household_person_my_work_self_api_v1",params)
+    deny("owner","household_original_work_focus_self_api_v1",{"p_household_id":HOUSEHOLD,"p_work_item_id":next_id})
     Path(args.output).write_text("PASS signed original Household subject-pair seam: observation, exact Work/link/allocation, replay, independent denials, physical Actual and original history. No Clock admission or duplicate Work.\n")
 if __name__=="__main__": main()
