@@ -93,16 +93,13 @@ SELECT pg_catalog.jsonb_build_object(
       'atlas.uni_ops_u2f_root_revoke_held_v1(uuid,text)','EXECUTE'),
   'authenticatedCanRead',
     has_function_privilege('authenticated',
-      'atlas.uni_ops_u2f_root_candidate_current_held_v1(uuid,uuid)','EXECUTE'),
-  'publicCanAdmit',
-    has_function_privilege('public',
-      'atlas.uni_ops_u2f_root_reaffirm_held_v1(uuid,uuid,text)','EXECUTE')
+      'atlas.uni_ops_u2f_root_candidate_current_held_v1(uuid,uuid)','EXECUTE')
 );""")
 # PostgreSQL PUBLIC is a pseudo-role, not a named role for privilege lookup;
 # explicit ACL check below covers all required real application roles.
 acl=j(privileges,"ACL")
 for key,value in acl.items():
-    if key!="publicCanAdmit" and value is not False:
+    if value is not False:
         raise AssertionError("unexpected application EXECUTE: "+key)
 
 initial=snapshot()
