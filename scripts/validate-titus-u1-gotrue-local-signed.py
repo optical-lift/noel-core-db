@@ -202,6 +202,60 @@ def main():
     check(sql(args.db_url,
       "select count(*) from titus.institution_account_root_origins_v1")=="0",
       "Orphaned Atlas source minted a Titus root")
+    # The REAL Atlas governing source independently verifies both the native
+    # Ledger and the Organization's primary governing Ledger under the SAME
+    # canonical Principal. The scratch adapter models those two checks but
+    # makes no claim to restore the complete protected production schema.
+    native_probe="titus_u1_fixture_native_owner_probe_v1"
+    operating_ledger="88888888-8888-4888-8888-888888888888"
+    native_params={"p_ledger_id":operating_ledger}
+    deny(api,key,manager,native_probe,native_params,
+      "native operating Ledger without its own root authority denies despite primary root")
+    native_authority="f0f0f0f0-0000-4000-8000-000000000001"
+    sql(args.db_url,
+      "insert into atlas.principal_ledger_authorities("
+      "id,principal_id,ledger_id,authority_kind,status) values("
+      f"'{native_authority}'::uuid,"
+      "'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid,"
+      f"'{operating_ledger}'::uuid,'root_governing','active')")
+    check(allow(api,key,manager,native_probe,native_params,
+      "two distinct root-governed Ledgers admit one signed governing Principal")
+      .get("authorized") is True,"Two-Ledger source did not establish identity")
+    deny(api,key,recipient,native_probe,native_params,
+      "another signed Person cannot borrow principal's native and governing roots")
+    sql(args.db_url,
+      "update atlas.principal_ledger_authorities set status='ended' "
+      "where principal_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid "
+      f"and ledger_id='{LEDGER}'::uuid")
+    deny(api,key,manager,native_probe,native_params,
+      "native root without separate current primary governing root denies")
+    sql(args.db_url,
+      "update atlas.principal_ledger_authorities set status='active' "
+      "where principal_id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'::uuid "
+      f"and ledger_id='{LEDGER}'::uuid")
+    sql(args.db_url,
+      "update ledger.seats set seat_state='ended' "
+      f"where ledger_id='{operating_ledger}'::uuid "
+      f"and person_entity_id='{MANAGER}'::uuid")
+    deny(api,key,manager,native_probe,native_params,
+      "two root authorities do not replace a current native Ledger Seat")
+    sql(args.db_url,
+      "update ledger.seats set seat_state='active' "
+      f"where ledger_id='{operating_ledger}'::uuid "
+      f"and person_entity_id='{MANAGER}'::uuid")
+    check(allow(api,key,manager,native_probe,native_params,
+      "restored native Seat and both roots allow signed Atlas model")
+      .get("authorized") is True,"Restored source did not recover")
+    # Titus institutional root is deliberately STRICTER: its root attaches
+    # to the uniquely governing PRIMARY institutional Ledger, not an
+    # operating Ledger, even when Atlas governs both Ledgers correctly.
+    deny(api,key,manager,bootstrap,
+      {"p_ledger_id":operating_ledger,"p_organization_id":organization,
+       "p_request_id":str(uuid.uuid4())},
+      "Titus institutional root cannot bootstrap on merely operating Ledger")
+    check(sql(args.db_url,
+      "select count(*) from titus.institution_account_root_origins_v1")=="0",
+      "Operating Ledger issued forbidden Titus root")
     # A governing Principal for an Atlas Organization may not establish a
     # Titus institutional root unless the separate compatibility original
     # maps EXACTLY that organization to the native canonical Reality Entity.
