@@ -81,7 +81,7 @@ BEGIN
  IF p_kind='personal' AND p_ledger_id IS NULL THEN
   RETURN jsonb_build_object('kind','personal','personId',v_person);
  ELSIF p_kind='institution' AND p_ledger_id IS NOT NULL THEN
-  SELECT count(*),min(a.institution_entity_id)
+  SELECT count(*),min(a.institution_entity_id::text)::uuid
     INTO v_count,v_institution
   FROM titus.institution_account_admissions_v1 a
   JOIN ledger.ledgers l ON l.id=a.ledger_id
@@ -121,7 +121,7 @@ BEGIN
   'ledgerId',s.ledger_id,'institutionId',s.institution_entity_id)
   ORDER BY s.ledger_id),'[]'::jsonb) INTO v_institutions
  FROM (
-  SELECT a.ledger_id,min(a.institution_entity_id) AS institution_entity_id
+  SELECT a.ledger_id,min(a.institution_entity_id::text)::uuid AS institution_entity_id
   FROM titus.institution_account_admissions_v1 a
   JOIN ledger.ledgers l ON l.id=a.ledger_id
   JOIN reality.entities e ON e.id=a.institution_entity_id
