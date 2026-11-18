@@ -7,6 +7,11 @@
 -- activate any U2F command, replace the old authority evaluator or authorize
 -- legacy table retirement. No browser/agent/service_role EXECUTE is granted.
 --
+-- Pending review uses u2f_root_reaffirmation_review_v1, NEVER
+-- ledger_governing_root_v1. A review observation cannot be reused as an
+-- active canonical root, and a later root grant requires independent
+-- authorization rather than a scope/label rewrite of this review record.
+-- The underlying native Seat remains participation only.
 -- Original source: atlas.principal_ledger_authorities
 -- Native participation: ledger.ledgers / ledger.seats
 -- One native candidate: ledger.seat_responsibilities
@@ -105,7 +110,7 @@ BEGIN
   IF EXISTS (
     SELECT 1 FROM ledger.seat_responsibilities sr
     WHERE sr.seat_id=v_seat.id
-      AND sr.responsibility_key='ledger_governing_root_v1'
+      AND sr.responsibility_key='u2f_root_reaffirmation_review_v1'
   ) THEN
     RAISE EXCEPTION 'Root already recorded or historically ended; no overwrite/regrant'
       USING ERRCODE='23505';
@@ -136,7 +141,7 @@ BEGIN
     seat_id,responsibility_key,title,responsibility_state,scope,began_at
   )
   VALUES (
-    v_seat.id,'ledger_governing_root_v1','Governing-root reaffirmation (HELD)',
+    v_seat.id,'u2f_root_reaffirmation_review_v1','Governing-root reaffirmation (HELD)',
     'active',
     pg_catalog.jsonb_build_object(
       'sourceKind','historical_root_reaffirmation_held',
@@ -203,7 +208,7 @@ BEGIN
 
   SELECT * INTO v_resp FROM ledger.seat_responsibilities sr
   WHERE sr.id=p_native_responsibility_id
-    AND sr.responsibility_key='ledger_governing_root_v1'
+    AND sr.responsibility_key='u2f_root_reaffirmation_review_v1'
     AND sr.scope->>'sourceKind'='historical_root_reaffirmation_held'
   FOR UPDATE;
   IF NOT FOUND THEN
@@ -301,7 +306,7 @@ BEGIN
         AND s.began_at<=pg_catalog.now()
         AND (s.ended_at IS NULL OR s.ended_at>pg_catalog.now())
       JOIN ledger.seat_responsibilities sr ON sr.seat_id=s.id
-        AND sr.responsibility_key='ledger_governing_root_v1'
+        AND sr.responsibility_key='u2f_root_reaffirmation_review_v1'
         AND sr.responsibility_state='active'
         AND sr.began_at<=pg_catalog.now()
         AND (sr.ended_at IS NULL OR sr.ended_at>pg_catalog.now())
