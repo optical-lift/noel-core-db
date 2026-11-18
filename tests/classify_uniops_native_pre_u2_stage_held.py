@@ -25,6 +25,7 @@ GRANT_STAGES=frozenset((
     "source_anon_exposed","source_authenticated_exposed","source_postgres_denied",
     "source_acl_multiple_mismatches","source_acl_probe_refused",
     "source_acl_inconsistent","clone_acl_precondition_refused",
+    "clone_acl_environment_refused","clone_acl_source_refused","clone_acl_principal_refused","clone_acl_probe_refused","clone_acl_function_missing","clone_acl_owner_mismatch","clone_acl_security_mismatch","clone_acl_body_mismatch","clone_acl_nondefault_privileges","clone_acl_default_privileges","clone_acl_transaction_refused","clone_acl_postcondition_refused","clone_acl_unknown_refused",
     "preexisting_access","canonical_grant",
     "postcondition"
 ))

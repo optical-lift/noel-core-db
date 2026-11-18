@@ -29,6 +29,30 @@ ACL=(
     "FROM pg_proc p WHERE p.oid=to_regprocedure('"+RPC+"')"
 )
 
+REFUSAL_STAGES=frozenset(['clone_acl_environment_refused','clone_acl_source_refused','clone_acl_principal_refused','clone_acl_probe_refused','clone_acl_function_missing','clone_acl_owner_mismatch','clone_acl_security_mismatch','clone_acl_body_mismatch','clone_acl_nondefault_privileges','clone_acl_default_privileges','clone_acl_transaction_refused','clone_acl_postcondition_refused','clone_acl_unknown_refused'])
+
+def classify_refusal(snapshot,source_md5):
+    """Return only a finite safe enum; never return observed ACL fields."""
+    if not isinstance(snapshot,str):
+        return "clone_acl_probe_refused"
+    if not snapshot:
+        return "clone_acl_function_missing"
+    fields=snapshot.split("|")
+    if len(fields)!=8:
+        return "clone_acl_probe_refused"
+    owner,definer,body,is_default,anon,authenticated,postgres,service=fields
+    if owner!="postgres":
+        return "clone_acl_owner_mismatch"
+    if definer!="t":
+        return "clone_acl_security_mismatch"
+    if body!=source_md5:
+        return "clone_acl_body_mismatch"
+    if any(x not in ("t","f") for x in (is_default,anon,authenticated,postgres,service)):
+        return "clone_acl_probe_refused"
+    if is_default=="f":
+        return "clone_acl_nondefault_privileges"
+    return "clone_acl_default_privileges"
+
 def local_only(url):
     return bool(re.fullmatch(
         r"postgres(?:ql)?://postgres:[^@/]+@127[.]0[.]0[.]1:[0-9]{4,5}/postgres",
@@ -118,28 +142,46 @@ def psql(url,statement,transaction=False):
 
 def reconcile(url,migration):
     if not local_only(url):
-        raise ValueError("non-local database refused")
+        raise ValueError("clone_acl_environment_refused")
     required={
         "CI":"true", "GITHUB_ACTIONS":"true",
         "GITHUB_REPOSITORY":"optical-lift/noel-core-db",
         "ATLAS_NATIVE_NOTEBOOK_FICTIONAL_ONLY":"true",
         "ATLAS_NATIVE_GOVERNOR_CLONE_ACL_RECONCILE_ENABLED":"true",
     }
-    if any(os.environ.get(k)!=v for k,v in required.items()):
-        raise ValueError("owner-gated clone environment refused")
-    if os.environ.get("NOEL_CORE_DATABASE_URL") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
-        raise ValueError("production credentials refused")
-    md5=source_fingerprint(migration)
-    if psql(url,WHO)!="postgres|postgres|f":
-        raise ValueError("disposable database principal refused")
-    observed=classify(psql(url,ACL),md5)
+    if (any(os.environ.get(k)!=v for k,v in required.items())
+        or os.environ.get("NOEL_CORE_DATABASE_URL")
+        or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
+        raise ValueError("clone_acl_environment_refused")
+    try:
+        md5=source_fingerprint(migration)
+    except (ValueError,OSError,UnicodeError):
+        raise ValueError("clone_acl_source_refused") from None
+    try:
+        who=psql(url,WHO)
+    except (ValueError,subprocess.SubprocessError,OSError):
+        raise ValueError("clone_acl_probe_refused") from None
+    if who!="postgres|postgres|f":
+        raise ValueError("clone_acl_principal_refused")
+    try:
+        snapshot=psql(url,ACL)
+    except (ValueError,subprocess.SubprocessError,OSError):
+        raise ValueError("clone_acl_probe_refused") from None
+    observed=classify(snapshot,md5)
     if observed=="protected":
         return "ALREADY_PROTECTED"
     if observed!="default_public_execute":
-        raise ValueError("unmatched clone ACL refused")
-    psql(url,guarded_sql(md5),transaction=True)
-    if classify(psql(url,ACL),md5)!="protected":
-        raise ValueError("clone ACL postcondition refused")
+        raise ValueError(classify_refusal(snapshot,md5))
+    try:
+        psql(url,guarded_sql(md5),transaction=True)
+    except (ValueError,subprocess.SubprocessError,OSError):
+        raise ValueError("clone_acl_transaction_refused") from None
+    try:
+        post=psql(url,ACL)
+    except (ValueError,subprocess.SubprocessError,OSError):
+        raise ValueError("clone_acl_probe_refused") from None
+    if classify(post,md5)!="protected":
+        raise ValueError("clone_acl_postcondition_refused")
     return "EXACT_CANONICAL_FUNCTION_ACL_RESTORED"
 
 def main():
@@ -149,9 +191,13 @@ def main():
     args=a.parse_args()
     try:
         outcome=reconcile(args.db_url,args.canonical_migration)
-    except Exception:
+    except Exception as exc:
+        # No SQL, role ACL, credentials, exception messages or query bodies.
+        stage=str(exc)
+        if stage not in REFUSAL_STAGES:
+            stage="clone_acl_unknown_refused"
         print("BLOCKED ATLAS_NATIVE_GOVERNOR_CLONE_ACL=NOT_VERIFIED")
-        print("ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=clone_acl_precondition_refused")
+        print("ATLAS_NATIVE_GOVERNOR_GRANT_STAGE="+stage)
         raise SystemExit(1)
     print("PASS ATLAS_NATIVE_GOVERNOR_CLONE_ACL="+outcome)
     print("ATLAS_PRODUCTION_CHANGE=NONE")

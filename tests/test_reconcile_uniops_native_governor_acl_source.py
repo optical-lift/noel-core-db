@@ -49,6 +49,49 @@ class CloneAclSource(unittest.TestCase):
             with self.subTest(bad=bad):
                 self.assertEqual(m.classify(bad,digest),"refused")
 
+    def test_safe_refusal_categories_without_acl_repair(self):
+        digest=m.source_fingerprint(MIGRATION)
+        prefix="postgres|t|"+digest+"|"
+        expected={
+            "":"clone_acl_function_missing",
+            "invalid row":"clone_acl_probe_refused",
+            "not-postgres|t|"+digest+"|t|t|t|t|t":"clone_acl_owner_mismatch",
+            "postgres|f|"+digest+"|t|t|t|t|t":"clone_acl_security_mismatch",
+            "postgres|t|"+"0"*32+"|t|t|t|t|t":"clone_acl_body_mismatch",
+            prefix+"f|t|t|t|t":"clone_acl_nondefault_privileges",
+            prefix+"t|f|t|t|t":"clone_acl_default_privileges",
+        }
+        for observed,stage in expected.items():
+            with self.subTest(stage=stage):
+                self.assertEqual(m.classify(observed,digest),"refused")
+                self.assertEqual(m.classify_refusal(observed,digest),stage)
+                self.assertIn(stage,m.REFUSAL_STAGES)
+        self.assertEqual(m.classify_refusal(None,digest),"clone_acl_probe_refused")
+        self.assertNotIn("clone_acl_precondition_refused",m.REFUSAL_STAGES)
+
+    def test_first_refusal_has_finite_stage_and_does_not_write(self):
+        digest=m.source_fingerprint(MIGRATION)
+        env={"CI":"true","GITHUB_ACTIONS":"true",
+             "GITHUB_REPOSITORY":"optical-lift/noel-core-db",
+             "ATLAS_NATIVE_NOTEBOOK_FICTIONAL_ONLY":"true",
+             "ATLAS_NATIVE_GOVERNOR_CLONE_ACL_RECONCILE_ENABLED":"true"}
+        url="postgresql://postgres:test@127.0.0.1:54322/postgres"
+        for snapshot,stage in [
+           ("", "clone_acl_function_missing"),
+           ("postgres|t|"+digest+"|f|t|t|t|t","clone_acl_nondefault_privileges"),
+           ("postgres|t|"+"0"*32+"|t|t|t|t|t","clone_acl_body_mismatch")
+        ]:
+            with self.subTest(stage=stage),mock.patch.dict("os.environ",env,clear=True):
+                with mock.patch.object(m,"psql",side_effect=["postgres|postgres|f",snapshot]) as query:
+                    with self.assertRaisesRegex(ValueError,stage):
+                        m.reconcile(url,MIGRATION)
+                    self.assertEqual(query.call_count,2)
+        with mock.patch.dict("os.environ",env,clear=True):
+            with mock.patch.object(m,"psql",side_effect=[ValueError("private SQL error")]) as query:
+                with self.assertRaisesRegex(ValueError,"clone_acl_probe_refused"):
+                    m.reconcile(url,MIGRATION)
+                self.assertEqual(query.call_count,1)
+
     def test_local_url_and_environment_fail_closed_without_psql(self):
         self.assertTrue(m.local_only("postgresql://postgres:test@127.0.0.1:54322/postgres"))
         for url in ("postgres://host/prod",
@@ -69,7 +112,7 @@ class CloneAclSource(unittest.TestCase):
         self.assertEqual(process.stderr,"")
         self.assertEqual(process.stdout,(
               "BLOCKED ATLAS_NATIVE_GOVERNOR_CLONE_ACL=NOT_VERIFIED\n"
-              "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=clone_acl_precondition_refused\n"))
+              "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=clone_acl_environment_refused\n"))
 
     def test_exact_local_default_restores_only_after_source_guard(self):
         digest=m.source_fingerprint(MIGRATION)
@@ -96,7 +139,7 @@ class CloneAclSource(unittest.TestCase):
                 self.assertEqual(query.call_count,2)
             with mock.patch.object(m,"psql",side_effect=[
                     "postgres|postgres|f","postgres|t|"+digest+"|f|t|t|t|t"]) as query:
-                with self.assertRaisesRegex(ValueError,"unmatched clone ACL"):
+                with self.assertRaisesRegex(ValueError,"clone_acl_nondefault_privileges"):
                     m.reconcile(url,MIGRATION)
                 self.assertEqual(query.call_count,2)
             with mock.patch.object(m,"psql",side_effect=[
@@ -106,7 +149,7 @@ class CloneAclSource(unittest.TestCase):
                 self.assertEqual(query.call_count,4)
             with mock.patch.dict("os.environ",{"NOEL_CORE_DATABASE_URL":"secret"},clear=False):
                 with mock.patch.object(m,"psql") as query:
-                    with self.assertRaisesRegex(ValueError,"production credentials"):
+                    with self.assertRaisesRegex(ValueError,"clone_acl_environment_refused"):
                         m.reconcile(url,MIGRATION)
                     query.assert_not_called()
 
