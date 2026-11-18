@@ -151,6 +151,11 @@ class TestHeldU1ProtectedBundle(unittest.TestCase):
         ):
             self.assertIn("titus." + table, fixture)
             self.assertIn("titus." + table, post)
+        # The E-string escapes must produce identical PostgreSQL UTF8 bytes.
+        self.assertEqual(
+            re.findall(r"E'([^']*)'", fixture),
+            re.findall(r"E'([^']*)'", post),
+        )
         self.assertEqual(post.count("IF NOT EXISTS"), 11)
         self.assertEqual(post.count("row-count changed"), 6)
         self.assertIn("convert_to(body_text,'UTF8')", post)
