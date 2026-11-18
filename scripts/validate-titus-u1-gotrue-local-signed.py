@@ -208,6 +208,11 @@ def main():
       retry.get("alreadyExists") is True,"Manager appointment replay changed original")
     deny(api,key,manager,manage,governance("appoint",new=MANAGER),
       "current manager cannot be silently appointed twice")
+    deny(api,key,manager,
+      "shared_titus_institution_root_relinquish_self_api_v1",
+      {"p_ledger_id":LEDGER,"p_organization_id":organization,
+       "p_request_id":str(uuid.uuid4())},
+      "root cannot exit with active institution account manager")
     deny(api,key,outsider,invite,initial,"outsider cannot invite")
     deny(api,key,recipient,invite,initial,"recipient cannot issue own admission")
     deny(api,key,manager,invite,
@@ -439,6 +444,10 @@ def main():
       "independent Atlas root cannot overrule existing successor Tito root")
     allow(api,key,outsider,manage,governance("appoint",new=RECIPIENT),
       "signed successor root can appoint a manager without Atlas owner label")
+    deny(api,key,outsider,relinquish_root,{
+      "p_ledger_id":LEDGER,"p_organization_id":organization,
+      "p_request_id":str(uuid.uuid4())},
+      "successor may not relinquish with active institutional manager")
     allow(api,key,outsider,manage,governance("revoke",prior=RECIPIENT),
       "signed successor root may revoke current Titus manager")
     allow(api,key,outsider,relinquish_root,{
