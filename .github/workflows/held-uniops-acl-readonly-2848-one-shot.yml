@@ -33,13 +33,13 @@ jobs:
           from pathlib import Path
           s=Path('.github/workflows/held-uniops-acl-readonly-2848-one-shot.yml').read_text()
           p=s.split('\n  inspect-protected:\n',1)
-          assert len(p)==2 and s.count('  inspect-protected:')==1
+          assert len(p)==2 and sum(x=='  inspect-protected:' for x in s.splitlines())==1
           assert 'workflow_dispatch:' not in s
           assert "github.event.issue.number == 2848" in p[1]
           assert "github.actor == github.repository_owner" in p[1]
           assert "github.event.changes.title.from" in p[1]
           assert "environment: production" in p[1]
-          assert s.count('NOEL_CORE_DATABASE_URL:')==1
+          assert sum(x.strip().startswith('NOEL_CORE_DATABASE_URL:') for x in s.splitlines())==1
           assert 'e801a4146aa67c7a29fd19f34490ed62924c04e2' in s
           assert 'supabase db push' not in p[1]
           assert 'apply_migration' not in p[1]
