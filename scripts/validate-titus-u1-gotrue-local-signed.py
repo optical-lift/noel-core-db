@@ -6,6 +6,8 @@ The database is disposable and contains only fictional schema + People. This
 does NOT prove production-schema migration or delegated manager establishment.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
+from threading import Barrier
 import base64
 import json
 import re
@@ -587,6 +589,48 @@ def main():
       "where responsibility_key='titus_institution_account_root_governance' "
       "and relation_state='active' and ended_at is null")=="1",
       "At most one institution root may remain active")
+
+    # Race a manager appointment against the SAME institution root's
+    # relinquishment. The ledger-first source must serialize both commands:
+    # one succeeds, the other fails closed, and no orphaned manager remains.
+    # Two actual, concurrent GoTrue-authenticated PostgREST requests are made;
+    # no psql-injected JWT or fake role is involved.
+    concurrent_barrier=Barrier(2)
+    def race_signed_rpc(endpoint,body):
+        concurrent_barrier.wait(timeout=8)
+        return req(api,key,"/rest/v1/rpc/"+endpoint,body,manager)
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        appoint_future=executor.submit(
+            race_signed_rpc,manage,governance("appoint",new=MANAGER))
+        relinquish_future=executor.submit(
+            race_signed_rpc,relinquish_root,{
+                "p_ledger_id":LEDGER,"p_organization_id":organization,
+                "p_request_id":str(uuid.uuid4())})
+        appoint_result=appoint_future.result(timeout=30)
+        relinquish_result=relinquish_future.result(timeout=30)
+    statuses=(appoint_result[0],relinquish_result[0])
+    check(sorted(statuses)==[200,403],
+      "concurrent root relinquish vs manager appointment must serialize "
+      f"into exactly one success and one 42501 denial; got {statuses}")
+    rejected=appoint_result if appoint_result[0]!=200 else relinquish_result
+    check(rejected[1].get("code")=="42501",
+      "concurrent losing transaction must fail by the authority guard, not deadlock")
+    active_manager=int(sql(args.db_url,
+      "select count(*) from reality.responsibility_relations where "
+      "responsibility_key='titus_institution_account_management' "
+      "and jurisdiction_entity_id='44444444-4444-4444-8444-444444444444'::uuid "
+      "and scope->>'ledgerId'='77777777-7777-4777-8777-777777777777' "
+      "and relation_state='active' and ended_at is null"))
+    active_root=int(sql(args.db_url,
+      "select count(*) from reality.responsibility_relations where "
+      "responsibility_key='titus_institution_account_root_governance' "
+      "and jurisdiction_entity_id='44444444-4444-4444-8444-444444444444'::uuid "
+      "and scope->>'ledgerId'='77777777-7777-4777-8777-777777777777' "
+      "and relation_state='active' and ended_at is null"))
+    check((active_root,active_manager) in ((1,1),(0,0)),
+      "simultaneous commands must never leave an active manager without root")
+    print("PASS concurrent genuine signed Ledger-first authority serialization "
+      "and no-orphan invariant")
 
     # A GoTrue-issued token can remain signed after its session is removed;
     # source rechecks auth.sessions rather than trusting token validity alone.
