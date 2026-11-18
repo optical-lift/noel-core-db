@@ -30,6 +30,8 @@ jobs:
         env:
           ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
+          REQUEST_ACTOR: ${{ github.actor }}
+          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -47,6 +49,19 @@ jobs:
                   if key in fields and fields[key] != value:
                       raise SystemExit(f'duplicate conflicting field: {key}')
                   fields[key] = value
+
+          # Exact held Household package only. This branch is a disposable
+          # validation request, NOT a migration identity or release request.
+          if title == 'Production schema validation request: Atlas held Household Work':
+              expected = {'diagnostic_scope':'atlas_household_work_subject_pair_repair_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'fdbd73772b4760c9a97d743571705cfe29822a2f'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held Household validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-household-work\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
 
           required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
           missing = [key for key in required if key not in fields]
@@ -153,6 +168,43 @@ jobs:
           RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
         run: |
           set -euo pipefail
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-household-work" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "fdbd73772b4760c9a97d743571705cfe29822a2f"
+            src="candidate/candidates/atlas/household_work_subject_pair_repair_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_work_subject_pair_repair_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_work_subject_pair_repair_v1/validate_signed_household_work.py"
+            fixture="validation/fixtures/20261026215011_atlas_universal_original_work_integrated_v1.sql"
+            test "$(git hash-object "$src")" = de88e16dc36ac052f2fb0e90b708c30253db06d1
+            test "$(git hash-object "$post")" = 742f436f96149186a0c5c9d3b9d6d598b885667f
+            test "$(git hash-object "$proof")" = a561ee3d34bad17837d02eed3908db3a7be6d61c
+            test "$(git hash-object "$fixture")" = e877d93323ddc67d8778be8bea1dfa34319cc85c
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_work_subject_pair_repair_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_work_subject_pair_repair_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_work_subject_pair_repair_v1/validate_signed_household_work.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # One exact non-releasable TEST SOURCE path; never accepted by the
           # production release migration directory or arbitrary candidate.
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261028235811" ]]; then
@@ -199,6 +251,7 @@ jobs:
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"
+          echo "actual_version=$MIGRATION_VERSION" >> "$GITHUB_OUTPUT"
           echo "path=$candidate_migration" >> "$GITHUB_OUTPUT"
           if [[ "${#fixtures[@]}" -eq 1 ]]; then
             sha256sum "${fixtures[0]}"
@@ -213,7 +266,7 @@ jobs:
         id: validation
         shell: bash
         env:
-          MIGRATION_VERSION: ${{ steps.request.outputs.migration_version }}
+          MIGRATION_VERSION: ${{ steps.migration.outputs.actual_version }}
           RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
           CANDIDATE_MIGRATION: ${{ steps.migration.outputs.path }}
           CANDIDATE_FIXTURE: ${{ steps.migration.outputs.fixture_path }}

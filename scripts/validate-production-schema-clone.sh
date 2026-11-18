@@ -128,6 +128,7 @@ signed_universal_program_probe=false
 signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
 signed_universal_original_work_probe=false
+signed_household_original_repair_probe=false
 signed_work_self_assignment_probe=false
 signed_native_original_work_comments_probe=false
 signed_care_single_done_probe=false
@@ -298,6 +299,23 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_care_single_done_probe=true
+fi
+
+# Exact held repair: a CLI-created scratch identity with pinned SQL, fixture,
+# postconditions and signed probe. No generic candidate-selected executable.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_household_work_subject_pair_repair_clone_only_v1[.]sql$ ]]; then
+  household_proof="$repo_root/candidates/atlas/household_work_subject_pair_repair_v1/validate_signed_household_work.py"
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$household_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != de88e16dc36ac052f2fb0e90b708c30253db06d1 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != e877d93323ddc67d8778be8bea1dfa34319cc85c ] ||
+     [ "$(git hash-object "$candidate_validation")" != 742f436f96149186a0c5c9d3b9d6d598b885667f ] ||
+     [ "$(git hash-object "$household_proof")" != a561ee3d34bad17837d02eed3908db3a7be6d61c ]; then
+    echo "Exact held Household repair and local-only proof bytes required." >&2
+    exit 2
+  fi
+  signed_household_original_repair_probe=true
 fi
 
 # Only the exact Atlas original Work candidate may trigger this signed local
@@ -692,6 +710,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_universal_program_probe" = true ] ||
        [ "$signed_program_author_notes_probe" = true ] ||
        [ "$signed_program_source_identity_probe" = true ] ||
+       [ "$signed_household_original_repair_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
        [ "$signed_work_self_assignment_probe" = true ] ||
        [ "$signed_native_original_work_comments_probe" = true ] ||
@@ -1053,6 +1072,15 @@ if [ "$signed_native_original_work_comments_probe" = true ]; then
   grep -q '^PASS W07 signed local GoTrue' "$artifacts_dir/signed-native-original-work-comments-summary.txt"
 fi
 
+if [ "$signed_household_original_repair_probe" = true ]; then
+  phase="signed original Household Work repair and native Person projection"
+  python3 "$household_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-household-original-repair-summary.txt" \
+    >"$artifacts_dir/signed-household-original-repair.log" 2>&1
+  test -s "$artifacts_dir/signed-household-original-repair-summary.txt"
+  grep -q '^PASS signed original Household subject-pair seam:' "$artifacts_dir/signed-household-original-repair-summary.txt"
+fi
+
 if [ "$signed_universal_original_work_probe" = true ]; then
   phase="signed original Bed3/Bed4, worker disclosure denial and Household Laundry Actual"
   python3 "$repo_root/scripts/validate-atlas-universal-original-work-signed-http.py" \
@@ -1275,6 +1303,9 @@ if [ "$pre1_rest_proof" = true ]; then
 fi
 
 phase="complete"
+if [ "$signed_household_original_repair_probe" = true ]; then
+  printf '\nSIGNED Household repair test only: genuine independent local sessions, same original Need/Work/allocation, native Person read, physical Actual, member and session revocation. No production write or release.\n' >> "$artifacts_dir/summary.md"
+fi
 printf '\nMigration postconditions and local database advisors also completed successfully.\n' \
   >> "$artifacts_dir/summary.md"
 if [ "$signed_http_probe" = true ]; then
