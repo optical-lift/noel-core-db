@@ -68,7 +68,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held Laundry lifecycle':
               expected = {'diagnostic_scope':'atlas_household_laundry_lifecycle_clone_only_v1',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'b2594313c69f3c6f3e9509571f3a2a2f7a3160ad'}
+                          'candidate_sha':'d865a4e510e26fdd9a154466ad9deb0af71a243f'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held Laundry lifecycle validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -221,12 +221,12 @@ jobs:
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-laundry-lifecycle" ]]; then
             # No candidate scripts run before the protected snapshot; no
             # production secret is available in this or subsequent steps.
-            test "$(git -C candidate rev-parse HEAD)" = "b2594313c69f3c6f3e9509571f3a2a2f7a3160ad"
+            test "$(git -C candidate rev-parse HEAD)" = "d865a4e510e26fdd9a154466ad9deb0af71a243f"
             src="candidate/candidates/atlas/household_laundry_process_reassessment_v1/candidate.sql"
             post="candidate/candidates/atlas/household_laundry_process_reassessment_v1/postconditions.sql"
             proof="candidate/candidates/atlas/household_laundry_process_reassessment_v1/validate_signed_process_reassessment.py"
             fixture="candidates/atlas/household_work_subject_pair_repair_v1/clone_fixture.sql"
-            test "$(git hash-object "$src")" = dae26fbad43d0341e4efaf15bd29d695482bd136
+            test "$(git hash-object "$src")" = 058c6627e5c369ed9b83b0f972abc949739095e7
             test "$(git hash-object "$post")" = ce747e365321526757e2302f32572dfd45ca91e9
             test "$(git hash-object "$proof")" = 9f1ae62612df98ae0a8b2d73482ebbf58f11fa19
             test "$(git hash-object "$fixture")" = 737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7
