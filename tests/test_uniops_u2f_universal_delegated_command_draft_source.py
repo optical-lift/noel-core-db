@@ -360,5 +360,70 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         ):
             self.assertNotIn(forbidden,read)
 
+
+    def test_real_signed_clone_harness_is_source_only_and_requires_separate_owner_scope(self):
+        bridge_path=FOLDER/"08_signed_clone_only_rpc_bridge_held.sql"
+        signed_path=FOLDER/"pg17/validate_u2f_genuine_signed_clone_held.py"
+        bridge=bridge_path.read_text(encoding="utf8")
+        signed=signed_path.read_text(encoding="utf8")
+        compile(signed,str(signed_path),"exec")  # compile only, NEVER execute
+        require=[
+            "BEGIN;", "COMMIT;", "SET LOCAL lock_timeout",
+            "uniops.disposable_signed",
+            "u2f_owner_authorized_clone_only_v1",
+            "atlas.uni_ops_u2f_root_reaffirm_held_v1",
+            "atlas.uni_ops_u2f_root_revoke_held_v1",
+            "public.uni_ops_u2f_signed_clone_reaffirm_v1",
+            "public.uni_ops_u2f_signed_clone_revoke_v1",
+            "SECURITY DEFINER",
+            "SET search_path TO ''",
+            "REVOKE ALL ON FUNCTION",
+            "FROM PUBLIC,anon,authenticated,service_role;",
+            "TO authenticated;",
+            "auth.users",
+            "principal_ledger_authorities",
+        ]
+        for token in require:
+            with self.subTest(field=token):
+                self.assertIn(token,bridge)
+        self.assertEqual(bridge.count("GRANT EXECUTE ON FUNCTION"),2)
+        self.assertEqual(bridge.count("REVOKE ALL ON FUNCTION"),2)
+        self.assertIn("NEVER standalone authority",signed)
+        self.assertIn('ROOT=Path(__file__).resolve().parents[4]',signed)
+        self.assertIn('Path("/tmp").resolve()',signed)
+        self.assertIn('a.db_url) is not None',signed)
+        self.assertIn("c1.local_status()",signed)
+        self.assertIn("signed.setup_auth(a.db_url)",signed)
+        self.assertIn("c1.sign_in(api,key,name)",signed)
+        self.assertIn("FROM auth.sessions",signed)
+        self.assertIn("revoked real session cannot replay prior revocation",signed)
+        for label in (
+            "worker cannot reaffirm another Principal",
+            "owner cannot borrow another Ledger root",
+            "worker cannot mispair original root and Ledger",
+            "outsider cannot revoke unrelated root candidate",
+            "genuine GoTrue/HTTP sessions for four fictional actors",
+            "zero native root grants",
+            "INDEPENDENT_SOURCE_ADJUDICATION=NO",
+            "DELEGATED_AGENT_WORK_COMMAND=NOT_RUN",
+            "PRODUCTION_MUTATION=NONE",
+        ):
+            with self.subTest(label=label):
+                self.assertIn(label,signed)
+        self.assertIn("ledger_governing_root_v1",signed)
+        self.assertIn("u2f_root_reaffirmation_review_v1",signed)
+        self.assertNotIn("subprocess.run([\"supabase\", \"db\", \"push\"]",signed)
+        self.assertNotIn("apply_migration",signed)
+        self.assertNotIn("GITHUB_TOKEN",signed)
+        self.assertNotIn("NOEL_CORE_DATABASE_URL",signed)
+        self.assertNotIn("supabase db dump",signed)
+        # Reuse same fixed fictional C1 and reciprocal identities; no new actor table.
+        reciprocal=(ROOT/"validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql").read_text(encoding="utf8")
+        c1_helper=(ROOT/"scripts/validate-atlas-c1-signed-http.py").read_text(encoding="utf8")
+        self.assertIn("e5200000-0000-4000-8000-000000000602",reciprocal)
+        self.assertIn("e5200000-0000-4000-8000-000000000601",c1_helper)
+        self.assertIn("owner-protected",bridge.lower())
+        self.assertIn("DO NOT INSTALL",bridge)
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
