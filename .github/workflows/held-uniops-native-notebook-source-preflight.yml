@@ -23,6 +23,8 @@ on:
       - "tests/uniops_native_governor_test_access_local_held.py"
       - "tests/reconcile_uniops_native_governor_acl_local_held.py"
       - "tests/test_reconcile_uniops_native_governor_acl_source.py"
+      - "tests/inspect_uniops_acl_readonly_source_clone_held.py"
+      - "tests/test_inspect_uniops_acl_readonly_source_clone_held.py"
       - "tests/test_uniops_native_governor_test_access_source.py"
 
 permissions:
@@ -108,6 +110,13 @@ jobs:
           python3 -m py_compile tests/install_uniops_native_notebook_validator_copy_held.py tests/test_install_uniops_native_notebook_validator_copy_source.py
           python3 -m unittest discover -s tests -p 'test_install_uniops_native_notebook_validator_copy_source.py' -v
           echo 'PASS held native signed validator-copy composition and no generic Work/Result writer; NOT RUN'
+      - name: Test one-shot source/clone ACL observation probe WITHOUT credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/inspect_uniops_acl_readonly_source_clone_held.py tests/test_inspect_uniops_acl_readonly_source_clone_held.py
+          python3 -m unittest discover -s tests -p 'test_inspect_uniops_acl_readonly_source_clone_held.py' -v
+          echo 'PASS 2848 one-shot comparison source tests only; protected execution NOT RUN'
       - name: Verify independent new owner-issue transition and source-only protected clone proposal
         shell: bash
         run: |
