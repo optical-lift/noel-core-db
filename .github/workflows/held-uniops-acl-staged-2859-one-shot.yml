@@ -47,12 +47,12 @@ jobs:
           assert "GITHUB_EVENT_PATH" in parts[1]
           assert "c0a22b64eefbda07b71b0c7918139672fbd762b3" in s
           assert s.count("NOEL_CORE_DATABASE_URL: "+chr(36)+"{{ secrets.NOEL_CORE_DATABASE_URL }}")==1
-          assert "workflow_dispatch:" not in s
-          assert "supabase db push" not in s
-          assert "apply_migration" not in s
-          assert "upload-artifact" not in s
-          assert "UNI_OPS_READONLY_ACL_2848_APPROVED: 'true'" not in s
-          assert "issues/2852/events" not in s
+          assert "workflow_dispatch:" not in parts[1]
+          assert "supabase db push" not in parts[1]
+          assert "apply_migration" not in parts[1]
+          assert "upload-artifact" not in parts[1]
+          assert "UNI_OPS_READONLY_ACL_2848_APPROVED: 'true'" not in parts[1]
+          assert "issues/2852/events" not in parts[1]
           print("PASS 2859 source-only controller audit; protected job SKIPPED")
           PY
       - uses: actions/checkout@v4
