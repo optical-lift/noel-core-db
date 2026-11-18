@@ -274,6 +274,42 @@ BEGIN
 END $signed_person_claims_code$;
 RESET ROLE;
 
+-- A THIRD independently signed Person can possess a transferred code, but
+-- cannot claim the original once B has consumed it. This is not an identity
+-- prebinding: the winner was not named at issuance.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"a9999999-9999-4999-8999-999999999993","session_id":"59999999-9999-4999-8999-999999999993"}';
+DO $separate_person_cannot_double_claim$
+DECLARE denied boolean:=false;j jsonb;
+BEGIN
+ BEGIN
+  PERFORM public.titus_private_pilot_code_claim_self_api_v1(
+   current_setting('app.private_test_code'),
+   'c0000000-0000-4000-8000-000000000014');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'third signed Person reused consumed pilot'; END IF;
+ j:=public.titus_authoring_access_self_api_v1();
+ IF j->>'canUseTitus'<>'false' THEN
+  RAISE EXCEPTION 'platform delegated administrator received implicit license'; END IF;
+END $separate_person_cannot_double_claim$;
+RESET ROLE;
+
+-- A mere claimant/student may never terminate their own grant by calling
+-- the platform-admin operation; revocation is a separately authorized act.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $learner_cannot_admin_end$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.titus_private_pilot_access_end_self_api_v1(
+   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+   'c0000000-0000-4000-8000-000000000015');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'student exercised platform issuer permission'; END IF;
+END $learner_cannot_admin_end$;
+RESET ROLE;
+
 DO $claimed_pilot_has_no_deadline$
 BEGIN
  IF (SELECT count(*) FROM titus.course_authoring_pilot_code_claims)<>1
