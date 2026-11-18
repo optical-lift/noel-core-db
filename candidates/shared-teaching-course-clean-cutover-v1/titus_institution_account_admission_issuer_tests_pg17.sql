@@ -60,6 +60,34 @@ BEGIN
 END $not_manager$;
 RESET ROLE;
 
+-- A real institution responsibility must also identify THIS exact Ledger.
+-- The same institution subject on a different Ledger is insufficient.
+SAVEPOINT wrong_ledger_manager;
+INSERT INTO reality.responsibility_relations(
+ id,carrier_person_entity_id,responsibility_key,jurisdiction_kind,
+ jurisdiction_entity_id,relation_state,permitted_operations,began_at,scope)
+VALUES('f1000000-0000-4000-8000-000000000009',
+ 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+ 'titus_institution_account_management','entity',
+ '44444444-4444-4444-8444-444444444444',
+ 'active',ARRAY['invite']::text[],clock_timestamp()-interval '1 day',
+ '{"ledgerId":"77777777-7777-4777-8777-999999999999"}');
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $wrong_ledger_denied$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.titus_institution_account_invite_self_api_v1(
+   '77777777-7777-4777-8777-777777777777',
+   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+   'f1000000-0000-4000-8000-000000000010');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'manager jurisdiction leaked into wrong Ledger'; END IF;
+END $wrong_ledger_denied$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT wrong_ledger_manager;
+
 -- Fictional explicit manager responsibility (precisely the existing Reality
 -- relation type and exact institution/Ledger), issued by scratch fixture only.
 INSERT INTO reality.responsibility_relations(
