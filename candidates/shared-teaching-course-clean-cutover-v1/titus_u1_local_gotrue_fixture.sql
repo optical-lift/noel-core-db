@@ -157,7 +157,11 @@ CREATE TABLE ledger.seats(
  ended_at timestamptz
 );
 INSERT INTO atlas.organizations(id,status)
-VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','active');
+VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','active'),
+       ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','active');
+-- A second Atlas-only governing-primary pair deliberately has NO native
+-- ledger. A compatibility mapping cannot establish its missing native source.
+
 INSERT INTO compatibility.legacy_bindings(
  legacy_schema,legacy_table,legacy_key,disposition,new_schema,new_table,new_id)
 VALUES('atlas','organizations','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -165,11 +169,14 @@ VALUES('atlas','organizations','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
 
 INSERT INTO atlas.ledgers(id,status)
 VALUES('77777777-7777-4777-8777-777777777777','active'),
-('88888888-8888-4888-8888-888888888888','active');
+('88888888-8888-4888-8888-888888888888','active'),
+('66666666-6666-4666-8666-666666666666','active');
 INSERT INTO atlas.ledger_organization_participations(
  ledger_id,organization_id,participation_kind,is_compatibility_primary,status)
 VALUES('77777777-7777-4777-8777-777777777777',
-'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','governing',true,'active');
+'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','governing',true,'active'),
+('66666666-6666-4666-8666-666666666666',
+'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','governing',true,'active');
 INSERT INTO atlas.principals(id,person_id,status)
 VALUES('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
 '11111111-1111-4111-8111-111111111111','active');
