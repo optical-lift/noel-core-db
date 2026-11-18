@@ -11,6 +11,19 @@ RETURNS uuid LANGUAGE sql STABLE SET search_path TO ''
 AS $fake$
   SELECT NULLIF(pg_catalog.current_setting('request.jwt.claim.sub',true),'')::uuid;
 $fake$;
+-- An invented auth.jwt() and sessions table for NEGATIVE shape checks.
+-- These values do not come from signed GoTrue tokens or a real user.
+CREATE FUNCTION auth.jwt()
+RETURNS jsonb LANGUAGE sql STABLE SET search_path TO ''
+AS $fake_jwt$
+  SELECT COALESCE(NULLIF(pg_catalog.current_setting('request.jwt.claims',true),'')::jsonb,'{}'::jsonb);
+$fake_jwt$;
+CREATE TABLE auth.sessions (
+ id uuid PRIMARY KEY, user_id uuid NOT NULL, not_after timestamptz
+);
+INSERT INTO auth.sessions VALUES
+ ('00000000-0000-4000-8000-000000000901','00000000-0000-4000-8000-000000001201',NULL),
+ ('00000000-0000-4000-8000-000000000902','00000000-0000-4000-8000-000000001202',NULL);
 ALTER TABLE atlas.principals ADD COLUMN user_id uuid;
 UPDATE atlas.principals SET user_id = (
  '00000000-0000-4000-8000-' || pg_catalog.lpad(
