@@ -23,6 +23,10 @@ class CloneAclSource(unittest.TestCase):
         self.assertIn(m.GRANT,sql)
         self.assertEqual(sql.count("REVOKE ALL ON FUNCTION".lower()),1)
         self.assertIn("p.proacl IS NULL",sql)
+        self.assertIn("p.proacl IS NOT NULL",sql)
+        self.assertIn("pg_catalog.aclexplode(p.proacl)",sql)
+        self.assertIn("'service_role'::regrole AND g.is_grantable",sql)
+        self.assertIn("g.grantee NOT IN",sql)
         self.assertIn("md5(p.prosrc)='"+digest+"'",sql)
         self.assertIn("DO $clone_acl_guard$",sql)
         self.assertNotIn("ALTER DEFAULT PRIVILEGES",sql)
@@ -37,14 +41,18 @@ class CloneAclSource(unittest.TestCase):
     def test_exact_default_only_and_all_other_acl_shapes_refused(self):
         digest=m.source_fingerprint(MIGRATION)
         prefix="postgres|t|"+digest+"|"
-        self.assertEqual(m.classify(prefix+"t|t|t|t|t",digest),
+        self.assertEqual(m.classify(prefix+"t|t|t|t|t|t",digest),
                          "default_public_execute")
-        self.assertEqual(m.classify(prefix+"f|f|f|t|t",digest),"protected")
-        for bad in (prefix+"f|t|t|t|t",prefix+"t|f|t|t|t",
-                    prefix+"t|t|f|t|t",prefix+"t|t|t|f|t",
-                    prefix+"t|t|t|t|f","another|t|"+digest+"|t|t|t|t|t",
-                    "postgres|f|"+digest+"|t|t|t|t|t",
-                    prefix.replace(digest,"0"*32)+"t|t|t|t|t",
+        self.assertEqual(m.classify(prefix+"f|f|f|t|t|t",digest),"protected")
+        self.assertEqual(m.classify(prefix+"f|f|f|t|t|f",digest),"refused",
+                         "A separate EXECUTE grantee cannot qualify as protected")
+        self.assertEqual(m.classify_refusal(prefix+"f|f|f|t|t|f",digest),
+                         "clone_acl_nondefault_privileges")
+        for bad in (prefix+"f|t|t|t|t|t",prefix+"t|f|t|t|t|t",
+                    prefix+"t|t|f|t|t|t",prefix+"t|t|t|f|t|t",
+                    prefix+"t|t|t|t|f|t","another|t|"+digest+"|t|t|t|t|t|t",
+                    "postgres|f|"+digest+"|t|t|t|t|t|t",
+                    prefix.replace(digest,"0"*32)+"t|t|t|t|t|t",
                     "","postgres|t|"+digest+"|t|t|t|t"):
             with self.subTest(bad=bad):
                 self.assertEqual(m.classify(bad,digest),"refused")
@@ -55,11 +63,11 @@ class CloneAclSource(unittest.TestCase):
         expected={
             "":"clone_acl_function_missing",
             "invalid row":"clone_acl_probe_refused",
-            "not-postgres|t|"+digest+"|t|t|t|t|t":"clone_acl_owner_mismatch",
-            "postgres|f|"+digest+"|t|t|t|t|t":"clone_acl_security_mismatch",
-            "postgres|t|"+"0"*32+"|t|t|t|t|t":"clone_acl_body_mismatch",
-            prefix+"f|t|t|t|t":"clone_acl_nondefault_privileges",
-            prefix+"t|f|t|t|t":"clone_acl_default_privileges",
+            "not-postgres|t|"+digest+"|t|t|t|t|t|t":"clone_acl_owner_mismatch",
+            "postgres|f|"+digest+"|t|t|t|t|t|t":"clone_acl_security_mismatch",
+            "postgres|t|"+"0"*32+"|t|t|t|t|t|t":"clone_acl_body_mismatch",
+            prefix+"f|t|t|t|t|t":"clone_acl_nondefault_privileges",
+            prefix+"t|f|t|t|t|t":"clone_acl_default_privileges",
         }
         for observed,stage in expected.items():
             with self.subTest(stage=stage):
@@ -74,17 +82,18 @@ class CloneAclSource(unittest.TestCase):
         # role values. A non-NULL proacl is normal for canonical REVOKE/GRANT.
         digest=m.source_fingerprint(MIGRATION)
         prefix="postgres|t|"+digest+"|"
-        self.assertEqual(m.classify(prefix+"f|f|f|t|t",digest),"protected")
-        self.assertEqual(m.classify(prefix+"t|t|t|t|t",digest),
+        self.assertEqual(m.classify(prefix+"f|f|f|t|t|t",digest),"protected")
+        self.assertEqual(m.classify(prefix+"t|t|t|t|t|t",digest),
                          "default_public_execute")
         # An unexpected effective role state, not merely a nondefault ACL,
         # triggers the historical first-refusal category.
         for flags in (
-            "f|t|f|t|t",  # fictional anonymous exposure
-            "f|f|t|t|t",  # fictional authenticated exposure
-            "f|f|f|f|t",  # fictional postgres mismatch
-            "f|f|f|t|f",  # fictional service-role mismatch
-            "f|t|t|t|f",  # fictional simultaneous differences
+            "f|t|f|t|t|t",  # fictional anonymous exposure
+            "f|f|t|t|t|t",  # fictional authenticated exposure
+            "f|f|f|f|t|t",  # fictional postgres mismatch
+            "f|f|f|t|f|t",  # fictional service-role mismatch
+            "f|t|t|t|f|t",  # fictional simultaneous differences
+            "f|f|f|t|t|f",  # unrelated EXECUTE grantee or grant option
         ):
             with self.subTest(shape=flags):
                 snap=prefix+flags
@@ -117,8 +126,8 @@ class CloneAclSource(unittest.TestCase):
         url="postgresql://postgres:test@127.0.0.1:54322/postgres"
         for snapshot,stage in [
            ("", "clone_acl_function_missing"),
-           ("postgres|t|"+digest+"|f|t|t|t|t","clone_acl_nondefault_privileges"),
-           ("postgres|t|"+"0"*32+"|t|t|t|t|t","clone_acl_body_mismatch")
+           ("postgres|t|"+digest+"|f|t|t|t|t|t","clone_acl_nondefault_privileges"),
+           ("postgres|t|"+"0"*32+"|t|t|t|t|t|t","clone_acl_body_mismatch")
         ]:
             with self.subTest(stage=stage),mock.patch.dict("os.environ",env,clear=True):
                 with mock.patch.object(m,"psql",side_effect=["postgres|postgres|f",snapshot]) as query:
@@ -155,8 +164,8 @@ class CloneAclSource(unittest.TestCase):
 
     def test_exact_local_default_restores_only_after_source_guard(self):
         digest=m.source_fingerprint(MIGRATION)
-        before="postgres|t|"+digest+"|t|t|t|t|t"
-        after="postgres|t|"+digest+"|f|f|f|t|t"
+        before="postgres|t|"+digest+"|t|t|t|t|t|t"
+        after="postgres|t|"+digest+"|f|f|f|t|t|t"
         env={"CI":"true","GITHUB_ACTIONS":"true",
              "GITHUB_REPOSITORY":"optical-lift/noel-core-db",
              "ATLAS_NATIVE_NOTEBOOK_FICTIONAL_ONLY":"true",
@@ -177,7 +186,7 @@ class CloneAclSource(unittest.TestCase):
                 self.assertEqual(m.reconcile(url,MIGRATION),"ALREADY_PROTECTED")
                 self.assertEqual(query.call_count,2)
             with mock.patch.object(m,"psql",side_effect=[
-                    "postgres|postgres|f","postgres|t|"+digest+"|f|t|t|t|t"]) as query:
+                    "postgres|postgres|f","postgres|t|"+digest+"|f|t|t|t|t|t"]) as query:
                 with self.assertRaisesRegex(ValueError,"clone_acl_nondefault_privileges"):
                     m.reconcile(url,MIGRATION)
                 self.assertEqual(query.call_count,2)
