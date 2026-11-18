@@ -63,7 +63,7 @@ CREATE FUNCTION titus.require_institution_root_manager_governor_self_v1(
 SET search_path TO pg_catalog AS $root$
 DECLARE v_actor uuid;v_ids uuid[];v_canonical uuid;
 BEGIN
- IF p_operation NOT IN ('appoint_manager','transfer_manager','revoke_manager')
+ IF p_operation NOT IN ('appoint_manager','transfer_manager','revoke_manager','nominate_successor','cancel_succession','relinquish_root')
  OR p_ledger IS NULL OR p_institution IS NULL
  THEN RAISE EXCEPTION 'exact Titus root operation required' USING ERRCODE='42501'; END IF;
  v_actor:=atlas.current_person_for_private_course_v1();
