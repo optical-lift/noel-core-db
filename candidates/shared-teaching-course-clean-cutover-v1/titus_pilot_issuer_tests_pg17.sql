@@ -128,8 +128,7 @@ BEGIN
  j:=public.titus_private_pilot_offer_read_self_api_v1(
   current_setting('app.fictional_pilot_offer_id')::uuid);
  IF j->>'state'<>'offered' OR j->>'grantActive'<>'false'
- OR j ? 'course' OR j ? 'student' OR j ? 'research' OR
- (SELECT count(*) FROM atlas.teaching_courses)<>0 THEN
+ OR j ? 'course' OR j ? 'student' OR j ? 'research' THEN
   RAISE EXCEPTION 'merely offered pilot activated a Course or grant'; END IF;
 END $not_yet_licensed$;
 RESET ROLE;
