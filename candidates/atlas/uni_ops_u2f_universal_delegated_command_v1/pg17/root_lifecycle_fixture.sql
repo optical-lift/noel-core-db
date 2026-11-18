@@ -2,9 +2,21 @@
 -- \ir native_root_custody_fixture.sql uses only fabricated fixed UUIDs.
 \ir native_root_custody_fixture.sql
 CREATE SCHEMA auth;
-CREATE ROLE anon NOLOGIN;
-CREATE ROLE authenticated NOLOGIN;
-CREATE ROLE service_role NOLOGIN;
+-- PostgreSQL roles are cluster-global, even when each synthetic test uses
+-- its own disposable DB. Preserve no-login roles without duplicate creation.
+DO $fixture_roles$
+BEGIN
+  IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  IF NOT EXISTS(SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='service_role') THEN
+    CREATE ROLE service_role NOLOGIN;
+  END IF;
+END
+$fixture_roles$;
 -- This is NOT real signed GoTrue; use only for synthetic SQL contract checks.
 CREATE FUNCTION auth.uid()
 RETURNS uuid LANGUAGE sql STABLE SET search_path TO ''
