@@ -1,0 +1,133 @@
+\set ON_ERROR_STOP on
+-- U2F 07: READ-ONLY live catalog compatibility inspection.
+-- Returns fixed Boolean metadata; NEVER returns any user, Person, Ledger,
+-- authority, JWT/session, or content rows. NOT source adjudication, a signed
+-- session, an installation, or authorization to access protected clones.
+-- Pinned function hashes must be re-reviewed whenever canonical source moves.
+WITH src AS (
+ SELECT
+  pg_catalog.to_regprocedure('auth.uid()') IS NOT NULL AS uid_present,
+  pg_catalog.to_regprocedure('auth.jwt()') IS NOT NULL AS jwt_present,
+  pg_catalog.to_regclass('auth.sessions') IS NOT NULL AS sessions_present,
+  COALESCE((
+    SELECT pg_catalog.md5(pg_catalog.pg_get_functiondef(p.oid))=
+      '2332ff384da534311f6a42576e3c9ae7'
+    FROM pg_catalog.pg_proc p
+    WHERE p.oid=pg_catalog.to_regprocedure(
+      'atlas.principal_has_ledger_authority_v1(uuid,uuid)'
+    )
+  ),false) AS old_root_source_pinned,
+  COALESCE((
+    SELECT pg_catalog.md5(pg_catalog.pg_get_functiondef(p.oid))=
+      '28bbb95ce3874a7dbf641387c22ac1fd'
+    FROM pg_catalog.pg_proc p
+    WHERE p.oid=pg_catalog.to_regprocedure(
+      'atlas.evaluate_delegated_agent_command_authority_v1(uuid,text,integer)'
+    )
+  ),false) AS delegated_evaluator_pinned
+),
+shape AS (
+ SELECT
+  (
+   SELECT pg_catalog.count(*)=3
+   FROM pg_catalog.pg_attribute a
+   WHERE a.attrelid=pg_catalog.to_regclass('auth.sessions')
+     AND a.attname IN ('id','user_id','not_after')
+     AND a.attnum>0 AND NOT a.attisdropped
+  ) AS session_columns_present,
+  (
+   SELECT pg_catalog.count(*)=6
+   FROM pg_catalog.pg_attribute a
+   WHERE a.attrelid=pg_catalog.to_regclass('ledger.seat_responsibilities')
+     AND a.attname IN ('id','seat_id','responsibility_key',
+       'responsibility_state','scope','ended_at')
+     AND a.attnum>0 AND NOT a.attisdropped
+  ) AS native_root_columns_present,
+  (
+   SELECT pg_catalog.count(*)=7
+   FROM pg_catalog.pg_attribute a
+   WHERE a.attrelid=pg_catalog.to_regclass('ledger.actions')
+     AND a.attname IN ('id','ledger_id','action_kind',
+       'performed_by_entity_id','payload','provenance','idempotency_key')
+     AND a.attnum>0 AND NOT a.attisdropped
+  ) AS native_action_columns_present,
+  EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint c
+    WHERE c.conrelid=pg_catalog.to_regclass('ledger.seat_responsibilities')
+      AND c.contype='u'
+      AND c.conname='seat_responsibilities_seat_id_responsibility_key_key'
+  ) AS native_one_record_per_seat_key,
+  EXISTS (
+    SELECT 1 FROM pg_catalog.pg_constraint c
+    WHERE c.conrelid=pg_catalog.to_regclass('ledger.actions')
+      AND c.contype='u'
+      AND c.conname='actions_ledger_id_idempotency_key_key'
+  ) AS native_one_action_per_idempotency_key,
+  NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_proc p
+    JOIN pg_catalog.pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname='atlas'
+      AND p.proname IN (
+       'uni_ops_u2f_root_reaffirm_held_v1',
+       'uni_ops_u2f_root_revoke_held_v1',
+       'uni_ops_u2f_root_candidate_current_held_v1'
+      )
+  ) AS held_lifecycle_not_installed,
+  (
+    SELECT pg_catalog.bool_and(c.relrowsecurity)
+    FROM pg_catalog.pg_class c
+    WHERE c.oid IN (
+      pg_catalog.to_regclass('atlas.principal_ledger_authorities'),
+      pg_catalog.to_regclass('atlas.principals'),
+      pg_catalog.to_regclass('atlas.ledgers'),
+      pg_catalog.to_regclass('ledger.ledgers'),
+      pg_catalog.to_regclass('ledger.seats'),
+      pg_catalog.to_regclass('ledger.seat_responsibilities'),
+      pg_catalog.to_regclass('ledger.actions'),
+      pg_catalog.to_regclass('auth.sessions')
+    )
+  ) AS all_relevant_rls_enabled
+)
+SELECT pg_catalog.jsonb_build_object(
+  'contractVersion','uni_ops_u2f_current_schema_signed_readiness_held_v1',
+  'authUidExists',src.uid_present,
+  'authJwtExists',src.jwt_present,
+  'storedSessionsPresent',src.sessions_present,
+  'sessionIdentityAndExpiryColumnsMatch',shape.session_columns_present,
+  'nativeSeatResponsibilityShapeMatches',shape.native_root_columns_present,
+  'nativeLedgerActionShapeMatches',shape.native_action_columns_present,
+  'nativeSeatResponsibilityUniqueKeyPresent',shape.native_one_record_per_seat_key,
+  'nativeActionIdempotencyUniqueKeyPresent',shape.native_one_action_per_idempotency_key,
+  'sourceRootCheckerPinned',src.old_root_source_pinned,
+  'delegatedEvaluatorPinned',src.delegated_evaluator_pinned,
+  'allRelevantRlsEnabled',shape.all_relevant_rls_enabled,
+  'heldLifecycleNotInstalled',shape.held_lifecycle_not_installed,
+  'nativeResponsibilityRawAuthenticatedWriteDenied',
+    NOT pg_catalog.has_table_privilege(
+      'authenticated','ledger.seat_responsibilities','INSERT'),
+  'nativeActionRawAuthenticatedWriteDenied',
+    NOT pg_catalog.has_table_privilege(
+      'authenticated','ledger.actions','INSERT'),
+  'nativeResponsibilityServiceCanMutate',
+    pg_catalog.has_table_privilege(
+      'service_role','ledger.seat_responsibilities','UPDATE'),
+  'nativeActionsServiceCanMutate',
+    pg_catalog.has_table_privilege(
+      'service_role','ledger.actions','UPDATE'),
+  'nativeResponsibilityHasNoCustomHistoryTrigger',
+    NOT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger t
+      WHERE t.tgrelid=pg_catalog.to_regclass('ledger.seat_responsibilities')
+        AND NOT t.tgisinternal),
+  'nativeActionsHaveNoCustomHistoryTrigger',
+    NOT EXISTS(SELECT 1 FROM pg_catalog.pg_trigger t
+      WHERE t.tgrelid=pg_catalog.to_regclass('ledger.actions')
+        AND NOT t.tgisinternal),
+  'genuineSignedActorProofCompleted',false,
+  'historicalRootSourceAdjudicationCompleted',false,
+  'nativeRootAuthorityEstablished',false,
+  'canInstallCandidate',false,
+  'canActivateDelegatedWork',false,
+  'productionMutation',false,
+  'sourceOnly',true
+)
+FROM src CROSS JOIN shape;
