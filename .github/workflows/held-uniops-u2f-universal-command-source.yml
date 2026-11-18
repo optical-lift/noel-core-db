@@ -278,6 +278,7 @@ jobs:
           fi
           test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = '17'
           python3 candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/test_root_lifecycle.py
+          python3 candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/test_signed_clone_bridge_sql.py
           echo 'REAL_GOTRUE_SESSION=NO'
           echo 'NATIVE_ROOT_AUTHORITY_RELEASED=NO'
           echo 'EXECUTABLE_U2F_COMMAND=NO'
