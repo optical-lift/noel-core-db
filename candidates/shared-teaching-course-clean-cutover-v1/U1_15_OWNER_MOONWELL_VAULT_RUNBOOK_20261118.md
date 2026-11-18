@@ -23,6 +23,23 @@
    If this directory already exists, inspect its contents and ownership rather than overwriting.
 4. Mount two separate encrypted physical volumes: one to hold encrypted replica files and one holding the owner-managed decryption key. Create dedicated folders owned by your user, 0700. The U1.15 real-mode drill demands distinct mounted filesystems for vault, replica and key file.
 5. Create a long-lived public X.509 recipient certificate and corresponding 0600 RSA private key directly on your separately encrypted **key** volume, while mounted. U1.12's current verifier reads a PEM private key without prompting for an interactive passphrase, so **do not put this otherwise-unencrypted key file on an unencrypted or cloud-synced drive**. Owner must physically retain an independently recoverable key copy. This runbook deliberately does not generate or transport keys on your behalf.
+   When you have positively verified that the dedicated key volume is encrypted, this is an example of locally generating an X.509 certificate/key pair **directly on that mounted encrypted medium** (replace the placeholder; never run against an unencrypted or synced path):
+
+       KEYDIR="/Volumes/YOUR_ENCRYPTED_KEY_VOLUME/keys"
+       umask 077
+       test -d "/Volumes/YOUR_ENCRYPTED_KEY_VOLUME" || exit 1
+       mkdir -m 700 "$KEYDIR"
+       test ! -e "$KEYDIR/titus-owner-private.pem" || exit 1
+       test ! -e "$KEYDIR/titus-owner-cert.pem" || exit 1
+       openssl req -x509 -newkey rsa:3072 -noenc -days 365 \
+         -keyout "$KEYDIR/titus-owner-private.pem" \
+         -out "$KEYDIR/titus-owner-cert.pem" \
+         -subj "/CN=Titus historical archive owner"
+       chmod 600 "$KEYDIR/titus-owner-private.pem"
+       openssl x509 -in "$KEYDIR/titus-owner-cert.pem" -noout -checkend 604800
+
+   The -noenc option leaves the PEM private key itself unencrypted; the **volume's verified encryption and physical isolation are mandatory**. Create a separate recovery copy of this key only on another independently encrypted/offline medium using an owner-controlled procedure, and prove it can be read later. The owner should preserve a durable copy of the **public** certificate separately so future backup sealing does not require leaving the offline key medium attached. Never paste key contents into a tool or chat.
+
 6. Check out the exact U1.15 held Noel source on Moonwell. With all three owner-selected locations prepared, run this **fictional-only** command (substitute actual external volume names):
 
     python3 scripts/titus-u115-local-owner-vault-drill.py \
