@@ -64,6 +64,45 @@ class GuardTests(unittest.TestCase):
                     with self.assertRaisesRegex(target.Refused,"stage_inspect_environment_refused"):
                         target.require_environment(dict(base,**change))
 
+    def test_main_preserves_environment_refusal_without_any_database_action(self):
+        with tempfile.TemporaryDirectory() as temp:
+            for bad in (
+                "postgresql://postgres:x@other.example:5432/postgres?sslmode=require",
+                "postgresql://postgres:x@db.zirqkouammpwxlqfbsvf.supabase.co:5432/postgres",
+            ):
+                with self.subTest(bad_host_or_tls=bad.rsplit("@",1)[-1]):
+                    env=dict(BASE,RUNNER_TEMP=temp,NOEL_CORE_DATABASE_URL=bad)
+                    buffer=io.StringIO()
+                    with mock.patch.dict(os.environ,env,clear=True):
+                        with mock.patch.object(target,"source_fingerprint") as source:
+                            with mock.patch.object(target.prior,"catalog_snapshot") as sql:
+                                with contextlib.redirect_stdout(buffer):
+                                    code=target.main()
+                    self.assertEqual(code,1)
+                    self.assertIn(
+                        "UNI_OPS_2859_READONLY_STAGE=stage_inspect_environment_refused",
+                        buffer.getvalue())
+                    self.assertIn("UNI_OPS_PRODUCTION_CHANGE=NONE",buffer.getvalue())
+                    self.assertNotIn("postgresql://",buffer.getvalue())
+                    source.assert_not_called()
+                    sql.assert_not_called()
+
+    def test_main_preserves_source_refusal_without_connecting(self):
+        with tempfile.TemporaryDirectory() as temp:
+            env=dict(BASE,RUNNER_TEMP=temp)
+            buffer=io.StringIO()
+            with mock.patch.dict(os.environ,env,clear=True):
+                with mock.patch.object(target,"source_fingerprint",
+                    side_effect=target.Refused("stage_inspect_source_refused")):
+                    with mock.patch.object(target.prior,"catalog_snapshot") as sql:
+                        with contextlib.redirect_stdout(buffer):
+                            rc=target.main()
+            self.assertEqual(rc,1)
+            self.assertIn(
+                "UNI_OPS_2859_READONLY_STAGE=stage_inspect_source_refused",
+                buffer.getvalue())
+            sql.assert_not_called()
+
     def test_missing_or_insecure_private_files_fail(self):
         with tempfile.TemporaryDirectory() as temp:
             p=Path(temp)/"export.sql"
