@@ -1,0 +1,26 @@
+# U1.4 — Initial institutional root and signed succession
+
+**Status:** HELD shared source candidate, not a production migration or customer authorization. The first-root establishment depends on the **already-existing Atlas governing Principal authority** for a verified canonical institution and exact native Ledger. It does not derive from an owner label, Ledger Seat alone, Titus login, Course, customer purchase, or invitation.
+
+## Bounded outcome / ownership
+
+- **Owning source:** Noel's `shared_` structural contract. The [held root candidate](./shared_titus_institution_root_establishment_candidate.sql) writes the existing Reality responsibility original and its governed ending, and stores immutable, privately denied Titus origin/nomination/ending/cancellation receipts.
+- **Dependencies:** Signed `atlas.current_person_for_private_course_v1()`; canonical `reality.entities`; uniquely active `atlas.ledger_organization_participations` governing-primary institutional Ledger link; source-owned `ledger.ledgers`; and the existing `atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id)`. The latter must independently prove the **same signed Person**, an active Seat and the same current Principal holding root authority over both native and institutional governing Ledgers. The Person signs an explicit bootstrap command; no automatic bootstrap on membership or purchase.
+- **Governance:** A current root for the exact institution/Ledger can nominate a distinct canonical Person as successor. Nomination grants nothing. Only the nominated recipient's separately signed acceptance atomically ends the old Reality root and creates the new one, preserving both originals. The current nominater can cancel an unused nomination. A root can explicitly relinquish only after disposing pending nominations; there is no automatic substitute Person or revived ending. A later first-root bootstrap requires a fresh independent Atlas governing Principal verification and a new immutable original.
+- **Protected scope:** Existing canonical People, Auth uniqueness, Atlas permissions and source grant policies are untouched. No organization/ledger or student created; manager and paid Titus license rights remain separate. Private immutable originals have RLS enabled and no browser table grants; each read/write API is exact signed-`Person`/institution/Ledger and operation gated.
+- **Acceptance tests:** Authenticated outsider, non-governing Person, wrong Ledger, arbitrary owner label and root duplicate deny; fresh root bootstrap is idempotent by actor/request; a nominee cannot assume root before personally accepting; wrong recipient and cancelled invitation deny; root succession creates exactly one active source while prior root loses governance; successor can govern manager separately; relinquishment does not create a new root; a newly validated Atlas governing source may explicitly bootstrap after the last root ends. Recheck signed session validity and no auth/Person duplication.
+
+## Verification evidence
+
+- [Source-held local GoTrue/PostgREST workflow](https://github.com/optical-lift/noel-core-db/actions/workflows/titus-u1-gotrue-local-signed.yml) runs only a disposable fictional schema, with actual locally issued GoTrue session JWTs and signed PostgREST RPCs. Its modeled Atlas source is expressly a **test double**, not an imported production definition. The [signed driver](../../scripts/validate-titus-u1-gotrue-local-signed.py) exercises bootstrap and two-actor succession while retaining earlier U1.1–U1.3 negatives.
+- The [existing synthetic PG17 runner](../../scripts/test-shared-course-clean-cutover-synthetic-pg17.sh) and database custody workflow stay mandatory.
+- **Do not claim protected production-schema parity:** a verified clone must use actual current Atlas and Reality functions, privileges, triggers, roots, role schema, and historical customer data. The owner-gated protected restoration/signed proof has not been run.
+
+## Remaining U1 release gates
+
+1. Review `atlas.company_work_native_ledger_owner_self_v1` as the **independent institutional bootstrap source**, including canonical institution–Ledger mapping, session binding, root Principal provenance, Seat lifecycle and source-end effects. Confirm the precise legal/institutional authority policy for real outside universities; do not assume every Atlas owner can grant Titus product rights.
+2. Protected production-schema and roles restore under existing owner authorization, then real locally signed PostgREST tests with the **actual** Atlas function and existing Reality guards, including source revocation, concurrent first roots/successors, no-loss legacy customer preservation, and dual-product authority boundaries.
+3. Separate release review for the shared `SECURITY DEFINER` writes and immutable source originals. No production DDL, Auth grant, or Titus feature-flag activation without explicit exact owner release.
+4. Paid organizational licenses, purchased seats, per-Course rights agreements, student continuation and beta remain queued U2/U4–U10, not conferred by institution roots or account admissions.
+
+**Completion standard:** Isolated source tests can pass and still leave U1 HELD until real institutional authority, protected schema parity and release are verified.
