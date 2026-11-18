@@ -81,6 +81,22 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'Titus grant origin kind was rewritten'; END IF;
  denied:=false;
  BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET grant_source_auth_user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus original issuer was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET granted_at=clock_timestamp()-interval '1 day'
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus original issuance time was rewritten'; END IF;
+ denied:=false;
+ BEGIN
   DELETE FROM titus.course_authoring_access_grants
    WHERE grant_source_receipt=rec;
  EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
