@@ -145,15 +145,18 @@ BEGIN
  RAISE EXCEPTION 'canonical active institution required' USING ERRCODE='42501'; END IF;
  v_op:=CASE p_action WHEN 'appoint' THEN 'appoint_manager'
  WHEN 'transfer' THEN 'transfer_manager' ELSE 'revoke_manager' END;
- -- Require independent source standing BEFORE any replay acceptance.
- v_root:=titus.require_institution_root_manager_governor_self_v1(
- v_institution,p_ledger_id,v_op);
- -- Serialize all appointment/transfer/revoke commands per exact Ledger.
+ -- Lock the exact native Ledger BEFORE locking any current Reality root.
+ -- Succession/relinquishment also lock Ledger before changing root standing;
+ -- the common order prevents a Ledger <-> root responsibility deadlock.
  PERFORM 1 FROM ledger.ledgers l
  WHERE l.id=p_ledger_id AND l.subject_entity_id=v_institution
  AND l.ledger_state='active' AND l.retired_at IS NULL FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'institution Ledger retired during command'
  USING ERRCODE='42501'; END IF;
+ -- Require independent current root source BEFORE any replay acceptance;
+ -- it is now checked under the Ledger serialization lock.
+ v_root:=titus.require_institution_root_manager_governor_self_v1(
+ v_institution,p_ledger_id,v_op);
 
  SELECT * INTO v_old FROM titus.institution_account_manager_governance_v1 g
  WHERE g.actor_person_entity_id=v_actor AND g.request_id=p_request_id;
