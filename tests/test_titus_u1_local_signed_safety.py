@@ -108,6 +108,27 @@ class TestSignedLocalSafety(unittest.TestCase):
         ):
             self.assertIn(guard,signed)
 
+    def test_live_structure_audit_can_only_read_aggregate_source(self):
+        import re
+        source=(ROOT/"scripts/audit-titus-u1-live-structure-readonly.sql").read_text()
+        statements=re.sub(r"(?m)^--[^\\n]*$","",source).strip()
+        self.assertTrue(statements.lower().startswith("with\n"))
+        self.assertEqual(statements.count(";"),1)
+        for forbidden in (
+            "INSERT ", "UPDATE ", "DELETE ", "DROP ", "ALTER ",
+            "CREATE ", "TRUNCATE ", "GRANT ", "REVOKE ",
+            "COPY ", "PERFORM ", "EXECUTE ", "DO $",
+        ):
+            self.assertNotIn(forbidden,statements.upper())
+        self.assertIn("exact_unique_compatible",source)
+        self.assertIn("missing_explicit_mapping",source)
+        self.assertIn("ambiguous_explicit_mapping",source)
+        self.assertIn("course_specific_person_live",source)
+        self.assertIn("'releaseApproved',false",source)
+        self.assertIn("'protectedProductionSchemaCloneVerified',false",source)
+        self.assertNotIn("organization_name",source)
+        self.assertNotIn("email",source.lower())
+
     def test_workflow_not_production_protected_trigger(self):
         s=WORKFLOW.read_text()
         self.assertIn("permissions:\n  contents: read",s)
