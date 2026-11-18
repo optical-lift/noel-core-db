@@ -1,0 +1,94 @@
+\set ON_ERROR_STOP on
+-- HELD U2F 05: read-only aggregate disposition; NOT root-authority migration.
+-- Pure inspection of ALL original root receipts and exact native Ledger/Seat custody.
+-- No source IDs, Person IDs, Ledger IDs, private basis or row payload in output.
+-- A native seat responsibility is the CANDIDATE destination, not proof of
+-- governing authority or a direction to insert/copy original root records.
+WITH originals AS (
+ SELECT a.id AS original_id, a.ledger_id, a.principal_id,
+        a.status, a.ended_at, a.established_at, a.basis,
+        p.status AS principal_state, p.person_id,
+        al.status AS atlas_ledger_state,
+        nl.id AS native_ledger_id,
+        nl.ledger_state AS native_ledger_state,
+        nl.retired_at AS native_retired_at,
+        nl.subject_entity_id
+ FROM atlas.principal_ledger_authorities a
+ LEFT JOIN atlas.principals p ON p.id=a.principal_id
+ LEFT JOIN atlas.ledgers al ON al.id=a.ledger_id
+ LEFT JOIN ledger.ledgers nl ON nl.id=a.ledger_id
+ WHERE a.authority_kind='root_governing'
+),
+current_originals AS (
+ SELECT * FROM originals
+ WHERE status='active' AND ended_at IS NULL
+),
+resolved AS (
+ SELECT o.*,
+  (SELECT count(*) FROM ledger.seats s
+   WHERE s.ledger_id=o.native_ledger_id
+     AND s.person_entity_id=o.person_id
+     AND s.seat_state='active'
+     AND s.began_at<=pg_catalog.now()
+     AND (s.ended_at IS NULL OR s.ended_at>pg_catalog.now())
+  ) AS matching_seat_count,
+  (SELECT count(*) FROM ledger.seats s
+   WHERE s.ledger_id=o.native_ledger_id
+     AND s.person_entity_id=o.person_id
+     AND s.seat_state='active'
+     AND s.seat_basis->>'legacyLedgerAuthorityEvidenceId'=o.original_id::text
+  ) AS seat_citation_count,
+  (SELECT count(*) FROM ledger.seats s
+    JOIN ledger.seat_responsibilities sr ON sr.seat_id=s.id
+   WHERE s.ledger_id=o.native_ledger_id
+     AND s.person_entity_id=o.person_id
+     AND sr.responsibility_key='ledger_governing_root_v1'
+     AND sr.responsibility_state='active'
+  ) AS existing_root_responsibility_count
+ FROM current_originals o
+),
+shared_subjects AS (
+ SELECT person_id,subject_entity_id, count(DISTINCT ledger_id) AS ledger_count
+ FROM resolved
+ WHERE person_id IS NOT NULL AND subject_entity_id IS NOT NULL
+ GROUP BY person_id,subject_entity_id
+ HAVING count(DISTINCT ledger_id)>1
+)
+SELECT pg_catalog.jsonb_build_object(
+ 'contractVersion','uni_ops_u2f_native_root_custody_plan_held_v1',
+ 'allHistoricalOriginalRootReceipts',(SELECT count(*) FROM originals),
+ 'currentOriginalRootReceipts',(SELECT count(*) FROM current_originals),
+ 'historicalNoncurrentOriginalRootReceipts',
+   (SELECT count(*) FROM originals)-(SELECT count(*) FROM current_originals),
+ 'exactNativeSeatCandidates',(SELECT count(*) FROM resolved
+   WHERE matching_seat_count=1
+     AND principal_state='active' AND person_id IS NOT NULL
+     AND atlas_ledger_state='active'
+     AND native_ledger_state='active' AND native_retired_at IS NULL
+     AND established_at IS NOT NULL AND pg_catalog.length(pg_catalog.btrim(basis))>0),
+ 'missingOrAmbiguousNativeSeatCandidates',(SELECT count(*) FROM resolved
+   WHERE matching_seat_count<>1 OR principal_state IS DISTINCT FROM 'active'
+     OR person_id IS NULL OR atlas_ledger_state IS DISTINCT FROM 'active'
+     OR native_ledger_state IS DISTINCT FROM 'active' OR native_retired_at IS NOT NULL
+     OR established_at IS NULL OR pg_catalog.length(pg_catalog.btrim(basis))=0),
+ 'exactHistoricalSeatCitations',(SELECT count(*) FROM resolved WHERE seat_citation_count=1),
+ 'rootsWithoutExactHistoricalSeatCitation',(SELECT count(*) FROM resolved WHERE seat_citation_count<>1),
+ 'personSubjectPairsWithMultipleLedgers',(SELECT count(*) FROM shared_subjects),
+ 'rootsSharingPersonAndInstitutionAcrossLedgers',
+   (SELECT count(*) FROM resolved r WHERE EXISTS
+     (SELECT 1 FROM shared_subjects s WHERE s.person_id=r.person_id
+       AND s.subject_entity_id=r.subject_entity_id)),
+ 'existingActiveNativeRootResponsibilityMatches',
+   (SELECT count(*) FROM resolved WHERE existing_root_responsibility_count=1),
+ 'rootsWithNoExactNativeRootResponsibility',
+   (SELECT count(*) FROM resolved WHERE existing_root_responsibility_count<>1),
+ 'candidateCarrier','ledger.seat_responsibilities',
+ 'candidateCarriesExactLedgerScope',true,
+ 'candidateCanEstablishGoverningAuthorityWithoutAdjudication',false,
+ 'newRootAuthorityEstablished',false,
+ 'fiveOriginalDecisionsAdjudicated',false,
+ 'canRetireOriginalRootTable',false,
+ 'canIssueWork',false,
+ 'sourceOnly',true,
+ 'productionMutation',false
+);
