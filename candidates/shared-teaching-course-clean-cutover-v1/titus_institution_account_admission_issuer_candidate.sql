@@ -82,6 +82,7 @@ BEGIN
   AND r.jurisdiction_kind='entity'
   AND r.jurisdiction_entity_id=p_institution_entity_id
   AND r.jurisdiction_domain IS NULL
+  AND r.scope->>'ledgerId'=p_ledger_id::text
   AND r.relation_state='active'
   AND r.began_at<=clock_timestamp()
   AND (r.ended_at IS NULL OR r.ended_at>clock_timestamp())
@@ -95,7 +96,8 @@ BEGIN
   AND r.responsibility_key='titus_institution_account_management'
   AND r.jurisdiction_kind='entity'
   AND r.jurisdiction_entity_id=p_institution_entity_id
-  AND r.jurisdiction_domain IS NULL AND r.relation_state='active'
+  AND r.jurisdiction_domain IS NULL
+  AND r.scope->>'ledgerId'=p_ledger_id::text AND r.relation_state='active'
   AND r.began_at<=clock_timestamp()
   AND (r.ended_at IS NULL OR r.ended_at>clock_timestamp())
   AND p_operation=ANY(r.permitted_operations)
@@ -183,7 +185,8 @@ BEGIN
  AND r.responsibility_key='titus_institution_account_management'
  AND r.jurisdiction_kind='entity'
  AND r.jurisdiction_entity_id=v_inv.institution_entity_id
- AND r.jurisdiction_domain IS NULL AND r.relation_state='active'
+ AND r.jurisdiction_domain IS NULL AND r.scope->>'ledgerId'=v_inv.ledger_id::text
+ AND r.relation_state='active'
  AND r.began_at<=clock_timestamp()
  AND (r.ended_at IS NULL OR r.ended_at>clock_timestamp())
  AND 'invite'=ANY(r.permitted_operations)
