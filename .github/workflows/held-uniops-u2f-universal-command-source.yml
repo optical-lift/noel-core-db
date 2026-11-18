@@ -5,6 +5,7 @@ on:
     paths:
       - 'candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/**'
       - 'tests/test_uniops_u2f_universal_delegated_command_draft_source.py'
+      - 'tests/test_uniops_u2f_signed_hook_source.py'
       - '.github/workflows/held-uniops-u2f-universal-command-source.yml'
 
 permissions:
@@ -31,6 +32,7 @@ jobs:
           set -euo pipefail
           python3 -m py_compile tests/test_uniops_u2f_universal_delegated_command_draft_source.py
           python3 tests/test_uniops_u2f_universal_delegated_command_draft_source.py
+          python3 tests/test_uniops_u2f_signed_hook_source.py
           echo 'UNI_OPS_U2F_UNIVERSAL_COMMAND_SOURCE=PASS'
           echo 'NONHUMAN_CARRIER=UNBOUND'
           echo 'CAN_ISSUE_WORK=NO'
