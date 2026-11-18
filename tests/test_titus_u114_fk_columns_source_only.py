@@ -51,6 +51,8 @@ class TestU114(unittest.TestCase):
         receipt = audit.check(cat, old)
         self.assertEqual(receipt["catalogConstraintsReviewed"], 170)
         self.assertEqual(receipt["relationPairsMatched"], 168)
+        self.assertEqual(receipt["historicalRelationsWithOldCourseRoot"], 45)
+        self.assertEqual(receipt["additionalCourseRootRelations"], 6)
         self.assertTrue(all(v is False for k, v in receipt.items()
                             if k.endswith("Authorized") or
                             k in ("customerDataRead", "backupCreated",
@@ -92,6 +94,26 @@ class TestU114(unittest.TestCase):
         with self.assertRaises(ValueError):
             audit.check(cat, old)
 
+    def test_old_course_root_adds_six_held_relations_not_deleted(self):
+        cat, old = source_fixture()
+        self.assertEqual(audit.check(cat, old)["historicalRelationsWithOldCourseRoot"], 45)
+        result = audit.verify_course_shell_root_extension(old)
+        self.assertEqual((result["expandedRelations"], result["addedRelations"]), (45, 6))
+        self.assertFalse(result["rowSelectionAuthorized"])
+        self.assertFalse(result["deletionAuthorized"])
+
+    def test_loss_of_course_activity_dependency_blocks_review(self):
+        _, old = source_fixture()
+        for edge in old["foreignKeyPairs"]:
+            if (edge["child"] == "titus.course_slot_activity_log"
+                    and edge["parent"] == "titus.course_slots"):
+                edge["parent"] = "titus.teacher_source_units"
+                break
+        else:
+            self.fail("frozen course slot activity dependency missing")
+        with self.assertRaises(ValueError):
+            audit.verify_course_shell_root_extension(old)
+
     def test_duplicate_json_keys_fail_to_parse(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "bad.json"
@@ -107,6 +129,8 @@ class TestU114(unittest.TestCase):
         self.assertIn("pg_catalog.pg_constraint", body)
         self.assertIn("pg_catalog.pg_attribute", body)
         self.assertIn("WITH ORDINALITY", body)
+        self.assertIn("fk.condeferrable AS is_deferrable", body)
+        self.assertIn("'deferrable', is_deferrable", body)
         self.assertIn("rowSelectionAuthorized', false", body)
         for forbidden in ("INSERT", "DELETE", "UPDATE", "DROP", "ALTER",
                           "CREATE", "GRANT", "TRUNCATE", "COPY",
