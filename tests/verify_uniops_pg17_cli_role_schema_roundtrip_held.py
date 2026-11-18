@@ -148,10 +148,34 @@ def main():
         if acl.compare_readonly_acl_observations(original,clone,expected_md5)!="acl_parity_canonical_observations_match":
             raise RuntimeError("fictional_cli_full_roundtrip_acl_diverged")
 
+        # Distinct third fictional DB on the CLONE server, representing a
+        # preinitialized target whose default function ACL grants more than
+        # the original. We do NOT make this change to a real Supabase clone.
+        # The raw dump has canonical REVOKE/GRANT statements; pg_dump does
+        # not emit a REVOKE for roles not present in its source ACL.
+        extra_database="fictional_managed_function_defaults"
+        extra_role="fictional_managed_extra_executor"
+        sql(CLONE,"CREATE ROLE "+extra_role+" NOLOGIN;")
+        sql(CLONE,"CREATE DATABASE "+extra_database+";")
+        extra_url="postgresql://postgres:postgres@127.0.0.1:54323/"+extra_database
+        sql(extra_url,"ALTER DEFAULT PRIVILEGES FOR ROLE postgres "
+                      "GRANT EXECUTE ON FUNCTIONS TO "+extra_role+";")
+        restore(extra_url,sanitized)
+        extra=sql(extra_url,acl.ACL)
+        if acl.compare_readonly_acl_observations(original,extra,expected_md5)!="acl_parity_clone_differs_from_canonical_source":
+            raise RuntimeError("fictional_cli_managed_defaults_not_detected")
+        if acl.classify(extra,expected_md5)=="protected":
+            raise RuntimeError("fictional_cli_extra_default_execute_treated_as_canonical")
+        # Owner, SECURITY DEFINER and exact function body remain source-
+        # verified; only an extra explicit grantee is the negative control.
+        if extra.split("|")[:8]!=original.split("|")[:8] or extra.split("|")[8]!="f":
+            raise RuntimeError("fictional_cli_default_control_not_isolated")
+
     print("PASS PG17_FICTIONAL_PINNED_CLI_ROLE_EXPORT_EXCLUDES_RESERVED_ROLE_DDL")
     print("PASS PG17_FICTIONAL_PINNED_CLI_RESERVED_MEMBERSHIP_FILTER_REPRODUCED")
     print("PASS PG17_FICTIONAL_PINNED_CLI_SCHEMA_RETAINS_FUNCTION_ACL")
     print("PASS PG17_FICTIONAL_PINNED_CLI_ROLE_THEN_SCHEMA_RESTORE_MATCHES_NINE_FIELDS")
+    print("PASS PG17_FICTIONAL_EXTRA_TARGET_DEFAULT_EXECUTE_REPRODUCES_CLONE_DIVERGENCE")
     print("LIMIT SUPABASE_MANAGED_CLONE_NOT_YET_REPRODUCED")
     print("LIMIT REAL_CLONE_DIVERGENCE_CAUSE_NOT_IDENTIFIED")
     print("ATLAS_PRODUCTION_CHANGE=NONE")
