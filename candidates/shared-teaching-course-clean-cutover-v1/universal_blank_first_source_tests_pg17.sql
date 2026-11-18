@@ -210,8 +210,14 @@ BEGIN
    'titus.course_authoring_access_status_events','INSERT')
  OR has_table_privilege('authenticated',
    'titus.course_authoring_access_status_events','SELECT')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_status_events','UPDATE')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_status_events','DELETE')
  OR has_table_privilege('anon',
    'titus.course_authoring_access_status_events','SELECT')
+ OR has_sequence_privilege('authenticated',
+   'titus.course_authoring_access_status_events_event_seq_seq','USAGE')
  OR has_function_privilege('authenticated',
    'titus.authoring_grant_current_active_v1(uuid)','EXECUTE')
  THEN RAISE EXCEPTION 'client can read or mint Titus access'; END IF;
