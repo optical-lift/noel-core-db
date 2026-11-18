@@ -1,0 +1,213 @@
+name: HELD Titus U1 owner-protected full-schema shape test (no release)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-titus-u1-protected-schema-shape-owner-clone.yml'
+      - 'scripts/prepare-titus-u1-protected-clone-source.py'
+      - 'tests/test_titus_u1_protected_bundle_safety.py'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_9_PROTECTED_SCHEMA_SHAPE_POSTCONDITIONS_TEST_ONLY.sql'
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+
+jobs:
+  review-source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prove source-only packaging without protected credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          # This isolated workflow PR contains no held U1 SQL or assembler.
+          # All four assembler/ACL tests run separately on Noel draft #2617.
+          # Verify the protected workflow's owner/credential/no-release fences here.
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path('.github/workflows/held-titus-u1-protected-schema-shape-owner-clone.yml').read_text()
+          protected=w.split('\n  validate-owner-protected:\n',1)[1]
+          for required in (
+             "github.event.issue.author_association == 'OWNER'",
+             "github.actor == github.repository_owner",
+             "environment: production",
+             "fields['candidate_sha']",
+             "fields['test_scope']",
+             "fields['production_target']",
+             "Snapshot production schema/roles READ ONLY",
+             "NOEL_CORE_DATABASE_URL",
+             "Checkout EXACT held candidate",
+             "scripts/validate-production-schema-clone.sh",
+             "20261118095959_shared_titus_u1_full_schema_TEST_ONLY.sql",
+             "7273b612d64fc9007297d23a91fe83343df6910e",
+          ):
+              assert required in protected,required
+          for forbidden in (
+             'supabase db push', 'supabase migration up',
+             'db reset --linked', 'SUPABASE_SERVICE_ROLE_KEY',
+             'apply_migration', 'gh pr merge',
+          ):
+              assert forbidden not in protected,forbidden
+          assert protected.index("Snapshot production schema/roles READ ONLY") < protected.index("Checkout EXACT held candidate")
+          assert protected.index("Checkout EXACT held candidate") < protected.index("Assemble held TEST_ONLY source")
+          assert protected.index("Assemble held TEST_ONLY source") < protected.index("Disposable protected source-shape restore")
+          assert 'upload-artifact' not in protected
+          print('PASS protected credentials confined to read-only snapshot; owner-gated and no release')
+          PY
+
+  validate-owner-protected:
+    concurrency:
+      group: titus-u1-owner-protected-shape
+      cancel-in-progress: false
+    if: >-
+      github.event_name == 'issues' &&
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'HELD Titus U1 protected schema shape validation request'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Resolve exact owner-selected held source, not a release
+        id: request
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          fields={}
+          for raw in os.environ.get('ISSUE_BODY','').splitlines():
+              m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
+              if m:
+                  k,v=m.groups()
+                  if k in fields: raise SystemExit('duplicate owner request field')
+                  fields[k]=v
+          if set(fields)!=set(('candidate_sha','test_scope','production_target')):
+              raise SystemExit('only exact immutable U1 held scope is allowed')
+          if fields['test_scope']!='titus_u1_protected_source_shape_test_only_v1':
+              raise SystemExit('wrong source-shaped test scope')
+          if fields['production_target']!='zirqkouammpwxlqfbsvf':
+              raise SystemExit('wrong production READ-ONLY schema target')
+          if not re.fullmatch(r'[0-9a-f]{40}',fields['candidate_sha']):
+              raise SystemExit('must name an immutable held Git SHA')
+          with open(os.environ['GITHUB_OUTPUT'],'a') as output:
+              output.write('sha='+fields['candidate_sha']+'\n')
+          print('PASS exact owner-selected held schema-shape test scope')
+          PY
+      - name: Checkout canonical main validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: main
+          path: canonical
+          persist-credentials: false
+      - name: Verify existing canonical schema custody and static release fences
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd canonical
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Verify exact draft PR source before reading protected schema
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ steps.request.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/2617" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-course-unification-clean-cutover-v1-20261107|$EXPECTED_SHA"
+          test "$(gh api "repos/optical-lift/titus/pulls/72" --jq '[.state,(.draft|tostring)]|join("|")')" = "open|true"
+          echo 'PASS frozen Noel/Titus draft sources'
+      - name: Install pinned Supabase CLI and authenticate readonly image pulls
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/u1-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/u1-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null
+      # This is the ONLY step that sees the protected database URL.
+      # Schema + role structure ONLY; no row dump, DDL or write query.
+      - name: Snapshot production schema/roles READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/u1-private-roles.sql" >/dev/null
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/u1-private-schema.sql" >/dev/null
+          test -s "$RUNNER_TEMP/u1-private-roles.sql"
+          test -s "$RUNNER_TEMP/u1-private-schema.sql"
+          echo 'PASS protected source snapshot captured only schema and roles'
+      - name: Checkout EXACT held candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ steps.request.outputs.sha }}
+          path: held
+          persist-credentials: false
+      - name: Assemble held TEST_ONLY source with pinned producer identity
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ steps.request.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "$EXPECTED_SHA"
+          # Pin the executable assembler independently of the mutable PR head.
+          test "$(git -C held hash-object scripts/prepare-titus-u1-protected-clone-source.py)" = '7273b612d64fc9007297d23a91fe83343df6910e'
+          python3 -m unittest discover -s held/tests -p test_titus_u1_protected_bundle_safety.py -v >"$RUNNER_TEMP/u1-unprivileged-checks.txt" 2>&1
+          python3 held/scripts/prepare-titus-u1-protected-clone-source.py \
+            --source-root held \
+            --expected-sha "$EXPECTED_SHA" \
+            --test-scope titus_u1_protected_source_shape_test_only_v1 \
+            --output "$RUNNER_TEMP/20261118095959_shared_titus_u1_full_schema_TEST_ONLY.sql" \
+            --manifest "$RUNNER_TEMP/u1-package.json"
+          printf "SET app.shared_course_clone = 'approved';\n" > "$RUNNER_TEMP/u1-postconditions.sql"
+          cat held/candidates/shared-teaching-course-clean-cutover-v1/U1_9_PROTECTED_SCHEMA_SHAPE_POSTCONDITIONS_TEST_ONLY.sql >> "$RUNNER_TEMP/u1-postconditions.sql"
+          test ! -e canonical/supabase/migrations/20261118095959_shared_titus_u1_full_schema_TEST_ONLY.sql
+          echo 'PASS immutable held test-only package; no release migration'
+      - name: Disposable protected source-shape restore
+        shell: bash
+        run: |
+          set -euo pipefail
+          # All candidate DDL runs only after schema/role restore INSIDE
+          # locally isolated containers. Never send it to the live project.
+          if bash canonical/scripts/validate-production-schema-clone.sh \
+            --migration-version 20261118095959 \
+            --release-lane shared \
+            --candidate-migration "$RUNNER_TEMP/20261118095959_shared_titus_u1_full_schema_TEST_ONLY.sql" \
+            --candidate-validation "$RUNNER_TEMP/u1-postconditions.sql" \
+            --roles-dump "$RUNNER_TEMP/u1-private-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/u1-private-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/u1-local-private-diagnostics" \
+            >"$RUNNER_TEMP/u1-private-run.log" 2>&1
+          then
+            echo 'PASS protected schema/role-shaped local compilation and private ACL postconditions'
+          else
+            echo 'FAIL protected local shape verification; no raw schema or private diagnostics published' >&2
+            exit 1
+          fi
+      - name: Report non-sensitive result only
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'HELD Titus U1 clone shape only. No hosted DDL/DML, release, real customer row, or signed production-schema GoTrue proof.' >> "$GITHUB_STEP_SUMMARY"
+          # No uploading raw schema/roles, source diagnostics, or SQL errors.
