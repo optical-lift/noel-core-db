@@ -179,7 +179,8 @@ def main():
             "SELECT count(*) FROM pg_catalog.pg_proc p "
             "WHERE p.oid='"+signature+"'::regprocedure "
             "AND p.prosecdef "
-            "AND array_position(p.proconfig,'search_path=') IS NOT NULL"
+            "AND EXISTS (SELECT 1 FROM pg_catalog.unnest(p.proconfig) AS cfg(setting) "
+            "WHERE cfg.setting IN ('search_path=','search_path=\"\"'))"
         )
         require(defining==1,
                 "STOP: clone-only REST function security/search_path source drift")
