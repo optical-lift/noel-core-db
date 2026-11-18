@@ -59,7 +59,8 @@ BEGIN
   'authorization',CASE WHEN a.id IS NULL THEN NULL ELSE jsonb_build_object('authorizationId',a.id,'courseId',a.scope->'targetIds'->>0,
    'state',CASE WHEN a.authorization_state='active' AND a.ends_at<=clock_timestamp() THEN 'expired' ELSE a.authorization_state END,
    'endsAt',a.ends_at,'credentialActive',EXISTS(SELECT 1 FROM atlas.delegated_agent_credentials cr WHERE cr.authorization_id=a.id
-    AND cr.credential_state='active' AND cr.begins_at<=clock_timestamp() AND (cr.expires_at IS NULL OR cr.expires_at>clock_timestamp())
+    AND cr.credential_state='active' AND cr.begins_at<=clock_timestamp() AND cr.expires_at=a.ends_at AND cr.expires_at>clock_timestamp()
+    AND cr.metadata->>'privateCarrierCredentialV1'='true'
     AND a.authorization_state='active' AND a.begins_at<=clock_timestamp() AND (a.ends_at IS NULL OR a.ends_at>clock_timestamp()) AND c.status='active' AND EXISTS(SELECT 1 FROM atlas.principals WHERE id=pid AND status='active'))) END);
 END $status$;
 
@@ -129,5 +130,123 @@ REVOKE ALL ON FUNCTION public.shared_private_atlas_carrier_status_self_api_v1(),
 GRANT EXECUTE ON FUNCTION public.shared_private_atlas_carrier_status_self_api_v1(),
  public.shared_private_atlas_carrier_enroll_self_api_v1(uuid,timestamptz),public.shared_private_atlas_carrier_revoke_self_api_v1(uuid)
  TO authenticated;
+
+
+-- Operator/admission boundary for this exact owner-private Sites pilot.
+-- The transport bearer must be generated and delivered outside chat and source
+-- control. The issuer takes ONLY its hash, never creates or returns a bearer.
+-- Active signed grant, explicit Course scope and current source authority are
+-- independently verified. This helper is internal and does not mutate data.
+CREATE FUNCTION atlas.private_atlas_carrier_grant_current_v1(p_authorization_id uuid)
+RETURNS boolean LANGUAGE sql VOLATILE SET search_path TO pg_catalog AS $grant_check$
+ SELECT EXISTS(
+  SELECT 1 FROM atlas.delegated_agent_authorizations a
+  JOIN atlas.delegated_agent_carriers c ON c.id=a.carrier_id AND c.status='active'
+  JOIN atlas.principals pr ON pr.id=a.principal_id AND pr.status='active'
+  JOIN reality.auth_person_bindings b ON b.auth_user_id=pr.user_id AND b.binding_state='active' AND b.retired_at IS NULL
+  JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical'
+  JOIN atlas.teaching_courses tc ON tc.created_by_person_entity_id=e.id AND tc.status='active' AND tc.ledger_id IS NULL
+  WHERE a.id=p_authorization_id
+   AND c.stable_key='chatgpt_atlas_private' AND c.provider_key='openai' AND c.carrier_kind='ai_agent'
+   AND c.metadata->>'pluginId'='plugin_asdk_app_sites_4c5c75d7fb808191a0f80e42ba2ce6e1'
+   AND c.metadata->>'ownerPrincipalId'=pr.id::text
+   AND a.created_by_user_id=pr.user_id AND a.basis->>'establishedBy'='principal_self_api'
+   AND a.basis->>'userId'=pr.user_id::text
+   AND a.purpose='Owner-approved private ChatGPT Course authoring pilot'
+   AND a.authorization_state='active' AND a.begins_at<=clock_timestamp()
+   AND a.ends_at IS NOT NULL AND isfinite(a.ends_at) AND a.ends_at>clock_timestamp()
+   AND a.ends_at<=a.begins_at+interval '24 hours'
+   AND a.ledger_id IS NULL AND a.delegating_seat_id IS NULL AND a.max_execution_class='commit'
+   AND a.allowed_command_keys=ARRAY['teaching.course.authoring.apply_proposal']
+   AND a.denied_command_keys=ARRAY[]::text[]
+   AND a.scope=jsonb_build_object('targetKinds',jsonb_build_array('teaching_course'),'targetIds',jsonb_build_array(tc.id::text))
+   AND a.confirmation_policy='{"forceAllCommits":true}'::jsonb
+   AND titus.authoring_grant_current_active_v1(e.id)
+   AND coalesce((atlas.evaluate_delegated_agent_command_target_authority_v1(a.id,'teaching.course.authoring.apply_proposal',1,
+    jsonb_build_object('kind','teaching_course','id',tc.id::text))->>'allowed')::boolean,false)
+   AND NOT EXISTS(SELECT 1 FROM atlas.delegated_agent_authorizations x WHERE x.id<>a.id AND x.carrier_id=a.carrier_id
+     AND x.principal_id=a.principal_id AND x.authorization_state='active' AND (x.ends_at IS NULL OR x.ends_at>clock_timestamp()))
+ );
+$grant_check$;
+REVOKE ALL ON FUNCTION atlas.private_atlas_carrier_grant_current_v1(uuid) FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE FUNCTION atlas.issue_private_atlas_carrier_credential_v1(p_authorization_id uuid,p_token_hash text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog AS $issue$
+DECLARE a atlas.delegated_agent_authorizations%ROWTYPE; c atlas.delegated_agent_credentials%ROWTYPE; cid uuid;
+BEGIN
+ IF p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN
+  RAISE EXCEPTION 'canonical credential hash required' USING ERRCODE='22023'; END IF;
+ SELECT * INTO a FROM atlas.delegated_agent_authorizations WHERE id=p_authorization_id FOR UPDATE;
+ IF NOT FOUND OR NOT atlas.private_atlas_carrier_grant_current_v1(p_authorization_id) THEN
+  RAISE EXCEPTION 'current exact private carrier grant required' USING ERRCODE='42501'; END IF;
+ SELECT * INTO c FROM atlas.delegated_agent_credentials WHERE token_hash=p_token_hash;
+ IF FOUND THEN
+  IF c.authorization_id<>a.id OR c.credential_state<>'active'
+   OR c.expires_at IS DISTINCT FROM a.ends_at OR c.begins_at>clock_timestamp()
+   OR c.metadata->>'privateCarrierCredentialV1' IS DISTINCT FROM 'true' THEN
+   RAISE EXCEPTION 'credential identity mismatch' USING ERRCODE='42501'; END IF;
+  RETURN jsonb_build_object('contractVersion','atlas_private_carrier_credential_v1','authorizationId',a.id,
+   'credentialId',c.id,'expiresAt',c.expires_at,'replayed',true);
+ END IF;
+ IF EXISTS(SELECT 1 FROM atlas.delegated_agent_credentials WHERE authorization_id=a.id AND credential_state='active'
+   AND (expires_at IS NULL OR expires_at>clock_timestamp())) THEN
+  RAISE EXCEPTION 'revoke existing private grant before reissuing' USING ERRCODE='40001'; END IF;
+ cid:=atlas.issue_delegated_agent_credential_service_v1(a.id,p_token_hash,a.ends_at,'{"privateCarrierCredentialV1":true}'::jsonb);
+ RETURN jsonb_build_object('contractVersion','atlas_private_carrier_credential_v1','authorizationId',a.id,
+  'credentialId',cid,'expiresAt',a.ends_at,'replayed',false);
+END $issue$;
+
+-- Per-credential fixed-minute rate admission, serialized on the existing
+-- credential row. No new authority table or process-local counter. No token
+-- data is returned. This runs in its own RPC transaction before dispatch;
+-- therefore failed/malformed downstream commands cannot undo admission.
+CREATE FUNCTION atlas.admit_private_atlas_carrier_command_v1(p_token_hash text)
+RETURNS boolean LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog AS $admit$
+DECLARE a atlas.delegated_agent_authorizations%ROWTYPE; c atlas.delegated_agent_credentials%ROWTYPE;
+ aid uuid; window_id bigint; used int; previous jsonb;
+BEGIN
+ IF p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN RETURN false; END IF;
+ SELECT authorization_id INTO aid FROM atlas.delegated_agent_credentials WHERE token_hash=p_token_hash;
+ IF aid IS NULL THEN RETURN false; END IF;
+ -- Same authorization-before-credential order as the canonical executor.
+ SELECT * INTO a FROM atlas.delegated_agent_authorizations WHERE id=aid FOR SHARE;
+ IF NOT FOUND OR NOT atlas.private_atlas_carrier_grant_current_v1(aid) THEN RETURN false; END IF;
+ SELECT * INTO c FROM atlas.delegated_agent_credentials WHERE token_hash=p_token_hash AND authorization_id=aid FOR UPDATE;
+ IF NOT FOUND OR c.credential_state<>'active' OR c.begins_at>clock_timestamp()
+  OR c.expires_at IS DISTINCT FROM a.ends_at OR c.expires_at<=clock_timestamp()
+  OR c.metadata->>'privateCarrierCredentialV1' IS DISTINCT FROM 'true' THEN RETURN false; END IF;
+ IF NOT atlas.private_atlas_carrier_grant_current_v1(aid) THEN RETURN false; END IF;
+ window_id:=floor(extract(epoch FROM clock_timestamp())/60)::bigint;
+ previous:=c.metadata->'privateCarrierAdmissionV1';
+ used:=0;
+ IF previous IS NOT NULL THEN
+  IF jsonb_typeof(previous)<>'object' OR coalesce(previous->>'window','') !~ '^[0-9]{1,18}$'
+   OR coalesce(previous->>'count','') !~ '^[0-9]{1,2}$' THEN RETURN false; END IF;
+  IF (previous->>'window')::bigint>window_id THEN RETURN false; END IF;
+  IF (previous->>'window')::bigint=window_id THEN used:=(previous->>'count')::int; END IF;
+ END IF;
+ IF used>=12 THEN RETURN false; END IF;
+ UPDATE atlas.delegated_agent_credentials SET metadata=jsonb_set(metadata,'{privateCarrierAdmissionV1}',
+  jsonb_build_object('window',window_id,'count',used+1),true) WHERE id=c.id;
+ RETURN true;
+END $admit$;
+
+REVOKE ALL ON FUNCTION atlas.issue_private_atlas_carrier_credential_v1(uuid,text),
+ atlas.admit_private_atlas_carrier_command_v1(text) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION atlas.issue_private_atlas_carrier_credential_v1(uuid,text),
+ atlas.admit_private_atlas_carrier_command_v1(text) TO service_role;
+
+CREATE FUNCTION public.shared_private_atlas_carrier_issue_service_v1(p_authorization_id uuid,p_token_hash text)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO pg_catalog AS $issue_api$
+ SELECT atlas.issue_private_atlas_carrier_credential_v1(p_authorization_id,p_token_hash);
+$issue_api$;
+CREATE FUNCTION public.shared_private_atlas_carrier_admit_service_v1(p_token_hash text)
+RETURNS boolean LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO pg_catalog AS $admit_api$
+ SELECT atlas.admit_private_atlas_carrier_command_v1(p_token_hash);
+$admit_api$;
+REVOKE ALL ON FUNCTION public.shared_private_atlas_carrier_issue_service_v1(uuid,text),
+ public.shared_private_atlas_carrier_admit_service_v1(text) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.shared_private_atlas_carrier_issue_service_v1(uuid,text),
+ public.shared_private_atlas_carrier_admit_service_v1(text) TO service_role;
 
 COMMIT;
