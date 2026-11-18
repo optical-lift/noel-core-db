@@ -111,7 +111,8 @@ class TestSignedLocalSafety(unittest.TestCase):
     def test_live_structure_audit_can_only_read_aggregate_source(self):
         import re
         source=(ROOT/"scripts/audit-titus-u1-live-structure-readonly.sql").read_text()
-        statements="\n".join(line for line in source.splitlines()\n                            if not line.lstrip().startswith("--")).strip()
+        statements="\n".join(line for line in source.splitlines()
+                            if not line.lstrip().startswith("--")).strip()
         self.assertTrue(statements.lower().startswith("with\n"))
         self.assertEqual(statements.count(";"),1)
         for forbidden in (
@@ -149,7 +150,8 @@ class TestSignedLocalSafety(unittest.TestCase):
             self.assertIn(required,candidate)
         self.assertIn("shared_titus_current_person_signed_candidate.sql",
                       SCRIPT.read_text())
-        candidate_sql="\n".join(line for line in candidate.splitlines()\n                                if not line.lstrip().startswith("--"))\n        self.assertNotIn("user_metadata",candidate_sql)
+        candidate_sql="\n".join(line for line in candidate.splitlines()
+                                if not line.lstrip().startswith("--"))\n        self.assertNotIn("user_metadata",candidate_sql)
         self.assertNotIn("service_role",candidate)
 
     def test_workflow_not_production_protected_trigger(self):
