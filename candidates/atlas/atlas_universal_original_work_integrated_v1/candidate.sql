@@ -6401,7 +6401,8 @@ GRANT EXECUTE ON FUNCTION public.owner_effective_subject_disclosure_review_self_
 -- Original held candidate: original_subject_choices_for_work_decomposition_v1/candidate.sql
 -- The user chooses exact existing Subjects; no title-matching or farm-task import.
 -- This generic Work-subject choice seam may gain further source adapters in
--- reviewed migrations. Current spatial choice reads original growing_objects.
+-- reviewed migrations. Current spatial choice is scoped to exact current
+-- Work/Ledger/crop custody and existing physical beds; no old Task needed.
 CREATE OR REPLACE FUNCTION atlas.owner_original_subject_choices_for_work_self_api_v1(
  p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,
  p_limit integer DEFAULT 80,p_after_subject_id uuid DEFAULT NULL
@@ -6419,11 +6420,11 @@ BEGIN
  v_person:=atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id);
  IF NOT EXISTS(
     SELECT 1 FROM atlas.work_items w
-    JOIN atlas.company_work_native_ledger_relevance rel
-      ON rel.work_item_id=w.id AND rel.organization_id=w.organization_id
-      AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
     WHERE w.id=p_work_item_id AND w.organization_id=p_organization_id
       AND w.work_state='open'
+      AND atlas.work_prerequisite_ledger_scope_v1(
+        w.organization_id,p_ledger_id,w.id
+      )
  ) THEN
   RAISE EXCEPTION 'Original Work not admitted on this Ledger' USING ERRCODE='42501';
  END IF;
@@ -6432,7 +6433,19 @@ BEGIN
    row_number() OVER(ORDER BY o.id) rn
   FROM atlas.growing_objects o
   JOIN atlas.farms f ON f.id=o.farm_id
-  WHERE f.organization_id=p_organization_id
+  JOIN atlas.work_items w ON w.id=p_work_item_id
+    AND w.organization_id=f.organization_id
+    AND w.organization_unit_id=f.organization_unit_id
+  JOIN atlas.farm_crop_ledger_custody_v1 cu ON cu.farm_id=f.id
+    AND cu.ledger_id=p_ledger_id AND cu.custody_state='active'
+    AND cu.ended_at IS NULL
+  JOIN atlas.ledger_organization_participations lp
+    ON lp.organization_id=f.organization_id AND lp.ledger_id=cu.ledger_id
+    AND lp.status='active' AND lp.ended_at IS NULL
+    AND lp.participation_kind IN ('governing','operating')
+  JOIN ledger.ledgers nl ON nl.id=cu.ledger_id
+    AND nl.ledger_state='active' AND nl.retired_at IS NULL
+  WHERE f.organization_id=p_organization_id AND o.object_type='bed'
     AND (p_after_subject_id IS NULL OR o.id>p_after_subject_id)
   ORDER BY o.id LIMIT p_limit+1
  )
@@ -6546,10 +6559,8 @@ BEGIN
  IF v_parent.id IS NULL THEN
    RAISE EXCEPTION 'Original Work unavailable on governed Ledger.' USING ERRCODE='42501';
  END IF;
- IF NOT EXISTS (
-   SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
-    WHERE rel.work_item_id=v_parent.id AND rel.organization_id=p_organization_id
-      AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
+ IF NOT atlas.work_prerequisite_ledger_scope_v1(
+   p_organization_id,p_ledger_id,v_parent.id
  ) THEN
    RAISE EXCEPTION 'Work lacks established relevance to governed Ledger.' USING ERRCODE='42501';
  END IF;
@@ -6618,9 +6629,20 @@ BEGIN
      IF NOT EXISTS(
        SELECT 1 FROM atlas.growing_objects obj
        JOIN atlas.farms f ON f.id=obj.farm_id
-       WHERE obj.id=v_subject_id AND f.organization_id=p_organization_id
+       JOIN atlas.farm_crop_ledger_custody_v1 cu ON cu.farm_id=f.id
+         AND cu.ledger_id=p_ledger_id AND cu.custody_state='active'
+         AND cu.ended_at IS NULL
+       JOIN atlas.ledger_organization_participations lp
+         ON lp.organization_id=f.organization_id AND lp.ledger_id=cu.ledger_id
+         AND lp.status='active' AND lp.ended_at IS NULL
+         AND lp.participation_kind IN ('governing','operating')
+       JOIN ledger.ledgers nl ON nl.id=cu.ledger_id
+         AND nl.ledger_state='active' AND nl.retired_at IS NULL
+       WHERE obj.id=v_subject_id AND obj.object_type='bed'
+         AND f.organization_id=p_organization_id
+         AND f.organization_unit_id=v_parent.organization_unit_id
      ) THEN
-       RAISE EXCEPTION 'Original Subject not admitted to governed Organization.'
+       RAISE EXCEPTION 'Original Subject lacks exact Work/Ledger custody.'
          USING ERRCODE='42501';
      END IF;
    ELSIF v_subject_domain='temporal' AND v_subject_kind='occurrence' THEN
