@@ -6684,10 +6684,10 @@ BEGIN
    v_result_contract:=coalesce(nullif(btrim(v_part->>'resultContractKey'),''),
      v_parent.result_contract_key);
    INSERT INTO atlas.work_items(
-      organization_id,title,instructions,work_state,source_object_type,
+      organization_id,organization_unit_id,title,instructions,work_state,source_object_type,
       source_object_id,result_contract_key,created_by_user_id,stable_key,metadata)
    VALUES (
-      p_organization_id,v_title,v_instructions,'open','work_decomposition',
+      p_organization_id,v_parent.organization_unit_id,v_title,v_instructions,'open','work_decomposition',
       v_parent.id,v_result_contract,auth.uid(),
       'decomposition:'||v_parent.id::text||':'||v_ordinal::text,
       jsonb_build_object(
@@ -6705,18 +6705,19 @@ BEGIN
    INSERT INTO atlas.work_decomposition_members(
      group_id,child_work_item_id,part_ordinal,subject_domain,subject_kind,subject_id)
    VALUES (v_group.id,v_child,v_ordinal,v_subject_domain,v_subject_kind,v_subject_id);
-   INSERT INTO atlas.work_item_context_links(
-     organization_id,work_item_id,subject_domain,subject_kind,subject_id,
-     relation_kind,provenance,metadata)
-   VALUES (p_organization_id,v_child,v_subject_domain,v_subject_kind,v_subject_id,
-     'acts_on',jsonb_build_object('source','original_work_decomposition',
-     'parentWorkItemId',v_parent.id,'decisionId',v_group.id),'{}'::jsonb);
+   -- Establish the child's exact Ledger relevance before its Subject link.
    INSERT INTO atlas.company_work_native_ledger_relevance(
      organization_id,work_item_id,ledger_id,evidence_kind,
      attestation_source_ref,attestation_reason,established_by_person_id)
    VALUES (p_organization_id,v_child,p_ledger_id,'owner_attested',
       'original-canonical-work:'||v_parent.id::text,
       btrim(p_decision_reason),v_owner);
+   INSERT INTO atlas.work_item_context_links(
+     organization_id,work_item_id,subject_domain,subject_kind,subject_id,
+     relation_kind,provenance,metadata)
+   VALUES (p_organization_id,v_child,v_subject_domain,v_subject_kind,v_subject_id,
+     'acts_on',jsonb_build_object('source','original_work_decomposition',
+     'parentWorkItemId',v_parent.id,'decisionId',v_group.id),'{}'::jsonb);
    v_children:=v_children||jsonb_build_array(jsonb_build_object(
       'workItemId',v_child,'resultContractKey',v_result_contract,
       'subjectDomain',v_subject_domain,
