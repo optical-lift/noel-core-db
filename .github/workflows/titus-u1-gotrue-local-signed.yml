@@ -14,6 +14,7 @@ on:
       - 'scripts/test-titus-u1-gotrue-local-only.sh'
       - 'scripts/validate-titus-u1-gotrue-local-signed.py'
       - 'tests/test_titus_u1_local_signed_safety.py'
+      - 'scripts/audit-titus-u1-live-structure-readonly.sql'
       - '.github/workflows/titus-u1-gotrue-local-signed.yml'
   pull_request:
     paths:
@@ -27,6 +28,7 @@ on:
       - 'scripts/test-titus-u1-gotrue-local-only.sh'
       - 'scripts/validate-titus-u1-gotrue-local-signed.py'
       - 'tests/test_titus_u1_local_signed_safety.py'
+      - 'scripts/audit-titus-u1-live-structure-readonly.sql'
       - '.github/workflows/titus-u1-gotrue-local-signed.yml'
 
 permissions:
