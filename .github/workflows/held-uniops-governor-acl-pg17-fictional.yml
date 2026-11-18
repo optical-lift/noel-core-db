@@ -7,6 +7,7 @@ on:
       - "tests/reconcile_uniops_native_governor_acl_local_held.py"
       - "tests/test_reconcile_uniops_native_governor_acl_source.py"
       - "tests/verify_uniops_governor_acl_pg17_synthetic_held.py"
+      - "tests/verify_uniops_pg17_schema_acl_roundtrip_held.py"
       - "tests/install_uniops_native_notebook_validator_copy_held.py"
       - "supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql"
 
@@ -48,3 +49,16 @@ jobs:
           python3 -m py_compile tests/reconcile_uniops_native_governor_acl_local_held.py tests/verify_uniops_governor_acl_pg17_synthetic_held.py
           python3 tests/verify_uniops_governor_acl_pg17_synthetic_held.py
           echo "PASS local fictional PostgreSQL only; no remote source, no entitlement"
+      - name: Verify real fictional PG17 schema-only dump/restore preserves exact function ACL
+        shell: bash
+        env:
+          ATLAS_GOVERNOR_PG17_SYNTHETIC_ENABLED: "true"
+        run: |
+          set -euo pipefail
+          test -z "$(printenv NOEL_CORE_DATABASE_URL 2>/dev/null || true)"
+          test -z "$(printenv SUPABASE_SERVICE_ROLE_KEY 2>/dev/null || true)"
+          command -v pg_dump >/dev/null
+          python3 -m py_compile tests/verify_uniops_pg17_schema_acl_roundtrip_held.py
+          python3 tests/verify_uniops_pg17_schema_acl_roundtrip_held.py
+          echo "PASS fictional PG17 only; no production snapshot or restore"
+
