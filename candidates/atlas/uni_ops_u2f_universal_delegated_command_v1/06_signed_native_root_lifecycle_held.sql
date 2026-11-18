@@ -32,12 +32,26 @@ SET search_path TO ''
 AS $u2f_reaffirm$
 DECLARE
   v_actor uuid := auth.uid();
+  v_session_claim text;
   v_original atlas.principal_ledger_authorities%ROWTYPE;
   v_principal atlas.principals%ROWTYPE;
   v_seat ledger.seats%ROWTYPE;
   v_action_id uuid;
   v_native_responsibility_id uuid;
 BEGIN
+  -- This is a source-only guard. In a real signed HTTP request GoTrue must
+  -- authenticate the JWT; the candidate additionally requires its exact
+  -- session_id still exists for the same Person's auth.user in auth.sessions.
+  -- A made-up request.jwt claim in a privileged SQL session is NOT signed auth.
+  v_session_claim := NULLIF(pg_catalog.btrim(auth.jwt()->>'session_id'),'');
+  IF v_actor IS NULL OR v_session_claim IS NULL OR NOT EXISTS (
+    SELECT 1 FROM auth.sessions ss
+    WHERE ss.id=v_session_claim::uuid AND ss.user_id=v_actor
+      AND (ss.not_after IS NULL OR ss.not_after>pg_catalog.now())
+  ) THEN
+    RAISE EXCEPTION 'Current signed session required'
+      USING ERRCODE='42501';
+  END IF;
   IF v_actor IS NULL
      OR p_original_root_id IS NULL OR p_native_ledger_id IS NULL
      OR p_explicit_attestation IS DISTINCT FROM 'I reaffirm this exact Ledger authority'
@@ -161,11 +175,25 @@ SET search_path TO ''
 AS $u2f_revoke$
 DECLARE
   v_actor uuid := auth.uid();
+  v_session_claim text;
   v_resp ledger.seat_responsibilities%ROWTYPE;
   v_seat ledger.seats%ROWTYPE;
   v_original atlas.principal_ledger_authorities%ROWTYPE;
   v_principal atlas.principals%ROWTYPE;
 BEGIN
+  -- This is a source-only guard. In a real signed HTTP request GoTrue must
+  -- authenticate the JWT; the candidate additionally requires its exact
+  -- session_id still exists for the same Person's auth.user in auth.sessions.
+  -- A made-up request.jwt claim in a privileged SQL session is NOT signed auth.
+  v_session_claim := NULLIF(pg_catalog.btrim(auth.jwt()->>'session_id'),'');
+  IF v_actor IS NULL OR v_session_claim IS NULL OR NOT EXISTS (
+    SELECT 1 FROM auth.sessions ss
+    WHERE ss.id=v_session_claim::uuid AND ss.user_id=v_actor
+      AND (ss.not_after IS NULL OR ss.not_after>pg_catalog.now())
+  ) THEN
+    RAISE EXCEPTION 'Current signed session required'
+      USING ERRCODE='42501';
+  END IF;
   IF v_actor IS NULL OR p_native_responsibility_id IS NULL
      OR pg_catalog.length(pg_catalog.btrim(COALESCE(p_reason,'')))<4
   THEN
