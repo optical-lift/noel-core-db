@@ -50,6 +50,48 @@ INSERT INTO titus.course_authoring_access_grants(
 VALUES('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','private_pilot',
  'fictional-generic-blank-first-grant','active',now(),NULL);
+
+-- Even the synthetic owner cannot silently reassign, replace or erase an
+-- existing issued product-access original. This does NOT establish who is
+-- authorized to issue new receipts; that separate source remains held.
+DO $grant_origin_is_immutable$
+DECLARE denied boolean; rec text:='fictional-generic-blank-first-grant';
+BEGIN
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET grant_source_receipt='changed-pilot-origin' WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus grant receipt was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET person_entity_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus grant recipient was reassigned'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET grant_kind='purchase' WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus grant origin kind was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  DELETE FROM titus.course_authoring_access_grants
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus grant original was deleted'; END IF;
+ IF (SELECT count(*) FROM titus.course_authoring_access_grants
+  WHERE grant_source_receipt=rec AND grant_kind='private_pilot'
+   AND state='active')<>1 THEN
+  RAISE EXCEPTION 'Titus grant original changed after denied writes'; END IF;
+END $grant_origin_is_immutable$;
+
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $create_first_empty_original$
