@@ -101,6 +101,9 @@ class TestSignedLocalSafety(unittest.TestCase):
                          "v_mapped_entity IS DISTINCT FROM v_entity"):
             self.assertIn(contract,helper)
         self.assertIn("INSERT INTO compatibility.legacy_bindings",fixture)
+        self.assertIn("66666666-6666-4666-8666-666666666666",fixture)
+        self.assertIn("Atlas-only governing pair without native Ledger cannot bootstrap",signed)
+        self.assertIn("adding Reality mapping alone cannot repair missing native Ledger",signed)
         for guard in (
             "explicit Atlas Organization mapping to wrong Reality institution denies",
             "two competing Atlas-to-Reality organization originals deny",
@@ -122,6 +125,11 @@ class TestSignedLocalSafety(unittest.TestCase):
         ):
             self.assertNotIn(forbidden,statements.upper())
         self.assertIn("exact_unique_compatible",source)
+        self.assertIn("native_ledger_missing",source)
+        self.assertIn("both_native_ledger_and_mapping_missing",source)
+        self.assertIn("native_ledger_without_mapping",source)
+        self.assertIn("mapping_without_native_ledger",source)
+        self.assertIn("governing_atlas_ledger_inactive",source)
         self.assertIn("missing_explicit_mapping",source)
         self.assertIn("ambiguous_explicit_mapping",source)
         self.assertIn("course_specific_person_live",source)
