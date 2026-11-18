@@ -1,4 +1,6 @@
 name: HELD UNI-OPS 2867 distinct one-shot staged ACL readonly clone inspection
+# EXPIRED / CONSUMED: #2867 is closed; this historical source-contract
+# remains reviewable on PRs, but has NO issue or manual execution event.
 
 on:
   pull_request:
@@ -6,8 +8,6 @@ on:
       - '.github/workflows/held-uniops-acl-staged-2867-one-shot.yml'
       - 'tests/inspect_uniops_acl_staged_source_clone_2867_held.py'
       - 'tests/test_inspect_uniops_acl_staged_source_clone_2867_held.py'
-  issues:
-    types: [edited]
 
 permissions:
   contents: read
