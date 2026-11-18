@@ -142,18 +142,20 @@ def synthetic_drill(vault_path, replica_path, certificate_path, key_path,
     ]
     if any(f.exists() or f.is_symlink() for f in generated):
         blocked()
+    created = []
     try:
         run_transport("seal", vault, name, cert,
                       synthetic_bytes=secrets.token_bytes(8192))
+        created.extend(generated[:2])
         run_transport("verify", vault, name, cert, private_key=key_path)
         for f in generated[:2]:
             copy_exact(f, replica)
+            created.append(replica / f.name)
         fsync_directory(replica)
         run_transport("verify", replica, name, cert, private_key=key_path)
     finally:
-        # Never remove any preexisting owner capsule; name is a fresh random
-        # test name and collisions were rejected before the first write.
-        for f in generated:
+        # Remove only this invocation's known-created synthetic files.
+        for f in created:
             f.unlink(missing_ok=True)
         fsync_directory(vault)
         fsync_directory(replica)
