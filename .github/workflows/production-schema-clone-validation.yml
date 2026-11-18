@@ -179,7 +179,7 @@ jobs:
             test "$(git hash-object "$src")" = de88e16dc36ac052f2fb0e90b708c30253db06d1
             test "$(git hash-object "$post")" = 742f436f96149186a0c5c9d3b9d6d598b885667f
             test "$(git hash-object "$proof")" = a561ee3d34bad17837d02eed3908db3a7be6d61c
-            test "$(git hash-object "$fixture")" = cf968e69740b7a449217a292e6540a1727dbf682
+            test "$(git hash-object "$fixture")" = 737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7
             # CLI-generated SCRATCH identity only, never a canonical migration.
             scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_household_work_subject_pair_repair_clone_only_v1)

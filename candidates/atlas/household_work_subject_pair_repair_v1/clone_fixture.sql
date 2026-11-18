@@ -445,6 +445,5 @@ WHERE id='f5210000-0000-4000-8000-000000000101'::uuid;
 -- Disposable clone only: restore the existing code-owned result policy omitted by schema-only snapshot.
 insert into atlas.work_result_contract_policies(contract_key,source_domain,acceptance_mode,active,description,metadata)
 values ('household_laundry_begin_cycle_v1','household','domain_adapter',true,
- 'A genuine wash_started physical Actual satisfies only the begin_cycle Need/Work; drying and return_to_use are separate.',
- jsonb_build_object('qualificationEvent','wash_started','noAutomaticRhythm',true,'physicalStepOnly',true))
-on conflict (contract_key) do nothing;
+ 'A genuine wash_started physical Actual satisfies only the begin_cycle Need/Work'||chr(59)||' drying and return_to_use are separate.',
+ jsonb_build_object('qualificationEvent','wash_started','noAutomaticRhythm',true,'physicalStepOnly',true));

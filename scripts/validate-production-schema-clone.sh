@@ -309,7 +309,7 @@ if [ "$lane" = "atlas" ] &&
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$household_proof" ] ||
      [ "$(git hash-object "$candidate_migration")" != de88e16dc36ac052f2fb0e90b708c30253db06d1 ] ||
-     [ "$(git hash-object "$candidate_fixture")" != cf968e69740b7a449217a292e6540a1727dbf682 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7 ] ||
      [ "$(git hash-object "$candidate_validation")" != 742f436f96149186a0c5c9d3b9d6d598b885667f ] ||
      [ "$(git hash-object "$household_proof")" != a561ee3d34bad17837d02eed3908db3a7be6d61c ]; then
     echo "Exact held Household repair and local-only proof bytes required." >&2
