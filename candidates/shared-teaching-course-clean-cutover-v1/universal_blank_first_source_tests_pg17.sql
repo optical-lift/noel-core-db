@@ -20,6 +20,7 @@ BEGIN
  OR (SELECT count(*) FROM atlas.teaching_course_units)<>0
  OR (SELECT count(*) FROM atlas.teaching_course_unit_revisions)<>0
  OR (SELECT count(*) FROM titus.course_authoring_access_grants)<>0
+ OR (SELECT count(*) FROM titus.course_authoring_access_status_events)<>0
  OR (SELECT count(*) FROM titus.customer_course_drafts_v1)<>0
  OR to_regclass('atlas.teaching_course_offerings') IS NOT NULL
  OR to_regclass('atlas.teaching_enrollments') IS NOT NULL
@@ -95,6 +96,21 @@ BEGIN
  EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
  END;
  IF NOT denied THEN RAISE EXCEPTION 'Titus original issuance time was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET state='revoked' WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus founding status was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET valid_until=clock_timestamp()+interval '1 year'
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus founding expiry was rewritten'; END IF;
  denied:=false;
  BEGIN
   DELETE FROM titus.course_authoring_access_grants
@@ -190,6 +206,14 @@ BEGIN
    'titus.course_authoring_access_grants','DELETE')
  OR has_table_privilege('anon',
    'titus.course_authoring_access_grants','SELECT')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_status_events','INSERT')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_status_events','SELECT')
+ OR has_table_privilege('anon',
+   'titus.course_authoring_access_status_events','SELECT')
+ OR has_function_privilege('authenticated',
+   'titus.authoring_grant_current_active_v1(uuid)','EXECUTE')
  THEN RAISE EXCEPTION 'client can read or mint Titus access'; END IF;
 END $no_self_grants$;
 
@@ -284,12 +308,91 @@ BEGIN
 END $first_buyer_remains_isolated$;
 RESET ROLE;
 
--- Revoking Titus product access instantly changes only its current grant;
--- it never erases or overwrites the Course original. Shared source Course
--- custody is separately governed, and Titus adapter checks grant on each call.
-UPDATE titus.course_authoring_access_grants
- SET state='revoked'
- WHERE person_entity_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+-- Current grant changes are append-only source receipts. Suspend, resume,
+-- revoke; no invisible mutation of original issuer, state or expiry.
+-- This privileged fixture insertion is NOT a legitimate issuer.
+INSERT INTO titus.course_authoring_access_status_events(
+ person_entity_id,request_id,next_state,source_evidence_receipt,
+ recorded_by_auth_user_id)
+VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'be000000-0000-4000-8000-000000000071','suspended',
+ 'fictional-second-buyer-suspended',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+DO $append_only_status_guard$
+DECLARE denied boolean:=false;
+BEGIN
+ -- A pending suspension is not a licence, and no one may mutate history.
+ IF titus.authoring_grant_current_active_v1('dddddddd-dddd-4ddd-8ddd-dddddddddddd') THEN
+  RAISE EXCEPTION 'suspended author was still entitled';
+ END IF;
+ BEGIN
+  UPDATE titus.course_authoring_access_status_events
+   SET next_state='active' WHERE source_evidence_receipt='fictional-second-buyer-suspended';
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'status history could be rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  DELETE FROM titus.course_authoring_access_status_events
+   WHERE source_evidence_receipt='fictional-second-buyer-suspended';
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'status history could be erased'; END IF;
+ denied:=false;
+ BEGIN
+  INSERT INTO titus.course_authoring_access_status_events(
+   person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
+  VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+   'be000000-0000-4000-8000-000000000072','suspended',
+   'fictional-duplicate-suspension','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+ EXCEPTION WHEN check_violation THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'unchanged state appended'; END IF;
+END $append_only_status_guard$;
+
+INSERT INTO titus.course_authoring_access_status_events(
+ person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
+VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'be000000-0000-4000-8000-000000000073','active',
+ 'fictional-second-buyer-resumed',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+-- A resumed active author gets back the SAME Course, not a new Course.
+DO $resume_check$
+BEGIN
+ IF NOT titus.authoring_grant_current_active_v1('dddddddd-dddd-4ddd-8ddd-dddddddddddd') OR
+ (SELECT count(*) FROM titus.course_authoring_access_status_events
+   WHERE person_entity_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd')<>2 THEN
+  RAISE EXCEPTION 'resume did not restore product access with event history';
+ END IF;
+END $resume_check$;
+
+INSERT INTO titus.course_authoring_access_status_events(
+ person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
+VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'be000000-0000-4000-8000-000000000074','revoked',
+ 'fictional-second-buyer-revoked',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+DO $terminal_revoke$
+DECLARE denied boolean:=false;
+BEGIN
+ IF titus.authoring_grant_current_active_v1('dddddddd-dddd-4ddd-8ddd-dddddddddddd') THEN
+  RAISE EXCEPTION 'revocation did not terminate product access';
+ END IF;
+ BEGIN
+  INSERT INTO titus.course_authoring_access_status_events(
+   person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
+  VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+   'be000000-0000-4000-8000-000000000075','active',
+   'fictional-after-revoke-resume',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+ EXCEPTION WHEN check_violation THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'terminal revoked grant was revived'; END IF;
+ IF (SELECT count(*) FROM titus.course_authoring_access_status_events
+  WHERE person_entity_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd')<>3 THEN
+  RAISE EXCEPTION 'status event history lost';
+ END IF;
+END $terminal_revoke$;
+
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
 DO $revoked_product_grant$
@@ -308,6 +411,7 @@ DO $two_buyer_aggregate$
 BEGIN
  IF (SELECT count(*) FROM atlas.teaching_courses)<>2
  OR (SELECT count(*) FROM titus.course_authoring_access_grants)<>2
+ OR (SELECT count(*) FROM titus.course_authoring_access_status_events)<>3
  OR (SELECT count(*) FROM atlas.teaching_course_units)<>0
  OR (SELECT count(*) FROM atlas.teaching_course_manuscript_revisions)<>0
  OR EXISTS(SELECT 1 FROM atlas.teaching_courses
