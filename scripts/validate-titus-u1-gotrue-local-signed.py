@@ -150,6 +150,12 @@ def main():
     withdraw="titus_institution_account_withdraw_self_api_v1"
     cancel="titus_institution_account_cancel_invite_self_api_v1"
     select="titus_account_context_check_self_api_v1"
+    manage="shared_titus_institution_manager_command_self_api_v1"
+    def governance(action,prior=None,new=None,request=None,ledger=LEDGER):
+        return {"p_ledger_id":ledger,"p_action":action,
+          "p_prior_manager_person_id":prior,
+          "p_new_manager_person_id":new,
+          "p_request_id":request or str(uuid.uuid4())}
     assert_private=allow(api,key,recipient,context,{},"signed recipient personal-only")
     check(assert_private.get("institutions")==[] and
       assert_private.get("personal",{}).get("personId")==RECIPIENT,
@@ -159,8 +165,31 @@ def main():
     check(allow(api,key,outsider,inbox,{},"outsider inbox empty")
       .get("pending")==[],"Outsider may not see recipient invitations")
 
+    # A live Auth identity, institutional root, or Ledger Seat does NOT
+    # automatically create the manager responsibility. A distinct signed
+    # root-governed appointment is the only source of that authority.
     initial={"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
       "p_request_id":str(uuid.uuid4())}
+    deny(api,key,manager,invite,initial,
+      "independent root is not automatically institution account manager")
+    deny(api,key,recipient,manage,governance("appoint",new=RECIPIENT),
+      "recipient cannot appoint a manager")
+    deny(api,key,outsider,manage,governance("appoint",new=OUTSIDER),
+      "outsider cannot appoint a manager")
+    deny(api,key,manager,manage,governance(
+      "appoint",new=MANAGER,ledger="88888888-8888-4888-8888-888888888888"),
+      "root cannot appoint across second Ledger of same institution")
+    first_management=governance("appoint",new=MANAGER)
+    appointed=allow(api,key,manager,manage,first_management,
+      "independent signed institution root appoints manager")
+    check(appointed.get("alreadyExists") is False and appointed.get("governanceId"),
+      "Explicit manager appointment did not record an original")
+    retry=allow(api,key,manager,manage,first_management,
+      "idempotent source-governed manager appointment")
+    check(retry.get("governanceId")==appointed["governanceId"] and
+      retry.get("alreadyExists") is True,"Manager appointment replay changed original")
+    deny(api,key,manager,manage,governance("appoint",new=MANAGER),
+      "current manager cannot be silently appointed twice")
     deny(api,key,outsider,invite,initial,"outsider cannot invite")
     deny(api,key,recipient,invite,initial,"recipient cannot issue own admission")
     deny(api,key,manager,invite,
@@ -288,13 +317,36 @@ def main():
     pending_stale=allow(api,key,manager,invite,
       {"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
        "p_request_id":str(uuid.uuid4())},"issue invitation before manager exits")
-    sql(args.db_url,"update reality.responsibility_relations set "
-      "relation_state='ended',ended_at=clock_timestamp() "
-      "where id='99999999-9999-4999-8999-999999999999'::uuid")
+    deny(api,key,manager,manage,governance("transfer",
+       prior=RECIPIENT,new=OUTSIDER),"wrong expected prior manager cannot transfer")
+    transferred=allow(api,key,manager,manage,governance("transfer",
+       prior=MANAGER,new=OUTSIDER),
+       "institution root transfers manager atomically to a distinct Person")
+    check(transferred.get("alreadyExists") is False,"Transfer must create original")
     deny(api,key,manager,invite,
       {"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
        "p_request_id":str(uuid.uuid4())},
-       "former manager cannot issue after source authority ended")
+       "former manager cannot issue after governed transfer")
+    outsider_invite=allow(api,key,outsider,invite,
+      {"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
+       "p_request_id":str(uuid.uuid4())},
+       "new manager may issue under transferred responsibility")
+    allow(api,key,outsider,cancel,
+      {"p_invitation_id":outsider_invite["invitationId"],
+       "p_request_id":str(uuid.uuid4())},
+       "transferred manager may cancel only their unaccepted invite")
+    deny(api,key,outsider,manage,governance("revoke",prior=OUTSIDER),
+       "manager without institutional root cannot revoke their own root grant")
+    revoked=allow(api,key,manager,manage,governance("revoke",prior=OUTSIDER),
+       "independent root revokes transferred manager")
+    check(revoked.get("alreadyExists") is False,"Revocation must create original")
+    deny(api,key,outsider,invite,
+      {"p_ledger_id":LEDGER,"p_recipient_person_id":RECIPIENT,
+       "p_request_id":str(uuid.uuid4())},
+       "revoked manager cannot issue an invitation")
+    check(sql(args.db_url,
+      "select count(*) from titus.institution_account_manager_governance_v1")=="3",
+      "Expected exactly one appointment, transfer and revocation original")
     deny(api,key,recipient,accept,
       {"p_invitation_id":pending_stale["invitationId"],
        "p_request_id":str(uuid.uuid4())},
@@ -302,6 +354,13 @@ def main():
     check(allow(api,key,recipient,inbox,{},
       "stale-issued pending invitation hidden")["pending"]==[],
       "Former manager's source invitation leaked as actionable")
+    # Root withdrawal is distinct from manager revocation: no stale signed
+    # root can append manager changes, even when Person login remains good.
+    sql(args.db_url,"update reality.responsibility_relations set "
+      "relation_state='ended',ended_at=clock_timestamp() "
+      "where id='99999999-9999-4999-8999-999999999999'::uuid")
+    deny(api,key,manager,manage,governance("appoint",new=MANAGER),
+      "ended institution root cannot reappoint a manager")
 
     # A GoTrue-issued token can remain signed after its session is removed;
     # source rechecks auth.sessions rather than trusting token validity alone.
