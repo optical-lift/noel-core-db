@@ -240,5 +240,65 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             self.assertIn(negative,test)
         self.assertIn("AUTHORITY_CUTOVER_ADJUDICATED=NO",test)
 
+
+    def test_signed_root_reaffirmation_and_revocation_remain_private_held_source(self):
+        source=(FOLDER/"06_signed_native_root_lifecycle_held.sql").read_text(encoding="utf8")
+        pure=re.sub(r"(?m)^\s*--[^\n]*","",source)
+        for expected in (
+            "CREATE FUNCTION atlas.uni_ops_u2f_root_reaffirm_held_v1(",
+            "CREATE FUNCTION atlas.uni_ops_u2f_root_revoke_held_v1(",
+            "CREATE FUNCTION atlas.uni_ops_u2f_root_candidate_current_held_v1(",
+            "SECURITY DEFINER",
+            "SECURITY INVOKER",
+            "SET search_path TO ''",
+            "auth.uid()",
+            "p.user_id=v_actor",
+            "p_explicit_attestation IS DISTINCT FROM 'I reaffirm this exact Ledger authority'",
+            "atlas.principal_ledger_authorities",
+            "atlas.principals",
+            "atlas.ledgers",
+            "ledger.ledgers",
+            "ledger.seats",
+            "ledger.seat_responsibilities",
+            "ledger.actions",
+            "FOR UPDATE",
+            "'u2f:root:reaffirm:'||v_original.id::text",
+            "'u2f:root:revoke:'||v_resp.id::text",
+            "sr.responsibility_key='ledger_governing_root_v1'",
+            "r.status='active' AND r.ended_at IS NULL",
+            "s.person_entity_id=p.person_id",
+            "act.provenance->>'originalRootReceiptId'=r.id::text",
+            "'independentSourceAdjudication',false",
+            "'governingRootVerified',false",
+            "'delegatedWorkAuthorized',false",
+            "'legacyRootRetirementAuthorized',false",
+            "FROM PUBLIC,anon,authenticated,service_role;",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected,source)
+        self.assertEqual(source.count("CREATE FUNCTION atlas.uni_ops_u2f_root_"),3)
+        self.assertNotRegex(pure,r"(?i)\b(?:CREATE|ALTER|DROP|TRUNCATE)\s+(?:TABLE|TRIGGER|VIEW|SCHEMA)\b")
+        self.assertNotRegex(pure,r"(?i)\bGRANT\b")
+        for prohibited in (
+            "atlas.tasks", "atlas.work_items","atlas.task_release_queue_items",
+            "INSERT INTO atlas.delegated_agent_authorizations",
+            "INSERT INTO atlas.agent_command_definitions",
+            "CREATE ROLE", "SET ROLE",
+        ):
+            self.assertNotIn(prohibited,pure)
+        runner=(FOLDER/"pg17/test_root_lifecycle.py").read_text(encoding="utf8")
+        fixture=(FOLDER/"pg17/root_lifecycle_fixture.sql").read_text(encoding="utf8")
+        for scenario in ("wrong Person","wrong Ledger","no explicit attestation",
+                         "historical authority ended","native Ledger paused",
+                         "native Seat ended","outsider cannot revoke",
+                         "repeated admission is not new authority",
+                         "revocation replay","same Person + same institution"):
+            self.assertIn(scenario,runner)
+        self.assertIn("AUTHENTIC_GOTRUE_SIGNED_ACTOR=NOT_TESTED",runner)
+        self.assertIn("INDEPENDENT_SOURCE_ADJUDICATION=NO",runner)
+        self.assertIn("CREATE TABLE ledger.actions",fixture)
+        self.assertIn("CREATE FUNCTION auth.uid()",fixture)
+        self.assertIn("NOT real signed GoTrue",fixture)
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
