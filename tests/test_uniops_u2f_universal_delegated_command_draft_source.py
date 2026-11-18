@@ -408,6 +408,19 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         self.assertIn("signed.setup_auth(a.db_url)",signed)
         self.assertIn("c1.sign_in(api,key,name)",signed)
         self.assertIn("FROM auth.sessions",signed)
+        for acl_guard in (
+            "clone-only REST function EXECUTE deviates from exact role contract",
+            "clone-only REST function security/search_path source drift",
+            "pg_catalog.has_function_privilege(",
+            '("anon",0),("authenticated",1),("service_role",0)',
+            "pg_catalog.unnest(p.proconfig)",
+            'p.prosecdef',
+        ):
+            self.assertIn(acl_guard,signed)
+        self.assertLess(
+            signed.index("PASS review-only clone bridge has exact authenticated-only EXECUTE"),
+            signed.index("signed.setup_auth(a.db_url)")
+        )
         self.assertIn("revoked real session cannot replay prior revocation",signed)
         for label in (
             " cannot reaffirm another Principal\'s exact original root",
