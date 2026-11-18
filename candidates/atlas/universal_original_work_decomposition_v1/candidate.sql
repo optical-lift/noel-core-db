@@ -54,6 +54,8 @@ DECLARE
  v_subject_domain text;
  v_subject_kind text;
  v_subject_id uuid;
+ v_subject_stable_key text;
+ v_child_stable_key text;
  v_title text;
  v_instructions text;
  v_result_contract text;
@@ -88,7 +90,8 @@ BEGIN
  SELECT * INTO v_group FROM atlas.work_decomposition_groups
   WHERE parent_work_item_id=v_parent.id;
  IF v_group.id IS NOT NULL THEN
-   IF v_group.action_id IS DISTINCT FROM p_action_id OR
+   IF v_group.authorized_ledger_id IS DISTINCT FROM p_ledger_id OR
+      v_group.action_id IS DISTINCT FROM p_action_id OR
       v_group.source_fingerprint IS DISTINCT FROM v_fingerprint THEN
      RAISE EXCEPTION 'Work was already decomposed by a different decision.' USING ERRCODE='23505';
    END IF;
@@ -221,7 +224,7 @@ BEGIN
         'workerAttestationExplicit',v_result_contract='ordinary_company_work_worker_attestation_v1'
           AND v_result_contract IS DISTINCT FROM v_parent.result_contract_key
       )
-   ) RETURNING id INTO v_child;
+   ) RETURNING id,stable_key INTO v_child,v_child_stable_key;
    INSERT INTO atlas.work_decomposition_members(
      group_id,child_work_item_id,part_ordinal,subject_domain,subject_kind,subject_id)
    VALUES (v_group.id,v_child,v_ordinal,v_subject_domain,v_subject_kind,v_subject_id);
@@ -232,12 +235,31 @@ BEGIN
    VALUES (p_organization_id,v_child,p_ledger_id,'owner_attested',
       'original-canonical-work:'||v_parent.id::text,
       btrim(p_decision_reason),v_owner);
+   -- Spatial context carries the actual source keys of the signed decision.
+   -- The independent context trigger verifies the group/member, current
+   -- governor and exact Ledger scope, not a client-supplied association.
+   v_subject_stable_key:=NULL;
+   IF v_subject_domain='spatial' AND v_subject_kind='growing_object' THEN
+     SELECT g.stable_key INTO v_subject_stable_key
+     FROM atlas.growing_objects g WHERE g.id=v_subject_id;
+   END IF;
    INSERT INTO atlas.work_item_context_links(
      organization_id,work_item_id,subject_domain,subject_kind,subject_id,
      relation_kind,provenance,metadata)
    VALUES (p_organization_id,v_child,v_subject_domain,v_subject_kind,v_subject_id,
      'acts_on',jsonb_build_object('source','original_work_decomposition',
-     'parentWorkItemId',v_parent.id,'decisionId',v_group.id),'{}'::jsonb);
+       'parentWorkItemId',v_parent.id,'decisionId',v_group.id) ||
+       CASE WHEN v_subject_domain='spatial' AND v_subject_kind='growing_object'
+       THEN jsonb_build_object(
+         'humanConfirmed',true,'nativeLedgerId',p_ledger_id,
+         'decisionKind','signed_original_work_decomposition_subject_v1',
+         'reviewedByPrincipalId',atlas.current_principal_id_v1(),
+         'reviewedObjectKey',v_subject_stable_key,
+         'reviewedWorkStableKey',v_child_stable_key)
+       ELSE '{}'::jsonb END,
+     CASE WHEN v_subject_domain='spatial' AND v_subject_kind='growing_object'
+       THEN jsonb_build_object('confersAccess',false,'createsWork',false)
+       ELSE '{}'::jsonb END);
    v_children:=v_children||jsonb_build_array(jsonb_build_object(
       'workItemId',v_child,'resultContractKey',v_result_contract,
       'subjectDomain',v_subject_domain,
