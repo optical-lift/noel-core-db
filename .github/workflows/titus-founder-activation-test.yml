@@ -1,0 +1,86 @@
+name: Titus founder activation synthetic transaction test
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/titus-founder-activate.sql'
+      - '.github/workflows/titus-protected-founder-activation.yml'
+      - '.github/workflows/titus-founder-activation-test.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fictional-founder:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fictional
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: fictional
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify one exact fictional founder transaction and collision denial
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/fictional-founder"
+          mkdir "$root"
+          curl -fsSL https://raw.githubusercontent.com/optical-lift/noel-core-db/1a67877f7ae358d7d14d3955de7b154fa03cd32b/candidates/titus-personal-authoring-nondestructive-v1/personal_authoring_fixture_test.sql > "$root/fixture.sql"
+          python3 - "$root/fixture.sql" "$root/setup.sql" <<'PY'
+          import sys,pathlib
+          s=pathlib.Path(sys.argv[1]).read_text()
+          cut="\nBEGIN;\nCREATE TEMP TABLE original_rows"
+          assert s.count(cut)==1
+          pathlib.Path(sys.argv[2]).write_text("CREATE ROLE service_role NOLOGIN;\nCREATE SCHEMA extensions;\nCREATE EXTENSION pgcrypto WITH SCHEMA extensions;\n"+s.split(cut)[0])
+          PY
+          psql -X -v ON_ERROR_STOP=1 -q -f "$root/setup.sql"
+          psql -X -v ON_ERROR_STOP=1 -q -f supabase/migrations/20261118190508_shared_titus_personal_authoring_v1.sql
+          psql -X -v ON_ERROR_STOP=1 -q -f supabase/migrations/20261118194010_shared_titus_owner_course_recovery_v1.sql
+          psql -X -v ON_ERROR_STOP=1 -q <<'SQL'
+          ALTER TABLE auth.users ADD COLUMN deleted_at timestamptz, ADD COLUMN email_confirmed_at timestamptz;
+          UPDATE auth.users SET email_confirmed_at=now();
+          ALTER TABLE reality.responsibility_relations ALTER COLUMN id SET DEFAULT gen_random_uuid(),
+            ADD COLUMN title text NOT NULL DEFAULT '',
+            ADD COLUMN establishment_kind text NOT NULL DEFAULT '',
+            ADD COLUMN establishment_basis jsonb NOT NULL DEFAULT '{}',
+            ALTER COLUMN began_at SET DEFAULT now();
+          SQL
+          binding="$(psql -X -At -v ON_ERROR_STOP=1 -c "SELECT encode(sha256(convert_to('titus-owner-v1:'||u.id::text||':'||b.person_entity_id::text||':'||d.course_id::text,'UTF8')),'hex') FROM auth.users u JOIN reality.auth_person_bindings b ON b.auth_user_id=u.id JOIN titus.customer_course_drafts_v1 d ON d.created_by_auth_user_id=u.id")"
+          receipt=github:optical-lift/noel-core-db/issues/1#titus-founder-v1
+          issue() {
+            psql -X -v ON_ERROR_STOP=1 -v "owner_binding=$1" -v "owner_receipt=$2" -f scripts/titus-founder-activate.sql
+          }
+          if issue "$(printf '%064d' 0)" "$receipt"; then
+            echo 'Wrong binding accepted'; exit 1
+          fi
+          issue "$binding" "$receipt"
+          issue "$binding" "$receipt"
+          if issue "$binding" github:optical-lift/noel-core-db/issues/2#titus-founder-v1; then
+            echo 'Conflicting receipt accepted'; exit 1
+          fi
+          psql -X -v ON_ERROR_STOP=1 -q <<'SQL'
+          DO $verify$
+          BEGIN
+            IF (SELECT count(*) FROM reality.responsibility_relations)<>1
+             OR EXISTS(SELECT 1 FROM titus.course_authoring_access_grants)
+             OR EXISTS(SELECT 1 FROM atlas.teaching_courses WHERE created_by_person_entity_id IS NOT NULL)
+             OR NOT titus.authoring_grant_current_active_v1('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+             OR titus.authoring_grant_current_active_v1('dddddddd-dddd-4ddd-8ddd-dddddddddddd')
+            THEN RAISE EXCEPTION 'owner activation verification failed'; END IF;
+          END $verify$;
+          SQL
+          echo 'PASS exact founder, retry, bad binding, conflicting receipt; no Course or commercial grant seeded.'

@@ -1,0 +1,75 @@
+name: Titus protected founding owner activation
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: read
+
+concurrency:
+  group: noel-core-production-database-release
+  cancel-in-progress: false
+
+jobs:
+  activate:
+    if: >-
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.event.issue.title == 'Titus founding owner activation request'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 8
+    env:
+      NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+      GH_TOKEN: ${{ github.token }}
+      APPROVAL_ISSUE: ${{ github.event.issue.number }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Verify exact founding authorization and current source
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${APPROVAL_ISSUE}" =~ ^[1-9][0-9]*$ ]]
+          [[ -n "${NOEL_CORE_DATABASE_URL:-}" ]]
+          gh api "repos/optical-lift/noel-core-db/issues/${APPROVAL_ISSUE}" > "${RUNNER_TEMP}/titus-founder-approval.json"
+          python3 - <<'PY'
+          import json,os,re,pathlib
+          p=pathlib.Path(os.environ["RUNNER_TEMP"])/"titus-founder-approval.json"
+          j=json.loads(p.read_text())
+          assert j["title"]=="Titus founding owner activation request"
+          assert j["author_association"]=="OWNER" and j["state"]=="open"
+          assert j["number"]==int(os.environ["APPROVAL_ISSUE"])
+          fields={}
+          for line in j["body"].splitlines():
+              m=re.fullmatch(r"(owner_binding|operation|production_target): ([a-z0-9_]+)",line)
+              if m:
+                  k,v=m.groups()
+                  assert k not in fields
+                  fields[k]=v
+          assert fields.get("operation")=="establish_founding_owner_and_authoring"
+          assert fields.get("production_target")=="zirqkouammpwxlqfbsvf"
+          h=fields.get("owner_binding","")
+          assert re.fullmatch(r"[a-f0-9]{64}",h)
+          with open(os.environ["GITHUB_ENV"],"a") as f:
+              f.write("OWNER_BINDING="+h+"\n")
+          PY
+          bash scripts/check-custody.sh
+          bash scripts/check-titus-formation-custody.sh
+      - name: Establish one approved founding responsibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          receipt="github:optical-lift/noel-core-db/issues/${APPROVAL_ISSUE}#titus-founder-v1"
+          psql "${NOEL_CORE_DATABASE_URL}" -X -v ON_ERROR_STOP=1 -v VERBOSITY=terse \
+            -v "owner_binding=${OWNER_BINDING}" -v "owner_receipt=${receipt}" \
+            -f scripts/titus-founder-activate.sql
+      - name: Remove approval file
+        if: always()
+        run: rm -f -- "${RUNNER_TEMP}/titus-founder-approval.json"
