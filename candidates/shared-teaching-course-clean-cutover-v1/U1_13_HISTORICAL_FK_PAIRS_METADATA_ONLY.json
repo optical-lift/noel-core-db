@@ -1,0 +1,679 @@
+{
+  "contractVersion": "titus_u113_schema_fk_pairs_metadata_only_v1",
+  "capturedDate": "2026-11-18",
+  "rowValuesIncluded": false,
+  "foreignKeyPairs": [
+    {
+      "child": "titus.canon_brief_items",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.canon_brief_items",
+      "parent": "titus.slot_canon_briefs"
+    },
+    {
+      "child": "titus.canon_claim_evidence",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.canon_claim_truth_links",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.canon_claim_truth_links",
+      "parent": "titus.truth_refs"
+    },
+    {
+      "child": "titus.canon_claims",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.canon_claims",
+      "parent": "titus.curriculum_findings"
+    },
+    {
+      "child": "titus.canon_claims",
+      "parent": "titus.programs"
+    },
+    {
+      "child": "titus.canon_structure_edges",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.canon_structure_edges",
+      "parent": "titus.canon_structure_nodes"
+    },
+    {
+      "child": "titus.canon_structure_edges",
+      "parent": "titus.canon_structures"
+    },
+    {
+      "child": "titus.canon_structure_edges",
+      "parent": "titus.truth_refs"
+    },
+    {
+      "child": "titus.canon_structure_nodes",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.canon_structure_nodes",
+      "parent": "titus.canon_structures"
+    },
+    {
+      "child": "titus.canon_structure_nodes",
+      "parent": "titus.truth_refs"
+    },
+    {
+      "child": "titus.canon_structures",
+      "parent": "titus.programs"
+    },
+    {
+      "child": "titus.course_lesson_placements",
+      "parent": "titus.courses"
+    },
+    {
+      "child": "titus.course_lesson_placements",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.course_lesson_prerequisites",
+      "parent": "titus.courses"
+    },
+    {
+      "child": "titus.course_lesson_prerequisites",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.course_slot_activity_log",
+      "parent": "titus.course_slots"
+    },
+    {
+      "child": "titus.course_slots",
+      "parent": "titus.courses"
+    },
+    {
+      "child": "titus.course_slots",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.course_teachers",
+      "parent": "titus.courses"
+    },
+    {
+      "child": "titus.course_teachers",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.curriculum_decisions",
+      "parent": "titus.curriculum_decisions"
+    },
+    {
+      "child": "titus.curriculum_decisions",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.curriculum_decisions",
+      "parent": "titus.programs"
+    },
+    {
+      "child": "titus.curriculum_findings",
+      "parent": "titus.curriculum_findings"
+    },
+    {
+      "child": "titus.curriculum_findings",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.curriculum_findings",
+      "parent": "titus.programs"
+    },
+    {
+      "child": "titus.curriculum_slot_placements",
+      "parent": "titus.course_slots"
+    },
+    {
+      "child": "titus.curriculum_slot_placements",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.curriculum_versions",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.curriculum_versions",
+      "parent": "titus.programs"
+    },
+    {
+      "child": "titus.customer_course_drafts_v1",
+      "parent": "auth.users"
+    },
+    {
+      "child": "titus.customer_course_drafts_v1",
+      "parent": "titus.customer_workspaces_v1"
+    },
+    {
+      "child": "titus.customer_course_material_revisions_v1",
+      "parent": "auth.users"
+    },
+    {
+      "child": "titus.customer_course_material_revisions_v1",
+      "parent": "titus.customer_course_drafts_v1"
+    },
+    {
+      "child": "titus.customer_course_unit_revisions_v1",
+      "parent": "auth.users"
+    },
+    {
+      "child": "titus.customer_course_unit_revisions_v1",
+      "parent": "titus.customer_course_units_v1"
+    },
+    {
+      "child": "titus.customer_course_units_v1",
+      "parent": "auth.users"
+    },
+    {
+      "child": "titus.customer_course_units_v1",
+      "parent": "titus.customer_course_drafts_v1"
+    },
+    {
+      "child": "titus.customer_workspace_entitlements_v1",
+      "parent": "auth.users"
+    },
+    {
+      "child": "titus.customer_workspaces_v1",
+      "parent": "auth.users"
+    },
+    {
+      "child": "titus.formation_articulations",
+      "parent": "titus.formation_articulations"
+    },
+    {
+      "child": "titus.formation_articulations",
+      "parent": "titus.formation_responses"
+    },
+    {
+      "child": "titus.formation_articulations",
+      "parent": "titus.formation_transfer_attempts"
+    },
+    {
+      "child": "titus.formation_articulations",
+      "parent": "titus.formation_units"
+    },
+    {
+      "child": "titus.formation_articulations",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.formation_questions",
+      "parent": "titus.formation_unit_inputs"
+    },
+    {
+      "child": "titus.formation_questions",
+      "parent": "titus.formation_units"
+    },
+    {
+      "child": "titus.formation_responses",
+      "parent": "titus.formation_questions"
+    },
+    {
+      "child": "titus.formation_responses",
+      "parent": "titus.formation_units"
+    },
+    {
+      "child": "titus.formation_responses",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.formation_transfer_attempts",
+      "parent": "titus.formation_transfer_cases"
+    },
+    {
+      "child": "titus.formation_transfer_attempts",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.formation_transfer_cases",
+      "parent": "titus.formation_units"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.canon_structures"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.formation_units"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.teacher_pattern_claim_links"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.teacher_patterns"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.teacher_source_adjudication_targets"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.teacher_source_adjudications"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.teacher_term_sense_targets"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.teacher_term_senses"
+    },
+    {
+      "child": "titus.formation_unit_inputs",
+      "parent": "titus.truth_refs"
+    },
+    {
+      "child": "titus.formation_unit_sections",
+      "parent": "titus.formation_units"
+    },
+    {
+      "child": "titus.formation_units",
+      "parent": "titus.formation_units"
+    },
+    {
+      "child": "titus.formation_units",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.formation_units",
+      "parent": "titus.programs"
+    },
+    {
+      "child": "titus.formation_units",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.lesson_canon_passages",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_claim_links",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.lesson_claim_links",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_drawers",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_pattern_links",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_pattern_links",
+      "parent": "titus.pattern_boards"
+    },
+    {
+      "child": "titus.lesson_relationships",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_reviews",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_script_segment_claims",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.lesson_script_segment_claims",
+      "parent": "titus.lesson_script_segments"
+    },
+    {
+      "child": "titus.lesson_script_segments",
+      "parent": "titus.lesson_scripts"
+    },
+    {
+      "child": "titus.lesson_scripts",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_structure_links",
+      "parent": "titus.canon_structures"
+    },
+    {
+      "child": "titus.lesson_structure_links",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_teacher_source_links",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.lesson_teacher_source_links",
+      "parent": "titus.teacher_source_adjudications"
+    },
+    {
+      "child": "titus.lesson_teacher_source_links",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.lesson_words",
+      "parent": "titus.lesson_packets"
+    },
+    {
+      "child": "titus.pattern_board_passages",
+      "parent": "titus.pattern_boards"
+    },
+    {
+      "child": "titus.pattern_board_relationships",
+      "parent": "titus.pattern_boards"
+    },
+    {
+      "child": "titus.pattern_board_sections",
+      "parent": "titus.pattern_boards"
+    },
+    {
+      "child": "titus.program_course_placements",
+      "parent": "titus.courses"
+    },
+    {
+      "child": "titus.program_course_placements",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.program_teachers",
+      "parent": "titus.programs"
+    },
+    {
+      "child": "titus.program_teachers",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.slot_canon_briefs",
+      "parent": "titus.course_slots"
+    },
+    {
+      "child": "titus.slot_canon_briefs",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.slot_song_scopes",
+      "parent": "draft.song_objects"
+    },
+    {
+      "child": "titus.slot_song_scopes",
+      "parent": "titus.slot_canon_briefs"
+    },
+    {
+      "child": "titus.slot_teacher_source_candidates",
+      "parent": "titus.course_slots"
+    },
+    {
+      "child": "titus.slot_teacher_source_candidates",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.slot_teacher_source_candidates",
+      "parent": "titus.teacher_source_adjudications"
+    },
+    {
+      "child": "titus.slot_teacher_source_candidates",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_categories",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.teacher_concept_evidence",
+      "parent": "titus.teacher_concepts"
+    },
+    {
+      "child": "titus.teacher_concept_evidence",
+      "parent": "titus.teacher_source_refs"
+    },
+    {
+      "child": "titus.teacher_concept_evidence",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_concepts",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.teacher_pattern_claim_links",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.teacher_pattern_claim_links",
+      "parent": "titus.teacher_patterns"
+    },
+    {
+      "child": "titus.teacher_pattern_evidence",
+      "parent": "titus.teacher_patterns"
+    },
+    {
+      "child": "titus.teacher_pattern_evidence",
+      "parent": "titus.teacher_source_refs"
+    },
+    {
+      "child": "titus.teacher_pattern_evidence",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_pattern_families",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.teacher_pattern_family_members",
+      "parent": "titus.teacher_pattern_families"
+    },
+    {
+      "child": "titus.teacher_pattern_family_members",
+      "parent": "titus.teacher_patterns"
+    },
+    {
+      "child": "titus.teacher_pattern_members",
+      "parent": "titus.teacher_concepts"
+    },
+    {
+      "child": "titus.teacher_pattern_members",
+      "parent": "titus.teacher_patterns"
+    },
+    {
+      "child": "titus.teacher_pattern_members",
+      "parent": "titus.teacher_terms"
+    },
+    {
+      "child": "titus.teacher_pattern_song_links",
+      "parent": "draft.function_registry"
+    },
+    {
+      "child": "titus.teacher_pattern_song_links",
+      "parent": "draft.song_objects"
+    },
+    {
+      "child": "titus.teacher_pattern_song_links",
+      "parent": "titus.teacher_patterns"
+    },
+    {
+      "child": "titus.teacher_patterns",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.teacher_person_bindings",
+      "parent": "reality.entities"
+    },
+    {
+      "child": "titus.teacher_person_bindings",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.teacher_source_adjudication_targets",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.teacher_source_adjudication_targets",
+      "parent": "titus.teacher_source_adjudications"
+    },
+    {
+      "child": "titus.teacher_source_adjudication_targets",
+      "parent": "titus.truth_refs"
+    },
+    {
+      "child": "titus.teacher_source_adjudications",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.teacher_source_adjudications",
+      "parent": "titus.teacher_source_adjudications"
+    },
+    {
+      "child": "titus.teacher_source_adjudications",
+      "parent": "titus.teacher_source_song_scopes"
+    },
+    {
+      "child": "titus.teacher_source_adjudications",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_source_function_codings",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_source_refs",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.teacher_source_song_scopes",
+      "parent": "draft.song_objects"
+    },
+    {
+      "child": "titus.teacher_source_song_scopes",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_source_unit_category_links",
+      "parent": "titus.teacher_categories"
+    },
+    {
+      "child": "titus.teacher_source_unit_category_links",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_source_unit_topic_links",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_source_unit_topic_links",
+      "parent": "titus.teacher_topics"
+    },
+    {
+      "child": "titus.teacher_source_units",
+      "parent": "titus.teacher_source_refs"
+    },
+    {
+      "child": "titus.teacher_term_attestations",
+      "parent": "titus.teacher_source_refs"
+    },
+    {
+      "child": "titus.teacher_term_attestations",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_term_attestations",
+      "parent": "titus.teacher_terms"
+    },
+    {
+      "child": "titus.teacher_term_definitions",
+      "parent": "titus.teacher_source_refs"
+    },
+    {
+      "child": "titus.teacher_term_definitions",
+      "parent": "titus.teacher_source_units"
+    },
+    {
+      "child": "titus.teacher_term_definitions",
+      "parent": "titus.teacher_term_senses"
+    },
+    {
+      "child": "titus.teacher_term_definitions",
+      "parent": "titus.teacher_terms"
+    },
+    {
+      "child": "titus.teacher_term_sense_targets",
+      "parent": "titus.canon_claims"
+    },
+    {
+      "child": "titus.teacher_term_sense_targets",
+      "parent": "titus.teacher_term_senses"
+    },
+    {
+      "child": "titus.teacher_term_sense_targets",
+      "parent": "titus.truth_refs"
+    },
+    {
+      "child": "titus.teacher_term_senses",
+      "parent": "titus.teacher_terms"
+    },
+    {
+      "child": "titus.teacher_term_song_scopes",
+      "parent": "draft.song_objects"
+    },
+    {
+      "child": "titus.teacher_term_song_scopes",
+      "parent": "titus.teacher_terms"
+    },
+    {
+      "child": "titus.teacher_terms",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.teacher_topic_category_links",
+      "parent": "titus.teacher_categories"
+    },
+    {
+      "child": "titus.teacher_topic_category_links",
+      "parent": "titus.teacher_topics"
+    },
+    {
+      "child": "titus.teacher_topics",
+      "parent": "titus.teachers"
+    },
+    {
+      "child": "titus.truth_refs",
+      "parent": "draft.function_registry"
+    },
+    {
+      "child": "titus.truth_refs",
+      "parent": "draft.song_objects"
+    },
+    {
+      "child": "titus.workspace_state",
+      "parent": "titus.course_slots"
+    },
+    {
+      "child": "titus.workspace_state",
+      "parent": "titus.courses"
+    },
+    {
+      "child": "titus.workspace_state",
+      "parent": "titus.curriculum_versions"
+    },
+    {
+      "child": "titus.workspace_state",
+      "parent": "titus.programs"
+    }
+  ]
+}
