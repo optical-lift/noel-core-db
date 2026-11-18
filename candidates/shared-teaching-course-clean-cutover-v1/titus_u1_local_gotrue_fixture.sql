@@ -16,6 +16,15 @@ CREATE SCHEMA reality;
 CREATE SCHEMA ledger;
 CREATE SCHEMA atlas;
 CREATE SCHEMA titus;
+CREATE SCHEMA compatibility;
+CREATE TABLE compatibility.legacy_bindings(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ legacy_schema text NOT NULL, legacy_table text NOT NULL,
+ legacy_key text NOT NULL, disposition text NOT NULL,
+ new_schema text NOT NULL,new_table text NOT NULL,
+ new_id uuid NOT NULL,created_at timestamptz DEFAULT clock_timestamp()
+);
+
 CREATE TABLE reality.entities (
  id uuid PRIMARY KEY,
  entity_kind text NOT NULL CHECK(entity_kind IN ('person','business','organization')),
@@ -158,6 +167,11 @@ CREATE TABLE ledger.seats(
 );
 INSERT INTO atlas.organizations(id,status)
 VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','active');
+INSERT INTO compatibility.legacy_bindings(
+ legacy_schema,legacy_table,legacy_key,disposition,new_schema,new_table,new_id)
+VALUES('atlas','organizations','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+ 'maps_to','reality','entities','44444444-4444-4444-8444-444444444444');
+
 INSERT INTO atlas.ledgers(id,status)
 VALUES('77777777-7777-4777-8777-777777777777','active'),
 ('88888888-8888-4888-8888-888888888888','active');
