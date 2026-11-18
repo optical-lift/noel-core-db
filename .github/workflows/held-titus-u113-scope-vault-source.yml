@@ -1,0 +1,40 @@
+name: HELD Titus U1.13 historical row scope and vault preflight (source only)
+
+on:
+  push:
+    branches:
+      - candidate/titus-u113-row-scope-vault-readiness-20261118
+    paths:
+      - 'scripts/titus-u113-*'
+      - 'tests/test_titus_u113_row_scope_vault.py'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_13_*'
+      - '.github/workflows/held-titus-u113-scope-vault-source.yml'
+  pull_request:
+    paths:
+      - 'scripts/titus-u113-*'
+      - 'tests/test_titus_u113_row_scope_vault.py'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_13_*'
+      - '.github/workflows/held-titus-u113-scope-vault-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  review-only:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prove historical scope review and fictional vault-only canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/titus-u113-check-historical-row-scope.py \
+            --manifest candidates/shared-teaching-course-clean-cutover-v1/U1_13_HISTORICAL_ROW_SCOPE_REVIEW_HELD.json \
+            --catalog candidates/shared-teaching-course-clean-cutover-v1/U1_13_HISTORICAL_FK_PAIRS_METADATA_ONLY.json
+          python3 -m unittest discover -s tests -p test_titus_u113_row_scope_vault.py -v
+          test ! -e supabase/migrations/20261118_titus_u113_history_capture.sql
+          echo 'PASS source-only historical structural review and fictional private vault canary; NO real customer data capture'
