@@ -50,7 +50,11 @@ CREATE TABLE reality.responsibility_relations (
  permitted_operations text[] NOT NULL,
  began_at timestamptz NOT NULL,
  ended_at timestamptz,
- scope jsonb NOT NULL DEFAULT '{}'::jsonb
+ scope jsonb NOT NULL DEFAULT '{}'::jsonb,
+ title text NOT NULL DEFAULT 'Fictional responsibility',
+ establishment_kind text NOT NULL DEFAULT 'fictional_fixture',
+ source_person_entity_id uuid REFERENCES reality.entities(id),
+ establishment_basis jsonb NOT NULL DEFAULT '{}'::jsonb
 );
 CREATE FUNCTION reality.resolve_responsibility_relation_v1(
  p_person_entity_id uuid,p_responsibility_key text,p_operation_key text,
@@ -115,14 +119,15 @@ INSERT INTO ledger.ledgers(id,subject_entity_id,ledger_state) VALUES
  '44444444-4444-4444-8444-444444444444','active'),
 ('88888888-8888-4888-8888-888888888888',
  '44444444-4444-4444-8444-444444444444','active');
--- An explicit managerial source for fictional testing only.
--- The real governed manager-establishment transaction is NOT implemented.
+-- INDEPENDENT ROOT, only in this isolated fiction, not a real university
+-- owner. Manager authority must be appointed by the shared governed command.
 INSERT INTO reality.responsibility_relations(
 id,carrier_person_entity_id,responsibility_key,jurisdiction_kind,
 jurisdiction_entity_id,relation_state,permitted_operations,began_at,scope)
 VALUES('99999999-9999-4999-8999-999999999999',
  '11111111-1111-4111-8111-111111111111',
- 'titus_institution_account_management','entity',
+ 'titus_institution_account_root_governance','entity',
  '44444444-4444-4444-8444-444444444444','active',
- ARRAY['invite','withdraw','cancel']::text[],now()-interval '1 hour',
+ ARRAY['appoint_manager','transfer_manager','revoke_manager']::text[],
+ now()-interval '1 hour',
  '{"ledgerId":"77777777-7777-4777-8777-777777777777"}');
