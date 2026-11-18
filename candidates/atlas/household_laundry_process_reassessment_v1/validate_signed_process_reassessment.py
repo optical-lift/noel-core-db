@@ -94,6 +94,10 @@ def main():
     reader="household_laundry_reassessment_self_api_v1"
     writer="record_household_laundry_reassessment_self_api_v1"
     interval=ok(reader)
+    blocked,payload=base.rpc(api,key,tokens["owner"],"record_household_laundry_observation_self_api_v1",
+      {"p_kernel_instance_id":INSTANCE,"p_action_id":"e5200000-0000-4000-8000-000000000d90",
+       "p_observation":"A new hamper while original load washing."})
+    base.check(blocked>=400 and payload.get("code")=="23514","Do not silently displace running load")
     base.check(interval["state"]=="needs_interval" and interval["workItemId"]==work
       and interval["processResultId"]==receipt["careResultId"]
       and interval["observationId"]==now["lastObservationId"],"Accepted actual, not inferred effort, anchors elapsed process")

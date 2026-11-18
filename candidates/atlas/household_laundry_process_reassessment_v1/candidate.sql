@@ -433,6 +433,14 @@ BEGIN
  PERFORM 1 FROM atlas.care_current_state c WHERE c.scope_kind='household' AND c.scope_id=v_household
    AND c.subject_domain='household' AND c.subject_kind='household_kernel_instance'
    AND c.subject_id=p_kernel_instance_id::text FOR UPDATE;
+ IF EXISTS(SELECT 1 FROM atlas.care_current_state c WHERE c.scope_kind='household' AND c.scope_id=v_household
+    AND c.subject_domain='household' AND c.subject_kind='household_kernel_instance'
+    AND c.subject_id=p_kernel_instance_id::text AND c.condition_state IN ('washing','wet_ready_for_drying','drying','dry_ready_for_return'))
+ AND NOT EXISTS(SELECT 1 FROM atlas.care_observation_events o
+   WHERE o.source_key='household-laundry-observation:'||v_household::text||':'||p_action_id::text
+     AND o.scope_id=v_household AND o.subject_id=p_kernel_instance_id::text AND o.note=btrim(p_observation)
+     AND o.condition_state='ready_for_cycle') THEN
+  RAISE EXCEPTION 'Current tracked Laundry load has not returned to use.' USING ERRCODE='23514'; END IF;
  IF EXISTS(SELECT 1 FROM atlas.household_need_occurrences_v1 n WHERE n.household_id=v_household
     AND n.instance_id=p_kernel_instance_id AND n.need_key in ('begin_drying','return_to_use') AND n.state='open') THEN
   RAISE EXCEPTION 'Current load needs its existing original Work first.' USING ERRCODE='23514'; END IF;
