@@ -19,13 +19,21 @@ SOURCE_BLOB="d6ce8f5e7422e36a4b5352007a32d82ae29d6d4c"
 REVOKE="revoke all on function public.grant_personal_atlas_access_v1(uuid,text,jsonb) from public, anon, authenticated;"
 GRANT="grant execute on function public.grant_personal_atlas_access_v1(uuid,text,jsonb) to service_role;"
 WHO="SELECT current_user,current_database(),pg_is_in_recovery()"
+EXTRA_EXECUTE=(
+    "NOT EXISTS (SELECT 1 FROM pg_catalog.aclexplode(p.proacl) AS g "
+    "WHERE g.privilege_type='EXECUTE' AND "
+    "(g.grantee NOT IN (p.proowner,'service_role'::regrole) "
+    "OR (g.grantee='service_role'::regrole AND g.is_grantable)))"
+)
+
 ACL=(
     "SELECT pg_get_userbyid(p.proowner),p.prosecdef,md5(p.prosrc),"
     "(p.proacl IS NULL),"
     "has_function_privilege('anon',p.oid,'EXECUTE'),"
     "has_function_privilege('authenticated',p.oid,'EXECUTE'),"
     "has_function_privilege('postgres',p.oid,'EXECUTE'),"
-    "has_function_privilege('service_role',p.oid,'EXECUTE') "
+    "has_function_privilege('service_role',p.oid,'EXECUTE'),"
+    + EXTRA_EXECUTE + " "
     "FROM pg_proc p WHERE p.oid=to_regprocedure('"+RPC+"')"
 )
 
@@ -38,16 +46,16 @@ def classify_refusal(snapshot,source_md5):
     if not snapshot:
         return "clone_acl_function_missing"
     fields=snapshot.split("|")
-    if len(fields)!=8:
+    if len(fields)!=9:
         return "clone_acl_probe_refused"
-    owner,definer,body,is_default,anon,authenticated,postgres,service=fields
+    owner,definer,body,is_default,anon,authenticated,postgres,service,confined=fields
     if owner!="postgres":
         return "clone_acl_owner_mismatch"
     if definer!="t":
         return "clone_acl_security_mismatch"
     if body!=source_md5:
         return "clone_acl_body_mismatch"
-    if any(x not in ("t","f") for x in (is_default,anon,authenticated,postgres,service)):
+    if any(x not in ("t","f") for x in (is_default,anon,authenticated,postgres,service,confined)):
         return "clone_acl_probe_refused"
     if is_default=="f":
         return "clone_acl_nondefault_privileges"
@@ -82,16 +90,18 @@ def source_fingerprint(path):
 
 def classify(snapshot,body_md5):
     fields=snapshot.split("|")
-    if len(fields)!=8:
+    if len(fields)!=9:
         return "refused"
-    owner,definer,body,is_default,anon,authenticated,postgres,service=fields
+    owner,definer,body,is_default,anon,authenticated,postgres,service,confined=fields
     if owner!="postgres" or definer!="t" or body!=body_md5:
         return "refused"
-    if any(x not in ("t","f") for x in (is_default,anon,authenticated,postgres,service)):
+    if any(x not in ("t","f") for x in (is_default,anon,authenticated,postgres,service,confined)):
         return "refused"
-    if (anon,authenticated,postgres,service)==("f","f","t","t"):
+    # Explicit privileges to ANY other role, or grant-option delegation to
+    # service_role, must never count as protected. Do not report role names.
+    if (is_default,anon,authenticated,postgres,service,confined)==("f","f","f","t","t","t"):
         return "protected"
-    if (is_default,anon,authenticated,postgres,service)==("t","t","t","t","t"):
+    if (is_default,anon,authenticated,postgres,service,confined)==("t","t","t","t","t","t"):
         return "default_public_execute"
     return "refused"
 
@@ -114,7 +124,8 @@ def guarded_sql(body_md5):
         "AND NOT has_function_privilege('anon',p.oid,'EXECUTE') "
         "AND NOT has_function_privilege('authenticated',p.oid,'EXECUTE') "
         "AND has_function_privilege('postgres',p.oid,'EXECUTE') "
-        "AND has_function_privilege('service_role',p.oid,'EXECUTE')"
+        "AND has_function_privilege('service_role',p.oid,'EXECUTE') "
+        "AND p.proacl IS NOT NULL AND "+EXTRA_EXECUTE
     )
     # One local transaction. Both guards are inside the transaction; failure
     # rolls back even the function-specific ACL statements.
