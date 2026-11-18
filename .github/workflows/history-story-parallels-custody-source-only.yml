@@ -1,0 +1,27 @@
+name: Exact History structural source custody (offline only)
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/20261117234613_history_story_parallels_research_only_v1.sql"
+      - "tests/test_history_story_parallels_exact_live_source_recovery.py"
+      - ".github/workflows/history-story-parallels-custody-source-only.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  exact-live-source:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm exact historical structure and no research seeds
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p 'test_history_story_parallels_exact_live_source_recovery.py' -v
+          echo 'PASS exact executed structural source in Git; not a migration execution or a release'
