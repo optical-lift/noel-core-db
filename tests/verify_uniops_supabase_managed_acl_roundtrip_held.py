@@ -7,6 +7,7 @@ real Atlas data and never modifies any source/grant outside the container.
 The synthetic source is the distinct PostgreSQL 17 test service.
 """
 import os
+import subprocess
 from pathlib import Path
 import shutil
 import tempfile
@@ -105,7 +106,24 @@ END $fictional_acl$;
 """).replace("__MD5__",digest)
     # DO is one PostgreSQL statement: any raised failure atomically rolls
     # back all function-specific REVOKEs on this *local* disposable clone.
-    fake.sql(local,sql)
+    attempt=subprocess.run(
+        ["psql",local,"-X","-At","-v","ON_ERROR_STOP=1","-c",sql],
+        text=True,capture_output=True,stdin=subprocess.DEVNULL,
+        check=False,timeout=45)
+    if attempt.returncode:
+        # The local fictional SQL error is never printed. Only a fixed
+        # finite code, safe for public CI, leaves this function.
+        categories=(
+            ("fictional local identity refused","local_identity_refused"),
+            ("fictional source/rights refused","source_rights_refused"),
+            ("fictional unknown grantee refused","unknown_grantee_refused"),
+            ("fictional postcondition refused","postcondition_refused"),
+            ("syntax error","syntax_refused"),
+            ("does not exist","missing_object_refused"),
+        )
+        category=next((name for fragment,name in categories
+                       if fragment in attempt.stderr),"other_local_refusal")
+        raise RuntimeError("fictional_rebalance_"+category)
 
 def run():
     if (os.environ.get("CI")!="true"
