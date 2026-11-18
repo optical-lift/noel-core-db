@@ -17,6 +17,12 @@ SET LOCAL app.shared_course_clone='approved';
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_first_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_first_clone_postconditions.sql
 
+-- U1 owner choice: one signed Person + independently admitted Titus accounts.
+-- Source-only scoped reader/isolated synthetic test; no actual admissions,
+-- no registered issuer, no license grant and no production migration.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_account_context_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_account_context_tests_pg17.sql
+
 -- Writer tests MUST rollback to restore an empty Course root for exact adoption.
 SAVEPOINT writer_contract;
 -- This synthetic author access grant is rolled back before M2 copies the
