@@ -95,6 +95,11 @@ begin
  if p_work_item_id is null or p_observation_id is null or p_action_id is null
   or p_elapsed_minutes is null or p_elapsed_minutes not between 1 and 1440
  then raise exception 'Exact original process and bounded elapsed minutes required.' using errcode='22023'; end if;
+ -- A read may lawfully return not_applicable; a mutation must establish
+ -- signed Household jurisdiction before distinguishing stale process state.
+ h:=atlas.principal_current_household_id_v1();
+ if h is null then raise exception 'Original Household unavailable.' using errcode='42501'; end if;
+ perform atlas.require_household_governor_self_v1(h);
  packet:=atlas.household_laundry_reassessment_self_api_v1();
  if packet->>'state' not in ('needs_interval','waiting','due')
   or packet->>'workItemId' is distinct from p_work_item_id::text
