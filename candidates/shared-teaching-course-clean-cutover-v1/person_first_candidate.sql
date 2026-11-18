@@ -182,10 +182,10 @@ REVOKE ALL ON titus.course_authoring_access_grants FROM PUBLIC,anon,authenticate
 
 -- Held product-access source: a prior authorized pilot/purchase receipt has
 -- immutable founding Person, issuer Auth, kind, receipt and issuance time.
--- Suspension/revocation and valid_until are still mutable in this candidate
--- only for the existing transition tests; they are NOT a released, audited
--- issuer or complete status-event history. Do not expose direct grant writes
--- to browser roles or mistake arbitrary owner SQL for verified purchase.
+-- Founding state and expiry are preserved from the authorized original.
+-- Subsequent state changes require separate append-only source receipts.
+-- No trusted product grant issuer or transition issuer has been released;
+-- never mistake clone-owner inserts for a lawful payment/pilot decision.
 CREATE FUNCTION titus.guard_course_authoring_grant_origin_v1()
 RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER
 SET search_path TO pg_catalog
@@ -199,7 +199,9 @@ BEGIN
  OR OLD.grant_source_auth_user_id IS DISTINCT FROM NEW.grant_source_auth_user_id
  OR OLD.grant_kind IS DISTINCT FROM NEW.grant_kind
  OR OLD.grant_source_receipt IS DISTINCT FROM NEW.grant_source_receipt
- OR OLD.granted_at IS DISTINCT FROM NEW.granted_at THEN
+ OR OLD.granted_at IS DISTINCT FROM NEW.granted_at
+ OR OLD.state IS DISTINCT FROM NEW.state
+ OR OLD.valid_until IS DISTINCT FROM NEW.valid_until THEN
   RAISE EXCEPTION 'Titus product grant origin is immutable'
    USING ERRCODE='55000';
  END IF;
@@ -212,6 +214,96 @@ CREATE TRIGGER titus_course_authoring_grant_origin_immutable_v1
  BEFORE UPDATE OR DELETE ON titus.course_authoring_access_grants
  FOR EACH ROW EXECUTE FUNCTION titus.guard_course_authoring_grant_origin_v1();
 
+-- Every post-founding status change is a separate immutable source event.
+-- Direct authenticated/anon table access is revoked. An authorized issuer
+-- and its proof (payment, pilot action, actor jurisdiction) MUST be designed
+-- separately; this candidate provides no public transition writer.
+CREATE TABLE titus.course_authoring_access_status_events (
+ event_seq bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+ person_entity_id uuid NOT NULL
+  REFERENCES titus.course_authoring_access_grants(person_entity_id)
+  ON DELETE RESTRICT,
+ request_id uuid NOT NULL,
+ next_state text NOT NULL CHECK(next_state IN ('active','suspended','revoked')),
+ source_evidence_receipt text NOT NULL UNIQUE CHECK(
+  source_evidence_receipt=btrim(source_evidence_receipt)
+  AND length(source_evidence_receipt) BETWEEN 8 AND 200),
+ recorded_by_auth_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
+ recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ UNIQUE(person_entity_id,request_id)
+);
+CREATE INDEX titus_authoring_status_event_latest_v1
+ ON titus.course_authoring_access_status_events(person_entity_id,event_seq DESC);
+ALTER TABLE titus.course_authoring_access_status_events ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON titus.course_authoring_access_status_events FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON SEQUENCE titus.course_authoring_access_status_events_event_seq_seq
+ FROM PUBLIC,anon,authenticated;
+
+CREATE FUNCTION titus.guard_authoring_status_event_v1()
+RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path TO pg_catalog
+AS $status_event$
+DECLARE v_state text;
+BEGIN
+ IF TG_OP <> 'INSERT' THEN
+  RAISE EXCEPTION 'Titus product status event cannot be changed or deleted'
+   USING ERRCODE='55000';
+ END IF;
+ -- This row lock serializes simultaneous decisions for the same original.
+ SELECT g.state INTO v_state
+  FROM titus.course_authoring_access_grants g
+  WHERE g.person_entity_id=NEW.person_entity_id FOR UPDATE;
+ IF NOT FOUND THEN
+  RAISE EXCEPTION 'known original Titus authoring grant required'
+   USING ERRCODE='42501';
+ END IF;
+ SELECT e.next_state INTO v_state
+  FROM titus.course_authoring_access_status_events e
+  WHERE e.person_entity_id=NEW.person_entity_id
+  ORDER BY e.event_seq DESC LIMIT 1;
+ IF NOT FOUND THEN
+  SELECT g.state INTO v_state
+   FROM titus.course_authoring_access_grants g
+   WHERE g.person_entity_id=NEW.person_entity_id;
+ END IF;
+ IF v_state='revoked' OR v_state=NEW.next_state THEN
+  RAISE EXCEPTION 'terminal or unchanged Titus grant status cannot transition'
+   USING ERRCODE='23514';
+ END IF;
+ IF NOT ((v_state='active' AND NEW.next_state IN ('suspended','revoked'))
+  OR (v_state='suspended' AND NEW.next_state IN ('active','revoked'))) THEN
+  RAISE EXCEPTION 'invalid Titus access status transition' USING ERRCODE='23514';
+ END IF;
+ RETURN NEW;
+END
+$status_event$;
+REVOKE ALL ON FUNCTION titus.guard_authoring_status_event_v1()
+ FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER titus_authoring_status_event_immutable_v1
+ BEFORE INSERT OR UPDATE OR DELETE ON titus.course_authoring_access_status_events
+ FOR EACH ROW EXECUTE FUNCTION titus.guard_authoring_status_event_v1();
+
+-- One shared internal predicate for BOTH source guard and browser projection.
+-- Latest immutable event determines current state, while founding expiry still
+-- applies. Old Course originals are not removed when an entitlement ends.
+CREATE FUNCTION titus.authoring_grant_current_active_v1(p_person uuid)
+RETURNS boolean LANGUAGE sql VOLATILE SECURITY DEFINER
+SET search_path TO pg_catalog
+AS $effective_access$
+ SELECT p_person IS NOT NULL AND EXISTS(
+  SELECT 1 FROM titus.course_authoring_access_grants g
+  WHERE g.person_entity_id=p_person
+   AND g.granted_at<=clock_timestamp()
+   AND (g.valid_until IS NULL OR g.valid_until>clock_timestamp())
+   AND COALESCE((
+     SELECT e.next_state FROM titus.course_authoring_access_status_events e
+     WHERE e.person_entity_id=g.person_entity_id
+     ORDER BY e.event_seq DESC LIMIT 1
+    ),g.state)='active'
+ );
+$effective_access$;
+REVOKE ALL ON FUNCTION titus.authoring_grant_current_active_v1(uuid)
+ FROM PUBLIC,anon,authenticated;
+
 -- Titus application/authoring use requires a separately granted and still
 -- active Person entitlement. It is not required for any other Atlas-based
 -- Person Course creation through the universal root.
@@ -222,11 +314,7 @@ AS $access$
 DECLARE v_person uuid;
 BEGIN
  v_person:=atlas.current_person_for_private_course_v1();
- IF NOT EXISTS (SELECT 1 FROM titus.course_authoring_access_grants g
-   WHERE g.person_entity_id=v_person
-   AND g.state='active'
-   AND g.granted_at<=clock_timestamp()
-   AND (g.valid_until IS NULL OR g.valid_until>clock_timestamp())) THEN
+ IF NOT titus.authoring_grant_current_active_v1(v_person) THEN
   RAISE EXCEPTION 'current Titus authoring access required'
    USING ERRCODE='42501';
  END IF;
@@ -245,10 +333,7 @@ AS $self_access$
 DECLARE v_person uuid; v_eligible boolean;
 BEGIN
  v_person:=atlas.current_person_for_private_course_v1();
- SELECT EXISTS(SELECT 1 FROM titus.course_authoring_access_grants g
-  WHERE g.person_entity_id=v_person AND g.state='active'
-  AND g.granted_at<=clock_timestamp()
-  AND (g.valid_until IS NULL OR g.valid_until>clock_timestamp()))
+ SELECT titus.authoring_grant_current_active_v1(v_person)
  INTO v_eligible;
  RETURN jsonb_build_object('contractVersion','titus_authoring_access_v1',
   'canUseTitus',v_eligible);
