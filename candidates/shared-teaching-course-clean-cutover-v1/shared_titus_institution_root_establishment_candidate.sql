@@ -10,6 +10,7 @@ BEGIN
  OR to_regprocedure('atlas.current_person_for_private_course_v1()') IS NULL
  OR to_regprocedure('titus.require_institution_root_manager_governor_self_v1(uuid,uuid,text)') IS NULL
  OR to_regclass('atlas.ledger_organization_participations') IS NULL
+ OR to_regclass('compatibility.legacy_bindings') IS NULL
  THEN RAISE EXCEPTION 'held shared root requires independent Atlas governing source in approved clone'
  USING ERRCODE='42501'; END IF;
 END $preflight$;
@@ -92,7 +93,7 @@ CREATE FUNCTION titus.require_canonical_institution_organization_v1(
  p_ledger uuid,p_organization uuid
 ) RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path TO pg_catalog AS $institution$
-DECLARE v_entity uuid;v_count bigint;
+DECLARE v_entity uuid;v_count bigint;v_mapping_count bigint;v_mapped_entity uuid;
 BEGIN
  IF p_ledger IS NULL OR p_organization IS NULL THEN
  RAISE EXCEPTION 'institution Ledger and Organization required' USING ERRCODE='42501'; END IF;
@@ -114,6 +115,27 @@ BEGIN
   WHERE p.ledger_id=p_ledger AND p.status='active' AND p.ended_at IS NULL
    AND p.participation_kind='governing' AND p.is_compatibility_primary)<>1
  THEN RAISE EXCEPTION 'one canonical governing institution-to-Ledger relationship required'
+ USING ERRCODE='42501'; END IF;
+ -- A native governing Organization is not automatically the same
+ -- canonical Reality institution. Check an explicit, unique, current
+ -- compatibility binding. Any absent, conflicting, duplicate or retired
+ -- mapping blocks both root bootstrap and successor acceptance. Do not
+ -- manufacture this bridge from a matching name or a Ledger Seat.
+ SELECT count(*),min(lb.new_id::text)::uuid
+ INTO v_mapping_count,v_mapped_entity
+ FROM compatibility.legacy_bindings lb
+ JOIN reality.entities mapped ON mapped.id=lb.new_id
+ WHERE lb.legacy_schema='atlas'
+   AND lb.legacy_table='organizations'
+   AND lb.legacy_key=p_organization::text
+   AND lb.disposition='maps_to'
+   AND lb.new_schema='reality'
+   AND lb.new_table='entities'
+   AND mapped.identity_state='canonical'
+   AND mapped.entity_kind IN ('business','organization');
+ IF v_mapping_count IS DISTINCT FROM 1
+ OR v_mapped_entity IS DISTINCT FROM v_entity
+ THEN RAISE EXCEPTION 'explicit unique Atlas Organization to Reality institution mapping required'
  USING ERRCODE='42501'; END IF;
  RETURN v_entity;
 END $institution$;
