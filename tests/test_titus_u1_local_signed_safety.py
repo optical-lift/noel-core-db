@@ -138,6 +138,36 @@ class TestSignedLocalSafety(unittest.TestCase):
         self.assertNotIn("organization_name",source)
         self.assertNotIn("email",source.lower())
 
+    def test_catalog_preflight_is_only_a_structural_read(self):
+        source=(ROOT/"scripts/audit-titus-u1-authority-catalog-readonly.sql").read_text()
+        lines=[line for line in source.splitlines()
+               if line.strip() and not line.lstrip().startswith("--")]
+        self.assertTrue(lines[0].lstrip().upper()=="WITH")
+        statements=" ".join(lines)
+        self.assertEqual(statements.count(";"),1)
+        for unsafe in (
+            "INSERT INTO", "UPDATE ", "DELETE FROM", "CREATE ",
+            "DROP ", "TRUNCATE ", "GRANT ", "REVOKE ", "COPY ",
+            "SET ROLE ", "CALL ", "DO $", "ALTER ",
+        ):
+            self.assertNotIn(unsafe,statements.upper())
+        for required in (
+            "atlas.company_work_native_ledger_owner_self_v1(uuid,uuid)",
+            "reality.resolve_responsibility_relation_v1",
+            "reality.guard_responsibility_relation_v1",
+            "atlas.ledger_organization_participations",
+            "reality.auth_person_bindings",
+            "compatibility",
+            "anonResponsibilityDirectSelect",
+            "requiredColumnsPresent",
+            "structuralPreflightPass",
+            "'productionSchemaCloneTested',false",
+            "'ownerApprovedRelease',false",
+        ):
+            self.assertIn(required,source)
+        self.assertNotIn("WHERE organization_id=",source)
+        self.assertNotIn("auth.users.email",source)
+
     def test_signed_person_candidate_checks_live_gotrue_session_and_existing_identity(self):
         candidate=(ROOT/"candidates/shared-teaching-course-clean-cutover-v1"
                    /"shared_titus_current_person_signed_candidate.sql").read_text()
