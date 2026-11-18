@@ -134,6 +134,29 @@ def main():
     base.check(due["evidenceId"]==evidence and due["physicalCompletionInferred"] is False
       and due["workCreated"] is False and due["clockAdmitted"] is False,"Due is only an expectation")
     base.check(sql(count_query)==before_counts,"Time passage creates no new Work, Need, observation or result")
+    finish_writer="record_household_laundry_wash_finished_self_api_v1"
+    finish={"p_work_item_id":work,"p_observation_id":interval["observationId"],
+       "p_action_id":"e5200000-0000-4000-8000-000000000d83","p_self_carried":True}
+    for actor in ("worker","outsider","no-seat",None):
+        deny(actor,finish_writer,finish)
+    wet=ok(finish_writer,finish)
+    dry_work=str(UUID(wet["workItemId"]))
+    base.check(dry_work!=work and wet["conditionState"]=="wet_ready_for_drying" and wet["laundryCompletelyDone"] is False,
+        "Physical finish establishes a distinct drying Work")
+    base.check(ok(reader)["state"]=="not_applicable","Finished observation withdraws old reassessment")
+    repeated=ok(finish_writer,finish)
+    base.check(repeated["idempotent"] is True and repeated["workItemId"]==dry_work,"Same drying original on replay")
+    dry_rows=ok("household_person_my_work_self_api_v1",params)["items"]
+    base.check(sum(w["workItemId"]==dry_work and w["resultContractKey"]=="household_laundry_begin_drying_v1" for w in dry_rows)==1,
+        "Drying appears in the same Person Work source")
+    status,payload=base.rpc(api,key,tokens["owner"],finish_writer,dict(finish,p_action_id="e5200000-0000-4000-8000-000000000d84"))
+    base.check(status>=400 and payload.get("code")=="23514","No second drying original from old wash")
+    dry_args={"p_work_item_id":dry_work,"p_action_id":"e5200000-0000-4000-8000-000000000d85","p_note":"Fictional drying began."}
+    deny("worker","record_household_laundry_drying_started_self_api_v1",dry_args)
+    dry=ok("record_household_laundry_drying_started_self_api_v1",dry_args)
+    base.check(dry["workCompleted"] is True and dry["laundryCompletelyDone"] is False,"Only drying start completes")
+    base.check(ok("record_household_laundry_drying_started_self_api_v1",dry_args)["careResultId"]==dry["careResultId"],"Dry start replay")
+    base.check(ok("household_laundry_current_self_api_v1")["lastCompletedWorkItemId"]==work,"Wash-start history not relabeled")
     # A second real observation in the fictional clone can establish a
     # distinct Work assigned to an actual signed member, not the governor.
     next_obs=ok("record_household_laundry_observation_self_api_v1",{
