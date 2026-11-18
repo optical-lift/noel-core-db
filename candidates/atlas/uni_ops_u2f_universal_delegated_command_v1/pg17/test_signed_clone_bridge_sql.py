@@ -56,10 +56,8 @@ def synthetic_actor(user,session,statement):
     claim=json.dumps({"session_id":session})
     return (
         "BEGIN;\n"
-        "SELECT pg_catalog.set_config('request.jwt.claim.sub',"
-        "'"+user+"',true);\n"
-        "SELECT pg_catalog.set_config('request.jwt.claims',"
-        "'"+claim+"',true);\n"
+        "SET LOCAL request.jwt.claim.sub = '"+user+"';\n"
+        "SET LOCAL request.jwt.claims = '"+claim+"';\n"
         "SET LOCAL ROLE authenticated;\n"
         +statement+"\nCOMMIT;\n"
     )
