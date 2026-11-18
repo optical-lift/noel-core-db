@@ -69,6 +69,45 @@ class CloneAclSource(unittest.TestCase):
         self.assertEqual(m.classify_refusal(None,digest),"clone_acl_probe_refused")
         self.assertNotIn("clone_acl_precondition_refused",m.REFUSAL_STAGES)
 
+    def test_nondefault_is_an_umbrella_not_proof_of_a_live_acl_defect(self):
+        # These are wholly invented function-ACL shapes, not restored real
+        # role values. A non-NULL proacl is normal for canonical REVOKE/GRANT.
+        digest=m.source_fingerprint(MIGRATION)
+        prefix="postgres|t|"+digest+"|"
+        self.assertEqual(m.classify(prefix+"f|f|f|t|t",digest),"protected")
+        self.assertEqual(m.classify(prefix+"t|t|t|t|t",digest),
+                         "default_public_execute")
+        # An unexpected effective role state, not merely a nondefault ACL,
+        # triggers the historical first-refusal category.
+        for flags in (
+            "f|t|f|t|t",  # fictional anonymous exposure
+            "f|f|t|t|t",  # fictional authenticated exposure
+            "f|f|f|f|t",  # fictional postgres mismatch
+            "f|f|f|t|f",  # fictional service-role mismatch
+            "f|t|t|t|f",  # fictional simultaneous differences
+        ):
+            with self.subTest(shape=flags):
+                snap=prefix+flags
+                self.assertEqual(m.classify(snap,digest),"refused")
+                self.assertEqual(m.classify_refusal(snap,digest),
+                                 "clone_acl_nondefault_privileges")
+                env={"CI":"true","GITHUB_ACTIONS":"true",
+                    "GITHUB_REPOSITORY":"optical-lift/noel-core-db",
+                    "ATLAS_NATIVE_NOTEBOOK_FICTIONAL_ONLY":"true",
+                    "ATLAS_NATIVE_GOVERNOR_CLONE_ACL_RECONCILE_ENABLED":"true"}
+                with mock.patch.dict("os.environ",env,clear=True):
+                    with mock.patch.object(m,"psql",
+                            side_effect=["postgres|postgres|f",snap]) as calls:
+                        with self.assertRaisesRegex(
+                                ValueError,"clone_acl_nondefault_privileges"):
+                            m.reconcile(
+                                "postgresql://postgres:test@127.0.0.1:54322/postgres",
+                                MIGRATION)
+                        self.assertEqual(calls.call_count,2,
+                            "No transaction or ACL write after refusal")
+        # Exactly which imaginary flag differs is deliberately NOT logged
+        # by the current category, and the real protected run published none.
+
     def test_first_refusal_has_finite_stage_and_does_not_write(self):
         digest=m.source_fingerprint(MIGRATION)
         env={"CI":"true","GITHUB_ACTIONS":"true",
