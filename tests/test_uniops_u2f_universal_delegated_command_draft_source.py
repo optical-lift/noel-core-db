@@ -155,5 +155,46 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         self.assertNotIn("WHERE l.name=",preflight)
         self.assertNotIn("security definer",preflight.lower())
 
+
+    def test_governing_root_preflight_is_readonly_and_never_authorizes_work(self):
+        inspect=(FOLDER/"04_governing_root_source_noloss_preflight_held.psql").read_text(encoding="utf8")
+        pure=re.sub(r"(?m)^\\s*--[^\\n]*","",inspect)
+        pure="\\n".join(line for line in pure.splitlines() if not line.lstrip().startswith("\\\\"))
+        for token in (
+            ":'governing_root_receipt_id'::uuid",
+            ":'native_ledger_id'::uuid",
+            "atlas.principal_ledger_authorities",
+            "atlas.principals",
+            "atlas.ledgers",
+            "ledger.ledgers",
+            "ledger.seats",
+            "reality.responsibility_relations",
+            "s.seat_basis->>'legacyLedgerAuthorityEvidenceId'=r.id::text",
+            "'nativeGoverningRootVerified',false",
+            "'sourceAdjudicationComplete',false",
+            "'workIssuerAuthorized',false",
+            "'originalWorkCreated',false",
+            "'legacyRootRetirementAuthorized',false",
+            "'productionMutation',false",
+            "'sourceOnly',true",
+        ):
+            with self.subTest(required=token):
+                self.assertIn(token,inspect)
+        self.assertNotRegex(pure,r"(?i)\\b(?:INSERT|UPDATE|DELETE|TRUNCATE|CREATE|DROP|ALTER|GRANT|REVOKE)\\b")
+        self.assertNotIn("security definer",inspect.lower())
+        self.assertNotIn("auth.uid()",inspect)
+        self.assertNotIn("atlas.tasks",inspect)
+        self.assertNotIn("atlas.work_items",inspect)
+        test=(FOLDER/"pg17/test_governing_root_source_noloss.py").read_text(encoding="utf8")
+        fixture=(FOLDER/"pg17/governing_root_fixture.sql").read_text(encoding="utf8")
+        self.assertIn("after rolled-back negatives",test)
+        self.assertIn("unknown original receipt",test)
+        self.assertIn("no original receipt provenance",test)
+        self.assertIn("entity responsibility absent",test)
+        self.assertIn("retired native Ledger",test)
+        self.assertIn("EXECUTABLE_WORK_ISSUER=NO",test)
+        self.assertIn("CREATE TABLE reality.responsibility_relations",fixture)
+        self.assertNotIn("from production",fixture.lower())
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
