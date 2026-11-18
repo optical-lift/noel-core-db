@@ -128,15 +128,15 @@ class TestHeldU1ProtectedBundle(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("FICTIONAL HISTORICAL CUSTODY", fixture)
         self.assertIn("NOT real historic customer-data restore", post)
-        normalized = re.sub(r"--[^\\n]*", "", fixture)
+        normalized = re.sub(r"--[^\n]*", "", fixture)
         statements = [s.strip() for s in normalized.split(";") if s.strip()]
         self.assertEqual(len(statements), 7, "one auth + six historic Titus inserts")
         for statement in statements:
-            self.assertRegex(statement, r"(?is)^INSERT\\s+INTO\\s+(auth\\.users|titus\\.customer_[a-z_0-9]+)\\s*\\(")
-        for forbidden in (r"\\bCREATE\\s+TABLE\\b", r"\\bALTER\\s+TABLE\\b",
-                          r"\\bDROP\\s+TABLE\\b", r"\\bGRANT\\b",
-                          r"\\bDELETE\\s+FROM\\b", r"\\bTRUNCATE\\b",
-                          r"\\bCOPY\\b"):
+            self.assertRegex(statement, r"(?is)^INSERT\s+INTO\s+(auth\.users|titus\.customer_[a-z_0-9]+)\s*\(")
+        for forbidden in (r"\bCREATE\s+TABLE\b", r"\bALTER\s+TABLE\b",
+                          r"\bDROP\s+TABLE\b", r"\bGRANT\b",
+                          r"\bDELETE\s+FROM\b", r"\bTRUNCATE\b",
+                          r"\bCOPY\b"):
             self.assertNotRegex(normalized.upper(), forbidden)
         self.assertNotIn("NOEL_CORE_DATABASE_URL", fixture)
         self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY", fixture)
