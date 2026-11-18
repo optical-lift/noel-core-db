@@ -126,6 +126,48 @@ for name in ("original_subject_choices_for_work_decomposition_v1",
     require("atlas.tasks" not in subject_source,
             f"{name}: original Subject choices must not require legacy Task")
 print("PASS same exact native Ledger custody in spatial Subject choice and decomposition source")
+# Current-schema native Subject admission is a separate held guard correction,
+# not a replay of the historical integrated CREATE TABLE bundle.
+native_guard_path = BASE / "universal_original_work_decomposition_v1" / "native_subject_context_guard_held.sql"
+if native_guard_path.is_file():
+    guard_source = native_guard_path.read_text()
+    historical = (ROOT / "supabase/migrations/20261026010327_atlas_farm_crop_custody_and_work_growing_object_link_v1.sql").read_text()
+    legacy_start = "  IF NOT EXISTS (\n    SELECT 1\n    FROM atlas.work_items w\n    JOIN atlas.tasks t"
+    original_guard = historical.split("CREATE FUNCTION atlas.guard_work_growing_object_context_v1()",1)[1].split("\nCREATE TRIGGER work_growing_object_context_guard_v1",1)[0]
+    require(legacy_start in original_guard and legacy_start in guard_source, "legacy guard source missing")
+    require(guard_source.split(legacy_start,1)[1].split("$body$;",1)[0] ==
+            original_guard.split(legacy_start,1)[1].split("$body$;",1)[0],
+            "legacy Task admission predicate changed")
+    native_branch = guard_source.split("IF NEW.provenance->>'source'='original_work_decomposition' THEN",1)[1].split(legacy_start,1)[0]
+    for token in ("work_decomposition_members", "work_decomposition_groups",
+                  "d.authorized_ledger_id=v_ledger", "m.subject_id=NEW.subject_id",
+                  "parent.organization_unit_id=w.organization_unit_id",
+                  "company_work_native_ledger_owner_self_v1(",
+                  "work_prerequisite_ledger_scope_v1(",
+                  "r.established_by_person_id=d.decided_by_person_id",
+                  "custody.ended_at IS NULL", "nl.retired_at IS NULL",
+                  "TG_OP<>'INSERT'", "NEW.relation_kind<>'acts_on'",
+                  "NEW.metadata->>'confersAccess' IS DISTINCT FROM 'false'",
+                  "NEW.metadata->>'createsWork' IS DISTINCT FROM 'false'"):
+        require(token in native_branch, "missing native context source boundary: " + token)
+    require("atlas.tasks" not in native_branch and "atlas.work_allocations" not in native_branch,
+            "native Subject context must precede assignment and not require a Task")
+    require("0278360920a2d26a301ceda4591b9994" in guard_source,
+            "held current-schema guard must be source pinned")
+    require("GRANT " not in guard_source and "REVOKE " not in guard_source,
+            "no privilege changes in native context source")
+    require(decomp.index("INSERT INTO atlas.work_decomposition_members(")
+            < decomp.index("INSERT INTO atlas.company_work_native_ledger_relevance(")
+            < decomp.index("INSERT INTO atlas.work_item_context_links("),
+            "native child/member/Ledger evidence must precede context admission")
+    for token in ("'signed_original_work_decomposition_subject_v1'",
+                  "'reviewedByPrincipalId',atlas.current_principal_id_v1()",
+                  "'reviewedObjectKey',v_subject_stable_key",
+                  "'reviewedWorkStableKey',v_child_stable_key",
+                  "v_group.authorized_ledger_id IS DISTINCT FROM p_ledger_id"):
+        require(token in decomp, "missing native split provenance: " + token)
+    print("PASS held native Subject-before-allocation source contract; legacy predicate unchanged")
+
 
 
 # All old full-farm routes must be source-guarded, not hidden only in React.
