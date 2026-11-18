@@ -116,7 +116,7 @@ assert initial=={"candidates":0,"events":0},initial
 forged=(
  f"INSERT INTO ledger.seat_responsibilities("
  "id,seat_id,responsibility_key,responsibility_state,scope) VALUES("
- f"'{fake(700)}','{fake(601)}','ledger_governing_root_v1','active',"
+ f"'{fake(700)}','{fake(601)}','u2f_root_reaffirmation_review_v1','active',"
  f"'{{\"sourceKind\":\"historical_root_reaffirmation_held\","
  f"\"originalRootReceiptId\":\"{ROOT1}\","
  f"\"nativeLedgerId\":\"{LEDGER1}\"}}'::jsonb);"
@@ -125,6 +125,20 @@ out=run(signed_sql(forged+" SELECT atlas.uni_ops_u2f_root_candidate_current_held
                     f"'{ROOT1}'::uuid,'{LEDGER1}'::uuid);",rollback=True))
 values=[json.loads(line) for line in out.splitlines() if line.startswith("{")]
 assert len(values)==1 and values[0]["candidateSourceCurrent"] is False
+# Even a fabricated *active canonical root key* cannot be mistaken for
+# independently reviewed source evidence by the held candidate reader.
+fake_root=(
+ f"INSERT INTO ledger.seat_responsibilities("
+ "id,seat_id,responsibility_key,responsibility_state,scope) VALUES("
+ f"'{fake(701)}','{fake(601)}','ledger_governing_root_v1','active',"
+ f"'{{\"sourceKind\":\"historical_root_reaffirmation_held\","
+ f"\"originalRootReceiptId\":\"{ROOT1}\"}}'::jsonb);"
+)
+out=run(signed_sql(fake_root+" SELECT atlas.uni_ops_u2f_root_candidate_current_held_v1("
+                   f"'{ROOT1}'::uuid,'{LEDGER1}'::uuid);",rollback=True))
+values=[json.loads(line) for line in out.splitlines() if line.startswith("{")]
+assert len(values)==1 and values[0]["candidateSourceCurrent"] is False
+
 
 for label,statement,actor,mutation in [
  ("no current human",admission(),None,None),
@@ -169,6 +183,10 @@ id1=receipt1["nativeResponsibilityId"]
 assert candidate()["candidateSourceCurrent"] is True
 assert candidate()["delegatedWorkAuthorized"] is False
 assert snapshot()=={"candidates":1,"events":1}
+# The candidate does not insert a native governing-root permission key.
+assert run("SELECT count(*) FROM ledger.seat_responsibilities "
+           "WHERE responsibility_key='ledger_governing_root_v1';")=="0"
+
 assert_denied("repeated admission is not new authority",admission())
 
 # Same real Person + same institution Entity; independent Ledger, separate
