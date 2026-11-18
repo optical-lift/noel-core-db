@@ -193,6 +193,37 @@ class TestSignedLocalSafety(unittest.TestCase):
         self.assertNotIn("user_metadata",candidate_sql)
         self.assertNotIn("service_role",candidate)
 
+    def test_two_independent_atlas_ledger_authorities_are_tested(self):
+        fixture=FIXTURE.read_text()
+        signed=DRIVER.read_text()
+        owner=fixture.split(
+            "CREATE FUNCTION atlas.company_work_native_ledger_owner_self_v1(",1)[1].split(
+            "CREATE FUNCTION public.titus_u1_fixture_native_owner_probe_v1(",1)[0]
+        for required in (
+            "lop.participation_kind IN ('governing','operating')",
+            "v_primary_count<>1",
+            "a.ledger_id=p_ledger_id",
+            "a.ledger_id=v_primary",
+            "a.principal_id=v_principal",
+            "seat.person_entity_id=v_person",
+            "seat.seat_state='active'",
+            "THEN RAISE EXCEPTION",
+        ):
+            self.assertIn(required,owner)
+        self.assertIn("CREATE FUNCTION public.titus_u1_fixture_native_owner_probe_v1",fixture)
+        self.assertIn("GRANT EXECUTE ON FUNCTION public.titus_u1_fixture_native_owner_probe_v1",fixture)
+        self.assertNotIn("CREATE FUNCTION public.titus_u1_fixture_native_owner_probe_v1",
+                         (ROOT/"candidates/shared-teaching-course-clean-cutover-v1"
+                          /"shared_titus_institution_root_establishment_candidate.sql").read_text())
+        for proof in (
+            "native operating Ledger without its own root authority denies",
+            "two distinct root-governed Ledgers admit one signed governing Principal",
+            "native root without separate current primary governing root denies",
+            "two root authorities do not replace a current native Ledger Seat",
+            "Titus institutional root cannot bootstrap on merely operating Ledger",
+        ):
+            self.assertIn(proof,signed)
+
     def test_workflow_not_production_protected_trigger(self):
         s=WORKFLOW.read_text()
         self.assertIn("permissions:\n  contents: read",s)
