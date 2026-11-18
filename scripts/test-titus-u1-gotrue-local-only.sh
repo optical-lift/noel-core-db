@@ -19,7 +19,7 @@ for env_name in NOEL_CORE_DATABASE_URL SUPABASE_DB_URL DATABASE_URL SUPABASE_ACC
 done
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 d="$root/candidates/shared-teaching-course-clean-cutover-v1"
-for x in titus_u1_local_gotrue_fixture.sql titus_account_context_candidate.sql \
+for x in titus_u1_local_gotrue_fixture.sql shared_titus_current_person_signed_candidate.sql titus_account_context_candidate.sql \
   titus_institution_account_admission_issuer_candidate.sql \
   shared_titus_institution_manager_governance_candidate.sql \
   shared_titus_institution_root_establishment_candidate.sql \
@@ -66,6 +66,7 @@ db="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
   echo "SET app.titus_u1_local_signed_fixture = 'approved';"
   printf '\\i %s/titus_u1_local_gotrue_fixture.sql\n' "$d"
   echo "SET app.shared_course_clone = 'approved';"
+  printf '\\i %s/shared_titus_current_person_signed_candidate.sql\n' "$d"
   printf '\\i %s/titus_account_context_candidate.sql\n' "$d"
   printf '\\i %s/titus_institution_account_admission_issuer_candidate.sql\n' "$d"
   printf '\\i %s/shared_titus_institution_manager_governance_candidate.sql\n' "$d"
