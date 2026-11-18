@@ -224,6 +224,36 @@ class TestSignedLocalSafety(unittest.TestCase):
         ):
             self.assertIn(proof,signed)
 
+
+    def test_root_and_manager_commands_lock_ledger_before_root_responsibility(self):
+        manager=(ROOT/"candidates/shared-teaching-course-clean-cutover-v1"
+                 /"shared_titus_institution_manager_governance_candidate.sql").read_text()
+        roots=(ROOT/"candidates/shared-teaching-course-clean-cutover-v1"
+               /"shared_titus_institution_root_establishment_candidate.sql").read_text()
+        def command_chunk(source,fn):
+            section=source.split("CREATE FUNCTION public."+fn+"(",1)[1]
+            return section.split("END $",1)[0]
+        names=(
+            (manager,"shared_titus_institution_manager_command_self_api_v1"),
+            (roots,"shared_titus_institution_root_nominate_self_api_v1"),
+            (roots,"shared_titus_institution_root_cancel_self_api_v1"),
+            (roots,"shared_titus_institution_root_relinquish_self_api_v1"),
+        )
+        for source,name in names:
+            section=command_chunk(source,name)
+            ledger=section.find("PERFORM 1 FROM ledger.ledgers")
+            root=section.find(
+                "titus.require_institution_root_manager_governor_self_v1(")
+            self.assertGreaterEqual(ledger,0,name+" missing Ledger lock")
+            self.assertGreater(root,ledger,name+" locks root before Ledger")
+            self.assertIn("FOR UPDATE",section[ledger:root],name)
+        signed=DRIVER.read_text()
+        self.assertIn("with ThreadPoolExecutor(max_workers=2)",signed)
+        self.assertIn("concurrent_barrier=Barrier(2)",signed)
+        self.assertIn("sorted(statuses)==[200,403]",signed)
+        self.assertIn('rejected[1].get("code")=="42501"',signed)
+        self.assertIn("(active_root,active_manager) in ((1,1),(0,0))",signed)
+
     def test_workflow_not_production_protected_trigger(self):
         s=WORKFLOW.read_text()
         self.assertIn("permissions:\n  contents: read",s)
