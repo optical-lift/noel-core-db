@@ -29,6 +29,11 @@ BEGIN
  END IF;
 END $zero_after_source_setup$;
 
+-- M1.1: the very same blank-authoring source can grant a fictional private
+-- pilot ONLY through separately governed issuer standing + recipient consent.
+-- The full probe rolls back before the ordinary two-buyer fixture proceeds.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_pilot_issuer_tests_pg17.sql
+
 -- A live session/Person is NOT a purchase grant or a Course original.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
