@@ -1,0 +1,48 @@
+name: Held Titus personal authoring (fictional PG17, no deploy)
+on:
+  push:
+    branches:
+      - candidate/titus-personal-authoring-nondestructive-20261118
+    paths:
+      - 'candidates/titus-personal-authoring-nondestructive-v1/**'
+      - '.github/workflows/titus-personal-authoring-fixture.yml'
+  pull_request:
+    paths:
+      - 'candidates/titus-personal-authoring-nondestructive-v1/**'
+      - '.github/workflows/titus-personal-authoring-fixture.yml'
+permissions:
+  contents: read
+concurrency:
+  group: titus-personal-fixture-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  personal-fixture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test fictional authoring in network-isolated PostgreSQL 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          name="titus-personal-fixture-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker rm -f "$name" >/dev/null 2>&1 || true' EXIT
+          docker run -d --rm --name "$name" --network none \
+            --mount "type=bind,src=$PWD/candidates/titus-personal-authoring-nondestructive-v1,dst=/source,readonly" \
+            -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=postgres \
+            postgres:17 -c listen_addresses='' >/dev/null
+          identity=''
+          for i in $(seq 1 90); do
+            identity="$(docker exec "$name" psql -U postgres -d postgres -h /var/run/postgresql -Atqc "select current_setting('server_version_num')::int/10000,inet_server_addr() is null,current_user" 2>/dev/null || true)"
+            if [[ "$identity" == '17|t|postgres' ]] && docker exec "$name" test -f /var/lib/postgresql/data/PG_VERSION; then
+              sleep 2
+              identity="$(docker exec "$name" psql -U postgres -d postgres -h /var/run/postgresql -Atqc "select current_setting('server_version_num')::int/10000,inet_server_addr() is null,current_user" 2>/dev/null || true)"
+              [[ "$identity" == '17|t|postgres' ]] && break
+            fi
+            sleep 1
+          done
+          [[ "$identity" == '17|t|postgres' ]]
+          docker exec "$name" psql -X -v ON_ERROR_STOP=1 -U postgres -d postgres \
+            -h /var/run/postgresql -f /source/personal_authoring_fixture_test.sql
