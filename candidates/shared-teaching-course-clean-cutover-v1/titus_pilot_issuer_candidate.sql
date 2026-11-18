@@ -214,6 +214,13 @@ BEGIN
    AND r.began_at<=clock_timestamp()
    AND (r.ended_at IS NULL OR r.ended_at>clock_timestamp())
    AND 'issue_pilot_offer'=ANY(r.permitted_operations)
+   AND EXISTS(
+    SELECT 1 FROM reality.auth_person_bindings b
+    JOIN reality.entities issuer ON issuer.id=b.person_entity_id
+    WHERE b.auth_user_id=v_offer.issuer_auth_user_id
+      AND b.person_entity_id=v_offer.issuer_person_entity_id
+      AND b.binding_state='active' AND b.retired_at IS NULL
+      AND issuer.entity_kind='person' AND issuer.identity_state='canonical')
  ) THEN
   RAISE EXCEPTION 'pilot issuer standing no longer current'
    USING ERRCODE='42501';
