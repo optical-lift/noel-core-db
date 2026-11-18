@@ -390,6 +390,18 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         self.assertEqual(bridge.count("REVOKE ALL ON FUNCTION"),2)
         self.assertIn("NEVER standalone authority",signed)
         self.assertIn('ROOT=Path(__file__).resolve().parents[4]',signed)
+        self.assertIn('source_pins_match()',signed)
+        self.assertIn('PINNED_SOURCE_BLOBS=',signed)
+        self.assertLess(signed.index('source_pins_match()\n    require(') if 'source_pins_match()\n    require(' in signed else signed.index('    source_pins_match()'),
+                        signed.index('    api,key=c1.local_status()'))
+        for immutable in (
+            "cb6adc307ab6994f95e6b5d9acf421f10a71c607",
+            "704875ea1710601ad5c5e4d6a994d5281b3691c0",
+            "eb3bbfb45848a7fca90cc503e153f1451d8d7471",
+            "1b82e698705e473280f1fc55b0e762bce243effb",
+            "e6572f4893d7be34bc97bc3e5115200563065179",
+        ):
+            self.assertIn(immutable,signed)
         self.assertIn('Path("/tmp").resolve()',signed)
         self.assertIn('a.db_url) is not None',signed)
         self.assertIn("c1.local_status()",signed)
