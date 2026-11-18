@@ -46,6 +46,7 @@ SET search_path TO '' AS $shared_truth$
  ORDER BY rr.began_at DESC,rr.id LIMIT 1
 $shared_truth$;
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_institution_account_admission_issuer_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_institution_account_self_service_candidate.sql
 
 DO $u11_acl$
 BEGIN
@@ -65,6 +66,11 @@ BEGIN
  OR NOT has_function_privilege('authenticated',
   'public.titus_institution_account_accept_self_api_v1(uuid,uuid)','EXECUTE')
  THEN RAISE EXCEPTION 'U1 invitation/admission ACL widened'; END IF;
+ IF has_function_privilege('anon',
+   'public.titus_institution_account_self_service_self_api_v1()','EXECUTE')
+ OR NOT has_function_privilege('authenticated',
+   'public.titus_institution_account_self_service_self_api_v1()','EXECUTE')
+ THEN RAISE EXCEPTION 'self-service privacy ACL widened'; END IF;
  IF (SELECT count(*) FROM titus.institution_account_invitations_v1)<>0
  OR (SELECT count(*) FROM titus.institution_account_admissions_v1)<>0
  OR (SELECT count(*) FROM titus.course_authoring_access_grants)<>0 THEN
@@ -182,6 +188,36 @@ BEGIN
 END $issue_one$;
 RESET ROLE;
 
+-- A recipient, not the issuer, sees one still-pending invitation;
+-- it is not yet an admitted institution and reveals no Person roster.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $recipient_pending$
+DECLARE v jsonb;
+BEGIN
+ v:=public.titus_institution_account_self_service_self_api_v1();
+ IF v->>'contractVersion'<>'titus_institution_account_self_service_v1'
+ OR jsonb_array_length(v->'pending')<>1
+ OR v->'pending'->0->>'invitationId'<>current_setting('app.titus_test_invite_id')
+ OR v->'active'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'recipient private pending inbox was not exact'; END IF;
+ IF v::text LIKE '%recipient_person_entity_id%'
+ OR v::text LIKE '%issuer_person_entity_id%' THEN
+  RAISE EXCEPTION 'private recipient inbox exposed internal data'; END IF;
+END $recipient_pending$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $issuer_cannot_read_recipient_inbox$
+DECLARE v jsonb;
+BEGIN
+ v:=public.titus_institution_account_self_service_self_api_v1();
+ IF v->'pending'<>'[]'::jsonb OR v->'active'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'institution issuer gained recipient private inbox'; END IF;
+END $issuer_cannot_read_recipient_inbox$;
+RESET ROLE;
+
 -- Issuer cannot accept for recipient, even knowing exact invitation ID.
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
@@ -219,6 +255,19 @@ BEGIN
  OR listed->'institutions'->0->>'institutionId'<>'44444444-4444-4444-8444-444444444444'
  THEN RAISE EXCEPTION 'signed acceptance not reflected in own scope'; END IF;
 END $recipient_accepts$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $accepted_self_service$
+DECLARE v jsonb;
+BEGIN
+ v:=public.titus_institution_account_self_service_self_api_v1();
+ IF v->'pending'<>'[]'::jsonb
+ OR jsonb_array_length(v->'active')<>1
+ OR v->'active'->0->>'admissionId'<>current_setting('app.titus_test_admission_id')
+ THEN RAISE EXCEPTION 'accepted admission not independently listed for own exit'; END IF;
+END $accepted_self_service$;
 RESET ROLE;
 
 -- Issuer may not cancel an already accepted invitation: only a governed
@@ -291,6 +340,17 @@ BEGIN
 END $recipient_after_withdrawal$;
 RESET ROLE;
 
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $withdrawn_self_service$
+DECLARE v jsonb;
+BEGIN
+ v:=public.titus_institution_account_self_service_self_api_v1();
+ IF v->'pending'<>'[]'::jsonb OR v->'active'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'withdrawn institution retained account self-service entry'; END IF;
+END $withdrawn_self_service$;
+RESET ROLE;
+
 -- Another issued invitation may be cancelled only by a currently authorized
 -- manager before it is accepted. Cancellation cannot terminate an accepted
 -- admission; that requires a withdrawal receipt.
@@ -322,6 +382,17 @@ BEGIN
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'cancelled invitation was accepted'; END IF;
 END $cannot_claim_cancelled$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $cancelled_inbox_invisible$
+DECLARE v jsonb;
+BEGIN
+ v:=public.titus_institution_account_self_service_self_api_v1();
+ IF v->'pending'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'cancelled invitation leaked into recipient inbox'; END IF;
+END $cancelled_inbox_invisible$;
 RESET ROLE;
 
 -- A manager whose source standing ends before acceptance cannot complete
