@@ -18,6 +18,33 @@ CREATE TABLE reality.responsibility_relations(
  ended_at timestamptz,
  scope jsonb NOT NULL DEFAULT '{}'::jsonb
 );
+-- Exact positive-condition footprint of existing live Reality resolver.
+-- A standalone isolated fixture, not a new shared/Reality function candidate.
+CREATE FUNCTION reality.resolve_responsibility_relation_v1(
+ p_person_entity_id uuid,p_responsibility_key text,p_operation_key text,
+ p_jurisdiction_kind text,p_jurisdiction_entity_id uuid,
+ p_jurisdiction_domain text,p_required_scope jsonb
+) RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO '' AS $shared_truth$
+ SELECT rr.id
+ FROM reality.responsibility_relations rr
+ JOIN reality.entities person
+  ON person.id=rr.carrier_person_entity_id
+  AND person.entity_kind='person' AND person.identity_state='canonical'
+ LEFT JOIN reality.entities subject ON subject.id=rr.jurisdiction_entity_id
+ WHERE rr.carrier_person_entity_id=p_person_entity_id
+ AND rr.responsibility_key=p_responsibility_key
+ AND rr.relation_state='active' AND rr.began_at<=now()
+ AND rr.ended_at IS NULL
+ AND p_operation_key=ANY(rr.permitted_operations)
+ AND rr.jurisdiction_kind=p_jurisdiction_kind
+ AND ((p_jurisdiction_kind='entity'
+   AND rr.jurisdiction_entity_id=p_jurisdiction_entity_id
+   AND subject.identity_state='canonical')
+  OR (p_jurisdiction_kind='domain' AND rr.jurisdiction_domain=p_jurisdiction_domain))
+ AND rr.scope @> COALESCE(p_required_scope,'{}'::jsonb)
+ ORDER BY rr.began_at DESC,rr.id LIMIT 1
+$shared_truth$;
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_institution_account_admission_issuer_candidate.sql
 
 DO $u11_acl$
