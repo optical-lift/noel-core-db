@@ -24,7 +24,11 @@ SHELL_HOOK=r'''if [ "$signed_ledger_reciprocal_probe" = true ]; then
   # The original signed reciprocal probe is NOT replaced or skipped.
   # Install only U2F review-only private source+local bridge in this clone.
   phase="U2F separately authorized signed-review-only clone setup"
-  test "$database_url" = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
+  # Noel's canonical clone picks an isolated random local port per run.
+  # Require its exact chosen localhost URL and bounded ephemeral port range.
+  [[ "$local_database_port" =~ ^[0-9]{5}$ ]]
+  (( local_database_port >= 38000 && local_database_port < 61000 ))
+  test "$database_url" = "postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres"
   test -s "$repo_root/U2F_ROOT/06_signed_native_root_lifecycle_held.sql"
   test -s "$repo_root/U2F_ROOT/08_signed_clone_only_rpc_bridge_held.sql"
   test -s "$repo_root/U2F_ROOT/pg17/validate_u2f_genuine_signed_clone_held.py"
