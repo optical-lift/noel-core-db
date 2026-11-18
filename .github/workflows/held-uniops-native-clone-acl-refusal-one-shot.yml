@@ -816,6 +816,11 @@ jobs:
           test "$(git -C held-native hash-object tests/test_classify_uniops_native_pre_u2_stage_source.py)" = 11488bd07f4ba4b1ac2df705655099d81516562f
           test "$(git -C held-native hash-object tests/test_install_uniops_native_notebook_validator_copy_source.py)" = 11a8a8deedd525feb9cd90c427ef7e55e0da8484
           test "$(git -C held-native hash-object tests/reconcile_uniops_native_governor_acl_local_held.py)" = 2758cf2e9eac499224c38896c3cea3a83574d9a2
+          # Finite output vocabulary belongs to the verified held source.
+          # These checks never read private ACL rows or expose errors.
+          grep -Fq '"clone_acl_owner_mismatch"' held-native/tests/reconcile_uniops_native_governor_acl_local_held.py
+          grep -Fq '"clone_acl_body_mismatch"' held-native/tests/reconcile_uniops_native_governor_acl_local_held.py
+          grep -Fq '"clone_acl_nondefault_privileges"' held-native/tests/reconcile_uniops_native_governor_acl_local_held.py
           test "$(git -C held-native hash-object tests/test_reconcile_uniops_native_governor_acl_source.py)" = 64e1f17fb461ca4ae8020c58c8f33fc810113c33
           test "$(git -C held-native hash-object tests/verify_uniops_governor_acl_pg17_synthetic_held.py)" = cfa0f1046726549a9c07cef2b43cb21347bacdfe
           test "$(git -C held-native hash-object supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql)" = d6ce8f5e7422e36a4b5352007a32d82ae29d6d4c
