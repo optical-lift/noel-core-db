@@ -117,5 +117,47 @@ class TestHeldU1ProtectedBundle(unittest.TestCase):
                 forbidden)
 
 
+    def test_u110_fictional_legacy_history_fixture_and_attestation(self):
+        """Only synthetic DML before held source; exact bytes checked after."""
+        import re
+        fixture = (
+            SOURCE / "U1_10_FICTIONAL_LEGACY_ROWS_TEST_ONLY.sql"
+        ).read_text(encoding="utf-8")
+        post = (
+            SOURCE / "U1_10_FICTIONAL_LEGACY_POSTCONDITIONS_TEST_ONLY.sql"
+        ).read_text(encoding="utf-8")
+        self.assertIn("FICTIONAL HISTORICAL CUSTODY", fixture)
+        self.assertIn("NOT real historic customer-data restore", post)
+        normalized = re.sub(r"--[^\\n]*", "", fixture)
+        statements = [s.strip() for s in normalized.split(";") if s.strip()]
+        self.assertEqual(len(statements), 7, "one auth + six historic Titus inserts")
+        for statement in statements:
+            self.assertRegex(statement, r"(?is)^INSERT\\s+INTO\\s+(auth\\.users|titus\\.customer_[a-z_0-9]+)\\s*\\(")
+        for forbidden in (r"\\bCREATE\\s+TABLE\\b", r"\\bALTER\\s+TABLE\\b",
+                          r"\\bDROP\\s+TABLE\\b", r"\\bGRANT\\b",
+                          r"\\bDELETE\\s+FROM\\b", r"\\bTRUNCATE\\b",
+                          r"\\bCOPY\\b"):
+            self.assertNotRegex(normalized.upper(), forbidden)
+        self.assertNotIn("NOEL_CORE_DATABASE_URL", fixture)
+        self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY", fixture)
+        self.assertIn("example.invalid", fixture)
+        for table in (
+            "customer_workspaces_v1",
+            "customer_workspace_entitlements_v1",
+            "customer_course_drafts_v1",
+            "customer_course_material_revisions_v1",
+            "customer_course_units_v1",
+            "customer_course_unit_revisions_v1",
+        ):
+            self.assertIn("titus." + table, fixture)
+            self.assertIn("titus." + table, post)
+        self.assertEqual(post.count("IF NOT EXISTS"), 11)
+        self.assertEqual(post.count("row-count changed"), 6)
+        self.assertIn("convert_to(body_text,'UTF8')", post)
+        self.assertIn("app.shared_course_clone", post)
+        self.assertNotIn("NOEL_CORE_DATABASE_URL", post)
+        self.assertNotIn("SUPABASE_SERVICE_ROLE_KEY", post)
+
+
 if __name__ == "__main__":
     unittest.main()
