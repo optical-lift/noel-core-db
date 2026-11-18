@@ -254,15 +254,6 @@ BEGIN
   RETURN jsonb_build_object('contractVersion','shared_titus_root_nominate_v1',
    'invitationId',v_old.invitation_id,'alreadyExists',true);
  END IF;
- -- A root cannot relinquish authority while a manager remains active:
- -- that would leave a delegated writer without any supervising root.
- IF EXISTS(SELECT 1 FROM reality.responsibility_relations r
- WHERE r.responsibility_key='titus_institution_account_management'
- AND r.jurisdiction_kind='entity' AND r.jurisdiction_entity_id=v_entity
- AND r.jurisdiction_domain IS NULL AND r.scope->>'ledgerId'=p_ledger_id::text
- AND r.relation_state='active' AND r.ended_at IS NULL)
- THEN RAISE EXCEPTION 'revoke/transfer active manager before root relinquishment'
- USING ERRCODE='42501'; END IF;
  IF EXISTS(SELECT 1 FROM titus.institution_account_root_transfer_invitations_v1 i
  WHERE i.old_root_responsibility_id=v_root
  AND NOT EXISTS(SELECT 1 FROM titus.institution_account_root_transfer_cancellations_v1 c
@@ -437,6 +428,15 @@ BEGIN
  IF titus.current_exact_root_for_ledger_v1(p_ledger_id,v_entity)
  IS DISTINCT FROM v_root THEN
  RAISE EXCEPTION 'current single root required' USING ERRCODE='42501'; END IF;
+ -- A root cannot relinquish authority while a manager remains active:
+ -- that would leave a delegated writer without any supervising root.
+ IF EXISTS(SELECT 1 FROM reality.responsibility_relations r
+ WHERE r.responsibility_key='titus_institution_account_management'
+ AND r.jurisdiction_kind='entity' AND r.jurisdiction_entity_id=v_entity
+ AND r.jurisdiction_domain IS NULL AND r.scope->>'ledgerId'=p_ledger_id::text
+ AND r.relation_state='active' AND r.ended_at IS NULL)
+ THEN RAISE EXCEPTION 'revoke/transfer active manager before root relinquishment'
+ USING ERRCODE='42501'; END IF;
  IF EXISTS(SELECT 1 FROM titus.institution_account_root_transfer_invitations_v1 i
  WHERE i.old_root_responsibility_id=v_root
  AND NOT EXISTS(SELECT 1 FROM titus.institution_account_root_transfer_cancellations_v1 c
