@@ -39,6 +39,9 @@ jobs:
              "github.event.issue.author_association == 'OWNER'",
              "github.actor == github.repository_owner",
              "environment: production",
+             "secrets.TITUS_PR_READ_TOKEN",
+             "Verify private Titus PR remains draft using least-privilege credential",
+             "BLOCKED: protected Titus read-only PR credential is not configured",
              "fields['candidate_sha']",
              "fields['test_scope']",
              "fields['production_target']",
@@ -59,6 +62,16 @@ jobs:
           assert protected.index("Snapshot production schema/roles READ ONLY") < protected.index("Checkout EXACT held candidate")
           assert protected.index("Checkout EXACT held candidate") < protected.index("Assemble held TEST_ONLY source")
           assert protected.index("Assemble held TEST_ONLY source") < protected.index("Disposable protected source-shape restore")
+          assert protected.index("Verify exact Noel draft PR source before reading protected schema") < protected.index("Verify private Titus PR remains draft using least-privilege credential")
+          assert protected.index("Verify private Titus PR remains draft using least-privilege credential") < protected.index("Snapshot production schema/roles READ ONLY")
+          # The cross-repository credential is bound only to the private Titus check.
+          titus_start=protected.index("      - name: Verify private Titus PR remains draft using least-privilege credential")
+          titus_end=protected.index("      - name: Install pinned Supabase CLI",titus_start)
+          noel_start=protected.index("      - name: Verify exact Noel draft PR source before reading protected schema")
+          titus_step=protected[titus_start:titus_end]
+          assert "GH_TOKEN: $" + "{{ secrets.TITUS_PR_READ_TOKEN }}" in titus_step
+          assert "NOEL_CORE_DATABASE_URL" not in titus_step
+          assert "secrets.TITUS_PR_READ_TOKEN" not in protected[noel_start:titus_start]
           assert 'upload-artifact' not in protected
           print('PASS protected credentials confined to read-only snapshot; owner-gated and no release')
           PY
@@ -121,7 +134,7 @@ jobs:
           bash scripts/check-production-release-contract.sh
           bash scripts/check-production-schema-validation-contract.sh
           bash -n scripts/validate-production-schema-clone.sh
-      - name: Verify exact draft PR source before reading protected schema
+      - name: Verify exact Noel draft PR source before reading protected schema
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -129,8 +142,19 @@ jobs:
         run: |
           set -euo pipefail
           test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/2617" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-course-unification-clean-cutover-v1-20261107|$EXPECTED_SHA"
+          echo 'PASS exact held Noel candidate is still open and draft'
+      - name: Verify private Titus PR remains draft using least-privilege credential
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TITUS_PR_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo 'BLOCKED: protected Titus read-only PR credential is not configured' >&2
+            exit 1
+          fi
           test "$(gh api "repos/optical-lift/titus/pulls/72" --jq '[.state,(.draft|tostring)]|join("|")')" = "open|true"
-          echo 'PASS frozen Noel/Titus draft sources'
+          echo 'PASS private Titus #72 remains an open draft'
       - name: Install pinned Supabase CLI and authenticate readonly image pulls
         shell: bash
         env:
