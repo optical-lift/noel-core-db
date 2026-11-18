@@ -197,5 +197,48 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         self.assertIn("CREATE TABLE reality.responsibility_relations",fixture)
         self.assertNotIn("from production",fixture.lower())
 
+
+    def test_native_root_custody_proposal_is_nonexecutable_and_keeps_ledger_boundary(self):
+        plan=(FOLDER/"05_native_ledger_root_custody_candidate_held.psql").read_text(encoding="utf8")
+        sql=re.sub(r"(?m)^\s*--[^\n]*","",plan)
+        sql="\n".join(s for s in sql.splitlines() if not s.lstrip().startswith("\\"))
+        for token in (
+            "atlas.principal_ledger_authorities",
+            "atlas.principals",
+            "ledger.ledgers",
+            "ledger.seats",
+            "ledger.seat_responsibilities",
+            "sr.seat_id=s.id",
+            "s.ledger_id=o.native_ledger_id",
+            "s.person_entity_id=o.person_id",
+            "s.seat_basis->>'legacyLedgerAuthorityEvidenceId'=o.original_id::text",
+            "'personSubjectPairsWithMultipleLedgers'",
+            "'rootsSharingPersonAndInstitutionAcrossLedgers'",
+            "'candidateCarrier','ledger.seat_responsibilities'",
+            "'candidateCanEstablishGoverningAuthorityWithoutAdjudication',false",
+            "'newRootAuthorityEstablished',false",
+            "'fiveOriginalDecisionsAdjudicated',false",
+            "'canRetireOriginalRootTable',false",
+            "'canIssueWork',false",
+            "'productionMutation',false",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token,sql)
+        self.assertNotRegex(sql,r"(?i)\b(?:INSERT|UPDATE|DELETE|TRUNCATE|CREATE|DROP|ALTER|GRANT|REVOKE)\b")
+        self.assertNotIn("SECURITY DEFINER",plan.upper())
+        self.assertNotIn("auth.uid()",plan)
+        self.assertNotIn("atlas.tasks",plan)
+        self.assertNotIn("atlas.work_items",plan)
+        fixture=(FOLDER/"pg17/native_root_custody_fixture.sql").read_text(encoding="utf8")
+        test=(FOLDER/"pg17/test_native_root_custody_plan.py").read_text(encoding="utf8")
+        self.assertEqual(fixture.count("INSERT INTO atlas.principal_ledger_authorities VALUES"),6)
+        self.assertEqual(fixture.count("INSERT INTO ledger.seats VALUES"),5)
+        for negative in ("ended original still historical","missing native seat",
+                         "wrong Person on native seat","paused native Ledger",
+                         "forged native root responsibility cannot authorize issuance",
+                         "same subject collision kept separate"):
+            self.assertIn(negative,test)
+        self.assertIn("AUTHORITY_CUTOVER_ADJUDICATED=NO",test)
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
