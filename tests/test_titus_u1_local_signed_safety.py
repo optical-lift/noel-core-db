@@ -68,6 +68,24 @@ class TestSignedLocalSafety(unittest.TestCase):
         self.assertIn("reality.resolve_responsibility_relation_v1",source)
         self.assertIn("TITUS U1 SIGNED LOCAL TEST FIXTURE ONLY",source)
 
+    def test_root_guard_is_in_relinquish_not_nomination(self):
+        source=(ROOT/"candidates/shared-teaching-course-clean-cutover-v1"
+            /"shared_titus_institution_root_establishment_candidate.sql").read_text()
+        nominate=source.split(
+            "CREATE FUNCTION public.shared_titus_institution_root_nominate_self_api_v1",1)[1].split(
+            "CREATE FUNCTION public.shared_titus_institution_root_accept_self_api_v1",1)[0]
+        relinquish=source.split(
+            "CREATE FUNCTION public.shared_titus_institution_root_relinquish_self_api_v1",1)[1]
+        self.assertNotIn(
+            "revoke/transfer active manager before root relinquishment",nominate)
+        self.assertIn(
+            "revoke/transfer active manager before root relinquishment",relinquish)
+        self.assertIn("atlas.company_work_native_ledger_owner_self_v1",source)
+        self.assertNotIn("atlas.is_organization_owner(",source)
+        self.assertIn("titus.current_exact_root_for_ledger_v1",source)
+        self.assertIn("titus.institution_account_root_origins_v1",source)
+        self.assertIn("GRANT EXECUTE ON FUNCTION public.shared_titus_institution_root_bootstrap_self_api_v1",source)
+
     def test_workflow_not_production_protected_trigger(self):
         s=WORKFLOW.read_text()
         self.assertIn("permissions:\n  contents: read",s)
