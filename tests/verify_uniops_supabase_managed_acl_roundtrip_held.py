@@ -70,7 +70,7 @@ IF EXISTS (
             AND d.defaclobjtype='f' AND d.defaclnamespace=0
             AND dacl.privilege_type='EXECUTE'
             AND dacl.grantee=a.grantee
-            AND NOT dacl.is_grantable)))
+            AND NOT dacl.is_grantable))
        OR (a.grantee='service_role'::regrole AND a.is_grantable))
 ) THEN RAISE EXCEPTION 'fictional unknown grantee refused'; END IF;
 FOR g IN
