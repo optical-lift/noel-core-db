@@ -315,8 +315,15 @@ END
 $no_grant$;
 RESET ROLE;
 SAVEPOINT revoke_grant;
-UPDATE titus.course_authoring_access_grants SET state='revoked'
- WHERE person_entity_id='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+-- Historical adoption preserves the original receipt. Revoking its current
+-- entitlement is a NEW immutable event, not an edit to the adopted original.
+INSERT INTO titus.course_authoring_access_status_events(
+ person_entity_id,request_id,next_state,source_evidence_receipt,
+ recorded_by_auth_user_id)
+VALUES('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+ 'be000000-0000-4000-8000-000000000076','revoked',
+ 'fictional-adopted-author-revoked',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $denied_license$
