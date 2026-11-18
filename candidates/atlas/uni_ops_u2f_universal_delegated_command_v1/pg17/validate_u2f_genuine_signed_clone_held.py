@@ -125,6 +125,7 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--db-url",required=True)
     parser.add_argument("--output",required=True)
+    parser.add_argument("--reuse-existing-signed-auth",action="store_true")
     a=parser.parse_args()
     source_pins_match()
     require(re.fullmatch(
@@ -156,7 +157,20 @@ def main():
             "STOP: only owner-protected clone wrapper may be used")
     before=count(a.db_url,"SELECT count(*) FROM atlas.work_items")
     # Existing code intentionally does not print bearer token/claims.
-    identities=signed.setup_auth(a.db_url)
+    if a.reuse_existing_signed_auth:
+        # Existing trusted reciprocal validator already initialized exactly
+        # these four fictional users. Never insert identities twice.
+        users=(( "owner",c1.OWNER),("worker",c1.WORKER),
+               ("outsider",c1.OUTSIDER),("no-seat",c1.NO_SEAT))
+        existing=count(a.db_url,
+           "SELECT count(*) FROM auth.identities "
+           "WHERE provider='email' AND user_id IN ("+
+           ",".join("'"+uid+"'::uuid" for _,uid in users)+")")
+        require(existing==4,
+                "STOP: authentic C1 signed bootstrap is missing or ambiguous")
+        identities=users
+    else:
+        identities=signed.setup_auth(a.db_url)
     sessions={}
     for name,uid in identities:
         token,claims=c1.sign_in(api,key,name)
