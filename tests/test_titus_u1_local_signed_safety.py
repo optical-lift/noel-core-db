@@ -129,6 +129,29 @@ class TestSignedLocalSafety(unittest.TestCase):
         self.assertNotIn("organization_name",source)
         self.assertNotIn("email",source.lower())
 
+    def test_signed_person_candidate_checks_live_gotrue_session_and_existing_identity(self):
+        candidate=(ROOT/"candidates/shared-teaching-course-clean-cutover-v1"
+                   /"shared_titus_current_person_signed_candidate.sql").read_text()
+        self.assertNotIn(
+            "CREATE FUNCTION atlas.current_person_for_private_course_v1()",
+            FIXTURE.read_text())
+        for required in (
+            "CREATE FUNCTION atlas.current_person_for_private_course_v1()",
+            "auth.sessions", "auth.users", "s.id=v_session",
+            "s.user_id=v_auth", "s.not_after", "u.deleted_at",
+            "u.banned_until", "reality.auth_person_bindings",
+            "b.binding_state='active'", "b.retired_at IS NULL",
+            "e.entity_kind='person'", "e.identity_state='canonical'",
+            "v_count IS DISTINCT FROM 1", "atlas.current_person_id_v1()",
+            "v_current IS DISTINCT FROM v_person",
+            "REVOKE ALL ON FUNCTION atlas.current_person_for_private_course_v1()",
+        ):
+            self.assertIn(required,candidate)
+        self.assertIn("shared_titus_current_person_signed_candidate.sql",
+                      SCRIPT.read_text())
+        self.assertNotIn("user_metadata",candidate)
+        self.assertNotIn("service_role",candidate)
+
     def test_workflow_not_production_protected_trigger(self):
         s=WORKFLOW.read_text()
         self.assertIn("permissions:\n  contents: read",s)
