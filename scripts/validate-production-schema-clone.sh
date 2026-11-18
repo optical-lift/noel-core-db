@@ -326,7 +326,7 @@ if [ "$lane" = "atlas" ] &&
   lifecycle_proof="$repo_root/candidates/atlas/household_laundry_process_reassessment_v1/validate_signed_process_reassessment.py"
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$lifecycle_proof" ] ||
-     [ "$(git hash-object "$candidate_migration")" != dae26fbad43d0341e4efaf15bd29d695482bd136 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 058c6627e5c369ed9b83b0f972abc949739095e7 ] ||
      [ "$(git hash-object "$candidate_fixture")" != 737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7 ] ||
      [ "$(git hash-object "$candidate_validation")" != ce747e365321526757e2302f32572dfd45ca91e9 ] ||
      [ "$(git hash-object "$lifecycle_proof")" != 9f1ae62612df98ae0a8b2d73482ebbf58f11fa19 ]; then
