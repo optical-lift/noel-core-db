@@ -222,6 +222,24 @@ def main():
     worker=base.allow(api,key,tokens["worker"],"household_person_my_work_self_api_v1",params)
     base.check(all(w["workItemId"]!=next_id for w in worker["items"]),"Revoked member cannot read assigned Household Work")
     deny("worker","household_original_work_focus_self_api_v1",{"p_household_id":HOUSEHOLD,"p_work_item_id":next_id})
+    # Restore only the fictional member fixture for a distinct unallocated
+    # Work read-denial exercise; the preceding revocation check already passed.
+    sql(f"update atlas.household_members set active=true where id='{member}' and household_id='{HOUSEHOLD}'")
+    second_actual=base.allow(api,key,tokens["worker"],"record_household_laundry_wash_started_self_api_v1",{
+     "p_work_item_id":next_id,"p_action_id":"e5200000-0000-4000-8000-000000000d91","p_note":"Second fictional wash started."})
+    base.check(second_actual["workCompleted"] is True,"Signed assigned member can report its actual")
+    second=ok(reader)
+    unassigned=ok(finish_writer,{"p_work_item_id":next_id,"p_observation_id":second["observationId"],
+      "p_action_id":"e5200000-0000-4000-8000-000000000d92","p_self_carried":False})
+    unassigned_id=str(UUID(unassigned["workItemId"]))
+    base.check(unassigned["allocationId"] is None,"No manufactured carrier")
+    base.check(not any(w["workItemId"]==unassigned_id for w in ok("household_person_my_work_self_api_v1",params)["items"]),"Unallocated Work is not owner's personal responsibility")
+    unassigned_focus={"p_household_id":HOUSEHOLD,"p_work_item_id":unassigned_id}
+    base.check(ok("household_original_work_focus_self_api_v1",unassigned_focus)["allocationId"] is None,"Governor can inspect unallocated original")
+    for actor in ("worker","outsider","no-seat",None):
+        deny(actor,"household_original_work_focus_self_api_v1",unassigned_focus)
+    deny("worker","record_household_laundry_drying_started_self_api_v1",{
+      "p_work_item_id":unassigned_id,"p_action_id":"e5200000-0000-4000-8000-000000000d93","p_note":None})
     # Revoke the synthetic owner's actual GoTrue session without altering the
     # still-issued bearer; it may no longer invoke the authenticated reader.
     sql(f"delete from auth.sessions where id='{session_ids['owner']}' and user_id='{c1.OWNER}'")
@@ -229,5 +247,5 @@ def main():
     deny("owner",writer,command)
     deny("owner","household_person_my_work_self_api_v1",params)
     deny("owner","household_original_work_focus_self_api_v1",{"p_household_id":HOUSEHOLD,"p_work_item_id":next_id})
-    Path(args.output).write_text("PASS signed Laundry elapsed reassessment: same accepted actual, independent denials, explicit interval, real elapsed waiting/due, idempotence, stale/revoked refusal and no phantom Work or physical result.\n")
+    Path(args.output).write_text("PASS signed Laundry lifecycle: original wash, elapsed waiting/due, fresh running observation, drying, return-to-use, independent denials, unallocated Focus denial, revocation and exact replay. No phantom Work or whole-Household completion.\n")
 if __name__=="__main__": main()
