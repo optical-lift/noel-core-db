@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 import shutil
 import tempfile
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qsl
 
 import inspect_uniops_acl_readonly_source_clone_held as prior
 import inspect_uniops_acl_staged_local_held as local
@@ -73,11 +73,24 @@ def require_environment(env):
     raw=env.get("NOEL_CORE_DATABASE_URL","")
     try:
         p=urlsplit(raw)
-        allowed_hostname=p.hostname=="db."+PROJECT_REF+".supabase.co"
-        allowed_pooler=(p.username or "").endswith("."+PROJECT_REF)
+        # NEVER infer a trusted server from only a project-suffixed username:
+        # a malicious external hostname can otherwise receive the password.
+        # Native schema dump requires the direct or session (NOT transaction)
+        # endpoint, both on 5432. Reject URL parameters that change libpq
+        # targets or override TLS/connection behavior.
+        direct = (p.hostname=="db."+PROJECT_REF+".supabase.co"
+                  and p.username=="postgres")
+        pooler = (bool(p.hostname)
+                  and re.fullmatch(
+                      r"[a-z0-9-]+[.]pooler[.]supabase[.]com",
+                      p.hostname) is not None
+                  and p.username=="postgres."+PROJECT_REF)
+        query=parse_qsl(p.query,keep_blank_values=True,strict_parsing=True)
         if (p.scheme not in ("postgres","postgresql") or not p.password
-            or not (allowed_hostname or allowed_pooler)
-            or not p.hostname or p.hostname in ("localhost","127.0.0.1")):
+            or not (direct or pooler) or p.port!=5432
+            or p.path!="/postgres" or p.fragment
+            or len(query)!=1 or query[0][0]!="sslmode"
+            or query[0][1] not in ("require","verify-full")):
             raise Refused("stage_inspect_environment_refused")
     except (TypeError,ValueError):
         raise Refused("stage_inspect_environment_refused") from None
@@ -154,6 +167,11 @@ def inspect():
         decision=local.inspect_staged_local(clone,roles,clean,source,digest)
         if decision.verdict not in SUCCESS:
             raise Refused(decision.verdict)
+        # The local restore can be slow: recheck the same fixed read-only
+        # catalog observation after it, not just immediately after the dumps.
+        # A new live source during the clone work invalidates the diagnosis.
+        if source_snapshot(live)!=source:
+            raise Refused("stage_inspect_source_drift_refused")
         status=decision.safe_line()
     except Refused as e:
         status=str(e) if str(e) in REFUSALS else "stage_inspect_unknown_refused"
