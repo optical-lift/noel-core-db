@@ -361,12 +361,12 @@ if 'signed-household-original-repair-summary.txt' not in harness:
 # Exact held Laundry lifecycle repair: preserve the one canonical protected carrier;
 # owner request and immutable SQL/fixture/proof bytes, local-only execution.
 for fragment in ("Production schema validation request: Atlas held Laundry lifecycle",
-                 "b2594313c69f3c6f3e9509571f3a2a2f7a3160ad", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
+                 "d865a4e510e26fdd9a154466ad9deb0af71a243f", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
                  "supabase migration new atlas_household_laundry_lifecycle_clone_only_v1",
                  "actual_version=$version", "held_proof"):
     if fragment not in workflow:
         errors.append("Held Laundry lifecycle request boundary missing: "+fragment)
-for fragment in ("dae26fbad43d0341e4efaf15bd29d695482bd136",
+for fragment in ("058c6627e5c369ed9b83b0f972abc949739095e7",
                  "ce747e365321526757e2302f32572dfd45ca91e9",
                  "737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7",
                  "9f1ae62612df98ae0a8b2d73482ebbf58f11fa19"):
