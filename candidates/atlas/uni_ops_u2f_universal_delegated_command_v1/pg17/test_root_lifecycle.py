@@ -34,18 +34,24 @@ def run(source, expected_failure=False):
         raise AssertionError("fictional PostgreSQL SQL failed: "+p.stderr[:1500])
     return p.stdout.strip()
 
-def signed_sql(sql, actor=OWNER1, mutation=None, rollback=False):
+def signed_sql(sql, actor=OWNER1, mutation=None, rollback=False, session_override="default"):
     chunks=["BEGIN;"]
     if actor is not None:
         chunks.append("SELECT pg_catalog.set_config('request.jwt.claim.sub','"+actor+"',true);")
+        session=({"00000000-0000-4000-8000-000000001201":fake(901),
+                  "00000000-0000-4000-8000-000000001202":fake(902)}.get(actor,fake(999))
+                 if session_override=="default" else session_override)
+        claims=json.dumps({"session_id":session} if session is not None else {})
+        chunks.append("SET LOCAL request.jwt.claims = '"+claims+"';")
     if mutation:
         chunks.append(mutation)
     chunks.append(sql)
     chunks.append("ROLLBACK;" if rollback else "COMMIT;")
     return "\n".join(chunks)
 
-def assert_denied(label, sql, actor=OWNER1, mutation=None):
-    diagnostic=run(signed_sql(sql,actor=actor,mutation=mutation,rollback=True),True)
+def assert_denied(label, sql, actor=OWNER1, mutation=None, session_override="default"):
+    diagnostic=run(signed_sql(sql,actor=actor,mutation=mutation,
+                              rollback=True,session_override=session_override),True)
     if "ERROR:" not in diagnostic:
         raise AssertionError(label+": unexpected failure category "+diagnostic[:200])
 
@@ -142,6 +148,16 @@ for label,statement,actor,mutation in [
   f"UPDATE atlas.principals SET status='inactive' WHERE id='{fake(101)}';"),
 ]:
     assert_denied(label,statement,actor,mutation)
+# Real schema supports session_id -> auth.sessions; this is still fake JWT.
+assert_denied("missing JWT session claim",admission(),session_override=None)
+assert_denied("unknown JWT session",admission(),session_override=fake(999))
+assert_denied("wrong-user JWT session",admission(),session_override=fake(902))
+assert_denied("malformed JWT session",admission(),session_override="not-a-uuid")
+assert_denied("deleted session",admission(),mutation=(
+    f"DELETE FROM auth.sessions WHERE id='{fake(901)}';"))
+assert_denied("expired session",admission(),mutation=(
+    f"UPDATE auth.sessions SET not_after=now()-interval '1 minute' WHERE id='{fake(901)}';"))
+
 assert snapshot()==initial,"Denied admits changed persisted rows"
 
 receipt1=j(run(signed_sql(admission())),"native ledger 1 admission")
@@ -167,6 +183,11 @@ assert snapshot()=={"candidates":2,"events":2}
 assert_denied("outsider cannot revoke",revocation(id1),STRANGER)
 assert_denied("empty reason cannot revoke",revocation(id1,"No"))
 assert_denied("wrong historical candidate",revocation(fake(999)))
+assert_denied("revocation requires current session",revocation(id1),
+              session_override=fake(902))
+assert_denied("revocation denies expired session",revocation(id1),mutation=(
+    f"UPDATE auth.sessions SET not_after=now()-interval '1 minute' WHERE id='{fake(901)}';"))
+
 assert candidate()["candidateSourceCurrent"] is True
 
 revoke1=j(run(signed_sql(revocation(id1))),"root 1 revocation")
