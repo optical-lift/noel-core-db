@@ -8,6 +8,7 @@ BEGIN
  OR to_regclass('reality.responsibility_relations') IS NULL
  OR to_regclass('titus.institution_account_admissions_v1') IS NULL
  OR to_regprocedure('atlas.current_person_for_private_course_v1()') IS NULL
+ OR to_regprocedure('reality.resolve_responsibility_relation_v1(uuid,text,text,text,uuid,text,jsonb)') IS NULL
  THEN RAISE EXCEPTION 'held U1.1 admission source clone prerequisites missing'
  USING ERRCODE='42501'; END IF;
  IF EXISTS(SELECT 1 FROM titus.institution_account_admissions_v1) THEN
@@ -60,7 +61,7 @@ CREATE FUNCTION titus.require_current_institution_account_manager_self_v1(
  p_institution_entity_id uuid,p_ledger_id uuid,p_operation text
 ) RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path TO pg_catalog AS $manager$
-DECLARE v_person uuid;v_authorities uuid[];
+DECLARE v_person uuid;v_authorities uuid[];v_shared_authority uuid;
 BEGIN
  IF p_operation NOT IN ('invite','withdraw','cancel') OR
  p_ledger_id IS NULL OR p_institution_entity_id IS NULL
@@ -85,10 +86,20 @@ BEGIN
   AND r.scope->>'ledgerId'=p_ledger_id::text
   AND r.relation_state='active'
   AND r.began_at<=clock_timestamp()
-  AND (r.ended_at IS NULL OR r.ended_at>clock_timestamp())
+  AND r.ended_at IS NULL
   AND p_operation=ANY(r.permitted_operations);
  IF cardinality(v_authorities) IS DISTINCT FROM 1 THEN
   RAISE EXCEPTION 'exact current institution account management authority required'
+  USING ERRCODE='42501'; END IF;
+ -- Never create a Titus-only authorization interpretation: the existing
+ -- canonical Reality resolver must independently resolve THE SAME single
+ -- current Entity-scoped responsibility for this exact Ledger scope.
+ v_shared_authority:=reality.resolve_responsibility_relation_v1(
+  v_person,'titus_institution_account_management',p_operation,
+  'entity',p_institution_entity_id,NULL,
+  jsonb_build_object('ledgerId',p_ledger_id::text));
+ IF v_shared_authority IS DISTINCT FROM v_authorities[1] THEN
+  RAISE EXCEPTION 'canonical Reality responsibility resolution did not match'
   USING ERRCODE='42501'; END IF;
  -- Recheck selected authority under row lock; no stale positive decision.
  PERFORM 1 FROM reality.responsibility_relations r
@@ -97,7 +108,8 @@ BEGIN
   AND r.jurisdiction_kind='entity'
   AND r.jurisdiction_entity_id=p_institution_entity_id
   AND r.jurisdiction_domain IS NULL
-  AND r.scope->>'ledgerId'=p_ledger_id::text AND r.relation_state='active'
+  AND r.scope->>'ledgerId'=p_ledger_id::text
+  AND r.ended_at IS NULL AND r.relation_state='active'
   AND r.began_at<=clock_timestamp()
   AND (r.ended_at IS NULL OR r.ended_at>clock_timestamp())
   AND p_operation=ANY(r.permitted_operations)
@@ -188,7 +200,7 @@ BEGIN
  AND r.jurisdiction_domain IS NULL AND r.scope->>'ledgerId'=v_inv.ledger_id::text
  AND r.relation_state='active'
  AND r.began_at<=clock_timestamp()
- AND (r.ended_at IS NULL OR r.ended_at>clock_timestamp())
+ AND r.ended_at IS NULL
  AND 'invite'=ANY(r.permitted_operations)
  FOR SHARE;
  IF NOT FOUND OR NOT EXISTS(
