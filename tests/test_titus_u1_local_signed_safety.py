@@ -86,6 +86,28 @@ class TestSignedLocalSafety(unittest.TestCase):
         self.assertIn("titus.institution_account_root_origins_v1",source)
         self.assertIn("GRANT EXECUTE ON FUNCTION public.shared_titus_institution_root_bootstrap_self_api_v1",source)
 
+    def test_organization_reality_identity_must_have_unique_source_original(self):
+        sql=(ROOT/"candidates/shared-teaching-course-clean-cutover-v1"
+             /"shared_titus_institution_root_establishment_candidate.sql").read_text()
+        fixture=FIXTURE.read_text()
+        signed=DRIVER.read_text()
+        helper=sql.split("CREATE FUNCTION titus.require_canonical_institution_organization_v1(",1)[1].split(
+            "CREATE FUNCTION titus.current_exact_root_for_ledger_v1(",1)[0]
+        for contract in ("compatibility.legacy_bindings",
+                         "lb.legacy_schema='atlas'",
+                         "lb.legacy_table='organizations'",
+                         "lb.disposition='maps_to'",
+                         "v_mapping_count IS DISTINCT FROM 1",
+                         "v_mapped_entity IS DISTINCT FROM v_entity"):
+            self.assertIn(contract,helper)
+        self.assertIn("INSERT INTO compatibility.legacy_bindings",fixture)
+        for guard in (
+            "explicit Atlas Organization mapping to wrong Reality institution denies",
+            "two competing Atlas-to-Reality organization originals deny",
+            "missing organization Reality mapping denies rather than guessing",
+        ):
+            self.assertIn(guard,signed)
+
     def test_workflow_not_production_protected_trigger(self):
         s=WORKFLOW.read_text()
         self.assertIn("permissions:\n  contents: read",s)
