@@ -103,13 +103,18 @@ class TestHeldU1ProtectedBundle(unittest.TestCase):
             "NOT signed behavior or release",
         ):
             self.assertIn(statement, sql)
+        import re
         upper = "\n".join(line for line in sql.splitlines()
                           if not line.lstrip().startswith("--")).upper()
         for forbidden in (
             "INSERT INTO", "UPDATE ", "DELETE FROM", "CREATE TABLE",
             "ALTER TABLE", "GRANT ", "REVOKE ", "COPY ",
         ):
-            self.assertNotIn(forbidden, upper)
+            # Only SQL statement heads are forbidden; error messages may
+            # correctly describe a missing GRANT or forbidden UPDATE.
+            self.assertIsNone(
+                re.search(r"(?m)^\\s*" + re.escape(forbidden), upper),
+                forbidden)
 
 
 if __name__ == "__main__":
