@@ -46,6 +46,7 @@ def _browser_positive_actual(db_url, work, payload):
     private=_Path(temp)/"uniops-native-worker-actual-private.json"
     require(not private.exists() and not private.is_symlink(),
             "U4 native browser receipt preexisted")
+    retain_for_governor=False
     try:
         proc=subprocess.run(
             ["bash",str(runner),db_url,work,str(private)],
@@ -74,10 +75,15 @@ def _browser_positive_actual(db_url, work, payload):
         # The true browser chose its action identity; replay MUST use exactly
         # that same action ID and the exact same typed physical payload.
         payload["p_action_id"]=receipt["actionId"]
+        # After all original U4 checks, leave the same verified 0600 receipt
+        # for the separately signed governor. The injected validator's
+        # existing EXIT cleanup removes it on EVERY remaining exit path.
+        retain_for_governor=True
         print("PASS U4_NATIVE_SIGNED_WORKER_BROWSER_ORIGIN=PASS",flush=True)
         return 200,receipt["receipt"]
     finally:
-        private.unlink(missing_ok=True)
+        if not retain_for_governor:
+            private.unlink(missing_ok=True)
 '''
 REPLACEMENT = '    status, response = _browser_positive_actual(db_url, work, payload)'
 MORE_DENIALS = '''    "U4 native browser runner not authorized": "native_browser_authorization_gate",

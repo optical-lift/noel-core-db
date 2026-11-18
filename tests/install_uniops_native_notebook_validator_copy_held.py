@@ -12,6 +12,14 @@ from pathlib import Path
 U2='phase="signed integrated U1B source and U2 accepted-first original"\n'
 LINT='phase="candidate domain schema lint"\n'
 U4=' --u4-actual-followon'
+# Preserve the existing validator's EXIT trap. The signed U4 worker's private
+# 0600 receipt may live only until the separate governor readback. Do not
+# override the validator's existing finish() cleanup or create an artifact.
+FINISH='  rm -rf "$runtime_dir"\n  exit "$result"\n'
+PRIVATE_CLEANUP='''  if [ "${ATLAS_NATIVE_NOTEBOOK_FICTIONAL_ONLY:-}" = true ] && [ -n "${RUNNER_TEMP:-}" ]; then
+    rm -f -- "$RUNNER_TEMP/uniops-native-worker-actual-private.json"
+  fi
+'''
 BEFORE=r'''# Reviewed owner-ONLY disposable clone, not a migration or purchase:
 phase="held native governor source and fictional Personal Atlas entitlement"
 test "${ATLAS_NATIVE_NOTEBOOK_FICTIONAL_ONLY:-}" = true
@@ -119,17 +127,19 @@ def install(text):
         text.count(LINT)!=1 or text.count(U4)!=1 or
         text.count("signed_accepted_first_probe=true")!=1 or
         text.index(U2)>=text.index(LINT) or
+        text.count(FINISH)!=1 or PRIVATE_CLEANUP in text or
         "ATLAS_NATIVE_GOVERNOR_DONE=PASS" in text or
         "uniops-native-governor-held-candidate.sql" in text or
         "ATLAS_CI_GOVERNOR_EXACT_DONE_READBACK" in text):
         raise ValueError("Expected U2/U4 disposable validator not exact or already hooked")
     out=text.replace(U2,BEFORE+U2,1).replace(LINT,AFTER+LINT,1)
+    out=out.replace(FINISH,PRIVATE_CLEANUP+FINISH,1)
     for marker in (
       'phase="held native governor source and fictional Personal Atlas entitlement"',
       'phase="held native governor Done and outsider signed browser readback"',
       "ATLAS_NATIVE_GOVERNOR_DONE=PASS",
       "ATLAS_NATIVE_OUTSIDER_DENIAL=PASS",
-      "signed_accepted_first_probe=true",U2,LINT,U4):
+      "signed_accepted_first_probe=true",U2,LINT,U4,PRIVATE_CLEANUP):
         if out.count(marker)!=1:
             raise ValueError("Native Notebook validator hook duplicated or missing")
     return out

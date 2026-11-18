@@ -43,6 +43,15 @@ class WorkerActualSourceTest(unittest.TestCase):
             if source_line in before:
                 self.assertIn(source_line,after)
         self.assertIn('private.unlink(missing_ok=True)',after)
+        self.assertIn('retain_for_governor=False',after)
+        self.assertIn('retain_for_governor=True',after)
+        self.assertIn('if not retain_for_governor:',after)
+        self.assertLess(after.index('retain_for_governor=True'),
+                        after.index('return 200,receipt["receipt"]'))
+        self.assertLess(after.index('if not retain_for_governor:'),
+                        after.index('private.unlink(missing_ok=True)'))
+        self.assertEqual(after.count('private.unlink(missing_ok=True)'),1)
+
         self.assertIn('payload["p_action_id"]=receipt["actionId"]',after)
         self.assertIn('return 200,receipt["receipt"]',after)
         self.assertIn('subprocess.run(',after)
