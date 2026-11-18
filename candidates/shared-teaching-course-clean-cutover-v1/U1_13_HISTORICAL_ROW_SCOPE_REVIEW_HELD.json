@@ -1,0 +1,236 @@
+{
+  "contractVersion": "titus_u113_historical_row_scope_review_v1",
+  "basis": "2026-11-18 read-only Noel pg_catalog FK metadata; source-only",
+  "previousHeldSourceSha": "f9cabf634d0b660f25d6b7244ff7351623aa4c28",
+  "roots": [
+    "titus.customer_course_drafts_v1",
+    "titus.customer_workspace_entitlements_v1",
+    "titus.programs"
+  ],
+  "descendantDispositions": {
+    "titus.canon_brief_items": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.canon_claim_evidence": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.canon_claim_truth_links": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.canon_claims": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.canon_structure_edges": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.canon_structure_nodes": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.canon_structures": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.curriculum_decisions": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.curriculum_findings": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.curriculum_slot_placements": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.curriculum_versions": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.customer_course_drafts_v1": {
+      "disposition": "preserve_exact_original",
+      "rowSelector": "not_authorized"
+    },
+    "titus.customer_course_material_revisions_v1": {
+      "disposition": "preserve_exact_original",
+      "rowSelector": "not_authorized"
+    },
+    "titus.customer_course_unit_revisions_v1": {
+      "disposition": "preserve_exact_original",
+      "rowSelector": "not_authorized"
+    },
+    "titus.customer_course_units_v1": {
+      "disposition": "preserve_exact_original",
+      "rowSelector": "not_authorized"
+    },
+    "titus.customer_workspace_entitlements_v1": {
+      "disposition": "preserve_exact_original",
+      "rowSelector": "not_authorized"
+    },
+    "titus.formation_articulations": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.formation_questions": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.formation_responses": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.formation_transfer_attempts": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.formation_transfer_cases": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.formation_unit_inputs": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.formation_unit_sections": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.formation_units": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.lesson_claim_links": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.lesson_script_segment_claims": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.lesson_structure_links": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.lesson_teacher_source_links": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.program_course_placements": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.program_teachers": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.programs": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.slot_canon_briefs": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.slot_song_scopes": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.slot_teacher_source_candidates": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teacher_pattern_claim_links": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teacher_source_adjudication_targets": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teacher_source_adjudications": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teacher_term_sense_targets": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    },
+    "titus.workspace_state": {
+      "disposition": "pending_row_scope_review",
+      "rowSelector": "not_authorized"
+    }
+  },
+  "externalParentDispositions": {
+    "auth.users": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "draft.song_objects": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.course_slots": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.courses": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.customer_workspaces_v1": {
+      "disposition": "preserve_exact_original",
+      "rowSelector": "not_authorized"
+    },
+    "titus.lesson_packets": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.lesson_script_segments": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teacher_patterns": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teacher_source_song_scopes": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teacher_source_units": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teacher_term_senses": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.teachers": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    },
+    "titus.truth_refs": {
+      "disposition": "independent_original_do_not_duplicate",
+      "rowSelector": "not_authorized"
+    }
+  },
+  "protectedCustomerTableScope": [
+    "titus.customer_course_drafts_v1",
+    "titus.customer_course_material_revisions_v1",
+    "titus.customer_course_unit_revisions_v1",
+    "titus.customer_course_units_v1",
+    "titus.customer_workspace_entitlements_v1",
+    "titus.customer_workspaces_v1"
+  ],
+  "customerRowsRead": false,
+  "dataCaptureAuthorized": false,
+  "persistentVaultConfigured": false,
+  "productionWritesAuthorized": false,
+  "deletionAuthorized": false,
+  "sourceSchemaMetadataOnly": true
+}
