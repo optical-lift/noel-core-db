@@ -11,7 +11,7 @@ WITH fk_catalog AS (
     array_agg(parent_attribute.attname::text ORDER BY key_pair.ordinality) AS parent_columns,
     fk.confdeltype::text AS on_delete_code,
     fk.confupdtype::text AS on_update_code,
-    fk.condeferrable AS deferrable,
+    fk.condeferrable AS is_deferrable,
     fk.condeferred AS initially_deferred
   FROM pg_catalog.pg_constraint AS fk
   JOIN pg_catalog.pg_class AS child ON child.oid = fk.conrelid
@@ -49,7 +49,7 @@ SELECT jsonb_build_object(
         'parentColumns', parent_columns,
         'onDeleteCode', on_delete_code,
         'onUpdateCode', on_update_code,
-        'deferrable', deferrable,
+        'deferrable', is_deferrable,
         'initiallyDeferred', initially_deferred
       )
       ORDER BY child, parent, constraint_name
