@@ -349,7 +349,7 @@ for fragment in ("Production schema validation request: Atlas held Household Wor
         errors.append("Held Household request boundary missing: "+fragment)
 for fragment in ("de88e16dc36ac052f2fb0e90b708c30253db06d1",
                  "742f436f96149186a0c5c9d3b9d6d598b885667f",
-                 "e877d93323ddc67d8778be8bea1dfa34319cc85c",
+                 "cf968e69740b7a449217a292e6540a1727dbf682",
                  "a561ee3d34bad17837d02eed3908db3a7be6d61c"):
     if fragment not in workflow or fragment not in harness:
         errors.append("Held Household immutable package pin missing: "+fragment)
