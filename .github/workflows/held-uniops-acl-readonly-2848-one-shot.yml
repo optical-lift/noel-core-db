@@ -43,7 +43,7 @@ jobs:
           assert sum(x.strip().startswith('NOEL_CORE_DATABASE_URL:') for x in s.splitlines())==1
           assert 'e801a4146aa67c7a29fd19f34490ed62924c04e2' in s
           assert "os.environ['GITHUB_EVENT_PATH']" in p[1]
-          assert 'github.event_path' not in s
+          assert ('github.event'+'_'+'path') not in s
           assert 'supabase db push' not in p[1]
           assert 'apply_migration' not in p[1]
           assert 'upload-artifact' not in p[1]
