@@ -195,7 +195,7 @@ affected=run(signed_sql(
 assert j(affected,"seat ended")["candidateSourceCurrent"] is False
 assert candidate(ROOT2,LEDGER2)["candidateSourceCurrent"] is True
 assert run("SELECT (to_regclass('atlas.work_items') IS NULL AND "
-           "to_regclass('atlas.tasks') IS NULL)::text;")=="t", "Work/Task store appeared"
+           "to_regclass('atlas.tasks') IS NULL)::text;")=="true", "Work/Task store appeared"
 print("U2F_06_SYNTHETIC_SIGNED_SHAPE_AND_NATIVE_REVOCATION=PASS")
 print("AUTHENTIC_GOTRUE_SIGNED_ACTOR=NOT_TESTED")
 print("INDEPENDENT_SOURCE_ADJUDICATION=NO")
