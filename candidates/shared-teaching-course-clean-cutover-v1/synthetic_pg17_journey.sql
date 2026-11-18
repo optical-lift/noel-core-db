@@ -23,6 +23,10 @@ SET LOCAL app.shared_course_clone='approved';
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_account_context_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_account_context_tests_pg17.sql
 
+-- U1.1: exact institution authority -> invitation -> signed recipient consent
+-- -> irreversible admission / append-only withdrawal. Synthetic-only.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_institution_account_admission_issuer_tests_pg17.sql
+
 -- Writer tests MUST rollback to restore an empty Course root for exact adoption.
 SAVEPOINT writer_contract;
 -- This synthetic author access grant is rolled back before M2 copies the
