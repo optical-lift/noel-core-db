@@ -119,15 +119,90 @@ INSERT INTO ledger.ledgers(id,subject_entity_id,ledger_state) VALUES
  '44444444-4444-4444-8444-444444444444','active'),
 ('88888888-8888-4888-8888-888888888888',
  '44444444-4444-4444-8444-444444444444','active');
--- INDEPENDENT ROOT, only in this isolated fiction, not a real university
--- owner. Manager authority must be appointed by the shared governed command.
-INSERT INTO reality.responsibility_relations(
-id,carrier_person_entity_id,responsibility_key,jurisdiction_kind,
-jurisdiction_entity_id,relation_state,permitted_operations,began_at,scope)
-VALUES('99999999-9999-4999-8999-999999999999',
- '11111111-1111-4111-8111-111111111111',
- 'titus_institution_account_root_governance','entity',
- '44444444-4444-4444-8444-444444444444','active',
- ARRAY['appoint_manager','transfer_manager','revoke_manager']::text[],
- now()-interval '1 hour',
- '{"ledgerId":"77777777-7777-4777-8777-777777777777"}');
+-- The following miniature Atlas objects model the already-live *independent*
+-- Principal-root/active governing Ledger + Seat contract on disposable local
+-- GoTrue. This is not production schema; full clone parity stays HELD.
+CREATE TABLE atlas.organizations(
+ id uuid PRIMARY KEY,status text NOT NULL
+);
+CREATE TABLE atlas.ledgers(
+ id uuid PRIMARY KEY,status text NOT NULL
+);
+CREATE TABLE atlas.ledger_organization_participations(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ ledger_id uuid NOT NULL,
+ organization_id uuid NOT NULL,
+ participation_kind text NOT NULL,
+ is_compatibility_primary boolean NOT NULL,
+ status text NOT NULL,
+ ended_at timestamptz
+);
+CREATE TABLE atlas.principals(
+ id uuid PRIMARY KEY,person_id uuid NOT NULL REFERENCES reality.entities(id),
+ status text NOT NULL
+);
+CREATE TABLE atlas.principal_ledger_authorities(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ principal_id uuid NOT NULL REFERENCES atlas.principals(id),
+ ledger_id uuid NOT NULL,
+ authority_kind text NOT NULL,
+ status text NOT NULL,
+ ended_at timestamptz
+);
+CREATE TABLE ledger.seats(
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ ledger_id uuid NOT NULL REFERENCES ledger.ledgers(id),
+ person_entity_id uuid NOT NULL REFERENCES reality.entities(id),
+ seat_state text NOT NULL,
+ ended_at timestamptz
+);
+INSERT INTO atlas.organizations(id,status)
+VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','active');
+INSERT INTO atlas.ledgers(id,status)
+VALUES('77777777-7777-4777-8777-777777777777','active'),
+('88888888-8888-4888-8888-888888888888','active');
+INSERT INTO atlas.ledger_organization_participations(
+ ledger_id,organization_id,participation_kind,is_compatibility_primary,status)
+VALUES('77777777-7777-4777-8777-777777777777',
+'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','governing',true,'active');
+INSERT INTO atlas.principals(id,person_id,status)
+VALUES('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+'11111111-1111-4111-8111-111111111111','active');
+INSERT INTO atlas.principal_ledger_authorities(principal_id,ledger_id,authority_kind,status)
+VALUES('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+'77777777-7777-4777-8777-777777777777','root_governing','active');
+INSERT INTO ledger.seats(ledger_id,person_entity_id,seat_state)
+VALUES('77777777-7777-4777-8777-777777777777',
+'11111111-1111-4111-8111-111111111111','active');
+
+-- Scratch adapter models Atlas's real governing-Principal check. This is
+-- explicitly a TEST DOUBLE and must not be mistaken for real function parity.
+CREATE FUNCTION atlas.company_work_native_ledger_owner_self_v1(
+ p_organization_id uuid,p_ledger_id uuid
+) RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path TO pg_catalog AS $scratch_atlas$
+DECLARE v_person uuid;v_count bigint;
+BEGIN
+ v_person:=atlas.current_person_for_private_course_v1();
+ SELECT count(*) INTO v_count
+ FROM atlas.principals p
+ JOIN atlas.principal_ledger_authorities a ON a.principal_id=p.id
+ JOIN atlas.ledger_organization_participations lop
+  ON lop.ledger_id=a.ledger_id
+ JOIN atlas.organizations o ON o.id=lop.organization_id
+ JOIN atlas.ledgers al ON al.id=lop.ledger_id
+ JOIN ledger.seats seat ON seat.ledger_id=al.id AND seat.person_entity_id=p.person_id
+ WHERE p.person_id=v_person AND p.status='active'
+  AND a.ledger_id=p_ledger_id AND a.authority_kind='root_governing'
+  AND a.status='active' AND a.ended_at IS NULL
+  AND lop.organization_id=p_organization_id AND lop.status='active'
+  AND lop.ended_at IS NULL AND lop.participation_kind='governing'
+  AND lop.is_compatibility_primary AND o.status='active'
+  AND al.status='active' AND seat.seat_state='active' AND seat.ended_at IS NULL;
+ IF v_count<>1 THEN
+ RAISE EXCEPTION 'independent governing Principal and seat required'
+ USING ERRCODE='42501'; END IF;
+ RETURN v_person;
+END $scratch_atlas$;
+REVOKE ALL ON FUNCTION atlas.company_work_native_ledger_owner_self_v1(uuid,uuid)
+ FROM PUBLIC,anon,authenticated;
