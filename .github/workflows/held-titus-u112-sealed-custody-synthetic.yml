@@ -7,12 +7,14 @@ on:
     paths:
       - 'scripts/titus-u112-sealed-custody-transport.py'
       - 'tests/test_titus_u112_sealed_custody_transport.py'
+      - 'scripts/test-titus-u112-encrypted-pg17-restore.sh'
       - 'candidates/shared-teaching-course-clean-cutover-v1/U1_12_*'
       - '.github/workflows/held-titus-u112-sealed-custody-synthetic.yml'
   pull_request:
     paths:
       - 'scripts/titus-u112-sealed-custody-transport.py'
       - 'tests/test_titus_u112_sealed_custody_transport.py'
+      - 'scripts/test-titus-u112-encrypted-pg17-restore.sh'
       - 'candidates/shared-teaching-course-clean-cutover-v1/U1_12_*'
       - '.github/workflows/held-titus-u112-sealed-custody-synthetic.yml'
 
@@ -33,5 +35,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s tests -p test_titus_u112_sealed_custody_transport.py -v
+          bash -n scripts/test-titus-u112-encrypted-pg17-restore.sh
+          bash scripts/test-titus-u112-encrypted-pg17-restore.sh
           test ! -e supabase/migrations/20261118_titus_u112_historical_data.sql
           echo 'PASS fictional source-only sealed custody; no database access or real data'
