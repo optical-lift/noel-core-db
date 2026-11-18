@@ -23,6 +23,7 @@ ALTER TABLE ledger.seat_responsibilities
  ADD COLUMN began_at timestamptz NOT NULL DEFAULT pg_catalog.now(),
  ADD COLUMN ended_at timestamptz,
  ADD COLUMN updated_at timestamptz NOT NULL DEFAULT pg_catalog.now();
+ALTER TABLE ledger.seat_responsibilities ALTER COLUMN id SET DEFAULT pg_catalog.gen_random_uuid();
 CREATE UNIQUE INDEX native_root_one_record_per_seat_key
  ON ledger.seat_responsibilities(seat_id,responsibility_key);
 CREATE TABLE ledger.actions (
