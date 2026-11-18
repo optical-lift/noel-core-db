@@ -54,13 +54,16 @@ class ExactU2FHook(unittest.TestCase):
             self.assertEqual(new_h.count('phase="signed reciprocal Ledger roots, private intake and Person identity"'),1)
             self.assertLess(new_h.index("U2F separately authorized signed-review-only clone setup"),
                             new_h.index('phase="signed reciprocal Ledger roots, private intake and Person identity"'))
-            for needle in ('test "$database_url" = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"',
+            for needle in ('[[ "$local_database_port" =~ ^[0-9]{5}$ ]]',
+                           '(( local_database_port >= 38000 && local_database_port < 61000 ))',
+                           'test "$database_url" = "postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres"',
                            'PGOPTIONS="-c uniops.disposable_signed=u2f_owner_authorized_clone_only_v1"',
                            '06_signed_native_root_lifecycle_held.sql',
                            '08_signed_clone_only_rpc_bridge_held.sql',
                            'grep -qx \'U2F_GENUINE_SIGNED_LOCAL_CLONE=PASS\'',
                            'signed-ledger-reciprocal-summary.txt'):
                 self.assertIn(needle,new_h)
+            self.assertNotIn("127.0.0.1:54322/postgres",new_h)
             self.assertEqual(new_r.count("    base.setup_auth(a.db_url)"),1)
             self.assertEqual(new_r.count("    tokens={}"),1)
             self.assertIn('"--reuse-existing-signed-auth"',new_r)
