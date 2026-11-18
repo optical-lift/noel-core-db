@@ -339,6 +339,25 @@ startup = startup.split('supabase start >"$startup_log" 2>&1',1)[0]
 if '[ "$signed_universal_original_work_probe" = true ]' not in startup:
     errors.append('Universal signed probe accidentally starts PostgreSQL-only')
 
+# Exact held Household repair: preserve the one canonical protected carrier;
+# owner request and immutable SQL/fixture/proof bytes, local-only execution.
+for fragment in ("Production schema validation request: Atlas held Household Work",
+                 "fdbd73772b4760c9a97d743571705cfe29822a2f", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
+                 "supabase migration new atlas_household_work_subject_pair_repair_clone_only_v1",
+                 "actual_version=$version", "held_proof"):
+    if fragment not in workflow:
+        errors.append("Held Household request boundary missing: "+fragment)
+for fragment in ("de88e16dc36ac052f2fb0e90b708c30253db06d1",
+                 "742f436f96149186a0c5c9d3b9d6d598b885667f",
+                 "e877d93323ddc67d8778be8bea1dfa34319cc85c",
+                 "a561ee3d34bad17837d02eed3908db3a7be6d61c"):
+    if fragment not in workflow or fragment not in harness:
+        errors.append("Held Household immutable package pin missing: "+fragment)
+if '[ "$signed_household_original_repair_probe" = true ]' not in startup:
+    errors.append("Household signed probe accidentally starts PostgreSQL-only")
+if 'signed-household-original-repair-summary.txt' not in harness:
+    errors.append("Household signed proof cannot be omitted from successful clone")
+
 # Signed care proof must reuse local native Work/Person infrastructure and
 # must never become an arbitrary candidate-triggered or production call.
 care_script=Path('scripts/validate-atlas-care-single-done-signed-http.py')
