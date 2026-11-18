@@ -95,7 +95,7 @@ def main():
     writer="record_household_laundry_reassessment_self_api_v1"
     interval=ok(reader)
     base.check(interval["state"]=="needs_interval" and interval["workItemId"]==work
-      and interval["washResultId"]==receipt["careResultId"]
+      and interval["processResultId"]==receipt["careResultId"]
       and interval["observationId"]==now["lastObservationId"],"Accepted actual, not inferred effort, anchors elapsed process")
     command={"p_work_item_id":work,"p_observation_id":interval["observationId"],
       "p_elapsed_minutes":1,"p_action_id":"e5200000-0000-4000-8000-000000000d81"}
@@ -134,6 +134,15 @@ def main():
     base.check(due["evidenceId"]==evidence and due["physicalCompletionInferred"] is False
       and due["workCreated"] is False and due["clockAdmitted"] is False,"Due is only an expectation")
     base.check(sql(count_query)==before_counts,"Time passage creates no new Work, Need, observation or result")
+    still_writer="record_household_laundry_still_running_self_api_v1"
+    still={"p_work_item_id":work,"p_observation_id":interval["observationId"],
+      "p_elapsed_minutes":12,"p_action_id":"e5200000-0000-4000-8000-000000000d86"}
+    for actor in ("worker","outsider","no-seat",None): deny(actor,still_writer,still)
+    still_running=ok(still_writer,still)
+    base.check(still_running["state"]=="waiting" and still_running["observationId"]!=interval["observationId"]
+       and still_running["processResultId"]==receipt["careResultId"],"Actual still-running observation anchors new expectation")
+    base.check(ok(still_writer,still)["evidenceId"]==still_running["evidenceId"],"Same running observation replay")
+    interval=still_running
     finish_writer="record_household_laundry_wash_finished_self_api_v1"
     finish={"p_work_item_id":work,"p_observation_id":interval["observationId"],
        "p_action_id":"e5200000-0000-4000-8000-000000000d83","p_self_carried":True}
@@ -157,6 +166,29 @@ def main():
     base.check(dry["workCompleted"] is True and dry["laundryCompletelyDone"] is False,"Only drying start completes")
     base.check(ok("record_household_laundry_drying_started_self_api_v1",dry_args)["careResultId"]==dry["careResultId"],"Dry start replay")
     base.check(ok("household_laundry_current_self_api_v1")["lastCompletedWorkItemId"]==work,"Wash-start history not relabeled")
+    dry_interval=ok(reader)
+    base.check(dry_interval["state"]=="needs_interval" and dry_interval["processKind"]=="drying"
+       and dry_interval["workItemId"]==dry_work,"Drying owns a distinct elapsed process")
+    dry_check=ok(writer,{"p_work_item_id":dry_work,"p_observation_id":dry_interval["observationId"],
+      "p_elapsed_minutes":30,"p_action_id":"e5200000-0000-4000-8000-000000000d87"})
+    base.check(dry_check["state"]=="waiting" and dry_check["processResultId"]==dry["careResultId"],"Drying estimate anchored to original dry start")
+    done_writer="record_household_laundry_dry_finished_self_api_v1"
+    done={"p_work_item_id":dry_work,"p_observation_id":dry_check["observationId"],
+      "p_action_id":"e5200000-0000-4000-8000-000000000d88","p_self_carried":True}
+    for actor in ("worker","outsider","no-seat",None): deny(actor,done_writer,done)
+    ready=ok(done_writer,done)
+    return_work=str(UUID(ready["workItemId"]))
+    base.check(ready["conditionState"]=="dry_ready_for_return" and return_work not in (work,dry_work),"Observed dry load establishes exact next Work")
+    base.check(ok(done_writer,done)["workItemId"]==return_work,"Replay preserves return Work")
+    base.check(ok(reader)["state"]=="not_applicable","Dry finish withdraws elapsed attention")
+    final={"p_work_item_id":return_work,"p_action_id":"e5200000-0000-4000-8000-000000000d89","p_note":"Fictional dry load returned to use."}
+    deny("worker","record_household_laundry_returned_to_use_self_api_v1",final)
+    result=ok("record_household_laundry_returned_to_use_self_api_v1",final)
+    base.check(result["workCompleted"] is True and result["loadReturnedToUse"] is True
+      and result["laundryCompletelyDone"] is False,"Only this tracked load returned; no whole Household assertion")
+    base.check(ok("record_household_laundry_returned_to_use_self_api_v1",final)["careResultId"]==result["careResultId"],"Exact return receipt replay")
+    base.check(ok("household_laundry_current_self_api_v1")["currentCondition"]=="returned_to_use","Actual return state retained")
+    base.check(not ok("household_person_my_work_self_api_v1",params)["items"],"Completed tracked load leaves no phantom Work")
     # A second real observation in the fictional clone can establish a
     # distinct Work assigned to an actual signed member, not the governor.
     next_obs=ok("record_household_laundry_observation_self_api_v1",{

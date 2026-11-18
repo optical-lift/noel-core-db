@@ -2,7 +2,7 @@ begin;
 do $test$
 declare fn text; p text; role_name text;
 begin
- foreach fn in array array['household_laundry_reassessment_self_api_v1()','record_household_laundry_reassessment_self_api_v1(uuid,uuid,integer,uuid)','record_household_laundry_wash_finished_self_api_v1(uuid,uuid,uuid,boolean)','record_household_laundry_drying_started_self_api_v1(uuid,uuid,text)'] loop
+ foreach fn in array array['household_laundry_reassessment_self_api_v1()','record_household_laundry_reassessment_self_api_v1(uuid,uuid,integer,uuid)','record_household_laundry_wash_finished_self_api_v1(uuid,uuid,uuid,boolean)','record_household_laundry_drying_started_self_api_v1(uuid,uuid,text)','record_household_laundry_still_running_self_api_v1(uuid,uuid,integer,uuid)','record_household_laundry_dry_finished_self_api_v1(uuid,uuid,uuid,boolean)','record_household_laundry_returned_to_use_self_api_v1(uuid,uuid,text)'] loop
   foreach role_name in array array['anon','service_role'] loop
    if has_function_privilege(role_name,'public.'||fn,'EXECUTE') then raise exception 'Unexpected public adapter grant'; end if;
   end loop;
