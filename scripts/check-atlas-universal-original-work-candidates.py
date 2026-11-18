@@ -106,6 +106,27 @@ require("INSERT INTO atlas.work_items(" not in assignment
         and "INSERT INTO atlas.work_execution_plans(" in assignment,
         "assigning existing Bed Work must not create a separate task")
 print("PASS single canonical Work and independently governed Bed split")
+# Reject a same-Organization shortcut for either spatial Subject selection
+# or decomposition. This is source shape, not signed actor proof.
+for name in ("original_subject_choices_for_work_decomposition_v1",
+             "universal_original_work_decomposition_v1"):
+    subject_source = texts[name]
+    for token in ("atlas.work_prerequisite_ledger_scope_v1(",
+                  "atlas.farm_crop_ledger_custody_v1 cu",
+                  "cu.ledger_id=p_ledger_id",
+                  "cu.custody_state='active'",
+                  "cu.ended_at IS NULL",
+                  "lp.ledger_id=cu.ledger_id",
+                  "lp.status='active'",
+                  "lp.ended_at IS NULL",
+                  "nl.ledger_state='active'",
+                  "nl.retired_at IS NULL",
+                  "f.organization_unit_id"):
+        require(token in subject_source, f"{name}: missing exact custody check: {token}")
+    require("atlas.tasks" not in subject_source,
+            f"{name}: original Subject choices must not require legacy Task")
+print("PASS same exact native Ledger custody in spatial Subject choice and decomposition source")
+
 
 # All old full-farm routes must be source-guarded, not hidden only in React.
 source_names = []
