@@ -75,6 +75,32 @@ def main():
         "has_function_privilege('authenticated',to_regprocedure('"+RPC+"'),'EXECUTE')")
     if forbidden!="t|f":
         raise RuntimeError("refused unexpected ACL was modified")
+    # The four named-role booleans would all look correct if an unrelated
+    # fictional role had EXECUTE. Guard the full explicit ACL, not just them.
+    sql("REVOKE EXECUTE ON FUNCTION "+RPC+" FROM anon; "
+        "CREATE ROLE fictional_extra_execute NOLOGIN; "
+        "GRANT EXECUTE ON FUNCTION "+RPC+" TO fictional_extra_execute;")
+    subset=sql("SELECT "
+        "has_function_privilege('anon',to_regprocedure('"+RPC+"'),'EXECUTE'),"
+        "has_function_privilege('authenticated',to_regprocedure('"+RPC+"'),'EXECUTE'),"
+        "has_function_privilege('postgres',to_regprocedure('"+RPC+"'),'EXECUTE'),"
+        "has_function_privilege('service_role',to_regprocedure('"+RPC+"'),'EXECUTE')")
+    if subset!="f|f|t|t":
+        raise RuntimeError("fictional additional grantee test not isolated")
+    check_helper(False,"")
+    still=sql("SELECT has_function_privilege("
+        "'fictional_extra_execute',to_regprocedure('"+RPC+"'),'EXECUTE')")
+    if still!="t":
+        raise RuntimeError("fictional extra grant was silently changed")
+    sql("REVOKE EXECUTE ON FUNCTION "+RPC+" FROM fictional_extra_execute;")
+    check_helper(True,"PASS ATLAS_NATIVE_GOVERNOR_CLONE_ACL=ALREADY_PROTECTED")
+    # service_role must not be able to delegate its EXECUTE to new roles.
+    sql("GRANT EXECUTE ON FUNCTION "+RPC+" TO service_role WITH GRANT OPTION;")
+    check_helper(False,"")
+    sql("REVOKE GRANT OPTION FOR EXECUTE ON FUNCTION "+RPC+" FROM service_role;")
+    check_helper(True,"PASS ATLAS_NATIVE_GOVERNOR_CLONE_ACL=ALREADY_PROTECTED")
+    print("PASS PG17_SYNTHETIC_EXTRA_ROLE_EXECUTE_REFUSED_UNCHANGED")
+    print("PASS PG17_SYNTHETIC_SERVICE_ROLE_GRANT_OPTION_REFUSED")
     print("PASS PG17_SYNTHETIC_DEFAULT_FUNCTION_ACL_RESTORED_EXACTLY")
     print("PASS PG17_SYNTHETIC_ALREADY_PROTECTED_NOOP")
     print("PASS PG17_SYNTHETIC_UNEXPECTED_ACL_REFUSED_UNCHANGED")
