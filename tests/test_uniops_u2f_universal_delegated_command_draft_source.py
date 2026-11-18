@@ -269,7 +269,7 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             "FOR UPDATE",
             "'u2f:root:reaffirm:'||v_original.id::text",
             "'u2f:root:revoke:'||v_resp.id::text",
-            "sr.responsibility_key='ledger_governing_root_v1'",
+            "sr.responsibility_key='u2f_root_reaffirmation_review_v1'",
             "r.status='active' AND r.ended_at IS NULL",
             "s.person_entity_id=p.person_id",
             "act.provenance->>'originalRootReceiptId'=r.id::text",
@@ -282,6 +282,8 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected,source)
         self.assertEqual(source.count("CREATE FUNCTION atlas.uni_ops_u2f_root_"),3)
+        self.assertNotIn("'ledger_governing_root_v1'",source)
+        self.assertIn("u2f_root_reaffirmation_review_v1",source)
         self.assertEqual(source.count("FROM auth.sessions ss"),2)
         self.assertNotRegex(pure,r"(?i)\b(?:CREATE|ALTER|DROP|TRUNCATE)\s+(?:TABLE|TRIGGER|VIEW|SCHEMA)\b")
         self.assertNotRegex(pure,r"(?i)\bGRANT\b")
@@ -301,6 +303,8 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
                          "revocation replay","Same real Person + same institution Entity"):
             self.assertIn(scenario,runner)
         self.assertIn("AUTHENTIC_GOTRUE_SIGNED_ACTOR=NOT_TESTED",runner)
+        self.assertIn("WHERE responsibility_key='ledger_governing_root_v1';",runner)
+        self.assertIn("fake_root=",runner)
         self.assertIn("INDEPENDENT_SOURCE_ADJUDICATION=NO",runner)
         self.assertIn("CREATE TABLE ledger.actions",fixture)
         self.assertIn("CREATE FUNCTION auth.uid()",fixture)
