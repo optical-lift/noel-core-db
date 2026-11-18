@@ -34,7 +34,7 @@ class U2FSourceReview(unittest.TestCase):
         self.assertNotIn("check_me_before_execution",SRC)
         self.assertNotIn("8fea511c6b422acb8686f57228af23fb053e6fa3",SRC)
         self.assertNotIn("ff74c66c293a1d94cc77f39af0db19adfe724080",SRC)
-        self.assertIn("a965fcca2cb5e1c44f255eba24cca2a4d21c5",SRC)
+        self.assertIn("a965fcca2cb5e1c44f255eba2fa24cca2a4d21c5",SRC)
         self.assertIn("ba2be33fa479e7d24523c10eaee3bbcf12918b3b",SRC)
 
     def test_github_token_and_read_only_schema_scope(self):
