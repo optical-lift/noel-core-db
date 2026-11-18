@@ -314,5 +314,47 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             self.assertIn(session_case,runner)
         self.assertIn("NOT real signed GoTrue",fixture)
 
+
+    def test_live_catalog_preflight_reports_metadata_only_and_never_approves_issuance(self):
+        read=(FOLDER/"07_current_schema_signed_readiness_held.psql").read_text(encoding="utf8")
+        pure=re.sub(r"(?m)^\s*--[^\n]*","",read)
+        pure="\n".join(line for line in pure.splitlines() if not line.lstrip().startswith("\\"))
+        self.assertTrue(pure.lstrip().startswith("WITH src AS ("))
+        self.assertNotRegex(pure,r"(?im)^\s*(?:INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TRUNCATE|GRANT|REVOKE)\b")
+        for token in (
+            "pg_catalog.to_regprocedure('auth.uid()')",
+            "pg_catalog.to_regprocedure('auth.jwt()')",
+            "pg_catalog.to_regclass('auth.sessions')",
+            "2332ff384da534311f6a42576e3c9ae7",
+            "28bbb95ce3874a7dbf641387c22ac1fd",
+            "'id','user_id','not_after'",
+            "'ledger.seat_responsibilities'",
+            "'ledger.actions'",
+            "'auth.sessions'",
+            "'heldLifecycleNotInstalled'",
+            "'nativeResponsibilityServiceCanMutate'",
+            "'nativeActionsServiceCanMutate'",
+            "'nativeResponsibilityHasNoCustomHistoryTrigger'",
+            "'nativeActionsHaveNoCustomHistoryTrigger'",
+            "'genuineSignedActorProofCompleted',false",
+            "'historicalRootSourceAdjudicationCompleted',false",
+            "'nativeRootAuthorityEstablished',false",
+            "'canInstallCandidate',false",
+            "'canActivateDelegatedWork',false",
+            "'productionMutation',false",
+            "'sourceOnly',true",
+        ):
+            with self.subTest(token=token):
+                self.assertIn(token,read)
+        # Catalog report must not emit actual users, sessions, people, ledgers,
+        # original records, raw function bodies or JWT claims.
+        for forbidden in (
+            "FROM auth.sessions ss", "SELECT * FROM auth.sessions",
+            "FROM ledger.actions act", "FROM ledger.seats s",
+            "FROM atlas.principal_ledger_authorities r",
+            "pg_catalog.pg_get_functiondef(p.oid) AS",
+        ):
+            self.assertNotIn(forbidden,read)
+
 if __name__=="__main__":
     unittest.main(verbosity=2)
