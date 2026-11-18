@@ -10,6 +10,7 @@ ROOT=Path(__file__).resolve().parent
 SRC=ROOT.parent/"scripts"/"validate-production-schema-clone.sh"
 U2=ROOT/"install-uniops-p3-6a-current-validator-copy.py"
 HOOK=ROOT/"install_uniops_native_notebook_validator_copy_held.py"
+GOVERNOR_RUNNER=ROOT/"run-uniops-native-governor-readback-local.sh"
 
 def load():
     spec=importlib.util.spec_from_file_location("native_u2_validator",HOOK)
@@ -72,6 +73,30 @@ class NativeValidatorCopySource(unittest.TestCase):
             self.assertEqual(syntax.returncode,0,syntax.stderr)
             with self.assertRaises(ValueError):
                 module.install(amended)
+
+    def test_governor_runner_pins_actual_worker_result_and_exact_governor_source(self):
+        runner=GOVERNOR_RUNNER.read_text()
+        self.assertIn("4ea4033eaae50936f3317f6feda83bce89a7ce74",runner)
+        for original_source in (
+            "c125db5536d947220db5c8dc04f9ff8a98452ba1",
+            "7354a1833a2a3189e234f7d2a2a877de55fa8a2b",
+            "f7e62b1f89d8c094526ccff5e94f351a12b91cc3",
+        ):
+            self.assertIn(original_source,runner)
+        self.assertIn('ATLAS_NATIVE_NOTEBOOK_FICTIONAL_ONLY',runner)
+        self.assertIn('ATLAS_NATIVE_WORKER_BROWSER_ACTUAL_ENABLED',runner)
+        self.assertIn('127[.]0[.]0[.]1',runner)
+        self.assertNotIn('159c10041c2167c7dccbe56e397de4db9c33651c',runner)
+        self.assertNotIn('e4d1c60b11f9f32a0b15ec416f9207d90577a2bc',runner)
+        for forbidden in ('apply_migration','supabase db push','DROP TABLE'):
+            self.assertNotIn(forbidden,runner)
+        result=subprocess.run(["bash","-n",str(GOVERNOR_RUNNER)],
+          capture_output=True,text=True)
+        self.assertEqual(result.returncode,0,result.stderr)
+        denied=subprocess.run(["bash",str(GOVERNOR_RUNNER)],
+          capture_output=True,text=True)
+        self.assertNotEqual(denied.returncode,0)
+        self.assertIn("ATLAS_NATIVE_FAILURE_STAGE=environment",denied.stdout)
 
     def test_cannot_hook_p3_validator_without_true_u2_u4(self):
         module=load()
