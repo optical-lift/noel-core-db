@@ -80,6 +80,28 @@ class TestTitusU112SealedTransport(unittest.TestCase):
         self.assertEqual(wrong.returncode, 2)
         self.assertEqual(wrong.stdout, b"")
 
+    def test_authenticated_but_mismatched_private_witness_denied(self):
+        self.assertEqual(self.run_cmd(data=BYTES, name="first").returncode, 0)
+        self.assertEqual(
+            self.run_cmd(data=b"DIFFERENT FICTIONAL ARCHIVE", name="second").returncode,
+            0,
+        )
+        # Both CMS structures are authentic: the independent content witness
+        # must still reject swapping the receipts between two valid archives.
+        first = self.vault / "first.witness.cms"
+        second = self.vault / "second.witness.cms"
+        first.write_bytes(second.read_bytes())
+        response = self.run_cmd("verify", name="first")
+        self.assertEqual(response.returncode, 2)
+        self.assertEqual(response.stdout, b"")
+
+    def test_reject_insecure_private_key(self):
+        self.assertEqual(self.run_cmd(data=BYTES).returncode, 0)
+        self.key.chmod(0o644)
+        response = self.run_cmd("verify")
+        self.assertEqual(response.returncode, 2)
+        self.assertEqual(response.stdout, b"")
+
     def test_reject_unsafe_vault_empty_input_and_name(self):
         self.assertEqual(self.run_cmd(data=b"").returncode, 2)
         self.assertEqual(list(self.vault.iterdir()), [])
