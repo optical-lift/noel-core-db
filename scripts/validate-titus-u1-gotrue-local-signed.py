@@ -382,6 +382,85 @@ def main():
     deny(api,key,manager,manage,governance("appoint",new=MANAGER),
       "ended institution root cannot reappoint a manager")
 
+    # New original requires an independent Atlas governing root *again*;
+    # a prior Titus manager or mere historical root cannot reappoint itself.
+    root_source={"p_ledger_id":LEDGER,"p_organization_id":organization,
+      "p_request_id":str(uuid.uuid4())}
+    new_root=allow(api,key,manager,bootstrap,root_source,
+      "independent Atlas governing root re-establishes after relinquishment")
+    check(new_root.get("alreadyExists") is False,"root recovery must be a new original")
+    nominate_root="shared_titus_institution_root_nominate_self_api_v1"
+    accept_root="shared_titus_institution_root_accept_self_api_v1"
+    cancel_root="shared_titus_institution_root_cancel_self_api_v1"
+    relinquish_root="shared_titus_institution_root_relinquish_self_api_v1"
+    invitation_args=lambda req_id:{
+      "p_ledger_id":LEDGER,"p_organization_id":organization,
+      "p_recipient_person_id":OUTSIDER,"p_request_id":req_id}
+    deny(api,key,recipient,nominate_root,invitation_args(str(uuid.uuid4())),
+      "recipient cannot nominate institution root successor")
+    deny(api,key,manager,nominate_root,{
+      **invitation_args(str(uuid.uuid4())),
+      "p_ledger_id":"88888888-8888-4888-8888-888888888888"},
+      "institution root cannot nominate successor across second Ledger")
+    first_nomination=allow(api,key,manager,nominate_root,
+      invitation_args(str(uuid.uuid4())),
+      "current root nominates successor without granting rights")
+    check(first_nomination.get("alreadyExists") is False,"nomination must issue original")
+    allow(api,key,manager,cancel_root,{"p_invitation_id":first_nomination["invitationId"],
+      "p_request_id":str(uuid.uuid4())},
+      "current root cancels still-unaccepted succession invitation")
+    deny(api,key,outsider,accept_root,
+      {"p_invitation_id":first_nomination["invitationId"],
+       "p_request_id":str(uuid.uuid4())},
+      "cancelled root succession invitation is not reusable")
+    second_nomination=allow(api,key,manager,nominate_root,
+      invitation_args(str(uuid.uuid4())),
+      "root issues separate new succession nomination")
+    deny(api,key,recipient,accept_root,
+      {"p_invitation_id":second_nomination["invitationId"],
+       "p_request_id":str(uuid.uuid4())},
+      "unrelated Person cannot accept root succession")
+    accept_args={"p_invitation_id":second_nomination["invitationId"],
+      "p_request_id":str(uuid.uuid4())}
+    successor=allow(api,key,outsider,accept_root,accept_args,
+      "independently signed nominated successor accepts root transfer")
+    check(successor.get("alreadyExists") is False and successor.get("originId"),
+      "root succession original missing")
+    repeated_successor=allow(api,key,outsider,accept_root,accept_args,
+      "signed successor acceptance replay is exact original")
+    check(repeated_successor.get("alreadyExists") is True and
+      repeated_successor.get("originId")==successor["originId"],
+      "successor receipt changed during replay")
+    deny(api,key,manager,manage,governance("appoint",new=MANAGER),
+      "former Titus root cannot appoint managers after accepted succession")
+    deny(api,key,manager,bootstrap,{
+      "p_ledger_id":LEDGER,"p_organization_id":organization,
+      "p_request_id":str(uuid.uuid4())},
+      "independent Atlas root cannot overrule existing successor Tito root")
+    allow(api,key,outsider,manage,governance("appoint",new=RECIPIENT),
+      "signed successor root can appoint a manager without Atlas owner label")
+    allow(api,key,outsider,manage,governance("revoke",prior=RECIPIENT),
+      "signed successor root may revoke current Titus manager")
+    allow(api,key,outsider,relinquish_root,{
+      "p_ledger_id":LEDGER,"p_organization_id":organization,
+      "p_request_id":str(uuid.uuid4())},
+      "successor expressly relinquishes root without appointing new root")
+    deny(api,key,outsider,manage,governance("appoint",new=RECIPIENT),
+      "former successor root cannot govern after relinquishment")
+    restored=allow(api,key,manager,bootstrap,{
+      "p_ledger_id":LEDGER,"p_organization_id":organization,
+      "p_request_id":str(uuid.uuid4())},
+      "independent Atlas governing root can recover after successor ends")
+    check(restored.get("alreadyExists") is False,"recovered root must have new original")
+    check(sql(args.db_url,"select count(*) from titus.institution_account_root_origins_v1")=="4",
+      "Expected initial, rebootstrap, accepted succession, final rebootstrap originals")
+    check(sql(args.db_url,"select count(*) from titus.institution_account_root_endings_v1")=="3",
+      "Expected first relinquishment, accepted transfer, successor relinquishment")
+    check(sql(args.db_url,"select count(*) from reality.responsibility_relations "
+      "where responsibility_key='titus_institution_account_root_governance' "
+      "and relation_state='active' and ended_at is null")=="1",
+      "At most one institution root may remain active")
+
     # A GoTrue-issued token can remain signed after its session is removed;
     # source rechecks auth.sessions rather than trusting token validity alone.
     later_id=later_claims["session_id"]
