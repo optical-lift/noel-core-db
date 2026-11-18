@@ -36,6 +36,7 @@ CREATE TABLE reality.auth_person_bindings (
  auth_user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
  person_entity_id uuid NOT NULL REFERENCES reality.entities(id) ON DELETE RESTRICT,
  binding_state text NOT NULL CHECK(binding_state IN ('active','retired')),
+ bound_at timestamptz NOT NULL DEFAULT clock_timestamp(),
  retired_at timestamptz
 );
 CREATE UNIQUE INDEX titus_u1_local_one_active_auth
@@ -90,31 +91,21 @@ SET search_path TO '' AS $shared$
 $shared$;
 -- Only fixture-specific Auth resolver implementation. This is NOT a source
 -- replacement for Noel's existing Atlas/Reality resolver in production.
-CREATE FUNCTION atlas.current_person_for_private_course_v1()
- RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER
- SET search_path TO pg_catalog AS $current$
-DECLARE v_auth uuid;v_session uuid;v_person uuid;v_count bigint;
-BEGIN
- v_auth:=auth.uid();
- BEGIN v_session:=NULLIF(auth.jwt()->>'session_id','')::uuid;
- EXCEPTION WHEN invalid_text_representation THEN v_session:=NULL; END;
- IF v_auth IS NULL OR v_session IS NULL
- OR NOT EXISTS (SELECT 1 FROM auth.sessions s
-  WHERE s.id=v_session AND s.user_id=v_auth
-  AND (s.not_after IS NULL OR s.not_after>clock_timestamp()))
- THEN RAISE EXCEPTION 'current signed session required'
- USING ERRCODE='42501'; END IF;
- SELECT count(*),min(b.person_entity_id::text)::uuid INTO v_count,v_person
- FROM reality.auth_person_bindings b JOIN reality.entities e
- ON e.id=b.person_entity_id
- WHERE b.auth_user_id=v_auth AND b.binding_state='active'
- AND b.retired_at IS NULL AND e.entity_kind='person'
- AND e.identity_state='canonical';
- IF v_count<>1 THEN RAISE EXCEPTION 'unique signed canonical Person required'
- USING ERRCODE='42501'; END IF;
- RETURN v_person;
-END $current$;
-REVOKE ALL ON FUNCTION atlas.current_person_for_private_course_v1()
+-- The scratch copies the current canonical Atlas Person reader, but
+-- intentionally does NOT supply Titus's extra signed-session adapter.
+-- The latter is loaded from its exact held source below.
+CREATE FUNCTION atlas.current_person_id_v1()
+RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO pg_catalog AS $canonical_person$
+ SELECT b.person_entity_id
+ FROM reality.auth_person_bindings b
+ JOIN reality.entities e ON e.id=b.person_entity_id
+  AND e.entity_kind='person' AND e.identity_state='canonical'
+ WHERE b.auth_user_id=auth.uid()
+  AND b.binding_state='active' AND b.retired_at IS NULL
+ ORDER BY b.bound_at DESC,b.id LIMIT 1
+$canonical_person$;
+REVOKE ALL ON FUNCTION atlas.current_person_id_v1()
  FROM PUBLIC,anon,authenticated;
 REVOKE ALL ON FUNCTION reality.resolve_responsibility_relation_v1(
  uuid,text,text,text,uuid,text,jsonb) FROM PUBLIC,anon,authenticated;
