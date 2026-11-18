@@ -15,7 +15,7 @@ DIGEST="0123456789abcdef0123456789abcdef"
 CANON="postgres|t|"+DIGEST+"|f|f|f|t|t|t"
 BASE=dict(target.EXPECTED)
 BASE["NOEL_CORE_DATABASE_URL"] = (
-  "postgresql://postgres:fictional@db.zirqkouammpwxlqfbsvf.supabase.co:5432/postgres"
+  "postgresql://postgres:fictional@db.zirqkouammpwxlqfbsvf.supabase.co:5432/postgres?sslmode=require"
 )
 
 class GuardTests(unittest.TestCase):
@@ -23,9 +23,33 @@ class GuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             base=dict(BASE,RUNNER_TEMP=temp)
             self.assertEqual(target.require_environment(base)[1],Path(temp))
+            pooler=dict(base,NOEL_CORE_DATABASE_URL=(
+                "postgresql://postgres.zirqkouammpwxlqfbsvf:fictional@"
+                "aws-0-us-east-1.pooler.supabase.com:5432/postgres?sslmode=verify-full"))
+            self.assertEqual(target.require_environment(pooler)[1],Path(temp))
             variants=[
                 {"NOEL_CORE_DATABASE_URL":"postgresql://postgres:x@127.0.0.1:5432/postgres"},
-                {"NOEL_CORE_DATABASE_URL":"postgresql://postgres:x@db.other.supabase.co:5432/postgres"},
+                {"NOEL_CORE_DATABASE_URL":"postgresql://postgres:x@db.other.supabase.co:5432/postgres?sslmode=require"},
+                # A project-suffixed username must NEVER make an arbitrary
+                # hostname trustworthy: it could receive a real DB password.
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://postgres.zirqkouammpwxlqfbsvf:x@evil.example:5432/postgres?sslmode=require"},
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://postgres.zirqkouammpwxlqfbsvf:x@not-pooler.supabase.com:5432/postgres?sslmode=require"},
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://postgres:x@db.zirqkouammpwxlqfbsvf.supabase.co:6543/postgres?sslmode=require"},
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://postgres:x@db.zirqkouammpwxlqfbsvf.supabase.co:5432/other?sslmode=require"},
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://postgres:x@db.zirqkouammpwxlqfbsvf.supabase.co:5432/postgres"},
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://postgres:x@db.zirqkouammpwxlqfbsvf.supabase.co:5432/postgres?sslmode=disable"},
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://postgres:x@db.zirqkouammpwxlqfbsvf.supabase.co:5432/postgres?sslmode=require&host=evil.example"},
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://other:x@db.zirqkouammpwxlqfbsvf.supabase.co:5432/postgres?sslmode=require"},
+                {"NOEL_CORE_DATABASE_URL":
+                    "postgresql://postgres:x@db.zirqkouammpwxlqfbsvf.supabase.co:bad/postgres?sslmode=require"},
                 {"NOEL_CORE_DATABASE_URL":""},
                 {target.GATE:"false"},
                 {"UNI_OPS_READONLY_ACL_2848_APPROVED":"true"},
@@ -64,11 +88,11 @@ class GuardTests(unittest.TestCase):
             with self.assertRaisesRegex(target.Refused,"stage_inspect_live_probe_refused"):
                 target.source_snapshot("fictional")
 
-    def exercise(self, *, second_source=None, cleanup_fail=False, verdict="stage_default_compatible_not_provenance"):
+    def exercise(self, *, second_source=None, final_source=None, cleanup_fail=False, verdict="stage_default_compatible_not_provenance"):
         with tempfile.TemporaryDirectory() as tmp:
             env=dict(BASE,RUNNER_TEMP=tmp)
             calls=[]
-            snapshots=iter([CANON,second_source or CANON])
+            snapshots=iter([CANON,second_source or CANON,final_source or CANON])
             def fake_run(cmd,**kwargs):
                 calls.append(tuple(cmd))
                 if cmd[:3]==["supabase","db","dump"]:
@@ -123,6 +147,14 @@ class GuardTests(unittest.TestCase):
         self.assertEqual(rc,1)
         self.assertIn("stage_inspect_source_drift_refused",out)
         self.assertEqual(count,0)
+
+    def test_source_drift_during_local_restore_invalidates_result(self):
+        drift=CANON.replace("|f|f|f|t|t|t","|f|t|t|t|t|f")
+        rc,out,_,count=self.exercise(final_source=drift)
+        self.assertEqual(rc,1)
+        self.assertIn("stage_inspect_source_drift_refused",out)
+        self.assertNotIn("stage_default_compatible_not_provenance",out)
+        self.assertEqual(count,1)
 
     def test_bad_local_verdict_is_never_promoted(self):
         rc,out,_,count=self.exercise(verdict="stage_other_mismatch_refused")
