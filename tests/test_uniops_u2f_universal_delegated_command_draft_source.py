@@ -398,7 +398,7 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         self.assertIn("FROM auth.sessions",signed)
         self.assertIn("revoked real session cannot replay prior revocation",signed)
         for label in (
-            "worker cannot reaffirm another Principal",
+            " cannot reaffirm another Principal\'s exact original root",
             "owner cannot borrow another Ledger root",
             "worker cannot mispair original root and Ledger",
             "outsider cannot revoke unrelated root candidate",
