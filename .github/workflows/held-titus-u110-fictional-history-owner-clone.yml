@@ -56,6 +56,8 @@ jobs:
              "U1_10_FICTIONAL_LEGACY_ROWS_TEST_ONLY.sql",
              "U1_10_FICTIONAL_LEGACY_POSTCONDITIONS_TEST_ONLY.sql",
              "--candidate-fixture",
+             "fields['test_scope']!='titus_u110_fictional_history_schema_clone_test_only_v1'",
+             "--test-scope titus_u1_protected_source_shape_test_only_v1",
           ):
               assert required in protected,required
           for forbidden in (
@@ -201,13 +203,15 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git -C held rev-parse HEAD)" = "$EXPECTED_SHA"
+          # U1.10 owner issue is an outer authorization, not an assembler API scope.
+          # Exact six-source package remains intrinsically U1.9 and stays pin-verified.
           # Pin the executable assembler independently of the mutable PR head.
           test "$(git -C held hash-object scripts/prepare-titus-u1-protected-clone-source.py)" = '7273b612d64fc9007297d23a91fe83343df6910e'
           python3 -m unittest discover -s held/tests -p test_titus_u1_protected_bundle_safety.py -v >"$RUNNER_TEMP/u1-unprivileged-checks.txt" 2>&1
           python3 held/scripts/prepare-titus-u1-protected-clone-source.py \
             --source-root held \
             --expected-sha "$EXPECTED_SHA" \
-            --test-scope titus_u110_fictional_history_schema_clone_test_only_v1 \
+            --test-scope titus_u1_protected_source_shape_test_only_v1 \
             --output "$RUNNER_TEMP/20261118095959_shared_titus_u1_full_schema_TEST_ONLY.sql" \
             --manifest "$RUNNER_TEMP/u1-package.json"
           printf "SET app.shared_course_clone = 'approved';\n" > "$RUNNER_TEMP/u1-postconditions.sql"
