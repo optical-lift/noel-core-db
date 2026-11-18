@@ -6,7 +6,7 @@ SAVEPOINT titus_account_issuer_probe;
 -- only in a rolled-back savepoint. Model exact reality source here as source
 -- evidence for this isolated candidate, NOT a grant issued by this migration.
 CREATE TABLE reality.responsibility_relations(
- id uuid PRIMARY KEY,
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
  carrier_person_entity_id uuid NOT NULL REFERENCES reality.entities(id),
  responsibility_key text NOT NULL,
  jurisdiction_kind text NOT NULL,
