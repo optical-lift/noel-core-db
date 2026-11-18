@@ -148,8 +148,12 @@ class CloneAclSource(unittest.TestCase):
                 "acl_parity_source_unverified")
             database.assert_not_called()
         self.assertEqual(len(m.PARITY_MARKERS),6)
-        for forbidden in ("anon","authenticated","service_role","postgres","public"):
-            self.assertTrue(all(forbidden not in marker for marker in m.PARITY_MARKERS))
+        for marker in m.PARITY_MARKERS:
+            # English "canonical" contains the letters "anon", but is
+            # not a statement about the named PostgreSQL anon principal.
+            self.assertFalse(set(marker.split("_")) &
+                             {"anon","authenticated","postgres","public"})
+            self.assertNotIn("_service_role_",marker)
 
     def test_first_refusal_has_finite_stage_and_does_not_write(self):
         digest=m.source_fingerprint(MIGRATION)
