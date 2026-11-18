@@ -16,6 +16,7 @@ Outputs only fixed progress labels. Never print JWTs, user IDs, private SQL,
 PostgREST bodies, passwords, credentials or source row contents.
 """
 import argparse
+import hashlib
 import importlib.util
 import ipaddress
 import re
@@ -39,6 +40,31 @@ AUTHORITY_KEY="ledger_governing_root_v1"
 ADMIT="uni_ops_u2f_signed_clone_reaffirm_v1"
 REVOKE="uni_ops_u2f_signed_clone_revoke_v1"
 ATTESTATION="I reaffirm this exact Ledger authority"
+# Verified Git blobs, not branch names. Drift stops before any local sign-in.
+PINNED_SOURCE_BLOBS={
+    "candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/06_signed_native_root_lifecycle_held.sql":
+        "cb6adc307ab6994f95e6b5d9acf421f10a71c607",
+    "candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/08_signed_clone_only_rpc_bridge_held.sql":
+        "704875ea1710601ad5c5e4d6a994d5281b3691c0",
+    "scripts/validate-atlas-work-prerequisite-signed-http.py":
+        "eb3bbfb45848a7fca90cc503e153f1451d8d7471",
+    "scripts/validate-atlas-c1-signed-http.py":
+        "1b82e698705e473280f1fc55b0e762bce243effb",
+    "validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql":
+        "e6572f4893d7be34bc97bc3e5115200563065179",
+}
+
+def source_pins_match():
+    for rel,expected in PINNED_SOURCE_BLOBS.items():
+        f=ROOT/rel
+        require(f.is_file() and not f.is_symlink(),
+                "STOP: missing immutable signed source")
+        raw=f.read_bytes()
+        digest=hashlib.sha1(
+            b"blob "+str(len(raw)).encode("ascii")+b"\0"+raw
+        ).hexdigest()
+        require(digest==expected,
+                "STOP: signed/current-schema source drift")
 
 def require(ok,message):
     if not ok:
@@ -100,6 +126,7 @@ def main():
     parser.add_argument("--db-url",required=True)
     parser.add_argument("--output",required=True)
     a=parser.parse_args()
+    source_pins_match()
     require(re.fullmatch(
         r"postgres(?:ql)?://[^@/]+@127[.]0[.]0[.]1:[0-9]{4,5}/postgres",
         a.db_url) is not None,
