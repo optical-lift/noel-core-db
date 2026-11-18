@@ -68,7 +68,8 @@ IF EXISTS (
           SELECT 1 FROM pg_catalog.pg_default_acl d,
                LATERAL pg_catalog.aclexplode(d.defaclacl) dacl
           WHERE d.defaclrole='postgres'::regrole
-            AND d.defaclobjtype='f' AND d.defaclnamespace=0
+            AND d.defaclobjtype='f'
+            AND d.defaclnamespace IN (0,p.pronamespace)
             AND dacl.privilege_type='EXECUTE'
             AND dacl.grantee=a.grantee
             AND NOT dacl.is_grantable))
