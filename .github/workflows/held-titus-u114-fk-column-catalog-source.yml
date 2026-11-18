@@ -1,0 +1,37 @@
+name: HELD Titus U1.14 FK column catalog review (source only)
+
+on:
+  push:
+    branches:
+      - candidate/titus-u114-fk-column-review-source-20261118
+    paths:
+      - 'scripts/titus-u114-*'
+      - 'tests/test_titus_u114_*'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_14_*'
+      - '.github/workflows/held-titus-u114-fk-column-catalog-source.yml'
+  pull_request:
+    paths:
+      - 'scripts/titus-u114-*'
+      - 'tests/test_titus_u114_*'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_14_*'
+      - '.github/workflows/held-titus-u114-fk-column-catalog-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  review-only:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prove FK-column metadata-only review cannot authorize historical capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_titus_u114_fk_columns_source_only.py -v
+          test ! -e supabase/migrations/20261118_titus_u114_history_capture.sql
+          echo 'PASS fictional catalog parser only; no customer rows or backup'
