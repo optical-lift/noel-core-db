@@ -9,7 +9,7 @@ DECLARE owner_auth uuid:=current_setting('test.course_agent_owner')::uuid;
  pid uuid:=gen_random_uuid();carrier uuid:=gen_random_uuid();az uuid:=gen_random_uuid();cred uuid:=gen_random_uuid();
  cid uuid:='11111111-1111-4111-8111-111111111111';
  unit uuid:='31111111-1111-4111-8111-111111111111';
- j jsonb;packet jsonb;stale jsonb;inv uuid;stale_inv uuid;other jsonb;
+ j jsonb;packet jsonb;stale jsonb;inv uuid;stale_inv uuid;other jsonb;declined jsonb;declined_inv uuid;
  key text:=repeat('a',64);
  b jsonb:=jsonb_build_array(jsonb_build_object('reference','fictional-local-source','description','Only a test reference'));
 BEGIN
@@ -46,6 +46,11 @@ BEGIN
   RAISE EXCEPTION 'duplicate request accepted' USING ERRCODE='XX000';EXCEPTION WHEN invalid_parameter_value THEN NULL;END;
  j:=atlas.prepare_course_authoring_proposal_service_v1(key,cid,stale);
  stale_inv:=(j->>'invocationId')::uuid;
+ declined:=jsonb_set(stale,'{proposalId}',to_jsonb(gen_random_uuid()));
+ j:=atlas.prepare_course_authoring_proposal_service_v1(key,cid,declined);
+ declined_inv:=(j->>'invocationId')::uuid;
+ PERFORM set_config('test.agent_declined',declined::text,true);
+ PERFORM set_config('test.agent_declined_invocation',declined_inv::text,true);
  PERFORM set_config('test.agent_packet',packet::text,true);
  PERFORM set_config('test.agent_invocation',inv::text,true);
  PERFORM set_config('test.agent_stale',stale::text,true);
@@ -59,6 +64,12 @@ SELECT set_config('request.jwt.claims',current_setting('test.course_agent_outsid
 SET LOCAL ROLE authenticated;
 DO $outsider$
 BEGIN
+ BEGIN PERFORM public.shared_teaching_course_proposals_self_api_v1('11111111-1111-4111-8111-111111111111');
+  RAISE EXCEPTION 'outsider read proposal queue' USING ERRCODE='XX000';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ BEGIN PERFORM public.shared_teaching_course_proposal_decide_self_api_v1(
+   '11111111-1111-4111-8111-111111111111',current_setting('test.agent_invocation')::uuid,
+   (current_setting('test.agent_packet')::jsonb->>'proposalId')::uuid,'confirm');
+  RAISE EXCEPTION 'outsider confirmed Course proposal' USING ERRCODE='XX000';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
  BEGIN PERFORM atlas.confirm_delegated_agent_command_self_api_v1(current_setting('test.agent_invocation')::uuid);
   RAISE EXCEPTION 'outsider confirmed proposal' USING ERRCODE='XX000'; EXCEPTION WHEN raise_exception THEN NULL;END;
 END $outsider$;
@@ -66,10 +77,34 @@ RESET ROLE;
 SELECT set_config('request.jwt.claims',current_setting('test.course_agent_owner_claims'),true);
 SET LOCAL ROLE authenticated;
 DO $confirm$
+DECLARE cid uuid:='11111111-1111-4111-8111-111111111111';
+ inv uuid:=current_setting('test.agent_invocation')::uuid;
+ p jsonb:=current_setting('test.agent_packet')::jsonb;
+ si uuid:=current_setting('test.agent_stale_invocation')::uuid;
+ sp jsonb:=current_setting('test.agent_stale')::jsonb;
+ di uuid:=current_setting('test.agent_declined_invocation')::uuid;
+ dp jsonb:=current_setting('test.agent_declined')::jsonb;j jsonb;
 BEGIN
- IF atlas.confirm_delegated_agent_command_self_api_v1(current_setting('test.agent_invocation')::uuid)->>'state'<>'authorized'
-  OR atlas.confirm_delegated_agent_command_self_api_v1(current_setting('test.agent_stale_invocation')::uuid)->>'state'<>'authorized'
- THEN RAISE EXCEPTION 'confirmation failed';END IF;
+ j:=public.shared_teaching_course_proposals_self_api_v1(cid);
+ IF j->>'contractVersion'<>'shared_course_authoring_queue_v1' OR j->>'courseId'<>cid::text
+   OR jsonb_array_length(j->'proposals')<>3
+   OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements(j->'proposals') q WHERE q->>'invocationId'=inv::text AND q->'proposal'=p)
+ THEN RAISE EXCEPTION 'queue did not return exact proposal';END IF;
+ BEGIN PERFORM public.shared_teaching_course_proposal_decide_self_api_v1(cid,inv,gen_random_uuid(),'confirm');
+  RAISE EXCEPTION 'wrong proposal identity accepted' USING ERRCODE='XX000';EXCEPTION WHEN insufficient_privilege THEN NULL;END;
+ BEGIN PERFORM public.shared_teaching_course_proposal_decide_self_api_v1(cid,si,(sp->>'proposalId')::uuid,'confirm');
+  RAISE EXCEPTION 'stale proposal confirmed' USING ERRCODE='XX000';EXCEPTION WHEN serialization_failure THEN NULL;END;
+ IF public.shared_teaching_course_proposal_decide_self_api_v1(cid,di,(dp->>'proposalId')::uuid,'reject')->>'state'<>'cancelled'
+  OR public.shared_teaching_course_proposal_decide_self_api_v1(cid,di,(dp->>'proposalId')::uuid,'reject')->>'replayed'<>'true'
+ THEN RAISE EXCEPTION 'reject/replay failed';END IF;
+ IF public.shared_teaching_course_proposal_decide_self_api_v1(cid,inv,(p->>'proposalId')::uuid,'confirm')->>'state'<>'authorized'
+  OR public.shared_teaching_course_proposal_decide_self_api_v1(cid,inv,(p->>'proposalId')::uuid,'confirm')->>'replayed'<>'true'
+ THEN RAISE EXCEPTION 'confirmation/replay failed';END IF;
+ IF jsonb_array_length(public.shared_teaching_course_proposals_self_api_v1(cid)->'proposals')<>1
+ THEN RAISE EXCEPTION 'resolved decisions remained pending';END IF;
+ -- Exercise apply's independent rollback guard even for a legacy kernel decision.
+ IF atlas.confirm_delegated_agent_command_self_api_v1(si)->>'state'<>'authorized'
+ THEN RAISE EXCEPTION 'legacy confirmation failed'; END IF;
 END $confirm$;
 RESET ROLE;
 

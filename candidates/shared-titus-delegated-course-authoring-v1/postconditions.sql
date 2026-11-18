@@ -21,3 +21,15 @@ BEGIN
   OR EXISTS(SELECT 1 FROM atlas.teaching_course_unit_revisions WHERE recorded_by_agent_invocation_id IS NOT NULL)
  THEN RAISE EXCEPTION 'candidate must not populate Course'; END IF;
 END $proof$;
+
+DO $decision_acl$
+DECLARE f text;
+BEGIN
+ FOREACH f IN ARRAY ARRAY['public.shared_teaching_course_proposals_self_api_v1(uuid)',
+  'public.shared_teaching_course_proposal_decide_self_api_v1(uuid,uuid,uuid,text)']
+ LOOP
+  IF to_regprocedure(f) IS NULL OR NOT has_function_privilege('authenticated',f,'EXECUTE')
+    OR has_function_privilege('anon',f,'EXECUTE') OR has_function_privilege('service_role',f,'EXECUTE')
+  THEN RAISE EXCEPTION 'signed Course decision ACL mismatch: %',f; END IF;
+ END LOOP;
+END $decision_acl$;

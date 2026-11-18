@@ -12,3 +12,6 @@ Source basis supplied in a proposal is a declared provenance reference, not inde
 
 ## Canonical identity inspection
 The live schema's `atlas.principals.person_id` references legacy `atlas.people`, not `reality.entities`. The candidate resolves the principal through the active Auth-to-canonical-Person binding instead of assuming those UUIDs coincide. The existing owner Course was checked read-only: one active principal and matching canonical binding. No live data was changed. The proof must include a deliberately different legacy Person UUID.
+
+## Signed Course review membrane
+The public signed wrappers project only this active owned personal Course's pending Atlas invocations (four at a time), return the exact immutable packet and carrier label, and confirm/reject by Course, invocation and proposal UUID. Before approval the source rechecks live delegation, existing Unit revision and capacity. It then calls the existing Atlas principal decision function; no Course write occurs. Confirmation receipt deliberately differs from the atomic application receipt. No new queue or principal authority is stored.

@@ -333,4 +333,114 @@ INSERT INTO atlas.agent_command_definitions(command_key,command_version,label,sc
  VALUES('teaching.course.authoring.apply_proposal',1,'Apply reviewed Course draft proposal','personal','commit',
  'principal_explicit','teaching.course.authoring.apply_proposal.v1','active',
  '{"contractVersion":"titus_course_authoring_proposal_v1","maxItems":12}'::jsonb,'{"kind":"teaching_course"}'::jsonb);
+
+-- Signed, Course-scoped projection of Atlas's existing principal queue.
+-- No new invocation store, authority issuer, or delegated executor is exposed.
+CREATE FUNCTION public.shared_teaching_course_proposals_self_api_v1(p_course_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog AS $queue$
+DECLARE q record; result jsonb:='[]'::jsonb; n int:=0; more boolean:=false;
+BEGIN
+ PERFORM atlas.require_private_course_author_self_v1(p_course_id,false);
+ PERFORM titus.require_authoring_access_v1();
+ IF NOT EXISTS(SELECT 1 FROM atlas.teaching_courses WHERE id=p_course_id AND status='active' AND ledger_id IS NULL)
+ THEN RAISE EXCEPTION 'active personal Course required' USING ERRCODE='42501'; END IF;
+ FOR q IN SELECT x.* FROM atlas.delegated_agent_pending_confirmations_self_api_v1() x
+  WHERE x.command_key='teaching.course.authoring.apply_proposal' AND x.command_version=1
+   AND x.ledger_id IS NULL AND x.target=jsonb_build_object('kind','teaching_course','id',p_course_id::text)
+  ORDER BY x.created_at,x.invocation_id LIMIT 5
+ LOOP
+  -- Invalid requests cannot be approved. Do not disclose malformed input.
+  BEGIN PERFORM atlas.validate_course_authoring_proposal_v1(q.input,p_course_id);
+  EXCEPTION WHEN invalid_parameter_value OR invalid_text_representation THEN CONTINUE; END;
+  IF n>=4 THEN more:=true; EXIT; END IF;
+  result:=result||jsonb_build_array(jsonb_build_object('invocationId',q.invocation_id,
+    'carrierName',q.carrier_name,'createdAt',q.created_at,'proposal',q.input));
+  n:=n+1;
+ END LOOP;
+ RETURN jsonb_build_object('contractVersion','shared_course_authoring_queue_v1','courseId',p_course_id,
+  'proposals',result,'more',more);
+END $queue$;
+
+-- The reviewed invocation is immutable; the browser cannot supply new text,
+-- target, carrier, or principal to a confirmation. Use the original Atlas
+-- lifecycle functions. This endpoint does not execute any Course write.
+CREATE FUNCTION public.shared_teaching_course_proposal_decide_self_api_v1(
+ p_course_id uuid,p_invocation_id uuid,p_proposal_id uuid,p_decision text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog AS $decide$
+DECLARE v atlas.agent_command_invocations%ROWTYPE;a atlas.delegated_agent_authorizations%ROWTYPE;
+ c atlas.delegated_agent_credentials%ROWTYPE;i jsonb;uid uuid;latest int;j jsonb;n int;adds int;
+BEGIN
+ IF p_invocation_id IS NULL OR p_proposal_id IS NULL OR p_decision IS NULL
+   OR p_decision NOT IN ('confirm','reject') THEN
+  RAISE EXCEPTION 'exact proposal decision required' USING ERRCODE='22023'; END IF;
+ PERFORM atlas.require_private_course_author_self_v1(p_course_id,false);
+ PERFORM titus.require_authoring_access_v1();
+ -- Match apply's lock order (invocation before Course).
+ SELECT inv.* INTO v FROM atlas.agent_command_invocations inv
+ JOIN atlas.principals pr ON pr.id=inv.principal_id AND pr.user_id=auth.uid() AND pr.status='active'
+ WHERE inv.id=p_invocation_id AND inv.command_key='teaching.course.authoring.apply_proposal'
+  AND inv.command_version=1 AND inv.ledger_id IS NULL AND inv.delegating_seat_id IS NULL
+  AND inv.target=jsonb_build_object('kind','teaching_course','id',p_course_id::text)
+  AND inv.input->>'proposalId'~*'^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+  AND lower(inv.input->>'proposalId')=p_proposal_id::text
+  FOR UPDATE OF inv;
+ IF NOT FOUND THEN RAISE EXCEPTION 'owned Course proposal required' USING ERRCODE='42501'; END IF;
+ IF p_decision='confirm' THEN
+  SELECT * INTO STRICT a FROM atlas.delegated_agent_authorizations WHERE id=v.authorization_id FOR SHARE;
+  SELECT * INTO STRICT c FROM atlas.delegated_agent_credentials WHERE id=v.credential_id FOR SHARE;
+ END IF;
+ PERFORM atlas.require_private_course_author_self_v1(p_course_id,true);
+ IF p_decision='confirm' AND v.invocation_state IN ('authorized','executing','succeeded')
+   AND v.confirmed_at IS NOT NULL AND v.confirmed_by_user_id=auth.uid() THEN
+  RETURN jsonb_build_object('contractVersion','shared_course_authoring_decision_v1','courseId',p_course_id,
+   'invocationId',v.id,'proposalId',p_proposal_id,'decision',p_decision,'state',v.invocation_state,'replayed',true);
+ END IF;
+ IF p_decision='reject' AND v.invocation_state='cancelled' THEN
+  RETURN jsonb_build_object('contractVersion','shared_course_authoring_decision_v1','courseId',p_course_id,
+   'invocationId',v.id,'proposalId',p_proposal_id,'decision',p_decision,'state','cancelled','replayed',true);
+ END IF;
+ IF v.invocation_state<>'needs_confirmation' THEN
+  RAISE EXCEPTION 'proposal no longer awaiting confirmation' USING ERRCODE='40001'; END IF;
+ IF p_decision='reject' THEN
+  j:=atlas.reject_delegated_agent_command_self_api_v1(v.id,'Rejected in Course review');
+ ELSE
+  PERFORM atlas.validate_course_authoring_proposal_v1(v.input,p_course_id);
+  IF NOT v.confirmation_required OR a.principal_id<>v.principal_id OR a.carrier_id<>v.carrier_id
+   OR c.authorization_id<>a.id OR a.authorization_state<>'active' OR a.ledger_id IS NOT NULL
+   OR a.delegating_seat_id IS NOT NULL OR a.scope->'targetIds' IS DISTINCT FROM jsonb_build_array(p_course_id::text)
+   OR a.scope->'targetKinds' IS DISTINCT FROM jsonb_build_array('teaching_course')
+   OR a.begins_at>clock_timestamp() OR (a.ends_at IS NOT NULL AND a.ends_at<=clock_timestamp())
+   OR c.credential_state<>'active' OR c.begins_at>clock_timestamp()
+   OR (c.expires_at IS NOT NULL AND c.expires_at<=clock_timestamp())
+   OR NOT coalesce((atlas.evaluate_delegated_agent_command_target_authority_v1(a.id,v.command_key,1,v.target)->>'allowed')::boolean,false)
+  THEN RAISE EXCEPTION 'delegation no longer available' USING ERRCODE='42501'; END IF;
+  SELECT count(*) INTO n FROM atlas.teaching_course_units WHERE course_id=p_course_id;
+  SELECT count(*) INTO adds FROM jsonb_array_elements(v.input->'items') el WHERE el->>'operation'='append_unit';
+  IF n+adds>100 THEN RAISE EXCEPTION 'Course capacity changed' USING ERRCODE='40001'; END IF;
+  FOR i IN SELECT value FROM jsonb_array_elements(v.input->'items') LOOP
+   IF EXISTS(SELECT 1 FROM atlas.teaching_course_units WHERE course_id=p_course_id AND create_request_id=(i->>'requestId')::uuid)
+    OR EXISTS(SELECT 1 FROM atlas.teaching_course_unit_revisions rr JOIN atlas.teaching_course_units un ON un.unit_id=rr.unit_id
+      WHERE un.course_id=p_course_id AND rr.edit_request_id=(i->>'requestId')::uuid)
+   THEN RAISE EXCEPTION 'proposal request already used' USING ERRCODE='40001'; END IF;
+   IF i->>'operation'='revise_unit' THEN
+    uid:=(i->>'unitId')::uuid;
+    PERFORM 1 FROM atlas.teaching_course_units WHERE course_id=p_course_id AND unit_id=uid AND kind=i->>'kind' AND title=i->>'title';
+    IF NOT FOUND THEN RAISE EXCEPTION 'proposal Unit changed' USING ERRCODE='40001'; END IF;
+    SELECT coalesce(max(revision_number),0) INTO latest FROM atlas.teaching_course_unit_revisions WHERE unit_id=uid;
+    IF latest<>(i->>'expectedRevision')::int THEN RAISE EXCEPTION 'proposal revision changed' USING ERRCODE='40001'; END IF;
+   END IF;
+  END LOOP;
+  j:=atlas.confirm_delegated_agent_command_self_api_v1(v.id);
+ END IF;
+ IF j->>'invocationId' IS DISTINCT FROM v.id::text OR
+   j->>'state' IS DISTINCT FROM (CASE WHEN p_decision='confirm' THEN 'authorized' ELSE 'cancelled' END)
+ THEN RAISE EXCEPTION 'unexpected Atlas decision receipt' USING ERRCODE='55000'; END IF;
+ RETURN jsonb_build_object('contractVersion','shared_course_authoring_decision_v1','courseId',p_course_id,
+  'invocationId',v.id,'proposalId',p_proposal_id,'decision',p_decision,'state',j->>'state','replayed',false);
+END $decide$;
+REVOKE ALL ON FUNCTION public.shared_teaching_course_proposals_self_api_v1(uuid),
+ public.shared_teaching_course_proposal_decide_self_api_v1(uuid,uuid,uuid,text) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.shared_teaching_course_proposals_self_api_v1(uuid),
+ public.shared_teaching_course_proposal_decide_self_api_v1(uuid,uuid,uuid,text) TO authenticated;
+
 COMMIT;
