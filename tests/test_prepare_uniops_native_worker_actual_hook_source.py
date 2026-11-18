@@ -71,7 +71,7 @@ class WorkerActualSourceTest(unittest.TestCase):
 
     def test_runner_is_nonproduction_and_source_sha_pinned(self):
         shell=RUNNER.read_text()
-        self.assertIn("159c10041c2167c7dccbe56e397de4db9c33651c",shell)
+        self.assertIn("4ea4033eaae50936f3317f6feda83bce89a7ce74",shell)
         self.assertIn("ATLAS_NATIVE_WORKER_BROWSER_ACTUAL_ENABLED",shell)
         self.assertIn("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",shell)
         self.assertIn("NEXT_PUBLIC_SUPABASE_ANON_KEY",shell)
