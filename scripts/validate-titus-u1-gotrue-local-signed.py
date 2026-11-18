@@ -151,6 +151,8 @@ def main():
     cancel="titus_institution_account_cancel_invite_self_api_v1"
     select="titus_account_context_check_self_api_v1"
     manage="shared_titus_institution_manager_command_self_api_v1"
+    bootstrap="shared_titus_institution_root_bootstrap_self_api_v1"
+    organization="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     def governance(action,prior=None,new=None,request=None,ledger=LEDGER):
         return {"p_ledger_id":ledger,"p_action":action,
           "p_prior_manager_person_id":prior,
@@ -172,6 +174,22 @@ def main():
       "p_request_id":str(uuid.uuid4())}
     deny(api,key,manager,invite,initial,
       "independent root is not automatically institution account manager")
+    deny(api,key,recipient,bootstrap,{"p_ledger_id":LEDGER,
+       "p_organization_id":organization,"p_request_id":str(uuid.uuid4())},
+       "non-governing Person cannot bootstrap root")
+    deny(api,key,manager,bootstrap,{"p_ledger_id":"88888888-8888-4888-8888-888888888888",
+       "p_organization_id":organization,"p_request_id":str(uuid.uuid4())},
+       "governing principal cannot bootstrap wrong Ledger")
+    first_root={"p_ledger_id":LEDGER,"p_organization_id":organization,
+       "p_request_id":str(uuid.uuid4())}
+    origin=allow(api,key,manager,bootstrap,first_root,
+       "signed native and institutional governing Principal establishes root")
+    check(origin.get("alreadyExists") is False,"root not established")
+    retry=allow(api,key,manager,bootstrap,first_root,
+       "same root establishment is idempotent")
+    check(retry.get("alreadyExists") is True and
+       retry.get("originId")==origin.get("originId"),"root retry changed source")
+
     deny(api,key,recipient,manage,governance("appoint",new=RECIPIENT),
       "recipient cannot appoint a manager")
     deny(api,key,outsider,manage,governance("appoint",new=OUTSIDER),
@@ -356,9 +374,11 @@ def main():
       "Former manager's source invitation leaked as actionable")
     # Root withdrawal is distinct from manager revocation: no stale signed
     # root can append manager changes, even when Person login remains good.
-    sql(args.db_url,"update reality.responsibility_relations set "
-      "relation_state='ended',ended_at=clock_timestamp() "
-      "where id='99999999-9999-4999-8999-999999999999'::uuid")
+    allow(api,key,manager,
+      "shared_titus_institution_root_relinquish_self_api_v1",
+      {"p_ledger_id":LEDGER,"p_organization_id":organization,
+       "p_request_id":str(uuid.uuid4())},
+      "signed institutional root voluntarily ends own source")
     deny(api,key,manager,manage,governance("appoint",new=MANAGER),
       "ended institution root cannot reappoint a manager")
 
