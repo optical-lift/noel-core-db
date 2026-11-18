@@ -1,0 +1,289 @@
+name: HELD UNI-OPS U2F genuine signed root review - exact one-shot controller
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-uniops-u2f-genuine-signed-one-shot.yml'
+      - 'tests/test_uniops_u2f_protected_controller_source.py'
+  issues:
+    types: [edited]
+
+permissions:
+  contents: read
+  packages: read
+  issues: read
+
+concurrency:
+  group: held-uniops-u2f-2881-exact-one-shot
+  cancel-in-progress: false
+
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact PR controller source
+        shell: bash
+        env:
+          EXACT_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_HEAD"
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/held-uniops-u2f-genuine-signed-one-shot.yml")'
+          python3 tests/test_uniops_u2f_protected_controller_source.py
+          echo 'U2F_PROTECTED_CONTROLLER_SOURCE=PASS'
+          echo 'PROTECTED_EXECUTION=NOT_TRIGGERED'
+          echo 'PRODUCTION_MUTATION=NONE'
+
+  validate-protected:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.number == 2881 &&
+      github.event.issue.state == 'open' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.event.issue.title == 'HELD UNI-OPS U2F signed root review: one-shot genuine signed clone v1' &&
+      github.event.changes.title.from == 'HELD UNI-OPS U2F signed root review: source review, no execution'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 58
+    steps:
+      - name: Verify one distinct owner transition and eight frozen selectors BEFORE any production schema access
+        shell: bash
+        env:
+          OWNER_BODY: ${{ github.event.issue.body }}
+          ${{ github.token }}: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          ISSUE_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,re,urllib.request
+          expected={
+              'diagnostic_scope':'u2f_review_signed_clone_v1',
+              'production_target':'zirqkouammpwxlqfbsvf',
+              'u2f_source_sha':'8fea511c6b422acb8686f57228af23fb053e6fa3',
+              'canonical_source_sha':'1d82a71b4fc1adf1fb1f381c86bb39af96d10683',
+              'security_source_sha':'3baf2f4a909e35d9eb2d56f663f3c6aefc52a7f7',
+              'intake_source_sha':'0f881f1e15dea69018aa951ef17ce362019408b8',
+              'test_goal':'go_true_root_review_no_work_v1',
+              'owner_run_approval':'u2f_signed_2881_one_shot_v1'}
+          parsed={}
+          for line in os.environ.get('OWNER_BODY','').splitlines():
+              m=re.fullmatch(r'([a-z0-9_]+):\s*([a-z0-9_]+)\s*',line)
+              if m and m[1] in expected:
+                  if m[1] in parsed:raise SystemExit('STOP repeated owner source selector')
+                  parsed[m[1]]=m[2]
+          if parsed!=expected:raise SystemExit('STOP exact eight owner selectors required')
+          repo=os.environ.get('REPOSITORY','')
+          owner=os.environ.get('ISSUE_OWNER','')
+          if repo!='optical-lift/noel-core-db' or owner!='optical-lift':
+              raise SystemExit('STOP source repository/owner mismatch')
+          events=[]
+          for page in range(1,11):
+              url=f'https://api.github.com/repos/{repo}/issues/2881/events?per_page=100&page={page}'
+              request=urllib.request.Request(
+                 url,headers={'Authorization':'Bearer '+os.environ['${{ github.token }}'],
+                              'Accept':'application/vnd.github+json',
+                              'User-Agent':'u2f-2881-one-shot-source-guard'})
+              with urllib.request.urlopen(request,timeout=20) as response:
+                  segment=json.load(response)
+              if not isinstance(segment,list):
+                  raise SystemExit('STOP issue history not a list')
+              events+=segment
+              if len(segment)<100:break
+          else:raise SystemExit('STOP incomplete one-shot title history')
+          renames=[e for e in events if e.get('event')=='renamed']
+          wanted=[e for e in renames if e.get('rename',{}).get('from')==
+                    'HELD UNI-OPS U2F signed root review: source review, no execution'
+                   and e.get('rename',{}).get('to')==
+                    'HELD UNI-OPS U2F signed root review: one-shot genuine signed clone v1'
+                   and e.get('actor',{}).get('login')==owner]
+          if len(renames)!=1 or len(wanted)!=1:
+              raise SystemExit('STOP exact single owner title transition was not established')
+          print('U2F_2881_EXACT_OWNER_HISTORY_AND_SELECTORS=PASS')
+          PY
+
+      - name: Checkout exact existing canonical trusted schema and signed-clone source
+        uses: actions/checkout@v4
+        with:
+          ref: 1d82a71b4fc1adf1fb1f381c86bb39af96d10683
+          path: canonical
+          persist-credentials: false
+      - name: Verify exact trusted source before credentials
+        shell: bash
+        working-directory: canonical
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = '1d82a71b4fc1adf1fb1f381c86bb39af96d10683'
+          test "$(git hash-object scripts/validate-production-schema-clone.sh)" = 'a965fcca2cb5e1c44f255eba2fa24cca2a4d21c5'
+          test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = 'eb3bbfb45848a7fca90cc503e153f1451d8d7471'
+          test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = '1b82e698705e473280f1fc55b0e762bce243effb'
+          test "$(git hash-object validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql)" = 'e6572f4893d7be34bc97bc3e5115200563065179'
+          test "$(git hash-object candidates/atlas_work_self_assignment_native_v1/fixture.sql)" = 'fc8da3d425f2377b51fccfcc2c31d193359219f0'
+          bash scripts/check-custody.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+
+      - name: Install verified pinned Supabase CLI for disposable clone
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/u2f-supabase-2.116.0.tar.gz"
+          curl -fLsS --proto '=https' --tlsv1.2 --max-time 240 \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_2.116.0_linux_amd64.tar.gz \
+            -o "$archive"
+          echo "5b3031cb297d51b25be4c284e4c852254460ec722ec221d3b81b07d55acfd158  $archive" | sha256sum -c --status
+          tar -xzf "$archive" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -1)" = 2.116.0
+          command -v psql
+          docker info >/dev/null
+
+      - name: Authenticate for read-only Docker registry pulls
+        env:
+          GH_REGISTRY_USER: ${{ github.actor }}
+          GH_REGISTRY_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf '%s' "$GH_REGISTRY_TOKEN" |
+            docker login ghcr.io --username "$GH_REGISTRY_USER" --password-stdin >/dev/null
+
+      - name: READ ONLY production SCHEMA and ROLES, no table rows
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --role-only --file "$RUNNER_TEMP/u2f-private-roles.sql" >/dev/null
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" \
+            --file "$RUNNER_TEMP/u2f-private-schema.sql" >/dev/null
+          test -s "$RUNNER_TEMP/u2f-private-roles.sql"
+          test -s "$RUNNER_TEMP/u2f-private-schema.sql"
+          echo 'U2F_SCHEMA_AND_ROLES_READ_ONLY=PASS'
+
+      - name: Checkout exact held U2F + historical reciprocal source SHAs
+        uses: actions/checkout@v4
+        with:
+          ref: 8fea511c6b422acb8686f57228af23fb053e6fa3
+          path: u2f-held
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 3baf2f4a909e35d9eb2d56f663f3c6aefc52a7f7
+          path: reciprocal-security
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 0f881f1e15dea69018aa951ef17ce362019408b8
+          path: reciprocal-intake
+          persist-credentials: false
+
+      - name: Assemble exact source-pinned disposable-clone test and scratch-only hook
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C u2f-held rev-parse HEAD)" = '8fea511c6b422acb8686f57228af23fb053e6fa3'
+          test "$(git -C reciprocal-security rev-parse HEAD)" = '3baf2f4a909e35d9eb2d56f663f3c6aefc52a7f7'
+          test "$(git -C reciprocal-intake rev-parse HEAD)" = '0f881f1e15dea69018aa951ef17ce362019408b8'
+          U2F="candidates/atlas/uni_ops_u2f_universal_delegated_command_v1"
+          test "$(git -C u2f-held hash-object "$U2F/06_signed_native_root_lifecycle_held.sql")" = 'cb6adc307ab6994f95e6b5d9acf421f10a71c607'
+          test "$(git -C u2f-held hash-object "$U2F/08_signed_clone_only_rpc_bridge_held.sql")" = '704875ea1710601ad5c5e4d6a994d5281b3691c0'
+          test "$(git -C u2f-held hash-object "$U2F/pg17/validate_u2f_genuine_signed_clone_held.py")" = 'ff74c66c293a1d94cc77f39af0db19adfe724080'
+          test "$(git -C u2f-held hash-object "$U2F/pg17/install_u2f_signed_clone_hook_held.py")" = 'check_me_before_execution'
+          test "$(git -C reciprocal-security hash-object candidates/atlas-ledger-work-authority-20261030/root-scoped-peer-source-candidate.sql)" = '20a31cb4e85d5d1946a9e0b1e01226291a330588'
+          test "$(git -C reciprocal-intake hash-object candidates/atlas-ledger-work-intake-20261030/candidate.sql)" = 'e6e7f1445b4a0c928d6cf349bdec6e0b0a1eb957'
+          scratch="$RUNNER_TEMP/u2f-protected"
+          mkdir -p "$scratch"
+          cp -a canonical "$scratch/canonical"
+          mkdir -p "$scratch/canonical/$U2F/pg17" "$scratch/canonical/u2f-scratch" "$scratch/project"
+          cp "u2f-held/$U2F/06_signed_native_root_lifecycle_held.sql" "$scratch/canonical/$U2F/"
+          cp "u2f-held/$U2F/08_signed_clone_only_rpc_bridge_held.sql" "$scratch/canonical/$U2F/"
+          cp "u2f-held/$U2F/pg17/validate_u2f_genuine_signed_clone_held.py" "$scratch/canonical/$U2F/pg17/"
+          cp "u2f-held/$U2F/pg17/install_u2f_signed_clone_hook_held.py" "$scratch/canonical/$U2F/pg17/"
+          cp "$scratch/canonical/scripts/validate-production-schema-clone.sh" "$scratch/canonical/u2f-scratch/"
+          python3 "$scratch/canonical/$U2F/pg17/install_u2f_signed_clone_hook_held.py" \
+            --copy "$scratch/canonical/u2f-scratch/validate-production-schema-clone.sh"
+          bash -n "$scratch/canonical/u2f-scratch/validate-production-schema-clone.sh"
+          (cd "$scratch/project" && supabase init --force >/dev/null &&
+           supabase migration new atlas_ledger_reciprocal_signed_clone_only_v1 >/dev/null)
+          migration="$(find "$scratch/project/supabase/migrations" -name '*_atlas_ledger_reciprocal_signed_clone_only_v1.sql' -print -quit)"
+          test -n "$migration"
+          cat reciprocal-security/candidates/atlas-ledger-work-authority-20261030/root-scoped-peer-source-candidate.sql \
+              reciprocal-intake/candidates/atlas-ledger-work-intake-20261030/candidate.sql > "$migration"
+          cat reciprocal-security/candidates/atlas-ledger-work-authority-20261030/postconditions.sql \
+              reciprocal-intake/candidates/atlas-ledger-work-intake-20261030/postconditions.sql \
+                > "$scratch/postconditions.sql"
+          cat canonical/candidates/atlas_work_self_assignment_native_v1/fixture.sql \
+              canonical/validation/fixtures/atlas_ledger_reciprocal_root_signed_clone_20261030.sql \
+                > "$scratch/fictional-fixture.sql"
+          test -s "$scratch/fictional-fixture.sql"
+          echo "version=$(basename "$migration" | cut -d_ -f1)" >> "$GITHUB_OUTPUT"
+          echo "migration=$migration" >> "$GITHUB_OUTPUT"
+
+      - name: Execute ONE genuine local signed review-only U2F acceptance
+        id: signed
+        shell: bash
+        run: |
+          set -euo pipefail
+          scratch="$RUNNER_TEMP/u2f-protected"
+          set +e
+          bash "$scratch/canonical/u2f-scratch/validate-production-schema-clone.sh" \
+            --migration-version "${{ steps.package.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.package.outputs.migration }}" \
+            --candidate-fixture "$scratch/fictional-fixture.sql" \
+            --candidate-validation "$scratch/postconditions.sql" \
+            --roles-dump "$RUNNER_TEMP/u2f-private-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/u2f-private-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/u2f-private-artifacts" \
+            >"$RUNNER_TEMP/u2f-private-run.log" 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            echo 'U2F_SIGNED_CLONE_RESULT=FAILED (private log withheld)'
+            exit 1
+          fi
+          test -s "$RUNNER_TEMP/u2f-private-artifacts/u2f-signed-only-verdict.txt"
+          grep -qx 'U2F_GENUINE_SIGNED_LOCAL_CLONE=PASS' \
+            "$RUNNER_TEMP/u2f-private-artifacts/u2f-signed-only-verdict.txt"
+          grep -qx 'CANONICAL_NATIVE_GOVERNING_ROOT_GRANTS=ZERO' \
+            "$RUNNER_TEMP/u2f-private-artifacts/u2f-signed-only-verdict.txt"
+          grep -qx 'DELEGATED_AGENT_WORK_COMMAND=NOT_RUN' \
+            "$RUNNER_TEMP/u2f-private-artifacts/u2f-signed-only-verdict.txt"
+          echo 'U2F_SIGNED_CLONE_RESULT=PASS'
+          echo 'GOVERNING_AUTHORITY_CUTOVER=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
+
+      - name: Publish only fixed verdict categories, never private clone records
+        if: always()
+        shell: bash
+        env:
+          SIGNED_OUTCOME: ${{ steps.signed.outcome }}
+        run: |
+          case "$SIGNED_OUTCOME" in
+            success) echo 'U2F exact-source signed clone: PASS; native governing grant: NO; production mutation: NONE.' >>"$GITHUB_STEP_SUMMARY" ;;
+            failure|cancelled|skipped) echo 'U2F exact-source signed clone: not completed; no authority release.' >>"$GITHUB_STEP_SUMMARY" ;;
+            *) echo 'U2F exact-source signed clone: unverified.' >>"$GITHUB_STEP_SUMMARY" ;;
+          esac
+
+      - name: Delete all private source copies, roles, schema and signed logs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/u2f-protected" \
+                 "$RUNNER_TEMP/u2f-private-artifacts" \
+                 "$RUNNER_TEMP/u2f-private-roles.sql" \
+                 "$RUNNER_TEMP/u2f-private-schema.sql" \
+                 "$RUNNER_TEMP/u2f-private-run.log" \
+                 "$RUNNER_TEMP/u2f-supabase-2.116.0.tar.gz"
+          echo 'U2F_PRIVATE_EPHEMERAL_TEST_DATA=DELETED'
