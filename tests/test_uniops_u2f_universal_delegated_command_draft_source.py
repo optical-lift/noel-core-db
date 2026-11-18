@@ -252,6 +252,11 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             "SECURITY INVOKER",
             "SET search_path TO ''",
             "auth.uid()",
+            "auth.jwt()->>'session_id'",
+            "FROM auth.sessions ss",
+            "ss.id=v_session_claim::uuid AND ss.user_id=v_actor",
+            "ss.not_after IS NULL OR ss.not_after>pg_catalog.now()",
+            "Current signed session required",
             "p.user_id=v_actor",
             "p_explicit_attestation IS DISTINCT FROM 'I reaffirm this exact Ledger authority'",
             "atlas.principal_ledger_authorities",
@@ -277,6 +282,7 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected,source)
         self.assertEqual(source.count("CREATE FUNCTION atlas.uni_ops_u2f_root_"),3)
+        self.assertEqual(source.count("FROM auth.sessions ss"),2)
         self.assertNotRegex(pure,r"(?i)\b(?:CREATE|ALTER|DROP|TRUNCATE)\s+(?:TABLE|TRIGGER|VIEW|SCHEMA)\b")
         self.assertNotRegex(pure,r"(?i)\bGRANT\b")
         for prohibited in (
@@ -298,6 +304,14 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         self.assertIn("INDEPENDENT_SOURCE_ADJUDICATION=NO",runner)
         self.assertIn("CREATE TABLE ledger.actions",fixture)
         self.assertIn("CREATE FUNCTION auth.uid()",fixture)
+        self.assertIn("CREATE FUNCTION auth.jwt()",fixture)
+        self.assertIn("CREATE TABLE auth.sessions",fixture)
+        for session_case in ("missing JWT session claim","unknown JWT session",
+                             "wrong-user JWT session","malformed JWT session",
+                             "deleted session","expired session",
+                             "revocation requires current session",
+                             "revocation denies expired session"):
+            self.assertIn(session_case,runner)
         self.assertIn("NOT real signed GoTrue",fixture)
 
 if __name__=="__main__":
