@@ -1,0 +1,219 @@
+name: HELD UNI-OPS 2859 distinct one-shot staged ACL readonly clone inspection
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-uniops-acl-staged-2859-one-shot.yml'
+      - 'tests/inspect_uniops_acl_staged_source_clone_2859_held.py'
+      - 'tests/test_inspect_uniops_acl_staged_source_clone_2859_held.py'
+  issues:
+    types: [edited]
+
+permissions:
+  contents: read
+  issues: read
+  packages: read
+
+concurrency:
+  group: held-uniops-acl-staged-2859
+  cancel-in-progress: false
+
+jobs:
+  source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Audit dormant new-issue controller without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('.github/workflows/held-uniops-acl-staged-2859-one-shot.yml').read_text()
+          parts=s.split('\n  inspect-protected:\n',1)
+          assert len(parts)==2 and s.count('\n  inspect-protected:\n')==1
+          assert "github.event_name == 'pull_request'" in parts[0]
+          assert "github.event_name == 'issues'" in parts[1]
+          assert "github.event.issue.number == 2859" in parts[1]
+          assert "github.actor == github.repository_owner" in parts[1]
+          assert "github.run_attempt == 1" in parts[1]
+          assert "github.event.changes.title.from" in parts[1]
+          assert "environment: production" in parts[1]
+          assert "issues/2859/events?per_page=100&page=" in parts[1]
+          assert "GITHUB_EVENT_PATH" in parts[1]
+          assert "c0a22b64eefbda07b71b0c7918139672fbd762b3" in s
+          assert s.count("NOEL_CORE_DATABASE_URL: "+chr(36)+"{{ secrets.NOEL_CORE_DATABASE_URL }}")==1
+          assert "workflow_dispatch:" not in s
+          assert "supabase db push" not in s
+          assert "apply_migration" not in s
+          assert "upload-artifact" not in s
+          assert "UNI_OPS_READONLY_ACL_2848_APPROVED: 'true'" not in s
+          assert "issues/2852/events" not in s
+          print("PASS 2859 source-only controller audit; protected job SKIPPED")
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: c0a22b64eefbda07b71b0c7918139672fbd762b3
+          path: held-source
+          persist-credentials: false
+      - name: Verify pinned source and run offline safety tests only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C held-source rev-parse HEAD)" = c0a22b64eefbda07b71b0c7918139672fbd762b3
+          test "$(git -C held-source hash-object tests/inspect_uniops_acl_staged_source_clone_2859_held.py)" = 6edddd21123a0168ab702b9f6412bba9a8082127
+          test "$(git -C held-source hash-object tests/test_inspect_uniops_acl_staged_source_clone_2859_held.py)" = 00b8599de1f25e604099a0f03b7dbaf70ded12c7
+          test "$(git -C held-source hash-object tests/inspect_uniops_acl_staged_local_held.py)" = a2d5278d90752dc41976948d5e8da9da3e8d5252
+          test "$(git -C held-source hash-object tests/test_inspect_uniops_acl_staged_local_held.py)" = cf03a9753d66b8ad1caac79c8d2401a4eca31886
+          test "$(git -C held-source hash-object tests/uniops_acl_stage_observations_held.py)" = f365bb571f2be30a922aa080c2baabd631603f31
+          test "$(git -C held-source hash-object tests/test_uniops_acl_stage_observations_held.py)" = c136d7453b0c7c2f67963520e3295bb7b5526266
+          test "$(git -C held-source hash-object tests/inspect_uniops_acl_readonly_source_clone_held.py)" = 24aab7bd3b91dcf2e49b04a670ccb49d7f8349a9
+          test "$(git -C held-source hash-object tests/reconcile_uniops_native_governor_acl_local_held.py)" = 07d2682cff84bb8d4db091c44185b29f20d41601
+          test "$(git -C held-source hash-object supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql)" = d6ce8f5e7422e36a4b5352007a32d82ae29d6d4c
+          python3 -m py_compile held-source/tests/inspect_uniops_acl_staged_source_clone_2859_held.py
+          python3 -m py_compile held-source/tests/inspect_uniops_acl_staged_local_held.py
+          python3 -m unittest discover -s held-source/tests -p 'test_inspect_uniops_acl_staged_source_clone_2859_held.py' -v
+          python3 -m unittest discover -s held-source/tests -p 'test_inspect_uniops_acl_staged_local_held.py' -v
+          python3 -m unittest discover -s held-source/tests -p 'test_uniops_acl_stage_observations_held.py' -v
+          echo 'PASS exact pinned source and offline refusal tests; no database credentials'
+      - name: Check pinned CLI availability with no database or secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          curl -fLsS --proto '=https' --tlsv1.2 --max-time 240 \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_2.116.0_linux_amd64.tar.gz \
+            -o "$RUNNER_TEMP/cli-2859.tar.gz"
+          echo "5b3031cb297d51b25be4c284e4c852254460ec722ec221d3b81b07d55acfd158  $RUNNER_TEMP/cli-2859.tar.gz" | sha256sum -c --status
+          tar -xzf "$RUNNER_TEMP/cli-2859.tar.gz" -C "$RUNNER_TEMP" supabase
+          test "$("$RUNNER_TEMP/supabase" --version | tail -1)" = '2.116.0'
+          "$RUNNER_TEMP/supabase" init --help >/dev/null
+          "$RUNNER_TEMP/supabase" db start --help >/dev/null
+          "$RUNNER_TEMP/supabase" db dump --help >/dev/null
+          "$RUNNER_TEMP/supabase" stop --help >/dev/null
+          rm -f -- "$RUNNER_TEMP/cli-2859.tar.gz" "$RUNNER_TEMP/supabase"
+          echo 'PASS pinned CLI help only; no protected connection'
+
+  inspect-protected:
+    if: >-
+      github.event_name == 'issues' &&
+      github.actor == github.repository_owner &&
+      github.run_attempt == 1 &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.event.issue.number == 2859 &&
+      github.event.issue.state == 'open' &&
+      github.event.changes.title.from == 'HELD UNI-OPS staged ACL inspection: source review, not executable' &&
+      github.event.issue.title == 'HELD UNI-OPS staged ACL inspection: one-time read-only v1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    environment: production
+    steps:
+      - name: Verify unique, owner-approved issue event without database access
+        shell: bash
+        env:
+          GH_EVENT_TOKEN: ${{ github.token }}
+          OWNER_LOGIN: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,time,urllib.request
+          old='HELD UNI-OPS staged ACL inspection: source review, not executable'
+          new='HELD UNI-OPS staged ACL inspection: one-time read-only v1'
+          e=json.load(open(os.environ['GITHUB_EVENT_PATH']))
+          issue=e.get('issue',{})
+          assert issue.get('number')==2859 and issue.get('state')=='open'
+          assert issue.get('title')==new
+          assert e.get('changes',{}).get('title',{}).get('from')==old
+          assert issue.get('author_association')=='OWNER'
+          assert 'public.grant_personal_atlas_access_v1(uuid,text,jsonb)' in issue.get('body','')
+          assert 'c0a22b64eefbda07b71b0c7918139672fbd762b3' in issue.get('body','')
+          url='https://api.github.com/repos/optical-lift/noel-core-db/issues/2859/events?per_page=100&page='
+          def history():
+              out=[]
+              for page in range(1,6):
+                  request=urllib.request.Request(url+str(page),headers={
+                    'Authorization':'Bearer '+os.environ['GH_EVENT_TOKEN'],
+                    'Accept':'application/vnd.github+json',
+                    'X-GitHub-Api-Version':'2022-11-28'})
+                  with urllib.request.urlopen(request,timeout=15) as response:
+                      got=json.load(response)
+                  out.extend(got)
+                  if len(got)<100:return out
+              raise RuntimeError('event history beyond finite gate')
+          for attempt in range(4):
+              events=history()
+              if any(x.get('event')=='renamed' and x.get('rename',{}).get('to')==new for x in events):
+                  break
+              time.sleep(2)
+          renamed=[x for x in events if x.get('event')=='renamed']
+          assert len(renamed)==1
+          assert renamed[0].get('rename')=={'from':old,'to':new}
+          assert renamed[0].get('actor',{}).get('login')==os.environ['OWNER_LOGIN']
+          print('PASS 2859 unique owner-only event; no SQL yet')
+          PY
+      - uses: actions/checkout@v4
+        with:
+          ref: c0a22b64eefbda07b71b0c7918139672fbd762b3
+          persist-credentials: false
+      - name: Revalidate exact source and offline negatives before private inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = c0a22b64eefbda07b71b0c7918139672fbd762b3
+          test "$(git hash-object tests/inspect_uniops_acl_staged_source_clone_2859_held.py)" = 6edddd21123a0168ab702b9f6412bba9a8082127
+          test "$(git hash-object tests/test_inspect_uniops_acl_staged_source_clone_2859_held.py)" = 00b8599de1f25e604099a0f03b7dbaf70ded12c7
+          test "$(git hash-object tests/inspect_uniops_acl_staged_local_held.py)" = a2d5278d90752dc41976948d5e8da9da3e8d5252
+          test "$(git hash-object tests/test_inspect_uniops_acl_staged_local_held.py)" = cf03a9753d66b8ad1caac79c8d2401a4eca31886
+          test "$(git hash-object tests/uniops_acl_stage_observations_held.py)" = f365bb571f2be30a922aa080c2baabd631603f31
+          test "$(git hash-object tests/test_uniops_acl_stage_observations_held.py)" = c136d7453b0c7c2f67963520e3295bb7b5526266
+          test "$(git hash-object tests/inspect_uniops_acl_readonly_source_clone_held.py)" = 24aab7bd3b91dcf2e49b04a670ccb49d7f8349a9
+          test "$(git hash-object tests/reconcile_uniops_native_governor_acl_local_held.py)" = 07d2682cff84bb8d4db091c44185b29f20d41601
+          test "$(git hash-object supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql)" = d6ce8f5e7422e36a4b5352007a32d82ae29d6d4c
+          python3 -m unittest discover -s tests -p 'test_inspect_uniops_acl_staged_source_clone_2859_held.py' >/dev/null
+          python3 -m unittest discover -s tests -p 'test_inspect_uniops_acl_staged_local_held.py' >/dev/null
+          python3 -m unittest discover -s tests -p 'test_uniops_acl_stage_observations_held.py' >/dev/null
+          echo 'PASS exact source pins; protected credential not yet read'
+      - name: Install checksum-pinned CLI for schema-only read
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          curl -fLsS --proto '=https' --tlsv1.2 --max-time 240 \
+            https://github.com/supabase/cli/releases/download/v2.116.0/supabase_2.116.0_linux_amd64.tar.gz \
+            -o "$RUNNER_TEMP/cli-2859.tar.gz"
+          echo "5b3031cb297d51b25be4c284e4c852254460ec722ec221d3b81b07d55acfd158  $RUNNER_TEMP/cli-2859.tar.gz" | sha256sum -c --status
+          tar -xzf "$RUNNER_TEMP/cli-2859.tar.gz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -1)" = '2.116.0'
+          command -v psql
+          docker info >/dev/null
+          rm -f -- "$RUNNER_TEMP/cli-2859.tar.gz" "$RUNNER_TEMP/supabase"
+          echo 'PASS pinned CLI, no SQL yet'
+      - name: Authenticate GHCR image pull only
+        shell: bash
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$REGISTRY_USER" --password-stdin >/dev/null
+      - name: One protected READ-ONLY source catalog and schema/roles copy into disposable clone
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+          UNI_OPS_STAGED_READONLY_2859_APPROVED: 'true'
+        run: |
+          set -euo pipefail
+          umask 077
+          python3 tests/inspect_uniops_acl_staged_source_clone_2859_held.py
+      - name: Consume 2859 one-shot without work or release
+        if: always()
+        shell: bash
+        run: |
+          echo 'UNI_OPS_2859_STAGED_INSPECTION=CONSUMED'
+          echo 'UNI_OPS_SIGNED_WORK_JOURNEY=NOT_RUN'
+          echo 'UNI_OPS_PRODUCTION_RELEASE=NONE'
