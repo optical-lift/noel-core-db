@@ -1,0 +1,44 @@
+name: HELD shared canonical Course source — synthetic PG17 (no deploy)
+
+on:
+  push:
+    branches:
+      - candidate/shared-course-unification-clean-cutover-v1-20261107
+    paths:
+      - 'candidates/shared-teaching-course-clean-cutover-v1/**'
+      - 'scripts/test-shared-course-clean-cutover-synthetic-pg17.sh'
+      - '.github/workflows/shared-course-clean-cutover-synthetic-pg17.yml'
+  pull_request:
+    paths:
+      - 'candidates/shared-teaching-course-clean-cutover-v1/**'
+      - 'scripts/test-shared-course-clean-cutover-synthetic-pg17.sh'
+      - '.github/workflows/shared-course-clean-cutover-synthetic-pg17.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shared-course-synthetic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-pg17:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Assert exact source and no production/custody bypass
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          bash -n scripts/test-shared-course-clean-cutover-synthetic-pg17.sh
+          test ! -e supabase/migrations/20261107_shared_teaching_course_clean_cutover_v1.sql
+          grep -q 'clone-only candidate' candidates/shared-teaching-course-clean-cutover-v1/person_first_candidate.sql || true
+          test -s candidates/shared-teaching-course-clean-cutover-v1/sk101_exact_adoption_candidate.sql
+      - name: Prove fictional Person-root and lossless source revision adoption on disposable PG17
+        shell: bash
+        run: bash scripts/test-shared-course-clean-cutover-synthetic-pg17.sh

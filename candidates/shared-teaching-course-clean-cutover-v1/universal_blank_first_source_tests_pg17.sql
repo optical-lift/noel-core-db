@@ -1,0 +1,447 @@
+-- UNIVERAL EMPTY-FIRST M1/M3 SOURCE PROOF: network-isolated fictional PG17.
+-- Runs BEFORE historic SK101 adoption. The legacy draft is temporarily
+-- removed ONLY inside a savepoint of a synthetic database, restored by
+-- ROLLBACK; absolutely no production data, migration or actual learner.
+SAVEPOINT universal_blank_first_source;
+DELETE FROM titus.customer_course_unit_revisions_v1;
+DELETE FROM titus.customer_course_units_v1;
+DELETE FROM titus.customer_course_material_revisions_v1;
+DELETE FROM titus.customer_course_drafts_v1;
+DELETE FROM titus.customer_workspace_entitlements_v1;
+
+-- Baseline Course source must be installable without a single named
+-- legacy manuscript/Unit/Student/Offering.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/person_first_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/canonical_authoring_candidate.sql
+DO $zero_after_source_setup$
+BEGIN
+ IF (SELECT count(*) FROM atlas.teaching_courses)<>0
+ OR (SELECT count(*) FROM atlas.teaching_course_manuscript_revisions)<>0
+ OR (SELECT count(*) FROM atlas.teaching_course_units)<>0
+ OR (SELECT count(*) FROM atlas.teaching_course_unit_revisions)<>0
+ OR (SELECT count(*) FROM titus.course_authoring_access_grants)<>0
+ OR (SELECT count(*) FROM titus.course_authoring_access_status_events)<>0
+ OR (SELECT count(*) FROM titus.customer_course_drafts_v1)<>0
+ OR to_regclass('atlas.teaching_course_offerings') IS NOT NULL
+ OR to_regclass('atlas.teaching_enrollments') IS NOT NULL
+ THEN
+  RAISE EXCEPTION 'universal Course schema seeded a Course, Unit, entitlement or institution';
+ END IF;
+END $zero_after_source_setup$;
+
+-- M1.1: the very same blank-authoring source can grant a fictional private
+-- pilot ONLY through separately governed issuer standing + recipient consent.
+-- The full probe rolls back before the ordinary two-buyer fixture proceeds.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_pilot_issuer_tests_pg17.sql
+
+-- A live session/Person is NOT a purchase grant or a Course original.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $blank_person$
+DECLARE v_grant jsonb;catalog jsonb;
+BEGIN
+ v_grant:=public.titus_authoring_access_self_api_v1();
+ catalog:=public.shared_teaching_course_catalog_self_api_v1();
+ IF v_grant->>'canUseTitus'<>'false'
+ OR catalog->'courses'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'login silently licensed author or created a Course';
+ END IF;
+END $blank_person$;
+RESET ROLE;
+
+-- Fictional grant explicitly conferred, not implied from Person/auth alone.
+INSERT INTO titus.course_authoring_access_grants(
+ person_entity_id,grant_source_auth_user_id,grant_kind,grant_source_receipt,
+ state,granted_at,valid_until)
+VALUES('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','private_pilot',
+ 'fictional-generic-blank-first-grant','active',now(),NULL);
+
+-- Even the synthetic owner cannot silently reassign, replace or erase an
+-- existing issued product-access original. This does NOT establish who is
+-- authorized to issue new receipts; that separate source remains held.
+DO $grant_origin_is_immutable$
+DECLARE denied boolean; rec text:='fictional-generic-blank-first-grant';
+BEGIN
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET grant_source_receipt='changed-pilot-origin' WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus grant receipt was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET person_entity_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus grant recipient was reassigned'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET grant_kind='purchase' WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus grant origin kind was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET grant_source_auth_user_id='cccccccc-cccc-4ccc-8ccc-cccccccccccc'
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus original issuer was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET granted_at=clock_timestamp()-interval '1 day'
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus original issuance time was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET state='revoked' WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus founding status was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  UPDATE titus.course_authoring_access_grants
+   SET valid_until=clock_timestamp()+interval '1 year'
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus founding expiry was rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  DELETE FROM titus.course_authoring_access_grants
+   WHERE grant_source_receipt=rec;
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'Titus grant original was deleted'; END IF;
+ IF (SELECT count(*) FROM titus.course_authoring_access_grants
+  WHERE grant_source_receipt=rec AND grant_kind='private_pilot'
+   AND state='active')<>1 THEN
+  RAISE EXCEPTION 'Titus grant original changed after denied writes'; END IF;
+END $grant_origin_is_immutable$;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $create_first_empty_original$
+DECLARE v_grant jsonb;catalog jsonb;created jsonb;again jsonb;v_course_id uuid;
+BEGIN
+ v_grant:=public.titus_authoring_access_self_api_v1();
+ catalog:=public.shared_teaching_course_catalog_self_api_v1();
+ IF v_grant->>'canUseTitus'<>'true' OR catalog->'courses'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'explicit Titus grant populated a default Course';
+ END IF;
+ created:=public.shared_teaching_course_create_self_api_v1(
+  'be000000-0000-4000-8000-000000000001','Untitled field notes');
+ again:=public.shared_teaching_course_create_self_api_v1(
+  'be000000-0000-4000-8000-000000000001','Untitled field notes');
+ v_course_id:=(created->>'courseId')::uuid;
+ IF created->>'alreadyExists'<>'false'
+ OR again->>'alreadyExists'<>'true'
+ OR again->>'courseId'<>created->>'courseId' THEN
+  RAISE EXCEPTION 'first Course created duplicate original';
+ END IF;
+ catalog:=public.shared_teaching_course_catalog_self_api_v1();
+ IF jsonb_array_length(catalog->'courses')<>1
+ OR catalog->'courses'->0->>'title'<>'Untitled field notes'
+ OR catalog->'courses'->0->>'courseId'<>v_course_id::text
+ THEN RAISE EXCEPTION 'first created Course not source-confirmed'; END IF;
+ -- No privileged table reads inside an authenticated Person session.
+ -- Source readback above is the user's only entitlement path.
+ PERFORM set_config('app.fictional_blank_course_id',v_course_id::text,true);
+END $create_first_empty_original$;
+RESET ROLE;
+-- Independent privileged aggregate: only the explicitly created Course root,
+-- no Course contents, institution or implicit student records.
+DO $blank_first_original_postconditions$
+DECLARE v_course_id uuid:=current_setting('app.fictional_blank_course_id')::uuid;
+BEGIN
+ IF (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=v_course_id)<>1
+ OR (SELECT count(*) FROM atlas.teaching_courses c WHERE c.id=v_course_id
+  AND (c.ledger_id IS NOT NULL OR c.capability_activation_id IS NOT NULL
+   OR c.created_by_principal_id IS NOT NULL))<>0
+ OR (SELECT count(*) FROM atlas.teaching_course_units)<>0
+ OR (SELECT count(*) FROM atlas.teaching_course_manuscript_revisions)<>0
+ OR (SELECT count(*) FROM atlas.teaching_course_unit_revisions)<>0 THEN
+  RAISE EXCEPTION 'first Course fabricated institution, Unit or manuscript';
+ END IF;
+END $blank_first_original_postconditions$;
+
+-- Another current Person never sees the new author's Course, even without
+-- needing a second institution, a Song permission, or a matching title.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $outsider_blank$
+DECLARE c jsonb;denied boolean:=false;
+BEGIN
+ c:=public.shared_teaching_course_catalog_self_api_v1();
+ IF c->'courses'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'other Person inherited first buyer Course';
+ END IF;
+ BEGIN
+  PERFORM public.shared_teaching_course_material_read_self_api_v1(
+   current_setting('app.fictional_blank_course_id')::uuid);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;
+ END;
+ IF NOT denied THEN RAISE EXCEPTION 'other Person read owner Course'; END IF;
+END $outsider_blank$;
+RESET ROLE;
+
+-- Two INDEPENDENT new customers must not inherit a global Course, or
+-- each other's permission through a duplicate request ID / same title.
+-- Access source is simulated as independently verified by the synthetic
+-- test owner; **no payment, self-grant, onboarding or live issuer is asserted**.
+DO $no_self_grants$
+BEGIN
+ IF has_table_privilege('authenticated',
+   'titus.course_authoring_access_grants','SELECT')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_grants','INSERT')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_grants','UPDATE')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_grants','DELETE')
+ OR has_table_privilege('anon',
+   'titus.course_authoring_access_grants','SELECT')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_status_events','INSERT')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_status_events','SELECT')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_status_events','UPDATE')
+ OR has_table_privilege('authenticated',
+   'titus.course_authoring_access_status_events','DELETE')
+ OR has_table_privilege('anon',
+   'titus.course_authoring_access_status_events','SELECT')
+ OR has_sequence_privilege('authenticated',
+   'titus.course_authoring_access_status_events_event_seq_seq','USAGE')
+ OR has_function_privilege('authenticated',
+   'titus.authoring_grant_current_active_v1(uuid)','EXECUTE')
+ THEN RAISE EXCEPTION 'client can read or mint Titus access'; END IF;
+END $no_self_grants$;
+
+-- Expired receipt is not a Titus entitlement, even for a current Person.
+SAVEPOINT expired_second_buyer;
+INSERT INTO titus.course_authoring_access_grants(
+ person_entity_id,grant_source_auth_user_id,grant_kind,grant_source_receipt,
+ state,granted_at,valid_until)
+VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','purchase',
+ 'fictional-expired-second-receipt','active',
+ clock_timestamp()-interval '3 days',clock_timestamp()-interval '1 day');
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $expired_buyer$
+DECLARE p jsonb;c jsonb;
+BEGIN
+ p:=public.titus_authoring_access_self_api_v1();
+ c:=public.shared_teaching_course_catalog_self_api_v1();
+ IF p->>'canUseTitus'<>'false'
+ OR c->'courses'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'expired receipt enabled Titus or inherited another Course';
+ END IF;
+END $expired_buyer$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT expired_second_buyer;
+
+-- A second explicit grant DOES NOT COPY the first buyer's Course.
+-- It is a test-only insert: actual grant issuance still needs a lawful
+-- verified source and authorized operator, which is NOT implemented.
+INSERT INTO titus.course_authoring_access_grants(
+ person_entity_id,grant_source_auth_user_id,grant_kind,grant_source_receipt,
+ state,granted_at,valid_until)
+VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'cccccccc-cccc-4ccc-8ccc-cccccccccccc','private_pilot',
+ 'fictional-independent-second-buyer','active',clock_timestamp(),NULL);
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $second_buyer_own_course$
+DECLARE p jsonb;c jsonb;root jsonb;own uuid;reading jsonb;outline jsonb;
+ denied boolean:=false;
+BEGIN
+ p:=public.titus_authoring_access_self_api_v1();
+ c:=public.shared_teaching_course_catalog_self_api_v1();
+ IF p->>'canUseTitus'<>'true'
+ OR c->'courses'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'second independently authorized buyer was not empty';
+ END IF;
+ -- Even a matching requestId and title belong to a different Person.
+ root:=public.shared_teaching_course_create_self_api_v1(
+  'be000000-0000-4000-8000-000000000001','Untitled field notes');
+ own:=(root->>'courseId')::uuid;
+ IF own=current_setting('app.fictional_blank_course_id')::uuid OR
+  root->>'alreadyExists'<>'false' THEN
+  RAISE EXCEPTION 'two buyers collided at original Course creation';
+ END IF;
+ PERFORM set_config('app.fictional_blank_course_id_b',own::text,true);
+ c:=public.shared_teaching_course_catalog_self_api_v1();
+ IF jsonb_array_length(c->'courses')<>1
+ OR c->'courses'->0->>'courseId'<>own::text THEN
+  RAISE EXCEPTION 'second buyer Course list does not contain exactly own Course';
+ END IF;
+ reading:=public.shared_teaching_course_material_read_self_api_v1(own);
+ outline:=public.shared_teaching_course_outline_read_self_api_v1(own);
+ IF reading->'material'<>'null'::jsonb
+ OR outline->'units'<>'[]'::jsonb THEN
+  RAISE EXCEPTION 'second buyer new Course was prepopulated';
+ END IF;
+ BEGIN
+  PERFORM public.shared_teaching_course_material_read_self_api_v1(
+   current_setting('app.fictional_blank_course_id')::uuid);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'second buyer read first buyer Course'; END IF;
+END $second_buyer_own_course$;
+RESET ROLE;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $first_buyer_remains_isolated$
+DECLARE c jsonb;denied boolean:=false;
+BEGIN
+ c:=public.shared_teaching_course_catalog_self_api_v1();
+ IF jsonb_array_length(c->'courses')<>1 OR
+ c->'courses'->0->>'courseId'<>current_setting('app.fictional_blank_course_id') THEN
+  RAISE EXCEPTION 'first buyer inherited second buyer Course';
+ END IF;
+ BEGIN
+  PERFORM public.shared_teaching_course_material_read_self_api_v1(
+   current_setting('app.fictional_blank_course_id_b')::uuid);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'first buyer read second buyer Course'; END IF;
+END $first_buyer_remains_isolated$;
+RESET ROLE;
+
+-- Current grant changes are append-only source receipts. Suspend, resume,
+-- revoke; no invisible mutation of original issuer, state or expiry.
+-- This privileged fixture insertion is NOT a legitimate issuer.
+INSERT INTO titus.course_authoring_access_status_events(
+ person_entity_id,request_id,next_state,source_evidence_receipt,
+ recorded_by_auth_user_id)
+VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'be000000-0000-4000-8000-000000000071','suspended',
+ 'fictional-second-buyer-suspended',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+DO $append_only_status_guard$
+DECLARE denied boolean:=false;
+BEGIN
+ -- A pending suspension is not a licence, and no one may mutate history.
+ IF titus.authoring_grant_current_active_v1('dddddddd-dddd-4ddd-8ddd-dddddddddddd') THEN
+  RAISE EXCEPTION 'suspended author was still entitled';
+ END IF;
+ BEGIN
+  UPDATE titus.course_authoring_access_status_events
+   SET next_state='active' WHERE source_evidence_receipt='fictional-second-buyer-suspended';
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'status history could be rewritten'; END IF;
+ denied:=false;
+ BEGIN
+  DELETE FROM titus.course_authoring_access_status_events
+   WHERE source_evidence_receipt='fictional-second-buyer-suspended';
+ EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'status history could be erased'; END IF;
+ denied:=false;
+ BEGIN
+  INSERT INTO titus.course_authoring_access_status_events(
+   person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
+  VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+   'be000000-0000-4000-8000-000000000072','suspended',
+   'fictional-duplicate-suspension','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+ EXCEPTION WHEN check_violation THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'unchanged state appended'; END IF;
+END $append_only_status_guard$;
+
+INSERT INTO titus.course_authoring_access_status_events(
+ person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
+VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'be000000-0000-4000-8000-000000000073','active',
+ 'fictional-second-buyer-resumed',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+-- A resumed active author gets back the SAME Course, not a new Course.
+DO $resume_check$
+BEGIN
+ IF NOT titus.authoring_grant_current_active_v1('dddddddd-dddd-4ddd-8ddd-dddddddddddd') OR
+ (SELECT count(*) FROM titus.course_authoring_access_status_events
+   WHERE person_entity_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd')<>2 THEN
+  RAISE EXCEPTION 'resume did not restore product access with event history';
+ END IF;
+END $resume_check$;
+
+INSERT INTO titus.course_authoring_access_status_events(
+ person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
+VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+ 'be000000-0000-4000-8000-000000000074','revoked',
+ 'fictional-second-buyer-revoked',
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+
+DO $terminal_revoke$
+DECLARE denied boolean:=false;
+BEGIN
+ IF titus.authoring_grant_current_active_v1('dddddddd-dddd-4ddd-8ddd-dddddddddddd') THEN
+  RAISE EXCEPTION 'revocation did not terminate product access';
+ END IF;
+ BEGIN
+  INSERT INTO titus.course_authoring_access_status_events(
+   person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
+  VALUES('dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+   'be000000-0000-4000-8000-000000000075','active',
+   'fictional-after-revoke-resume',
+   'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+ EXCEPTION WHEN check_violation THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'terminal revoked grant was revived'; END IF;
+ IF (SELECT count(*) FROM titus.course_authoring_access_status_events
+  WHERE person_entity_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd')<>3 THEN
+  RAISE EXCEPTION 'status event history lost';
+ END IF;
+END $terminal_revoke$;
+
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $revoked_product_grant$
+DECLARE access jsonb;catalog jsonb;
+BEGIN
+ access:=public.titus_authoring_access_self_api_v1();
+ catalog:=public.shared_teaching_course_catalog_self_api_v1();
+ IF access->>'canUseTitus'<>'false' OR
+ jsonb_array_length(catalog->'courses')<>1 OR
+ catalog->'courses'->0->>'courseId'<>current_setting('app.fictional_blank_course_id_b')
+ THEN RAISE EXCEPTION 'product grant and canonical Course custody conflated'; END IF;
+END $revoked_product_grant$;
+RESET ROLE;
+
+DO $two_buyer_aggregate$
+BEGIN
+ IF (SELECT count(*) FROM atlas.teaching_courses)<>2
+ OR (SELECT count(*) FROM titus.course_authoring_access_grants)<>2
+ OR (SELECT count(*) FROM titus.course_authoring_access_status_events)<>3
+ OR (SELECT count(*) FROM atlas.teaching_course_units)<>0
+ OR (SELECT count(*) FROM atlas.teaching_course_manuscript_revisions)<>0
+ OR EXISTS(SELECT 1 FROM atlas.teaching_courses
+    WHERE ledger_id IS NOT NULL OR created_by_principal_id IS NOT NULL)
+ THEN
+  RAISE EXCEPTION 'two independent empty buyers seeded unrelated sources';
+ END IF;
+END $two_buyer_aggregate$;
+
+-- Restore ALL synthetic legacy rows exactly before historic migration
+-- attestation. The generic schema objects/first Course also rollback.
+ROLLBACK TO SAVEPOINT universal_blank_first_source;
+DO $recovered_prior_source$
+BEGIN
+ IF (SELECT count(*) FROM atlas.teaching_courses)<>0
+ OR (SELECT count(*) FROM titus.customer_course_drafts_v1)<>1
+ OR (SELECT count(*) FROM titus.customer_course_material_revisions_v1)<>1
+ OR (SELECT count(*) FROM titus.customer_course_units_v1)<>2
+ OR (SELECT count(*) FROM titus.customer_course_unit_revisions_v1)<>3
+ OR to_regprocedure('public.shared_teaching_course_create_self_api_v1(uuid,text)') IS NOT NULL
+ THEN RAISE EXCEPTION 'blank-first probe disturbed independent historical source'; END IF;
+END $recovered_prior_source$;
