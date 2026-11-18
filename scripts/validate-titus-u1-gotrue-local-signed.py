@@ -180,6 +180,49 @@ def main():
     deny(api,key,manager,bootstrap,{"p_ledger_id":"88888888-8888-4888-8888-888888888888",
        "p_organization_id":organization,"p_request_id":str(uuid.uuid4())},
        "governing principal cannot bootstrap wrong Ledger")
+    # A governing Principal for an Atlas Organization may not establish a
+    # Titus institutional root unless the separate compatibility original
+    # maps EXACTLY that organization to the native canonical Reality Entity.
+    # These deliberate mutations touch only the fictional disposable DB.
+    foreign_institution="55555555-5555-4555-8555-555555555555"
+    sql(args.db_url,
+      "insert into reality.entities(id,entity_kind,stable_key) "
+      f"values('{foreign_institution}'::uuid,'business','fictional-foreign-org')")
+    sql(args.db_url,
+      "update compatibility.legacy_bindings set new_id="
+      f"'{foreign_institution}'::uuid where legacy_key='{organization}'")
+    deny(api,key,manager,bootstrap,
+      {"p_ledger_id":LEDGER,"p_organization_id":organization,
+       "p_request_id":str(uuid.uuid4())},
+       "explicit Atlas Organization mapping to wrong Reality institution denies")
+    sql(args.db_url,
+      "update compatibility.legacy_bindings set new_id="
+      f"'{INSTITUTION}'::uuid where legacy_key='{organization}'")
+    duplicate_id=sql(args.db_url,
+      "insert into compatibility.legacy_bindings("
+      "legacy_schema,legacy_table,legacy_key,disposition,"
+      "new_schema,new_table,new_id) values("
+      f"'atlas','organizations','{organization}','maps_to',"
+      f"'reality','entities','{INSTITUTION}'::uuid) returning id")
+    check(bool(duplicate_id) and len(duplicate_id)==36,
+      "Duplicate scratch source id was not returned")
+    deny(api,key,manager,bootstrap,
+      {"p_ledger_id":LEDGER,"p_organization_id":organization,
+       "p_request_id":str(uuid.uuid4())},
+       "two competing Atlas-to-Reality organization originals deny")
+    sql(args.db_url,
+      f"delete from compatibility.legacy_bindings where id='{duplicate_id}'::uuid")
+    sql(args.db_url,
+      f"delete from compatibility.legacy_bindings where legacy_key='{organization}'")
+    deny(api,key,manager,bootstrap,
+      {"p_ledger_id":LEDGER,"p_organization_id":organization,
+       "p_request_id":str(uuid.uuid4())},
+       "missing organization Reality mapping denies rather than guessing")
+    sql(args.db_url,
+      "insert into compatibility.legacy_bindings("
+      "legacy_schema,legacy_table,legacy_key,disposition,new_schema,new_table,new_id) "
+      f"values('atlas','organizations','{organization}','maps_to',"
+      f"'reality','entities','{INSTITUTION}'::uuid)")
     first_root={"p_ledger_id":LEDGER,"p_organization_id":organization,
        "p_request_id":str(uuid.uuid4())}
     origin=allow(api,key,manager,bootstrap,first_root,
