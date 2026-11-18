@@ -195,6 +195,28 @@ RESET ROLE;
 
 UPDATE reality.responsibility_relations SET relation_state='active'
  WHERE id='c0000000-0000-4000-8000-000000000040';
+
+-- An issuer's archived/revoked Person Auth binding is not current standing.
+-- Pausing and restoring a separate Responsibility row alone is insufficient.
+SAVEPOINT revoked_pilot_issuer_auth;
+UPDATE reality.auth_person_bindings SET binding_state='revoked'
+ WHERE auth_user_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $issuer_auth_revoked$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.titus_private_pilot_respond_self_api_v1(
+   current_setting('app.fictional_pilot_offer_id')::uuid,
+   'c0000000-0000-4000-8000-000000000050','accept');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN
+  RAISE EXCEPTION 'recipient accepted from a revoked pilot issuer binding'; END IF;
+END $issuer_auth_revoked$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT revoked_pilot_issuer_auth;
+
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
 DO $independent_acceptance$
