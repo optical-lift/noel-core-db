@@ -31,7 +31,7 @@ def check_helper(succeed,marker):
         if p.returncode or marker not in p.stdout:
             raise RuntimeError("fictional PG17 ACL acceptance failed")
     elif (p.returncode==0 or
-          "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=clone_acl_precondition_refused" not in p.stdout
+          "ATLAS_NATIVE_GOVERNOR_GRANT_STAGE=clone_acl_nondefault_privileges" not in p.stdout
           or p.stderr):
         raise RuntimeError("fictional PG17 unexpected ACL not refused")
 
