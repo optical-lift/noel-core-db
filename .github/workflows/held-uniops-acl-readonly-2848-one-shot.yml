@@ -37,6 +37,7 @@ jobs:
           assert not any(x.strip()=='workflow_dispatch:' for x in s.splitlines())
           assert "github.event.issue.number == 2848" in p[1]
           assert "github.actor == github.repository_owner" in p[1]
+          assert "github.run_attempt == 1" in p[1]
           assert "github.event.changes.title.from" in p[1]
           assert "environment: production" in p[1]
           assert sum(x.strip().startswith('NOEL_CORE_DATABASE_URL:') for x in s.splitlines())==1
@@ -68,6 +69,7 @@ jobs:
     if: >-
       github.event_name == 'issues' &&
       github.actor == github.repository_owner &&
+      github.run_attempt == 1 &&
       github.event.issue.author_association == 'OWNER' &&
       github.event.issue.number == 2848 &&
       github.event.issue.state == 'open' &&
