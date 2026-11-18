@@ -117,6 +117,44 @@ class CloneAclSource(unittest.TestCase):
         # Exactly which imaginary flag differs is deliberately NOT logged
         # by the current category, and the real protected run published none.
 
+    def test_readonly_source_clone_acl_observations_classify_without_db_or_private_output(self):
+        digest=m.source_fingerprint(MIGRATION)
+        prefix="postgres|t|"+digest+"|"
+        canonical=prefix+"f|f|f|t|t|t"
+        default=prefix+"t|t|t|t|t|t"
+        extra=prefix+"f|f|f|t|t|f"
+        anonymous=prefix+"f|t|f|t|t|t"
+        cases=(
+            ((canonical,canonical),"acl_parity_canonical_observations_match"),
+            ((default,default),"acl_parity_noncanonical_observations_match"),
+            ((extra,extra),"acl_parity_noncanonical_observations_match"),
+            ((canonical,extra),"acl_parity_clone_differs_from_canonical_source"),
+            ((extra,canonical),"acl_parity_clone_canonical_source_not"),
+            ((anonymous,extra),"acl_parity_noncanonical_observations_differ"),
+            ((canonical,""),"acl_parity_source_unverified"),
+            (("other|t|"+digest+"|f|f|f|t|t|t",canonical),
+                "acl_parity_source_unverified"),
+            ((canonical,prefix+"f|f|f|t|t|maybe"),
+                "acl_parity_source_unverified"),
+        )
+        with mock.patch.object(m,"psql") as database:
+            for (source,clone),expected in cases:
+                with self.subTest(expected=expected):
+                    got=m.compare_readonly_acl_observations(source,clone,digest)
+                    self.assertEqual(got,expected)
+                    self.assertIn(got,m.PARITY_MARKERS)
+            self.assertEqual(
+                m.compare_readonly_acl_observations(canonical,canonical,"wrong"),
+                "acl_parity_source_unverified")
+            database.assert_not_called()
+        self.assertEqual(len(m.PARITY_MARKERS),6)
+        for marker in m.PARITY_MARKERS:
+            # English "canonical" contains the letters "anon", but is
+            # not a statement about the named PostgreSQL anon principal.
+            self.assertFalse(set(marker.split("_")) &
+                             {"anon","authenticated","postgres","public"})
+            self.assertNotIn("_service_role_",marker)
+
     def test_first_refusal_has_finite_stage_and_does_not_write(self):
         digest=m.source_fingerprint(MIGRATION)
         env={"CI":"true","GITHUB_ACTIONS":"true",

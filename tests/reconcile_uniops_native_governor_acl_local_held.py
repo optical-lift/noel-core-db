@@ -105,6 +105,53 @@ def classify(snapshot,body_md5):
         return "default_public_execute"
     return "refused"
 
+
+# Source-only classification for a FUTURE separately authorized read-only
+# comparison. This function has no database access, no output and no ability
+# to authorize or launch the protected clone. It compares only the fixed nine
+# public-safe/Boolean ACL observations already used by classify(). It does
+# not claim byte equality of full PostgreSQL ACL arrays or role memberships.
+PARITY_MARKERS=frozenset((
+    "acl_parity_source_unverified",
+    "acl_parity_canonical_observations_match",
+    "acl_parity_noncanonical_observations_match",
+    "acl_parity_clone_differs_from_canonical_source",
+    "acl_parity_clone_canonical_source_not",
+    "acl_parity_noncanonical_observations_differ",
+))
+
+def _verified_acl_observation(snapshot,expected_md5):
+    if (not isinstance(snapshot,str)
+        or not re.fullmatch(r"[0-9a-f]{32}",expected_md5 or "")):
+        return False
+    parts=snapshot.split("|")
+    return (len(parts)==9 and parts[:3]==["postgres","t",expected_md5]
+            and all(flag in ("t","f") for flag in parts[3:]))
+
+def compare_readonly_acl_observations(source_snapshot,clone_snapshot,expected_md5):
+    """An aggregate, no-raw-ACL decision for separately authorized reviewers.
+
+    Source and disposable clone observations must come from independently
+    approved reads; this pure function performs none.  All unexpected
+    source/body/owner/probe states fail closed without printing either input.
+    It compares the fixed 9-field observation, NOT the full PostgreSQL ACL.
+    """
+    if (not _verified_acl_observation(source_snapshot,expected_md5)
+        or not _verified_acl_observation(clone_snapshot,expected_md5)):
+        return "acl_parity_source_unverified"
+    source_state=classify(source_snapshot,expected_md5)
+    clone_state=classify(clone_snapshot,expected_md5)
+    if source_snapshot==clone_snapshot:
+        return ("acl_parity_canonical_observations_match"
+                if source_state=="protected"
+                else "acl_parity_noncanonical_observations_match")
+    if source_state=="protected":
+        return "acl_parity_clone_differs_from_canonical_source"
+    if clone_state=="protected":
+        return "acl_parity_clone_canonical_source_not"
+    return "acl_parity_noncanonical_observations_differ"
+
+
 def guarded_sql(body_md5):
     if not re.fullmatch(r"[0-9a-f]{32}",body_md5):
         raise ValueError("invalid source fingerprint")
