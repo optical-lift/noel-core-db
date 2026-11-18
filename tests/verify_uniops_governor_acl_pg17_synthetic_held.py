@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import reconcile_uniops_native_governor_acl_local_held as acl
 
 ROOT=Path(__file__).resolve().parent
 MIGRATION=ROOT.parent/"supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql"
@@ -60,7 +61,19 @@ def main():
         "FROM pg_proc p WHERE p.oid=to_regprocedure('"+RPC+"')")
     if initial!="t|t|t|t":
         raise RuntimeError("PostgreSQL default source ACL not reproduced")
+    # Both observations are from this entirely fictional local PG17 database.
+    source_md5=acl.source_fingerprint(MIGRATION)
+    source_observation=sql(acl.ACL)
     check_helper(True,"PASS ATLAS_NATIVE_GOVERNOR_CLONE_ACL=EXACT_CANONICAL_FUNCTION_ACL_RESTORED")
+    protected_observation=sql(acl.ACL)
+    if (acl.compare_readonly_acl_observations(
+            source_observation,protected_observation,source_md5)
+            !="acl_parity_clone_canonical_source_not"):
+        raise RuntimeError("fictional source/clone canonical transition misclassified")
+    if (acl.compare_readonly_acl_observations(
+            protected_observation,protected_observation,source_md5)
+            !="acl_parity_canonical_observations_match"):
+        raise RuntimeError("fictional protected parity misclassified")
     after=sql("SELECT "
         "has_function_privilege('anon',to_regprocedure('"+RPC+"'),'EXECUTE'),"
         "has_function_privilege('authenticated',to_regprocedure('"+RPC+"'),'EXECUTE'),"
@@ -69,6 +82,10 @@ def main():
         raise RuntimeError("canonical deny/allow postconditions failed")
     check_helper(True,"PASS ATLAS_NATIVE_GOVERNOR_CLONE_ACL=ALREADY_PROTECTED")
     sql("GRANT EXECUTE ON FUNCTION "+RPC+" TO anon;")
+    if (acl.compare_readonly_acl_observations(
+            protected_observation,sql(acl.ACL),source_md5)
+            !="acl_parity_clone_differs_from_canonical_source"):
+        raise RuntimeError("fictional unwanted grant divergence misclassified")
     check_helper(False,"")
     forbidden=sql("SELECT "
         "has_function_privilege('anon',to_regprocedure('"+RPC+"'),'EXECUTE'),"
@@ -99,6 +116,7 @@ def main():
     check_helper(False,"")
     sql("REVOKE GRANT OPTION FOR EXECUTE ON FUNCTION "+RPC+" FROM service_role;")
     check_helper(True,"PASS ATLAS_NATIVE_GOVERNOR_CLONE_ACL=ALREADY_PROTECTED")
+    print("PASS PG17_SYNTHETIC_READONLY_ACL_PARITY_CLASSIFICATION")
     print("PASS PG17_SYNTHETIC_EXTRA_ROLE_EXECUTE_REFUSED_UNCHANGED")
     print("PASS PG17_SYNTHETIC_SERVICE_ROLE_GRANT_OPTION_REFUSED")
     print("PASS PG17_SYNTHETIC_DEFAULT_FUNCTION_ACL_RESTORED_EXACTLY")
