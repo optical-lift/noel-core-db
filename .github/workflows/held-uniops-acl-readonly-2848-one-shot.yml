@@ -42,6 +42,8 @@ jobs:
           assert "environment: production" in p[1]
           assert sum(x.strip().startswith('NOEL_CORE_DATABASE_URL:') for x in s.splitlines())==1
           assert 'e801a4146aa67c7a29fd19f34490ed62924c04e2' in s
+          assert "os.environ['GITHUB_EVENT_PATH']" in p[1]
+          assert 'github.event_path' not in s
           assert 'supabase db push' not in p[1]
           assert 'apply_migration' not in p[1]
           assert 'upload-artifact' not in p[1]
@@ -82,7 +84,6 @@ jobs:
       - name: Verify one unique owner title transition before private read
         shell: bash
         env:
-          EVENT_PATH: ${{ github.event_path }}
           GH_EVENT_TOKEN: ${{ github.token }}
           OWNER_LOGIN: ${{ github.repository_owner }}
         run: |
@@ -91,7 +92,7 @@ jobs:
           import json,os,time,urllib.request
           old='HELD UNI-OPS ACL source/clone comparison: source review, not executable'
           new='HELD UNI-OPS ACL source/clone comparison: one-time read-only inspection v1'
-          event=json.load(open(os.environ['EVENT_PATH']))
+          event=json.load(open(os.environ['GITHUB_EVENT_PATH']))
           issue=event.get('issue',{})
           assert issue.get('number')==2848 and issue.get('state')=='open'
           assert issue.get('title')==new
