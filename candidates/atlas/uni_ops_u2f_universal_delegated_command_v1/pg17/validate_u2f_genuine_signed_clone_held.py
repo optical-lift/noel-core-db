@@ -22,7 +22,7 @@ import re
 import urllib.parse
 from pathlib import Path
 
-ROOT=Path(__file__).resolve().parents[5]
+ROOT=Path(__file__).resolve().parents[4]
 SOURCE=ROOT/"scripts/validate-atlas-work-prerequisite-signed-http.py"
 assert SOURCE.exists(), "Canonical signed HTTP helper is missing"
 spec=importlib.util.spec_from_file_location("u2f_canonical_signed",SOURCE)
