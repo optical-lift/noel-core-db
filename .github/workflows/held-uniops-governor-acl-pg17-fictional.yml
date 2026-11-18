@@ -101,7 +101,6 @@ jobs:
           supabase db dump --help >/dev/null
           python3 -m py_compile tests/verify_uniops_pg17_cli_role_schema_roundtrip_held.py
           python3 tests/verify_uniops_pg17_cli_role_schema_roundtrip_held.py
-          rm -f -- "$RUNNER_TEMP/uniops-bin/supabase"
           echo "PASS CLI role+schema fictional PG17 pair; no production credentials"
       - name: Test fresh Supabase-managed fictional clone baseline and exact role/schema restore
         shell: bash
