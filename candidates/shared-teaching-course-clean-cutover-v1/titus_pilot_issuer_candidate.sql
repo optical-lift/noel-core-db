@@ -52,11 +52,13 @@ CREATE TABLE titus.course_authoring_pilot_offers (
   REFERENCES reality.responsibility_relations(id) ON DELETE RESTRICT,
  request_id uuid NOT NULL,
  offered_at timestamptz NOT NULL DEFAULT clock_timestamp(),
- valid_until timestamptz NOT NULL,
+ accept_by timestamptz NOT NULL,
+ grant_valid_until timestamptz NOT NULL,
  UNIQUE(issuer_person_entity_id,request_id),
  UNIQUE(recipient_person_entity_id),
  CHECK(recipient_person_entity_id<>issuer_person_entity_id),
- CHECK(valid_until>offered_at)
+ CHECK(accept_by>offered_at),
+ CHECK(grant_valid_until>accept_by)
 );
 CREATE TABLE titus.course_authoring_pilot_responses (
  response_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -93,14 +95,16 @@ CREATE TRIGGER titus_pilot_response_immutable_v1
 -- A current independently authorized issuer offers a *pilot*, never a
 -- purchase, Course entitlement, or access to another Person's materials.
 CREATE FUNCTION public.titus_private_pilot_offer_self_api_v1(
- p_recipient_person uuid,p_request_id uuid,p_valid_until timestamptz
+ p_recipient_person uuid,p_request_id uuid,
+ p_accept_by timestamptz,p_grant_valid_until timestamptz
 ) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path TO pg_catalog AS $offer$
 DECLARE v_issuer uuid;v_auth uuid;v_standing uuid;
  v_existing titus.course_authoring_pilot_offers%ROWTYPE;v_id uuid;
 BEGIN
  IF p_recipient_person IS NULL OR p_request_id IS NULL
- OR p_valid_until IS NULL OR p_valid_until<=clock_timestamp() THEN
+ OR p_accept_by IS NULL OR p_accept_by<=clock_timestamp()
+ OR p_grant_valid_until IS NULL OR p_grant_valid_until<=p_accept_by THEN
   RAISE EXCEPTION 'exact bounded Titus pilot offer required'
    USING ERRCODE='22023';
  END IF;
@@ -116,7 +120,8 @@ BEGIN
  WHERE o.issuer_person_entity_id=v_issuer AND o.request_id=p_request_id;
  IF v_existing.offer_id IS NOT NULL THEN
   IF v_existing.recipient_person_entity_id IS DISTINCT FROM p_recipient_person
-  OR v_existing.valid_until IS DISTINCT FROM p_valid_until
+  OR v_existing.accept_by IS DISTINCT FROM p_accept_by
+  OR v_existing.grant_valid_until IS DISTINCT FROM p_grant_valid_until
   OR v_existing.issuer_auth_user_id IS DISTINCT FROM v_auth THEN
    RAISE EXCEPTION 'changed pilot offer replay' USING ERRCODE='23505';
   END IF;
@@ -130,8 +135,9 @@ BEGIN
  END IF;
  INSERT INTO titus.course_authoring_pilot_offers(
   recipient_person_entity_id,issuer_person_entity_id,issuer_auth_user_id,
-  issuer_responsibility_id,request_id,valid_until)
- VALUES(p_recipient_person,v_issuer,v_auth,v_standing,p_request_id,p_valid_until)
+  issuer_responsibility_id,request_id,accept_by,grant_valid_until)
+ VALUES(p_recipient_person,v_issuer,v_auth,v_standing,p_request_id,
+  p_accept_by,p_grant_valid_until)
  RETURNING offer_id INTO v_id;
  RETURN jsonb_build_object('contractVersion','titus_private_pilot_offer_v1',
   'offerId',v_id,'alreadyExists',false,'grantActive',false);
@@ -156,9 +162,9 @@ BEGIN
  RETURN jsonb_build_object('contractVersion','titus_private_pilot_offer_read_v1',
   'offerId',v_offer.offer_id,'purpose','Titus authoring pilot',
   'state',COALESCE(v_decision,CASE
-    WHEN v_offer.valid_until<=clock_timestamp() THEN 'expired'
+    WHEN v_offer.accept_by<=clock_timestamp() THEN 'expired'
     ELSE 'offered' END),
-  'validUntil',v_offer.valid_until,
+  'acceptBy',v_offer.accept_by,'grantValidUntil',v_offer.grant_valid_until,
   'grantActive',titus.authoring_grant_current_active_v1(v_person));
 END $read$;
 
@@ -195,7 +201,7 @@ BEGIN
    'offerId',v_offer.offer_id,'decision',p_decision,'alreadyExists',true,
    'grantActive',titus.authoring_grant_current_active_v1(v_person));
  END IF;
- IF v_offer.valid_until<=clock_timestamp() THEN
+ IF v_offer.accept_by<=clock_timestamp() THEN
   RAISE EXCEPTION 'current pilot offer required' USING ERRCODE='42501';
  END IF;
  IF p_decision='accept' AND NOT EXISTS(
@@ -227,7 +233,7 @@ BEGIN
    grant_source_receipt,state,granted_at,valid_until)
   VALUES(v_person,v_offer.issuer_auth_user_id,'private_pilot',
    'pilot:'||v_offer.offer_id::text,'active',clock_timestamp(),
-   v_offer.valid_until);
+   v_offer.grant_valid_until);
  END IF;
  RETURN jsonb_build_object('contractVersion','titus_private_pilot_response_v1',
   'offerId',v_offer.offer_id,'decision',p_decision,'alreadyExists',false,
@@ -235,12 +241,12 @@ BEGIN
 END $respond$;
 
 REVOKE ALL ON FUNCTION
- public.titus_private_pilot_offer_self_api_v1(uuid,uuid,timestamptz),
+ public.titus_private_pilot_offer_self_api_v1(uuid,uuid,timestamptz,timestamptz),
  public.titus_private_pilot_offer_read_self_api_v1(uuid),
  public.titus_private_pilot_respond_self_api_v1(uuid,uuid,text)
  FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION
- public.titus_private_pilot_offer_self_api_v1(uuid,uuid,timestamptz),
+ public.titus_private_pilot_offer_self_api_v1(uuid,uuid,timestamptz,timestamptz),
  public.titus_private_pilot_offer_read_self_api_v1(uuid),
  public.titus_private_pilot_respond_self_api_v1(uuid,uuid,text)
  TO authenticated;
