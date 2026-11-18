@@ -74,7 +74,7 @@ BEGIN
     edit_request_id='f0000000-0000-4000-8000-000000000010' AND 
     based_on_revision=1 AND 
     revision_number=2 AND 
-    convert_to(body_text,'UTF8') = convert_to(E'Fictional manuscript — first line\r\nSecond line; final 🌾','UTF8') AND 
+    convert_to(body_text,'UTF8') = convert_to(E'Fictional manuscript — first line\r\nSecond line, final 🌾','UTF8') AND 
     recorded_by_auth_user_id='f0000000-0000-4000-8000-000000000001' AND 
     recorded_at='2022-04-06 12:34:56.123456+00'::timestamptz) THEN
   RAISE EXCEPTION 'U1.10 fictional manuscript revision 2 identity/history/bytes lost' USING ERRCODE='23514';
