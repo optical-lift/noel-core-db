@@ -255,15 +255,19 @@ BEGIN
  RAISE EXCEPTION 'exact nominated Person and request required' USING ERRCODE='22023'; END IF;
  v_actor:=atlas.current_person_for_private_course_v1();
  v_entity:=titus.require_canonical_institution_organization_v1(p_ledger_id,p_organization_id);
- v_root:=titus.require_institution_root_manager_governor_self_v1(
- v_entity,p_ledger_id,'nominate_successor');
  IF p_recipient_person_id=v_actor OR NOT EXISTS(
  SELECT 1 FROM reality.entities e WHERE e.id=p_recipient_person_id
  AND e.entity_kind='person' AND e.identity_state='canonical') THEN
  RAISE EXCEPTION 'different canonical successor Person required' USING ERRCODE='42501'; END IF;
+ -- Ledger -> Reality root is the common serialized order for every root
+ -- nomination, manager appointment, and concurrent signed succession.
  PERFORM 1 FROM ledger.ledgers WHERE id=p_ledger_id AND ledger_state='active'
  AND retired_at IS NULL FOR UPDATE;
- IF NOT FOUND OR titus.current_exact_root_for_ledger_v1(p_ledger_id,v_entity)
+ IF NOT FOUND THEN RAISE EXCEPTION 'current institution Ledger required'
+ USING ERRCODE='42501'; END IF;
+ v_root:=titus.require_institution_root_manager_governor_self_v1(
+ v_entity,p_ledger_id,'nominate_successor');
+ IF titus.current_exact_root_for_ledger_v1(p_ledger_id,v_entity)
  IS DISTINCT FROM v_root THEN
  RAISE EXCEPTION 'exact current institutional root required' USING ERRCODE='42501'; END IF;
  SELECT * INTO v_old FROM titus.institution_account_root_transfer_invitations_v1
@@ -398,13 +402,19 @@ BEGIN
  WHERE invitation_id=p_invitation_id FOR UPDATE;
  IF v_i.invitation_id IS NULL THEN
  RAISE EXCEPTION 'valid root nomination required' USING ERRCODE='42501'; END IF;
+ -- Like acceptance, lock this invitation then the institutional Ledger,
+ -- and only then acquire a SHARE lock on current root authority.
+ PERFORM 1 FROM ledger.ledgers l WHERE l.id=v_i.ledger_id
+ AND l.subject_entity_id=v_i.institution_entity_id
+ AND l.ledger_state='active' AND l.retired_at IS NULL FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'institution Ledger no longer active'
+ USING ERRCODE='42501'; END IF;
  v_root:=titus.require_institution_root_manager_governor_self_v1(
  v_i.institution_entity_id,v_i.ledger_id,'cancel_succession');
  IF v_root IS DISTINCT FROM v_i.old_root_responsibility_id
  OR v_actor IS DISTINCT FROM v_i.nominated_by_person_entity_id
  THEN RAISE EXCEPTION 'only nominating current root may cancel'
  USING ERRCODE='42501'; END IF;
- PERFORM 1 FROM ledger.ledgers WHERE id=v_i.ledger_id FOR UPDATE;
  IF EXISTS(SELECT 1 FROM titus.institution_account_root_origins_v1
  WHERE source_invitation_id=p_invitation_id)
  THEN RAISE EXCEPTION 'accepted succession cannot be cancelled'
@@ -443,10 +453,15 @@ BEGIN
  v_actor:=atlas.current_person_for_private_course_v1();
  v_entity:=titus.require_canonical_institution_organization_v1(
  p_ledger_id,p_organization_id);
+ -- Lock the Ledger before any lock on the root responsibility, matching
+ -- manager commands, nomination and signed successor acceptance.
+ PERFORM 1 FROM ledger.ledgers l WHERE l.id=p_ledger_id
+ AND l.subject_entity_id=v_entity AND l.ledger_state='active'
+ AND l.retired_at IS NULL FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'institution Ledger no longer active'
+ USING ERRCODE='42501'; END IF;
  v_root:=titus.require_institution_root_manager_governor_self_v1(
  v_entity,p_ledger_id,'relinquish_root');
- PERFORM 1 FROM ledger.ledgers WHERE id=p_ledger_id AND ledger_state='active'
- AND retired_at IS NULL FOR UPDATE;
  IF titus.current_exact_root_for_ledger_v1(p_ledger_id,v_entity)
  IS DISTINCT FROM v_root THEN
  RAISE EXCEPTION 'current single root required' USING ERRCODE='42501'; END IF;
