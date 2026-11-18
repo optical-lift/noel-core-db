@@ -103,6 +103,8 @@ BEGIN
    FROM atlas.teaching_course_unit_revisions rr JOIN atlas.teaching_course_units un ON un.unit_id=rr.unit_id
    WHERE rr.recorded_by_agent_invocation_id=v.id AND rr.edit_request_id=(i->>'requestId')::uuid
     AND un.course_id=cid AND rr.body_text=i->>'text' AND rr.based_on_revision=expected
+    AND rr.recorded_by_auth_user_id=v.confirmed_by_user_id
+    AND rr.recorded_by_person_entity_id=(SELECT created_by_person_entity_id FROM atlas.teaching_courses WHERE id=cid)
     AND rr.revision_number=expected+1 AND
     ((i->>'operation'='append_unit' AND un.created_by_agent_invocation_id=v.id AND un.create_request_id=(i->>'requestId')::uuid)
       OR (i->>'operation'='revise_unit' AND un.unit_id=(i->>'unitId')::uuid));
@@ -179,10 +181,30 @@ CREATE TRIGGER course_revision_agent_provenance_v1 BEFORE UPDATE OR DELETE ON at
 -- invocation and pending-principal confirmation. Exact replay must match.
 CREATE FUNCTION atlas.prepare_course_authoring_proposal_service_v1(p_token_hash text,p_course uuid,p_proposal jsonb)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO pg_catalog AS $prepare$
-DECLARE j jsonb;v atlas.agent_command_invocations%ROWTYPE;t jsonb;
+DECLARE j jsonb;v atlas.agent_command_invocations%ROWTYPE;t jsonb;v_auth uuid;
 BEGIN
  PERFORM atlas.validate_course_authoring_proposal_v1(p_proposal,p_course);
  t:=jsonb_build_object('kind','teaching_course','id',p_course::text);
+ -- The legacy principals.person_id points to atlas.people. Resolve the
+ -- canonical Person through the current Auth binding, not UUID coincidence.
+ SELECT a.id INTO v_auth FROM atlas.delegated_agent_credentials c
+ JOIN atlas.delegated_agent_authorizations a ON a.id=c.authorization_id
+ JOIN atlas.principals pr ON pr.id=a.principal_id AND pr.status='active'
+ JOIN reality.auth_person_bindings b ON b.auth_user_id=pr.user_id
+  AND b.binding_state='active' AND b.retired_at IS NULL
+ JOIN reality.entities e ON e.id=b.person_entity_id AND e.entity_kind='person' AND e.identity_state='canonical'
+ JOIN atlas.teaching_courses tc ON tc.id=p_course AND tc.created_by_person_entity_id=e.id
+  AND tc.status='active' AND tc.ledger_id IS NULL
+ WHERE c.token_hash=lower(p_token_hash) AND c.credential_state='active'
+  AND c.begins_at<=clock_timestamp() AND (c.expires_at IS NULL OR c.expires_at>clock_timestamp())
+  AND a.authorization_state='active' AND a.ledger_id IS NULL AND a.delegating_seat_id IS NULL
+  AND a.scope->'targetIds'=jsonb_build_array(p_course::text)
+  AND a.scope->'targetKinds'=jsonb_build_array('teaching_course')
+  AND titus.authoring_grant_current_active_v1(e.id);
+ IF v_auth IS NULL
+  OR NOT coalesce((atlas.evaluate_delegated_agent_command_target_authority_v1(v_auth,
+       'teaching.course.authoring.apply_proposal',1,t)->>'allowed')::boolean,false) THEN
+  RAISE EXCEPTION 'exact authorized draft required' USING ERRCODE='42501'; END IF;
  j:=atlas.begin_delegated_agent_command_service_v1(p_token_hash,'teaching.course.authoring.apply_proposal',1,
   t,p_proposal,lower(p_proposal->>'proposalId'));
  SELECT * INTO STRICT v FROM atlas.agent_command_invocations WHERE id=(j->>'invocationId')::uuid;
@@ -229,25 +251,38 @@ BEGIN
   OR a.authorization_state<>'active' OR a.begins_at>clock_timestamp()
   OR (a.ends_at IS NOT NULL AND a.ends_at<=clock_timestamp()) OR c.credential_state<>'active'
   OR c.begins_at>clock_timestamp() OR (c.expires_at IS NOT NULL AND c.expires_at<=clock_timestamp())
-  OR pr.status<>'active' OR pr.person_id IS NULL OR NOT v.confirmation_required
+  OR pr.status<>'active' OR NOT v.confirmation_required
   OR v.confirmed_at IS NULL OR v.confirmed_by_user_id IS DISTINCT FROM pr.user_id
   OR NOT (v.command_key=ANY(a.allowed_command_keys)) OR v.command_key=ANY(a.denied_command_keys)
   OR a.scope->'targetIds' IS DISTINCT FROM jsonb_build_array(cid::text)
   OR a.scope->'targetKinds' IS DISTINCT FROM jsonb_build_array('teaching_course')
   OR NOT coalesce((atlas.evaluate_delegated_agent_command_target_authority_v1(a.id,v.command_key,1,v.target)->>'allowed')::boolean,false) THEN
   RAISE EXCEPTION 'current confirmed and exact scoped delegation required' USING ERRCODE='42501'; END IF;
- person:=pr.person_id;
- PERFORM 1 FROM reality.entities WHERE id=person AND entity_kind='person' AND identity_state='canonical' FOR SHARE;
- IF NOT FOUND THEN RAISE EXCEPTION 'canonical Person required' USING ERRCODE='42501'; END IF;
+ -- Resolve from the authenticated principal's canonical source binding.
  SELECT array_agg(b.person_entity_id) INTO binding_ids FROM (
   SELECT person_entity_id FROM reality.auth_person_bindings
   WHERE auth_user_id=pr.user_id AND binding_state='active' AND retired_at IS NULL FOR SHARE
  ) b;
- IF binding_ids IS DISTINCT FROM ARRAY[person] OR NOT titus.authoring_grant_current_active_v1(person) THEN
-  RAISE EXCEPTION 'current Person binding and Titus access required' USING ERRCODE='42501'; END IF;
+ IF coalesce(cardinality(binding_ids),0)<>1 THEN
+  RAISE EXCEPTION 'unique current Person binding required' USING ERRCODE='42501'; END IF;
+ person:=binding_ids[1];
+ PERFORM 1 FROM reality.entities WHERE id=person AND entity_kind='person' AND identity_state='canonical' FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'canonical Person required' USING ERRCODE='42501'; END IF;
+ -- Lock the grant or founding-owner relation which the released product gate reads.
+ PERFORM 1 FROM titus.course_authoring_access_grants WHERE person_entity_id=person FOR SHARE;
+ PERFORM 1 FROM reality.responsibility_relations WHERE carrier_person_entity_id=person
+  AND responsibility_key='titus_private_pilot_issuance' AND jurisdiction_kind='domain'
+  AND jurisdiction_domain='titus' FOR SHARE;
+ IF NOT titus.authoring_grant_current_active_v1(person) THEN
+  RAISE EXCEPTION 'current Titus access required' USING ERRCODE='42501'; END IF;
  PERFORM 1 FROM atlas.teaching_courses WHERE id=cid AND created_by_person_entity_id=person
   AND status='active' AND ledger_id IS NULL FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'active original Course required' USING ERRCODE='42501'; END IF;
+ -- Wall-clock validity can change while awaiting the Course lock.
+ IF (a.ends_at IS NOT NULL AND a.ends_at<=clock_timestamp())
+  OR (c.expires_at IS NOT NULL AND c.expires_at<=clock_timestamp())
+  OR NOT titus.authoring_grant_current_active_v1(person) THEN
+  RAISE EXCEPTION 'delegation expired before Course write' USING ERRCODE='42501'; END IF;
  IF v.invocation_state='succeeded' THEN
   j:=atlas.course_authoring_receipt_v1(v.id);
   IF v.result IS DISTINCT FROM j THEN RAISE EXCEPTION 'unverified completion' USING ERRCODE='55000'; END IF;
@@ -280,6 +315,10 @@ BEGIN
     recorded_by_person_entity_id,recorded_by_auth_user_id,recorded_by_agent_invocation_id)
    VALUES(u,req,expected,expected+1,i->>'text',person,pr.user_id,v.id);
  END LOOP;
+ IF (a.ends_at IS NOT NULL AND a.ends_at<=clock_timestamp())
+  OR (c.expires_at IS NOT NULL AND c.expires_at<=clock_timestamp())
+  OR NOT titus.authoring_grant_current_active_v1(person) THEN
+  RAISE EXCEPTION 'delegation expired during Course write' USING ERRCODE='42501'; END IF;
  j:=atlas.course_authoring_receipt_v1(v.id);
  PERFORM atlas.complete_delegated_agent_command_service_v1(v.id,true,j,'{}'::jsonb);
  RETURN j;
