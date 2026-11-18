@@ -5,6 +5,12 @@
 
 Status: SOURCE PLAN / NO LIVE MIGRATION. Date: 2026-11-07. Cross-domain structural lane: shared_. Repository owning SQL: optical-lift/noel-core-db.
 
+## November 17 — Titus product grant origin is immutable (HELD)
+
+The existing [Person-first shared Course candidate](./person_first_candidate.sql) now includes `titus.guard_course_authoring_grant_origin_v1`, a **BEFORE UPDATE OR DELETE trigger** on the proposed `titus.course_authoring_access_grants` source. Even a privileged issuer cannot silently alter an established grant's recipient Person, original Auth issuer, purchase/pilot kind, source receipt, or original grant timestamp; an existing grant cannot be deleted. The [universal blank-first PG17 source tests](./universal_blank_first_source_tests_pg17.sql) exercise all five original fields and deletion as denied operations, while separately confirming that revoked access is no longer active for Titus without erasing the owner's Course.
+
+This is **origin integrity only**. The candidate still represents `state` and `valid_until` as mutable state, and does **not** implement the independently governed, append-only suspension/revocation event history, real purchase issuer, checked transaction settlement, or private-pilot authorization. No browser or authenticated role receives direct table writes. No real access grant or production migration was issued.
+
 ## November 17 — two independent blank customers and product-issuer gate (HELD)
 
 The existing [universal blank-first PG17 source fixture](./universal_blank_first_source_tests_pg17.sql) now exercises **two independently signed fictional canonical People**, each starting without a Course, receiving their own simulated independent Titus grant, creating their own empty Course with the **same title and same idempotency request UUID**, receiving distinct canonical Course IDs, and being denied the other's catalog/manuscript. Product access is confirmed separately before any authoring path: an expired receipt is not an active entitlement; revocation removes current Titus app access without erasing the separately owned Course. Direct `authenticated` / `anon` table operations cannot mint their own grants.
