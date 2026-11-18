@@ -1,0 +1,17 @@
+# Held shared Titus delegated Course authoring v1
+
+Source candidate only. No migration generation, live schema mutation, carrier registration, credentials, grants, deployment, or real Course writes. The existing Atlas delegated-agent kernel is the sole authority and invocation store. The existing teaching Course/Unit/revision tables remain the sole originals. This adds nullable invocation provenance on the existing Unit and revision, and narrowly scoped guards. The approving principal and agent carrier remain distinct: Person/Auth columns identify the confirmed principal; the linked invocation identifies carrier, reviewed proposal and declared source basis.
+
+## Execution contract
+Service carrier prepares a strict exact-target proposal via the existing begin function. Principal confirms the existing invocation via the existing signed confirmation function. Apply requires original credential, active authorization, single Course target scope, active principal, canonical binding, Titus access, exact immutable proposal, explicit confirmation, and current owned draft. The apply function serializes with self-authoring on the Course row and commits all Unit/revision writes plus the existing completion event/receipt in one transaction. Changed replay, stale revisions, duplicate request IDs, unauthorized targets and incomplete receipts fail closed. Successful replay reconstructs the same receipt, not new Units. Existing generic lifecycle remains intact for other commands. No new public RPC or user session spoofing.
+
+## Remaining required verification
+The SQL is not executed or release-authorized by this commit. Run actual PostgreSQL isolated fixture tests, then protected schema-shaped clone; verify existing real canonical bindings and current access functions, carrier concurrency with revocation, signed confirmation and negative paths, and normal author edits/moves after agent writes. Verify kernel service privileges and transport isolation before connecting any real carrier. Principal confirmation UI must expose the exact canonical invocation packet, not the temporary client paste review. No fake authentication, broad credentials or direct privileged connector DML in actual use.
+
+Source basis supplied in a proposal is a declared provenance reference, not independent proof of its contents. This increment does not publish or grant learner access, migrate history, or install a ChatGPT credential.
+
+## Canonical identity inspection
+The live schema's `atlas.principals.person_id` references legacy `atlas.people`, not `reality.entities`. The candidate resolves the principal through the active Auth-to-canonical-Person binding instead of assuming those UUIDs coincide. The existing owner Course was checked read-only: one active principal and matching canonical binding. No live data was changed. The proof must include a deliberately different legacy Person UUID.
+
+## Signed Course review membrane
+The public signed wrappers project only this active owned personal Course's pending Atlas invocations (four at a time), return the exact immutable packet and carrier label, and confirm/reject by Course, invocation and proposal UUID. Before approval the source rechecks live delegation, existing Unit revision and capacity. It then calls the existing Atlas principal decision function; no Course write occurs. Confirmation receipt deliberately differs from the atomic application receipt. No new queue or principal authority is stored.
