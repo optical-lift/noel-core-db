@@ -176,7 +176,9 @@ INSERT INTO atlas.ledger_organization_participations(
 VALUES('77777777-7777-4777-8777-777777777777',
 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','governing',true,'active'),
 ('66666666-6666-4666-8666-666666666666',
-'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','governing',true,'active');
+'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','governing',true,'active'),
+('88888888-8888-4888-8888-888888888888',
+'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','operating',false,'active');
 INSERT INTO atlas.principals(id,person_id,status)
 VALUES('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
 '11111111-1111-4111-8111-111111111111','active');
@@ -185,36 +187,93 @@ VALUES('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
 '77777777-7777-4777-8777-777777777777','root_governing','active');
 INSERT INTO ledger.seats(ledger_id,person_entity_id,seat_state)
 VALUES('77777777-7777-4777-8777-777777777777',
+'11111111-1111-4111-8111-111111111111','active'),
+('88888888-8888-4888-8888-888888888888',
 '11111111-1111-4111-8111-111111111111','active');
 
--- Scratch adapter models Atlas's real governing-Principal check. This is
--- explicitly a TEST DOUBLE and must not be mistaken for real function parity.
+-- Scratch adapter approximates the ACTUAL existing Atlas native+primary
+-- governing-Principal two-Ledger check; it is still a FICTIONAL TEST DOUBLE,
+-- NOT a production-schema restore or a copy of private source SQL.
+-- It intentionally distinguishes a native operating Ledger (8888) from the
+-- separately governed primary Ledger (7777), both for the same Organization.
 CREATE FUNCTION atlas.company_work_native_ledger_owner_self_v1(
  p_organization_id uuid,p_ledger_id uuid
 ) RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER
 SET search_path TO pg_catalog AS $scratch_atlas$
-DECLARE v_person uuid;v_count bigint;
+DECLARE
+ v_person uuid;v_principal uuid;v_principals bigint;
+ v_primary uuid;v_primary_count bigint;
 BEGIN
  v_person:=atlas.current_person_for_private_course_v1();
- SELECT count(*) INTO v_count
+ SELECT count(*),min(p.id::text)::uuid INTO v_principals,v_principal
  FROM atlas.principals p
- JOIN atlas.principal_ledger_authorities a ON a.principal_id=p.id
- JOIN atlas.ledger_organization_participations lop
-  ON lop.ledger_id=a.ledger_id
- JOIN atlas.organizations o ON o.id=lop.organization_id
- JOIN atlas.ledgers al ON al.id=lop.ledger_id
- JOIN ledger.seats seat ON seat.ledger_id=al.id AND seat.person_entity_id=p.person_id
- WHERE p.person_id=v_person AND p.status='active'
-  AND a.ledger_id=p_ledger_id AND a.authority_kind='root_governing'
-  AND a.status='active' AND a.ended_at IS NULL
-  AND lop.organization_id=p_organization_id AND lop.status='active'
-  AND lop.ended_at IS NULL AND lop.participation_kind='governing'
-  AND lop.is_compatibility_primary AND o.status='active'
-  AND al.status='active' AND seat.seat_state='active' AND seat.ended_at IS NULL;
- IF v_count<>1 THEN
- RAISE EXCEPTION 'independent governing Principal and seat required'
+ WHERE p.person_id=v_person AND p.status='active';
+ IF v_principals<>1 THEN
+ RAISE EXCEPTION 'one signed active Principal required'
+ USING ERRCODE='42501'; END IF;
+
+ IF NOT EXISTS(SELECT 1 FROM atlas.ledger_organization_participations lop
+  JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
+  JOIN ledger.ledgers nl ON nl.id=al.id
+   AND nl.ledger_state='active' AND nl.retired_at IS NULL
+  WHERE lop.ledger_id=p_ledger_id AND lop.organization_id=p_organization_id
+   AND lop.status='active' AND lop.ended_at IS NULL
+   AND lop.participation_kind IN ('governing','operating'))
+ THEN RAISE EXCEPTION 'current native Ledger participation required'
+ USING ERRCODE='42501'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM ledger.seats seat
+  WHERE seat.ledger_id=p_ledger_id AND seat.person_entity_id=v_person
+  AND seat.seat_state='active' AND seat.ended_at IS NULL)
+ THEN RAISE EXCEPTION 'current native Ledger Seat required'
+ USING ERRCODE='42501'; END IF;
+
+ SELECT count(*),min(lop.ledger_id::text)::uuid
+ INTO v_primary_count,v_primary
+ FROM atlas.ledger_organization_participations lop
+ JOIN atlas.ledgers al ON al.id=lop.ledger_id AND al.status='active'
+ WHERE lop.organization_id=p_organization_id AND lop.status='active'
+ AND lop.ended_at IS NULL AND lop.participation_kind='governing'
+ AND lop.is_compatibility_primary;
+ IF v_primary_count<>1 THEN
+ RAISE EXCEPTION 'unique current organizational primary Ledger required'
+ USING ERRCODE='42501'; END IF;
+
+ IF NOT EXISTS(SELECT 1 FROM atlas.principal_ledger_authorities a
+ JOIN atlas.ledgers al ON al.id=a.ledger_id AND al.status='active'
+ WHERE a.principal_id=v_principal AND a.ledger_id=p_ledger_id
+ AND a.authority_kind='root_governing' AND a.status='active'
+ AND a.ended_at IS NULL)
+ OR NOT EXISTS(SELECT 1 FROM atlas.principal_ledger_authorities a
+ JOIN atlas.ledgers al ON al.id=a.ledger_id AND al.status='active'
+ WHERE a.principal_id=v_principal AND a.ledger_id=v_primary
+ AND a.authority_kind='root_governing' AND a.status='active'
+ AND a.ended_at IS NULL)
+ THEN RAISE EXCEPTION 'same Principal needs both native and primary root authority'
  USING ERRCODE='42501'; END IF;
  RETURN v_person;
 END $scratch_atlas$;
 REVOKE ALL ON FUNCTION atlas.company_work_native_ledger_owner_self_v1(uuid,uuid)
  FROM PUBLIC,anon,authenticated;
+
+-- Disposable signed-HTTP transport ONLY. Not part of any U1 candidate,
+-- production app API, release migration or canonical institutional role.
+-- Its only purpose is testing the modeled Atlas authority in signed REST.
+CREATE FUNCTION public.titus_u1_fixture_native_owner_probe_v1(
+ p_ledger_id uuid
+) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER
+SET search_path TO pg_catalog AS $native_probe$
+DECLARE v_person uuid;v_source uuid;
+BEGIN
+ v_person:=atlas.current_person_for_private_course_v1();
+ v_source:=atlas.company_work_native_ledger_owner_self_v1(
+ 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid,p_ledger_id);
+ IF v_source IS DISTINCT FROM v_person THEN
+ RAISE EXCEPTION 'Atlas root and Titus signed Person disagree'
+ USING ERRCODE='42501'; END IF;
+ RETURN jsonb_build_object('contractVersion','titus_u1_fixture_native_owner_v1',
+  'authorized',true);
+END $native_probe$;
+REVOKE ALL ON FUNCTION public.titus_u1_fixture_native_owner_probe_v1(uuid)
+ FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.titus_u1_fixture_native_owner_probe_v1(uuid)
+ TO authenticated;
