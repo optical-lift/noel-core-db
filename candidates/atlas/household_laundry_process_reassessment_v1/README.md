@@ -1,0 +1,8 @@
+# Expected process reassessment — Laundry first adapter
+Held source only. Reuses accepted original Work/care result and existing evidence/current-state structures.
+- Explicit total elapsed minutes from the accepted wash-start timestamp; never uses expectedMinutes (active effort).
+- Requires same current physical observation and accepted original Work + Need + result. Source record is immutable; state pointer and expected reassessment are atomic.
+- Only current signed Household governor may read/write. No cross-Person claim, new tables, generic timers, Work creation, Clock, recurrence or physical completion. Current process superseded by another physical observation does not expose the stale expectation.
+- First estimate only; exact action replay supported, competing revised/stale action fails. User can set a time after the expected finish and receive due immediately; next real observation and interval revision require a subsequent governed increment.
+- Current Laundry model has a single subject-level physical state, not independently identified loads. Do not claim simultaneous distinct process tracking.
+- Test requirements: actual independent signed owner/member/outsider/anonymous sessions; accepted wash start (existing fixture including result policy), initial needs_interval, waiting and due, exact evidence and next_reassess_at, replay, conflicting action, no Work or care observation/result mutation, stale old observation, revoked session. Postconditions are structural only; not proof of execution. No live writes or release.
