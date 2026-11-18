@@ -12,6 +12,8 @@ on:
       - "tests/verify_uniops_supabase_managed_acl_roundtrip_held.py"
       - "tests/uniops_acl_stage_observations_held.py"
       - "tests/test_uniops_acl_stage_observations_held.py"
+      - "tests/inspect_uniops_acl_staged_local_held.py"
+      - "tests/test_inspect_uniops_acl_staged_local_held.py"
       - "tests/install_uniops_native_notebook_validator_copy_held.py"
       - "supabase/migrations/20260912203347_personal_atlas_access_grants_v1.sql"
 
@@ -116,6 +118,7 @@ jobs:
           test "$(supabase --version | tail -1)" = "2.116.0"
           python3 -m py_compile tests/verify_uniops_supabase_managed_acl_roundtrip_held.py tests/uniops_acl_stage_observations_held.py tests/test_uniops_acl_stage_observations_held.py
           python3 -m unittest discover -s tests -p 'test_uniops_acl_stage_observations_held.py' -v
+          python3 -m unittest discover -s tests -p 'test_inspect_uniops_acl_staged_local_held.py' -v
           python3 tests/verify_uniops_supabase_managed_acl_roundtrip_held.py
           rm -f -- "$RUNNER_TEMP/uniops-bin/supabase"
           echo "PASS measured fresh fictional managed clone; NO production"
