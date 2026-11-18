@@ -1,0 +1,7 @@
+# Atlas Discovery question clarity candidate
+
+Linked journey: optical-lift/atlas#726, owner-operated Preview feedback November 18. Public-safe catalog definitions only; no private answers, user IDs, or screenshot content. This is not a generated migration or a production release.
+
+Preserve existing question, answer-event and signal identities. Replace nine terse prompts with context and source-backed help. Add explicit no/none choices only for hobby, community, project and property scopes; property also supports other arrangements. Existing values and rules are unchanged. The live edge census found no outgoing hobby/community/project edges and the property rental branch requires rentals or mixed, so neither new property answer qualifies. Do not infer absence from pause. The existing mixed-property-to-rental route needs separate review; this packet does not reinterpret historical mixed answers or introduce a multiselect shape. No new domain promotion, roles or tables. No new private answers.
+
+Before generation: owner review of exact candidate on main, then canonical migration-source-generation and disposable signed verification: representative active Principal sees the question, can submit none once and reread it; paused unanswered state remains unanswered; old options still eligible and foreign/anon denied. Postconditions here verify catalog bytes, not human acceptance. Releasing this question catalog requires separate authorization. Atlas rail/encounter presentation stays in Atlas PR #726.
