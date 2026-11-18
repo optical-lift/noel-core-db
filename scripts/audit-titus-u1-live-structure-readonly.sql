@@ -18,6 +18,8 @@ WITH
  active_governing AS (
   SELECT
    p.id,p.organization_id,p.ledger_id,
+   nl.id IS NOT NULL AS native_ledger_exists,
+   al.status='active' AS atlas_ledger_active,
    CASE WHEN al.status='active' AND nl.ledger_state='active'
        AND nl.retired_at IS NULL AND e.identity_state='canonical'
        AND e.entity_kind IN ('business','organization')
@@ -53,11 +55,20 @@ WITH
    count(*) FILTER (WHERE mapping_count=0) AS missing_explicit_mapping,
    count(*) FILTER (WHERE mapping_count>1) AS ambiguous_explicit_mapping,
    count(*) FILTER (WHERE mapping_count=1 AND same_count=0) AS foreign_mapping,
-   count(*) FILTER (WHERE NOT canonical_native_ledger) AS inactive_or_unresolved_native_ledger
+   count(*) FILTER (WHERE NOT canonical_native_ledger) AS inactive_or_unresolved_native_ledger,
+   count(*) FILTER (WHERE NOT native_ledger_exists) AS native_ledger_missing,
+   count(*) FILTER (WHERE NOT native_ledger_exists AND mapping_count=0)
+      AS both_native_ledger_and_mapping_missing,
+   count(*) FILTER (WHERE NOT native_ledger_exists AND mapping_count>0)
+      AS mapping_without_native_ledger,
+   count(*) FILTER (WHERE native_ledger_exists AND mapping_count=0)
+      AS native_ledger_without_mapping,
+   count(*) FILTER (WHERE NOT atlas_ledger_active)
+      AS governing_atlas_ledger_inactive
   FROM active_governing
  )
 SELECT jsonb_build_object(
- 'contractVersion','held_titus_u1_live_structure_readonly_v1',
+ 'contractVersion','held_titus_u1_live_structure_readonly_v2',
  'sourceFunctions',to_jsonb(functions),
  'aggregateCounts',to_jsonb(rollup),
  'releaseApproved',false,
