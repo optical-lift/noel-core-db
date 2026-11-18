@@ -63,7 +63,10 @@ class ExactU2FHook(unittest.TestCase):
                            'grep -qx \'U2F_GENUINE_SIGNED_LOCAL_CLONE=PASS\'',
                            'signed-ledger-reciprocal-summary.txt'):
                 self.assertIn(needle,new_h)
-            self.assertNotIn("127.0.0.1:54322/postgres",new_h)
+            # Canonical runner retains its original startup default before
+            # selecting a randomized port; forbid a fixed port in U2F hook ONLY.
+            hook_fragment=new_h.split("U2F separately authorized signed-review-only clone setup",1)[1].split('phase="signed reciprocal Ledger roots, private intake and Person identity"',1)[0]
+            self.assertNotIn("127.0.0.1:54322/postgres",hook_fragment)
             self.assertEqual(new_r.count("    base.setup_auth(a.db_url)"),1)
             self.assertEqual(new_r.count("    tokens={}"),1)
             self.assertIn('"--reuse-existing-signed-auth"',new_r)
