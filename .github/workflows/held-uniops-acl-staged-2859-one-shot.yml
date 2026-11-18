@@ -45,7 +45,7 @@ jobs:
           assert "environment: production" in parts[1]
           assert "issues/2859/events?per_page=100&page=" in parts[1]
           assert "GITHUB_EVENT_PATH" in parts[1]
-          assert "c0a22b64eefbda07b71b0c7918139672fbd762b3" in s
+          assert "eb7c56054c324faceafa08a843a89c9e045e2ccd" in s
           assert s.count("NOEL_CORE_DATABASE_URL: "+chr(36)+"{{ secrets.NOEL_CORE_DATABASE_URL }}")==1
           assert "workflow_dispatch:" not in parts[1]
           assert "supabase db push" not in parts[1]
@@ -57,16 +57,16 @@ jobs:
           PY
       - uses: actions/checkout@v4
         with:
-          ref: c0a22b64eefbda07b71b0c7918139672fbd762b3
+          ref: eb7c56054c324faceafa08a843a89c9e045e2ccd
           path: held-source
           persist-credentials: false
       - name: Verify pinned source and run offline safety tests only
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C held-source rev-parse HEAD)" = c0a22b64eefbda07b71b0c7918139672fbd762b3
-          test "$(git -C held-source hash-object tests/inspect_uniops_acl_staged_source_clone_2859_held.py)" = 6edddd21123a0168ab702b9f6412bba9a8082127
-          test "$(git -C held-source hash-object tests/test_inspect_uniops_acl_staged_source_clone_2859_held.py)" = 00b8599de1f25e604099a0f03b7dbaf70ded12c7
+          test "$(git -C held-source rev-parse HEAD)" = eb7c56054c324faceafa08a843a89c9e045e2ccd
+          test "$(git -C held-source hash-object tests/inspect_uniops_acl_staged_source_clone_2859_held.py)" = 3852b2729506230681fd687299f15c03e136b64f
+          test "$(git -C held-source hash-object tests/test_inspect_uniops_acl_staged_source_clone_2859_held.py)" = 2ff0b704024662e94959c0d062b03f80bc0a0e3a
           test "$(git -C held-source hash-object tests/inspect_uniops_acl_staged_local_held.py)" = a2d5278d90752dc41976948d5e8da9da3e8d5252
           test "$(git -C held-source hash-object tests/test_inspect_uniops_acl_staged_local_held.py)" = cf03a9753d66b8ad1caac79c8d2401a4eca31886
           test "$(git -C held-source hash-object tests/uniops_acl_stage_observations_held.py)" = f365bb571f2be30a922aa080c2baabd631603f31
@@ -130,7 +130,7 @@ jobs:
           assert e.get('changes',{}).get('title',{}).get('from')==old
           assert issue.get('author_association')=='OWNER'
           assert 'public.grant_personal_atlas_access_v1(uuid,text,jsonb)' in issue.get('body','')
-          assert 'c0a22b64eefbda07b71b0c7918139672fbd762b3' in issue.get('body','')
+          assert 'eb7c56054c324faceafa08a843a89c9e045e2ccd' in issue.get('body','')
           url='https://api.github.com/repos/optical-lift/noel-core-db/issues/2859/events?per_page=100&page='
           def history():
               out=[]
@@ -157,15 +157,15 @@ jobs:
           PY
       - uses: actions/checkout@v4
         with:
-          ref: c0a22b64eefbda07b71b0c7918139672fbd762b3
+          ref: eb7c56054c324faceafa08a843a89c9e045e2ccd
           persist-credentials: false
       - name: Revalidate exact source and offline negatives before private inspection
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = c0a22b64eefbda07b71b0c7918139672fbd762b3
-          test "$(git hash-object tests/inspect_uniops_acl_staged_source_clone_2859_held.py)" = 6edddd21123a0168ab702b9f6412bba9a8082127
-          test "$(git hash-object tests/test_inspect_uniops_acl_staged_source_clone_2859_held.py)" = 00b8599de1f25e604099a0f03b7dbaf70ded12c7
+          test "$(git rev-parse HEAD)" = eb7c56054c324faceafa08a843a89c9e045e2ccd
+          test "$(git hash-object tests/inspect_uniops_acl_staged_source_clone_2859_held.py)" = 3852b2729506230681fd687299f15c03e136b64f
+          test "$(git hash-object tests/test_inspect_uniops_acl_staged_source_clone_2859_held.py)" = 2ff0b704024662e94959c0d062b03f80bc0a0e3a
           test "$(git hash-object tests/inspect_uniops_acl_staged_local_held.py)" = a2d5278d90752dc41976948d5e8da9da3e8d5252
           test "$(git hash-object tests/test_inspect_uniops_acl_staged_local_held.py)" = cf03a9753d66b8ad1caac79c8d2401a4eca31886
           test "$(git hash-object tests/uniops_acl_stage_observations_held.py)" = f365bb571f2be30a922aa080c2baabd631603f31
