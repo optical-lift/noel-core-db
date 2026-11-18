@@ -21,3 +21,5 @@ Use the existing protected disposable schema/roles-only PG17 + independently sig
 - existing original Work counts/Result IDs conserved across all reads and negative observations.
 
 This source has not executed the signed proof. Test fixture, protected pin, application receipt parser, attention composition and human acceptance are subsequent gates; do not treat static checks as runtime evidence. Cross-domain reuse requires a second genuinely different domain proof. No application or production release authorization follows from this draft.
+
+The separate `validate_signed_renewal_attention.py` contains the signed proposal/wait/early-denial/withdrawal/accepted-history preservation probe to attach after the existing driver proves closure. It is not executed by default. Full due and negative-renewal proof needs a governed historical synthetic fixture (or real elapsed time); do not falsify timestamps of a previously signed actual or add a production time-override parameter.
