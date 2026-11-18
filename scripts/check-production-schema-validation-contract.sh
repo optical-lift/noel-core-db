@@ -377,6 +377,25 @@ if '[ "$signed_household_lifecycle_probe" = true ]' not in startup:
 if 'signed-household-lifecycle-summary.txt' not in harness:
     errors.append("Household signed proof cannot be omitted from successful clone")
 
+# Exact held Laundry renewal initial repair: preserve the one canonical protected carrier;
+# owner request and immutable SQL/fixture/proof bytes, local-only execution.
+for fragment in ("Production schema validation request: Atlas held Laundry renewal initial",
+                 "b6dcb4acd1375f2bdae3270937ed5e068129682a", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
+                 "supabase migration new atlas_household_laundry_renewal_initial_clone_only_v1",
+                 "actual_version=$version", "held_proof"):
+    if fragment not in workflow:
+        errors.append("Held Laundry renewal initial request boundary missing: "+fragment)
+for fragment in ("9cb29da5dfd9042224fcc1e1e08414a537c72fa0",
+                 "76728974daa1622c11f0c4a9d08e6b26b8c1af11",
+                 "737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7",
+                 "09af135127887ca34ed428ec7c4531ab6dc8dc9d", "69426f1df315dafe528981b69dd50a84100ec78c"):
+    if fragment not in workflow or fragment not in harness:
+        errors.append("Held Laundry renewal initial immutable package pin missing: "+fragment)
+if '[ "$signed_household_renewal_initial_probe" = true ]' not in startup:
+    errors.append("Household signed probe accidentally starts PostgreSQL-only")
+if 'signed-household-renewal-initial-summary.txt' not in harness:
+    errors.append("Household signed proof cannot be omitted from successful clone")
+
 # Signed care proof must reuse local native Work/Person infrastructure and
 # must never become an arbitrary candidate-triggered or production call.
 care_script=Path('scripts/validate-atlas-care-single-done-signed-http.py')
