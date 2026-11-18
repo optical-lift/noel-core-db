@@ -180,6 +180,15 @@ BEGIN
  IF v_prior IS NOT NULL THEN
  RAISE EXCEPTION 'existing root requires succession or adjudication, not bootstrap'
  USING ERRCODE='42501'; END IF;
+ -- Never bootstrap into an orphaned institution still controlled by an
+ -- unresolved pre-existing Titus manager. Preserve source for adjudication.
+ IF EXISTS(SELECT 1 FROM reality.responsibility_relations r
+ WHERE r.responsibility_key='titus_institution_account_management'
+ AND r.jurisdiction_kind='entity' AND r.jurisdiction_entity_id=v_institution
+ AND r.jurisdiction_domain IS NULL AND r.scope->>'ledgerId'=p_ledger_id::text
+ AND r.relation_state='active' AND r.ended_at IS NULL)
+ THEN RAISE EXCEPTION 'orphaned active manager requires protected reconciliation'
+ USING ERRCODE='42501'; END IF;
  INSERT INTO reality.responsibility_relations(
  carrier_person_entity_id,responsibility_key,title,relation_state,
  jurisdiction_kind,jurisdiction_entity_id,jurisdiction_domain,permitted_operations,
@@ -245,6 +254,15 @@ BEGIN
   RETURN jsonb_build_object('contractVersion','shared_titus_root_nominate_v1',
    'invitationId',v_old.invitation_id,'alreadyExists',true);
  END IF;
+ -- A root cannot relinquish authority while a manager remains active:
+ -- that would leave a delegated writer without any supervising root.
+ IF EXISTS(SELECT 1 FROM reality.responsibility_relations r
+ WHERE r.responsibility_key='titus_institution_account_management'
+ AND r.jurisdiction_kind='entity' AND r.jurisdiction_entity_id=v_entity
+ AND r.jurisdiction_domain IS NULL AND r.scope->>'ledgerId'=p_ledger_id::text
+ AND r.relation_state='active' AND r.ended_at IS NULL)
+ THEN RAISE EXCEPTION 'revoke/transfer active manager before root relinquishment'
+ USING ERRCODE='42501'; END IF;
  IF EXISTS(SELECT 1 FROM titus.institution_account_root_transfer_invitations_v1 i
  WHERE i.old_root_responsibility_id=v_root
  AND NOT EXISTS(SELECT 1 FROM titus.institution_account_root_transfer_cancellations_v1 c
