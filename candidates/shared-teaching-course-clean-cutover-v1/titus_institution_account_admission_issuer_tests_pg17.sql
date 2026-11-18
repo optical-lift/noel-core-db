@@ -166,6 +166,22 @@ BEGIN
 END $recipient_accepts$;
 RESET ROLE;
 
+-- Issuer may not cancel an already accepted invitation: only a governed
+-- withdrawal can end the recipient's independently accepted institution scope.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $cannot_cancel_accepted$
+DECLARE denied boolean:=false;
+BEGIN
+ BEGIN
+  PERFORM public.titus_institution_account_cancel_invite_self_api_v1(
+   current_setting('app.titus_test_invite_id')::uuid,
+   'f1000000-0000-4000-8000-000000000029');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'accepted institution was cancellable as unused invite'; END IF;
+END $cannot_cancel_accepted$;
+RESET ROLE;
+
 -- Manager, who is a distinct Person, cannot automatically borrow the
 -- admitted person's university context merely by issuing invitations.
 SET LOCAL ROLE authenticated;
@@ -285,6 +301,41 @@ BEGIN
 END $stale_issuer_rejected$;
 RESET ROLE;
 ROLLBACK TO SAVEPOINT issuer_revoke_probe;
+
+-- An exited person can be invited anew under a NEW original and may
+-- personally withdraw. The old admission/withdrawal are never overwritten.
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+DO $reinvite_after_exit$
+DECLARE i jsonb;
+BEGIN
+ i:=public.titus_institution_account_invite_self_api_v1(
+  '77777777-7777-4777-8777-777777777777',
+  'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  'f1000000-0000-4000-8000-000000000022');
+ PERFORM set_config('app.titus_test_rejoin_invite',i->>'invitationId',true);
+END $reinvite_after_exit$;
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $self_withdrawal$
+DECLARE a jsonb;v jsonb;list jsonb;
+BEGIN
+ a:=public.titus_institution_account_accept_self_api_v1(
+  current_setting('app.titus_test_rejoin_invite')::uuid,
+  'f1000000-0000-4000-8000-000000000023');
+ IF a->>'alreadyExists'<>'false' THEN
+  RAISE EXCEPTION 'rejoin did not issue new immutable admission'; END IF;
+ v:=public.titus_institution_account_withdraw_self_api_v1(
+  (a->>'admissionId')::uuid,
+  'f1000000-0000-4000-8000-000000000024');
+ IF v->>'ended'<>'true' THEN RAISE EXCEPTION 'self exit not issued'; END IF;
+ list:=public.titus_account_contexts_self_api_v1();
+ IF list->'institutions'<>'[]'::jsonb OR
+  list->'personal'->>'personId'<>'dddddddd-dddd-4ddd-8ddd-dddddddddddd' THEN
+  RAISE EXCEPTION 'self exit removed personal account or left institution'; END IF;
+END $self_withdrawal$;
+RESET ROLE;
 
 -- This synthetic source never creates separate Auth identities, an institution,
 -- Course, paid seat or an actual Titus purchase grant.
