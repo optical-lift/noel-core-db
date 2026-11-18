@@ -129,6 +129,7 @@ signed_program_author_notes_probe=false
 signed_program_source_identity_probe=false
 signed_universal_original_work_probe=false
 signed_household_original_repair_probe=false
+signed_household_lifecycle_probe=false
 signed_work_self_assignment_probe=false
 signed_native_original_work_comments_probe=false
 signed_care_single_done_probe=false
@@ -316,6 +317,23 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_household_original_repair_probe=true
+fi
+
+# Exact held lifecycle: a CLI-created scratch identity with pinned SQL, fixture,
+# postconditions and signed probe. No generic candidate-selected executable.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_household_laundry_lifecycle_clone_only_v1[.]sql$ ]]; then
+  lifecycle_proof="$repo_root/candidates/atlas/household_laundry_process_reassessment_v1/validate_signed_process_reassessment.py"
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$lifecycle_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != dae26fbad43d0341e4efaf15bd29d695482bd136 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7 ] ||
+     [ "$(git hash-object "$candidate_validation")" != ce747e365321526757e2302f32572dfd45ca91e9 ] ||
+     [ "$(git hash-object "$lifecycle_proof")" != 9f1ae62612df98ae0a8b2d73482ebbf58f11fa19 ]; then
+    echo "Exact held Laundry lifecycle repair and local-only proof bytes required." >&2
+    exit 2
+  fi
+  signed_household_lifecycle_probe=true
 fi
 
 # Only the exact Atlas original Work candidate may trigger this signed local
@@ -710,6 +728,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_universal_program_probe" = true ] ||
        [ "$signed_program_author_notes_probe" = true ] ||
        [ "$signed_program_source_identity_probe" = true ] ||
+       [ "$signed_household_lifecycle_probe" = true ] ||
        [ "$signed_household_original_repair_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
        [ "$signed_work_self_assignment_probe" = true ] ||
@@ -1079,6 +1098,15 @@ if [ "$signed_household_original_repair_probe" = true ]; then
     >"$artifacts_dir/signed-household-original-repair.log" 2>&1
   test -s "$artifacts_dir/signed-household-original-repair-summary.txt"
   grep -q '^PASS signed original Household subject-pair seam:' "$artifacts_dir/signed-household-original-repair-summary.txt"
+fi
+
+if [ "$signed_household_lifecycle_probe" = true ]; then
+  phase="signed complete Laundry lifecycle and native Person projection"
+  python3 "$lifecycle_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-household-lifecycle-summary.txt" \
+    >"$artifacts_dir/signed-household-lifecycle.log" 2>&1
+  test -s "$artifacts_dir/signed-household-lifecycle-summary.txt"
+  grep -q '^PASS signed Laundry lifecycle:' "$artifacts_dir/signed-household-lifecycle-summary.txt"
 fi
 
 if [ "$signed_universal_original_work_probe" = true ]; then
