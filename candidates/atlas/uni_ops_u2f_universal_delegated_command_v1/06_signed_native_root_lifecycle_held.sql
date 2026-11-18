@@ -163,7 +163,7 @@ DECLARE
   v_principal atlas.principals%ROWTYPE;
 BEGIN
   IF v_actor IS NULL OR p_native_responsibility_id IS NULL
-     OR pg_catalog.length(pg_catalog.btrim(pg_catalog.coalesce(p_reason,'')))<4
+     OR pg_catalog.length(pg_catalog.btrim(COALESCE(p_reason,'')))<4
   THEN
     RAISE EXCEPTION 'Signed Person and nonblank revocation reason required'
       USING ERRCODE='42501';
