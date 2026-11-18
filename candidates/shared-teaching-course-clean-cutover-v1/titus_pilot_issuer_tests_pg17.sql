@@ -144,6 +144,37 @@ BEGIN
 END $not_yet_licensed$;
 RESET ROLE;
 
+-- Separate source-only alternative: the named recipient may deliberately
+-- DECLINE. The same receipt is idempotent; a later accept is forbidden.
+-- Roll back this fictional choice to exercise acceptance separately below.
+SAVEPOINT pilot_decline_trial;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
+DO $recipient_declines$
+DECLARE a jsonb;b jsonb;view_self jsonb;denied boolean:=false;
+BEGIN
+ a:=public.titus_private_pilot_respond_self_api_v1(
+  current_setting('app.fictional_pilot_offer_id')::uuid,
+  'c0000000-0000-4000-8000-000000000030','decline');
+ b:=public.titus_private_pilot_respond_self_api_v1(
+  current_setting('app.fictional_pilot_offer_id')::uuid,
+  'c0000000-0000-4000-8000-000000000030','decline');
+ view_self:=public.titus_private_pilot_offer_read_self_api_v1(
+  current_setting('app.fictional_pilot_offer_id')::uuid);
+ IF a->>'grantActive'<>'false' OR b->>'alreadyExists'<>'true'
+ OR view_self->>'state'<>'decline' OR view_self->>'grantActive'<>'false' THEN
+  RAISE EXCEPTION 'private-pilot decline created access or lost history';
+ END IF;
+ BEGIN
+  PERFORM public.titus_private_pilot_respond_self_api_v1(
+   current_setting('app.fictional_pilot_offer_id')::uuid,
+   'c0000000-0000-4000-8000-000000000031','accept');
+ EXCEPTION WHEN unique_violation THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'declined pilot could later be accepted'; END IF;
+END $recipient_declines$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT pilot_decline_trial;
+
 -- Scratch owner pauses issuer standing after the offer was issued. A stale
 -- responsibility cannot activate someone else's access via later acceptance.
 UPDATE reality.responsibility_relations SET relation_state='paused'
