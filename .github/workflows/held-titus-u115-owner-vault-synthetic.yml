@@ -1,0 +1,37 @@
+name: HELD Titus U1.15 owner vault recovery rehearsal (fictional only)
+
+on:
+  push:
+    branches:
+      - candidate/titus-u115-owner-vault-recovery-drill-20261118
+    paths:
+      - 'scripts/titus-u115-*'
+      - 'tests/test_titus_u115_*'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_15_*'
+      - '.github/workflows/held-titus-u115-owner-vault-synthetic.yml'
+  pull_request:
+    paths:
+      - 'scripts/titus-u115-*'
+      - 'tests/test_titus_u115_*'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_15_*'
+      - '.github/workflows/held-titus-u115-owner-vault-synthetic.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  synthetic-no-data:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prove synthetic-only encrypted dual location rehearsal and key separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s tests -p test_titus_u115_owner_vault_synthetic.py -v
+          test ! -e supabase/migrations/20261118_titus_u115_vault.sql
+          echo 'PASS fictional vault test; no owner key or customer records'
