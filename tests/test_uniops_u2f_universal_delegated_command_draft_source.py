@@ -292,7 +292,7 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
                          "historical authority ended","native Ledger paused",
                          "native Seat ended","outsider cannot revoke",
                          "repeated admission is not new authority",
-                         "revocation replay","same Person + same institution"):
+                         "revocation replay","Same real Person + same institution Entity"):
             self.assertIn(scenario,runner)
         self.assertIn("AUTHENTIC_GOTRUE_SIGNED_ACTOR=NOT_TESTED",runner)
         self.assertIn("INDEPENDENT_SOURCE_ADJUDICATION=NO",runner)
