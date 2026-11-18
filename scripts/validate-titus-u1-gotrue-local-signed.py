@@ -198,14 +198,13 @@ def main():
     sql(args.db_url,
       "update compatibility.legacy_bindings set new_id="
       f"'{INSTITUTION}'::uuid where legacy_key='{organization}'")
-    duplicate_id=sql(args.db_url,
+    duplicate_id=str(uuid.uuid4())
+    sql(args.db_url,
       "insert into compatibility.legacy_bindings("
-      "legacy_schema,legacy_table,legacy_key,disposition,"
+      "id,legacy_schema,legacy_table,legacy_key,disposition,"
       "new_schema,new_table,new_id) values("
-      f"'atlas','organizations','{organization}','maps_to',"
-      f"'reality','entities','{INSTITUTION}'::uuid) returning id")
-    check(bool(duplicate_id) and len(duplicate_id)==36,
-      "Duplicate scratch source id was not returned")
+      f"'{duplicate_id}'::uuid,'atlas','organizations','{organization}','maps_to',"
+      f"'reality','entities','{INSTITUTION}'::uuid)")
     deny(api,key,manager,bootstrap,
       {"p_ledger_id":LEDGER,"p_organization_id":organization,
        "p_request_id":str(uuid.uuid4())},
