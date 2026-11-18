@@ -167,6 +167,34 @@ if native_guard_path.is_file():
                   "v_group.authorized_ledger_id IS DISTINCT FROM p_ledger_id"):
         require(token in decomp, "missing native split provenance: " + token)
     print("PASS held native Subject-before-allocation source contract; legacy predicate unchanged")
+    current_schema_path = native_guard_path.with_name("current_schema_subject_functions_held.sql")
+    require(current_schema_path.is_file(), "missing narrow current-schema Subject bundle")
+    current_schema = current_schema_path.read_text()
+    exact_functions = (
+        ("owner_original_subject_choices_for_work_self_api_v1",
+         texts["original_subject_choices_for_work_decomposition_v1"], "$function$;",
+         "0a966d596481d1bc58bf9f63fcc1b639"),
+        ("split_original_canonical_work_owner_self_api_v1",
+         decomp, "$function$;", "fe2d6c24c997b3f462c6eda5fae5a2bf"),
+        ("guard_work_growing_object_context_v1",
+         guard_source, "$body$;", "0278360920a2d26a301ceda4591b9994"),
+    )
+    for name, source, end, fingerprint in exact_functions:
+        marker = "CREATE OR REPLACE FUNCTION atlas." + name + "("
+        exact = marker + source.split(marker, 1)[1].split(end, 1)[0] + end
+        require(current_schema.count(exact) == 1,
+                "current-schema bundle does not preserve exact " + name)
+        require(current_schema.count(fingerprint) >= 1,
+                "missing current installed source fingerprint for " + name)
+    require(re.findall(r"(?m)^CREATE OR REPLACE FUNCTION atlas\.([a-z_0-9]+)\(", current_schema)
+            == [x[0] for x in exact_functions],
+            "current-schema package must contain exactly the three reviewed functions")
+    require(not re.search(r"(?mi)^\s*(CREATE TABLE|ALTER TABLE|DROP\s|GRANT\s|REVOKE\s|CREATE TRIGGER)", current_schema),
+            "current-schema function bundle must preserve tables, triggers and privileges")
+    require(current_schema.startswith("BEGIN;") and current_schema.rstrip().endswith("COMMIT;"),
+            "current-schema package transaction boundary")
+    print("PASS three exact current-schema replacements; no historical table/ACL replay")
+
 
 
 
