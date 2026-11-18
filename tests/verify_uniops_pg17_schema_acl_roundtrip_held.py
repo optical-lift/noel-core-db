@@ -88,8 +88,16 @@ def main():
     if acl.classify(before,source_md5)!="protected":
         raise RuntimeError("fictional_pg17_source_not_protected")
 
-    dumped=command(["pg_dump",BASE+ORIGINAL,"--schema-only",
-                    "--quote-all-identifier","--role","postgres",
+    # Ubuntu runner's pg_dump client is not guaranteed to match the PG17
+    # service. Use *this same disposable service container's* pg_dump 17.11
+    # binary, not a possibly older host client. No remote DB is contacted.
+    containers=command(["docker","ps","--filter","ancestor=postgres:17.11",
+                        "--format","{{.ID}}"]).strip().splitlines()
+    if len(containers)!=1 or not re.fullmatch(r"[0-9a-f]{12,64}",containers[0]):
+        raise RuntimeError("fictional_pg17_container_identity_refused")
+    dumped=command(["docker","exec","-e","PGPASSWORD=postgres",containers[0],
+                    "pg_dump","-h","127.0.0.1","-U","postgres","-d",ORIGINAL,
+                    "--schema-only","--quote-all-identifier","--role","postgres",
                     "--schema","public"])
     # Require the exact function's statements present in the original
     # schema-only dump, to distinguish ACL omission from role semantics.
