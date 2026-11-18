@@ -25,13 +25,13 @@ BEGIN
  OR has_table_privilege('authenticated','titus.course_authoring_pilot_responses','INSERT')
  OR has_table_privilege('anon','titus.course_authoring_pilot_offers','SELECT')
  OR has_function_privilege('anon',
-  'public.titus_private_pilot_offer_self_api_v1(uuid,uuid,timestamptz)','EXECUTE')
+  'public.titus_private_pilot_offer_self_api_v1(uuid,uuid,timestamptz,timestamptz)','EXECUTE')
  OR has_function_privilege('anon',
   'public.titus_private_pilot_offer_read_self_api_v1(uuid)','EXECUTE')
  OR has_function_privilege('anon',
   'public.titus_private_pilot_respond_self_api_v1(uuid,uuid,text)','EXECUTE')
  OR NOT has_function_privilege('authenticated',
-  'public.titus_private_pilot_offer_self_api_v1(uuid,uuid,timestamptz)','EXECUTE')
+  'public.titus_private_pilot_offer_self_api_v1(uuid,uuid,timestamptz,timestamptz)','EXECUTE')
  OR has_function_privilege('authenticated',
   'titus.require_current_pilot_issuer_self_v1()','EXECUTE')
  THEN RAISE EXCEPTION 'untrusted pilot audience has direct write/read/issuer privileges';
@@ -39,6 +39,8 @@ BEGIN
 END $pilot_acl$;
 SELECT set_config('app.fictional_pilot_deadline',
  (clock_timestamp()+interval '7 days')::text,true);
+SELECT set_config('app.fictional_pilot_access_until',
+ (clock_timestamp()+interval '30 days')::text,true);
 
 -- No Reality product-issuer standing yet: even the course's original author
 -- cannot invite a new Titus customer just because they own a Course.
@@ -51,7 +53,8 @@ BEGIN
  PERFORM public.titus_private_pilot_offer_self_api_v1(
   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'c0000000-0000-4000-8000-000000000001',
-  current_setting('app.fictional_pilot_deadline')::timestamptz);
+  current_setting('app.fictional_pilot_deadline')::timestamptz,
+  current_setting('app.fictional_pilot_access_until')::timestamptz);
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'login or Course authorship minted product grants'; END IF;
 END $no_automatic_issuer$;
@@ -77,7 +80,8 @@ BEGIN
  PERFORM public.titus_private_pilot_offer_self_api_v1(
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   'c0000000-0000-4000-8000-000000000002',
-  current_setting('app.fictional_pilot_deadline')::timestamptz);
+  current_setting('app.fictional_pilot_deadline')::timestamptz,
+  current_setting('app.fictional_pilot_access_until')::timestamptz);
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'recipient minted another Person pilot'; END IF;
 END $recipient_cannot_issue$;
@@ -92,11 +96,13 @@ BEGIN
  a:=public.titus_private_pilot_offer_self_api_v1(
   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'c0000000-0000-4000-8000-000000000003',
-  current_setting('app.fictional_pilot_deadline')::timestamptz);
+  current_setting('app.fictional_pilot_deadline')::timestamptz,
+  current_setting('app.fictional_pilot_access_until')::timestamptz);
  b:=public.titus_private_pilot_offer_self_api_v1(
   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'c0000000-0000-4000-8000-000000000003',
-  current_setting('app.fictional_pilot_deadline')::timestamptz);
+  current_setting('app.fictional_pilot_deadline')::timestamptz,
+  current_setting('app.fictional_pilot_access_until')::timestamptz);
  IF a->>'alreadyExists'<>'false' OR b->>'alreadyExists'<>'true'
  OR a->>'offerId'<>b->>'offerId' OR a->>'grantActive'<>'false' THEN
   RAISE EXCEPTION 'pilot issuer did not preserve one immutable offer';
@@ -106,7 +112,8 @@ BEGIN
  PERFORM public.titus_private_pilot_offer_self_api_v1(
   'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
   'c0000000-0000-4000-8000-000000000003',
-  current_setting('app.fictional_pilot_deadline')::timestamptz+interval '1 day');
+  current_setting('app.fictional_pilot_deadline')::timestamptz+interval '1 day',
+  current_setting('app.fictional_pilot_access_until')::timestamptz);
  EXCEPTION WHEN unique_violation THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'changed original offer replay admitted'; END IF;
  denied:=false;
@@ -128,6 +135,10 @@ BEGIN
  j:=public.titus_private_pilot_offer_read_self_api_v1(
   current_setting('app.fictional_pilot_offer_id')::uuid);
  IF j->>'state'<>'offered' OR j->>'grantActive'<>'false'
+ OR (j->>'acceptBy')::timestamptz
+    <>current_setting('app.fictional_pilot_deadline')::timestamptz
+ OR (j->>'grantValidUntil')::timestamptz
+    <>current_setting('app.fictional_pilot_access_until')::timestamptz
  OR j ? 'course' OR j ? 'student' OR j ? 'research' THEN
   RAISE EXCEPTION 'merely offered pilot activated a Course or grant'; END IF;
 END $not_yet_licensed$;
@@ -183,6 +194,14 @@ RESET ROLE;
 DO $pilot_originals$
 DECLARE denied boolean:=false;
 BEGIN
+ IF (SELECT count(*) FROM titus.course_authoring_pilot_offers o
+    WHERE o.offer_id=current_setting('app.fictional_pilot_offer_id')::uuid
+     AND o.accept_by::text<>o.grant_valid_until::text)<>1 THEN
+  RAISE EXCEPTION 'pilot accept deadline and access expiry were conflated'; END IF;
+ IF (SELECT count(*) FROM titus.course_authoring_access_grants g
+   WHERE g.person_entity_id='dddddddd-dddd-4ddd-8ddd-dddddddddddd'
+    AND g.valid_until=current_setting('app.fictional_pilot_access_until')::timestamptz)<>1 THEN
+  RAISE EXCEPTION 'accepted grant inherited wrong expiry'; END IF;
  IF (SELECT count(*) FROM titus.course_authoring_pilot_offers)<>1 OR
  (SELECT count(*) FROM titus.course_authoring_pilot_responses
   WHERE decision='accept')<>1 OR
@@ -197,7 +216,7 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'pilot acceptance was erasable'; END IF;
  denied:=false;
  BEGIN
- UPDATE titus.course_authoring_pilot_offers SET valid_until=clock_timestamp()+interval '1 year';
+ UPDATE titus.course_authoring_pilot_offers SET grant_valid_until=clock_timestamp()+interval '1 year';
  EXCEPTION WHEN object_not_in_prerequisite_state THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'pilot offer could be extended by mutation'; END IF;
 END $pilot_originals$;
