@@ -156,10 +156,11 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         self.assertNotIn("security definer",preflight.lower())
 
 
+
     def test_governing_root_preflight_is_readonly_and_never_authorizes_work(self):
         inspect=(FOLDER/"04_governing_root_source_noloss_preflight_held.psql").read_text(encoding="utf8")
-        pure=re.sub(r"(?m)^\\s*--[^\\n]*","",inspect)
-        pure="\\n".join(line for line in pure.splitlines() if not line.lstrip().startswith("\\\\"))
+        pure=re.sub(r"(?m)^\s*--[^\n]*","",inspect)
+        pure="\n".join(line for line in pure.splitlines() if not line.lstrip().startswith("\\"))
         for token in (
             ":'governing_root_receipt_id'::uuid",
             ":'native_ledger_id'::uuid",
@@ -180,7 +181,7 @@ class UniversalDelegatedDraftOnly(unittest.TestCase):
         ):
             with self.subTest(required=token):
                 self.assertIn(token,inspect)
-        self.assertNotRegex(pure,r"(?i)\\b(?:INSERT|UPDATE|DELETE|TRUNCATE|CREATE|DROP|ALTER|GRANT|REVOKE)\\b")
+        self.assertNotRegex(pure,r"(?i)\b(?:INSERT|UPDATE|DELETE|TRUNCATE|CREATE|DROP|ALTER|GRANT|REVOKE)\b")
         self.assertNotIn("security definer",inspect.lower())
         self.assertNotIn("auth.uid()",inspect)
         self.assertNotIn("atlas.tasks",inspect)
