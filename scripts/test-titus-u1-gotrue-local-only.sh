@@ -22,6 +22,7 @@ d="$root/candidates/shared-teaching-course-clean-cutover-v1"
 for x in titus_u1_local_gotrue_fixture.sql titus_account_context_candidate.sql \
   titus_institution_account_admission_issuer_candidate.sql \
   shared_titus_institution_manager_governance_candidate.sql \
+  shared_titus_institution_root_establishment_candidate.sql \
   titus_institution_account_self_service_candidate.sql; do
   test -s "$d/$x" || exit 3
 done
@@ -68,6 +69,7 @@ db="postgresql://postgres:postgres@127.0.0.1:54322/postgres"
   printf '\\i %s/titus_account_context_candidate.sql\n' "$d"
   printf '\\i %s/titus_institution_account_admission_issuer_candidate.sql\n' "$d"
   printf '\\i %s/shared_titus_institution_manager_governance_candidate.sql\n' "$d"
+  printf '\\i %s/shared_titus_institution_root_establishment_candidate.sql\n' "$d"
   printf '\\i %s/titus_institution_account_self_service_candidate.sql\n' "$d"
   echo "NOTIFY pgrst, 'reload schema';"
 } > "$tmp/held-local-setup.sql"
