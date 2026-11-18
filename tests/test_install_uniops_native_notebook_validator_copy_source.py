@@ -46,6 +46,16 @@ class NativeValidatorCopySource(unittest.TestCase):
             self.assertEqual(amended.count('phase="signed integrated U1B source and U2 accepted-first original"'),1)
             self.assertEqual(amended.count('ATLAS_NATIVE_GOVERNOR_DONE=PASS'),1)
             self.assertEqual(amended.count('ATLAS_NATIVE_OUTSIDER_DENIAL=PASS'),1)
+            # Existing EXIT handler continues to remove runtime DB state.
+            # The worker receipt persists only until later governor readback.
+            self.assertEqual(amended.count(module.PRIVATE_CLEANUP),1)
+            self.assertLess(amended.index(module.PRIVATE_CLEANUP),
+                            amended.index(module.FINISH))
+            self.assertIn('trap finish EXIT',amended)
+            self.assertEqual(amended.count('trap finish EXIT'),1)
+            self.assertIn('rm -f -- "$RUNNER_TEMP/uniops-native-worker-actual-private.json"',amended)
+            self.assertIn('rm -rf "$runtime_dir"',amended)
+
             self.assertIn('ATLAS_NATIVE_GOVERNOR_TEST_GRANT_ENABLED=true',amended)
             self.assertIn('ATLAS_NATIVE_GOVERNOR_CLONE_ACL_RECONCILE_ENABLED=true',amended)
             self.assertLess(amended.index('reconcile_uniops_native_governor_acl_local_held.py'),
