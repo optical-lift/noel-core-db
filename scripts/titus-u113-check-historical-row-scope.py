@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """U1.13: fail-closed historical row-scope review. CATALOG METADATA ONLY.
 
-This program has no database client, credential, network, COPY or pg_dump.
+This program has no database client, credential, network or archive reader.
 A success means every catalog relationship has an explicit *held* disposition;
 it never approves reading a single real row, selecting a live customer,
 or deleting historical sources.
