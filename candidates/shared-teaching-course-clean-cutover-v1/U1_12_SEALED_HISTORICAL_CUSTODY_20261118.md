@@ -21,6 +21,12 @@ The CLI at scripts/titus-u112-sealed-custody-transport.py:
 
 The user's private key must **never** be committed to Git, uploaded to an artifact, placed in an issue/chat message, or exposed in logs. This synthetic test is not a license to copy actual customer records.
 
+## Verified synthetic PostgreSQL restore (still no real data)
+
+The test script at scripts/test-titus-u112-encrypted-pg17-restore.sh adds a genuine **network-disconnected PostgreSQL 17 source and separate target**. The source contains one explicitly fictional Course, two Units and three revision originals with fixed UUIDs, timestamps, request IDs, ordering, CRLF line endings and Unicode. A custom-format data archive is streamed directly into CMS encryption with **no plaintext archive file**, independently verified under the ephemeral private key, then decrypted over a pipe into pg_restore on the isolated second database. Deterministic private row fingerprints and counts are compared without printing hashes, IDs or text; a deliberate one-character modification must break equality. The schema is reconstructed separately on the target.
+
+This establishes **fictional, selected-table archive restore mechanics**, not a proven dependency-complete real-history backup. A selective PostgreSQL table dump does not automatically capture referenced external data or schema, and the actual U1.11 historic dependency graph remains unclassified at the row level. Never confuse this fixture result with preserved customer data.
+
 ## Remaining prerequisites
 
 **A. Row-level inclusion manifest:** For each specific historical Course/Program root, identify its actual dependents, external FK parents, source ownership and exact preservation or retirement disposition. Preserve independent Auth/Person, Song, medical, teacher and lesson originals. Never take an indiscriminate data dump to get FKs green. A reviewed synthetic Auth ID-only parent may be added to a disconnected clone when the real database constraints support it.
