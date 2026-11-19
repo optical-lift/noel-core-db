@@ -3,8 +3,7 @@
 
 Prerequisites: current released native intake/journal sources, exact C1 synthetic
 fixture, held participation candidate + reader + postconditions, W07 candidate.
-Do not run on production. Temporary REST adapters below exist ONLY in the local
-test database; this is not a release or grant to live browser users.
+Do not run on production. Exercise the exact candidate REST wrappers, not test-only adapters. This is not a production grant.
 """
 import argparse
 import importlib.util
@@ -51,28 +50,8 @@ def main():
         check(sql(f"select count(*) from auth.sessions where id='{claims['session_id']}'::uuid and user_id='{uid}'::uuid")=="1","Missing signed session")
         sessions[name]=(token,claims)
     root,worker,other,outside=(sessions[name][0] for name in ("owner","worker","outsider","no-seat"))
-    # Local wrappers use exactly the held internal contract. No broad schema
-    # grant or table grant. Production release must separately adjudicate ACLs.
-    sql("""
-    CREATE FUNCTION public.connected_person_my_work_self_api_v2(p_limit integer DEFAULT 50,p_after_allocation_id uuid DEFAULT NULL)
-      RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
-      AS $$ SELECT atlas.connected_person_my_work_self_api_v2($1,$2) $$;
-    CREATE FUNCTION public.owner_native_work_participation_roster_self_api_v1(p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
-      RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
-      AS $$ SELECT atlas.owner_native_work_participation_roster_self_api_v1($1,$2,$3) $$;
-    CREATE FUNCTION public.owner_change_native_work_participation_self_api_v1(p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_target_person_id uuid,p_expected_primary_allocation_id uuid,p_action text,p_source_action_id uuid,p_expected_participant_allocation_id uuid DEFAULT NULL)
-      RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
-      AS $$ SELECT atlas.owner_change_native_work_participation_self_api_v1($1,$2,$3,$4,$5,$6,$7,$8) $$;
-    REVOKE ALL ON FUNCTION public.connected_person_my_work_self_api_v2(integer,uuid),
-      public.owner_native_work_participation_roster_self_api_v1(uuid,uuid,uuid),
-      public.owner_change_native_work_participation_self_api_v1(uuid,uuid,uuid,uuid,uuid,text,uuid,uuid)
-      FROM PUBLIC,anon,authenticated,service_role;
-    GRANT EXECUTE ON FUNCTION public.connected_person_my_work_self_api_v2(integer,uuid),
-      public.owner_native_work_participation_roster_self_api_v1(uuid,uuid,uuid),
-      public.owner_change_native_work_participation_self_api_v1(uuid,uuid,uuid,uuid,uuid,text,uuid,uuid)
-      TO authenticated;
-    NOTIFY pgrst,'reload schema';
-    """)
+    # Exact candidate REST wrappers already installed by clone migration; no test-only adapter.
+    sql("NOTIFY pgrst,'reload schema'")
     # Wait for local schema reload only. Missing RPC is never a denial proof.
     import time
     for _ in range(30):
@@ -118,6 +97,13 @@ def main():
     check(ok(root,CHANGE,request)["allocationId"]==part,"Duplicate replay")
     deny(root,CHANGE,dict(request,p_source_action_id=ident()),("23505",))
     check(counts()==baseline,"Participant established duplicated Work, membership, plan or result")
+    roster=ok(root,ROSTER,scope(w))
+    check(roster["actorPersonId"]==OWNER and roster["primaryPersonId"]==WORKER
+          and roster["primaryAllocationId"]==primary and roster["items"]==[{"personId":OTHER,"allocationId":part}],"Exact roster mismatch")
+    for tok in (worker,other,outside): deny(tok,ROSTER,scope(w))
+    choices=ok(root,"connected_ledger_person_choices_self_api_v1",dict(p_ledger_id=LEDGER,p_limit=100,p_after_person_id=None))
+    check(choices["contractVersion"]=="connected_ledger_person_choices_v1"
+          and {WORKER,OTHER}.issubset({p["personId"] for p in choices["items"]}),"Source picker cannot name connected assigned People")
     a,b=rows(worker,w),rows(other,w)
     check(not rows(root,w) and len(a)==len(b)==1 and not rows(outside,w),"Two People carry same original, governor absent")
     check(a[0]["allocationId"]==primary and a[0]["allocationRole"]=="responsible" and b[0]["allocationId"]==part and b[0]["allocationRole"]=="participant" and b[0]["canPlace"] is False,"Roles confused")
@@ -157,7 +143,35 @@ def main():
     tomorrow=today+timedelta(days=1);plan(tomorrow)
     x,y=rows(worker,scheduled),rows(other,scheduled)
     check(x[0]["planId"]==y[0]["planId"] and x[0]["exposureDate"]==y[0]["exposureDate"]==tomorrow.isoformat() and not rows(root,scheduled),"Reschedule changed original or governor admission")
+    # Exercise the actual browser self-join and leave source, independent of
+    # the third-party assignment scenario above. Exact own allocation replay.
+    me=record(); main=assign(me)
+    eligible="native_original_work_self_participation_self_api_v1"
+    join="join_native_original_work_self_api_v1"
+    leave="leave_native_original_work_self_api_v1"
+    pre=ok(root,eligible,scope(me))
+    check(pre["canJoin"] is True and pre["canLeave"] is False and pre["primaryAllocationId"]==main,"Self eligibility mismatch")
+    jargs=dict(scope(me),p_source_action_id=ident())
+    for tok in (worker,other,outside):
+        deny(tok,eligible,scope(me));deny(tok,join,jargs)
+    before=counts()
+    j=ok(root,join,jargs);own=j["allocationId"]
+    check(j["allocationRole"]=="participant" and j["personId"]==OWNER and j["workCopied"] is False
+          and j["primaryResponsibilityChanged"] is False and j["resultRecorded"] is False,"Invalid join receipt")
+    check(ok(root,join,jargs)["allocationId"]==own and len(rows(root,me))==1 and len(rows(worker,me))==1,"Self join or replay failed")
+    check(counts()==before,"Self join altered Work, legacy membership, plan or Result")
+    pre=ok(root,eligible,scope(me))
+    check(pre["canLeave"] is True and pre["participantAllocationId"]==own and pre["canJoin"] is False,"Joined state mismatch")
+    leaveargs=dict(scope(me),p_participant_allocation_id=own)
+    deny(worker,leave,leaveargs)
+    deny(root,leave,dict(leaveargs,p_participant_allocation_id=main))
+    check(ok(root,leave,leaveargs)["allocationState"]=="released" and not rows(root,me) and len(rows(worker,me))==1,"Self leave changed primary")
+    check(ok(root,leave,leaveargs)["idempotent"] is True,"Self leave replay not stable")
+    # Actual wrapper ACLs must deny unsigned callers, not simply omit routes.
+    deny(None,READ,dict(p_limit=100,p_after_allocation_id=None))
+    deny(None,CHANGE,change(me,main))
+    check(counts()==before,"Self leave altered Work, legacy membership, plan or Result")
     Path(opts.output).parent.mkdir(parents=True,exist_ok=True)
-    Path(opts.output).write_text("PASS three signed People, two carriers, one original, reciprocal notes, revocation, terminal, scheduled and rescheduled\n")
+    Path(opts.output).write_text("PASS three signed People, two carriers, one original, reciprocal notes, revocation, terminal, scheduled and rescheduled, exact REST wrappers, roster and self join/leave\n")
 
 if __name__=="__main__": main()

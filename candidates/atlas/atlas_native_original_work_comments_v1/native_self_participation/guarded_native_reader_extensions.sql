@@ -505,4 +505,36 @@ begin
 end
 $function$;
 
+-- Release-candidate REST wrappers. Exact source admitted ONLY in disposable clone
+-- until explicit migration authorization. Internal functions remain private.
+CREATE FUNCTION public.connected_person_my_work_self_api_v2(p_limit integer DEFAULT 50,p_after_allocation_id uuid DEFAULT NULL)
+ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+ AS $api$ SELECT atlas.connected_person_my_work_self_api_v2($1,$2) $api$;
+REVOKE ALL ON FUNCTION public.connected_person_my_work_self_api_v2(integer,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.connected_person_my_work_self_api_v2(integer,uuid) TO authenticated;
+CREATE FUNCTION public.owner_native_work_participation_roster_self_api_v1(p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+ AS $api$ SELECT atlas.owner_native_work_participation_roster_self_api_v1($1,$2,$3) $api$;
+REVOKE ALL ON FUNCTION public.owner_native_work_participation_roster_self_api_v1(uuid,uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.owner_native_work_participation_roster_self_api_v1(uuid,uuid,uuid) TO authenticated;
+CREATE FUNCTION public.owner_change_native_work_participation_self_api_v1(p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_target_person_id uuid,p_expected_primary_allocation_id uuid,p_action text,p_source_action_id uuid,p_expected_participant_allocation_id uuid DEFAULT NULL)
+ RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
+ AS $api$ SELECT atlas.owner_change_native_work_participation_self_api_v1($1,$2,$3,$4,$5,$6,$7,$8) $api$;
+REVOKE ALL ON FUNCTION public.owner_change_native_work_participation_self_api_v1(uuid,uuid,uuid,uuid,uuid,text,uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.owner_change_native_work_participation_self_api_v1(uuid,uuid,uuid,uuid,uuid,text,uuid,uuid) TO authenticated;
+CREATE FUNCTION public.native_original_work_self_participation_self_api_v1(p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid)
+ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO ''
+ AS $api$ SELECT atlas.native_original_work_self_participation_self_api_v1($1,$2,$3) $api$;
+REVOKE ALL ON FUNCTION public.native_original_work_self_participation_self_api_v1(uuid,uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.native_original_work_self_participation_self_api_v1(uuid,uuid,uuid) TO authenticated;
+CREATE FUNCTION public.join_native_original_work_self_api_v1(p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_source_action_id uuid)
+ RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
+ AS $api$ SELECT atlas.join_native_original_work_self_api_v1($1,$2,$3,$4) $api$;
+REVOKE ALL ON FUNCTION public.join_native_original_work_self_api_v1(uuid,uuid,uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.join_native_original_work_self_api_v1(uuid,uuid,uuid,uuid) TO authenticated;
+CREATE FUNCTION public.leave_native_original_work_self_api_v1(p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_participant_allocation_id uuid)
+ RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path TO ''
+ AS $api$ SELECT atlas.leave_native_original_work_self_api_v1($1,$2,$3,$4) $api$;
+REVOKE ALL ON FUNCTION public.leave_native_original_work_self_api_v1(uuid,uuid,uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.leave_native_original_work_self_api_v1(uuid,uuid,uuid,uuid) TO authenticated;
 COMMIT;
