@@ -127,6 +127,8 @@ BEGIN
             AND other.assignee_canonical_person_id=v_self AND other.id<>a.id)
       ))
       AND w.work_state='open'
+      -- Preserve November 12 ACCESS-02 for EVERY allocation role before projection.
+      AND coalesce(relevance.has_relevance,false)
       AND atlas.person_original_work_identity_disclosed_self_v1(w.organization_id,(a.establishment_basis->>'nativeLedgerId')::uuid,w.id,v_self)
       AND (p_after_allocation_id IS NULL OR a.id>p_after_allocation_id)
       AND atlas.person_has_native_ledger_connection_v1(

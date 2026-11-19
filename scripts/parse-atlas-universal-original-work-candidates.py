@@ -126,3 +126,13 @@ if w07.is_dir():
         raise SystemExit("W07 local-only signed probe contains a production endpoint")
     print("PASS W07 source grammar plus parseable local-only signed GoTrue/REST probe")
     print("PENDING W07 real protected disposable signed-clone execution")
+
+# Parse the signed three-Person probe and assert the current ACCESS-02 gate
+# stays BEFORE any role-aware projection or pagination.
+shared=w07/"native_self_participation"
+if shared.is_dir():
+    probe=shared/"validate_signed_shared_work.py"
+    ast.parse(probe.read_text(),filename=str(probe))
+    reader=(shared/"guarded_native_reader_extensions.sql").read_text()
+    assert 0 < reader.index("AND coalesce(relevance.has_relevance,false)") < reader.index("AND atlas.person_original_work_identity_disclosed_self_v1") < reader.index("LIMIT p_limit+1")
+    print("PASS shared Work probe syntax and mandatory current relevance guard; signed clone still pending")
