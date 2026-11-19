@@ -366,8 +366,8 @@ if [ "$lane" = "atlas" ] &&
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$clean_initial_proof" ] ||
      [ "$(git hash-object "$candidate_migration")" != 27561382cbc33be1da2b1128481702b2d511001f ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 6039b9a3d637cb666ec52c7df5177abcb2929c19 ] ||
-     [ "$(git hash-object "$candidate_validation")" != baa2facbd128dde93a002f2f142d4cc788182726 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != d0c82b47f242b3ef4fe077f86fd1d20f378e359f ] ||
+     [ "$(git hash-object "$candidate_validation")" != 23eaa37cd92a4e72ba954d5892e6b2bae0466aee ] ||
      [ "$(git hash-object "$clean_initial_proof")" != 1251c8971f26518220f8e8851ce9b220b10e60af ] ||
      [ "$(git hash-object "$(dirname "$clean_initial_proof")/validate_signed_renewal_attention.py")" != 9440ffcedd817b33e2736a969e40c523f75e18a3 ]; then
     echo "Exact held clean Need renewal initial repair and local-only proof bytes required." >&2
@@ -402,8 +402,8 @@ if [ "$lane" = "atlas" ] &&
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$clean_due_proof" ] ||
      [ "$(git hash-object "$candidate_migration")" != 27561382cbc33be1da2b1128481702b2d511001f ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 6039b9a3d637cb666ec52c7df5177abcb2929c19 ] ||
-     [ "$(git hash-object "$candidate_validation")" != baa2facbd128dde93a002f2f142d4cc788182726 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != d0c82b47f242b3ef4fe077f86fd1d20f378e359f ] ||
+     [ "$(git hash-object "$candidate_validation")" != 23eaa37cd92a4e72ba954d5892e6b2bae0466aee ] ||
      [ "$(git hash-object "$clean_due_proof")" != 6be4632c95c076e3a962a7b8e10967063cc14984 ] ||
      [ "$(git hash-object "$(dirname "$clean_due_proof")/validate_signed_renewal_due.py")" != cbb87cb6cd0feadb459007bc6938f0f566454598 ]; then
     echo "Exact held clean Need renewal due repair and local-only proof bytes required." >&2

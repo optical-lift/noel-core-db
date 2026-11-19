@@ -420,14 +420,14 @@ if 'signed-household-renewal-due-summary.txt' not in harness:
 # Exact held clean Need renewal initial repair: preserve the one canonical protected carrier;
 # owner request and immutable SQL/fixture/proof bytes, local-only execution.
 for fragment in ("Production schema validation request: Atlas held clean Need renewal initial",
-                 "1002e4368deb89f65eff373454bde7a1163d8941", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
+                 "b5a64691e1e5f96741bde81469f636b8356198b4", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
                  "supabase migration new atlas_household_need_renewal_clean_initial_clone_only_v1",
                  "actual_version=$version", "held_proof"):
     if fragment not in workflow:
         errors.append("Held clean Need renewal initial request boundary missing: "+fragment)
 for fragment in ("27561382cbc33be1da2b1128481702b2d511001f",
-                 "baa2facbd128dde93a002f2f142d4cc788182726",
-                 "6039b9a3d637cb666ec52c7df5177abcb2929c19",
+                 "23eaa37cd92a4e72ba954d5892e6b2bae0466aee",
+                 "d0c82b47f242b3ef4fe077f86fd1d20f378e359f",
                  "1251c8971f26518220f8e8851ce9b220b10e60af", "9440ffcedd817b33e2736a969e40c523f75e18a3"):
     if fragment not in workflow or fragment not in harness:
         errors.append("Held clean Need renewal initial immutable package pin missing: "+fragment)
@@ -439,14 +439,14 @@ if 'signed-clean-renewal-initial-summary.txt' not in harness:
 # Exact held clean Need renewal due repair: preserve the one canonical protected carrier;
 # owner request and immutable SQL/fixture/proof bytes, local-only execution.
 for fragment in ("Production schema validation request: Atlas held clean Need renewal due",
-                 "1002e4368deb89f65eff373454bde7a1163d8941", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
+                 "b5a64691e1e5f96741bde81469f636b8356198b4", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
                  "supabase migration new atlas_household_need_renewal_clean_due_clone_only_v1",
                  "actual_version=$version", "held_proof"):
     if fragment not in workflow:
         errors.append("Held clean Need renewal due request boundary missing: "+fragment)
 for fragment in ("27561382cbc33be1da2b1128481702b2d511001f",
-                 "baa2facbd128dde93a002f2f142d4cc788182726",
-                 "6039b9a3d637cb666ec52c7df5177abcb2929c19",
+                 "23eaa37cd92a4e72ba954d5892e6b2bae0466aee",
+                 "d0c82b47f242b3ef4fe077f86fd1d20f378e359f",
                  "6be4632c95c076e3a962a7b8e10967063cc14984", "cbb87cb6cd0feadb459007bc6938f0f566454598"):
     if fragment not in workflow or fragment not in harness:
         errors.append("Held clean Need renewal due immutable package pin missing: "+fragment)
