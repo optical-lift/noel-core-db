@@ -25,7 +25,7 @@ BEGIN
  SELECT * INTO c FROM atlas.delegated_agent_credentials
   WHERE token_hash=p_token_hash AND authorization_id=aid FOR SHARE;
  IF NOT FOUND OR c.credential_state<>'active' OR c.begins_at>clock_timestamp()
-  OR c.expires_at IS NULL OR c.expires_at<=clock_timestamp()
+  OR (c.expires_at IS NOT NULL AND c.expires_at<=clock_timestamp())
   OR c.expires_at IS DISTINCT FROM a.ends_at
   OR c.metadata->>'privateCarrierCredentialV1' IS DISTINCT FROM 'true'
   OR NOT atlas.private_atlas_carrier_working_grant_current_v1(aid) THEN
