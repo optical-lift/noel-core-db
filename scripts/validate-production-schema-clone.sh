@@ -29,6 +29,7 @@ roles_dump=""
 schema_dump=""
 artifacts_dir=""
 pre1_rest_proof=false
+t5_rollback_shape=false
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -41,6 +42,7 @@ while [ "$#" -gt 0 ]; do
     --schema-dump) schema_dump="${2:-}"; shift 2 ;;
     --artifacts-dir) artifacts_dir="${2:-}"; shift 2 ;;
     --pre1-rest-proof) pre1_rest_proof=true; shift ;;
+    --t5-rollback-shape) t5_rollback_shape=true; shift ;;
     *) usage ;;
   esac
 done
@@ -73,6 +75,29 @@ if [ -n "$candidate_fixture" ]; then candidate_fixture="$(realpath "$candidate_f
 if [ -n "$candidate_validation" ]; then candidate_validation="$(realpath "$candidate_validation")"; fi
 roles_dump="$(realpath "$roles_dump")"
 schema_dump="$(realpath "$schema_dump")"
+
+# T5 is a distinct rollback-only schema-shape proof, not migration validation.
+# The existing paths retain all their ordinary candidate/lint/signed checks.
+if [ "$t5_rollback_shape" = true ]; then
+  if [ "$lane" != shared ] || [ "$version" != 20261119100000 ] ||
+     [ "$(basename "$candidate_migration")" != "20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql" ] ||
+     [ -n "$candidate_fixture" ] || [ -n "$candidate_validation" ] || [ "$pre1_rest_proof" = true ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'T5 requires the exact rollback-only scratch scope and no hosted credentials or fixture.' >&2
+    exit 2
+  fi
+  python3 - "$candidate_migration" <<'PY'
+from pathlib import Path
+import re,sys
+p = Path(sys.argv[1])
+s = p.read_text(encoding="utf-8")
+assert s.startswith("-- T5 PROTECTED SOURCE-SHAPE TEST ONLY; NOT A RELEASABLE MIGRATION.\nBEGIN;\n")
+assert re.findall(r"(?im)^\s*(BEGIN|COMMIT|ROLLBACK)\s*;", s) == ["BEGIN","ROLLBACK"]
+assert s.rstrip().endswith("ROLLBACK;")
+assert s.count("-- SOURCE SEGMENT START ") == 7
+assert s.count("-- SOURCE SEGMENT END ") == 7
+PY
+fi
 
 # The additional PRE1 PostgREST proof is opt-in ONLY for exactly reviewed
 # dropped-v1 source under a generated disposable scratch migration basename.
@@ -924,6 +949,30 @@ psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$roles_dump" \
 phase="production user-schema restore"
 psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$schema_clone" \
   >"$artifacts_dir/restore-schema.log" 2>&1
+
+# T5 only: use the job-created local database container's Unix socket.
+# Assertions run in the candidate transaction and it must roll back.
+# Do not enter migration application, persistent validation or release lint.
+if [ "$t5_rollback_shape" = true ]; then
+  phase="T5 disposable rollback-only shape"
+  local_project_id="$(python3 - "$project_dir/supabase/config.toml" <<'PY'
+import re,sys,tomllib
+with open(sys.argv[1],"rb") as f:
+    value=tomllib.load(f)["project_id"]
+assert re.fullmatch(r"validation_20261119100000_[0-9a-f]{8}",value)
+print(value)
+PY
+)"
+  local_container="supabase_db_$local_project_id"
+  test "$(docker inspect --format '{{.State.Running}}' "$local_container")" = true
+  docker port "$local_container" 5432/tcp | grep -Eq ":$local_database_port$"
+  test "$(docker exec "$local_container" psql -X -U postgres -d postgres -Atqc "SELECT current_setting('server_version_num')::int/10000,inet_server_addr() IS NULL,current_user")" = '17|t|postgres'
+  docker exec -i "$local_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+    <"$candidate_migration" >"$artifacts_dir/t5-rollback-only.log" 2>&1
+  test "$(docker exec "$local_container" psql -X -U postgres -d postgres -Atqc "SELECT to_regclass('atlas.teaching_course_composition_revisions') IS NULL AND to_regclass('atlas.teaching_course_private_answer_submissions') IS NULL AND NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='atlas.teaching_course_versions'::regclass AND attname='publication_request_id' AND NOT attisdropped)")" = t
+  echo 'PASS T5 restored schema compilation and private ACL postconditions; rollback confirmed.'
+  exit 0
+fi
 
 run_lint() {
   lint_name="$1"
