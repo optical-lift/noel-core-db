@@ -136,6 +136,7 @@ signed_household_renewal_due_probe=false
 signed_clean_renewal_due_probe=false
 signed_work_self_assignment_probe=false
 signed_native_intake_responsibility_probe=false
+signed_native_work_journal_probe=false
 signed_native_original_work_comments_probe=false
 signed_care_single_done_probe=false
 signed_native_work_release_probe=false
@@ -248,6 +249,24 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_native_intake_responsibility_probe=true
+fi
+
+# Exact held native-work-journal candidate, local clone only, never a release version.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_native_work_journal_clone_only_v1[.]sql$ ]]; then
+  native_work_journal_proof="$repo_root/candidates/atlas/native_work_record_and_journal_v1/validate_signed_native_work_journal.py"
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$native_work_journal_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != b3b0665e0bdbc535e523a48a0a7983bf8cb26bfe ] ||
+     [ "$(git hash-object "$candidate_validation")" != 53997b95d3ae427a996c5101a2513d397ac1c002 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 545fbce53ef2bafba2c83cacabea5dc6f28759ef ] ||
+     [ "$(git hash-object "$native_work_journal_proof")" != 4ea6883b021cbb9e573c13281fd2ca3bd5ed461e ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
+    echo "Native intake proof requires exact reviewed source and synthetic fixture." >&2
+    exit 2
+  fi
+  signed_native_work_journal_probe=true
 fi
 
 # W07 exact scratch-only original Work comments, never a released migration.
@@ -832,6 +851,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_universal_original_work_probe" = true ] ||
        [ "$signed_work_self_assignment_probe" = true ] ||
        [ "$signed_native_intake_responsibility_probe" = true ] ||
+       [ "$signed_native_work_journal_probe" = true ] ||
        [ "$signed_native_original_work_comments_probe" = true ] ||
        [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
@@ -856,6 +876,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
        [ "$signed_native_intake_responsibility_probe" = true ] ||
+       [ "$signed_native_work_journal_probe" = true ] ||
        [ "$signed_native_original_work_comments_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
@@ -1191,6 +1212,15 @@ if [ "$signed_native_intake_responsibility_probe" = true ]; then
   grep -q '^PASS native intake signed self-assignment' "$artifacts_dir/signed-native-intake-responsibility-summary.txt"
 fi
 
+if [ "$signed_native_work_journal_probe" = true ]; then
+  phase="signed governor recording and actual-day Work journal"
+  python3 "$native_work_journal_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-native-work-journal-summary.txt" \
+    >"$artifacts_dir/signed-native-work-journal.log" 2>&1
+  test -s "$artifacts_dir/signed-native-work-journal-summary.txt"
+  grep -q '^PASS signed governor recording' "$artifacts_dir/signed-native-work-journal-summary.txt"
+fi
+
 if [ "$signed_native_original_work_comments_probe" = true ]; then
   phase="genuine local signed W07 original Work comments and revocation"
   python3 "$repo_root/scripts/validate-atlas-native-original-work-comments-signed-http.py" \
@@ -1509,6 +1539,9 @@ if [ "$signed_native_work_release_probe" = true ]; then
 fi
 if [ "$signed_native_intake_responsibility_probe" = true ]; then
   printf '\nSIGNED native Ledger intake: fixed source, same original, self assignment, unscheduled transfer, replay, signed own Result and revocation on disposable clone only.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_native_work_journal_probe" = true ]; then
+  printf '\nSIGNED native Work journal: governor recording, participant review, actual/recorded civil day, self vs other and revoked authority on disposable clone only.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_native_original_work_comments_probe" = true ]; then
   printf '\nSIGNED W07 original Work comments: four distinct local GoTrue sessions, scoped source read/write, denial, replay, paging and revocation. No Production writes.\n' >> "$artifacts_dir/summary.md"
