@@ -49,7 +49,7 @@ begin
     raise exception 'Listening artifact does not match its production and delivery lineage' using errcode='23514';
   end if;
   return new;
-end
+end;
 $fn$;
 revoke all on function transcript_core.guard_listening_delivery_artifact_v1() from public, anon, authenticated, service_role;
 create trigger guard_listening_delivery_artifact_v1
