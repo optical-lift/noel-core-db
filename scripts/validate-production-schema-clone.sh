@@ -1020,14 +1020,26 @@ run_lint() {
 }
 
 # W07 direct-original only: re-establish the verified released REST ACL
-# baseline before applying the exact held function-only correction. A known
-# Supabase local restore can retain extra default role grants absent live.
+# baseline for the exact held correction or its byte-identical generated
+# migration package. Signed tests confirmed the local restore creates 16
+# extra direct grants; the same correction is required in the release clone.
 # No production credentials, arbitrary package, or release-script path.
-if [ "$signed_native_original_work_comments_probe" = true ] &&
-   [[ "${REQUEST_SCOPE:-}" == w07_direct_original_* ]]; then
+w07_generated_parity=false
+if [ "$version" = 20261119230336 ] &&
+   [ "$(basename "$candidate_migration")" = 20261119230336_atlas_native_shared_work_direct_original_v1.sql ]; then
+  w07_generated_parity=true
+fi
+if { [ "$signed_native_original_work_comments_probe" = true ] &&
+     [[ "${REQUEST_SCOPE:-}" == w07_direct_original_* ]]; } ||
+   [ "$w07_generated_parity" = true ]; then
   phase="W07 disposable direct-original REST ACL parity"
-  if [[ "${REQUEST_SCOPE:-}" != w07_direct_original_signed_clone_test_only &&
-        "${REQUEST_SCOPE:-}" != w07_direct_original_privacy_clone_test_only ]] ||
+  if { [ "$w07_generated_parity" = false ] &&
+       [[ "${REQUEST_SCOPE:-}" != w07_direct_original_signed_clone_test_only &&
+          "${REQUEST_SCOPE:-}" != w07_direct_original_privacy_clone_test_only ]]; } ||
+     { [ "$w07_generated_parity" = true ] &&
+       { [ -n "${REQUEST_SCOPE:-}" ] ||
+         [ -z "$candidate_fixture" ] ||
+         [ "$(git hash-object "$candidate_fixture")" != 5689af4e122c358261ea5f43b67c80098b6d5edf ]; }; } ||
      [ "$lane" != atlas ] ||
      [ "$(git hash-object "$candidate_migration")" != e590441c4c10a75c15f811227b9f62a15f0be107 ] ||
      [ "$(git hash-object "$candidate_validation")" != 1a21fffea419280775ae532fa351d2a1e1b94d02 ] ||
