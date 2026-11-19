@@ -11,6 +11,8 @@ BEGIN
   'atlas.teaching_course_private_study_unit_decisions','SELECT')
  OR has_table_privilege('authenticated',
   'atlas.teaching_course_private_study_unit_decisions','INSERT')
+ OR has_function_privilege('anon','public.shared_teaching_private_study_index_self_api_v1(uuid)','EXECUTE')
+ OR NOT has_function_privilege('authenticated','public.shared_teaching_private_study_index_self_api_v1(uuid)','EXECUTE')
  OR has_function_privilege('anon',
   'public.shared_teaching_private_study_sealed_unit_read_self_api_v1(uuid,uuid)','EXECUTE')
  OR has_function_privilege('anon',
@@ -84,6 +86,7 @@ BEGIN
    '31111111-1111-4111-8111-111111111111');
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'mere acceptance exposed sealed content'; END IF;
+ IF public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_a')::uuid)->'units' <> '[]'::jsonb THEN RAISE EXCEPTION 'unissued index exposed metadata'; END IF;
 END $a_accept_without_materials$;
 RESET ROLE;
 SET LOCAL ROLE authenticated;
@@ -184,6 +187,14 @@ BEGIN
    '32222222-2222-4222-8222-222222222222');
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'A read ungranted Homework Unit'; END IF;
+ j:=public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_a')::uuid);
+ IF jsonb_array_length(j->'units')<>1 OR j->'units'->0->>'unitId'<>'31111111-1111-4111-8111-111111111111'
+ OR j->'units'->0 ? 'text' OR j ? 'curriculum' OR j->'units'->0->>'courseVersionId'<>current_setting('app.fictional_published_version_id')
+ THEN RAISE EXCEPTION 'issued index exposed wrong edition or broader material'; END IF;
+ denied:=false;
+ BEGIN PERFORM public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_b')::uuid);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'A could discover B index'; END IF;
 END $a_reads_e1$;
 RESET ROLE;
 
@@ -233,6 +244,7 @@ BEGIN
  IF j->'unit'->>'text'<>'Revised class law statement.'
  OR j->>'courseVersionId'<>current_setting('app.fictional_published_version_id')
  THEN RAISE EXCEPTION 'A was silently advanced to E2'; END IF;
+ IF public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_a')::uuid)->'units'->0->>'courseVersionId'<>current_setting('app.fictional_published_version_id') THEN RAISE EXCEPTION 'A index advanced to E2'; END IF;
 END $a_stays_e1$;
 RESET ROLE;
 SET LOCAL ROLE authenticated;
@@ -246,6 +258,7 @@ BEGIN
  IF j->'unit'->>'text' IS DISTINCT FROM E'Fictional E2 lesson\r\nNew observation\r\n\r\n## Question {#titus-activity:12345678-1234-4234-8234-123456789abc}\r\n\r\nWhat changed?'
  OR j->>'courseVersionId'<>current_setting('app.private_version_e2')
  THEN RAISE EXCEPTION 'B did not receive exact authorized E2'; END IF;
+ IF public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_b')::uuid)->'units'->0->>'courseVersionId'<>current_setting('app.private_version_e2') THEN RAISE EXCEPTION 'B index did not receive E2'; END IF;
  BEGIN
   PERFORM public.shared_teaching_private_study_sealed_unit_read_self_api_v1(
    current_setting('app.private_e_a')::uuid,
@@ -283,6 +296,7 @@ BEGIN
    '31111111-1111-4111-8111-111111111111');
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'author withdrawn Unit still disclosed'; END IF;
+ IF public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_a')::uuid)->'units'<>'[]'::jsonb THEN RAISE EXCEPTION 'withheld Unit still in index'; END IF;
 END $a_withheld$;
 RESET ROLE;
 
@@ -301,6 +315,10 @@ BEGIN
    '31111111-1111-4111-8111-111111111111');
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'withdrawn B still reads E2'; END IF;
+ denied:=false;
+ BEGIN PERFORM public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_b')::uuid);
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'withdrawn B still has index'; END IF;
  denied:=false;
  BEGIN PERFORM public.shared_teaching_private_study_answer_save_self_api_v1(current_setting('app.private_e_b')::uuid,
  '31111111-1111-4111-8111-111111111111',current_setting('app.t4_snapshot')::uuid,current_setting('app.t4_revision')::uuid,'12345678-1234-4234-8234-123456789abc',gen_random_uuid(),2,'After withdrawal');

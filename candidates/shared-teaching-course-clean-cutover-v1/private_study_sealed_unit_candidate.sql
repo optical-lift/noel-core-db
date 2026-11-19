@@ -211,3 +211,46 @@ GRANT EXECUTE ON FUNCTION
  TO authenticated;
 -- Complete a separately governed student source (notes, submissions,
 -- feedback and encounter history) BEFORE claiming functional classroom.
+
+-- T5b: metadata-only index of the exact currently issued Units, not curriculum
+-- disclosure. Reuse the one-Unit reader's authority and immutable edition.
+CREATE FUNCTION public.shared_teaching_private_study_index_self_api_v1(p_invitation_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog
+AS $index$
+DECLARE v_person uuid;v_inv atlas.teaching_course_private_study_invitations%ROWTYPE;
+ v_unit_id uuid;v_record jsonb;v_items jsonb:='[]'::jsonb;v_count integer:=0;
+BEGIN
+ v_person:=atlas.current_person_for_private_course_v1();
+ SELECT i.* INTO v_inv FROM atlas.teaching_course_private_study_invitations i
+ WHERE i.invitation_id=p_invitation_id AND i.learner_person_entity_id=v_person;
+ IF v_inv.invitation_id IS NULL THEN
+  RAISE EXCEPTION 'current own private study required' USING ERRCODE='42501'; END IF;
+ PERFORM 1 FROM atlas.teaching_courses c WHERE c.id=v_inv.course_id AND c.status='active'
+  AND c.created_by_person_entity_id=v_inv.invited_by_person_entity_id FOR SHARE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'current exact Course required' USING ERRCODE='42501'; END IF;
+ SELECT i.* INTO v_inv FROM atlas.teaching_course_private_study_invitations i
+ WHERE i.invitation_id=p_invitation_id AND i.learner_person_entity_id=v_person FOR SHARE;
+ IF v_inv.invitation_id IS NULL OR NOT atlas.private_course_study_current_v1(v_inv.course_id,v_person)
+ THEN RAISE EXCEPTION 'current signed accepted study required' USING ERRCODE='42501'; END IF;
+ FOR v_unit_id IN SELECT latest.unit_id FROM (
+   SELECT DISTINCT ON(d.unit_id) d.unit_id,d.decision FROM atlas.teaching_course_private_study_unit_decisions d
+   WHERE d.invitation_id=p_invitation_id ORDER BY d.unit_id,d.event_seq DESC
+  ) latest WHERE latest.decision='allow' ORDER BY latest.unit_id LIMIT 101
+ LOOP
+  v_count:=v_count+1;
+  IF v_count>100 THEN RAISE EXCEPTION 'issued study index exceeds bounded view' USING ERRCODE='54000'; END IF;
+  v_record:=public.shared_teaching_private_study_sealed_unit_read_self_api_v1(p_invitation_id,v_unit_id);
+  v_items:=v_items||jsonb_build_array(jsonb_build_object(
+   'unitId',v_record->'unitId','courseVersionId',v_record->'courseVersionId',
+   'snapshotId',v_record->'snapshotId','revisionId',v_record->'unit'->'revisionId',
+   'title',v_record->'unit'->'title','kind',v_record->'unit'->'kind',
+   'position',v_record->'unit'->'position'));
+ END LOOP;
+ SELECT coalesce(jsonb_agg(x.item ORDER BY (x.item->>'position')::integer,x.item->>'unitId'),'[]'::jsonb)
+ INTO v_items FROM jsonb_array_elements(v_items) x(item);
+ RETURN jsonb_build_object('contractVersion','private_study_issued_index_v1',
+  'invitationId',p_invitation_id,'courseId',v_inv.course_id,'units',v_items,
+  'canReadCurriculum',false,'canReadManuscript',false);
+END $index$;
+REVOKE ALL ON FUNCTION public.shared_teaching_private_study_index_self_api_v1(uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.shared_teaching_private_study_index_self_api_v1(uuid) TO authenticated;
