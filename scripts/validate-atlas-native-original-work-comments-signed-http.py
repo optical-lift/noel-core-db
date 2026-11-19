@@ -239,7 +239,7 @@ def canonical_event_native_worker_trial(db_url, api, key, owner, worker, no_seat
 
 
 def independently_accepted_participant_trial(db_url, api, key, owner, other, no_seat):
-    """Only a fictional, separately accepted membership participant on Work 903.
+    """Fictional legacy negative and native physical responsibility on Work 903.
 
     Preserve the preexisting C1 Work 902 Person-native responsibility unchanged.
     The signed third actor is originally denied and must remain denied after
@@ -360,6 +360,46 @@ def independently_accepted_participant_trial(db_url, api, key, owner, other, no_
            PARTICIPANT_MEMBERSHIP,PARTICIPATION_OFFER))=="1",
           "Third Person participation must trace the actual accepted offer")
 
+    mark_stage("legacy-accepted-carrier-denial")
+    forbidden(api,key,other,READ,read_args(work=w),
+              "even accepted legacy membership participation cannot admit new native notes")
+    forbidden(api,key,other,WRITE,
+              write_args(ACTION_PARTICIPATION_OTHER,"legacy acceptance only",work=w),
+              "retired carrier never authorizes new comment ink")
+    # Negative fixture above deliberately retained legacy acceptance evidence.
+    # Release fictional legacy allocations; establish a native responsibility
+    # using the same synthetic source-offer pattern as Work 902, no new seat.
+    mark_stage("native-physical-allocation-fixture")
+    native_offer="e5200000-0000-4000-8000-000000000987"
+    native_allocation="e5200000-0000-4000-8000-000000000988"
+    sql(db_url, f"""
+      UPDATE atlas.work_allocations SET state='released',released_at=now(),
+        release_reason='clone:legacy carrier retired from test'
+      WHERE id='{PARTICIPANT_ALLOCATION}'::uuid;
+      UPDATE atlas.work_allocations SET state='released',released_at=now(),
+        release_reason='clone:legacy carrier retired from test'
+      WHERE id='{OWNER_ALLOCATION}'::uuid;
+      INSERT INTO atlas.company_work_initial_responsibility_offers(
+        id,organization_id,work_item_id,ledger_id,offered_by_person_id,
+        target_person_id,reason,offer_state
+      ) VALUES ('{native_offer}'::uuid,'{ORG}'::uuid,'{w}'::uuid,
+        '{LEDGER}'::uuid,'{OWNER_PERSON}'::uuid,'{PARTICIPANT_PERSON}'::uuid,
+        'Fictional native physical Work fixture only','offered');
+      INSERT INTO atlas.work_allocations(
+        id,organization_id,work_item_id,allocation_role,state,
+        assignee_canonical_person_id,establishment_basis_kind,establishment_basis,metadata
+      ) VALUES ('{native_allocation}'::uuid,'{ORG}'::uuid,'{w}'::uuid,
+        'responsible','active','{PARTICIPANT_PERSON}'::uuid,
+        'person_connection_receiver_uptake',jsonb_build_object(
+          'contractVersion','exact_work_responsibility_establishment_v2',
+          'basisKind','person_connection_receiver_uptake','organizationId','{ORG}',
+          'workItemId','{w}','targetPersonId','{PARTICIPANT_PERSON}',
+          'nativeLedgerId','{LEDGER}','offerId','{native_offer}',
+          'uptakeKind','recipient_self_accepted'),
+        jsonb_build_object('cloneFixture','w07_native_physical_authority'));
+    """)
+    check(sql(db_url,f"select count(*) from atlas.work_allocations where id='{native_allocation}'::uuid and assignee_membership_id is null and assignee_canonical_person_id='{PARTICIPANT_PERSON}'::uuid and state='active'")=="1","Native physical fixture missing")
+    mark_stage("native-physical-signed-reader")
     empty=permitted(api,key,other,READ,read_args(work=w))
     check(empty.get("workItemId")==w and empty.get("items")==[],
           "Accepted participant failed independently scoped empty Work read")
@@ -563,16 +603,16 @@ def independently_accepted_participant_trial(db_url, api, key, owner, other, no_
       UPDATE atlas.work_allocations SET state='released',
         released_at=now(),release_reason='clone:w07-participation-withdrawn'
       WHERE id='%s'::uuid AND work_item_id='%s'::uuid
-    """ % (PARTICIPANT_ALLOCATION,w))
+    """ % (native_allocation,w))
     forbidden(api,key,other,READ,read_args(work=w),
-              "revoked accepted participant loses historical note read")
+              "revoked native responsible Person loses historical note read")
     forbidden(api,key,other,WRITE,
               write_args(ACTION_PARTICIPATION_OTHER,
                          "SYNTH_W07_PARTICIPATION_OTHER",work=w),
               "revoked accepted participant cannot replay old note")
     check(len(permitted(api,key,owner,READ,read_args(work=w))["items"])==4,
           "Original Work retains participant's authorship after withdrawal")
-    print("PASS W07 independently accepted third Person source-bound read/write, "
+    print("PASS W07 native third Person source-bound read/write after legacy acceptance denial, "
           "membership/offer-only denial, synthetic linked-occurrence identity "
           "disclosure and participant revocation")
 
@@ -978,7 +1018,7 @@ def main():
       "cross-person refresh, original idempotent replay and collision denial, "
       "page cursor, parallel same-key same/different-body race, "
       "signed revocation, canonical Event source and native worker disclosure, "
-      "independent accepted participant, synthetic "
+      "accepted legacy carrier denial, native physical responsibility, synthetic "
       "occurrence identity withhold/grant/regrant, historical original Work "
       "replay/read and new-write denial, signed farm/zone/Task/bed physical "
       "disclosure identity and condition withhold/regrant, "

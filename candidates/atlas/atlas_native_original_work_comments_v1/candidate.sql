@@ -160,25 +160,7 @@ BEGIN
           AND atlas.person_has_native_ledger_connection_v1(p_organization_id,p_ledger_id,primary_carrier.assignee_canonical_person_id)
       ) INTO v_person_work;
     END IF;
-    -- Accepted collaboration is a separate receiver-established allocation.
-    -- Membership + Ledger connection alone are never enough.
-    IF NOT v_person_work THEN
-      SELECT EXISTS (
-        SELECT 1 FROM atlas.work_allocations a
-        JOIN atlas.organization_memberships m
-          ON m.id=a.assignee_membership_id
-          AND m.organization_id=a.organization_id
-          AND m.user_id=auth.uid()
-        WHERE a.organization_id=p_organization_id
-          AND a.work_item_id=p_work_item_id
-          AND a.allocation_role IN ('participant','approver')
-          AND a.establishment_basis_kind='receiver_acceptance'
-          AND a.state='active'
-          AND atlas.organization_membership_present_effective_at_v1(
-            m.id,m.organization_id,now()
-          )
-      ) INTO v_person_work;
-    END IF;
+    -- Historical membership or receiver-acceptance rows confer no new comment access.
     IF NOT v_person_work THEN
       RAISE EXCEPTION 'Exact Work responsibility or accepted participation required'
         USING ERRCODE='42501';

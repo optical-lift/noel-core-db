@@ -115,8 +115,10 @@ if w07.is_dir():
     for token in required_sql:
         if token not in sql:
             raise SystemExit("W07 SQL source required token absent: "+token)
-    if "m.user_id=auth.uid()" not in sql or "m.person_id=v_person" in sql:
-        raise SystemExit("W07 accepted membership must match signed Auth owner, not legacy Person ID")
+    if "atlas.organization_memberships" in sql or "'receiver_acceptance'" in sql:
+        raise SystemExit("W07 cannot establish new comment authority from historical membership carriers")
+    if "legacy-accepted-carrier-denial" not in source or "native-physical-allocation-fixture" not in source:
+        raise SystemExit("W07 must deny legacy accepted collaboration and retain native physical signed tests")
     if "'self_adoption'" in sql:
         raise SystemExit("W07 must not admit a retired allocation establishment basis")
     for token in required_signed:
