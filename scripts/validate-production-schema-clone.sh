@@ -135,6 +135,7 @@ signed_clean_renewal_initial_probe=false
 signed_household_renewal_due_probe=false
 signed_clean_renewal_due_probe=false
 signed_work_self_assignment_probe=false
+signed_native_intake_responsibility_probe=false
 signed_native_original_work_comments_probe=false
 signed_care_single_done_probe=false
 signed_native_work_release_probe=false
@@ -229,6 +230,24 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_work_self_assignment_probe=true
+fi
+
+# Exact held native-intake candidate, local clone only, never a release version.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_native_intake_responsibility_clone_only_v1[.]sql$ ]]; then
+  native_intake_proof="$repo_root/candidates/atlas/native_intake_responsibility_v1/validate_signed_intake_responsibility.py"
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$native_intake_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 5fc59a4d3c3d24083037456bf3c488ae9318f3b6 ] ||
+     [ "$(git hash-object "$candidate_validation")" != dd1eb5d643926de75c4c4242bab490f336a2cdb4 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$native_intake_proof")" != e3c087a2c20015710f8c04d34a603f700a8dc2d6 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
+    echo "Native intake proof requires exact reviewed source and synthetic fixture." >&2
+    exit 2
+  fi
+  signed_native_intake_responsibility_probe=true
 fi
 
 # W07 exact scratch-only original Work comments, never a released migration.
@@ -812,6 +831,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_household_original_repair_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
        [ "$signed_work_self_assignment_probe" = true ] ||
+       [ "$signed_native_intake_responsibility_probe" = true ] ||
        [ "$signed_native_original_work_comments_probe" = true ] ||
        [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
@@ -835,6 +855,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
+       [ "$signed_native_intake_responsibility_probe" = true ] ||
        [ "$signed_native_original_work_comments_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
@@ -1161,6 +1182,15 @@ if [ "$signed_work_self_assignment_probe" = true ]; then
   grep -q '^PASS' "$artifacts_dir/signed-work-self-assignment-summary.txt"
 fi
 
+if [ "$signed_native_intake_responsibility_probe" = true ]; then
+  phase="signed exact native Ledger intake responsibility and Result matrix"
+  python3 "$native_intake_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-native-intake-responsibility-summary.txt" \
+    >"$artifacts_dir/signed-native-intake-responsibility.log" 2>&1
+  test -s "$artifacts_dir/signed-native-intake-responsibility-summary.txt"
+  grep -q '^PASS native intake signed self-assignment' "$artifacts_dir/signed-native-intake-responsibility-summary.txt"
+fi
+
 if [ "$signed_native_original_work_comments_probe" = true ]; then
   phase="genuine local signed W07 original Work comments and revocation"
   python3 "$repo_root/scripts/validate-atlas-native-original-work-comments-signed-http.py" \
@@ -1476,6 +1506,9 @@ if [ "$signed_personal_task_amendment_probe" = true ]; then
 fi
 if [ "$signed_native_work_release_probe" = true ]; then
   printf '\nSIGNED native Work editing/date/status: local independent GoTrue actors, original identity, stale edit, Result privacy, current plan and revoked seat all passed.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_native_intake_responsibility_probe" = true ]; then
+  printf '\nSIGNED native Ledger intake: fixed source, same original, self assignment, unscheduled transfer, replay, signed own Result and revocation on disposable clone only.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_native_original_work_comments_probe" = true ]; then
   printf '\nSIGNED W07 original Work comments: four distinct local GoTrue sessions, scoped source read/write, denial, replay, paging and revocation. No Production writes.\n' >> "$artifacts_dir/summary.md"

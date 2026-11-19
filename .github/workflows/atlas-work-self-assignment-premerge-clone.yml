@@ -456,3 +456,184 @@ jobs:
             ${{ runner.temp }}/w07-artifacts/signed-native-original-work-comments-summary.txt
           if-no-files-found: ignore
           retention-days: 14
+
+  # Additive test-only admission, exact held #2959. No release or old probe changes.
+  native-intake-source-contract:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify protected gate and existing clone controller without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby -r yaml -e 'YAML.load_file(".github/workflows/atlas-work-self-assignment-premerge-clone.yml")'
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path(".github/workflows/atlas-work-self-assignment-premerge-clone.yml").read_text().split("\n  native-intake-signed-clone:\n",1)[1]
+          h=Path("scripts/validate-production-schema-clone.sh").read_text()
+          for s in ("github.event.issue.author_association == 'OWNER'", "github.actor == github.repository_owner",
+                    "environment: production", "pulls/2959", "e76ad977c0432449938d3681b01c85daa2af7ccb", "native_intake_signed_clone_test_only"):
+              assert s in w,s
+          assert w.count("NOEL_CORE_DATABASE_URL:")==1
+          assert w.index("Snapshot production schema and roles READ ONLY for native intake") < w.index("Checkout exact held native intake source after snapshot")
+          assert h.count("signed_native_intake_responsibility_probe=true")==1
+          for s in ("5fc59a4d3c3d24083037456bf3c488ae9318f3b6","dd1eb5d643926de75c4c4242bab490f336a2cdb4","766ab2b69c53796ca6aa892d57a1188fab799bc8","e3c087a2c20015710f8c04d34a603f700a8dc2d6","1b82e698705e473280f1fc55b0e762bce243effb","eb3bbfb45848a7fca90cc503e153f1451d8d7471"):
+              assert s in h,s
+          for a,b in (("supabase"," db push"),("supabase"," db reset --linked"),("supabase migration"," repair"),("gh ","pr merge")):
+              assert a+b not in w
+          print("PASS fixed native intake source, local-only clone and unchanged privilege boundary")
+          PY
+      - name: Compile exact held signed test, no database credentials
+        uses: actions/checkout@v4
+        with:
+          ref: e76ad977c0432449938d3681b01c85daa2af7ccb
+          path: native-intake-source
+          persist-credentials: false
+      - name: Verify held test source bytes
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C native-intake-source rev-parse HEAD)" = e76ad977c0432449938d3681b01c85daa2af7ccb
+          test "$(git -C native-intake-source hash-object candidates/atlas/native_intake_responsibility_v1/validate_signed_intake_responsibility.py)" = e3c087a2c20015710f8c04d34a603f700a8dc2d6
+          python3 -m py_compile native-intake-source/candidates/atlas/native_intake_responsibility_v1/validate_signed_intake_responsibility.py
+
+  native-intake-signed-clone:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'Atlas native Ledger intake responsibility: protected signed clone test approval'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: read
+      pull-requests: read
+    steps:
+      - name: Require owner approval for exactly the reviewed held candidate
+        shell: bash
+        env:
+          BODY: ${{ github.event.issue.body }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          body=os.environ.get('BODY','')
+          assert re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',body,re.M)==['e76ad977c0432449938d3681b01c85daa2af7ccb']
+          assert re.findall(r'^scope:\s*([^\s]+)\s*$',body,re.M)==['native_intake_signed_clone_test_only']
+          PY
+          state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2959" --jq '.state + "|" + (.draft|tostring) + "|" + .head.sha')"
+          test "$state" = "open|true|e76ad977c0432449938d3681b01c85daa2af7ccb"
+      - name: Checkout canonical controller from main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Check existing release and clone custody
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/check-custody.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash scripts/check-production-release-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Install pinned Supabase CLI and authenticate existing registry
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/supabase.tgz
+          tar -xzf /tmp/supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USERNAME" --password-stdin
+      - name: Snapshot production schema and roles READ ONLY for native intake
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/native-intake-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/native-intake-schema.sql"
+          test -s "$RUNNER_TEMP/native-intake-roles.sql"
+          test -s "$RUNNER_TEMP/native-intake-schema.sql"
+      - name: Checkout exact held native intake source after snapshot
+        uses: actions/checkout@v4
+        with:
+          ref: e76ad977c0432449938d3681b01c85daa2af7ccb
+          path: held-native-intake
+          persist-credentials: false
+      - name: Assemble exact local-only clone inputs
+        id: scratch
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git -C held-native-intake rev-parse HEAD)" = e76ad977c0432449938d3681b01c85daa2af7ccb
+          test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+          test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+          test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+          held="$GITHUB_WORKSPACE/held-native-intake/candidates/atlas/native_intake_responsibility_v1"
+          test "$(git hash-object "$held/candidate.sql")" = 5fc59a4d3c3d24083037456bf3c488ae9318f3b6
+          test "$(git hash-object "$held/postconditions.sql")" = dd1eb5d643926de75c4c4242bab490f336a2cdb4
+          test "$(git hash-object "$held/validate_signed_intake_responsibility.py")" = e3c087a2c20015710f8c04d34a603f700a8dc2d6
+          mkdir -p "candidates/atlas/native_intake_responsibility_v1"
+          cp "$held/validate_signed_intake_responsibility.py" "candidates/atlas/native_intake_responsibility_v1/"
+          python3 -m py_compile "candidates/atlas/native_intake_responsibility_v1/validate_signed_intake_responsibility.py"
+          scratch="$RUNNER_TEMP/native-intake-scratch"
+          mkdir -p "$scratch"
+          (cd "$scratch"; supabase init --force; supabase migration new atlas_native_intake_responsibility_clone_only_v1)
+          mapfile -t found < <(find "$scratch/supabase/migrations" -maxdepth 1 -name '*_atlas_native_intake_responsibility_clone_only_v1.sql')
+          test "${#found[@]}" -eq 1
+          cp "$held/candidate.sql" "${found[0]}"
+          cmp "$held/candidate.sql" "${found[0]}"
+          version="$(basename "${found[0]}" | cut -d_ -f1)"
+          [[ "$version" =~ ^[0-9]{14}$ ]]
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "migration=${found[0]}" >> "$GITHUB_OUTPUT"
+          echo "postconditions=$held/postconditions.sql" >> "$GITHUB_OUTPUT"
+      - name: Run existing disposable clone and signed native intake proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version "${{ steps.scratch.outputs.version }}" \
+            --release-lane atlas \
+            --candidate-migration "${{ steps.scratch.outputs.migration }}" \
+            --candidate-fixture "validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+            --candidate-validation "${{ steps.scratch.outputs.postconditions }}" \
+            --roles-dump "$RUNNER_TEMP/native-intake-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/native-intake-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/native-intake-artifacts"
+          grep -q '^PASS native intake signed self-assignment' "$RUNNER_TEMP/native-intake-artifacts/signed-native-intake-responsibility-summary.txt"
+      - name: Publish bounded test evidence only
+        if: always()
+        shell: bash
+        run: |
+          echo 'Native intake clone only; no production mutation, data rows, migration or release.' >> "$GITHUB_STEP_SUMMARY"
+          if [[ -s "$RUNNER_TEMP/native-intake-artifacts/signed-native-intake-responsibility-summary.txt" ]]; then
+            cat "$RUNNER_TEMP/native-intake-artifacts/signed-native-intake-responsibility-summary.txt" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'Signed proof not completed; inspect failed clone stage.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Preserve summary only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-native-intake-protected-signed-summary
+          path: |
+            ${{ runner.temp }}/native-intake-artifacts/summary.md
+            ${{ runner.temp }}/native-intake-artifacts/signed-native-intake-responsibility-summary.txt
+          if-no-files-found: ignore
+          retention-days: 14
