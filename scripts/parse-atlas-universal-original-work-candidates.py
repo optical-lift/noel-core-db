@@ -12,6 +12,10 @@ root = Path(__file__).resolve().parents[1] / "candidates" / "atlas"
 paths = sorted(root.glob("*/candidate.sql"))
 paths += sorted(root.glob("*/guarded_native_reader_extensions.sql"))
 paths += sorted(root.glob("*/postconditions.sql"))
+# Nested held increments must be parsed too, not silently omitted.
+paths += sorted(root.glob("*/*/candidate.sql"))
+paths += sorted(root.glob("*/*/postconditions.sql"))
+paths += sorted(root.glob("*/*/guarded_native_reader_extensions.sql"))
 if len(paths) < 15:
     raise SystemExit(f"Missing original SQL candidate sources (found {len(paths)})")
 

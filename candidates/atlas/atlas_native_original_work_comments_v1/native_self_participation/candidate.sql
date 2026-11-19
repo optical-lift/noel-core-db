@@ -200,8 +200,7 @@ begin
   end if;
   return new;
 end
-$function$
-;
+$function$;
 create or replace function atlas.guard_work_allocation_participation_establishment_v1()
 returns trigger
 language plpgsql
@@ -238,165 +237,9 @@ begin
       or new.establishment_basis->>'workItemId' is distinct from new.work_item_id::text
       or new.establishment_basis->>'organizationId' is distinct from new.organization_id::text
       or new.establishment_basis->>'actorPersonId' is distinct from new.assignee_canonical_person_id::text
-      or coalesce(new.establishment_basis->>'sourceActionId','') !~ '^[0-9a-fA-F-]{36}
-     or new.establishment_basis is null
-     or jsonb_typeof(new.establishment_basis)<>'object' then
-    raise exception 'Active Company Work participation requires governed receiver acceptance.'
-      using errcode='23514';
-  end if;
-
-  if coalesce(new.establishment_basis->>'contractVersion','')<>'company_work_participation_establishment_v1'
-     or coalesce(new.establishment_basis->>'basisKind','')<>'receiver_acceptance'
-     or coalesce(new.establishment_basis->>'organizationId','')<>new.organization_id::text
-     or coalesce(new.establishment_basis->>'workItemId','')<>new.work_item_id::text
-     or coalesce(new.establishment_basis->>'assigneeMembershipId','')<>new.assignee_membership_id::text
-     or coalesce(new.establishment_basis->>'actorMembershipId','')<>new.assignee_membership_id::text
-     or coalesce(new.establishment_basis->>'allocationRole','')<>new.allocation_role
-     or coalesce(new.establishment_basis->>'sourceKind','')<>'company_work_participation_offer'
-     or nullif(btrim(coalesce(new.establishment_basis->>'sourceId','')),'') is null then
-    raise exception 'Company Work participation establishment basis does not match the exact allocation.'
-      using errcode='23514';
-  end if;
-
-  if new.assigned_by_membership_id is null
-     or new.assigned_by_membership_id<>new.assignee_membership_id then
-    raise exception 'Receiver-accepted participation must be established by the receiver carrier itself.'
-      using errcode='23514';
-  end if;
-
-  begin
-    v_offer_id:=(new.establishment_basis->>'sourceId')::uuid;
-  exception when others then
-    raise exception 'Participation sourceId must identify a valid participation offer.'
-      using errcode='23514';
-  end;
-
-  if not exists(
-    select 1
-    from atlas.company_work_participation_offers o
-    join atlas.organization_memberships m
-      on m.organization_id=o.organization_id
-     and m.person_id=o.target_person_entity_id
-     and m.id=new.assignee_membership_id
-    where o.id=v_offer_id
-      and o.organization_id=new.organization_id
-      and o.work_item_id=new.work_item_id
-      and o.allocation_role=new.allocation_role
-      and o.offer_state in ('offered','accepted')
-  ) then
-    raise exception 'Receiver-accepted participation must derive from the exact matching participation offer.'
-      using errcode='23514';
-  end if;
-
-  return new;
-end
-$function$;
-      or coalesce(new.establishment_basis->>'primaryAllocationId','') !~ '^[0-9a-fA-F-]{36}
-     or new.establishment_basis is null
-     or jsonb_typeof(new.establishment_basis)<>'object' then
-    raise exception 'Active Company Work participation requires governed receiver acceptance.'
-      using errcode='23514';
-  end if;
-
-  if coalesce(new.establishment_basis->>'contractVersion','')<>'company_work_participation_establishment_v1'
-     or coalesce(new.establishment_basis->>'basisKind','')<>'receiver_acceptance'
-     or coalesce(new.establishment_basis->>'organizationId','')<>new.organization_id::text
-     or coalesce(new.establishment_basis->>'workItemId','')<>new.work_item_id::text
-     or coalesce(new.establishment_basis->>'assigneeMembershipId','')<>new.assignee_membership_id::text
-     or coalesce(new.establishment_basis->>'actorMembershipId','')<>new.assignee_membership_id::text
-     or coalesce(new.establishment_basis->>'allocationRole','')<>new.allocation_role
-     or coalesce(new.establishment_basis->>'sourceKind','')<>'company_work_participation_offer'
-     or nullif(btrim(coalesce(new.establishment_basis->>'sourceId','')),'') is null then
-    raise exception 'Company Work participation establishment basis does not match the exact allocation.'
-      using errcode='23514';
-  end if;
-
-  if new.assigned_by_membership_id is null
-     or new.assigned_by_membership_id<>new.assignee_membership_id then
-    raise exception 'Receiver-accepted participation must be established by the receiver carrier itself.'
-      using errcode='23514';
-  end if;
-
-  begin
-    v_offer_id:=(new.establishment_basis->>'sourceId')::uuid;
-  exception when others then
-    raise exception 'Participation sourceId must identify a valid participation offer.'
-      using errcode='23514';
-  end;
-
-  if not exists(
-    select 1
-    from atlas.company_work_participation_offers o
-    join atlas.organization_memberships m
-      on m.organization_id=o.organization_id
-     and m.person_id=o.target_person_entity_id
-     and m.id=new.assignee_membership_id
-    where o.id=v_offer_id
-      and o.organization_id=new.organization_id
-      and o.work_item_id=new.work_item_id
-      and o.allocation_role=new.allocation_role
-      and o.offer_state in ('offered','accepted')
-  ) then
-    raise exception 'Receiver-accepted participation must derive from the exact matching participation offer.'
-      using errcode='23514';
-  end if;
-
-  return new;
-end
-$function$;
-      or coalesce(new.establishment_basis->>'nativeLedgerId','') !~ '^[0-9a-fA-F-]{36}
-     or new.establishment_basis is null
-     or jsonb_typeof(new.establishment_basis)<>'object' then
-    raise exception 'Active Company Work participation requires governed receiver acceptance.'
-      using errcode='23514';
-  end if;
-
-  if coalesce(new.establishment_basis->>'contractVersion','')<>'company_work_participation_establishment_v1'
-     or coalesce(new.establishment_basis->>'basisKind','')<>'receiver_acceptance'
-     or coalesce(new.establishment_basis->>'organizationId','')<>new.organization_id::text
-     or coalesce(new.establishment_basis->>'workItemId','')<>new.work_item_id::text
-     or coalesce(new.establishment_basis->>'assigneeMembershipId','')<>new.assignee_membership_id::text
-     or coalesce(new.establishment_basis->>'actorMembershipId','')<>new.assignee_membership_id::text
-     or coalesce(new.establishment_basis->>'allocationRole','')<>new.allocation_role
-     or coalesce(new.establishment_basis->>'sourceKind','')<>'company_work_participation_offer'
-     or nullif(btrim(coalesce(new.establishment_basis->>'sourceId','')),'') is null then
-    raise exception 'Company Work participation establishment basis does not match the exact allocation.'
-      using errcode='23514';
-  end if;
-
-  if new.assigned_by_membership_id is null
-     or new.assigned_by_membership_id<>new.assignee_membership_id then
-    raise exception 'Receiver-accepted participation must be established by the receiver carrier itself.'
-      using errcode='23514';
-  end if;
-
-  begin
-    v_offer_id:=(new.establishment_basis->>'sourceId')::uuid;
-  exception when others then
-    raise exception 'Participation sourceId must identify a valid participation offer.'
-      using errcode='23514';
-  end;
-
-  if not exists(
-    select 1
-    from atlas.company_work_participation_offers o
-    join atlas.organization_memberships m
-      on m.organization_id=o.organization_id
-     and m.person_id=o.target_person_entity_id
-     and m.id=new.assignee_membership_id
-    where o.id=v_offer_id
-      and o.organization_id=new.organization_id
-      and o.work_item_id=new.work_item_id
-      and o.allocation_role=new.allocation_role
-      and o.offer_state in ('offered','accepted')
-  ) then
-    raise exception 'Receiver-accepted participation must derive from the exact matching participation offer.'
-      using errcode='23514';
-  end if;
-
-  return new;
-end
-$function$;
+      or coalesce(new.establishment_basis->>'sourceActionId','') !~ '^[0-9a-fA-F-]{36}$'
+      or coalesce(new.establishment_basis->>'primaryAllocationId','') !~ '^[0-9a-fA-F-]{36}$'
+      or coalesce(new.establishment_basis->>'nativeLedgerId','') !~ '^[0-9a-fA-F-]{36}$'
       or atlas.native_intake_responsibility_owner_context_v1(
         new.organization_id,(new.establishment_basis->>'nativeLedgerId')::uuid,
         new.work_item_id) is distinct from new.assignee_canonical_person_id
@@ -472,7 +315,7 @@ $function$;
 CREATE OR REPLACE FUNCTION atlas.join_native_original_work_self_api_v1(
  p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_source_action_id uuid
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
-AS $fn$
+AS $function$
 DECLARE v_actor uuid; v_primary atlas.work_allocations%rowtype; v_part atlas.work_allocations%rowtype;
  v_replay boolean:=false;
 BEGIN
@@ -517,7 +360,7 @@ BEGIN
    'allocationState',v_part.state,'idempotent',v_replay,
    'primaryResponsibilityChanged',false,'workCopied',false,'resultRecorded',false);
 END
-$fn$;
+$function$;
 
 -- Internal source only until complete signed clone + participant readback,
 -- terminal lifecycle and retired legacy consumer proof. NO public wrapper/grant.
