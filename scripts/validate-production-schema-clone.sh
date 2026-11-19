@@ -1297,12 +1297,23 @@ fi
 
 if [ "$signed_native_original_work_comments_probe" = true ]; then
   phase="genuine local signed W07 original Work comments and revocation"
-  python3 "$repo_root/scripts/validate-atlas-native-original-work-comments-signed-http.py" \
-    --db-url "$database_url" \
-    --output "$artifacts_dir/signed-native-original-work-comments-summary.txt" \
-    >"$artifacts_dir/signed-native-original-work-comments.log" 2>&1
-  test -s "$artifacts_dir/signed-native-original-work-comments-summary.txt"
-  grep -q '^PASS W07 signed local GoTrue' "$artifacts_dir/signed-native-original-work-comments-summary.txt"
+  if [ "${W07_PROOF_SCOPE:-w07_signed_clone_test_only}" = "w07_shared_native_signed_clone_test_only" ]; then
+    phase="genuine local three-Person shared original Work"
+    python3 "$repo_root/candidates/atlas/atlas_native_original_work_comments_v1/native_self_participation/validate_signed_shared_work.py" \
+      --db-url "$database_url" \
+      --output "$artifacts_dir/signed-native-shared-work-summary.txt" \
+      >"$artifacts_dir/signed-native-shared-work.log" 2>&1
+    grep -q '^PASS three signed People' "$artifacts_dir/signed-native-shared-work-summary.txt"
+  elif [ "${W07_PROOF_SCOPE:-w07_signed_clone_test_only}" = "w07_signed_clone_test_only" ]; then
+    python3 "$repo_root/scripts/validate-atlas-native-original-work-comments-signed-http.py" \
+      --db-url "$database_url" \
+      --output "$artifacts_dir/signed-native-original-work-comments-summary.txt" \
+      >"$artifacts_dir/signed-native-original-work-comments.log" 2>&1
+    test -s "$artifacts_dir/signed-native-original-work-comments-summary.txt"
+    grep -q '^PASS W07 signed local GoTrue' "$artifacts_dir/signed-native-original-work-comments-summary.txt"
+  else
+    echo "Unrecognized W07 proof scope; refuse." >&2; exit 2
+  fi
 fi
 
 if [ "$signed_household_original_repair_probe" = true ]; then
@@ -1618,7 +1629,11 @@ if [ "$signed_native_work_journal_probe" = true ]; then
   printf '\nSIGNED native Work journal: governor recording, participant review, actual/recorded civil day, self vs other and revoked authority on disposable clone only.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_native_original_work_comments_probe" = true ]; then
-  printf '\nSIGNED W07 original Work comments: four distinct local GoTrue sessions, scoped source read/write, denial, replay, paging and revocation. No Production writes.\n' >> "$artifacts_dir/summary.md"
+  if [ "${W07_PROOF_SCOPE:-w07_signed_clone_test_only}" = "w07_shared_native_signed_clone_test_only" ]; then
+    printf '\nSIGNED native shared Work: three independent People, two assigned, governor not carrying, notes, terminal and one rescheduled plan; no Production writes.\n' >> "$artifacts_dir/summary.md"
+  else
+    printf '\nSIGNED W07 original Work comments: four distinct local GoTrue sessions, scoped source read/write, denial, replay, paging and revocation. No Production writes.\n' >> "$artifacts_dir/summary.md"
+  fi
 fi
 if [ "$signed_work_self_assignment_probe" = true ]; then
   printf '\\nSIGNED original Work: own-Person and other Person responsibility, exact idempotent replay, no forced plan/new Work, cross-Ledger denials and root/seat/session revocation passed on local clone.\\n' >> "$artifacts_dir/summary.md"

@@ -307,9 +307,10 @@ jobs:
           body=os.environ.get('BODY','')
           match=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',body,re.M)
           scope=re.findall(r'^scope:\s*([^\s]+)\s*$',body,re.M)
-          assert len(match)==1 and len(scope)==1 and scope[0]=='w07_signed_clone_test_only', 'W07 owner request must pin one SHA and scope'
+          assert len(match)==1 and len(scope)==1 and scope[0] in ('w07_signed_clone_test_only','w07_shared_native_signed_clone_test_only'), 'W07 owner request must pin one SHA and scope'
           with Path(os.environ['GITHUB_OUTPUT']).open('a') as f:
               f.write('candidate_sha='+match[0]+'\n')
+              f.write('scope='+scope[0]+'\n')
           PY
       - name: Checkout canonical protected clone controller from main
         uses: actions/checkout@v4
@@ -407,9 +408,33 @@ jobs:
           mapfile -t migrations < <(find "$scratch/supabase/migrations" -maxdepth 1 -name '*_atlas_native_original_work_comments_signed_clone_only_v1.sql')
           test "${#migrations[@]}" -eq 1
           candidate="$GITHUB_WORKSPACE/held/candidates/atlas/atlas_native_original_work_comments_v1"
-          cp "$candidate/candidate.sql" "${migrations[0]}"
-          cat validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql "$candidate/fixture.sql" > "$scratch/w07-fixture.sql"
-          cmp "$candidate/candidate.sql" "${migrations[0]}"
+          if [[ "${{ steps.pin.outputs.scope }}" == "w07_shared_native_signed_clone_test_only" ]]; then
+            shared="$candidate/native_self_participation"
+            for f in candidate.sql guarded_native_reader_extensions.sql postconditions.sql validate_signed_shared_work.py; do test -s "$shared/$f"; done
+            python3 -m py_compile "$shared/validate_signed_shared_work.py"
+            cat "$shared/candidate.sql" "$shared/guarded_native_reader_extensions.sql" "$candidate/candidate.sql" > "${migrations[0]}"
+            cat "$shared/postconditions.sql" "$candidate/postconditions.sql" > "$scratch/shared-postconditions.sql"
+            cat validation/fixtures/20261119053014_atlas_native_work_record_and_journal_v1.sql > "$scratch/w07-fixture.sql"
+            # Only the native Personal Atlas admission portion of the W07 fixture.
+            python3 - "$candidate/fixture.sql" "$scratch/w07-fixture.sql" <<'PY'
+          import sys
+          from pathlib import Path
+          f=Path(sys.argv[1]).read_text()
+          start=f.index("INSERT INTO personal.atlases")
+          end=f.index(";",start)+1
+          with Path(sys.argv[2]).open("a") as sink:
+              sink.write("\n"+f[start:end]+"\n")
+          PY
+            path="candidates/atlas/atlas_native_original_work_comments_v1/native_self_participation"
+            mkdir -p "$path"
+            cp "$shared/validate_signed_shared_work.py" "$path/"
+            postconditions="$scratch/shared-postconditions.sql"
+          else
+            cp "$candidate/candidate.sql" "${migrations[0]}"
+            cat validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql "$candidate/fixture.sql" > "$scratch/w07-fixture.sql"
+            cmp "$candidate/candidate.sql" "${migrations[0]}"
+            postconditions="$candidate/postconditions.sql"
+          fi
           test -s "$scratch/w07-fixture.sql"
           # Signed script stays local: never promoted into trusted main by this job.
           cp held/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/
@@ -418,9 +443,11 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "migration=${migrations[0]}" >> "$GITHUB_OUTPUT"
           echo "fixture=$scratch/w07-fixture.sql" >> "$GITHUB_OUTPUT"
-          echo "postconditions=$candidate/postconditions.sql" >> "$GITHUB_OUTPUT"
+          echo "postconditions=$postconditions" >> "$GITHUB_OUTPUT"
           bash -n scripts/validate-production-schema-clone.sh
       - name: Run existing isolated current-schema clone and genuine signed W07 proof
+        env:
+          W07_PROOF_SCOPE: ${{ steps.pin.outputs.scope }}
         shell: bash
         run: |
           set -euo pipefail
@@ -433,8 +460,12 @@ jobs:
             --roles-dump "$RUNNER_TEMP/w07-roles.sql" \
             --schema-dump "$RUNNER_TEMP/w07-schema.sql" \
             --artifacts-dir "$RUNNER_TEMP/w07-artifacts"
-          test -s "$RUNNER_TEMP/w07-artifacts/signed-native-original-work-comments-summary.txt"
-          grep -q '^PASS W07 signed local GoTrue' "$RUNNER_TEMP/w07-artifacts/signed-native-original-work-comments-summary.txt"
+          if [[ "$W07_PROOF_SCOPE" == "w07_shared_native_signed_clone_test_only" ]]; then
+            grep -q '^PASS three signed People' "$RUNNER_TEMP/w07-artifacts/signed-native-shared-work-summary.txt"
+          else
+            test -s "$RUNNER_TEMP/w07-artifacts/signed-native-original-work-comments-summary.txt"
+            grep -q '^PASS W07 signed local GoTrue' "$RUNNER_TEMP/w07-artifacts/signed-native-original-work-comments-summary.txt"
+          fi
       - name: Summarize only test result and no release
         if: always()
         shell: bash
@@ -454,6 +485,7 @@ jobs:
           path: |
             ${{ runner.temp }}/w07-artifacts/summary.md
             ${{ runner.temp }}/w07-artifacts/signed-native-original-work-comments-summary.txt
+            ${{ runner.temp }}/w07-artifacts/signed-native-shared-work-summary.txt
           if-no-files-found: ignore
           retention-days: 14
 
