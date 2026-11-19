@@ -627,6 +627,40 @@ jobs:
           else
             echo 'Signed proof not completed; inspect failed clone stage.' >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Publish bounded signed test failure location
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"native-intake-artifacts"
+          log=root/"signed-native-intake-responsibility.log"
+          output=root/"signed-native-intake-failure-location.txt"
+          root.mkdir(parents=True,exist_ok=True)
+          lines=["SIGNED_NATIVE_INTAKE_FAILURE_LOCATION_V1"]
+          if log.is_file():
+              raw=log.read_text(errors="replace")
+              files={"validate_signed_intake_responsibility.py","validate-atlas-work-prerequisite-signed-http.py","validate-atlas-c1-signed-http.py"}
+              for name,line in re.findall(r'File "[^"\n]*/([A-Za-z0-9_.-]+)", line ([0-9]{1,5}), in ',raw):
+                  if name in files:
+                      lines.append(f"frame={name}:{line}")
+              kinds={"AssertionError","KeyError","TypeError","ValueError","CalledProcessError","URLError","TimeoutError","HTTPError","ImportError","ModuleNotFoundError","AttributeError","JSONDecodeError"}
+              matches=re.findall(r"(?m)^(?:[a-zA-Z0-9_.]+\.)?([A-Za-z]+Error):",raw)
+              lines.append("exception="+(matches[-1] if matches and matches[-1] in kinds else "unclassified"))
+              http=re.findall(r"\bHTTP ([1-5][0-9]{2})\b",raw)
+              if http: lines.append("http="+http[-1])
+              codes=re.findall(r"""['"]code['"]\s*:\s*['"]([A-Z0-9]{5,8})['"]""",raw)
+              if codes: lines.append("code="+codes[-1])
+              # Never export raw exceptions, SQL, parameters, credentials or row content.
+          else:
+              lines.append("signed_log=absent")
+          safe="\n".join(lines)+"\n"
+          output.write_text(safe)
+          print(safe,end="")
+          with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as sink:
+              sink.write("\n"+safe)
+          PY
       - name: Preserve summary only
         if: always()
         uses: actions/upload-artifact@v4
@@ -635,5 +669,6 @@ jobs:
           path: |
             ${{ runner.temp }}/native-intake-artifacts/summary.md
             ${{ runner.temp }}/native-intake-artifacts/signed-native-intake-responsibility-summary.txt
+            ${{ runner.temp }}/native-intake-artifacts/signed-native-intake-failure-location.txt
           if-no-files-found: ignore
           retention-days: 14
