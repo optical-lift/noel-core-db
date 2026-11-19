@@ -403,4 +403,6 @@ BEGIN
   END IF;
  END IF;
 END $end_state$;
+-- Exercise the same structural postconditions intended for protected scratch.
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/T5_PROTECTED_TEACHING_POSTCONDITIONS_TEST_ONLY.sql
 ROLLBACK TO SAVEPOINT two_private_students;
