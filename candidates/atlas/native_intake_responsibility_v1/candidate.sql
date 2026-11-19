@@ -601,6 +601,8 @@ BEGIN
   ORDER BY id LIMIT 1;
  IF n>1 OR (n=1 AND (v_old.assignee_canonical_person_id IS NULL
        OR v_old.assignee_membership_id IS NOT NULL
+       OR v_old.organization_id IS DISTINCT FROM p_organization_id
+       OR v_old.establishment_basis_kind IS NULL
        OR v_old.establishment_basis_kind NOT IN ('person_connection_receiver_uptake','ledger_connection_direct_assignment')
        OR v_old.establishment_basis->>'nativeLedgerId' IS DISTINCT FROM p_ledger_id::text))
  OR EXISTS(SELECT 1 FROM atlas.work_execution_plans WHERE work_item_id=p_work_item_id
