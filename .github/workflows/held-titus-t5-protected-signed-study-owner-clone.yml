@@ -1,0 +1,222 @@
+name: HELD Titus T5 owner-protected signed study (no release)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-titus-t5-protected-signed-study-owner-clone.yml'
+      - 'scripts/validate-production-schema-clone.sh'
+      - 'scripts/validate-titus-t5-signed-study-http.py'
+  issues:
+    types: [opened, edited, reopened]
+
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+
+jobs:
+  review-source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Check T5 carrier source and reject invalid execution scopes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/validate-production-schema-clone.sh
+          python3 -m py_compile scripts/validate-titus-t5-signed-study-http.py
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          touch "$tmp/roles.sql" "$tmp/schema.sql"
+          printf 'SELECT 1;\n' > "$tmp/roles.sql"
+          cp "$tmp/roles.sql" "$tmp/schema.sql"
+          cp "$tmp/roles.sql" "$tmp/20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql"
+          if bash scripts/validate-production-schema-clone.sh --migration-version 20261119100000 --release-lane shared --t5-rollback-shape --candidate-migration "$tmp/20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql" --roles-dump "$tmp/roles.sql" --schema-dump "$tmp/schema.sql" --artifacts-dir "$tmp/out" >"$tmp/refusal.log" 2>&1; then
+            echo 'Unsafe scratch package unexpectedly accepted' >&2
+            exit 1
+          fi
+          test ! -e "$tmp/out"
+          if bash scripts/validate-production-schema-clone.sh --migration-version 20261119100000 --release-lane shared --t5-signed-study --candidate-migration "$tmp/20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql" --roles-dump "$tmp/roles.sql" --schema-dump "$tmp/schema.sql" --artifacts-dir "$tmp/out" >"$tmp/refusal.log" 2>&1; then
+            exit 1
+          fi
+          test ! -e "$tmp/out"
+          python3 - <<'PY'
+          from pathlib import Path
+          w=Path('.github/workflows/held-titus-t5-protected-signed-study-owner-clone.yml').read_text()
+          protected=w.split('\n  validate-owner-protected:\n',1)[1]
+          for required in (
+            "github.event.issue.author_association == 'OWNER'",
+            "github.actor == github.repository_owner",
+            "environment: production",
+            "fields['candidate_sha']",
+            "fields['titus_sha']",
+            "fields['test_scope']",
+            "fields['production_target']",
+            "e71fc75d37a047ec52ebbace72fb7698fec00284",
+            "4150cf7b83ef6ed3a50b9a78502889dc818b2005",
+            "Snapshot production schema/roles READ ONLY",
+            "NOEL_CORE_DATABASE_URL",
+            "--t5-rollback-shape --t5-signed-study",
+            "titus_t5_protected_signed_study_test_only_v1",
+          ):
+            assert required in protected,required
+          for forbidden in ('supabase db push','supabase migration up','db reset --linked','SUPABASE_SERVICE_ROLE_KEY','apply_migration','gh pr merge','upload-artifact'):
+            assert forbidden not in protected,forbidden
+          assert protected.count('secrets.NOEL_CORE_DATABASE_URL')==1
+          assert protected.count('secrets.TITUS_PR_READ_TOKEN')==1
+          titus=protected.split("      - name: Verify exact private Titus draft with existing read-only PR credential",1)[1].split("      - name: Install pinned CLI",1)[0]
+          assert 'GH_TOKEN: ' in titus and 'secrets.TITUS_PR_READ_TOKEN' in titus
+          assert 'repos/optical-lift/titus/pulls/72' in titus and '4150cf7b83ef6ed3a50b9a78502889dc818b2005' in titus
+          assert 'NOEL_CORE_DATABASE_URL' not in titus
+          assert 'secrets.TITUS_PR_READ_TOKEN' not in protected.split("      - name: Verify exact private Titus draft",1)[0]
+          assert protected.index("Verify exact private Titus draft") < protected.index("Snapshot production schema/roles READ ONLY")
+          assert protected.index("Verify exact frozen drafts") < protected.index("Snapshot production schema/roles READ ONLY") < protected.index("Assemble exact scratch source") < protected.index("Disposable rollback-only teaching schema check")
+          s=Path('scripts/validate-production-schema-clone.sh').read_text()
+          assert s.count('phase="T5 disposable rollback-only shape"')==1
+          section=s.split('phase="T5 disposable rollback-only shape"',1)[1].split('run_lint() {',1)[0]
+          assert 'docker exec -i "$local_container" psql' in section and 'rollback confirmed' in section and 'exit 0' in section
+          assert s.index('phase="production user-schema restore"') < s.index('phase="T5 disposable rollback-only shape"') < s.index('phase="candidate migration application"')
+          assert 'phase="T5 signed fictional HTTP proof"' in section
+          assert 'validate-titus-t5-signed-study-http.py' in section
+          assert section.index("rollback confirmed") < section.index('phase="T5 signed fictional HTTP proof"')
+          probe=Path('scripts/validate-titus-t5-signed-study-http.py').read_text()
+          for required in ('auth.sign_in','auth.sessions','schema-only empty clone required','42501','later private finding','teaching_enrollments'):
+            assert required.lower() in probe.lower(),required
+          assert 'request.jwt' not in probe
+          print("PASS signed T5 source-only gate; existing release paths retained")
+          PY
+
+  validate-owner-protected:
+    concurrency:
+      group: titus-t5-owner-protected-signed-study
+      cancel-in-progress: false
+    if: >-
+      github.event_name == 'issues' &&
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'HELD Titus T5 protected signed study validation request'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Resolve exact owner-selected held scope
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          fields={}
+          for raw in os.environ.get('ISSUE_BODY','').splitlines():
+              if not raw.strip(): continue
+              m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
+              if not m: raise SystemExit('unexpected owner request content')
+              k,v=m.groups()
+              if k in fields: raise SystemExit('duplicate owner request field')
+              fields[k]=v
+          if set(fields)!=set(('candidate_sha','titus_sha','test_scope','production_target')):
+              raise SystemExit('exact four-field T5 request required')
+          if fields['candidate_sha']!='e71fc75d37a047ec52ebbace72fb7698fec00284' or fields['titus_sha']!='4150cf7b83ef6ed3a50b9a78502889dc818b2005':
+              raise SystemExit('only reviewed immutable T5 heads allowed')
+          if fields['test_scope']!='titus_t5_protected_signed_study_test_only_v1' or fields['production_target']!='zirqkouammpwxlqfbsvf':
+              raise SystemExit('wrong read-only schema target or scope')
+          print('PASS exact owner-selected T5 schema-only scope')
+          PY
+      - name: Checkout canonical validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          path: canonical
+          persist-credentials: false
+      - name: Verify exact frozen drafts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/2617" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-course-unification-clean-cutover-v1-20261107|e71fc75d37a047ec52ebbace72fb7698fec00284"
+          echo 'PASS exact frozen Noel draft'
+          cd canonical
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Verify exact private Titus draft with existing read-only PR credential
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TITUS_PR_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo 'BLOCKED: existing protected Titus read-only PR credential is not configured' >&2
+            exit 1
+          fi
+          test "$(gh api "repos/optical-lift/titus/pulls/72" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|work/titus-unified-manuscript-surface-20261106|4150cf7b83ef6ed3a50b9a78502889dc818b2005"
+          echo 'PASS exact frozen private Titus draft'
+      - name: Install pinned CLI
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/t5-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/t5-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null
+      - name: Snapshot production schema/roles READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$NOEL_CORE_DATABASE_URL"
+          mkdir "$RUNNER_TEMP/t5-private"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/t5-private/roles.sql" >"$RUNNER_TEMP/t5-private/roles.log" 2>&1
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/t5-private/schema.sql" >"$RUNNER_TEMP/t5-private/schema.log" 2>&1
+          test -s "$RUNNER_TEMP/t5-private/roles.sql"
+          test -s "$RUNNER_TEMP/t5-private/schema.sql"
+          echo 'PASS read-only schema/role snapshot; no records'
+      - name: Checkout exact reviewed teaching source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: e71fc75d37a047ec52ebbace72fb7698fec00284
+          path: held
+          persist-credentials: false
+      - name: Assemble exact scratch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git -C held rev-parse HEAD)" = 'e71fc75d37a047ec52ebbace72fb7698fec00284'
+          test "$(git -C held hash-object scripts/prepare-titus-t5-protected-clone-source.py)" = '70e1c1ae842ff5a3768a29348a11b206d42b3e7c'
+          python3 -m unittest discover -s held/tests -p test_titus_u1_protected_bundle_safety.py -v >"$RUNNER_TEMP/t5-private/source-check.log" 2>&1
+          python3 held/scripts/prepare-titus-t5-protected-clone-source.py --source-root held --expected-sha 'e71fc75d37a047ec52ebbace72fb7698fec00284' --test-scope titus_t5_protected_source_shape_test_only_v1 --output "$RUNNER_TEMP/t5-private/20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql" --manifest "$RUNNER_TEMP/t5-private/package.json"
+      - name: Disposable rollback-only teaching schema check
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          d="$RUNNER_TEMP/t5-private"
+          if bash canonical/scripts/validate-production-schema-clone.sh --migration-version 20261119100000 --release-lane shared --t5-rollback-shape --t5-signed-study --candidate-migration "$d/20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql" --roles-dump "$d/roles.sql" --schema-dump "$d/schema.sql" --artifacts-dir "$d/diagnostics" >"$d/run.log" 2>&1; then
+            echo 'PASS protected teaching schema and independent signed fictional study'
+          else
+            echo 'FAIL protected signed teaching proof; raw schema/diagnostics not published' >&2
+            exit 1
+          fi
+      - name: Report bounded result and remove private scratch
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/t5-private"
+          echo 'T5 fictional signed proof: no live DDL/DML, release, real learner data, or browser acceptance.' >> "$GITHUB_STEP_SUMMARY"
