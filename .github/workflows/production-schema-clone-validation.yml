@@ -89,6 +89,19 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact held clean Need renewal initial package only. This branch is a disposable
+          # validation request, NOT a migration identity or release request.
+          if title == 'Production schema validation request: Atlas held clean Need renewal initial':
+              expected = {'diagnostic_scope':'atlas_household_need_renewal_clean_initial_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'1002e4368deb89f65eff373454bde7a1163d8941'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held clean Need renewal initial validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-clean-renewal-initial\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # Exact held Laundry renewal due package only. This branch is a disposable
           # validation request, NOT a migration identity or release request.
           if title == 'Production schema validation request: Atlas held Laundry renewal due':
@@ -99,6 +112,19 @@ jobs:
                   raise SystemExit('Exact owner-held Laundry renewal due validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
                   handle.write('migration_version=held-laundry-renewal-due\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
+          # Exact held clean Need renewal due package only. This branch is a disposable
+          # validation request, NOT a migration identity or release request.
+          if title == 'Production schema validation request: Atlas held clean Need renewal due':
+              expected = {'diagnostic_scope':'atlas_household_need_renewal_clean_due_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'1002e4368deb89f65eff373454bde7a1163d8941'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held clean Need renewal due validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-clean-renewal-due\nrelease_lane=atlas\n')
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
@@ -321,6 +347,46 @@ jobs:
             exit 0
           fi
 
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-clean-renewal-initial" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "1002e4368deb89f65eff373454bde7a1163d8941"
+            src="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_initial.py"
+            fixture="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 27561382cbc33be1da2b1128481702b2d511001f
+            test "$(git hash-object "$post")" = baa2facbd128dde93a002f2f142d4cc788182726
+            test "$(git hash-object "$proof")" = 1251c8971f26518220f8e8851ce9b220b10e60af
+            renewal_probe="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_attention.py"
+            test "$(git hash-object "$renewal_probe")" = 9440ffcedd817b33e2736a969e40c523f75e18a3
+            test "$(git hash-object "$fixture")" = 6039b9a3d637cb666ec52c7df5177abcb2929c19
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_need_renewal_clean_initial_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_need_renewal_clean_initial_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_initial.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_attention.py"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-laundry-renewal-due" ]]; then
             # No candidate scripts run before the protected snapshot; no
             # production secret is available in this or subsequent steps.
@@ -348,6 +414,46 @@ jobs:
             # Execute the pinned probe with the trusted MAIN helper modules.
             # The relative path is required by the existing local C1 loader.
             held_proof="candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_historical.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_due.py"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-clean-renewal-due" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "1002e4368deb89f65eff373454bde7a1163d8941"
+            src="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_historical.py"
+            fixture="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 27561382cbc33be1da2b1128481702b2d511001f
+            test "$(git hash-object "$post")" = baa2facbd128dde93a002f2f142d4cc788182726
+            test "$(git hash-object "$proof")" = 6be4632c95c076e3a962a7b8e10967063cc14984
+            renewal_probe="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_due.py"
+            test "$(git hash-object "$renewal_probe")" = cbb87cb6cd0feadb459007bc6938f0f566454598
+            test "$(git hash-object "$fixture")" = 6039b9a3d637cb666ec52c7df5177abcb2929c19
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_need_renewal_clean_due_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_need_renewal_clean_due_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_historical.py"
             mkdir -p "$(dirname "$held_proof")"
             cp "$proof" "$held_proof"
             cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_due.py"
