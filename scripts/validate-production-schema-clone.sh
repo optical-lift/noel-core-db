@@ -30,6 +30,7 @@ schema_dump=""
 artifacts_dir=""
 pre1_rest_proof=false
 t5_rollback_shape=false
+t5_signed_study=false
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -43,6 +44,7 @@ while [ "$#" -gt 0 ]; do
     --artifacts-dir) artifacts_dir="${2:-}"; shift 2 ;;
     --pre1-rest-proof) pre1_rest_proof=true; shift ;;
     --t5-rollback-shape) t5_rollback_shape=true; shift ;;
+    --t5-signed-study) t5_signed_study=true; shift ;;
     *) usage ;;
   esac
 done
@@ -76,6 +78,9 @@ if [ -n "$candidate_validation" ]; then candidate_validation="$(realpath "$candi
 roles_dump="$(realpath "$roles_dump")"
 schema_dump="$(realpath "$schema_dump")"
 
+if [ "$t5_signed_study" = true ] && [ "$t5_rollback_shape" != true ]; then
+  echo 'Signed T5 requires exact reviewed rollback-only base proof.' >&2; exit 2
+fi
 # T5 is a distinct rollback-only schema-shape proof, not migration validation.
 # The existing paths retain all their ordinary candidate/lint/signed checks.
 if [ "$t5_rollback_shape" = true ]; then
@@ -848,7 +853,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   fi
 
   set +e
-  if [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
+  if [ "$t5_signed_study" = true ]; then
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
      [ "$signed_schedule_preflight_probe" = true ] ||
       [ "$signed_event_writer_probe" = true ] ||
       [ "$signed_calendar_reader_probe" = true ] ||
@@ -971,6 +978,24 @@ PY
     <"$candidate_migration" >"$artifacts_dir/t5-rollback-only.log" 2>&1
   test "$(docker exec "$local_container" psql -X -U postgres -d postgres -Atqc "SELECT to_regclass('atlas.teaching_course_composition_revisions') IS NULL AND to_regclass('atlas.teaching_course_private_answer_submissions') IS NULL AND NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid='atlas.teaching_course_versions'::regclass AND attname='publication_request_id' AND NOT attisdropped)")" = t
   echo 'PASS T5 restored schema compilation and private ACL postconditions; rollback confirmed.'
+  if [ "$t5_signed_study" = true ]; then
+    phase="T5 signed fictional HTTP proof"
+    # Only on this job-owned disposable clone: retain the just-proved source
+    # to exercise independent GoTrue transactions. No production migration.
+    python3 - "$candidate_migration" "$runtime_dir/t5-signed-local-only.sql" <<'PY'
+from pathlib import Path
+import sys
+s=Path(sys.argv[1]).read_text()
+assert s.rstrip().endswith("ROLLBACK;")
+Path(sys.argv[2]).write_text(s.rstrip()[:-len("ROLLBACK;")]+"COMMIT;\n")
+PY
+    docker exec -i "$local_container" psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 \
+      <"$runtime_dir/t5-signed-local-only.sql" >"$artifacts_dir/t5-local-install.log" 2>&1
+    psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/t5-local-reload.log" 2>&1
+    python3 "$repo_root/scripts/validate-titus-t5-signed-study-http.py" --db-url "$database_url" --output "$artifacts_dir/t5-signed-receipt.txt" >"$artifacts_dir/t5-signed-local.log" 2>&1
+    test "$(cat "$artifacts_dir/t5-signed-receipt.txt")" = 'PASS T5 independent local signed study journey'
+    echo 'PASS T5 independent local signed study journey; disposable clone only.'
+  fi
   exit 0
 fi
 
