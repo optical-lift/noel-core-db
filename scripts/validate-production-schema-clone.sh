@@ -345,7 +345,7 @@ if [ "$lane" = "atlas" ] &&
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$renewal_initial_proof" ] ||
      [ "$(git hash-object "$candidate_migration")" != 9cb29da5dfd9042224fcc1e1e08414a537c72fa0 ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 9ecdce99649a3b1a6af68c4e3e054ed87dc1c3ac ] ||
      [ "$(git hash-object "$candidate_validation")" != 76728974daa1622c11f0c4a9d08e6b26b8c1af11 ] ||
      [ "$(git hash-object "$renewal_initial_proof")" != 09af135127887ca34ed428ec7c4531ab6dc8dc9d ] ||
      [ "$(git hash-object "$(dirname "$renewal_initial_proof")/validate_signed_renewal_attention.py")" != 69426f1df315dafe528981b69dd50a84100ec78c ]; then
