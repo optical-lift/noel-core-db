@@ -1,5 +1,9 @@
 -- HELD M3.11: actual author-private Course Version content seal on fictional
 -- isolated PG17, not a PostgREST/GoTrue or restored live-schema test.
+-- Exact composition source from 54b0cd447f121a4eb4ed93f9369ab77b1d69e8ca,
+-- transaction wrapper removed because this fixture is already in a transaction.
+DO $role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END $role$;
+\i /source/candidates/shared-course-class-composition-v1/candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/person_course_curriculum_snapshot_candidate.sql
 
 DO $snapshot_private_surface$

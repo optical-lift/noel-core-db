@@ -53,6 +53,9 @@ SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","ses
 DO $author_seal_and_invite$
 DECLARE j jsonb;a jsonb;b jsonb;
 BEGIN
+ PERFORM public.shared_teaching_course_composition_save_self_api_v1(
+  '11111111-1111-4111-8111-111111111111',gen_random_uuid(),0,
+  '[{"unitId":"32222222-2222-4222-8222-222222222222","classUnitId":"31111111-1111-4111-8111-111111111111","depth":"advanced"}]'::jsonb);
  j:=public.shared_teaching_course_curriculum_seal_self_api_v1(
   '11111111-1111-4111-8111-111111111111',
   current_setting('app.fictional_published_version_id')::uuid,
@@ -208,6 +211,42 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'A could discover B index'; END IF;
 END $a_reads_e1$;
 RESET ROLE;
+
+-- Both issued siblings from exactly one sealed composition; withholding a
+-- parent may never disclose it. Roll back these extra decisions for later fixtures.
+SAVEPOINT composition_projection;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+SELECT public.shared_teaching_private_study_unit_decide_self_api_v1(current_setting('app.private_e_a')::uuid,
+ '32222222-2222-4222-8222-222222222222',gen_random_uuid(),'allow',current_setting('app.fictional_published_version_id')::uuid);
+SELECT public.shared_teaching_course_composition_save_self_api_v1('11111111-1111-4111-8111-111111111111',gen_random_uuid(),1,'[]'::jsonb);
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"d9999999-9999-4999-8999-999999999991","session_id":"59999999-9999-4999-8999-999999999991"}';
+DO $projection$
+DECLARE j jsonb;
+BEGIN
+ j:=public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_a')::uuid);
+ IF jsonb_array_length(j->'units')<>2 OR j->'units'->1->>'classUnitId' IS DISTINCT FROM '31111111-1111-4111-8111-111111111111'
+ OR j->'units'->1->>'depth' IS DISTINCT FROM 'advanced' THEN RAISE EXCEPTION 'sealed membership lost after working change'; END IF;
+END $projection$;
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
+SELECT public.shared_teaching_private_study_unit_decide_self_api_v1(current_setting('app.private_e_a')::uuid,
+ '31111111-1111-4111-8111-111111111111',gen_random_uuid(),'withhold',NULL);
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SET LOCAL request.jwt.claims='{"sub":"d9999999-9999-4999-8999-999999999991","session_id":"59999999-9999-4999-8999-999999999991"}';
+DO $hidden_parent$
+DECLARE j jsonb;
+BEGIN
+ j:=public.shared_teaching_private_study_index_self_api_v1(current_setting('app.private_e_a')::uuid);
+ IF jsonb_array_length(j->'units')<>1 OR j->'units'->0->>'classUnitId' IS NOT NULL OR j->'units'->0->>'depth' IS NOT NULL
+ THEN RAISE EXCEPTION 'withheld parent disclosed'; END IF;
+END $hidden_parent$;
+RESET ROLE;
+ROLLBACK TO SAVEPOINT composition_projection;
 
 -- Author edits working Class, publishes and seals E2 without rewriting E1.
 SET LOCAL ROLE authenticated;

@@ -69,6 +69,7 @@ DECLARE
  v_revision_count bigint;
  v_complete_count bigint;
  v_payload jsonb;
+ v_composition jsonb;
  v_snapshot_id uuid;
 BEGIN
  IF p_course_id IS NULL OR p_course_version_id IS NULL
@@ -149,6 +150,13 @@ BEGIN
    USING ERRCODE='23514';
  END IF;
 
+ -- Capture exact saved composition under the same Course lock as material.
+ -- A source without the composition reader cannot prepare a new edition.
+ v_composition:=public.shared_teaching_course_composition_read_self_api_v1(v_course);
+ IF v_composition->>'contractVersion' IS DISTINCT FROM 'shared_teaching_course_composition_v1'
+ OR v_composition->>'courseId' IS DISTINCT FROM v_course::text
+ OR jsonb_typeof(v_composition->'members') IS DISTINCT FROM 'array'
+ THEN RAISE EXCEPTION 'exact saved Class composition required' USING ERRCODE='42501'; END IF;
  -- Copy literal UTF-8 strings into immutable JSONB at this instant. Later
  -- edits or Unit moves on the live Course cannot rewrite sealed publication.
  v_payload:=jsonb_build_object(
@@ -163,7 +171,9 @@ BEGIN
      'revisionId',v_manuscript.revision_id,
      'revisionNumber',v_manuscript.revision_number,
      'text',v_manuscript.body_text),
-   'units',v_units
+   'units',v_units,
+   'composition',jsonb_build_object('revisionId',v_composition->'revisionId',
+    'revisionNumber',v_composition->'revisionNumber','members',v_composition->'members')
  );
  INSERT INTO atlas.teaching_course_version_curriculum_snapshots(
    course_id,course_version_id,sealing_request_id,

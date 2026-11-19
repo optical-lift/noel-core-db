@@ -246,8 +246,21 @@ BEGIN
    'title',v_record->'unit'->'title','kind',v_record->'unit'->'kind',
    'position',v_record->'unit'->'position'));
  END LOOP;
- SELECT coalesce(jsonb_agg(x.item ORDER BY (x.item->>'position')::integer,x.item->>'unitId'),'[]'::jsonb)
- INTO v_items FROM jsonb_array_elements(v_items) x(item);
+ -- Only reveal membership when both exact Units were issued from the
+ -- SAME immutable snapshot. Older seals without composition stay flat.
+ SELECT coalesce(jsonb_agg(x.item||jsonb_build_object(
+  'classUnitId',m.member->'classUnitId','depth',m.member->'depth')
+  ORDER BY (x.item->>'position')::integer,x.item->>'unitId'),'[]'::jsonb)
+ INTO v_items FROM jsonb_array_elements(v_items) x(item)
+ JOIN atlas.teaching_course_version_curriculum_snapshots s
+  ON s.snapshot_id=(x.item->>'snapshotId')::uuid AND s.course_id=v_inv.course_id
+ LEFT JOIN LATERAL (
+  SELECT q.member FROM jsonb_array_elements(coalesce(s.curriculum_payload->'composition'->'members','[]'::jsonb)) q(member)
+  WHERE q.member->>'unitId'=x.item->>'unitId'
+  AND EXISTS(SELECT 1 FROM jsonb_array_elements(v_items) parent(item)
+   WHERE parent.item->>'unitId'=q.member->>'classUnitId'
+   AND parent.item->>'snapshotId'=x.item->>'snapshotId' AND parent.item->>'kind'='lesson')
+ ) m ON true;
  RETURN jsonb_build_object('contractVersion','private_study_issued_index_v1',
   'invitationId',p_invitation_id,'courseId',v_inv.course_id,'units',v_items,
   'canReadCurriculum',false,'canReadManuscript',false);
