@@ -461,3 +461,6 @@ insert into atlas.household_rhythms(id,household_id,stable_key,area,title,cadenc
 values
 ('e5200000-0000-4000-8000-000000000ea1','e5200000-0000-4000-8000-000000000c01','kernel:household.laundry:general','laundry','Obsolete synthetic Laundry','daily','2030-01-01 12:00+00','2030-01-01 13:00+00',45,'standard',1,'interruptible',true,'Synthetic obsolete source','Synthetic old source',true,true,'{"cloneFixture":true}'),
 ('e5200000-0000-4000-8000-000000000ea2','e5200000-0000-4000-8000-000000000c01','clone-independent-rhythm','household','Independent synthetic rhythm','weekly','2030-01-01 12:00+00','2030-01-01 13:00+00',30,'standard',1,'interruptible',true,'Independent consequence','Independent reason',true,true,'{"cloneFixture":true}');
+
+-- Capture the complete actual clone-only baseline, including automatic care policy rows.
+update atlas.households h set metadata=coalesce(h.metadata,'{}'::jsonb)||jsonb_build_object('cloneUnrelatedRhythmBaseline',(select jsonb_agg(to_jsonb(r) order by r.id) from atlas.household_rhythms r where r.household_id=h.id and r.stable_key is distinct from 'kernel:household.laundry:general')) where h.id='e5200000-0000-4000-8000-000000000c01';
