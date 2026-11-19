@@ -81,7 +81,7 @@ def main():
     digest = []
     for name in SOURCES:
         source = exact(name)
-        if re.search(r"(?im)^\\s*(BEGIN|COMMIT|ROLLBACK)\\s*;", source):
+        if re.search(r"(?im)^\s*(BEGIN|COMMIT|ROLLBACK)\s*;", source):
             raise SystemExit("Unexpected transaction boundary in held module: " + name)
         digest.append({"source": name, "sha256": sha(source)})
         parts.extend(("", "-- SOURCE SEGMENT START " + name, source.rstrip(),
