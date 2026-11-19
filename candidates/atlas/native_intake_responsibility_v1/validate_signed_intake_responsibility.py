@@ -62,12 +62,18 @@ def main():
               "Initial custody must be unassigned and unscheduled")
         return response
     def accept(receipt):
-        reply = ok(root, "review_ledger_work_intake_root_self_api_v2", {
+        reply = ok(root, "decide_ledger_work_intake_root_self_api_v1", {
             "p_intake_id": receipt["intakeId"], "p_decision": "accepted_for_ledger",
-            "p_expected_revision": 0, "p_reason": "Synthetic root acceptance",
-            "p_title": "Synthetic nonfarm intake responsibility", "p_instructions": None})
-        check(reply.get("workItemId") == receipt["workItemId"] and reply.get("sameOriginalWork") is True,
-              "Root review must retain original")
+            "p_expected_revision": 0, "p_reason": "Synthetic root acceptance"})
+        check(reply.get("contractVersion") == "ledger_work_intake_decision_v1"
+              and reply.get("intakeId") == receipt["intakeId"]
+              and reply.get("workItemId") == receipt["workItemId"]
+              and reply.get("ledgerId") == LEDGER
+              and reply.get("reviewState") == "accepted_for_ledger"
+              and reply.get("revision") == 1
+              and reply.get("personWorkAssignmentCreated") is False
+              and reply.get("personalTodayChanged") is False,
+              "Released root decision must retain the same unassigned original")
     def context(work, ledger=LEDGER):
         return dict(p_organization_id=ORG, p_ledger_id=ledger, p_work_item_id=work)
     def command(work, target, old=None, ledger=LEDGER):
@@ -81,12 +87,17 @@ def main():
     def report(work, kind="completed"):
         return dict(p_work_item_id=work, p_result_kind=kind,
                     p_idempotency_key=ident(), p_payload={"note":"Synthetic actual result"})
+    check(count("select count(*) from atlas.work_result_contract_policies where contract_key='ordinary_company_work_worker_attestation_v1' and active and source_domain='organization' and acceptance_mode='worker_attestation'") == "1",
+          "Schema-only clone requires its admitted ordinary Work policy fixture")
+    print("PASS signed sessions and exact local ordinary Work policy", flush=True)
     original_count = int(count(f"select count(*) from atlas.work_items where organization_id='{ORG}'::uuid"))
     first = submit(); work = first["workItemId"]
+    print("PASS released native Ledger intake submission", flush=True)
     first_command = command(work, OWNER)
     denied(root, PREFLIGHT, context(work), label="unaccepted intake preflight")
     denied(root, WRITE, first_command, label="unaccepted intake write")
     accept(first)
+    print("PASS released exact root acceptance", flush=True)
     initial = ok(root, PREFLIGHT, context(work))
     check(initial.get("canAssign") is True and initial.get("currentAllocationId") is None,
           "Accepted original should admit initial responsibility")
@@ -97,6 +108,7 @@ def main():
     denied(None, WRITE, first_command, label="anonymous assignment")
     denied(root, WRITE, command(work, OUTSIDER), label="disconnected target")
     denied(root, WRITE, command(work, OWNER, ledger=OTHER_LEDGER), label="wrong Ledger")
+    print("PASS source admission and independent denial matrix", flush=True)
     first_result = ok(root, WRITE, first_command)
     a = first_result["newAllocationId"]
     check(first_result.get("currentResponsiblePersonId") == OWNER and first_result.get("workItemId") == work
@@ -104,6 +116,7 @@ def main():
     check(ok(root, WRITE, first_command).get("newAllocationId") == a, "Retry new allocation")
     denied(root, WRITE, dict(first_command,p_reason="Altered same action"), ("23505",), "changed retry")
     check(len(mywork(root, work)) == 1 and not mywork(worker, work), "Self My Work readback")
+    print("PASS native self-assignment, replay and My Work", flush=True)
     second_command = command(work, WORKER, a)
     b = ok(root, WRITE, second_command)["newAllocationId"]
     check(len(mywork(worker, work)) == 1 and not mywork(root, work), "Transfer to connected Person")
@@ -119,6 +132,7 @@ def main():
     check(count(f"select count(*) from atlas.work_execution_plans where work_item_id='{work}'::uuid") == "0",
           "Unscheduled responsibility invented a plan")
     denied(worker, REPORT, report(work), label="former responsible Person cannot report")
+    print("PASS same-original transfer and prior actor denial", flush=True)
     partial = ok(root, REPORT, report(work,"partial"))
     check(partial.get("workItemId") == work and partial.get("workState") == "open", "Partial wrong original")
     denied(root, WRITE, command(work, WORKER, c), ("23514",), "prior Result transfer must hold")
