@@ -131,7 +131,9 @@ signed_universal_original_work_probe=false
 signed_household_original_repair_probe=false
 signed_household_lifecycle_probe=false
 signed_household_renewal_initial_probe=false
+signed_clean_renewal_initial_probe=false
 signed_household_renewal_due_probe=false
+signed_clean_renewal_due_probe=false
 signed_work_self_assignment_probe=false
 signed_native_original_work_comments_probe=false
 signed_care_single_done_probe=false
@@ -359,6 +361,24 @@ fi
 # Exact held lifecycle: a CLI-created scratch identity with pinned SQL, fixture,
 # postconditions and signed probe. No generic candidate-selected executable.
 if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_household_need_renewal_clean_initial_clone_only_v1[.]sql$ ]]; then
+  clean_initial_proof="$repo_root/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_initial.py"
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$clean_initial_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 27561382cbc33be1da2b1128481702b2d511001f ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 6039b9a3d637cb666ec52c7df5177abcb2929c19 ] ||
+     [ "$(git hash-object "$candidate_validation")" != baa2facbd128dde93a002f2f142d4cc788182726 ] ||
+     [ "$(git hash-object "$clean_initial_proof")" != 1251c8971f26518220f8e8851ce9b220b10e60af ] ||
+     [ "$(git hash-object "$(dirname "$clean_initial_proof")/validate_signed_renewal_attention.py")" != 9440ffcedd817b33e2736a969e40c523f75e18a3 ]; then
+    echo "Exact held clean Need renewal initial repair and local-only proof bytes required." >&2
+    exit 2
+  fi
+  signed_clean_renewal_initial_probe=true
+fi
+
+# Exact held lifecycle: a CLI-created scratch identity with pinned SQL, fixture,
+# postconditions and signed probe. No generic candidate-selected executable.
+if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_household_laundry_renewal_due_clone_only_v1[.]sql$ ]]; then
   renewal_due_proof="$repo_root/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_historical.py"
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
@@ -372,6 +392,24 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_household_renewal_due_probe=true
+fi
+
+# Exact held lifecycle: a CLI-created scratch identity with pinned SQL, fixture,
+# postconditions and signed probe. No generic candidate-selected executable.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_household_need_renewal_clean_due_clone_only_v1[.]sql$ ]]; then
+  clean_due_proof="$repo_root/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_historical.py"
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$clean_due_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 27561382cbc33be1da2b1128481702b2d511001f ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 6039b9a3d637cb666ec52c7df5177abcb2929c19 ] ||
+     [ "$(git hash-object "$candidate_validation")" != baa2facbd128dde93a002f2f142d4cc788182726 ] ||
+     [ "$(git hash-object "$clean_due_proof")" != 6be4632c95c076e3a962a7b8e10967063cc14984 ] ||
+     [ "$(git hash-object "$(dirname "$clean_due_proof")/validate_signed_renewal_due.py")" != cbb87cb6cd0feadb459007bc6938f0f566454598 ]; then
+    echo "Exact held clean Need renewal due repair and local-only proof bytes required." >&2
+    exit 2
+  fi
+  signed_clean_renewal_due_probe=true
 fi
 
 # Only the exact Atlas original Work candidate may trigger this signed local
@@ -768,7 +806,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_program_source_identity_probe" = true ] ||
        [ "$signed_household_lifecycle_probe" = true ] ||
        [ "$signed_household_renewal_initial_probe" = true ] ||
+       [ "$signed_clean_renewal_initial_probe" = true ] ||
        [ "$signed_household_renewal_due_probe" = true ] ||
+       [ "$signed_clean_renewal_due_probe" = true ] ||
        [ "$signed_household_original_repair_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
        [ "$signed_work_self_assignment_probe" = true ] ||
@@ -1158,6 +1198,15 @@ if [ "$signed_household_renewal_initial_probe" = true ]; then
   grep -q '^PASS signed Laundry renewal initial:' "$artifacts_dir/signed-household-renewal-initial-summary.txt"
 fi
 
+if [ "$signed_clean_renewal_initial_probe" = true ]; then
+  phase="signed initial Laundry renewal and preserved lifecycle"
+  python3 "$clean_initial_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-clean-renewal-initial-summary.txt" \
+    >"$artifacts_dir/signed-clean-renewal-initial.log" 2>&1
+  test -s "$artifacts_dir/signed-clean-renewal-initial-summary.txt"
+  grep -q '^PASS signed Laundry renewal initial:' "$artifacts_dir/signed-clean-renewal-initial-summary.txt"
+fi
+
 if [ "$signed_household_renewal_due_probe" = true ]; then
   phase="signed due Laundry renewal and historical conservation"
   python3 "$renewal_due_proof" --db-url "$database_url" \
@@ -1165,6 +1214,15 @@ if [ "$signed_household_renewal_due_probe" = true ]; then
     >"$artifacts_dir/signed-household-renewal-due.log" 2>&1
   test -s "$artifacts_dir/signed-household-renewal-due-summary.txt"
   grep -q '^PASS signed due renewal:' "$artifacts_dir/signed-household-renewal-due-summary.txt"
+fi
+
+if [ "$signed_clean_renewal_due_probe" = true ]; then
+  phase="signed due Laundry renewal and historical conservation"
+  python3 "$clean_due_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-clean-renewal-due-summary.txt" \
+    >"$artifacts_dir/signed-clean-renewal-due.log" 2>&1
+  test -s "$artifacts_dir/signed-clean-renewal-due-summary.txt"
+  grep -q '^PASS signed due renewal:' "$artifacts_dir/signed-clean-renewal-due-summary.txt"
 fi
 
 if [ "$signed_universal_original_work_probe" = true ]; then
