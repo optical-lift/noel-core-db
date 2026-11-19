@@ -128,6 +128,18 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact held private listening artifact lineage, no release identity.
+          if title == 'Production schema validation request: Shared held listening artifact':
+              expected = {'diagnostic_scope':'shared_listening_delivery_artifact_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'77e7b87f0f1889622da2199cd10b3980367058e6'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held listening artifact validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-listening-artifact\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
           missing = [key for key in required if key not in fields]
           if missing:
@@ -462,6 +474,31 @@ jobs:
               echo "path=$candidate_migration"
               echo "actual_version=$version"
               echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-listening-artifact" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "77e7b87f0f1889622da2199cd10b3980367058e6"
+            src="candidate/candidates/shared-listening-delivery-artifact-v1/candidate.sql"
+            post="candidate/candidates/shared-listening-delivery-artifact-v1/postconditions.sql"
+            test "$(git hash-object "$src")" = e00f5763392744f2dc983df95762c804dad79971
+            test "$(git hash-object "$post")" = 7a48a99393112f7dffed1620c7c277c00aa56520
+            # Existing protected carrier; exact CLI-generated scratch file only.
+            scratch="$(mktemp -d "$RUNNER_TEMP/listening-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_listening_delivery_artifact_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_listening_delivery_artifact_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            sha256sum "$candidate_migration" "$post"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
               echo "validation_path=$post"
             } >> "$GITHUB_OUTPUT"
             exit 0
