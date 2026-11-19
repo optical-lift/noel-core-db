@@ -1,0 +1,43 @@
+name: HELD listening delivery artifact isolated proof
+on:
+  pull_request:
+    paths:
+      - "candidates/shared-listening-delivery-artifact-v1/**"
+      - "validation/shared-listening-delivery-artifact-v1/**"
+      - ".github/workflows/held-listening-delivery-artifact.yml"
+permissions:
+  contents: read
+jobs:
+  isolated-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ephemeral-fixture-only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Apply held candidate to fictional source subset and prove denials
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/postconditions.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/test.sql
+          echo "Synthetic isolated PostgreSQL only; no production clone, publication grant, delivery or release."
