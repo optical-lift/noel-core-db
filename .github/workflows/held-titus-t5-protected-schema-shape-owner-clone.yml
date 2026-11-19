@@ -59,6 +59,13 @@ jobs:
           for forbidden in ('supabase db push','supabase migration up','db reset --linked','SUPABASE_SERVICE_ROLE_KEY','apply_migration','gh pr merge','upload-artifact'):
             assert forbidden not in protected,forbidden
           assert protected.count('secrets.NOEL_CORE_DATABASE_URL')==1
+          assert protected.count('secrets.TITUS_PR_READ_TOKEN')==1
+          titus=protected.split("      - name: Verify exact private Titus draft with existing read-only PR credential",1)[1].split("      - name: Install pinned CLI",1)[0]
+          assert 'GH_TOKEN: ' in titus and 'secrets.TITUS_PR_READ_TOKEN' in titus
+          assert 'repos/optical-lift/titus/pulls/72' in titus and '4150cf7b83ef6ed3a50b9a78502889dc818b2005' in titus
+          assert 'NOEL_CORE_DATABASE_URL' not in titus
+          assert 'secrets.TITUS_PR_READ_TOKEN' not in protected.split("      - name: Verify exact private Titus draft",1)[0]
+          assert protected.index("Verify exact private Titus draft") < protected.index("Snapshot production schema/roles READ ONLY")
           assert protected.index("Verify exact frozen drafts") < protected.index("Snapshot production schema/roles READ ONLY") < protected.index("Assemble exact scratch source") < protected.index("Disposable rollback-only teaching schema check")
           s=Path('scripts/validate-production-schema-clone.sh').read_text()
           assert s.count('phase="T5 disposable rollback-only shape"')==1
@@ -121,12 +128,24 @@ jobs:
         run: |
           set -euo pipefail
           test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/2617" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-course-unification-clean-cutover-v1-20261107|e71fc75d37a047ec52ebbace72fb7698fec00284"
-          test "$(gh api "repos/optical-lift/titus/pulls/72" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|work/titus-unified-manuscript-surface-20261106|4150cf7b83ef6ed3a50b9a78502889dc818b2005"
+          echo 'PASS exact frozen Noel draft'
           cd canonical
           bash scripts/check-custody.sh
           bash scripts/check-production-release-contract.sh
           bash scripts/check-production-schema-validation-contract.sh
           bash -n scripts/validate-production-schema-clone.sh
+      - name: Verify exact private Titus draft with existing read-only PR credential
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TITUS_PR_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo 'BLOCKED: existing protected Titus read-only PR credential is not configured' >&2
+            exit 1
+          fi
+          test "$(gh api "repos/optical-lift/titus/pulls/72" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|work/titus-unified-manuscript-surface-20261106|4150cf7b83ef6ed3a50b9a78502889dc818b2005"
+          echo 'PASS exact frozen private Titus draft'
       - name: Install pinned CLI
         shell: bash
         env:
