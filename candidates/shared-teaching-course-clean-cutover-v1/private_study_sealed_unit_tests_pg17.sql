@@ -2,7 +2,7 @@
 -- independently selected sealed Lesson editions. No authenticated real user.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_sealed_unit_candidate.sql
 -- The disposable fixture previously modeled only anon/authenticated.
-DO $ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END $;
+DO $acl_role$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN; END IF; END $acl_role$;
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_answer_candidate.sql
 
 DO $source_acl$
