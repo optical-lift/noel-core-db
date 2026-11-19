@@ -272,6 +272,15 @@ jobs:
           assert "test -s scripts/validate-atlas-native-original-work-comments-signed-http.py" in workflow
           assert "reason if reason in allowed else" in workflow
           assert "Unclassified SQL error (raw text withheld)" in workflow
+          assert "W07 disposable direct-original REST ACL parity" in runner
+          assert "w07.direct_disposable_clone=true" in runner
+          assert "e590441c4c10a75c15f811227b9f62a15f0be107" in runner
+          parity=Path("scripts/atlas-w07-direct-disposable-rest-acl-parity-held.sql").read_text()
+          assert "REFUSE W07 inherited REST privilege" in parity
+          assert "REVOKE EXECUTE ON FUNCTION public.%s FROM %I" in parity
+          assert "GRANT EXECUTE ON" not in parity
+          assert "Observed local-only extra EXECUTE:" in workflow
+          assert runner.index("W07 disposable direct-original REST ACL parity") < runner.index('phase="candidate migration application"')
           assert workflow.index("Snapshot Production schema and roles READ ONLY for W07") < workflow.index("Checkout pinned predecessor privacy probe after read-only snapshot")
           assert "cmp \"$dir/fixture.sql\" validation/fixtures/20261119201852_atlas_native_shared_work_v1.sql" in workflow
           assert "candidate_sha:" in workflow
@@ -552,6 +561,39 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"w07-artifacts"
           log=root/"postconditions.log"
           summary=root/"summary.md"
+          parity=root/"w07-direct-rest-acl-parity.log"
+          # Publish only the static, source-bound diagnostics from the local
+          # helper, not raw database errors or schema/role dumps.
+          safe_signatures={
+              "connected_person_my_work_self_api_v2(integer,uuid)",
+              "owner_native_work_participation_roster_self_api_v1(uuid,uuid,uuid)",
+              "owner_change_native_work_participation_self_api_v1(uuid,uuid,uuid,uuid,uuid,text,uuid,uuid)",
+              "native_original_work_self_participation_self_api_v1(uuid,uuid,uuid)",
+              "join_native_original_work_self_api_v1(uuid,uuid,uuid,uuid)",
+              "leave_native_original_work_self_api_v1(uuid,uuid,uuid,uuid)",
+              "append_native_original_work_comment_self_api_v1(uuid,uuid,uuid,uuid,text)",
+              "read_native_original_work_comments_self_api_v1(uuid,uuid,uuid,integer,timestamptz,uuid)",
+          }
+          if parity.is_file() and summary.is_file():
+              safe=[]
+              for raw in parity.read_text(errors="replace").splitlines():
+                  match=re.search(r"NOTICE:  W07 clone observed extra direct EXECUTE: (.+) (anon|service_role)$",raw)
+                  if match and match[1] in safe_signatures:
+                      safe.append("Observed local-only extra EXECUTE: "+match[1]+" "+match[2])
+                  elif re.search(r"NOTICE:  PASS W07 exact eight REST ACLs restored to released signed-only parity; removed [0-9]+ direct extra grant\(s\)$",raw):
+                      count=re.search(r"removed ([0-9]+) direct extra",raw)[1]
+                      safe.append("PASS exact eight REST ACL parity; removed "+count+" local extra grants.")
+                  else:
+                      match=re.search(r"ERROR:  (REFUSE W07 (?:unexpected internal source or ACL|unexpected REST source or ACL|inherited REST privilege|REST parity failed)): (.+)$",raw)
+                      if match and match[2] in safe_signatures:
+                          safe.append(match[1]+": "+match[2])
+              if safe:
+                  note="\n"+"\n".join(safe)+"\n"
+                  print(note)
+                  with summary.open("a") as f:
+                      f.write(note)
+                  with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as f:
+                      f.write(note)
           if not log.is_file() or not summary.is_file():
               raise SystemExit(0)
           allowed={

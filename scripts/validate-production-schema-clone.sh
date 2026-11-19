@@ -1019,6 +1019,28 @@ run_lint() {
   printf '%s\n' "$lint_status" > "$artifacts_dir/schema-lint-${lint_name}.exit-code.txt"
 }
 
+# W07 direct-original only: re-establish the verified released REST ACL
+# baseline before applying the exact held function-only correction. A known
+# Supabase local restore can retain extra default role grants absent live.
+# No production credentials, arbitrary package, or release-script path.
+if [ "$signed_native_original_work_comments_probe" = true ] &&
+   [[ "${REQUEST_SCOPE:-}" == w07_direct_original_* ]]; then
+  phase="W07 disposable direct-original REST ACL parity"
+  if [[ "${REQUEST_SCOPE:-}" != w07_direct_original_signed_clone_test_only &&
+        "${REQUEST_SCOPE:-}" != w07_direct_original_privacy_clone_test_only ]] ||
+     [ "$lane" != atlas ] ||
+     [ "$(git hash-object "$candidate_migration")" != e590441c4c10a75c15f811227b9f62a15f0be107 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 1a21fffea419280775ae532fa351d2a1e1b94d02 ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
+     [[ ! "$database_url" =~ ^postgresql://postgres:postgres@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'REFUSE W07 parity without exact direct-original local package' >&2; exit 2
+  fi
+  PGOPTIONS="-c w07.direct_disposable_clone=true" \
+    psql "$database_url" -X -v ON_ERROR_STOP=1 \
+      -f "$repo_root/scripts/atlas-w07-direct-disposable-rest-acl-parity-held.sql" \
+      >"$artifacts_dir/w07-direct-rest-acl-parity.log" 2>&1
+fi
+
 phase="baseline domain schema lint"
 run_lint baseline
 
