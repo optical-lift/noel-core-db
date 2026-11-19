@@ -267,6 +267,9 @@ jobs:
           assert "w07_direct_original_signed_clone_test_only" in workflow
           assert "w07_direct_original_privacy_clone_test_only" in workflow
           assert "direct-original path, same plan, signed revocation and completion" in workflow
+          assert "startsWith(steps.pin.outputs.scope, 'w07_direct_original_')" in workflow
+          assert "cp w07-regression/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/" in workflow
+          assert "test -s scripts/validate-atlas-native-original-work-comments-signed-http.py" in workflow
           assert workflow.index("Snapshot Production schema and roles READ ONLY for W07") < workflow.index("Checkout pinned predecessor privacy probe after read-only snapshot")
           assert "cmp \"$dir/fixture.sql\" validation/fixtures/20261119201852_atlas_native_shared_work_v1.sql" in workflow
           assert "candidate_sha:" in workflow
@@ -389,7 +392,7 @@ jobs:
           path: held
           persist-credentials: false
       - name: Checkout pinned predecessor privacy probe after read-only snapshot
-        if: steps.pin.outputs.scope == 'w07_direct_original_privacy_clone_test_only'
+        if: startsWith(steps.pin.outputs.scope, 'w07_direct_original_')
         uses: actions/checkout@v4
         with:
           ref: b2fd4a4eecfa2f9945b84002809dbc68f1220448
@@ -408,7 +411,7 @@ jobs:
             for f in candidate.sql fixture.sql postconditions.sql validate_signed_shared_work.py README.md; do test -s "$dir/$f"; done
             cmp "$dir/fixture.sql" validation/fixtures/20261119201852_atlas_native_shared_work_v1.sql
             python3 -m py_compile "$dir/validate_signed_shared_work.py"
-            if [[ "$SCOPE" == w07_direct_original_privacy_clone_test_only ]]; then
+            if [[ "$SCOPE" == w07_direct_original_* ]]; then
               test "$(git -C w07-regression rev-parse HEAD)" = b2fd4a4eecfa2f9945b84002809dbc68f1220448
               test -s w07-regression/candidates/atlas/atlas_native_original_work_comments_v1/fixture.sql
               python3 -m py_compile w07-regression/scripts/validate-atlas-native-original-work-comments-signed-http.py
@@ -450,6 +453,10 @@ jobs:
             cp "$direct/candidate.sql" "${migrations[0]}"
             cmp "$direct/candidate.sql" "${migrations[0]}"
             postconditions="$direct/postconditions.sql"
+            # The existing clone admission requires the original W07 runner
+            # file even when the selected probe is the shared lifecycle.
+            cp w07-regression/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/
+            test -s scripts/validate-atlas-native-original-work-comments-signed-http.py
             if [[ "${{ steps.pin.outputs.scope }}" == "w07_direct_original_signed_clone_test_only" ]]; then
               cp "$direct/fixture.sql" "$scratch/w07-fixture.sql"
               path="candidates/atlas/atlas_native_original_work_comments_v1/native_self_participation"
@@ -458,7 +465,6 @@ jobs:
             else
               regression="$GITHUB_WORKSPACE/w07-regression/candidates/atlas/atlas_native_original_work_comments_v1"
               cat validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql "$regression/fixture.sql" > "$scratch/w07-fixture.sql"
-              cp w07-regression/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/
             fi
           elif [[ "${{ steps.pin.outputs.scope }}" == "w07_shared_native_signed_clone_test_only" ]]; then
             shared="$candidate/native_self_participation"
