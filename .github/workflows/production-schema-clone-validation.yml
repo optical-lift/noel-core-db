@@ -81,7 +81,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held Laundry renewal initial':
               expected = {'diagnostic_scope':'atlas_household_laundry_renewal_initial_clone_only_v1',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'6be62dd37c85dcb8c990577a3dee9b19f294f9b8'}
+                          'candidate_sha':'862e54018648341d1d4ddd8b55c559984b3f8f7c'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held Laundry renewal initial validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -271,7 +271,7 @@ jobs:
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-laundry-renewal-initial" ]]; then
             # No candidate scripts run before the protected snapshot; no
             # production secret is available in this or subsequent steps.
-            test "$(git -C candidate rev-parse HEAD)" = "6be62dd37c85dcb8c990577a3dee9b19f294f9b8"
+            test "$(git -C candidate rev-parse HEAD)" = "862e54018648341d1d4ddd8b55c559984b3f8f7c"
             src="candidate/candidates/atlas/household_laundry_renewal_attention_v1/candidate.sql"
             post="candidate/candidates/atlas/household_laundry_renewal_attention_v1/postconditions.sql"
             proof="candidate/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_initial.py"
@@ -281,7 +281,7 @@ jobs:
             test "$(git hash-object "$proof")" = 09af135127887ca34ed428ec7c4531ab6dc8dc9d
             renewal_probe="candidate/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_attention.py"
             test "$(git hash-object "$renewal_probe")" = 69426f1df315dafe528981b69dd50a84100ec78c
-            test "$(git hash-object "$fixture")" = 9ecdce99649a3b1a6af68c4e3e054ed87dc1c3ac
+            test "$(git hash-object "$fixture")" = 0a6225004cdd8d693d2f243b770d1b8b7412f5cf
             # CLI-generated SCRATCH identity only, never a canonical migration.
             scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_household_laundry_renewal_initial_clone_only_v1)
