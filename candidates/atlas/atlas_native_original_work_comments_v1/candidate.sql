@@ -142,6 +142,24 @@ BEGIN
           OR (NOT p_write AND a.state='completed'
               AND v_work.work_state='completed'))
     ) INTO v_person_work;
+    -- Current canonical allocated participation, never an employee requirement.
+    IF NOT v_person_work THEN
+      SELECT EXISTS(
+        SELECT 1 FROM atlas.work_allocations a
+        JOIN atlas.work_allocations primary_carrier ON primary_carrier.id::text=a.establishment_basis->>'primaryAllocationId'
+          AND primary_carrier.organization_id=a.organization_id AND primary_carrier.work_item_id=a.work_item_id
+          AND primary_carrier.state='active' AND primary_carrier.allocation_role='responsible'
+          AND primary_carrier.assignee_membership_id IS NULL
+          AND primary_carrier.establishment_basis->>'nativeLedgerId'=p_ledger_id::text
+        WHERE a.organization_id=p_organization_id AND a.work_item_id=p_work_item_id
+          AND a.state='active' AND a.allocation_role='participant'
+          AND a.assignee_canonical_person_id=v_person AND a.assignee_membership_id IS NULL
+          AND a.establishment_basis_kind IN ('native_person_self_participation_v1','native_person_direct_participation_v1')
+          AND a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text
+          AND primary_carrier.assignee_canonical_person_id<>v_person
+          AND atlas.person_has_native_ledger_connection_v1(p_organization_id,p_ledger_id,primary_carrier.assignee_canonical_person_id)
+      ) INTO v_person_work;
+    END IF;
     -- Accepted collaboration is a separate receiver-established allocation.
     -- Membership + Ledger connection alone are never enough.
     IF NOT v_person_work THEN

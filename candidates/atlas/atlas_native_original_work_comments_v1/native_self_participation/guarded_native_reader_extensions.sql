@@ -107,7 +107,7 @@ BEGIN
         'person_connection_receiver_uptake','delegated_under_standing_scope',
         'ledger_connection_direct_assignment','original_subject_direct_assignment_v1'
       )) OR (a.allocation_role='participant'
-        AND a.establishment_basis_kind='native_person_self_participation_v1'
+        AND a.establishment_basis_kind IN ('native_person_self_participation_v1','native_person_direct_participation_v1')
         AND a.assigned_by_membership_id IS NULL
         AND primary_carrier.id IS NOT NULL
         AND primary_carrier.assignee_canonical_person_id<>v_self
