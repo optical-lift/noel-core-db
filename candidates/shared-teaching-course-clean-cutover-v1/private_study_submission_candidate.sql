@@ -233,3 +233,92 @@ REVOKE ALL ON FUNCTION public.shared_teaching_private_answer_review_target_self_
  public.shared_teaching_private_answer_review_inbox_self_api_v1(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.shared_teaching_private_answer_review_target_self_api_v1(uuid),
  public.shared_teaching_private_answer_review_inbox_self_api_v1(uuid,uuid) TO authenticated;
+
+-- T5e: exact issued Question context and deliberately submitted revision
+-- history. Existing current-edition and withdrawal boundaries remain intact.
+CREATE FUNCTION atlas.private_answer_question_history_v1(
+ a atlas.teaching_course_private_study_answer_revisions,p_reviewer uuid,p_mode text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SET search_path TO pg_catalog AS $$
+DECLARE items jsonb;
+BEGIN
+ SELECT coalesce(jsonb_agg(jsonb_build_object('submissionId',q.submission_id,
+  'answerRevisionId',q.answer_revision_id,'revisionNumber',q.revision_no,
+  'recordedAt',q.recorded_at,'state',q.state) ORDER BY q.revision_no DESC),'[]'::jsonb)
+ INTO items FROM (
+ SELECT s.submission_id,s.answer_revision_id,s.recorded_at,r.revision_no,
+ CASE WHEN EXISTS(SELECT 1 FROM atlas.teaching_course_private_answer_review_events e WHERE e.submission_id=s.submission_id AND e.event_kind='withdraw') THEN 'withdrawn'
+ WHEN EXISTS(SELECT 1 FROM atlas.teaching_course_private_answer_review_events e WHERE e.submission_id=s.submission_id AND e.event_kind='feedback') THEN 'feedback'
+ WHEN EXISTS(SELECT 1 FROM atlas.teaching_course_private_answer_review_events e WHERE e.submission_id=s.submission_id AND e.event_kind='accept_review') THEN 'accepted'
+ ELSE 'submitted' END AS state
+ FROM atlas.teaching_course_private_answer_submissions s
+ JOIN atlas.teaching_course_private_study_answer_revisions r ON r.answer_revision_id=s.answer_revision_id
+ WHERE r.invitation_id=a.invitation_id AND r.unit_id=a.unit_id AND r.snapshot_id=a.snapshot_id
+ AND r.unit_revision_id=a.unit_revision_id AND r.activity_id=a.activity_id
+ AND r.learner_person_entity_id=a.learner_person_entity_id AND s.learner_person_entity_id=a.learner_person_entity_id
+ AND s.reviewer_person_entity_id=p_reviewer
+ AND (p_mode='learner' OR NOT EXISTS(SELECT 1 FROM atlas.teaching_course_private_answer_review_events e WHERE e.submission_id=s.submission_id AND e.event_kind='withdraw'))
+ ORDER BY r.revision_no DESC LIMIT 101
+ ) q;
+ IF jsonb_array_length(items)>100 THEN RAISE EXCEPTION 'submitted history exceeds bounded view' USING ERRCODE='54000'; END IF;
+ RETURN items;
+END $$;
+REVOKE ALL ON FUNCTION atlas.private_answer_question_history_v1(atlas.teaching_course_private_study_answer_revisions,uuid,text) FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE FUNCTION public.shared_teaching_private_answer_question_context_self_api_v1(p_submission_id uuid,p_mode text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog AS $$
+DECLARE j jsonb;s atlas.teaching_course_private_answer_submissions%ROWTYPE;
+ a atlas.teaching_course_private_study_answer_revisions%ROWTYPE;u jsonb;v_text text;
+ lines text[];i integer;v_prompt text:=NULL;v_marker text;
+BEGIN
+ j:=public.shared_teaching_private_answer_submission_read_self_api_v1(p_submission_id,p_mode);
+ SELECT * INTO s FROM atlas.teaching_course_private_answer_submissions WHERE submission_id=p_submission_id;
+ SELECT * INTO a FROM atlas.teaching_course_private_study_answer_revisions WHERE answer_revision_id=s.answer_revision_id;
+ -- The existing read above authorizes this exact submission and locks its
+ -- scope. Before acceptance do not disclose even the original prompt.
+ IF p_mode='learner' OR j->>'state' IN ('accepted','feedback') THEN
+  SELECT q.item INTO u FROM atlas.teaching_course_version_curriculum_snapshots snap
+  CROSS JOIN LATERAL jsonb_array_elements(snap.curriculum_payload->'units') q(item)
+  WHERE snap.snapshot_id=a.snapshot_id AND q.item->>'unitId'=a.unit_id::text
+  AND q.item->>'revisionId'=a.unit_revision_id::text;
+  v_text:=u->>'text';
+  IF NOT atlas.private_study_question_valid_v1(v_text,a.activity_id) THEN
+   RAISE EXCEPTION 'exact issued question unavailable' USING ERRCODE='42501'; END IF;
+  v_marker:='## question {#titus-activity:'||a.activity_id::text||'}';
+  lines:=string_to_array(replace(replace(v_text,E'\r\n',E'\n'),E'\r',E'\n'),E'\n');
+  FOR i IN 1..coalesce(array_length(lines,1),0) LOOP
+   IF lower(lines[i])=v_marker THEN
+    i:=i+1;
+    WHILE i<=array_length(lines,1) AND btrim(lines[i])='' LOOP i:=i+1; END LOOP;
+    WHILE i<=array_length(lines,1) AND btrim(lines[i])<>'' AND lines[i] !~ '^\s*(#|>|[-*] |\d+\. |\||:::|\x60{3,}|~{3,})' LOOP
+     v_prompt:=concat_ws(E'\n',v_prompt,lines[i]);i:=i+1;
+    END LOOP;
+    EXIT;
+   END IF;
+  END LOOP;
+  IF v_prompt IS NULL OR btrim(v_prompt)='' THEN RAISE EXCEPTION 'exact prompt unavailable' USING ERRCODE='42501'; END IF;
+ END IF;
+ RETURN jsonb_build_object('contractVersion','private_answer_question_context_v1',
+  'submissionId',p_submission_id,'snapshotId',a.snapshot_id,'unitRevisionId',a.unit_revision_id,'activityId',a.activity_id,
+  'state',j->'state','unitTitle',CASE WHEN v_prompt IS NULL THEN NULL ELSE u->>'title' END,'prompt',v_prompt,
+  'history',atlas.private_answer_question_history_v1(a,s.reviewer_person_entity_id,p_mode),'notebookDisclosed',false);
+END $$;
+
+-- Learner can find deliberately submitted earlier revisions from their own
+-- currently saved answer even when that current answer was never submitted.
+CREATE FUNCTION public.shared_teaching_private_answer_own_history_self_api_v1(p_answer_revision_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog AS $$
+DECLARE a atlas.teaching_course_private_study_answer_revisions%ROWTYPE;v_person uuid;reviewer uuid;
+BEGIN
+ v_person:=atlas.current_person_for_private_course_v1();
+ SELECT * INTO a FROM atlas.teaching_course_private_study_answer_revisions
+ WHERE answer_revision_id=p_answer_revision_id AND learner_person_entity_id=v_person;
+ IF a.answer_revision_id IS NULL THEN RAISE EXCEPTION 'own saved answer required' USING ERRCODE='42501'; END IF;
+ PERFORM atlas.private_study_answer_scope_self_v1(a.invitation_id,a.unit_id,a.snapshot_id,a.unit_revision_id,a.activity_id);
+ SELECT invited_by_person_entity_id INTO reviewer FROM atlas.teaching_course_private_study_invitations WHERE invitation_id=a.invitation_id;
+ RETURN jsonb_build_object('contractVersion','private_answer_own_history_v1','answerRevisionId',p_answer_revision_id,
+  'history',atlas.private_answer_question_history_v1(a,reviewer,'learner'),'notebookDisclosed',false);
+END $$;
+REVOKE ALL ON FUNCTION public.shared_teaching_private_answer_question_context_self_api_v1(uuid,text),
+ public.shared_teaching_private_answer_own_history_self_api_v1(uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.shared_teaching_private_answer_question_context_self_api_v1(uuid,text),
+ public.shared_teaching_private_answer_own_history_self_api_v1(uuid) TO authenticated;

@@ -44,6 +44,9 @@ BEGIN
  IF jsonb_array_length(j->'items')<>1 OR j->'items'->0->>'submissionId'<>s::text OR j->'items'->0 ? 'text' THEN RAISE EXCEPTION 'bounded inbox'; END IF;
  j:=public.shared_teaching_private_answer_submission_read_self_api_v1(s,'reviewer');
  IF j->>'state'<>'submitted' OR j->'text'<>'null'::jsonb OR j->'feedback'<>'null'::jsonb THEN RAISE EXCEPTION 'unaccepted reviewer saw answer'; END IF;
+ j:=public.shared_teaching_private_answer_question_context_self_api_v1(s,'reviewer');
+ IF j->'prompt'<>'null'::jsonb OR j->'unitTitle'<>'null'::jsonb OR jsonb_array_length(j->'history')<>1
+ OR j->'history'->0 ? 'text' THEN RAISE EXCEPTION 'unaccepted context or private history leak'; END IF;
  BEGIN PERFORM public.shared_teaching_private_answer_review_event_self_api_v1(s,f,'feedback','Too soon');
  RAISE EXCEPTION 'feedback before acceptance'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  j:=public.shared_teaching_private_answer_review_event_self_api_v1(s,req,'accept_review',NULL);
@@ -51,6 +54,10 @@ BEGIN
  j:=public.shared_teaching_private_answer_submission_read_self_api_v1(s,'reviewer');
  IF j->>'state'<>'accepted' OR j->>'text' IS DISTINCT FROM E'Observed א.\nMy finding.' OR j->>'revisionNumber'<>'1'
  THEN RAISE EXCEPTION 'wrong selected answer'; END IF;
+ j:=public.shared_teaching_private_answer_question_context_self_api_v1(s,'reviewer');
+ IF j->>'prompt' IS DISTINCT FROM 'What changed?' OR j->>'state'<>'accepted'
+ OR jsonb_array_length(j->'history')<>1 OR j->'history'->0->>'answerRevisionId'<>current_setting('app.t4_original_answer')
+ THEN RAISE EXCEPTION 'wrong issued question or private revision leaked'; END IF;
  j:=public.shared_teaching_private_answer_review_event_self_api_v1(s,f,'feedback',E'Compare the record.\nThen refine.');
  IF j<>public.shared_teaching_private_answer_review_event_self_api_v1(s,f,'feedback',E'Compare the record.\nThen refine.') THEN RAISE EXCEPTION 'feedback replay'; END IF;
  BEGIN PERFORM public.shared_teaching_private_answer_review_event_self_api_v1(s,f,'feedback','Changed');
@@ -72,6 +79,9 @@ DECLARE s uuid:=current_setting('app.t4_submission')::uuid;j jsonb;
 BEGIN
  j:=public.shared_teaching_private_answer_submission_read_self_api_v1(s,'learner');
  IF j->>'state'<>'feedback' OR j->'feedback'->>'text' IS DISTINCT FROM E'Compare the record.\nThen refine.' THEN RAISE EXCEPTION 'learner feedback unavailable'; END IF;
+ j:=public.shared_teaching_private_answer_own_history_self_api_v1(current_setting('app.t4_private_answer')::uuid);
+ IF jsonb_array_length(j->'history')<>1 OR j->'history'->0->>'submissionId'<>s::text OR j->'history'->0->>'state'<>'feedback'
+ THEN RAISE EXCEPTION 'earlier submitted answer not recoverable from later private answer'; END IF;
  PERFORM public.shared_teaching_private_answer_review_event_self_api_v1(s,gen_random_uuid(),'withdraw',NULL);
  j:=public.shared_teaching_private_answer_submission_read_self_api_v1(s,'learner');
  IF j->>'state'<>'withdrawn' OR j->'feedback'->>'text' IS DISTINCT FROM E'Compare the record.\nThen refine.' THEN RAISE EXCEPTION 'withdrawal destroyed learner history'; END IF;
@@ -84,6 +94,8 @@ BEGIN
  IF jsonb_array_length(public.shared_teaching_private_answer_review_inbox_self_api_v1('11111111-1111-4111-8111-111111111111',NULL)->'items')<>0 THEN RAISE EXCEPTION 'withdrawn queue entry';END IF;
  BEGIN PERFORM public.shared_teaching_private_answer_submission_read_self_api_v1(current_setting('app.t4_submission')::uuid,'reviewer');
  RAISE EXCEPTION 'withdrawn submission disclosed'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ BEGIN PERFORM public.shared_teaching_private_answer_question_context_self_api_v1(current_setting('app.t4_submission')::uuid,'reviewer');
+ RAISE EXCEPTION 'withdrawn context disclosed'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  BEGIN PERFORM public.shared_teaching_private_answer_review_event_self_api_v1(current_setting('app.t4_submission')::uuid,gen_random_uuid(),'feedback','After withdrawal');
  RAISE EXCEPTION 'withdrawn feedback write'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
 END $withdrawn$;
