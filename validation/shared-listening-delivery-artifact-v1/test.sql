@@ -63,24 +63,24 @@ select pg_temp.deny('select pg_temp.bind()','23505');
 select pg_temp.deny('update transcript_core.delivery_package_artifacts set byte_size=byte_size','55000');
 select pg_temp.deny('delete from transcript_core.delivery_package_artifacts','55000');
 -- Exact retry must reuse the binding, while conflicting receipt or stale lineage fail.
-create function pg_temp.retry(e text default repeat('c',64)) returns jsonb language sql as $
+create function pg_temp.retry(e text default repeat('c',64)) returns jsonb language sql as $$
 select transcript_core.bind_verified_listening_delivery_artifact_v1(
  '00000000-0000-0000-0000-000000000051','00000000-0000-0000-0000-000000000021',
  repeat('b',64),50,repeat('a',64),e);
-$;
-do $
+$$;
+do $$
 begin
  if pg_temp.retry() is distinct from pg_temp.retry() or pg_temp.retry()->>'publication_approved' is distinct from 'false' then
    raise exception 'Replay receipt changed or authorized publication';
  end if;
 end;
-$;
+$$;
 select pg_temp.deny('select pg_temp.retry(repeat(''d'',64))','23505');
 select pg_temp.deny('select pg_temp.retry(null)','22023');
 update transcript_core.delivery_packages set status='invalid' where id='00000000-0000-0000-0000-000000000051';
 select pg_temp.deny('select pg_temp.retry()');
 update transcript_core.delivery_packages set status='exported' where id='00000000-0000-0000-0000-000000000051';
-do $
+do $$
 declare r text; privilege text;
 begin
  if not (select relrowsecurity from pg_class where oid='transcript_core.delivery_package_artifacts'::regclass) then raise exception 'RLS missing'; end if;
