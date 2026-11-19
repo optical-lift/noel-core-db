@@ -256,6 +256,8 @@ END $b_moves_e2$;
 RESET ROLE;
 
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_answer_tests_pg17.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_submission_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_submission_tests_pg17.sql
 
 -- Author withholds A Unit after E1 without destroying prior decisions.
 SET LOCAL ROLE authenticated;
