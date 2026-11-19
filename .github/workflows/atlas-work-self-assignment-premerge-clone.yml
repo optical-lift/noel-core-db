@@ -478,12 +478,12 @@ jobs:
           w=Path(".github/workflows/atlas-work-self-assignment-premerge-clone.yml").read_text().split("\n  native-intake-signed-clone:\n",1)[1]
           h=Path("scripts/validate-production-schema-clone.sh").read_text()
           for s in ("github.event.issue.author_association == 'OWNER'", "github.actor == github.repository_owner",
-                    "environment: production", "pulls/2959", "e76ad977c0432449938d3681b01c85daa2af7ccb", "native_intake_signed_clone_test_only"):
+                    "environment: production", "pulls/2959", "d3f05b3220415fb79e8cd31d7ae71854425c0ce7", "native_intake_signed_clone_test_only"):
               assert s in w,s
           assert w.count("NOEL_CORE_DATABASE_URL:")==1
           assert w.index("Snapshot production schema and roles READ ONLY for native intake") < w.index("Checkout exact held native intake source after snapshot")
           assert h.count("signed_native_intake_responsibility_probe=true")==1
-          for s in ("5fc59a4d3c3d24083037456bf3c488ae9318f3b6","dd1eb5d643926de75c4c4242bab490f336a2cdb4","766ab2b69c53796ca6aa892d57a1188fab799bc8","e3c087a2c20015710f8c04d34a603f700a8dc2d6","1b82e698705e473280f1fc55b0e762bce243effb","eb3bbfb45848a7fca90cc503e153f1451d8d7471"):
+          for s in ("5fc59a4d3c3d24083037456bf3c488ae9318f3b6","dd1eb5d643926de75c4c4242bab490f336a2cdb4","c5d72cc137dbf5c85ca6bdda1f4cf98d057de501","57629753679565be0f7e0f5dabbc3c11d28de892","1b82e698705e473280f1fc55b0e762bce243effb","eb3bbfb45848a7fca90cc503e153f1451d8d7471"):
               assert s in h,s
           for a,b in (("supabase"," db push"),("supabase"," db reset --linked"),("supabase migration"," repair"),("gh ","pr merge")):
               assert a+b not in w
@@ -492,15 +492,15 @@ jobs:
       - name: Compile exact held signed test, no database credentials
         uses: actions/checkout@v4
         with:
-          ref: e76ad977c0432449938d3681b01c85daa2af7ccb
+          ref: d3f05b3220415fb79e8cd31d7ae71854425c0ce7
           path: native-intake-source
           persist-credentials: false
       - name: Verify held test source bytes
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C native-intake-source rev-parse HEAD)" = e76ad977c0432449938d3681b01c85daa2af7ccb
-          test "$(git -C native-intake-source hash-object candidates/atlas/native_intake_responsibility_v1/validate_signed_intake_responsibility.py)" = e3c087a2c20015710f8c04d34a603f700a8dc2d6
+          test "$(git -C native-intake-source rev-parse HEAD)" = d3f05b3220415fb79e8cd31d7ae71854425c0ce7
+          test "$(git -C native-intake-source hash-object candidates/atlas/native_intake_responsibility_v1/validate_signed_intake_responsibility.py)" = 57629753679565be0f7e0f5dabbc3c11d28de892
           python3 -m py_compile native-intake-source/candidates/atlas/native_intake_responsibility_v1/validate_signed_intake_responsibility.py
 
   native-intake-signed-clone:
@@ -528,11 +528,11 @@ jobs:
           python3 - <<'PY'
           import os,re
           body=os.environ.get('BODY','')
-          assert re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',body,re.M)==['e76ad977c0432449938d3681b01c85daa2af7ccb']
+          assert re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',body,re.M)==['d3f05b3220415fb79e8cd31d7ae71854425c0ce7']
           assert re.findall(r'^scope:\s*([^\s]+)\s*$',body,re.M)==['native_intake_signed_clone_test_only']
           PY
           state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2959" --jq '.state + "|" + (.draft|tostring) + "|" + .head.sha')"
-          test "$state" = "open|true|e76ad977c0432449938d3681b01c85daa2af7ccb"
+          test "$state" = "open|true|d3f05b3220415fb79e8cd31d7ae71854425c0ce7"
       - name: Checkout canonical controller from main
         uses: actions/checkout@v4
         with:
@@ -572,7 +572,7 @@ jobs:
       - name: Checkout exact held native intake source after snapshot
         uses: actions/checkout@v4
         with:
-          ref: e76ad977c0432449938d3681b01c85daa2af7ccb
+          ref: d3f05b3220415fb79e8cd31d7ae71854425c0ce7
           path: held-native-intake
           persist-credentials: false
       - name: Assemble exact local-only clone inputs
@@ -580,14 +580,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C held-native-intake rev-parse HEAD)" = e76ad977c0432449938d3681b01c85daa2af7ccb
+          test "$(git -C held-native-intake rev-parse HEAD)" = d3f05b3220415fb79e8cd31d7ae71854425c0ce7
           test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
           test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
           test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
           held="$GITHUB_WORKSPACE/held-native-intake/candidates/atlas/native_intake_responsibility_v1"
           test "$(git hash-object "$held/candidate.sql")" = 5fc59a4d3c3d24083037456bf3c488ae9318f3b6
+          test "$(git hash-object "$held/clone_fixture.sql")" = c5d72cc137dbf5c85ca6bdda1f4cf98d057de501
+          python3 - "$held/clone_fixture.sql" <<'PY'
+          import sys
+          from pathlib import Path
+          base=Path("validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql").read_text().rstrip()
+          full=Path(sys.argv[1]).read_text()
+          assert full.startswith(base+"\n\n"), "C1 fixture changed"
+          suffix=full[len(base):]
+          assert suffix.count("insert into atlas.work_result_contract_policies(")==1
+          assert suffix.count(";")==1
+          assert "'ordinary_company_work_worker_attestation_v1','organization','worker_attestation',true" in suffix
+          print("PASS C1 unchanged; one exact existing policy seed appended")
+          PY
           test "$(git hash-object "$held/postconditions.sql")" = dd1eb5d643926de75c4c4242bab490f336a2cdb4
-          test "$(git hash-object "$held/validate_signed_intake_responsibility.py")" = e3c087a2c20015710f8c04d34a603f700a8dc2d6
+          test "$(git hash-object "$held/validate_signed_intake_responsibility.py")" = 57629753679565be0f7e0f5dabbc3c11d28de892
           mkdir -p "candidates/atlas/native_intake_responsibility_v1"
           cp "$held/validate_signed_intake_responsibility.py" "candidates/atlas/native_intake_responsibility_v1/"
           python3 -m py_compile "candidates/atlas/native_intake_responsibility_v1/validate_signed_intake_responsibility.py"
@@ -603,6 +616,7 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "migration=${found[0]}" >> "$GITHUB_OUTPUT"
           echo "postconditions=$held/postconditions.sql" >> "$GITHUB_OUTPUT"
+          echo "fixture=$held/clone_fixture.sql" >> "$GITHUB_OUTPUT"
       - name: Run existing disposable clone and signed native intake proof
         shell: bash
         run: |
@@ -611,7 +625,7 @@ jobs:
             --migration-version "${{ steps.scratch.outputs.version }}" \
             --release-lane atlas \
             --candidate-migration "${{ steps.scratch.outputs.migration }}" \
-            --candidate-fixture "validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+            --candidate-fixture "${{ steps.scratch.outputs.fixture }}" \
             --candidate-validation "${{ steps.scratch.outputs.postconditions }}" \
             --roles-dump "$RUNNER_TEMP/native-intake-roles.sql" \
             --schema-dump "$RUNNER_TEMP/native-intake-schema.sql" \

@@ -240,8 +240,8 @@ if [ "$lane" = "atlas" ] &&
      [ ! -s "$native_intake_proof" ] ||
      [ "$(git hash-object "$candidate_migration")" != 5fc59a4d3c3d24083037456bf3c488ae9318f3b6 ] ||
      [ "$(git hash-object "$candidate_validation")" != dd1eb5d643926de75c4c4242bab490f336a2cdb4 ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
-     [ "$(git hash-object "$native_intake_proof")" != e3c087a2c20015710f8c04d34a603f700a8dc2d6 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != c5d72cc137dbf5c85ca6bdda1f4cf98d057de501 ] ||
+     [ "$(git hash-object "$native_intake_proof")" != 57629753679565be0f7e0f5dabbc3c11d28de892 ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
     echo "Native intake proof requires exact reviewed source and synthetic fixture." >&2
