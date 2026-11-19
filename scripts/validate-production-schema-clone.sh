@@ -1164,7 +1164,7 @@ if [ "$signed_household_renewal_due_probe" = true ]; then
     --output "$artifacts_dir/signed-household-renewal-due-summary.txt" \
     >"$artifacts_dir/signed-household-renewal-due.log" 2>&1
   test -s "$artifacts_dir/signed-household-renewal-due-summary.txt"
-  grep -q '^PASS signed Laundry renewal due:' "$artifacts_dir/signed-household-renewal-due-summary.txt"
+  grep -q '^PASS signed due renewal:' "$artifacts_dir/signed-household-renewal-due-summary.txt"
 fi
 
 if [ "$signed_universal_original_work_probe" = true ]; then

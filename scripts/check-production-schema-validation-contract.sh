@@ -412,6 +412,8 @@ for fragment in ("9cb29da5dfd9042224fcc1e1e08414a537c72fa0",
         errors.append("Held Laundry renewal due immutable package pin missing: "+fragment)
 if '[ "$signed_household_renewal_due_probe" = true ]' not in startup:
     errors.append("Household signed probe accidentally starts PostgreSQL-only")
+if "grep -q '^PASS signed due renewal:'" not in harness:
+    errors.append("Due renewal exact signed receipt matcher changed")
 if 'signed-household-renewal-due-summary.txt' not in harness:
     errors.append("Household signed proof cannot be omitted from successful clone")
 
