@@ -46,7 +46,7 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-titus-t5-protected-signed-study-owner-clone.yml').read_text()
-          protected=w.split('\n  validate-owner-protected:\n',1)[1]
+          protected=w.split('\n  validate-owner-protected:\n',1)[1].split('\n  validate-owner-release-shape:\n',1)[0]
           for required in (
             "github.event.issue.author_association == 'OWNER'",
             "github.actor == github.repository_owner",
@@ -86,6 +86,15 @@ jobs:
           for required in ('auth.sign_in','auth.sessions','schema-only empty clone required','42501','later private finding','teaching_enrollments'):
             assert required.lower() in probe.lower(),required
           assert 'request.jwt' not in probe
+          release=w.split('\n  validate-owner-release-shape:\n',1)[1]
+          assert release.count('secrets.NOEL_CORE_DATABASE_URL')==1
+          assert 'github.actor == github.repository_owner' in release and "github.event.issue.author_association == 'OWNER'" in release
+          assert 'environment: production' in release and 'c330c20ab9245d3c2e21c04447894929496915ac' in release
+          assert 'b1f5e656afc5158bafe9353f813caa4449db3188' in release and 'ccbbfef0429a1c5c5ecba5b8516bf2c0fc75d23f' in release
+          for forbidden in ('supabase db push','supabase migration up','db reset --linked','SUPABASE_SERVICE_ROLE_KEY','apply_migration','gh pr merge','upload-artifact','--t5-rollback-shape'):
+            assert forbidden not in release,forbidden
+          assert release.index('Verify exact staged migration') < release.index('Snapshot protected schema/roles READ ONLY') < release.index('Rehearse exact versioned transaction')
+          assert '>"$d/run.log" 2>&1' in release and 'rm -rf "$RUNNER_TEMP/t5-release-private"' in release
           print("PASS signed T5 source-only gate; existing release paths retained")
           PY
 
@@ -220,3 +229,110 @@ jobs:
           set -euo pipefail
           rm -rf "$RUNNER_TEMP/t5-private"
           echo 'T5 fictional signed proof: no live DDL/DML, release, real learner data, or browser acceptance.' >> "$GITHUB_STEP_SUMMARY"
+
+  validate-owner-release-shape:
+    concurrency:
+      group: titus-t5-exact-release-rehearsal
+      cancel-in-progress: false
+    if: >-
+      github.event_name == 'issues' &&
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'HELD Titus T5 exact migration rehearsal request'
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Resolve distinct exact migration rehearsal request
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          fields={}
+          for raw in os.environ.get('ISSUE_BODY','').splitlines():
+              if not raw.strip(): continue
+              m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
+              if not m or m.group(1) in fields: raise SystemExit('invalid exact migration request')
+              fields[m.group(1)]=m.group(2)
+          assert fields=={'candidate_sha':'c330c20ab9245d3c2e21c04447894929496915ac','migration_version':'20261119165500','test_scope':'titus_t5_exact_release_schema_rehearsal_only_v1','production_target':'zirqkouammpwxlqfbsvf'}
+          print('PASS exact migration-specific read-only schema authorization')
+          PY
+      - name: Checkout canonical validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          path: canonical
+          persist-credentials: false
+      - name: Checkout exact held migration candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: c330c20ab9245d3c2e21c04447894929496915ac
+          path: held-release
+          persist-credentials: false
+      - name: Verify exact staged migration
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/2983" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|review/titus-t5-personal-teaching-release-20261119|c330c20ab9245d3c2e21c04447894929496915ac"
+          test "$(git -C held-release rev-parse HEAD)" = 'c330c20ab9245d3c2e21c04447894929496915ac'
+          test "$(git -C held-release hash-object supabase/migrations/20261119165500_shared_titus_private_teaching_v1.sql)" = 'b1f5e656afc5158bafe9353f813caa4449db3188'
+          test "$(git -C held-release hash-object validation/migrations/20261119165500_shared_titus_private_teaching_v1.sql)" = 'ccbbfef0429a1c5c5ecba5b8516bf2c0fc75d23f'
+          cd canonical
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash scripts/check-migration-release-lane.sh 20261119165500 shared "../held-release/supabase/migrations/20261119165500_shared_titus_private_teaching_v1.sql"
+      - name: Install pinned CLI
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/t5-release-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/t5-release-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null
+      - name: Snapshot protected schema/roles READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          d="$RUNNER_TEMP/t5-release-private"
+          mkdir "$d"
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$d/roles.sql" >"$d/roles.log" 2>&1
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$d/schema.sql" >"$d/schema.log" 2>&1
+          test -s "$d/roles.sql"
+          test -s "$d/schema.sql"
+          echo 'PASS read-only schema and roles; no records'
+      - name: Rehearse exact versioned transaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          d="$RUNNER_TEMP/t5-release-private"
+          if bash canonical/scripts/validate-production-schema-clone.sh --migration-version 20261119165500 --release-lane shared --candidate-migration "$GITHUB_WORKSPACE/held-release/supabase/migrations/20261119165500_shared_titus_private_teaching_v1.sql" --candidate-validation "$GITHUB_WORKSPACE/held-release/validation/migrations/20261119165500_shared_titus_private_teaching_v1.sql" --roles-dump "$d/roles.sql" --schema-dump "$d/schema.sql" --artifacts-dir "$d/diagnostics" >"$d/run.log" 2>&1; then
+            echo 'PASS exact migration transaction, postconditions, and lint delta on disposable schema'
+          else
+            echo 'FAIL exact migration rehearsal; raw diagnostics not published' >&2
+            exit 1
+          fi
+      - name: Remove protected scratch without publishing diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/t5-release-private"
+          echo 'Exact migration rehearsal only: no production changes, real rows, grants, deployment or release authorization.' >> "$GITHUB_STEP_SUMMARY"
