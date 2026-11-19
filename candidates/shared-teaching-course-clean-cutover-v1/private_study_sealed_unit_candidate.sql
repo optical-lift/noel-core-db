@@ -254,3 +254,68 @@ BEGIN
 END $index$;
 REVOKE ALL ON FUNCTION public.shared_teaching_private_study_index_self_api_v1(uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.shared_teaching_private_study_index_self_api_v1(uuid) TO authenticated;
+
+-- T5c: the existing original author's private delivery register. No Person
+-- directory, new recipient identity, learner Notebook, or public publication.
+CREATE FUNCTION public.shared_teaching_private_study_delivery_self_api_v1(p_course_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog
+AS $delivery$
+DECLARE v_person uuid;v_course uuid;v_invites jsonb;v_editions jsonb;
+BEGIN
+ v_course:=atlas.require_private_course_author_self_v1(p_course_id,true);
+ v_person:=atlas.current_person_for_private_course_v1();
+ IF (SELECT count(*) FROM atlas.teaching_course_private_study_invitations i
+ WHERE i.course_id=v_course AND i.invited_by_person_entity_id=v_person)>100
+ OR (SELECT count(*) FROM atlas.teaching_course_version_curriculum_snapshots s
+ WHERE s.course_id=v_course AND s.sealed_by_person_entity_id=v_person)>100
+ THEN RAISE EXCEPTION 'delivery register exceeds bounded view' USING ERRCODE='54000';END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object(
+  'invitationId',i.invitation_id,'learnerPersonId',i.learner_person_entity_id,
+  'state',CASE WHEN t.termination_id IS NOT NULL THEN 'withdrawn'
+   WHEN r.decision IS NOT NULL THEN r.decision
+   WHEN i.expires_at IS NOT NULL AND i.expires_at<=clock_timestamp() THEN 'expired' ELSE 'offered' END,
+  'issued',coalesce((SELECT jsonb_agg(jsonb_build_object('unitId',d.unit_id,'courseVersionId',d.course_version_id,
+    'snapshotId',d.snapshot_id) ORDER BY d.unit_id) FROM (
+    SELECT DISTINCT ON(u.unit_id) u.unit_id,u.course_version_id,u.snapshot_id,u.decision
+    FROM atlas.teaching_course_private_study_unit_decisions u WHERE u.invitation_id=i.invitation_id
+    ORDER BY u.unit_id,u.event_seq DESC) d WHERE d.decision='allow' AND t.termination_id IS NULL),'[]'::jsonb))
+  ORDER BY i.invited_at,i.invitation_id),'[]'::jsonb) INTO v_invites
+ FROM atlas.teaching_course_private_study_invitations i
+ LEFT JOIN atlas.teaching_course_private_study_responses r ON r.invitation_id=i.invitation_id
+ LEFT JOIN atlas.teaching_course_private_study_terminations t ON t.invitation_id=i.invitation_id
+ WHERE i.course_id=v_course AND i.invited_by_person_entity_id=v_person;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('courseVersionId',s.course_version_id,
+  'snapshotId',s.snapshot_id,'title',v.title,'versionNo',v.version_no,
+  'units',(SELECT coalesce(jsonb_agg(jsonb_build_object('unitId',u.item->'unitId',
+   'title',u.item->'title','kind',u.item->'kind','position',u.item->'position',
+   'revisionId',u.item->'revisionId','revisionNumber',u.item->'revisionNumber')
+   ORDER BY (u.item->>'position')::integer,u.item->>'unitId'),'[]'::jsonb)
+   FROM jsonb_array_elements(s.curriculum_payload->'units') u(item)))
+  ORDER BY v.version_no),'[]'::jsonb) INTO v_editions
+ FROM atlas.teaching_course_version_curriculum_snapshots s
+ JOIN atlas.teaching_course_versions v ON v.id=s.course_version_id AND v.course_id=s.course_id
+ WHERE s.course_id=v_course AND s.sealed_by_person_entity_id=v_person;
+ RETURN jsonb_build_object('contractVersion','private_study_delivery_v1','courseId',v_course,
+  'invitations',v_invites,'editions',v_editions,'publicPublication',false);
+END $delivery$;
+
+-- Atomically prepare a private edition from saved originals using the existing
+-- immutable definition+seal operations. No learner is issued anything here.
+CREATE FUNCTION public.shared_teaching_private_study_prepare_edition_self_api_v1(
+ p_course_id uuid,p_request_id uuid,p_title text)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog
+AS $prepare$
+DECLARE v_definition jsonb;v_seal jsonb;
+BEGIN
+ v_definition:=public.shared_teaching_course_definition_publish_self_api_v1(
+  p_course_id,p_request_id,p_title,NULL,ARRAY[]::text[]);
+ v_seal:=public.shared_teaching_course_curriculum_seal_self_api_v1(
+  p_course_id,(v_definition->>'courseVersionId')::uuid,p_request_id);
+ RETURN jsonb_build_object('contractVersion','private_study_prepared_edition_v1',
+  'courseId',p_course_id,'courseVersionId',v_seal->'courseVersionId','snapshotId',v_seal->'snapshotId',
+  'alreadyExists',v_seal->'alreadyExists','publicPublication',false);
+END $prepare$;
+REVOKE ALL ON FUNCTION public.shared_teaching_private_study_delivery_self_api_v1(uuid),
+ public.shared_teaching_private_study_prepare_edition_self_api_v1(uuid,uuid,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.shared_teaching_private_study_delivery_self_api_v1(uuid),
+ public.shared_teaching_private_study_prepare_edition_self_api_v1(uuid,uuid,text) TO authenticated;

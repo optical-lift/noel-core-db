@@ -69,6 +69,10 @@ BEGIN
   'a9999999-9999-4999-8999-999999999993',NULL);
  PERFORM set_config('app.private_e_a',a->>'invitationId',true);
  PERFORM set_config('app.private_e_b',b->>'invitationId',true);
+ j:=public.shared_teaching_private_study_delivery_self_api_v1('11111111-1111-4111-8111-111111111111');
+ IF jsonb_array_length(j->'invitations')<>2 OR jsonb_array_length(j->'editions')<>1
+ OR j->'invitations'->0->>'state'<>'offered' OR j->'editions'->0->'units'->0 ? 'text'
+ OR j->>'publicPublication'<>'false' THEN RAISE EXCEPTION 'private delivery register mismatch'; END IF;
 END $author_seal_and_invite$;
 RESET ROLE;
 
@@ -120,6 +124,10 @@ BEGIN
   current_setting('app.fictional_published_version_id')::uuid);
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'student signed author release'; END IF;
+ denied:=false;
+ BEGIN PERFORM public.shared_teaching_private_study_delivery_self_api_v1('11111111-1111-4111-8111-111111111111');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
+ IF NOT denied THEN RAISE EXCEPTION 'student accessed teacher delivery register'; END IF;
 END $learner_no_publish$;
 RESET ROLE;
 
@@ -156,6 +164,9 @@ BEGIN
   'a9999999-9999-4999-8999-999999999998','allow',
   current_setting('app.fictional_published_version_id')::uuid);
  IF c->>'alreadyExists'<>'false' THEN RAISE EXCEPTION 'B E1 grant missing'; END IF;
+ c:=public.shared_teaching_private_study_delivery_self_api_v1('11111111-1111-4111-8111-111111111111');
+ IF c->'invitations'->0->>'state'<>'accept' OR jsonb_array_length(c->'invitations'->0->'issued')<>1
+ THEN RAISE EXCEPTION 'delivery issue or consent missing'; END IF;
  denied:=false;
  BEGIN
   PERFORM public.shared_teaching_private_study_unit_decide_self_api_v1(
@@ -210,17 +221,15 @@ BEGIN
   E'Fictional E2 lesson\r\nNew observation\r\n\r\n## Question {#titus-activity:12345678-1234-4234-8234-123456789abc}\r\n\r\nWhat changed?');
  IF j->'material'->>'revisionNumber'<>'3' THEN
   RAISE EXCEPTION 'author E2 working Unit did not advance'; END IF;
- v:=public.shared_teaching_course_definition_publish_self_api_v1(
-  '11111111-1111-4111-8111-111111111111',
-  'b9999999-9999-4999-8999-999999999992',
-  'Fictional E2 definition',NULL,ARRAY[]::text[]);
- s:=public.shared_teaching_course_curriculum_seal_self_api_v1(
-  '11111111-1111-4111-8111-111111111111',
-  (v->>'courseVersionId')::uuid,
-  'b9999999-9999-4999-8999-999999999993');
+ v:=public.shared_teaching_private_study_prepare_edition_self_api_v1(
+  '11111111-1111-4111-8111-111111111111','b9999999-9999-4999-8999-999999999992','Fictional E2 definition');
+ s:=v;
  IF s->>'snapshotId' IS NULL OR s->>'alreadyExists'<>'false' THEN
   RAISE EXCEPTION 'author E2 seal missing'; END IF;
  PERFORM set_config('app.private_version_e2',v->>'courseVersionId',true);
+ s:=public.shared_teaching_private_study_prepare_edition_self_api_v1(
+  '11111111-1111-4111-8111-111111111111','b9999999-9999-4999-8999-999999999992','Fictional E2 definition');
+ IF s->>'alreadyExists'<>'true' OR s->>'snapshotId'<>v->>'snapshotId' THEN RAISE EXCEPTION 'edition retry changed original'; END IF;
  j:=public.shared_teaching_private_study_unit_decide_self_api_v1(
   current_setting('app.private_e_b')::uuid,
   '31111111-1111-4111-8111-111111111111',
