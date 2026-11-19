@@ -68,6 +68,39 @@ class TestHeldU1ProtectedBundle(unittest.TestCase):
                 self.assertIn(exact.read_text().rstrip(), package)
             self.assertNotIn("supabase db push", package.lower())
 
+
+    def test_t5_exact_rollback_only_teaching_package(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            script = ROOT / "scripts/prepare-titus-t5-protected-clone-source.py"
+            out = root / "20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql"
+            manifest = root / "t5.json"
+            args = [sys.executable, str(script), "--source-root", str(ROOT),
+                    "--expected-sha", self.head, "--test-scope",
+                    "titus_t5_protected_source_shape_test_only_v1",
+                    "--output", str(out), "--manifest", str(manifest)]
+            proc = subprocess.run(args, capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            package = out.read_text()
+            receipt = json.loads(manifest.read_text())
+            self.assertEqual(receipt["sourceSha"], self.head)
+            self.assertEqual(len(receipt["sourceSegments"]), 7)
+            self.assertFalse(receipt["protectedRestorePerformed"])
+            self.assertFalse(receipt["releaseAuthorized"])
+            self.assertTrue(package.rstrip().endswith("ROLLBACK;"))
+            self.assertNotIn("COMMIT;", package)
+            self.assertEqual(hashlib.sha256(package.encode()).hexdigest(), receipt["scratchSqlSha256"])
+            self.assertIn("shared_teaching_course_adopt_self_api_v1", package)
+            self.assertNotIn("CREATE TABLE atlas.teaching_course_units", package)
+            self.assertNotIn("DROP TABLE", package)
+            self.assertNotIn("INSERT INTO titus.customer_", package)
+            for seg in receipt["sourceSegments"]:
+                raw = subprocess.check_output(("git", "-C", str(ROOT), "show", self.head + ":" + seg["source"]))
+                self.assertEqual(hashlib.sha256(raw).hexdigest(), seg["sha256"])
+            self.assertNotEqual(subprocess.run(args, capture_output=True).returncode, 0)
+            env = dict(os.environ, NOEL_CORE_DATABASE_URL="postgresql://invalid.example/db")
+            self.assertNotEqual(subprocess.run(args, capture_output=True, env=env).returncode, 0)
+
     def test_deny_wrong_commit_scope_or_existing_output(self):
         with tempfile.TemporaryDirectory() as tmp:
             for kwargs in (
