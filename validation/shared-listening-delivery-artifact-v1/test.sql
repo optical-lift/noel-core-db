@@ -44,7 +44,7 @@ begin
    ('storage_path','not-a-uuid/episode.mp3')) q(c,v)
   loop
     begin
-      execute format('update transcript_core.assets set %I=%L where id=\'00000000-0000-0000-0000-000000000021\'',col,val);
+      execute format('update transcript_core.assets set %I=%L where id=%L',col,val,'00000000-0000-0000-0000-000000000021');
       perform pg_temp.deny('select pg_temp.bind()');
       raise exception 'restore fixture' using errcode='P0002';
     exception when no_data_found then null;
