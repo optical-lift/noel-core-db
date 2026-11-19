@@ -451,9 +451,7 @@ values ('household_laundry_begin_cycle_v1','household','domain_adapter',true,
 -- Disposable schema-only clone: reproduce the two existing released contract rows, not new policies.
 insert into atlas.work_result_contract_policies(contract_key,source_domain,acceptance_mode,active,description,metadata)
 values('household_laundry_begin_drying_v1','household','domain_adapter',true,'Actual drying start satisfies only the begin-drying transition.',
-jsonb_build_object('qualificationEvent','drying_started','physicalStepOnly',true,'noAutomaticRhythm',true))
-on conflict(contract_key) do nothing;
+jsonb_build_object('qualificationEvent','drying_started','physicalStepOnly',true,'noAutomaticRhythm',true));
 insert into atlas.work_result_contract_policies(contract_key,source_domain,acceptance_mode,active,description,metadata)
 values('household_laundry_return_to_use_v1','household','domain_adapter',true,'Actual return of this observed dry load to use.',
-jsonb_build_object('qualificationEvent','returned_to_use','physicalStepOnly',true,'noAutomaticRhythm',true))
-on conflict(contract_key) do nothing;
+jsonb_build_object('qualificationEvent','returned_to_use','physicalStepOnly',true,'noAutomaticRhythm',true));
