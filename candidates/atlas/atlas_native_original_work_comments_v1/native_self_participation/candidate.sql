@@ -362,6 +362,127 @@ BEGIN
 END
 $function$;
 
+-- Native participant mutations must never enter the older primary
+-- responsibility/plan and legacy carrier synchronization consumers.
+-- Those historical consumers remain retirement debt for other allocation kinds.
+DROP TRIGGER work_allocations_reconcile_execution_plan_v1 ON atlas.work_allocations;
+CREATE TRIGGER work_allocations_reconcile_execution_plan_v1
+ AFTER INSERT OR UPDATE OF state,assignee_membership_id ON atlas.work_allocations
+ FOR EACH ROW WHEN (NEW.organization_id IS NOT NULL AND
+ NEW.establishment_basis_kind IS DISTINCT FROM 'native_person_self_participation_v1')
+ EXECUTE FUNCTION atlas.reconcile_company_work_execution_plan_responsibility_trigger_v1();
+DROP TRIGGER work_allocations_sync_production_carrier_v1 ON atlas.work_allocations;
+CREATE TRIGGER work_allocations_sync_production_carrier_v1
+ AFTER INSERT OR UPDATE OF state,assignee_membership_id,allocation_role ON atlas.work_allocations
+ FOR EACH ROW WHEN (NEW.organization_id IS NOT NULL AND
+ NEW.establishment_basis_kind IS DISTINCT FROM 'native_person_self_participation_v1')
+ EXECUTE FUNCTION atlas.sync_production_company_work_responsibility_carrier_trigger_v1();
+
+-- Self-participation is scoped to the exact active primary allocation observed
+-- when joining. A terminal original or changed primary releases this
+-- relationship, not the Person's performance. Rejoining is a new decision.
+CREATE OR REPLACE FUNCTION atlas.end_native_self_participation_on_work_terminal_v1()
+ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $function$
+BEGIN
+ UPDATE atlas.work_allocations SET state='released',released_at=now(),updated_at=now(),
+   release_reason='Original Work ended; participation closed without performer attestation.'
+ WHERE work_item_id=NEW.id AND organization_id=NEW.organization_id
+   AND state='active' AND allocation_role='participant'
+   AND establishment_basis_kind='native_person_self_participation_v1';
+ RETURN NEW;
+END
+$function$;
+CREATE TRIGGER native_self_participation_work_terminal_v1
+ AFTER UPDATE OF work_state ON atlas.work_items
+ FOR EACH ROW WHEN (OLD.work_state='open' AND NEW.work_state<>'open' AND NEW.organization_id IS NOT NULL)
+ EXECUTE FUNCTION atlas.end_native_self_participation_on_work_terminal_v1();
+
+CREATE OR REPLACE FUNCTION atlas.end_native_self_participation_on_primary_release_v1()
+ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $function$
+BEGIN
+ UPDATE atlas.work_allocations SET state='released',released_at=now(),updated_at=now(),
+   release_reason='Original primary allocation ended; shared participation needs a new decision.'
+ WHERE work_item_id=NEW.work_item_id AND organization_id=NEW.organization_id
+   AND state='active' AND allocation_role='participant'
+   AND establishment_basis_kind='native_person_self_participation_v1'
+   AND establishment_basis->>'primaryAllocationId'=NEW.id::text;
+ RETURN NEW;
+END
+$function$;
+CREATE TRIGGER native_self_participation_primary_release_v1
+ AFTER UPDATE OF state ON atlas.work_allocations
+ FOR EACH ROW WHEN (OLD.state='active' AND NEW.state<>'active'
+ AND NEW.allocation_role='responsible' AND NEW.organization_id IS NOT NULL)
+ EXECUTE FUNCTION atlas.end_native_self_participation_on_primary_release_v1();
+
+-- Read-only eligibility for the existing Work page. Not a roster grant.
+CREATE OR REPLACE FUNCTION atlas.native_original_work_self_participation_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid
+) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $function$
+DECLARE v_actor uuid; v_primary atlas.work_allocations%rowtype; v_part atlas.work_allocations%rowtype;
+BEGIN
+ v_actor:=atlas.native_intake_responsibility_owner_context_v1(p_organization_id,p_ledger_id,p_work_item_id);
+ SELECT * INTO v_primary FROM atlas.work_allocations a
+ WHERE a.organization_id=p_organization_id AND a.work_item_id=p_work_item_id
+   AND a.allocation_role='responsible' AND a.state='active'
+   AND a.assignee_membership_id IS NULL AND a.assignee_canonical_person_id IS NOT NULL
+   AND a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text;
+ SELECT * INTO v_part FROM atlas.work_allocations a
+ WHERE a.organization_id=p_organization_id AND a.work_item_id=p_work_item_id
+   AND a.allocation_role='participant' AND a.state='active'
+   AND a.assignee_canonical_person_id=v_actor AND a.assignee_membership_id IS NULL
+   AND a.establishment_basis_kind='native_person_self_participation_v1'
+   AND a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text;
+ RETURN jsonb_build_object('ok',true,'contractVersion','native_original_work_self_participation_v1',
+   'organizationId',p_organization_id,'ledgerId',p_ledger_id,'workItemId',p_work_item_id,'personId',v_actor,
+   'participantAllocationId',v_part.id,'primaryAllocationId',v_primary.id,
+   'canJoin',v_primary.id IS NOT NULL AND v_primary.assignee_canonical_person_id<>v_actor
+      AND atlas.person_has_native_ledger_connection_v1(p_organization_id,p_ledger_id,v_primary.assignee_canonical_person_id)
+      AND NOT EXISTS (SELECT 1 FROM atlas.work_allocations a WHERE a.work_item_id=p_work_item_id
+         AND a.state='active' AND a.assignee_canonical_person_id=v_actor),
+   'canLeave',v_part.id IS NOT NULL);
+END
+$function$;
+
+-- Release only one's own exact participant allocation. Repeating an already
+-- released exact allocation is safe and never releases a subsequent join.
+CREATE OR REPLACE FUNCTION atlas.leave_native_original_work_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_work_item_id uuid,p_participant_allocation_id uuid
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $function$
+DECLARE v_actor uuid; v_part atlas.work_allocations%rowtype; v_replay boolean;
+BEGIN
+ v_actor:=atlas.native_intake_responsibility_owner_context_v1(p_organization_id,p_ledger_id,p_work_item_id);
+ PERFORM 1 FROM atlas.work_items WHERE id=p_work_item_id AND organization_id=p_organization_id FOR UPDATE;
+ v_actor:=atlas.native_intake_responsibility_owner_context_v1(p_organization_id,p_ledger_id,p_work_item_id);
+ SELECT * INTO v_part FROM atlas.work_allocations a WHERE a.id=p_participant_allocation_id
+   AND a.organization_id=p_organization_id AND a.work_item_id=p_work_item_id
+   AND a.assignee_canonical_person_id=v_actor AND a.assignee_membership_id IS NULL
+   AND a.allocation_role='participant' AND a.establishment_basis_kind='native_person_self_participation_v1'
+   AND a.establishment_basis->>'nativeLedgerId'=p_ledger_id::text AND a.state IN ('active','released') FOR UPDATE;
+ IF v_part.id IS NULL THEN RAISE EXCEPTION 'Exact own participant allocation required' USING ERRCODE='42501';END IF;
+ v_replay:=v_part.state='released';
+ IF NOT v_replay THEN
+   UPDATE atlas.work_allocations SET state='released',released_at=now(),updated_at=now(),
+     release_reason='Signed Person withdrew their own participation.'
+    WHERE id=v_part.id AND state='active' RETURNING * INTO v_part;
+ END IF;
+ RETURN jsonb_build_object('ok',true,'contractVersion','native_original_work_self_participation_leave_v1',
+  'organizationId',p_organization_id,'ledgerId',p_ledger_id,'workItemId',p_work_item_id,
+  'personId',v_actor,'allocationId',v_part.id,'allocationRole','participant',
+  'allocationState',v_part.state,'idempotent',v_replay,
+  'primaryResponsibilityChanged',false,'workCopied',false,'resultRecorded',false);
+END
+$function$;
+REVOKE ALL ON FUNCTION atlas.end_native_self_participation_on_work_terminal_v1(),
+ atlas.end_native_self_participation_on_primary_release_v1(),
+ atlas.native_original_work_self_participation_self_api_v1(uuid,uuid,uuid),
+ atlas.leave_native_original_work_self_api_v1(uuid,uuid,uuid,uuid)
+ FROM PUBLIC,anon,authenticated,service_role;
+
 -- Internal source only until complete signed clone + participant readback,
 -- terminal lifecycle and retired legacy consumer proof. NO public wrapper/grant.
 REVOKE ALL ON FUNCTION atlas.join_native_original_work_self_api_v1(uuid,uuid,uuid,uuid)
