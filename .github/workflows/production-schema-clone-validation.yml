@@ -89,6 +89,19 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact held Laundry renewal due package only. This branch is a disposable
+          # validation request, NOT a migration identity or release request.
+          if title == 'Production schema validation request: Atlas held Laundry renewal due':
+              expected = {'diagnostic_scope':'atlas_household_laundry_renewal_due_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'e3290c01631f9d28d16fbecd3085c904eaab5a6c'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held Laundry renewal due validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-laundry-renewal-due\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
           missing = [key for key in required if key not in fields]
           if missing:
@@ -298,6 +311,46 @@ jobs:
             mkdir -p "$(dirname "$held_proof")"
             cp "$proof" "$held_proof"
             cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_attention.py"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-laundry-renewal-due" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "e3290c01631f9d28d16fbecd3085c904eaab5a6c"
+            src="candidate/candidates/atlas/household_laundry_renewal_attention_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_laundry_renewal_attention_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_historical.py"
+            fixture="candidate/candidates/atlas/household_laundry_renewal_attention_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 9cb29da5dfd9042224fcc1e1e08414a537c72fa0
+            test "$(git hash-object "$post")" = 76728974daa1622c11f0c4a9d08e6b26b8c1af11
+            test "$(git hash-object "$proof")" = cd244d0f961187bd022309c50790fe5334e92afc
+            renewal_probe="candidate/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_due.py"
+            test "$(git hash-object "$renewal_probe")" = dde6d83550b892ada267d68a99bde3d493860faa
+            test "$(git hash-object "$fixture")" = 0a6225004cdd8d693d2f243b770d1b8b7412f5cf
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_laundry_renewal_due_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_laundry_renewal_due_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_historical.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_due.py"
             sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
             {
               echo "path=$candidate_migration"
