@@ -1,6 +1,7 @@
 -- Held M3.17B: TWO fictional consenting students, same Course, exact
 -- independently selected sealed Lesson editions. No authenticated real user.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_sealed_unit_candidate.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_answer_candidate.sql
 
 DO $source_acl$
 BEGIN
@@ -193,7 +194,7 @@ BEGIN
  j:=public.shared_teaching_course_unit_save_self_api_v1(
   '31111111-1111-4111-8111-111111111111',
   'b9999999-9999-4999-8999-999999999991',2,
-  E'Fictional E2 lesson\r\nNew observation');
+  E'Fictional E2 lesson\r\nNew observation\r\n\r\n## Question {#titus-activity:12345678-1234-4234-8234-123456789abc}\r\n\r\nWhat changed?');
  IF j->'material'->>'revisionNumber'<>'3' THEN
   RAISE EXCEPTION 'author E2 working Unit did not advance'; END IF;
  v:=public.shared_teaching_course_definition_publish_self_api_v1(
@@ -240,7 +241,7 @@ BEGIN
  j:=public.shared_teaching_private_study_sealed_unit_read_self_api_v1(
   current_setting('app.private_e_b')::uuid,
   '31111111-1111-4111-8111-111111111111');
- IF j->'unit'->>'text' IS DISTINCT FROM E'Fictional E2 lesson\r\nNew observation'
+ IF j->'unit'->>'text' IS DISTINCT FROM E'Fictional E2 lesson\r\nNew observation\r\n\r\n## Question {#titus-activity:12345678-1234-4234-8234-123456789abc}\r\n\r\nWhat changed?'
  OR j->>'courseVersionId'<>current_setting('app.private_version_e2')
  THEN RAISE EXCEPTION 'B did not receive exact authorized E2'; END IF;
  BEGIN
@@ -251,6 +252,8 @@ BEGIN
  IF NOT denied THEN RAISE EXCEPTION 'B read A invitation'; END IF;
 END $b_moves_e2$;
 RESET ROLE;
+
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/private_study_answer_tests_pg17.sql
 
 -- Author withholds A Unit after E1 without destroying prior decisions.
 SET LOCAL ROLE authenticated;
@@ -294,6 +297,11 @@ BEGIN
    '31111111-1111-4111-8111-111111111111');
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'withdrawn B still reads E2'; END IF;
+ denied:=false;
+ BEGIN PERFORM public.shared_teaching_private_study_answer_save_self_api_v1(current_setting('app.private_e_b')::uuid,
+ '31111111-1111-4111-8111-111111111111',current_setting('app.t4_snapshot')::uuid,current_setting('app.t4_revision')::uuid,'12345678-1234-4234-8234-123456789abc',gen_random_uuid(),2,'After withdrawal');
+ EXCEPTION WHEN insufficient_privilege THEN denied:=true;END;
+ IF NOT denied THEN RAISE EXCEPTION 'withdrawn learner wrote answer';END IF;
 END $b_withdrawn$;
 RESET ROLE;
 
