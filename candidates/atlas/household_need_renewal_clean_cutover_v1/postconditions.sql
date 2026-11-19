@@ -6,3 +6,16 @@ DO $body$ BEGIN
  IF EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='atlas' AND p.proname IN ('household_laundry_current_self_api_v1','record_household_laundry_wash_started_self_api_v1','record_household_laundry_drying_started_self_api_v1','record_household_laundry_returned_to_use_self_api_v1','personal_laundry_kernel_self_api_v1','household_need_renewal_decide_self_api_v1','household_laundry_renewal_attention_self_api_v1','record_household_laundry_renewal_not_ready_self_api_v1') AND (p.prosrc ILIKE '%household_rhythms%' OR p.prosrc ILIKE '%rhythm_satisfactions%' OR p.prosrc ILIKE '%household_rhythm_explicit_decisions_v1%')) THEN RAISE EXCEPTION 'Laundry still consumes legacy storage'; END IF;
  IF NOT has_function_privilege('authenticated','public.household_need_renewal_decide_self_api_v1(uuid,uuid,text,integer,text)','EXECUTE') OR has_function_privilege('anon','public.household_need_renewal_decide_self_api_v1(uuid,uuid,text,integer,text)','EXECUTE') THEN RAISE EXCEPTION 'Signed membrane mismatch'; END IF;
 END $body$;
+
+DO $conservation$ BEGIN
+ IF (SELECT count(*) FROM atlas.household_rhythms WHERE household_id='e5200000-0000-4000-8000-000000000c01')<>1 OR NOT EXISTS(SELECT 1 FROM atlas.household_rhythms WHERE id='e5200000-0000-4000-8000-000000000ea2' AND household_id='e5200000-0000-4000-8000-000000000c01' AND stable_key='clone-independent-rhythm' AND area='household' AND title='Independent synthetic rhythm' AND cadence_rule='weekly' AND next_window_start='2030-01-01 12:00+00'::timestamptz AND next_window_end='2030-01-01 13:00+00'::timestamptz AND expected_minutes=30 AND protection_level='standard' AND floor_class=1 AND interruptibility='interruptible' AND principal_required AND consequence='Independent consequence' AND reason_for_floor='Independent reason' AND active AND blocks_capacity AND metadata='{"cloneFixture":true}'::jsonb) THEN RAISE EXCEPTION 'Unrelated rhythm lost or changed'; END IF;
+ IF EXISTS(SELECT 1 FROM atlas.principal_clock_candidates_v1 WHERE source_id='e5200000-0000-4000-8000-000000000ea1') OR EXISTS(SELECT 1 FROM atlas.principal_capacity_blocks_v1 WHERE source_id='e5200000-0000-4000-8000-000000000ea1') THEN RAISE EXCEPTION 'Obsolete source survived arbitration'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM atlas.principal_clock_candidates_v1 WHERE source_id='e5200000-0000-4000-8000-000000000ea2') OR NOT EXISTS(SELECT 1 FROM atlas.principal_capacity_blocks_v1 WHERE source_id='e5200000-0000-4000-8000-000000000ea2') THEN RAISE EXCEPTION 'Independent rhythm lost from arbitration'; END IF;
+ BEGIN
+   INSERT INTO atlas.household_rhythms(id,household_id,stable_key,area,title,cadence_rule,expected_minutes,protection_level,floor_class,interruptibility,principal_required,reason_for_floor,active,blocks_capacity,metadata)
+   VALUES('e5200000-0000-4000-8000-000000000ea3','e5200000-0000-4000-8000-000000000c01','kernel:household.laundry:general','laundry','Recreation test','daily',45,'standard',1,'interruptible',true,'Fictional invalid recreation',true,true,'{}');
+   RAISE EXCEPTION 'Obsolete row was recreated';
+ EXCEPTION WHEN check_violation THEN
+   IF SQLERRM NOT LIKE '%household_rhythm_not_laundry_kernel_v1%' THEN RAISE; END IF;
+ END;
+END $conservation$;
