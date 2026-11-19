@@ -23,6 +23,8 @@ DECLARE a uuid:=current_setting('app.t4_original_answer')::uuid;t uuid:='bbbbbbb
 BEGIN
  BEGIN PERFORM public.shared_teaching_private_answer_submit_self_api_v1(a,'f9999999-9999-4999-8999-999999999991',gen_random_uuid());
  RAISE EXCEPTION 'unrelated recipient'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+ j:=public.shared_teaching_private_answer_review_target_self_api_v1(a);
+ IF j->>'reviewerPersonId'<>t::text OR j->'submissionId'<>'null'::jsonb THEN RAISE EXCEPTION 'own target resolution'; END IF;
  j:=public.shared_teaching_private_answer_submit_self_api_v1(a,t,req);
  IF j->>'answerRevisionId'<>a::text OR j->>'notebookDisclosed'<>'false' OR j<>public.shared_teaching_private_answer_submit_self_api_v1(a,t,req)
  THEN RAISE EXCEPTION 'selected submission receipt'; END IF;
@@ -38,6 +40,8 @@ SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","ses
 DO $review$
 DECLARE s uuid:=current_setting('app.t4_submission')::uuid; j jsonb;req uuid:='12345678-1234-4234-8234-123456789011';f uuid:='12345678-1234-4234-8234-123456789012';
 BEGIN
+ j:=public.shared_teaching_private_answer_review_inbox_self_api_v1('11111111-1111-4111-8111-111111111111',NULL);
+ IF jsonb_array_length(j->'items')<>1 OR j->'items'->0->>'submissionId'<>s::text OR j->'items'->0 ? 'text' THEN RAISE EXCEPTION 'bounded inbox'; END IF;
  j:=public.shared_teaching_private_answer_submission_read_self_api_v1(s,'reviewer');
  IF j->>'state'<>'submitted' OR j->'text'<>'null'::jsonb OR j->'feedback'<>'null'::jsonb THEN RAISE EXCEPTION 'unaccepted reviewer saw answer'; END IF;
  BEGIN PERFORM public.shared_teaching_private_answer_review_event_self_api_v1(s,f,'feedback','Too soon');
@@ -77,6 +81,7 @@ SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claims='{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","session_id":"5aaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"}';
 DO $withdrawn$
 BEGIN
+ IF jsonb_array_length(public.shared_teaching_private_answer_review_inbox_self_api_v1('11111111-1111-4111-8111-111111111111',NULL)->'items')<>0 THEN RAISE EXCEPTION 'withdrawn queue entry';END IF;
  BEGIN PERFORM public.shared_teaching_private_answer_submission_read_self_api_v1(current_setting('app.t4_submission')::uuid,'reviewer');
  RAISE EXCEPTION 'withdrawn submission disclosed'; EXCEPTION WHEN insufficient_privilege THEN NULL; END;
  BEGIN PERFORM public.shared_teaching_private_answer_review_event_self_api_v1(current_setting('app.t4_submission')::uuid,gen_random_uuid(),'feedback','After withdrawal');

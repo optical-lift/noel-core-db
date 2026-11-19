@@ -172,3 +172,64 @@ REVOKE ALL ON FUNCTION public.shared_teaching_private_answer_submit_self_api_v1(
 GRANT EXECUTE ON FUNCTION public.shared_teaching_private_answer_submit_self_api_v1(uuid,uuid,uuid),
  public.shared_teaching_private_answer_review_event_self_api_v1(uuid,uuid,text,text),
  public.shared_teaching_private_answer_submission_read_self_api_v1(uuid,text) TO authenticated;
+
+-- Own-answer entry point: derive the only direct reviewer from the source,
+-- never from an entered person name. No automatic submission.
+CREATE FUNCTION public.shared_teaching_private_answer_review_target_self_api_v1(p_answer_revision_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog AS $$
+DECLARE v_person uuid;a atlas.teaching_course_private_study_answer_revisions%ROWTYPE;
+ reviewer uuid;s_id uuid;
+BEGIN
+ v_person:=atlas.current_person_for_private_course_v1();
+ SELECT * INTO a FROM atlas.teaching_course_private_study_answer_revisions
+ WHERE answer_revision_id=p_answer_revision_id AND learner_person_entity_id=v_person;
+ IF a.answer_revision_id IS NULL THEN RAISE EXCEPTION 'own answer required' USING ERRCODE='42501'; END IF;
+ PERFORM atlas.private_study_answer_scope_self_v1(a.invitation_id,a.unit_id,a.snapshot_id,a.unit_revision_id,a.activity_id);
+ SELECT invited_by_person_entity_id INTO reviewer FROM atlas.teaching_course_private_study_invitations WHERE invitation_id=a.invitation_id;
+ SELECT submission_id INTO s_id FROM atlas.teaching_course_private_answer_submissions WHERE answer_revision_id=a.answer_revision_id;
+ RETURN jsonb_build_object('contractVersion','private_answer_review_target_v1','answerRevisionId',a.answer_revision_id,
+ 'reviewerPersonId',reviewer,'submissionId',s_id,'purpose','review_selected_answer');
+END $$;
+-- Bounded author inbox: only consented submissions for this original Course
+-- with current exact issued relationship, including submitted headers prior
+-- to review acceptance. No answer text, private revisions, unrelated records
+-- or roster. Cursor is on the immutable submission ordering.
+CREATE FUNCTION public.shared_teaching_private_answer_review_inbox_self_api_v1(p_course_id uuid,p_before uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog AS $$
+DECLARE v_course uuid;v_person uuid;v_before_at timestamptz;items jsonb;
+BEGIN
+ v_course:=atlas.require_private_course_author_self_v1(p_course_id,true);
+ v_person:=atlas.current_person_for_private_course_v1();
+ IF p_before IS NOT NULL THEN
+  SELECT s.recorded_at INTO v_before_at FROM atlas.teaching_course_private_answer_submissions s
+  JOIN atlas.teaching_course_private_study_answer_revisions a ON a.answer_revision_id=s.answer_revision_id
+  JOIN atlas.teaching_course_private_study_invitations i ON i.invitation_id=a.invitation_id
+  WHERE s.submission_id=p_before AND s.reviewer_person_entity_id=v_person AND i.course_id=v_course;
+  IF v_before_at IS NULL THEN RAISE EXCEPTION 'invalid inbox cursor' USING ERRCODE='42501'; END IF;
+ END IF;
+ SELECT coalesce(jsonb_agg(jsonb_build_object('submissionId',q.submission_id,'answerRevisionId',q.answer_revision_id,
+ 'unitId',q.unit_id,'activityId',q.activity_id,'revisionNumber',q.revision_no,'recordedAt',q.recorded_at,'state',q.state)
+ ORDER BY q.recorded_at DESC,q.submission_id DESC),'[]'::jsonb) INTO items FROM (
+ SELECT s.submission_id,s.answer_revision_id,s.recorded_at,a.unit_id,a.activity_id,a.revision_no,
+ CASE WHEN EXISTS(SELECT 1 FROM atlas.teaching_course_private_answer_review_events e WHERE e.submission_id=s.submission_id AND e.event_kind='feedback') THEN 'feedback'
+ WHEN EXISTS(SELECT 1 FROM atlas.teaching_course_private_answer_review_events e WHERE e.submission_id=s.submission_id AND e.event_kind='accept_review') THEN 'accepted'
+ ELSE 'submitted' END AS state
+ FROM atlas.teaching_course_private_answer_submissions s
+ JOIN atlas.teaching_course_private_study_answer_revisions a ON a.answer_revision_id=s.answer_revision_id
+ JOIN atlas.teaching_course_private_study_invitations i ON i.invitation_id=a.invitation_id
+ JOIN LATERAL (SELECT d.decision,d.snapshot_id FROM atlas.teaching_course_private_study_unit_decisions d
+ WHERE d.invitation_id=i.invitation_id AND d.unit_id=a.unit_id ORDER BY event_seq DESC LIMIT 1) d ON d.decision='allow' AND d.snapshot_id=a.snapshot_id
+ WHERE s.reviewer_person_entity_id=v_person AND i.course_id=v_course AND i.invited_by_person_entity_id=v_person
+ AND atlas.private_course_study_current_v1(v_course,i.learner_person_entity_id)
+ AND NOT EXISTS(SELECT 1 FROM atlas.teaching_course_private_answer_review_events e WHERE e.submission_id=s.submission_id AND e.event_kind='withdraw')
+ AND (p_before IS NULL OR (s.recorded_at,s.submission_id)<(v_before_at,p_before))
+ ORDER BY s.recorded_at DESC,s.submission_id DESC LIMIT 21
+ ) q;
+ RETURN jsonb_build_object('contractVersion','private_answer_review_inbox_v1','courseId',v_course,
+ 'items',CASE WHEN jsonb_array_length(items)>20 THEN items-20 ELSE items END,
+ 'more',jsonb_array_length(items)>20);
+END $$;
+REVOKE ALL ON FUNCTION public.shared_teaching_private_answer_review_target_self_api_v1(uuid),
+ public.shared_teaching_private_answer_review_inbox_self_api_v1(uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.shared_teaching_private_answer_review_target_self_api_v1(uuid),
+ public.shared_teaching_private_answer_review_inbox_self_api_v1(uuid,uuid) TO authenticated;
