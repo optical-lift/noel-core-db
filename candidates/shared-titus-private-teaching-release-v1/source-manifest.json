@@ -1,0 +1,65 @@
+{
+  "scope": "titus_t5_nondestructive_personal_teaching_release_candidate_v1",
+  "status": "held_review_only_not_canonical_migration",
+  "noelHeldSha": "e71fc75d37a047ec52ebbace72fb7698fec00284",
+  "titusHeldSha": "4150cf7b83ef6ed3a50b9a78502889dc818b2005",
+  "protectedSignedRun": 44565774815,
+  "protectedSchemaRun": 44561129566,
+  "base": "6f1559c2a445ef90f23e5c53ddb68b9788ae9310",
+  "modules": [
+    {
+      "path": "candidates/shared-course-class-composition-v1/candidate.sql",
+      "gitBlob": "1ff06a1335ea04e83733f63ea19f3c5f8b4b58bb",
+      "transformation": "unchanged"
+    },
+    {
+      "path": "candidates/shared-teaching-course-clean-cutover-v1/person_published_definition_candidate.sql",
+      "gitBlob": "7a568cc9a10fc4e4075c33c829e3257f76cda9a9",
+      "transformation": "remove exact leading clone-only GUC condition; retain prerequisites"
+    },
+    {
+      "path": "candidates/shared-teaching-course-clean-cutover-v1/person_course_curriculum_snapshot_candidate.sql",
+      "gitBlob": "662393b4549d627fbff64a990df4ca1b49bd822d",
+      "transformation": "remove exact leading clone-only GUC condition; retain prerequisites"
+    },
+    {
+      "path": "candidates/shared-teaching-course-clean-cutover-v1/private_study_person_course_candidate.sql",
+      "gitBlob": "f7980bba8874cd29c18bba72df43c9fde5ee948d",
+      "transformation": "remove exact leading clone-only GUC condition; retain prerequisites"
+    },
+    {
+      "path": "candidates/shared-teaching-course-clean-cutover-v1/private_study_sealed_unit_candidate.sql",
+      "gitBlob": "f9dcefa388ab242e623cd33733c1baec217b01ae",
+      "transformation": "remove exact leading clone-only GUC condition; retain prerequisites"
+    },
+    {
+      "path": "candidates/shared-teaching-course-clean-cutover-v1/private_study_answer_candidate.sql",
+      "gitBlob": "84eb65c446665e49253b44c7e1e22be06dd35503",
+      "transformation": "remove exact leading clone-only GUC condition; retain prerequisites"
+    },
+    {
+      "path": "candidates/shared-teaching-course-clean-cutover-v1/private_study_submission_candidate.sql",
+      "gitBlob": "2d2f15004807c5350c7cb2b8556aac1a4413aea3",
+      "transformation": "remove exact leading clone-only GUC condition; retain prerequisites"
+    },
+    {
+      "path": "candidates/shared-teaching-course-clean-cutover-v1/T5_PROTECTED_TEACHING_BASE_TEST_ONLY.sql",
+      "gitBlob": "fed6b2c143cbaea4d1343df7a14a6a66a2f2ce07",
+      "transformation": "replace local-socket and clone GUC condition with PG17 condition; preserve collision checks"
+    },
+    {
+      "path": "candidates/shared-teaching-course-clean-cutover-v1/T5_PROTECTED_TEACHING_POSTCONDITIONS_TEST_ONLY.sql",
+      "gitBlob": "3b22f6a45f1938403980a11cd2d528a462035c94",
+      "transformation": "remove clone GUC condition; preserve all shape and ACL assertions"
+    }
+  ],
+  "transaction": "BEGIN / COMMIT; review only; no canonical version assigned",
+  "explicitExclusions": [
+    "base authoring and same-ID adoption already released",
+    "institutional account and offering source",
+    "historical source retirement",
+    "actual data restoration",
+    "real course/student seed or permission issuance",
+    "deployment"
+  ]
+}
