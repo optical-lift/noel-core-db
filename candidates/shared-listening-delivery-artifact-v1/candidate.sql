@@ -69,10 +69,10 @@ declare
   v_binding transcript_core.delivery_package_artifacts%rowtype;
 begin
   if p_delivery_package_id is null or p_asset_id is null
-     or p_artifact_sha256 is null or p_artifact_sha256 !~ '^[0-9a-f]{64}
+     or p_artifact_sha256 is null or p_artifact_sha256 !~ '^[0-9a-f]{64}$'
      or p_byte_size is null or p_byte_size <= 0
-     or p_source_master_sha256 is null or p_source_master_sha256 !~ '^[0-9a-f]{64}
-     or p_export_receipt_sha256 is null or p_export_receipt_sha256 !~ '^[0-9a-f]{64} then
+     or p_source_master_sha256 is null or p_source_master_sha256 !~ '^[0-9a-f]{64}$'
+     or p_export_receipt_sha256 is null or p_export_receipt_sha256 !~ '^[0-9a-f]{64}$' then
     raise exception 'Exact verified delivery evidence required' using errcode='22023';
   end if;
   -- Hold the existing lineage rows stable through admission/replay.
