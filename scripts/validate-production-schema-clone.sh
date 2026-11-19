@@ -131,6 +131,7 @@ signed_universal_original_work_probe=false
 signed_household_original_repair_probe=false
 signed_household_lifecycle_probe=false
 signed_household_renewal_initial_probe=false
+signed_household_renewal_due_probe=false
 signed_work_self_assignment_probe=false
 signed_native_original_work_comments_probe=false
 signed_care_single_done_probe=false
@@ -353,6 +354,24 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_household_renewal_initial_probe=true
+fi
+
+# Exact held lifecycle: a CLI-created scratch identity with pinned SQL, fixture,
+# postconditions and signed probe. No generic candidate-selected executable.
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_household_laundry_renewal_due_clone_only_v1[.]sql$ ]]; then
+  renewal_due_proof="$repo_root/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_historical.py"
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$renewal_due_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 9cb29da5dfd9042224fcc1e1e08414a537c72fa0 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 0a6225004cdd8d693d2f243b770d1b8b7412f5cf ] ||
+     [ "$(git hash-object "$candidate_validation")" != 76728974daa1622c11f0c4a9d08e6b26b8c1af11 ] ||
+     [ "$(git hash-object "$renewal_due_proof")" != cd244d0f961187bd022309c50790fe5334e92afc ] ||
+     [ "$(git hash-object "$(dirname "$renewal_due_proof")/validate_signed_renewal_due.py")" != dde6d83550b892ada267d68a99bde3d493860faa ]; then
+    echo "Exact held Laundry renewal due repair and local-only proof bytes required." >&2
+    exit 2
+  fi
+  signed_household_renewal_due_probe=true
 fi
 
 # Only the exact Atlas original Work candidate may trigger this signed local
@@ -749,6 +768,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_program_source_identity_probe" = true ] ||
        [ "$signed_household_lifecycle_probe" = true ] ||
        [ "$signed_household_renewal_initial_probe" = true ] ||
+       [ "$signed_household_renewal_due_probe" = true ] ||
        [ "$signed_household_original_repair_probe" = true ] ||
        [ "$signed_universal_original_work_probe" = true ] ||
        [ "$signed_work_self_assignment_probe" = true ] ||
@@ -1136,6 +1156,15 @@ if [ "$signed_household_renewal_initial_probe" = true ]; then
     >"$artifacts_dir/signed-household-renewal-initial.log" 2>&1
   test -s "$artifacts_dir/signed-household-renewal-initial-summary.txt"
   grep -q '^PASS signed Laundry renewal initial:' "$artifacts_dir/signed-household-renewal-initial-summary.txt"
+fi
+
+if [ "$signed_household_renewal_due_probe" = true ]; then
+  phase="signed due Laundry renewal and historical conservation"
+  python3 "$renewal_due_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-household-renewal-due-summary.txt" \
+    >"$artifacts_dir/signed-household-renewal-due.log" 2>&1
+  test -s "$artifacts_dir/signed-household-renewal-due-summary.txt"
+  grep -q '^PASS signed Laundry renewal due:' "$artifacts_dir/signed-household-renewal-due-summary.txt"
 fi
 
 if [ "$signed_universal_original_work_probe" = true ]; then
