@@ -94,7 +94,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held clean Need renewal initial':
               expected = {'diagnostic_scope':'atlas_household_need_renewal_clean_initial_clone_only_v1',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'1002e4368deb89f65eff373454bde7a1163d8941'}
+                          'candidate_sha':'b5a64691e1e5f96741bde81469f636b8356198b4'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held clean Need renewal initial validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -120,7 +120,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held clean Need renewal due':
               expected = {'diagnostic_scope':'atlas_household_need_renewal_clean_due_clone_only_v1',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'1002e4368deb89f65eff373454bde7a1163d8941'}
+                          'candidate_sha':'b5a64691e1e5f96741bde81469f636b8356198b4'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held clean Need renewal due validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -350,17 +350,17 @@ jobs:
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-clean-renewal-initial" ]]; then
             # No candidate scripts run before the protected snapshot; no
             # production secret is available in this or subsequent steps.
-            test "$(git -C candidate rev-parse HEAD)" = "1002e4368deb89f65eff373454bde7a1163d8941"
+            test "$(git -C candidate rev-parse HEAD)" = "b5a64691e1e5f96741bde81469f636b8356198b4"
             src="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/candidate.sql"
             post="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/postconditions.sql"
             proof="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_initial.py"
             fixture="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/clone_fixture.sql"
             test "$(git hash-object "$src")" = 27561382cbc33be1da2b1128481702b2d511001f
-            test "$(git hash-object "$post")" = baa2facbd128dde93a002f2f142d4cc788182726
+            test "$(git hash-object "$post")" = 23eaa37cd92a4e72ba954d5892e6b2bae0466aee
             test "$(git hash-object "$proof")" = 1251c8971f26518220f8e8851ce9b220b10e60af
             renewal_probe="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_attention.py"
             test "$(git hash-object "$renewal_probe")" = 9440ffcedd817b33e2736a969e40c523f75e18a3
-            test "$(git hash-object "$fixture")" = 6039b9a3d637cb666ec52c7df5177abcb2929c19
+            test "$(git hash-object "$fixture")" = d0c82b47f242b3ef4fe077f86fd1d20f378e359f
             # CLI-generated SCRATCH identity only, never a canonical migration.
             scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_household_need_renewal_clean_initial_clone_only_v1)
@@ -430,17 +430,17 @@ jobs:
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-clean-renewal-due" ]]; then
             # No candidate scripts run before the protected snapshot; no
             # production secret is available in this or subsequent steps.
-            test "$(git -C candidate rev-parse HEAD)" = "1002e4368deb89f65eff373454bde7a1163d8941"
+            test "$(git -C candidate rev-parse HEAD)" = "b5a64691e1e5f96741bde81469f636b8356198b4"
             src="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/candidate.sql"
             post="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/postconditions.sql"
             proof="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_historical.py"
             fixture="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/clone_fixture.sql"
             test "$(git hash-object "$src")" = 27561382cbc33be1da2b1128481702b2d511001f
-            test "$(git hash-object "$post")" = baa2facbd128dde93a002f2f142d4cc788182726
+            test "$(git hash-object "$post")" = 23eaa37cd92a4e72ba954d5892e6b2bae0466aee
             test "$(git hash-object "$proof")" = 6be4632c95c076e3a962a7b8e10967063cc14984
             renewal_probe="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_due.py"
             test "$(git hash-object "$renewal_probe")" = cbb87cb6cd0feadb459007bc6938f0f566454598
-            test "$(git hash-object "$fixture")" = 6039b9a3d637cb666ec52c7df5177abcb2929c19
+            test "$(git hash-object "$fixture")" = d0c82b47f242b3ef4fe077f86fd1d20f378e359f
             # CLI-generated SCRATCH identity only, never a canonical migration.
             scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_household_need_renewal_clean_due_clone_only_v1)
