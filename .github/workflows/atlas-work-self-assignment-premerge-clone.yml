@@ -263,6 +263,12 @@ jobs:
           assert "environment: production" in workflow
           assert "w07-signed-clone:" in workflow
           assert "pulls/2767" in workflow
+          assert "pulls/3001" in workflow
+          assert "w07_direct_original_signed_clone_test_only" in workflow
+          assert "w07_direct_original_privacy_clone_test_only" in workflow
+          assert "direct-original path, same plan, signed revocation and completion" in workflow
+          assert workflow.index("Snapshot Production schema and roles READ ONLY for W07") < workflow.index("Checkout pinned predecessor privacy probe after read-only snapshot")
+          assert "cmp \"$dir/fixture.sql\" validation/fixtures/20261119201852_atlas_native_shared_work_v1.sql" in workflow
           assert "candidate_sha:" in workflow
           assert "NOEL_CORE_DATABASE_URL" in workflow
           assert "Snapshot Production schema and roles READ ONLY for W07" in workflow
@@ -307,10 +313,13 @@ jobs:
           body=os.environ.get('BODY','')
           match=re.findall(r'^candidate_sha:\s*([0-9a-f]{40})\s*$',body,re.M)
           scope=re.findall(r'^scope:\s*([^\s]+)\s*$',body,re.M)
-          assert len(match)==1 and len(scope)==1 and scope[0] in ('w07_signed_clone_test_only','w07_shared_native_signed_clone_test_only'), 'W07 owner request must pin one SHA and scope'
+          assert len(match)==1 and len(scope)==1 and scope[0] in ('w07_signed_clone_test_only','w07_shared_native_signed_clone_test_only','w07_direct_original_signed_clone_test_only','w07_direct_original_privacy_clone_test_only'), 'W07 owner request must pin one SHA and scope'
           with Path(os.environ['GITHUB_OUTPUT']).open('a') as f:
               f.write('candidate_sha='+match[0]+'\n')
               f.write('scope='+scope[0]+'\n')
+              probe={'w07_direct_original_signed_clone_test_only':'w07_shared_native_signed_clone_test_only',
+                     'w07_direct_original_privacy_clone_test_only':'w07_signed_clone_test_only'}.get(scope[0],scope[0])
+              f.write('probe_scope='+probe+'\n')
           PY
       - name: Checkout canonical protected clone controller from main
         uses: actions/checkout@v4
@@ -330,10 +339,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PIN: ${{ steps.pin.outputs.candidate_sha }}
+          SCOPE: ${{ steps.pin.outputs.scope }}
         run: |
           set -euo pipefail
-          state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2767" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
-          test "$state" = "open|true|work/atlas-original-work-comments-source-20261113|$PIN" ||
+          if [[ "$SCOPE" == w07_direct_original_* ]]; then
+            state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/3001" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+            expected="open|true|review/atlas-native-shared-work-direct-original-20261119|$PIN"
+          else
+            state="$(gh api "repos/$GITHUB_REPOSITORY/pulls/2767" --jq '.state + "|" + (.draft|tostring) + "|" + .head.ref + "|" + .head.sha')"
+            expected="open|true|work/atlas-original-work-comments-source-20261113|$PIN"
+          fi
+          test "$state" = "$expected" ||
             { echo "::error::W07 review PR closed, moved or not pinned"; exit 1; }
       - name: Install pinned Supabase CLI v2
         shell: bash
@@ -372,13 +388,34 @@ jobs:
           ref: ${{ steps.pin.outputs.candidate_sha }}
           path: held
           persist-credentials: false
+      - name: Checkout pinned predecessor privacy probe after read-only snapshot
+        if: steps.pin.outputs.scope == 'w07_direct_original_privacy_clone_test_only'
+        uses: actions/checkout@v4
+        with:
+          ref: b2fd4a4eecfa2f9945b84002809dbc68f1220448
+          path: w07-regression
+          persist-credentials: false
       - name: Review exact fixture, script and candidate source in local runner
         shell: bash
         env:
           PIN: ${{ steps.pin.outputs.candidate_sha }}
+          SCOPE: ${{ steps.pin.outputs.scope }}
         run: |
           set -euo pipefail
           test "$(git -C held rev-parse HEAD)" = "$PIN"
+          if [[ "$SCOPE" == w07_direct_original_* ]]; then
+            dir=held/candidates/atlas/atlas_native_shared_work_direct_original_v1
+            for f in candidate.sql fixture.sql postconditions.sql validate_signed_shared_work.py README.md; do test -s "$dir/$f"; done
+            cmp "$dir/fixture.sql" validation/fixtures/20261119201852_atlas_native_shared_work_v1.sql
+            python3 -m py_compile "$dir/validate_signed_shared_work.py"
+            if [[ "$SCOPE" == w07_direct_original_privacy_clone_test_only ]]; then
+              test "$(git -C w07-regression rev-parse HEAD)" = b2fd4a4eecfa2f9945b84002809dbc68f1220448
+              test -s w07-regression/candidates/atlas/atlas_native_original_work_comments_v1/fixture.sql
+              python3 -m py_compile w07-regression/scripts/validate-atlas-native-original-work-comments-signed-http.py
+            fi
+            sha256sum "$dir/candidate.sql" "$dir/fixture.sql" "$dir/postconditions.sql" "$dir/validate_signed_shared_work.py"
+            exit 0
+          fi
           dir=held/candidates/atlas/atlas_native_original_work_comments_v1
           for f in candidate.sql fixture.sql postconditions.sql README.md; do test -s "$dir/$f"; done
           test -s held/scripts/validate-atlas-native-original-work-comments-signed-http.py
@@ -408,7 +445,22 @@ jobs:
           mapfile -t migrations < <(find "$scratch/supabase/migrations" -maxdepth 1 -name '*_atlas_native_original_work_comments_signed_clone_only_v1.sql')
           test "${#migrations[@]}" -eq 1
           candidate="$GITHUB_WORKSPACE/held/candidates/atlas/atlas_native_original_work_comments_v1"
-          if [[ "${{ steps.pin.outputs.scope }}" == "w07_shared_native_signed_clone_test_only" ]]; then
+          if [[ "${{ steps.pin.outputs.scope }}" == w07_direct_original_* ]]; then
+            direct="$GITHUB_WORKSPACE/held/candidates/atlas/atlas_native_shared_work_direct_original_v1"
+            cp "$direct/candidate.sql" "${migrations[0]}"
+            cmp "$direct/candidate.sql" "${migrations[0]}"
+            postconditions="$direct/postconditions.sql"
+            if [[ "${{ steps.pin.outputs.scope }}" == "w07_direct_original_signed_clone_test_only" ]]; then
+              cp "$direct/fixture.sql" "$scratch/w07-fixture.sql"
+              path="candidates/atlas/atlas_native_original_work_comments_v1/native_self_participation"
+              mkdir -p "$path"
+              cp "$direct/validate_signed_shared_work.py" "$path/"
+            else
+              regression="$GITHUB_WORKSPACE/w07-regression/candidates/atlas/atlas_native_original_work_comments_v1"
+              cat validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql "$regression/fixture.sql" > "$scratch/w07-fixture.sql"
+              cp w07-regression/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/
+            fi
+          elif [[ "${{ steps.pin.outputs.scope }}" == "w07_shared_native_signed_clone_test_only" ]]; then
             shared="$candidate/native_self_participation"
             for f in candidate.sql guarded_native_reader_extensions.sql postconditions.sql validate_signed_shared_work.py; do test -s "$shared/$f"; done
             python3 -m py_compile "$shared/validate_signed_shared_work.py"
@@ -437,7 +489,9 @@ jobs:
           fi
           test -s "$scratch/w07-fixture.sql"
           # Signed script stays local: never promoted into trusted main by this job.
-          cp held/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/
+          if [[ "${{ steps.pin.outputs.scope }}" != w07_direct_original_* ]]; then
+            cp held/scripts/validate-atlas-native-original-work-comments-signed-http.py scripts/
+          fi
           version="$(basename "${migrations[0]}" | cut -d_ -f1)"
           [[ "$version" =~ ^[0-9]{14}$ ]]
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -447,7 +501,8 @@ jobs:
           bash -n scripts/validate-production-schema-clone.sh
       - name: Run existing isolated current-schema clone and genuine signed W07 proof
         env:
-          W07_PROOF_SCOPE: ${{ steps.pin.outputs.scope }}
+          W07_PROOF_SCOPE: ${{ steps.pin.outputs.probe_scope }}
+          REQUEST_SCOPE: ${{ steps.pin.outputs.scope }}
         shell: bash
         run: |
           set -euo pipefail
@@ -462,6 +517,9 @@ jobs:
             --artifacts-dir "$RUNNER_TEMP/w07-artifacts"
           if [[ "$W07_PROOF_SCOPE" == "w07_shared_native_signed_clone_test_only" ]]; then
             grep -q '^PASS three signed People' "$RUNNER_TEMP/w07-artifacts/signed-native-shared-work-summary.txt"
+            if [[ "$REQUEST_SCOPE" == "w07_direct_original_signed_clone_test_only" ]]; then
+              grep -q 'direct-original path, same plan, signed revocation and completion' "$RUNNER_TEMP/w07-artifacts/signed-native-shared-work-summary.txt"
+            fi
           else
             test -s "$RUNNER_TEMP/w07-artifacts/signed-native-original-work-comments-summary.txt"
             grep -q '^PASS W07 signed local GoTrue' "$RUNNER_TEMP/w07-artifacts/signed-native-original-work-comments-summary.txt"
