@@ -150,6 +150,94 @@ def simultaneous_writes(api, key, token, action, bodies):
         return [future.result(timeout=30) for future in futures]
 
 
+def canonical_event_native_worker_trial(db_url, api, key, owner, worker, no_seat,
+                                       saved_worker_comment_id):
+    """Native original WORK, current canonical Person allocation, no legacy Task.
+    All source rows are fictional in the existing guarded local clone.
+    """
+    mark_stage("canonical-event-native-fixture")
+    event = "e5200000-0000-4000-8000-000000000a21"
+    unrelated = "e5200000-0000-4000-8000-000000000a22"
+    sql(db_url, """
+      INSERT INTO local_intel.occurrences
+        (id,stable_key,title,occurrence_type,start_at,end_at,status)
+      VALUES
+        ('%s'::uuid,'w07-native-event-a21','Synthetic native Event',
+         'community_event','2030-10-30 23:00+00','2030-10-31 01:00+00','scheduled'),
+        ('%s'::uuid,'w07-unbound-event-a22','Synthetic unbound Event',
+         'community_event','2030-11-01 23:00+00','2030-11-02 01:00+00','scheduled');
+      INSERT INTO ledger.occurrence_calendar_bindings
+        (ledger_id,occurrence_id,binding_state)
+      VALUES ('%s'::uuid,'%s'::uuid,'active');
+      INSERT INTO atlas.organization_occurrence_bindings
+        (id,organization_id,occurrence_id,binding_state)
+      VALUES ('e5200000-0000-4000-8000-000000000a23'::uuid,
+             '%s'::uuid,'%s'::uuid,'active');
+    """ % (event,unrelated,LEDGER,event,ORG,event))
+    read_event = "ledger_occurrence_shared_work_self_api_v1"
+    event_scope = {"p_organization_id":ORG,"p_ledger_id":LEDGER,
+                   "p_occurrence_id":event}
+    mark_stage("canonical-event-signed-source-and-link")
+    original_count = sql(db_url,"SELECT count(*) FROM atlas.work_items")
+    forbidden(api,key,owner,read_event,{**event_scope,"p_ledger_id":OTHER_LEDGER},
+              "canonical Event cannot be read in a different Ledger")
+    forbidden(api,key,owner,read_event,{**event_scope,"p_occurrence_id":unrelated},
+              "unbound occurrence cannot be read as authorized Event")
+    forbidden(api,key,no_seat,read_event,event_scope,
+              "unconnected Person cannot read canonical Event")
+    linked=permitted(api,key,owner,"link_existing_ledger_event_work_self_api_v1",
+        {**event_scope,"p_work_item_id":WORK,
+         "p_source_action_id":"w07-native-event-link-a21"})
+    check(linked.get("workItemId")==WORK and linked.get("contextLinkId")
+          and linked.get("workCustodyChanged") is False,
+          "Canonical Event must link the same native original Work")
+    event_packet=permitted(api,key,owner,read_event,event_scope)
+    check(event_packet.get("occurrence",{}).get("id")==event
+          and event_packet.get("ledgerId")==LEDGER
+          and event_packet.get("organizationId")==ORG
+          and any(row.get("workItemId")==WORK for row in event_packet.get("work",[])),
+          "Signed Event reader must return the same original Work")
+    mark_stage("canonical-event-native-worker-disclosure")
+    forbidden(api,key,worker,READ,read_args(),
+              "native responsibility alone does not disclose canonical Event")
+    forbidden(api,key,worker,WRITE,write_args(ACTION_WORKER,BODY_WORKER),
+              "Event hold denies previous comment replay")
+    def event_decision(action,decision):
+        sql(db_url, """
+          INSERT INTO atlas.subject_disclosure_decision_events_v1 (
+            organization_id,ledger_id,target_person_id,subject_domain,
+            subject_kind,subject_id,disclosure_class,decision_kind,
+            source_action_id,reason,decided_by_person_id
+          ) VALUES (
+            '%s'::uuid,'%s'::uuid,'%s'::uuid,'event','occurrence',
+            '%s'::uuid,'identity','%s','%s'::uuid,
+            'Clone-only canonical Event identity decision','%s'::uuid
+          )
+        """ % (ORG,LEDGER,WORKER_PERSON,event,decision,action,OWNER_PERSON))
+    event_decision("e5200000-0000-4000-8000-000000000a24","grant")
+    native_rows=permitted(api,key,worker,READ,read_args()).get("items",[])
+    check(any(row.get("commentId")==saved_worker_comment_id for row in native_rows),
+          "Canonical Event disclosure must restore original comment")
+    baseline=comment_side_effect_snapshot(db_url)
+    replay=permitted(api,key,worker,WRITE,write_args(ACTION_WORKER,BODY_WORKER))
+    check(replay.get("commentId")==saved_worker_comment_id
+          and replay.get("idempotent") is True,
+          "Event link must preserve original comment identity")
+    check(comment_side_effect_snapshot(db_url)==baseline,
+          "Comment replay must not mutate Event or Result")
+    event_decision("e5200000-0000-4000-8000-000000000a25","withhold")
+    forbidden(api,key,worker,READ,read_args(),
+              "canonical Event identity revocation denies native worker comments")
+    forbidden(api,key,worker,WRITE,write_args(ACTION_WORKER,BODY_WORKER),
+              "canonical Event identity revocation denies saved replay")
+    event_decision("e5200000-0000-4000-8000-000000000a26","grant")
+    restored=permitted(api,key,worker,READ,read_args()).get("items",[])
+    check(any(row.get("commentId")==saved_worker_comment_id for row in restored)
+          and sql(db_url,"SELECT count(*) FROM atlas.work_items")==original_count,
+          "Event regrant must restore existing ink with no new Work")
+    print("PASS W07 canonical Event source, native Work link and native worker disclosure")
+
+
 def independently_accepted_participant_trial(db_url, api, key, owner, other, no_seat):
     """Only a fictional, separately accepted membership participant on Work 903.
 
@@ -847,6 +935,9 @@ def main():
     print("PASS W07 no notification, communication, Event or Work Result table mutations")
     print("PASS W07 real simultaneous differing-body collision and same-body replay")
 
+    canonical_event_native_worker_trial(
+        args.db_url,api,key,owner,worker,no_seat,worker_id)
+
     # Revoke the synthetic worker's accepted responsibility. We do NOT
     # impersonate a real account or mutate the user's Production Work.
     sql(args.db_url, """
@@ -886,7 +977,8 @@ def main():
       "PASS W07 signed local GoTrue 4 identities, exact Work read/write, "
       "cross-person refresh, original idempotent replay and collision denial, "
       "page cursor, parallel same-key same/different-body race, "
-      "signed revocation, independent accepted participant, synthetic "
+      "signed revocation, canonical Event source and native worker disclosure, "
+      "independent accepted participant, synthetic "
       "occurrence identity withhold/grant/regrant, historical original Work "
       "replay/read and new-write denial, signed farm/zone/Task/bed physical "
       "disclosure identity and condition withhold/regrant, "
