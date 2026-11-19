@@ -380,14 +380,14 @@ if 'signed-household-lifecycle-summary.txt' not in harness:
 # Exact held Laundry renewal initial repair: preserve the one canonical protected carrier;
 # owner request and immutable SQL/fixture/proof bytes, local-only execution.
 for fragment in ("Production schema validation request: Atlas held Laundry renewal initial",
-                 "6be62dd37c85dcb8c990577a3dee9b19f294f9b8", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
+                 "862e54018648341d1d4ddd8b55c559984b3f8f7c", "os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']",
                  "supabase migration new atlas_household_laundry_renewal_initial_clone_only_v1",
                  "actual_version=$version", "held_proof"):
     if fragment not in workflow:
         errors.append("Held Laundry renewal initial request boundary missing: "+fragment)
 for fragment in ("9cb29da5dfd9042224fcc1e1e08414a537c72fa0",
                  "76728974daa1622c11f0c4a9d08e6b26b8c1af11",
-                 "9ecdce99649a3b1a6af68c4e3e054ed87dc1c3ac",
+                 "0a6225004cdd8d693d2f243b770d1b8b7412f5cf",
                  "09af135127887ca34ed428ec7c4531ab6dc8dc9d", "69426f1df315dafe528981b69dd50a84100ec78c"):
     if fragment not in workflow or fragment not in harness:
         errors.append("Held Laundry renewal initial immutable package pin missing: "+fragment)
