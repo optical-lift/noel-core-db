@@ -11,4 +11,8 @@ This restricted candidate links a valid/exported delivery package to one existin
 - Verify server-side staged bytes and immutable object identity, before admission. Existing production workspace access is not a listener entitlement.
 - Resolve author/publisher's real rights and exact Person-based issuance; use existing canonical authority, not a fake enrollment or owner inferred from title. Separate generic circulation permission operation and signed outsider/revocation tests required before audio delivery.
 
-Status: source candidate only, SQL execution/clone validation not performed. No release migration. The first real listening proof lives in private Titus PR #88, not in this public repository.
+## Intake increment
+
+The existing unexposed binding now has an invoker-only internal function that locks the existing production lineage for the transaction, validates fresh and repeated requests through the same trigger, returns the existing receipt on exact retry, and rejects conflicting receipt evidence. Client and service roles have no execute grant. This is not an authenticated upload endpoint: the future trusted intake operation must verify actual bytes and current signed production authority before invoking it. The postconditions file checks the full-schema candidate's restricted privileges, invoker behavior, enabled guard and zero seed records without writing data.
+
+The earlier binding-only source (42922f3) passed isolated PostgreSQL and Database Custody CI. Expanded intake/retry tests and the protected full-schema clone remain separate, pending gates. The canonical protected validation workflow currently expects an admitted exact held package or a versioned migration packet; do not submit an arbitrary candidate as a release or bypass the protected owner review. No release migration. The first real listening proof lives in private Titus PR #88, not in this public repository.
