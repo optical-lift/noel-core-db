@@ -16,7 +16,7 @@ BEGIN
      RAISE EXCEPTION 'Existing custody contract changed: %',relation_name;
    END IF;
  END LOOP;
-END
+END;
 $preflight$;
 
 -- Existing Principal, no invented Household, Organization, membership or Ledger.
@@ -72,9 +72,11 @@ ALTER TABLE atlas.work_time_contracts ADD CONSTRAINT work_time_contracts_persona
 
 -- Existing shared immutability function already serves all eight tables.
 CREATE OR REPLACE FUNCTION atlas.guard_canonical_work_custody_immutability_v1()
- RETURNS trigger LANGUAGE plpgsql
- SET search_path TO pg_catalog, atlas
- AS $body$
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $body$
 BEGIN
  IF NEW.organization_id IS DISTINCT FROM OLD.organization_id OR
     NEW.household_id IS DISTINCT FROM OLD.household_id OR
@@ -82,7 +84,7 @@ BEGIN
    RAISE EXCEPTION 'Original Work custody cannot be rewritten.' USING ERRCODE='23514';
  END IF;
  RETURN NEW;
-END
+END;
 $body$;
 
 -- The existing actor-carrier check is not yet changed here. Personal allocations
