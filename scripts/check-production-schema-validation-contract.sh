@@ -563,6 +563,31 @@ access01_route = (
 if not access01_route:
     errors.append('ACCESS-01 exact generated Atlas clone ACL fidelity route missing')
 
+# Held orphan retirement: exact package admission and unchanged trusted proof.
+for fragment in (
+    'Production schema validation request: Atlas held orphan queue backfill retirement', '833cbd7dbe2674fb747bc055878344b94be12c2b', 'held-orphan-queue-backfill-retirement',
+    '5956b80d02ff5e7d80553270b57d238e6fd2afd1', 'd771e05ef86b08997b4d7a4b78d143a58547738c', '766ab2b69c53796ca6aa892d57a1188fab799bc8', 'a6dbf950b689505babe33811f421add9db2a742d', 'eb3bbfb45848a7fca90cc503e153f1451d8d7471', '1b82e698705e473280f1fc55b0e762bce243effb',
+    "Exact owner-held orphan backfill validation authorization required",
+):
+    if fragment not in workflow:
+        errors.append('Orphan backfill exact owner/source admission missing: '+fragment)
+for fragment in (
+    'atlas_legacy_queue_orphan_backfill_retirement_clone_only_v1', '5956b80d02ff5e7d80553270b57d238e6fd2afd1', 'd771e05ef86b08997b4d7a4b78d143a58547738c', '766ab2b69c53796ca6aa892d57a1188fab799bc8', 'a6dbf950b689505babe33811f421add9db2a742d', 'eb3bbfb45848a7fca90cc503e153f1451d8d7471', '1b82e698705e473280f1fc55b0e762bce243effb',
+    'orphan_queue_retirement_proof=true', 'orphan-all-atlas-row-fingerprints.json',
+    '--snapshot "$orphan_row_snapshot" --mode capture',
+    '--snapshot "$orphan_row_snapshot" --mode verify',
+    'orphan-local-row-integrity-after-candidate.log',
+    'signed_work_prerequisite_probe=true',
+    'Refuse orphan backfill proof without exact isolated package and trusted regressions.',
+):
+    if fragment not in harness:
+        errors.append('Orphan backfill protected clone proof missing: '+fragment)
+if not (harness.index('orphan-local-row-integrity-baseline.log') <
+        harness.index('phase="candidate migration application"') <
+        harness.index('orphan-local-row-integrity-after-candidate.log') <
+        harness.index('phase="signed local prerequisite owner/worker authority')):
+    errors.append('Orphan backfill proof must compare all rows around deletion before signed fixture mutation.')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
