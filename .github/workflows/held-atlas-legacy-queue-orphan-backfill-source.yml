@@ -1,0 +1,36 @@
+name: HELD Atlas legacy queue orphan backfill retirement SOURCE ONLY
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas/atlas_legacy_queue_orphan_backfill_retirement_v1/**'
+      - 'tests/test_atlas_legacy_queue_orphan_backfill_retirement_source.py'
+      - '.github/workflows/held-atlas-legacy-queue-orphan-backfill-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact checkout
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Verify single-function fail-closed source, without touching database
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tests/test_atlas_legacy_queue_orphan_backfill_retirement_source.py
+          echo 'HELD_LEGACY_BACKFILL_SOURCE_ONLY=PASS'
+          echo 'PROTECTED_POSTGRES_TEST=NOT_RUN'
+          echo 'LIVE_LEGACY_FUNCTION_REMOVED=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
