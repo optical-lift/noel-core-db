@@ -144,7 +144,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held Personal connected assignment':
               expected = {'diagnostic_scope':'atlas_personal_connected_assignment_clone_only_v1',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'105e6dd903fb2d8476d47b5d584f5f02761e9eb3'}
+                          'candidate_sha':'b3eb4bdbc4ef408a89db3a0c22ac748e1149f030'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held Personal assignment validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -517,7 +517,7 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-personal-connected-assignment" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "105e6dd903fb2d8476d47b5d584f5f02761e9eb3"
+            test "$(git -C candidate rev-parse HEAD)" = "b3eb4bdbc4ef408a89db3a0c22ac748e1149f030"
             src="candidate/candidates/atlas/atlas_personal_connected_original_assignment_v1/candidate.sql"
             fixture="candidate/candidates/atlas/atlas_personal_connected_original_assignment_v1/fixture.sql"
             post="candidate/candidates/atlas/atlas_personal_connected_original_assignment_v1/postconditions.sql"
@@ -525,7 +525,7 @@ jobs:
             test "$(git hash-object "$src")" = a41bc8544c4fa6314efd2645294b7b25d22d271f
             test "$(git hash-object "$fixture")" = 789c37e63942fbf6fd7b18af1e8ce22087b890fe
             test "$(git hash-object "$post")" = 3652890d8938272663f0524a6d9df298158f28c0
-            test "$(git hash-object "$proof")" = cc0a41b394c8030f1a9488266e382660601b9a8d
+            test "$(git hash-object "$proof")" = f5bc25e3c16f749dcf6b81b870955b06ad9d4245
             test "$(git hash-object "scripts/validate-atlas-c1-signed-http.py")" = 1b82e698705e473280f1fc55b0e762bce243effb
             test "$(git hash-object "scripts/validate-atlas-work-prerequisite-signed-http.py")" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
             # Existing protected read-only snapshot already completed. No
