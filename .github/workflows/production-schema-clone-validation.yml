@@ -201,6 +201,18 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact one-function retirement, local disposable proof only.
+          if title == 'Production schema validation request: Atlas held orphan queue backfill retirement':
+              expected = {'diagnostic_scope':'atlas_legacy_queue_orphan_backfill_retirement_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'833cbd7dbe2674fb747bc055878344b94be12c2b'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held orphan backfill validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-orphan-queue-backfill-retirement\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
           missing = [key for key in required if key not in fields]
           if missing:
@@ -716,6 +728,37 @@ jobs:
             mkdir -p "$(dirname "$held_proof")"
             cp "$proof" "$held_proof"
             sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-orphan-queue-backfill-retirement" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "833cbd7dbe2674fb747bc055878344b94be12c2b"
+            src="candidate/candidates/atlas/atlas_legacy_queue_orphan_backfill_retirement_v1/candidate.sql"
+            post="candidate/candidates/atlas/atlas_legacy_queue_orphan_backfill_retirement_v1/postconditions.sql"
+            fixture="validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql"
+            test "$(git hash-object "$src")" = 5956b80d02ff5e7d80553270b57d238e6fd2afd1
+            test "$(git hash-object "$post")" = d771e05ef86b08997b4d7a4b78d143a58547738c
+            test "$(git hash-object "$fixture")" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            # Existing snapshot complete; trusted fixture and signed scripts only.
+            scratch="$(mktemp -d "$RUNNER_TEMP/orphan-backfill-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_legacy_queue_orphan_backfill_retirement_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_legacy_queue_orphan_backfill_retirement_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
             {
               echo "path=$candidate_migration"
               echo "actual_version=$version"

@@ -186,6 +186,22 @@ signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
 signed_generated_listening_storage_probe=false
 signed_private_course_working_loop_probe=false
+orphan_queue_retirement_proof=false
+# Exact held deletion only; preserve every existing signed proof admission.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_orphan_backfill_retirement_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 5956b80d02ff5e7d80553270b57d238e6fd2afd1 ] ||
+     [ "$(git hash-object "$candidate_validation")" != d771e05ef86b08997b4d7a4b78d143a58547738c ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse orphan backfill proof without exact isolated package and trusted regressions.' >&2; exit 2
+  fi
+  orphan_queue_retirement_proof=true
+  signed_work_prerequisite_probe=true
+fi
 # Exact owner-admitted immutable package; never infer proof from a filename.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_course_working_loop_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
@@ -1018,7 +1034,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
     # public ECR quota before signed tests could start (two protected runs).
     # Limit this to the existing care probe; no change to other clone lanes,
     # image registries, pinned CLI, health checks, JWT verification or SQL.
-    if [ "$signed_care_single_done_probe" = true ] ||
+    if [ "$orphan_queue_retirement_proof" = true ]; then
+      supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+    elif [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
@@ -1194,6 +1212,19 @@ if [ "$pre1_rest_proof" = true ]; then
     >"$artifacts_dir/pre1-local-row-integrity-baseline.log" 2>&1
 fi
 
+# No production rows are cloned. Capture every local Atlas base relation
+# after the trusted fictional Work fixture and before the exact deletion.
+if [ "$orphan_queue_retirement_proof" = true ]; then
+  phase="orphan backfill local all-Atlas-row baseline"
+  [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select current_setting('server_version_num')::int/10000")" = 17
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select count(*) from atlas.work_items")" -gt 0
+  orphan_row_snapshot="$runtime_dir/orphan-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$orphan_row_snapshot" --mode capture \
+    >"$artifacts_dir/orphan-local-row-integrity-baseline.log" 2>&1
+fi
+
 phase="candidate migration application"
 psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration" \
   >"$artifacts_dir/candidate-migration.log" 2>&1
@@ -1230,6 +1261,15 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$orphan_queue_retirement_proof" = true ]; then
+  phase="orphan backfill local all-Atlas-row unchanged after exact deletion"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$orphan_row_snapshot" --mode verify \
+    >"$artifacts_dir/orphan-local-row-integrity-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/orphan-local-row-integrity-after-candidate.log"
 fi
 
 # PRE1: verify that the exact two-function DROP and its postconditions
@@ -1803,6 +1843,10 @@ fi
 
 if [ "$signed_generated_listening_storage_probe" = true ]; then
   printf '\nSIGNED generated listening: genuine local GoTrue owner/editor/viewer/outsider, Storage upload and byte readback, exact object version, denial of replacement and revoked access. No canonical admission or release.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$orphan_queue_retirement_proof" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  printf '\nOrphan backfill TEST ONLY: exact function DROP RESTRICT, all local Atlas base-table rows unchanged immediately around deletion and postconditions; existing signed Work prerequisite regression passed afterwards. Synthetic Work fixture only; no historical Production row data or external caller closure.\n' >> "$artifacts_dir/summary.md"
 fi
 phase="complete"
 if [ "$signed_household_original_repair_probe" = true ]; then
