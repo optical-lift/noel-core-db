@@ -7,3 +7,5 @@ Root-authorized ordinary native intake, existing original responsibility command
 
 ## Bound Company Work and Event entrance
 One contextual adapter calls current canonical Ledger intake/reassignment and placement, or the existing dated peer writer, plus existing exact Event link. No Event checklist, new task table, or new permission. NULL date remains unset. Explicit unassigned supports no execution date; no Person defaults to signed author under root. Stable action guarded across writer paths, context changes and prior assignment. Need genuine signed tests for exact Company Work and Event readers, undated and dated, peer/self, actor denial, exact replay/concurrent and failure rollback. Event identity remains separately admitted; no automatic disclosure grants. Do not release until tested. Supersedes stale #2258 creation implementation by reusing current canonical source.
+
+Signed probe now includes fictional Event bindings on independent dates, undated self/peer, dated self/peer, explicit unassigned, same-ID owner Ledger and Event rereads, denied actor and context substitution, replay, and exact original counts. Execution still pending.

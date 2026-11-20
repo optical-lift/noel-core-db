@@ -120,6 +120,56 @@ def main():
  unchanged_failed(o,self_ledger,{**ledger_args,"p_execution_date":"2030-11-06"},("23505",))
  check(sql("select count(*) from atlas.work_items")==str(int(work_count)+1),"Exactly one Ledger original")
  check(sql("select count(*) from atlas.task_entries")==str(int(task_count)+3),"No personal duplicate")
- Path(args.output).write_text("PASS signed reciprocal atomic creation, rollback, race, privacy, and self Ledger original placement.\n")
+ # Actual contextual source tests: the same author creates Ledger Work and
+ # Event-linked Work, with zero Personal copies or implicit Event-date placement.
+ contextual="create_contextual_ledger_work_self_api_v1"
+ org="e5200000-0000-4000-8000-000000000801"
+ event_a="a6300000-0000-4000-8000-000000000411"
+ event_b="a6300000-0000-4000-8000-000000000412"
+ event_read="ledger_occurrence_shared_work_self_api_v1"
+ def bound(event,person=None,date=None,unassigned=False):
+  return {"p_organization_id":org,"p_ledger_id":ledger,"p_occurrence_id":event,
+    "p_sentence":"Synthetic bound composer original","p_recipient_person_id":person,
+    "p_execution_date":date,"p_unassigned":unassigned,"p_source_action_id":str(uuid.uuid4())}
+ def event_args(event):
+  return {"p_organization_id":org,"p_ledger_id":ledger,"p_occurrence_id":event}
+ def ledger_item(work):
+  packet=ok(o,"company_work_accountability_native_ledger_self_api_v1",{
+   "p_organization_id":org,"p_ledger_id":ledger,"p_scope":"native_ledger",
+   "p_limit":200,"p_after_work_item_id":None})
+  return next((row for row in packet["items"] if row["workItemId"]==work),None)
+ base_work=int(sql("select count(*) from atlas.work_items"))
+ for event,person,date in [(None,None,None),(event_a,None,None),(event_a,PEER,None),(event_b,PEER,day["p_date"]),(event_b,None,day["p_date"])]:
+  args2=bound(event,person,date)
+  result=ok(o,contextual,args2);work=result["workItemId"]
+  check(result["responsiblePersonId"]==(person or OWNER) and result["executionDate"]==date and result["oneCanonicalWorkIdentity"] is True,"Exact chosen responsibility and optional date")
+  check(result==ok(o,contextual,args2),"Existing original exact replay")
+  item=ledger_item(work)
+  check(item is not None and item["title"]==args2["p_sentence"] and item["responsibility"]["allocationId"]==result["allocationId"] and item["responsibility"]["assigneePersonId"]==(person or OWNER),"Same original in signed Ledger Work")
+  if date is None:
+   check(result["planId"] is None and sql(f"select count(*) from atlas.work_execution_plans where work_item_id='{work}'")=="0","No invented day")
+  else:
+   packet=ok(w if person==PEER else o,"connected_person_company_work_day_self_api_v2",{"p_date":date,"p_timezone":"America/Chicago"})
+   check(any(row["workItemId"]==work and row["planId"]==result["planId"] for row in packet["items"]),"Original dated responsibility on recipient day")
+  if event:
+   check(any(row["workItemId"]==work and row["state"]=="open" for row in ok(o,event_read,event_args(event))["work"]),"Exact same original in Event")
+   unchanged_failed(o,contextual,{**args2,"p_occurrence_id":event_b if event==event_a else event_a},("23505",))
+  else:
+   unchanged_failed(o,contextual,{**args2,"p_occurrence_id":event_a},("23505",))
+  unchanged_failed(o,contextual,{**args2,"p_sentence":"Changed original"},("23505",))
+ unassigned=bound(event_a,unassigned=True)
+ result=ok(o,contextual,unassigned)
+ check(result["responsiblePersonId"] is None and result["allocationId"] is None and result["planId"] is None,"Explicit unassigned is distinct")
+ unchanged_failed(o,contextual,{**unassigned,"p_unassigned":False},("23505",))
+ check(any(row["workItemId"]==result["workItemId"] for row in ok(o,event_read,event_args(event_a))["work"]),"Unassigned original in Event")
+ unchanged_failed(w,contextual,bound(event_a))
+ unchanged_failed(x,contextual,bound(event_a))
+ deny(x,event_read,event_args(event_a))
+ unchanged_failed(o,contextual,bound(str(uuid.uuid4())))
+ unchanged_failed(o,contextual,bound(event_a,OUTSIDER))
+ deny(None,contextual,bound(event_a),("42501","PGRST301"))
+ check(sql("select count(*) from atlas.work_items")==str(base_work+6),"Six exact institutional originals, no failed-write leftovers")
+ check(sql("select count(*) from atlas.task_entries")==str(int(task_count)+3),"No Personal copies")
+ Path(args.output).write_text("PASS signed reciprocal atomic creation, rollback, race, privacy, self Ledger placement, and bound Ledger/Event original creation.\n")
  print("PASS compact composer signed proof")
 if __name__=="__main__": main()

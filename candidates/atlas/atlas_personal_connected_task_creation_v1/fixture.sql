@@ -184,3 +184,14 @@ VALUES('a6300000-0000-4000-8000-000000000301','e5200000-0000-4000-8000-000000000
 'clone-personal-link-household','Synthetic Connection Household','America/Chicago','active');
 INSERT INTO atlas.household_members(id,household_id,display_name,active)
 VALUES('a6300000-0000-4000-8000-000000000302','a6300000-0000-4000-8000-000000000301','Synthetic Recipient',true);
+
+-- Bound Event fixtures deliberately have different civil dates from the requested Work day.
+INSERT INTO local_intel.occurrences(id,stable_key,title,occurrence_type,start_at,end_at,status)
+VALUES ('a6300000-0000-4000-8000-000000000411','composer-clone-event-a','Synthetic composer event A','community_event','2030-12-19 16:00+00','2030-12-19 22:00+00','scheduled'),
+('a6300000-0000-4000-8000-000000000412','composer-clone-event-b','Synthetic composer event B','community_event','2030-12-20 16:00+00','2030-12-20 22:00+00','scheduled');
+INSERT INTO ledger.occurrence_calendar_bindings(ledger_id,occurrence_id,binding_state)
+VALUES ('e5200000-0000-4000-8000-000000000401','a6300000-0000-4000-8000-000000000411','active'),
+('e5200000-0000-4000-8000-000000000401','a6300000-0000-4000-8000-000000000412','active');
+INSERT INTO atlas.organization_occurrence_bindings(id,organization_id,occurrence_id,binding_state)
+VALUES ('a6300000-0000-4000-8000-000000000421','e5200000-0000-4000-8000-000000000801','a6300000-0000-4000-8000-000000000411','active'),
+('a6300000-0000-4000-8000-000000000422','e5200000-0000-4000-8000-000000000801','a6300000-0000-4000-8000-000000000412','active');
