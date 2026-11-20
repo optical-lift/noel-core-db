@@ -137,6 +137,9 @@ timeout 45 docker run --name "$sqlclient" --network "$net" "${flags[@]}" -e PGPA
 echo 'PASS independent isolated PostgreSQL 17 SQL client'
 # No third-party Go dependency or downloaded test image.
 CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off GOSUMDB=off go build -trimpath -o "$work/root/probe" "$root/tests/development-signed-stack-v1.go"
+# The enclosing host directory stays private; the fixed image binary must run as uid 65534.
+chmod 755 "$work/root/probe"
+[[ "$(stat -c %a "$work/root/probe")" == 755 ]]
 tar -C "$work/root" -cf "$work/root.tar" probe
 docker import "$work/root.tar" "$image" >/dev/null
 image_id="$(docker image inspect --format '{{.Id}}' "$image")"
