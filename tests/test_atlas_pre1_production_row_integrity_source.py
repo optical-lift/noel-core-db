@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Fail-closed source contract for the exact PRE1 live row-preservation guard."""
+import hashlib
 import pathlib
 import sys
 
@@ -26,6 +27,33 @@ receipt = ("insert into supabase_migrations.schema_migrations "
 governed = before_commit + receipt
 out = augment(governed, raw, VERSION, NAME)
 assert out != governed
+
+# Exercise the actual canonical releaser's archive: it stores the complete,
+# immutable migration including BEGIN inside the receipt as dollar-quoted
+# literal text. The guard must count executable SQL, not that archived copy.
+tag = "$noel_core_migration_" + hashlib.sha256(raw).hexdigest() + "$"
+real_receipt = (
+    "insert into supabase_migrations.schema_migrations "
+    "(version, statements, name, created_by) values (\n"
+    f"  '{VERSION}',\n"
+    f"  array[{tag}{source}{tag}],\n"
+    f"  '{NAME}',\n"
+    "  'github-actions:noel-core-db@0000000000000000000000000000000000000000'\n"
+    ");\ncommit;\n"
+)
+real_governed = before_commit + real_receipt
+assert real_governed.count("BEGIN;") == 2  # executable + archived
+actual_out = augment(real_governed, raw, VERSION, NAME)
+assert actual_out.count("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;") == 1
+assert actual_out.index("$atlas_pre1_capture_all_rows$") < actual_out.index("DROP FUNCTION atlas.tending_task_context_v1")
+assert actual_out.index("$atlas_pre1_verify_all_rows$") < actual_out.index("insert into supabase_migrations.schema_migrations")
+# An additional executable BEGIN before the receipt remains prohibited.
+try:
+    augment(before_commit + "BEGIN;\n" + real_receipt, raw, VERSION, NAME)
+except ValueError as exc:
+    assert "missing unique canonical BEGIN" in str(exc)
+else:
+    raise AssertionError("PRE1 accepted a second executable transaction start")
 assert out.count("BEGIN;") == 1
 assert out.count("insert into supabase_migrations.schema_migrations") == 1
 assert out.count("CREATE TEMP TABLE pg_temp.atlas_pre1_original_rows_guard") == 1
