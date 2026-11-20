@@ -11,7 +11,8 @@ const hash = (algorithm,bytes) => createHash(algorithm).update(bytes).digest("he
 const sha = x => typeof x === "string" && /^[0-9a-f]{40}$/.test(x);
 const canonical = x => Array.isArray(x) ? x.map(canonical) : x !== null && typeof x === "object" ?
   Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])])) : x;
-export const packageDigest = manifest => hash("sha256",JSON.stringify(canonical(manifest)));
+export const canonicalPackageJSON = manifest => JSON.stringify(canonical(manifest));
+export const packageDigest = manifest => hash("sha256",canonicalPackageJSON(manifest));
 const MAX_BLOB = 4*1024*1024;
 
 function git(repo,args) {
