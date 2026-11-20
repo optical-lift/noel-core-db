@@ -205,7 +205,7 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_teaching_object_
   if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -n "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != 6c7f9387c9cda8014762f8c3f7678c87e993cf1a ] ||
      [ ! -s "$repo_root/scripts/validate-titus-object-title-signed-http.py" ] ||
-     [ "$(git hash-object "$repo_root/scripts/validate-titus-object-title-signed-http.py")" != 4d434ccd05689841290df26d10c41bd2c6e789cc ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-titus-object-title-signed-http.py")" != 761059e2029f7238ac619d3409d969c8b2a3f8eb ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ]; then
     echo "Exact held title source and signed local probe required." >&2
     exit 2
