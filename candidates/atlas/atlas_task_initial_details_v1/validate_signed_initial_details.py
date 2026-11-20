@@ -114,12 +114,36 @@ def main():
  event="a6300000-0000-4000-8000-000000000411"
  work_writer="create_contextual_ledger_work_initial_details_self_api_v1"
  for occurrence in (None,event):
-  for target,date in ((OWNER,None),(PEER,None),(PEER,day["p_date"])):
+  for target,date in ((OWNER,None),(OWNER,day["p_date"]),(PEER,None),(PEER,day["p_date"])):
    p={"p_organization_id":org,"p_ledger_id":ledger,"p_occurrence_id":occurrence,"p_sentence":"Synthetic contextual details","p_recipient_person_id":target,"p_execution_date":date,"p_unassigned":False,"p_source_action_id":str(uuid.uuid4()),"p_details":details}
    first=ok(o,work_writer,p);wid=first["workItemId"]
    check(first["instructions"]==details and ok(o,work_writer,p)["workItemId"]==wid,"Contextual initial instructions exact replay")
-   text_read=ok(o,"read_native_original_work_text_owner_self_api_v1",{"p_organization_id":org,"p_ledger_id":ledger,"p_work_item_id":wid})
-   check(text_read["instructions"]==details,"Independent owner original instructions")
+   # The normal Ledger lens verifies the same authored original without edit authority.
+   page_args={"p_organization_id":org,"p_ledger_id":ledger,"p_scope":"native_ledger","p_limit":200,"p_after_work_item_id":None}
+   page_rpc="company_work_accountability_native_ledger_self_api_v1"
+   code,page=rpc(o,page_rpc,page_args)
+   check(code==200 and page.get("contractVersion")=="company_work_accountability_native_ledger_v1" and page.get("organizationId")==org and page.get("selectedNativeLedgerId")==ledger and page.get("scopeMode")=="native_ledger","Exact current native Ledger projection")
+   matches=[row for row in page["items"] if row["workItemId"]==wid]
+   check(len(matches)==1 and matches[0]["title"]==p["p_sentence"] and matches[0]["authoredInstructions"]==details and matches[0]["responsibility"]["assigneePersonId"]==target and matches[0]["responsibility"]["allocationId"]==first["allocationId"],"Independent author Ledger readback")
+   check(all("authoredInstructions" not in row for row in page["items"] if row["workItemId"] in {"e5200000-0000-4000-8000-000000000901","e5200000-0000-4000-8000-000000000902","e5200000-0000-4000-8000-000000000903"}),"Unrelated original instructions never projected")
+   code,broad=rpc(o,page_rpc,{**page_args,"p_scope":"organization"})
+   check(code==200 and all("authoredInstructions" not in row for row in broad["items"]),"No broader organization disclosure")
+   deny(x,page_rpc,page_args)
+   deny(o,"read_native_original_work_text_owner_self_api_v1",{"p_organization_id":org,"p_ledger_id":ledger,"p_work_item_id":wid})
+   if first["intakeId"] is not None:
+    intake_args={"p_intake_id":first["intakeId"]}
+    status=ok(o,"ledger_work_submission_status_self_api_v1",intake_args)
+    check(status["workItemId"]==wid and status["ledgerId"]==ledger and status["instructions"]==details,"Independent original submission receipt")
+    deny(x,"ledger_work_submission_status_self_api_v1",intake_args)
+   else:
+    check(target==PEER and date is not None,"Only dated peer uses direct path")
+   # The actual carrier independently reads the instructions through existing My Work.
+   person_token=o if target==OWNER else w
+   my_args={"p_limit":100,"p_after_allocation_id":None}
+   my_rpc="connected_person_my_work_self_api_v2"
+   own_rows=[row for row in ok(person_token,my_rpc,my_args)["items"] if row["workItemId"]==wid]
+   check(len(own_rows)==1 and own_rows[0]["instructions"]==details and own_rows[0]["allocationId"]==first["allocationId"] and own_rows[0]["ledgerId"]==ledger,"Signed recipient reads original instructions")
+   check(all(row["workItemId"]!=wid for row in ok(x,my_rpc,my_args)["items"]),"Outsider cannot discover original through My Work")
    unchanged_failed(o,work_writer,{**p,"p_details":"Different instructions"},("23505",))
    deny(x,work_writer,{**p,"p_source_action_id":str(uuid.uuid4())})
  p={"p_organization_id":org,"p_ledger_id":ledger,"p_occurrence_id":None,"p_sentence":"Synthetic unassigned details","p_recipient_person_id":None,"p_execution_date":None,"p_unassigned":True,"p_source_action_id":str(uuid.uuid4()),"p_details":details}
