@@ -1,6 +1,6 @@
 // Source-only resolver. Caller must supply authentic GitHub event/context from
 // the existing canonical owner-gated workflow; a JSON fixture proves no authority.
-import { verifyReviewedPackage, stageReviewedPackage } from "./development-candidate-git-observation-v1.mjs";
+import { verifyReviewedPackage, stageReviewedPackage, canonicalPackageJSON, packageDigest } from "./development-candidate-git-observation-v1.mjs";
 const sha = x=>typeof x==="string"&&/^[0-9a-f]{40}$/.test(x);
 const digest = x=>typeof x==="string"&&/^[0-9a-f]{64}$/.test(x);
 const positive = x=>Number.isSafeInteger(x)&&x>0;
@@ -18,10 +18,18 @@ export function resolveOwnerCloneRequest(event,context) {
      sender?.login!==context.owner||sender.id!==context.owner_id||
      i?.user?.login!==context.owner||i.user.id!==context.owner_id||i.author_association!=="OWNER"||
      i.state!=="open"||i.pull_request!==undefined||!positive(i.number)||!positive(i.id)||
-     typeof i.body!=="string"||i.body.length>2048) fail();
+     typeof i.body!=="string"||i.body.length>16384) fail();
   const fields=Object.create(null);
   const required=["diagnostic_scope","release_lane","production_target","candidate_sha","controller_sha","package_sha256"];
-  for(const line of i.body.trim().split(/\r?\n/)) {
+  const lines=i.body.trim().split(/\r?\n/);
+  const manifestLine=lines.pop();
+  if(!manifestLine.startsWith("manifest_json: ")) fail();
+  const json=manifestLine.slice("manifest_json: ".length);
+  let manifest;
+  try {manifest=JSON.parse(json);} catch {fail();}
+  if(!manifest||Array.isArray(manifest)||typeof manifest!=="object") fail();
+  try {if(canonicalPackageJSON(manifest)!==json) fail();} catch {fail();}
+  for(const line of lines) {
     const m=/^([a-z_][a-z_0-9]*): ([a-z0-9_]+)$/.exec(line);
     if(!m||!required.includes(m[1])||Object.hasOwn(fields,m[1])) fail();
     fields[m[1]]=m[2];
@@ -32,10 +40,13 @@ export function resolveOwnerCloneRequest(event,context) {
      !fields.diagnostic_scope.startsWith(fields.release_lane+"_")||
      fields.production_target!=="zirqkouammpwxlqfbsvf"||!sha(fields.candidate_sha)||
      fields.controller_sha!==context.controller_sha||!digest(fields.package_sha256)||
-     i.title!=="Production schema validation request: package "+fields.diagnostic_scope) fail();
+     i.title!=="Production schema validation request: package "+fields.diagnostic_scope||
+     manifest.intent!=="clone_only"||manifest.scope!==fields.diagnostic_scope||manifest.lane!==fields.release_lane||
+     manifest.candidate_sha!==fields.candidate_sha||manifest.controller_sha!==fields.controller_sha||
+     packageDigest(manifest)!==fields.package_sha256) fail();
   return Object.freeze({intent:"clone_only",lane:fields.release_lane,scope:fields.diagnostic_scope,
     candidate_sha:fields.candidate_sha,controller_sha:fields.controller_sha,package_sha256:fields.package_sha256,
-    request_issue:i.number,request_id:i.id,owner_id:context.owner_id,
+    request_issue:i.number,request_id:i.id,owner_id:context.owner_id,manifest,
     status:"owner_event_binding_matched_only",release_authorized:false,execution_authorized:false});
 }
 // A matching event still cannot authorize runtime execution until the existing
@@ -50,18 +61,17 @@ export function assertRequestPackage(request,manifest,identity) {
 }
 
 // The trusted entry point never accepts a caller-supplied identity receipt.
-export function verifyOwnerClonePackage(event,context,manifest,repositories) {
-  const request=resolveOwnerCloneRequest(event,context);
+export function verifyOwnerClonePackage(event,context,repositories) {
+  const request=resolveOwnerCloneRequest(event,context),manifest=request.manifest;
   const identity=verifyReviewedPackage(manifest,request,repositories);
   return assertRequestPackage(request,manifest,identity);
 }
 
 // Resolve real event provenance before observing or staging anything.
-export function stageOwnerClonePackage(event,context,manifest,repositories,parent) {
-  const request=resolveOwnerCloneRequest(event,context);
-  // Check the request's lane/scope before staging; digest and bytes are checked
-  // again by the independent Git reader. No caller-supplied receipt is used.
-  if(manifest?.intent!==request.intent||manifest.lane!==request.lane||manifest.scope!==request.scope) fail();
+export function stageOwnerClonePackage(event,context,repositories,parent) {
+  const request=resolveOwnerCloneRequest(event,context),manifest=request.manifest;
+  // Digest and bytes are checked again by the independent Git reader.
+  // No caller-supplied manifest or receipt is used.
   const stage=stageReviewedPackage(manifest,request,repositories,parent);
   return {...stage,request:assertRequestPackage(request,manifest,stage.identity)};
 }
