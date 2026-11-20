@@ -331,7 +331,7 @@ if [ "$lane" = "atlas" ] &&
      [ "$(git hash-object "$candidate_migration")" != a41bc8544c4fa6314efd2645294b7b25d22d271f ] ||
      [ "$(git hash-object "$candidate_fixture")" != 789c37e63942fbf6fd7b18af1e8ce22087b890fe ] ||
      [ "$(git hash-object "$candidate_validation")" != 3652890d8938272663f0524a6d9df298158f28c0 ] ||
-     [ "$(git hash-object "$personal_connected_assignment_proof")" != cc0a41b394c8030f1a9488266e382660601b9a8d ] ||
+     [ "$(git hash-object "$personal_connected_assignment_proof")" != f5bc25e3c16f749dcf6b81b870955b06ad9d4245 ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
     echo "Held Personal assignment needs exact reviewed migration, fixture, postconditions and signed local probe." >&2
