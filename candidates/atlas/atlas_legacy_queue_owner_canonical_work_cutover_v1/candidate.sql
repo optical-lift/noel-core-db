@@ -60,7 +60,7 @@ BEGIN
  'sourceLinkedCanonicalWorkId',original_work_id,
  'sourceLinkedCanonicalWorkState',original_work_state,
  'ownerReviewDecision',owner_decision,'ownerReviewTargetWorkItemId',reviewed_work_id,
- 'queueDisagreesWithOldTask',state='active' AND task_status IN ('done','archived'),
+ 'queueDisagreesWithOldTask',coalesce(state='active' AND task_status IN ('done','archived'),false),
  'taskLinkedDecisionPossible',task_id IS NOT NULL AND task_title IS NOT NULL
    AND original_work_id IS NULL AND owner_decision IS NULL,
  'noTaskMeansSeparateOriginalNeedReview',task_id IS NULL
