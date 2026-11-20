@@ -135,7 +135,8 @@ def main():
                 "kind":"lesson", "title":"Fictional lesson", "text":"Fictional source text",
                 "basis":[{"reference":"fictional-local-source", "description":"Synthetic fixture only"}]}]}
     save = {"p_token_hash":key_hash,"p_course":course,"p_proposal":proposal}
-    service_rpc("shared_delegated_course_save_draft_service_v1", {**save,"p_course":foreign}, 403)
+    service_rpc("shared_delegated_course_save_draft_service_v1",
+                {**save,"p_course":foreign,"p_proposal":{**proposal,"courseId":foreign}}, 403)
     saved = service_rpc("shared_delegated_course_save_draft_service_v1", save)
     check(saved.get("contractVersion") is not None, "source-derived save receipt")
     check(service_rpc("shared_delegated_course_save_draft_service_v1", save) == saved, "exact replay")
