@@ -57,5 +57,6 @@ BEGIN
  OR has_table_privilege('authenticated','titus.radio_subscription_offers_v1','SELECT')
  THEN RAISE EXCEPTION 'Radio original counts or privacy incorrect'; END IF;
 END $counts$;
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/radio_operator_workspace_tests_pg17.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/radio_subscription_disposition_tests_pg17.sql
 ROLLBACK TO SAVEPOINT radio_operator_commands_probe;
