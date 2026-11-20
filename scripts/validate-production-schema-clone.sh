@@ -173,6 +173,7 @@ signed_native_work_release_probe=false
 signed_personal_task_amendment_probe=false
 signed_personal_task_progress_probe=false
 signed_personal_connected_assignment_probe=false
+signed_titus_object_title_probe=false
 signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
 signed_unified_today_p0_probe=false
@@ -181,6 +182,19 @@ signed_venue_bed_probe=false
 signed_access01_event_choices_probe=false
 signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
+# Exact title proof, only on the protected schema-only disposable clone.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_teaching_object_title_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -n "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 6c7f9387c9cda8014762f8c3f7678c87e993cf1a ] ||
+     [ ! -s "$repo_root/scripts/validate-titus-object-title-signed-http.py" ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-titus-object-title-signed-http.py")" != 6ddb86fb33b85a3cd763a3045b209d2bf041f6c5 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ]; then
+    echo "Exact held title source and signed local probe required." >&2
+    exit 2
+  fi
+  signed_titus_object_title_probe=true
+fi
+
 # ACCESS-03A: exact synthetic retirement candidate, never a release lane.
 # The signed proof only accepts a synthetic postcondition and local fixture.
 if [ "$lane" = "atlas" ] &&
@@ -910,6 +924,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
        [ "$signed_personal_connected_assignment_probe" = true ] ||
+       [ "$signed_titus_object_title_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
@@ -929,6 +944,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
        [ "$signed_personal_connected_assignment_probe" = true ] ||
+       [ "$signed_titus_object_title_probe" = true ] ||
        [ "$signed_native_intake_responsibility_probe" = true ] ||
        [ "$signed_native_work_journal_probe" = true ] ||
        [ "$signed_native_original_work_comments_probe" = true ] ||
@@ -1474,6 +1490,15 @@ if [ "$signed_personal_task_progress_probe" = true ]; then
     >"$artifacts_dir/signed-personal-task-progress.log" 2>&1
   test -s "$artifacts_dir/signed-personal-task-progress-summary.txt"
   grep -q '^PASS' "$artifacts_dir/signed-personal-task-progress-summary.txt"
+fi
+
+if [ "$signed_titus_object_title_probe" = true ]; then
+  phase="signed local original title changes and sealed edition custody"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/title-local-reload.log" 2>&1
+  python3 "$repo_root/scripts/validate-titus-object-title-signed-http.py" \
+    --db-url "$database_url" --output "$artifacts_dir/title-signed-receipt.txt" \
+    >"$artifacts_dir/title-signed-local.log" 2>&1
+  test "$(cat "$artifacts_dir/title-signed-receipt.txt")" = 'PASS independent local signed title proof'
 fi
 
 if [ "$signed_personal_connected_assignment_probe" = true ]; then
