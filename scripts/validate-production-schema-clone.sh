@@ -328,10 +328,10 @@ if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_compact_composer_creation_clone_only_v1[.]sql$ ]]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$personal_connected_assignment_proof" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 6a50a62ba9708e9709539ef084f0b26990744938 ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 789c37e63942fbf6fd7b18af1e8ce22087b890fe ] ||
-     [ "$(git hash-object "$candidate_validation")" != 8350169463d8d4ab3ae36b9beb41e2155c58f6e1 ] ||
-     [ "$(git hash-object "$personal_connected_assignment_proof")" != 4f9f6ae517f1c131ade46b65755d9078581e23c7 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 2d54e30d73c7fd2b83bd06d36f5634f51b5c573b ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 889511494d55c9fc8957e2552377deef43da2679 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 6d924c434f8720fa061a8d0afa4493f028f64318 ] ||
+     [ "$(git hash-object "$personal_connected_assignment_proof")" != 1c700d9f6609b248ded7c1cd4356db7a2c0cef0e ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
     echo "Held compact composer needs exact reviewed migration, fixture, postconditions and signed local probe." >&2

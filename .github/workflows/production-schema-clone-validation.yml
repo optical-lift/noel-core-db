@@ -144,7 +144,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held compact composer':
               expected = {'diagnostic_scope':'atlas_compact_composer_creation_clone_only_v1',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'f5740fd90bf8cd6f63da6e8f62e48eec425dcec6'}
+                          'candidate_sha':'ff3701410ac379714d753b1e2697d76b5941259e'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held compact composer validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -517,15 +517,15 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-compact-composer-creation" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "f5740fd90bf8cd6f63da6e8f62e48eec425dcec6"
+            test "$(git -C candidate rev-parse HEAD)" = "ff3701410ac379714d753b1e2697d76b5941259e"
             src="candidate/candidates/atlas/atlas_personal_connected_task_creation_v1/candidate.sql"
             fixture="candidate/candidates/atlas/atlas_personal_connected_task_creation_v1/fixture.sql"
             post="candidate/candidates/atlas/atlas_personal_connected_task_creation_v1/postconditions.sql"
             proof="candidate/candidates/atlas/atlas_personal_connected_task_creation_v1/validate_signed_composer.py"
-            test "$(git hash-object "$src")" = 6a50a62ba9708e9709539ef084f0b26990744938
-            test "$(git hash-object "$fixture")" = 789c37e63942fbf6fd7b18af1e8ce22087b890fe
-            test "$(git hash-object "$post")" = 8350169463d8d4ab3ae36b9beb41e2155c58f6e1
-            test "$(git hash-object "$proof")" = 4f9f6ae517f1c131ade46b65755d9078581e23c7
+            test "$(git hash-object "$src")" = 2d54e30d73c7fd2b83bd06d36f5634f51b5c573b
+            test "$(git hash-object "$fixture")" = 889511494d55c9fc8957e2552377deef43da2679
+            test "$(git hash-object "$post")" = 6d924c434f8720fa061a8d0afa4493f028f64318
+            test "$(git hash-object "$proof")" = 1c700d9f6609b248ded7c1cd4356db7a2c0cef0e
             test "$(git hash-object "scripts/validate-atlas-c1-signed-http.py")" = 1b82e698705e473280f1fc55b0e762bce243effb
             test "$(git hash-object "scripts/validate-atlas-work-prerequisite-signed-http.py")" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
             # Existing protected read-only snapshot already completed. No
