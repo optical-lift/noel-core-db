@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {execFileSync} from "node:child_process";
-import {mkdtempSync,mkdirSync,writeFileSync,symlinkSync,rmSync} from "node:fs";
+import {mkdtempSync,mkdirSync,writeFileSync,symlinkSync,rmSync,readFileSync,readdirSync,statSync,realpathSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join,dirname} from "node:path";
 import {packageDigest,verifyReviewedPackage} from "../scripts/development-candidate-git-observation-v1.mjs";
 
-import {verifyOwnerClonePackage} from "../scripts/development-owner-clone-request-v1.mjs";
+import {verifyOwnerClonePackage,stageOwnerClonePackage} from "../scripts/development-owner-clone-request-v1.mjs";
 
 function fixture(t) {
   const root=mkdtempSync(join(tmpdir(),"noel-package-test-"));
@@ -78,4 +78,41 @@ test("reject event before touching Git when source repository is unavailable",t=
   const {manifest,binding}=fixture(t),{context,event}=ownerEvent(manifest,binding);
   event.sender.login="outsider";
   assert.throws(()=>verifyOwnerClonePackage(event,context,manifest,undefined),/owner clone request refused/);
+});
+
+function stagingParent(t) {
+  const p=realpathSync(mkdtempSync(join(tmpdir(),"noel-stage-test-")));t.after(()=>rmSync(p,{recursive:true,force:true}));return p;
+}
+test("stage only immutable admitted bytes privately, never overwrite source or execute probes",t=>{
+  const {manifest,binding,repositories}=fixture(t),{context,event}=ownerEvent(manifest,binding),parent=stagingParent(t);
+  writeFileSync(join(repositories.candidate,manifest.assets[0].path),"uncommitted substitution");
+  writeFileSync(join(repositories.candidate,"not-admitted.py"),"raise RuntimeError('never stage')");
+  const result=stageOwnerClonePackage(event,context,manifest,repositories,parent);
+  assert.equal(result.request.status,"owner_and_source_binding_matched_only");
+  assert.equal(result.execution_authorized,false);assert.equal(result.release_authorized,false);
+  assert.equal(result.files.length,5);assert.equal(statSync(result.root).mode&0o777,0o700);
+  assert.equal(readFileSync(result.files[0].path,"utf8"),"SELECT 1;\n");
+  for(const f of result.files) assert.equal(statSync(f.path).mode&0o777,0o600);
+  assert.deepEqual(readdirSync(result.root).sort(),["candidate","controller"]);
+  assert.deepEqual(readdirSync(join(result.root,"candidate","candidates","atlas")).sort(),["candidate.sql","fixture.sql","probe.py"]);
+  assert.equal(readFileSync(join(repositories.candidate,manifest.assets[0].path),"utf8"),"uncommitted substitution");
+  const next=stageOwnerClonePackage(event,context,manifest,repositories,parent);assert.notEqual(result.root,next.root);
+});
+test("no staging occurs for substituted bytes even with newly matched digest",t=>{
+  const x=fixture(t),parent=stagingParent(t);x.manifest.assets[0].blob="1".repeat(40);
+  const {context,event}=ownerEvent(x.manifest,x.bind());
+  assert.throws(()=>stageOwnerClonePackage(event,context,x.manifest,x.repositories,parent),/source mismatch/);
+  assert.deepEqual(readdirSync(parent),[]);
+});
+test("no staging occurs for valid digest but unapproved scope",t=>{
+  const x=fixture(t),parent=stagingParent(t),{context,event}=ownerEvent(x.manifest,x.binding);
+  x.manifest.scope="atlas_other_clone_only_v1";
+  assert.throws(()=>stageOwnerClonePackage(event,context,x.manifest,x.repositories,parent),/refused/);
+  assert.deepEqual(readdirSync(parent),[]);
+});
+test("refuses symbolic-link staging parent",t=>{
+  const x=fixture(t),parent=stagingParent(t),{context,event}=ownerEvent(x.manifest,x.binding);
+  const target=join(parent,"target"),link=join(parent,"link");mkdirSync(target);symlinkSync(target,link);
+  assert.throws(()=>stageOwnerClonePackage(event,context,x.manifest,x.repositories,link),/real staging parent/);
+  assert.deepEqual(readdirSync(target),[]);
 });
