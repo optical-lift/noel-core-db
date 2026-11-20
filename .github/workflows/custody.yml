@@ -123,6 +123,22 @@ jobs:
           echo "GOVERNED_CLI_SCRATCH_MIGRATION_NAME=$version"
           echo "This is an ephemeral CLI-generated test identity only; it is not committed or deployed."
 
+      - name: Prove fictional signed Supabase stack inside isolated runtime
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 12
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          paths="$(git diff --name-only "$BASE_SHA" HEAD)"
+          if grep -Eq '^(scripts/.*development-|tests/development-|\.github/workflows/custody\.yml$)' <<< "$paths"; then
+            env -u NOEL_CORE_SUPABASE_URL -u NOEL_CORE_SUPABASE_PUBLISHABLE_KEY bash scripts/check-development-signed-stack-v1.sh
+          else
+            echo 'No development-boundary source change.'
+          fi
+
       - name: Validate signed unified Today local proof source
         run: |
           bash -n scripts/validate-production-schema-clone.sh
