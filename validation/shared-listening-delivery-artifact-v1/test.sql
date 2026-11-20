@@ -95,3 +95,8 @@ end;
 $$;
 rollback;
 select 'PASS isolated lineage, mutation and role privilege checks' as result;
+
+-- Extend the existing isolated proof; no additional workflow or live source.
+\ir generated_production_fixture.sql
+\ir ../../candidates/shared-listening-delivery-artifact-v1/generated_production_completion_candidate.sql
+\ir generated_production_test.sql
