@@ -380,9 +380,9 @@ if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_personal_optional_date_clone_only_v1[.]sql$ ]]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$personal_optional_date_proof" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 51755751dace74d6a5d9361b18fade89dcb2693c ] ||
+     [ "$(git hash-object "$candidate_migration")" != 65b34da7bc274ddd148f043ecdda9c2cc4beb6ce ] ||
      [ "$(git hash-object "$candidate_fixture")" != 01d36beb7116e7fd7c27c89e9d5dfb2c9d6a3f9f ] ||
-     [ "$(git hash-object "$candidate_validation")" != 22fe1e00a437f660385b2a9396538608423efa23 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 4dd0d59c1e70b5e8fe37323bd759bce2ef144e46 ] ||
      [ "$(git hash-object "$personal_optional_date_proof")" != 3b6aca3d427b62a0139d870b985ee1057ab5821d ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
