@@ -13,7 +13,7 @@ cli="$RUNNER_TEMP/supabase"
 grep -q -- '--network-id' "$RUNNER_TEMP/development-stack-help.txt"
 work="$(mktemp -d "$RUNNER_TEMP/noel-signed-stack.XXXXXXXX")"
 project="devproof_$(basename "$work" | cut -d. -f2 | tr '[:upper:]' '[:lower:]')"
-net="$project-isolated"; other="$project-excluded"; image="$project:fictional"
+bootstrap="$project-bootstrap"; net="$project-isolated"; other="$project-excluded"; image="$project:fictional"
 db="supabase_db_$project"; auth="supabase_auth_$project"; rest="supabase_rest_$project"; gateway="supabase_kong_$project"
 peer="$project-peer"; client="$project-client"; sqlclient="$project-sql"; control="$project-control"; dbprobe="$project-dbprobe"
 started=false
@@ -24,7 +24,7 @@ cleanup() {
    if docker container inspect "$name" >/dev/null 2>&1; then docker rm -f "$name" >/dev/null || bad=1; fi
  done
  if [[ "$started" == true ]]; then
-   (cd "$work"; "$cli" stop --no-backup --network-id "$net") >"$work/stop.log" 2>&1 || bad=1
+   (cd "$work"; "$cli" stop --no-backup --network-id "$bootstrap") >"$work/stop.log" 2>&1 || bad=1
  fi
  for name in "$db" "$auth" "$rest" "$gateway" "$peer" "$client" "$sqlclient" "$control" "$dbprobe"; do
    if docker container inspect "$name" >/dev/null 2>&1; then bad=1; fi
@@ -32,7 +32,7 @@ cleanup() {
  # Scope all inspection to the unique project; never use global prune or stop --all.
  if docker ps -a --format '{{.Names}}' | grep -F "$project" >/dev/null; then bad=1; fi
  if docker volume ls --format '{{.Name}}' | grep -F "$project" >/dev/null; then bad=1; fi
- for name in "$net" "$other"; do
+ for name in "$bootstrap" "$net" "$other"; do
    if docker network inspect "$name" >/dev/null 2>&1; then docker network rm "$name" >/dev/null || bad=1; fi
    if docker network inspect "$name" >/dev/null 2>&1; then bad=1; fi
  done
@@ -67,25 +67,19 @@ for name in "$net" "$other"; do
  docker network create --internal --ipv6=false --opt com.docker.network.bridge.gateway_mode_ipv4=isolated "$name" >/dev/null
  [[ "$(docker network inspect --format '{{.Internal}}|{{.EnableIPv6}}|{{index .Options "com.docker.network.bridge.gateway_mode_ipv4"}}' "$name")" == 'true|false|isolated' ]]
 done
+# Trusted synthetic bootstrap only: the pinned CLI initializes via host loopback.
+# No candidate, fixture or independently signed probe runs on this network.
+docker network create --ipv6=false "$bootstrap" >/dev/null
 # The same minimal service set and exact Supabase CLI as the canonical clone.
 started=true
-if ! "$cli" start --network-id "$net" -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$work/start.log" 2>&1; then
+if ! "$cli" start --network-id "$bootstrap" -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$work/start.log" 2>&1; then
  echo 'REFUSE: pinned fictional Supabase startup failed (no production access)' >&2
  # Only print fixed diagnostic categories, never CLI keys or arbitrary output.
  grep -Ei '(^Error|failed|health|rate.limit|denied|not found|network)' "$work/start.log" | cut -c1-200 | tail -n12 >&2 || true
  exit 1
 fi
-for name in "$db" "$auth" "$rest" "$gateway"; do
- [[ "$(docker inspect --format '{{.State.Running}}|{{.HostConfig.Privileged}}|{{len .NetworkSettings.Networks}}' "$name")" == 'true|false|1' ]]
- [[ "$(docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' "$name")" == "$net" ]]
- [[ "$(docker inspect --format '{{range .Mounts}}{{.Destination}} {{end}}' "$name")" != *docker.sock* ]]
-done
-[[ "$(docker network inspect --format '{{len .Containers}}' "$net")" == 4 ]]
-db_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$db")"
-api_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$gateway")"
-[[ "$db_ip" =~ ^[0-9.]+$ && "$api_ip" =~ ^[0-9.]+$ ]]
-# Only the trusted host gets CLI status; pass solely the local anon key over stdin.
-"$cli" status --network-id "$net" -o env >"$work/status.env" 2>"$work/status.log"
+# Only the trusted host gets CLI status before withdrawing bootstrap connectivity.
+"$cli" status --network-id "$bootstrap" -o env >"$work/status.env" 2>"$work/status.log"
 python3 - "$work/status.env" "$work/anon" <<'PY'
 import sys
 from pathlib import Path
@@ -96,6 +90,38 @@ assert (d.get("API_URL") or "").strip('"').startswith(("http://127.0.0.1:","http
 Path(sys.argv[2]).write_text(key+"\n")
 PY
 rm "$work/status.env"
+# Admit exactly the four job-owned services. Preserve only their original
+# DNS aliases when transferring them, then remove ALL bootstrap attachments.
+python3 - "$bootstrap" "$net" "$db" "$auth" "$rest" "$gateway" <<'PY'
+import json,subprocess,sys
+bootstrap,isolated,*names=sys.argv[1:]
+def docker(*args):
+    return subprocess.check_output(["docker",*args],text=True)
+services=json.loads(docker("inspect",*names))
+network=json.loads(docker("network","inspect",bootstrap))[0]
+assert set(network["Containers"])=={s["Id"] for s in services}, "unexpected bootstrap participant"
+for s in services:
+    assert s["State"]["Running"] and not s["HostConfig"]["Privileged"]
+    assert set(s["NetworkSettings"]["Networks"])=={bootstrap}
+    assert all("docker.sock" not in m["Destination"] for m in s["Mounts"])
+    aliases=s["NetworkSettings"]["Networks"][bootstrap].get("Aliases") or []
+    flags=[x for a in aliases for x in ("--alias",a)]
+    docker("network","connect",*flags,isolated,s["Id"])
+for s in services:
+    docker("network","disconnect",bootstrap,s["Id"])
+    new=json.loads(docker("inspect",s["Id"]))[0]
+    assert set(new["NetworkSettings"]["Networks"])=={isolated}
+assert not json.loads(docker("network","inspect",bootstrap))[0]["Containers"]
+assert set(json.loads(docker("network","inspect",isolated))[0]["Containers"])=={s["Id"] for s in services}
+print("PASS exact four-service network transfer; bootstrap detached")
+PY
+for name in "$db" "$auth" "$rest" "$gateway"; do
+ [[ "$(docker inspect --format '{{.State.Running}}|{{.HostConfig.Privileged}}|{{len .NetworkSettings.Networks}}' "$name")" == 'true|false|1' ]]
+ [[ "$(docker inspect --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}' "$name")" == "$net" ]]
+done
+db_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$db")"
+api_ip="$(docker inspect --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$gateway")"
+[[ "$db_ip" =~ ^[0-9.]+$ && "$api_ip" =~ ^[0-9.]+$ ]]
 # SQL client uses the local stack's exact database image, no mounted host checkout.
 db_image="$(docker inspect --format '{{.Image}}' "$db")"
 [[ "$db_image" =~ ^sha256:[0-9a-f]{64}$ ]]
