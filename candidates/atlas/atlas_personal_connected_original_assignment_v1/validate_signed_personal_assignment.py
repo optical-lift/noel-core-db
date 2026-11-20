@@ -4,6 +4,8 @@ import argparse
 import importlib.util
 import re
 import uuid
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 HERE=Path(__file__).resolve().parent
@@ -20,6 +22,8 @@ SENT="personal_sent_original_tasks_self_api_v1"
 NOTE="append_personal_task_progress_self_api_v1"
 NOTES="read_personal_task_progress_self_api_v1"
 DONE="set_atlas_task_done_self_api_v1"
+EDIT_READ="read_personal_task_text_date_self_api_v1"
+EDIT="amend_personal_task_text_date_self_api_v1"
 A="a6300000-0000-4000-8000-000000000201"
 B="a6300000-0000-4000-8000-000000000206"
 PRIVATE="a6300000-0000-4000-8000-000000000205"
@@ -97,10 +101,55 @@ def main():
  check(sql(f"select count(*) from atlas.personal_task_shared_completion_events_v1 where task_id='{A}' and actor_person_id='{PEER}' and after_status='done'")=="1","Exactly one peer completion")
  check(ok(o,READ,exact(A))["task"]["status"]=="done","Shared completion observed")
  ok(w,DONE,{"p_task_id":A,"p_done":False})
+ # Two different authenticated people issue Done concurrently on the shared original.
+ # Use the same barrier pattern as the existing signed Work prerequisite proof.
+ barrier=threading.Barrier(3)
+ def finish(token):
+  barrier.wait(timeout=10)
+  return rpc(token,DONE,{"p_task_id":A,"p_done":True})
+ with ThreadPoolExecutor(max_workers=2) as pool:
+  one=pool.submit(finish,o);two=pool.submit(finish,w)
+  barrier.wait(timeout=10)
+  outcomes=[one.result(timeout=40),two.result(timeout=40)]
+ check(all(code==200 and isinstance(body,dict) and body.get("ok") is True
+  and body["task"]["id"]==A and body["task"]["status"]=="done"
+  for code,body in outcomes),"Concurrent signed completion must converge")
+ winners=[(actor,body) for actor,(_,body) in zip((OWNER,PEER),outcomes) if body.get("completionEventId")]
+ retries=[body for _,body in outcomes if body.get("idempotent") is True]
+ check(len(winners)==1 and len(retries)==1,"One completion event and one idempotent response")
+ actor,event=winners[0]
+ check(sql(f"select count(*) from atlas.personal_task_shared_completion_events_v1 where task_id='{A}' and after_status='done'")=="2","One new completion across concurrent requests")
+ check(sql(f"select actor_person_id::text from atlas.personal_task_shared_completion_events_v1 where id='{event['completionEventId']}'")==actor,"Concurrent winner retains actual signed actor")
+ ok(o,DONE,{"p_task_id":A,"p_done":False})
  sent=ok(o,CHANGE,change(A,1,PEER))
  check(sent["revision"]==2 and A not in ids(o,DAY,day) and A not in ids(o,BACKLOG,backlog),"Sent original leaves sender's active responsibility")
  check(A in ids(o,SENT,{}) and A in ids(w,DAY,day),"Sent original retained and recipient active")
  check(not ok(o,READ,exact(A))["assignedToSelf"],"Sender not assigned")
+ # The sender retains text/date custody independent of active responsibility.
+ edit=ok(o,EDIT_READ,exact(A))
+ check(edit["canEdit"] is True and edit["taskId"]==A,"Exact sent owner may amend")
+ deny(w,EDIT_READ,exact(A));deny(x,EDIT_READ,exact(A))
+ changed_day={"p_date":"2030-11-03"}
+ amendment={"p_task_id":A,"p_expected_revision":edit["amendmentRevision"],
+  "p_new_sentence":"Synthetic sent amendment","p_new_due_date":changed_day["p_date"]}
+ deny(w,EDIT,amendment);deny(x,EDIT,amendment)
+ changed=ok(o,EDIT,amendment)
+ check(changed["taskId"]==A and changed["amendmentRevision"]==edit["amendmentRevision"]+1
+  and changed["oldDueDate"]==day["p_date"] and changed["oneOriginalTaskId"] is True,"Sent owner amendment receipt")
+ reread=ok(o,EDIT_READ,exact(A))
+ check(reread["sentence"]==amendment["p_new_sentence"] and reread["dueDate"]==changed_day["p_date"]
+  and reread["amendmentRevision"]==changed["amendmentRevision"],"Independent exact owner readback")
+ peer=ok(w,READ,exact(A))
+ check(peer["task"]["sentence"]==reread["sentence"] and peer["task"]["dueDate"]==reread["dueDate"]
+  and peer["revision"]==sent["revision"] and peer["primaryPersonId"]==PEER,"Recipient sees amended original without changing assignment")
+ check(A not in ids(o,DAY,day) and A not in ids(o,DAY,changed_day)
+  and A not in ids(w,DAY,day) and A in ids(w,DAY,changed_day) and A in ids(o,SENT,{}),"Moved original stays sent and only recipient day changes")
+ check(ok(o,EDIT,amendment)["amendmentEventId"]==changed["amendmentEventId"],"Sent amendment replay preserves event")
+ deny(o,EDIT,{**amendment,"p_new_sentence":"Stale different edit"},("PT409",))
+ restored=ok(o,EDIT,{**amendment,"p_expected_revision":changed["amendmentRevision"],
+  "p_new_sentence":edit["sentence"],"p_new_due_date":edit["dueDate"]})
+ check(restored["amendmentRevision"]==changed["amendmentRevision"]+1 and A in ids(w,DAY,day)
+  and A not in ids(o,DAY,day),"Restored date for remaining fictional lifecycle; responsibility retained")
  deny(o,DONE,{"p_task_id":A,"p_done":True})
  deny(o,"delete_unlinked_personal_task_self_api_v1",exact(A),("23514",))
  deny(o,"set_personal_task_archive_self_api_v1",{"p_task_id":A,"p_archived":True},("23514",))
@@ -119,6 +168,6 @@ def main():
  check(A in ids(o,DAY,day),"Explicit owner recovery")
  check(sql("select count(*) from atlas.work_items")==work_count,"No duplicate institutional Work")
  check(sql(f"select count(*) from atlas.task_entries where id='{A}'")=="1","Original remains unique")
- Path(args.output).write_text("PASS independent signed reciprocal send/share, one original/day/backlog, author, completion, replay, privacy, revoke/reconnect and recovery.\n")
+ Path(args.output).write_text("PASS independent signed reciprocal send/share, one original/day/backlog, author, concurrent completion, sent amendment, replay, privacy, revoke/reconnect and recovery.\n")
  print("PASS connected original signed lifecycle")
 if __name__=="__main__": main()
