@@ -191,7 +191,7 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_course_w
   if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != 33aa73e850a22eeecabcb456dc67523c7d351370 ] ||
      [ "$(git hash-object "$candidate_validation")" != 43820e70118372c2974a747c4b86a149107e895d ] ||
-     [ "$(git hash-object "$repo_root/scripts/validate-private-course-working-loop-signed-http.py")" != 0cfaadd5320eedc1f41ae705ac52d4f6bdae2d75 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-private-course-working-loop-signed-http.py")" != 9ddef601b6975e7ffd2bc82da04c3f7ba3363a8a ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
     echo 'Refuse private Course proof without exact isolated package and signed harness.' >&2; exit 2
