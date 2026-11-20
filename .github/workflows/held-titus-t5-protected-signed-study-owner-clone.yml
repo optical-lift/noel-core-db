@@ -209,6 +209,53 @@ jobs:
             test "$(cat "$d/diagnostics/title-signed-receipt.txt")" = 'PASS independent local signed title proof'
             echo 'PASS signed original title, concurrent edit and immutable edition proof'
           else
+            # Emit only a closed set of fixed labels, never log/schema contents.
+            python3 - "$d/diagnostics" <<'PY'
+          import re,sys
+          from pathlib import Path
+          d=Path(sys.argv[1])
+          summary=d/'summary.md'
+          s=summary.read_text(errors='replace') if summary.is_file() else ''
+          phases={
+              'preflight':'preflight',
+              'release-lane custody check':'release-lane',
+              'schema dump sanitation':'schema-sanitation',
+              'disposable database startup':'local-startup',
+              'production custom-role restore':'role-restore',
+              'production user-schema restore':'schema-restore',
+              'baseline domain schema lint':'baseline-lint',
+              'candidate migration application':'candidate-transaction',
+              'candidate migration postconditions':'postconditions',
+              'signed local original title changes and sealed edition custody':'signed-title',
+              'candidate domain schema lint':'candidate-lint',
+              'candidate lint delta comparison':'lint-delta',
+              'local database advisors':'advisors',
+          }
+          names=re.findall(r'\*\*FAILED during ([^\n]+?)\.\*\*|Validation command exited during `([^`\n]+)`\.',s)
+          phase=phases.get(next((a or b for a,b in reversed(names)),''),'unclassified')
+          print('TITLE_PROOF_FAILURE_STAGE='+phase)
+          logs={
+              'local-startup':sorted(d.glob('disposable-database-startup-attempt-*.log')),
+              'candidate-transaction':[d/'candidate-migration.log'],
+              'signed-title':[d/'title-signed-local.log'],
+          }.get(phase,[])
+          raw='\n'.join(p.read_text(errors='replace')[-200000:] for p in logs if p.is_file())
+          labels=(
+              ('registry-throttle',r'(?i)toomanyrequests|rate limit|429 Too Many Requests'),
+              ('container-health',r'(?i)unhealthy|health check failed|failed to start'),
+              ('connection',r'(?i)connection refused|connection timed out'),
+              ('signed-auth',r'Local GoTrue password sign-in failed|signed user mismatch|persisted separate session required'),
+              ('signed-grant',r'AssertionError: (?:first author access|second author access|outsider no grant)'),
+              ('issued-edition',r'AssertionError: (?:exact issued title and body before rename|sealed curriculum unchanged|issued Unit remains exact|concurrent title changes preserve edition)'),
+              ('conflict',r'AssertionError: (?:one concurrent winner and one stale conflict|one concurrent revision)'),
+              ('replay',r'AssertionError: (?:replay exact|old receipt plus current read|founding creation retry|founding Unit retry)'),
+              ('authorization',r'AssertionError: (?:expected exact title source denial|private table/RPC ACL|no write on revoked grant)'),
+              ('rpc',r'AssertionError: .*expected HTTP'),
+              ('sql',r'(?i)\bERROR:'),
+              ('assertion',r'AssertionError:'),
+          )
+          print('TITLE_PROOF_FAILURE_CLASS='+next((name for name,pat in labels if re.search(pat,raw)),'unclassified'))
+          PY
             echo 'FAIL protected signed title proof; private diagnostics not published' >&2
             exit 1
           fi
