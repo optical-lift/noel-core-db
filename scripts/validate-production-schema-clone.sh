@@ -963,6 +963,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   elif [ "$signed_generated_listening_storage_probe" = true ]; then
     # Storage, Auth, REST and Kong must all run; no unrelated services.
     supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_private_course_working_loop_probe" = true ]; then
+    # Same local GoTrue, REST and PostgreSQL footprint, on the pinned Course package.
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
      [ "$signed_schedule_preflight_probe" = true ] ||
       [ "$signed_event_writer_probe" = true ] ||
@@ -1008,8 +1011,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_venue_bed_probe" = true ] ||
        [ "$signed_access01_event_choices_probe" = true ] ||
        [ "$signed_access02_my_work_probe" = true ] ||
-       [ "$signed_access03_zone_retirement_probe" = true ] ||
-       [ "$signed_private_course_working_loop_probe" = true ]; then
+       [ "$signed_access03_zone_retirement_probe" = true ]; then
     # The source-governed signed care/Done test requires only PostgreSQL,
     # local GoTrue, PostgREST and the Kong API gateway. Pulling Studio,
     # analytics, Realtime, storage and auxiliary containers consumed the
@@ -1032,8 +1034,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_venue_bed_probe" = true ] ||
        [ "$signed_access01_event_choices_probe" = true ] ||
        [ "$signed_access02_my_work_probe" = true ] ||
-       [ "$signed_access03_zone_retirement_probe" = true ] ||
-       [ "$signed_private_course_working_loop_probe" = true ]; then
+       [ "$signed_access03_zone_retirement_probe" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
     else
       supabase start >"$startup_log" 2>&1
