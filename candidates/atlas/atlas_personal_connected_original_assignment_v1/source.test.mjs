@@ -1,0 +1,19 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
+const s=readFileSync(new URL("./candidate.sql",import.meta.url),"utf8");
+test("one original and reciprocal accepted link, not a household or Company task copy",()=>{
+ for(const fragment of ["atlas.household_member_identity_links","i.invitation_state='accepted'","i.accepted_by_user_id=l.target_auth_user_id","p.user_id=p_user_id OR l.target_auth_user_id=p_user_id","atlas.personal_task_ready_person_v1(l.target_auth_user_id)","REFERENCES atlas.task_entries(id) ON DELETE RESTRICT","a.connection_evidence->>peer.peer_person_id::text","t.owner_user_id=auth.uid() AND t.principal_id=v_principal FOR UPDATE","'acceptanceRequired',false","'recipientAttested',false","'newTaskCreated',false","FOR SHARE","v_prior.revision<>p_expected_revision+1","v_revision<>p_expected_revision"])assert.ok(s.includes(fragment),fragment);
+ const authority=s.split("CREATE OR REPLACE FUNCTION atlas.promote_personal_dated_task_to_company_work_self_api_v1")[0];
+ assert.doesNotMatch(authority,/insert\s+into\s+atlas\.(task_entries|work_items|tasks|household_member_identity_links)\b/i);
+ const publicNames=[...s.matchAll(/CREATE FUNCTION public\.(\w+)\(/g)].map(m=>m[1]);
+ assert.deepEqual(publicNames,["read_personal_task_assignment_self_api_v1","change_personal_task_assignment_self_api_v1","personal_sent_original_tasks_self_api_v1"]);
+ for(const match of s.matchAll(/GRANT EXECUTE ON FUNCTION ([\w.]+)\([^;]*?\) TO ([\w, ]+);/g)){
+  assert.ok(publicNames.includes(match[1].split(".")[1]));assert.equal(match[2],"authenticated");
+ }
+ assert.match(s,/SECURITY INVOKER SET search_path TO ''\nAS \$fn\$ SELECT atlas\.change_personal_task_assignment_self_api_v1/);
+});
+
+test("existing original lifecycle follows assignment, author and completion instead of duplicating the task",()=>{
+ for(const fragment of ["where atlas.personal_task_assigned_actor_v1(t.id,auth.uid(),v_principal)","personal_sent_original_tasks_self_api_v1","'activeResponsibility',false","personal_task_shared_completion_events_v1","NOT atlas.personal_task_lock_recipient_v1","VALUES (v_task.id,auth.uid(),v_principal,p_source_action_id,v_text)","'authoredBySelf',q.owner_user_id=auth.uid()","Shared original history cannot be permanently deleted","Shared original may not acquire institutional execution custody","signed_principal_original_or_current_assignment"])assert.ok(s.includes(fragment),fragment);
+});
