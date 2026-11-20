@@ -185,6 +185,16 @@ BEGIN
  'assignedToSelf',(v_actor=v_primary OR v_actor=ANY(coalesce(v_assignment.participant_person_ids,'{}'::uuid[])))
   AND (v_is_owner OR atlas.personal_task_assignment_recipient_current_v1(v_task.id,auth.uid())),
  'canWriteNotes',v_task.status='open' AND v_task.archived_at IS NULL,
+ 'canComplete',v_task.status='open' AND v_task.archived_at IS NULL
+   AND (v_actor=v_primary OR v_actor=ANY(coalesce(v_assignment.participant_person_ids,'{}'::uuid[]))),
+ 'canReopen',v_task.status='done' AND v_task.archived_at IS NULL
+   AND (v_actor=v_primary OR v_actor=ANY(coalesce(v_assignment.participant_person_ids,'{}'::uuid[])))
+   AND (v_is_owner OR EXISTS(SELECT 1 FROM
+      (SELECT e.* FROM atlas.personal_task_shared_completion_events_v1 e WHERE e.task_id=v_task.id
+        ORDER BY e.recorded_at DESC,e.id DESC LIMIT 1) last_event
+      WHERE last_event.after_status='done' AND last_event.actor_person_id=v_actor)),
+ 'canRetirePrivate',v_is_owner AND v_assignment.id IS NULL,
+ 'ownerName',(SELECT e.display_name FROM reality.entities e WHERE e.id=v_owner),
  'archived',v_task.archived_at IS NOT NULL);
 END
 $fn$;
@@ -861,5 +871,26 @@ BEGIN
 END
 $function$;
 
--- Held only: new assignment and sent-original endpoints remain without public grants.
+-- Held for disposable signed lifecycle and privacy validation. These reviewed
+-- exact RPCs are enabled only in a disposable clone until separate release.
+GRANT EXECUTE ON FUNCTION atlas.read_personal_task_assignment_self_api_v1(uuid) TO authenticated;
+CREATE FUNCTION public.read_personal_task_assignment_self_api_v1(p_task_id uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY INVOKER SET search_path TO ''
+AS $fn$ SELECT atlas.read_personal_task_assignment_self_api_v1(p_task_id); $fn$;
+REVOKE ALL ON FUNCTION public.read_personal_task_assignment_self_api_v1(uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.read_personal_task_assignment_self_api_v1(uuid) TO authenticated;
+
+GRANT EXECUTE ON FUNCTION atlas.change_personal_task_assignment_self_api_v1(uuid,bigint,uuid,uuid[],uuid) TO authenticated;
+CREATE FUNCTION public.change_personal_task_assignment_self_api_v1(p_task_id uuid,p_expected_revision bigint,p_primary_person_id uuid,p_participant_person_ids uuid[],p_source_action_id uuid)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO ''
+AS $fn$ SELECT atlas.change_personal_task_assignment_self_api_v1(p_task_id,p_expected_revision,p_primary_person_id,p_participant_person_ids,p_source_action_id); $fn$;
+REVOKE ALL ON FUNCTION public.change_personal_task_assignment_self_api_v1(uuid,bigint,uuid,uuid[],uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.change_personal_task_assignment_self_api_v1(uuid,bigint,uuid,uuid[],uuid) TO authenticated;
+
+GRANT EXECUTE ON FUNCTION atlas.personal_sent_original_tasks_self_api_v1(integer,uuid) TO authenticated;
+CREATE FUNCTION public.personal_sent_original_tasks_self_api_v1(p_limit integer DEFAULT 50,p_before_id uuid DEFAULT NULL)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY INVOKER SET search_path TO ''
+AS $fn$ SELECT atlas.personal_sent_original_tasks_self_api_v1(p_limit,p_before_id); $fn$;
+REVOKE ALL ON FUNCTION public.personal_sent_original_tasks_self_api_v1(integer,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.personal_sent_original_tasks_self_api_v1(integer,uuid) TO authenticated;
 COMMIT;
