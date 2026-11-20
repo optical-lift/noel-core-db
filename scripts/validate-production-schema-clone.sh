@@ -182,6 +182,24 @@ signed_venue_bed_probe=false
 signed_access01_event_choices_probe=false
 signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
+signed_generated_listening_storage_probe=false
+# Exact signed Storage proof, never a generated production migration.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listening_storage_signed_clone_only_v1[.]sql$ ]]; then
+  listening_dir="$repo_root/candidates/shared-listening-delivery-artifact-v1"
+  listening_proof="$listening_dir/verify_generated_listening_storage_signed.py"
+  listening_completion="$listening_dir/generated_production_completion_candidate.sql"
+  listening_staging="$listening_dir/generated_listening_storage_candidate.sql"
+  if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -n "$candidate_validation" ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
+     [ "$(git hash-object "$listening_completion")" != f6bee2ef5e1fa8cef5995267bceeea1a0803ae9e ] ||
+     [ "$(git hash-object "$listening_staging")" != 68abed463591181b5ec60c9a9eaedd3680f49721 ] ||
+     [ "$(git hash-object "$listening_proof")" != f25cca3c9dadfea921709c794fdf4b1c9c245138 ] ||
+     ! cmp -s "$candidate_migration" <(cat "$listening_completion" "$listening_staging"); then
+    echo 'Refuse without exact held generated listening SQL and signed proof.' >&2; exit 2
+  fi
+  signed_generated_listening_storage_probe=true
+fi
+
 # Exact title proof, only on the protected schema-only disposable clone.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_teaching_object_title_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -n "$candidate_validation" ] ||
@@ -889,6 +907,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   set +e
   if [ "$t5_signed_study" = true ]; then
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_generated_listening_storage_probe" = true ]; then
+    # Storage, Auth, REST and Kong must all run; no unrelated services.
+    supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
      [ "$signed_schedule_preflight_probe" = true ] ||
       [ "$signed_event_writer_probe" = true ] ||
@@ -1657,6 +1678,15 @@ if [ "$signed_program_author_probe" = true ]; then
     >"$artifacts_dir/signed-program-author.log" 2>&1
 fi
 
+if [ "$signed_generated_listening_storage_probe" = true ]; then
+  phase="signed local generated listening Storage upload and readback"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/listening-local-reload.log" 2>&1
+  (cd "$project_dir"; python3 "$listening_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-generated-listening-storage-summary.txt") \
+    >"$artifacts_dir/signed-generated-listening-storage.log" 2>&1
+  test "$(cat "$artifacts_dir/signed-generated-listening-storage-summary.txt")" = 'PASS signed local Storage staging and byte readback; independent denials; no admission or publication.'
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -1682,6 +1712,9 @@ if [ "$pre1_rest_proof" = true ]; then
     >> "$artifacts_dir/summary.md"
 fi
 
+if [ "$signed_generated_listening_storage_probe" = true ]; then
+  printf '\nSIGNED generated listening: genuine local GoTrue owner/editor/viewer/outsider, Storage upload and byte readback, exact object version, denial of replacement and revoked access. No canonical admission or release.\n' >> "$artifacts_dir/summary.md"
+fi
 phase="complete"
 if [ "$signed_household_original_repair_probe" = true ]; then
   printf '\nSIGNED Household repair test only: genuine independent local sessions, same original Need/Work/allocation, native Person read, physical Actual, member and session revocation. No production write or release.\n' >> "$artifacts_dir/summary.md"
