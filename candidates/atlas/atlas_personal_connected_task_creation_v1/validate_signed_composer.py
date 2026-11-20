@@ -137,10 +137,17 @@ def main():
  def event_args(event):
   return {"p_organization_id":org,"p_ledger_id":ledger,"p_occurrence_id":event}
  def ledger_item(work):
-  packet=ok(o,"company_work_accountability_native_ledger_self_api_v1",{
+  code,packet=rpc(o,"company_work_accountability_native_ledger_self_api_v1",{
    "p_organization_id":org,"p_ledger_id":ledger,"p_scope":"native_ledger",
    "p_limit":200,"p_after_work_item_id":None})
-  return next((row for row in packet["items"] if row["workItemId"]==work),None)
+  check(code==200 and isinstance(packet,dict) and packet.get("contractVersion")=="company_work_accountability_native_ledger_v1"
+   and packet.get("organizationId")==org and packet.get("selectedNativeLedgerId")==ledger
+   and packet.get("scopeMode")=="native_ledger" and isinstance(packet.get("items"),list)
+   and packet.get("facts",{}).get("privatePersonalAtlasNotRead") is True,"Exact signed Ledger reader contract")
+  rows=[row for row in packet["items"] if row.get("workItemId")==work]
+  check(len(rows)==1 and rows[0].get("organizationId")==org and rows[0].get("selectedNativeLedgerId")==ledger
+   and rows[0].get("nativeLedgerRelevance")=="established_for_selected_ledger","One original in exact Ledger")
+  return rows[0]
  base_work=int(sql("select count(*) from atlas.work_items"))
  for event,person,date in [(None,None,None),(event_a,None,None),(event_a,PEER,None),(event_b,PEER,day["p_date"]),(event_b,None,day["p_date"])]:
   args2=bound(event,person,date)
