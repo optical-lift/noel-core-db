@@ -50,6 +50,19 @@ jobs:
                       raise SystemExit(f'duplicate conflicting field: {key}')
                   fields[key] = value
 
+          # One immutable, held Shared Course working-loop package. This is
+          # a disposable clone request, never a production migration identity.
+          if title == 'Production schema validation request: Shared held private Course working loop':
+              expected = {'diagnostic_scope':'shared_private_course_working_loop_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'0fd98326892e9ed4cf22c15e572882fe97d3e383'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held private Course validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-private-course-working-loop\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # Exact held Household package only. This branch is a disposable
           # validation request, NOT a migration identity or release request.
           if title == 'Production schema validation request: Atlas held Household Work':
@@ -293,6 +306,30 @@ jobs:
           RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
         run: |
           set -euo pipefail
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-course-working-loop" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "0fd98326892e9ed4cf22c15e572882fe97d3e383"
+            src="candidate/candidates/shared-private-course-working-loop-validation-v1/combined_candidate.sql"
+            test "$(git hash-object "$src")" = 33aa73e850a22eeecabcb456dc67523c7d351370
+            test "$(git hash-object scripts/private-course-working-loop-postconditions.sql)" = 43820e70118372c2974a747c4b86a149107e895d
+            test "$(git hash-object scripts/validate-private-course-working-loop-signed-http.py)" = 0cfaadd5320eedc1f41ae705ac52d4f6bdae2d75
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            scratch="$(mktemp -d "$RUNNER_TEMP/private-course-working-loop.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_private_course_working_loop_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_private_course_working_loop_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            sha256sum "$candidate_migration" scripts/private-course-working-loop-postconditions.sql
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "validation_path=scripts/private-course-working-loop-postconditions.sql"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-household-work" ]]; then
             # No candidate scripts run before the protected snapshot; no
             # production secret is available in this or subsequent steps.

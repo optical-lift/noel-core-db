@@ -185,6 +185,19 @@ signed_access01_event_choices_probe=false
 signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
 signed_generated_listening_storage_probe=false
+signed_private_course_working_loop_probe=false
+# Exact owner-admitted immutable package; never infer proof from a filename.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_course_working_loop_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 33aa73e850a22eeecabcb456dc67523c7d351370 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 43820e70118372c2974a747c4b86a149107e895d ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-private-course-working-loop-signed-http.py")" != 0cfaadd5320eedc1f41ae705ac52d4f6bdae2d75 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse private Course proof without exact isolated package and signed harness.' >&2; exit 2
+  fi
+  signed_private_course_working_loop_probe=true
+fi
 # Exact signed Storage proof, never a generated production migration.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listening_storage_signed_clone_only_v1[.]sql$ ]]; then
   listening_dir="$repo_root/candidates/shared-listening-delivery-artifact-v1"
@@ -950,6 +963,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   elif [ "$signed_generated_listening_storage_probe" = true ]; then
     # Storage, Auth, REST and Kong must all run; no unrelated services.
     supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_private_course_working_loop_probe" = true ]; then
+    # Same local GoTrue, REST and PostgreSQL footprint, on the pinned Course package.
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
      [ "$signed_schedule_preflight_probe" = true ] ||
       [ "$signed_event_writer_probe" = true ] ||
@@ -1564,6 +1580,15 @@ if [ "$signed_titus_object_title_probe" = true ]; then
     --db-url "$database_url" --output "$artifacts_dir/title-signed-receipt.txt" \
     >"$artifacts_dir/title-signed-local.log" 2>&1
   test "$(cat "$artifacts_dir/title-signed-receipt.txt")" = 'PASS independent local signed title proof'
+fi
+
+if [ "$signed_private_course_working_loop_probe" = true ]; then
+  phase="independent signed private Course working loop and revocation"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/private-course-reload.log" 2>&1
+  python3 "$repo_root/scripts/validate-private-course-working-loop-signed-http.py" \
+    --db-url "$database_url" --output "$artifacts_dir/private-course-signed-receipt.txt" \
+    >"$artifacts_dir/private-course-signed-local.log" 2>&1
+  test "$(cat "$artifacts_dir/private-course-signed-receipt.txt")" = 'PASS independent signed standing Course read and revocation proof'
 fi
 
 if [ "$signed_personal_connected_assignment_probe" = true ]; then
