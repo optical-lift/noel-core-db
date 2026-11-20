@@ -100,3 +100,6 @@ select 'PASS isolated lineage, mutation and role privilege checks' as result;
 \ir generated_production_fixture.sql
 \ir ../../candidates/shared-listening-delivery-artifact-v1/generated_production_completion_candidate.sql
 \ir generated_production_test.sql
+
+\ir ../../candidates/shared-listening-delivery-artifact-v1/generated_listening_storage_candidate.sql
+\ir generated_listening_storage_test.sql
