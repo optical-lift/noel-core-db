@@ -1231,7 +1231,13 @@ phase="candidate migration application"
 # This is not the protected production release. Remote URLs are never used.
 if [ "$lane" = atlas ] && [ "$version" = 20261120211526 ] &&
    [ "$(basename "$candidate_migration")" = "20261120211526_atlas_access03c_pre1_tending_v1_pair_retirement_v1.sql" ]; then
-  if [ "$database_url" != 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' ] ||
+  # Bind the releaser to THIS disposable clone's assigned local port.
+  # The canonical startup selected and configured 38000..60999 above; a
+  # different host, endpoint, or port must fail closed, never fall back.
+  if [[ ! "$local_database_port" =~ ^[0-9]{5}$ ]] ||
+     [ "$local_database_port" -lt 38000 ] ||
+     [ "$local_database_port" -ge 61000 ] ||
+     [ "$database_url" != "postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres" ] ||
      [ "$(git hash-object "$candidate_migration")" != ac8552f35e4de14f1ae337c29cfc1c2971af1c9b ] ||
      [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_validation")" != aff86ae537a7dfbffefa4320e6d21328c32c78d7 ]; then
