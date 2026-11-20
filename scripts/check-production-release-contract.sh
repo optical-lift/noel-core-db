@@ -87,3 +87,7 @@ if errors:
 
 print('Production database release contract passed: main-only protected manual release; Atlas, Titus, Noel, WNPH, and shared lanes; target-lane checks and independent global audit.')
 PY
+
+# Exact Tending PRE1 release guard must fail closed on source, custody and
+# transaction-seam drift. Existing protected release contract checks remain.
+python3 tests/test_atlas_pre1_production_row_integrity_source.py

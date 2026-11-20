@@ -134,6 +134,13 @@ receipt = (
 )
 
 governed_sql = body[:terminal.start()] + receipt
+# Scoped exact release only. Keep all other migration execution unchanged.
+# Before/after checks run IN THE SAME guarded transaction; failed checks
+# roll back the two DROP FUNCTION statements and the migration receipt.
+if version == '20261120211526':
+    sys.path.insert(0, str(Path('scripts').resolve()))
+    from atlas_pre1_production_row_integrity import augment
+    governed_sql = augment(governed_sql, raw, version, name)
 out_path.write_text(governed_sql, encoding='utf-8', newline='')
 PY
 
