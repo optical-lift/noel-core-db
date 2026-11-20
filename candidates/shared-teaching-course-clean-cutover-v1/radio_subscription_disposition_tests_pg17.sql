@@ -73,4 +73,5 @@ BEGIN
  OR has_function_privilege('anon','public.titus_radio_accept_subscription_self_api_v1(uuid,uuid)','EXECUTE')
  THEN RAISE EXCEPTION 'disposition original or privacy incorrect'; END IF;
 END $counts$;
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/radio_subscription_recipient_tests_pg17.sql
 ROLLBACK TO SAVEPOINT radio_disposition_probe;
