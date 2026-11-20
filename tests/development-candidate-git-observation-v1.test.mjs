@@ -6,6 +6,8 @@ import {tmpdir} from "node:os";
 import {join,dirname} from "node:path";
 import {packageDigest,verifyReviewedPackage} from "../scripts/development-candidate-git-observation-v1.mjs";
 
+import {verifyOwnerClonePackage} from "../scripts/development-owner-clone-request-v1.mjs";
+
 function fixture(t) {
   const root=mkdtempSync(join(tmpdir(),"noel-package-test-"));
   t.after(()=>rmSync(root,{recursive:true,force:true}));
@@ -53,3 +55,27 @@ for(const [name,change,error] of [
   ["relative repository path",x=>x.repositories.candidate=".",/absolute repository/],
   ["empty committed blob",x=>{const a=x.manifest.assets[0];writeFileSync(join(x.repositories.candidate,a.path),"");a.blob=x.git(x.repositories.candidate,"hash-object",a.path);x.manifest.candidate_sha=x.commit(x.repositories.candidate);x.binding=x.bind();},/bounded size/]
 ]) test("refuses "+name,t=>{const x=fixture(t);change(x);assert.throws(()=>verifyReviewedPackage(x.manifest,x.binding,x.repositories),error);});
+
+function ownerEvent(manifest,binding) {
+  const repo="optical-lift/noel-core-db",owner="optical-lift",owner_id=290109753,repository_id=1346595523;
+  const person={login:owner,id:owner_id};
+  const context={event_name:"issues",ref:"refs/heads/main",repository:repo,repository_id,owner,owner_id,actor:owner,actor_id:owner_id,triggering_actor:owner,controller_sha:binding.controller_sha,workflow_ref:repo+"/.github/workflows/production-schema-clone-validation.yml@refs/heads/main"};
+  const event={action:"opened",repository:{full_name:repo,id:repository_id,owner:{...person}},sender:{...person},issue:{state:"open",user:{...person},author_association:"OWNER",number:42,id:9001,title:"Production schema validation request: package "+manifest.scope,body:["diagnostic_scope: "+manifest.scope,"release_lane: "+manifest.lane,"production_target: zirqkouammpwxlqfbsvf","candidate_sha: "+binding.candidate_sha,"controller_sha: "+binding.controller_sha,"package_sha256: "+binding.package_sha256].join("\n")}};
+  return {context,event};
+}
+test("synthetic owner event through independent actual Git reader",t=>{
+  const {manifest,binding,repositories}=fixture(t),{context,event}=ownerEvent(manifest,binding);
+  const result=verifyOwnerClonePackage(event,context,manifest,repositories);
+  assert.equal(result.status,"owner_and_source_binding_matched_only");
+  assert.equal(result.execution_authorized,false);assert.equal(result.release_authorized,false);
+});
+test("reject manifest substitution despite valid original owner event",t=>{
+  const {manifest,binding,repositories}=fixture(t),{context,event}=ownerEvent(manifest,binding);
+  manifest.assets[0].blob="a".repeat(40);
+  assert.throws(()=>verifyOwnerClonePackage(event,context,manifest,repositories),/binding mismatch/);
+});
+test("reject event before touching Git when source repository is unavailable",t=>{
+  const {manifest,binding}=fixture(t),{context,event}=ownerEvent(manifest,binding);
+  event.sender.login="outsider";
+  assert.throws(()=>verifyOwnerClonePackage(event,context,manifest,undefined),/owner clone request refused/);
+});
