@@ -172,6 +172,7 @@ signed_care_single_done_probe=false
 signed_native_work_release_probe=false
 signed_personal_task_amendment_probe=false
 signed_personal_task_progress_probe=false
+signed_personal_connected_assignment_probe=false
 signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
 signed_unified_today_p0_probe=false
@@ -318,6 +319,25 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_personal_task_progress_probe=true
+fi
+
+# Exact held Personal reciprocal assignment, admitted solely by the protected
+# owner request. Never execute a candidate-selected unpinned probe.
+personal_connected_assignment_proof="$repo_root/candidates/atlas/atlas_personal_connected_original_assignment_v1/validate_signed_personal_assignment.py"
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_personal_connected_assignment_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$personal_connected_assignment_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != a41bc8544c4fa6314efd2645294b7b25d22d271f ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 789c37e63942fbf6fd7b18af1e8ce22087b890fe ] ||
+     [ "$(git hash-object "$candidate_validation")" != 3652890d8938272663f0524a6d9df298158f28c0 ] ||
+     [ "$(git hash-object "$personal_connected_assignment_proof")" != cc0a41b394c8030f1a9488266e382660601b9a8d ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
+    echo "Held Personal assignment needs exact reviewed migration, fixture, postconditions and signed local probe." >&2
+    exit 2
+  fi
+  signed_personal_connected_assignment_probe=true
 fi
 
 # Exact signed personal task amendment requires a fictional disposable clone.
@@ -889,6 +909,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
+       [ "$signed_personal_connected_assignment_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
@@ -907,6 +928,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_native_work_release_probe" = true ] ||
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
+       [ "$signed_personal_connected_assignment_probe" = true ] ||
        [ "$signed_native_intake_responsibility_probe" = true ] ||
        [ "$signed_native_work_journal_probe" = true ] ||
        [ "$signed_native_original_work_comments_probe" = true ] ||
@@ -1454,6 +1476,16 @@ if [ "$signed_personal_task_progress_probe" = true ]; then
   grep -q '^PASS' "$artifacts_dir/signed-personal-task-progress-summary.txt"
 fi
 
+if [ "$signed_personal_connected_assignment_probe" = true ]; then
+  phase="signed reciprocal Personal assignment on exact original"
+  python3 "$personal_connected_assignment_proof" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-personal-connected-assignment-summary.txt" \
+    >"$artifacts_dir/signed-personal-connected-assignment.log" 2>&1
+  test -s "$artifacts_dir/signed-personal-connected-assignment-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-personal-connected-assignment-summary.txt"
+fi
+
 if [ "$signed_personal_task_amendment_probe" = true ]; then
   phase="signed personal task text/date amendment on disposable original"
   python3 "$repo_root/scripts/validate-atlas-personal-task-amendment-signed-http.py" \
@@ -1649,6 +1681,9 @@ if [ "$signed_ledger_disposition_v2_probe" = true ]; then
 fi
 if [ "$signed_personal_task_progress_probe" = true ]; then
   printf '\nSIGNED personal original progress: independent local GoTrue actors, cursor pagination, idempotency, transfer/completion/revocation denial and cleanup.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_personal_connected_assignment_probe" = true ]; then
+  printf '\nSIGNED reciprocal Personal assignment: independent local GoTrue original send/share, day/backlog, authorship, one completion, privacy and revoke/reconnect.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_personal_task_amendment_probe" = true ]; then
   printf '\nSIGNED personal original task: local GoTrue separation, revision edits, conflicts, replays, revocation, private text cleanup.\n' >> "$artifacts_dir/summary.md"
