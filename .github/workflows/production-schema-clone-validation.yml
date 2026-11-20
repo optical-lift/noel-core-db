@@ -311,7 +311,7 @@ jobs:
             src="candidate/candidates/shared-private-course-working-loop-validation-v1/combined_candidate.sql"
             test "$(git hash-object "$src")" = 33aa73e850a22eeecabcb456dc67523c7d351370
             test "$(git hash-object scripts/private-course-working-loop-postconditions.sql)" = 43820e70118372c2974a747c4b86a149107e895d
-            test "$(git hash-object scripts/validate-private-course-working-loop-signed-http.py)" = 9ddef601b6975e7ffd2bc82da04c3f7ba3363a8a
+            test "$(git hash-object scripts/validate-private-course-working-loop-signed-http.py)" = 5ee0d666be7bddacb91a4a362e1cb24823c4f5f8
             test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
             scratch="$(mktemp -d "$RUNNER_TEMP/private-course-working-loop.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new shared_private_course_working_loop_clone_only_v1)
