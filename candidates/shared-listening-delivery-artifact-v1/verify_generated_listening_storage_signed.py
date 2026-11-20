@@ -93,8 +93,8 @@ def main():
     parser.add_argument("--db-url",required=True)
     parser.add_argument("--output",required=True)
     args=parser.parse_args()
-    check(args.db_url=="postgresql://postgres:postgres@127.0.0.1:54322/postgres",
-          "Default disposable local database only")
+    check(re.fullmatch(r"postgresql://postgres:postgres@127[.]0[.]0[.]1:[0-9]+/postgres", args.db_url),
+          "Disposable loopback database only")
     for k in ("NOEL_CORE_DATABASE_URL","DATABASE_URL","SUPABASE_DB_URL",
               "SUPABASE_ACCESS_TOKEN","SUPABASE_SERVICE_ROLE_KEY","SUPABASE_SECRET_KEY"):
         check(not os.environ.get(k),"Hosted credential environment forbidden")
