@@ -58,6 +58,9 @@ def main():
  def rpc(token,name,payload): return c1.rpc(api,key,name,payload,token)
  def ok(token,name,payload):
   code,body=rpc(token,name,payload)
+  if code>=400 and isinstance(body,dict):
+   # Only synthetic clone actors/payloads; bounded source error, never tokens or raw packet.
+   print(f'Clone RPC {name}: {str(body.get("message", ""))[:240]}',flush=True)
   check(code==200 and isinstance(body,dict) and body.get("ok") is True,f"{name} failed HTTP {code}; code={body.get('code') if isinstance(body,dict) else 'non-object'}")
   return body
  def deny(token,name,payload,codes=("42501",)):

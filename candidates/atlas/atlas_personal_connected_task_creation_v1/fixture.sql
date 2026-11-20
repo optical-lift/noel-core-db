@@ -195,3 +195,12 @@ VALUES ('e5200000-0000-4000-8000-000000000401','a6300000-0000-4000-8000-00000000
 INSERT INTO atlas.organization_occurrence_bindings(id,organization_id,occurrence_id,binding_state)
 VALUES ('a6300000-0000-4000-8000-000000000421','e5200000-0000-4000-8000-000000000801','a6300000-0000-4000-8000-000000000411','active'),
 ('a6300000-0000-4000-8000-000000000422','e5200000-0000-4000-8000-000000000801','a6300000-0000-4000-8000-000000000412','active');
+
+-- Existing ordinary Work contract, seed only in disposable schema-only clone.
+-- The live policy is not a data row in a roles/schema dump.
+insert into atlas.work_result_contract_policies(
+ contract_key,source_domain,acceptance_mode,active,description
+) values (
+ 'ordinary_company_work_worker_attestation_v1','organization','worker_attestation',true,
+ 'Fictional responsible Person attests physical completion'
+);
