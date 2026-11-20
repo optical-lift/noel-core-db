@@ -35,7 +35,7 @@ AS $function$
    AND NOT EXISTS(SELECT 1 FROM atlas.delegated_agent_authorizations x WHERE x.id<>a.id AND x.carrier_id=a.carrier_id
      AND x.principal_id=a.principal_id AND x.authorization_state='active' AND (x.ends_at IS NULL OR x.ends_at>clock_timestamp()))
  );
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION atlas.private_atlas_carrier_working_grant_current_v1(p_authorization_id uuid)
  RETURNS boolean
@@ -73,7 +73,7 @@ AS $function$
    AND NOT EXISTS(SELECT 1 FROM atlas.delegated_agent_authorizations x WHERE x.id<>a.id AND x.carrier_id=a.carrier_id
      AND x.principal_id=a.principal_id AND x.authorization_state='active' AND (x.ends_at IS NULL OR x.ends_at>clock_timestamp()))
  ) OR atlas.private_atlas_carrier_standing_grant_current_v1(p_authorization_id);
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION atlas.save_private_course_draft_service_v1(p_token_hash text, p_course uuid, p_proposal jsonb)
  RETURNS jsonb
@@ -106,7 +106,7 @@ BEGIN
    OR j->'confirmationRequired' IS DISTINCT FROM 'false'::jsonb
  THEN RAISE EXCEPTION 'working invocation unavailable' USING ERRCODE='42501'; END IF;
  RETURN atlas.execute_private_course_authoring_v2(p_token_hash,inv,p_proposal,'teaching.course.authoring.save_draft');
-END $function$
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.shared_private_atlas_carrier_enroll_standing_self_api_v1(p_course_id uuid)
  RETURNS jsonb
@@ -152,7 +152,7 @@ BEGIN
  THEN RAISE EXCEPTION 'delegation authority unavailable' USING ERRCODE='42501'; END IF;
  RETURN jsonb_build_object('contractVersion','atlas_private_carrier_standing_enrollment_v1','authorizationId',aid,'courseId',p_course_id,
   'state','active','endsAt',NULL,'replayed',coalesce(cardinality(ids),0)=1);
-END $function$
+END $function$;
 
 CREATE OR REPLACE FUNCTION public.shared_private_atlas_carrier_status_self_api_v2()
  RETURNS jsonb
@@ -192,7 +192,7 @@ BEGIN
     AND cr.credential_state='active' AND cr.begins_at<=clock_timestamp() AND cr.expires_at IS NOT DISTINCT FROM a.ends_at AND (cr.expires_at IS NULL OR cr.expires_at>clock_timestamp())
     AND cr.metadata->>'privateCarrierCredentialV1'='true'
     AND a.authorization_state='active' AND a.begins_at<=clock_timestamp() AND (a.ends_at IS NULL OR a.ends_at>clock_timestamp()) AND c.status='active' AND EXISTS(SELECT 1 FROM atlas.principals WHERE id=pid AND status='active'))) END);
-END $function$
+END $function$;
 
 REVOKE ALL ON FUNCTION public.shared_private_atlas_carrier_enroll_standing_self_api_v1(uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.shared_private_atlas_carrier_enroll_standing_self_api_v1(uuid) TO authenticated;
