@@ -46,6 +46,11 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
           w=Path('.github/workflows/held-titus-t5-protected-signed-study-owner-clone.yml').read_text()
+          # Compile the exact diagnostic heredoc before any protected execution.
+          diagnostics=w.split('            python3 - "$d/diagnostics" <<\'PY\'\n',1)[1].split('\n          PY\n',1)[0]
+          code='\n'.join(line[10:] for line in diagnostics.splitlines())
+          compile(code,'title-bounded-diagnostics','exec')
+          assert "TITLE_PROOF_DENIAL_CODES=" in code
           protected=w.split('\n  validate-owner-protected:\n',1)[1].split('\n  validate-owner-release-shape:\n',1)[0]
           for required in (
             "github.event.issue.author_association == 'OWNER'",
@@ -261,7 +266,10 @@ jobs:
               case=cases.get(int(lines[-1]),'unclassified') if lines else 'unclassified'
               print('TITLE_PROOF_FAILURE_CASE='+case)
               codes=r'(42501|22023|23505|40001|55000|PGRST202|PGRST203|PGRST301|PGRST302|PGRST204|PGRST205|other)'
-              detail=re.findall(r'^AssertionError: TITLE_DENIAL_V1 expected='+codes+r' observed='+codes+r' http=([1-5][0-9]{2}|other)
+              detail=re.findall(r'^AssertionError: TITLE_DENIAL_V1 expected='+codes+r' observed='+codes+r' http=([1-5][0-9]{2}|other)$',raw,re.M)
+              if detail:
+                  expected,observed,http=detail[-1]
+                  print('TITLE_PROOF_DENIAL_CODES='+expected+'/'+observed+'/'+http)
           PY
             echo 'FAIL protected signed title proof; private diagnostics not published' >&2
             exit 1
