@@ -1244,6 +1244,56 @@ if [ "$lane" = atlas ] && [ "$version" = 20261120211526 ] &&
     echo 'Refusing PRE1 guarded release proof without exact local clone and source.' >&2
     exit 2
   fi
+  # This clone restores only production USER schemas; Supabase's managed
+  # migration-history table is intentionally not part of that schema dump.
+  # Verify the job-owned database container before provisioning ONLY its
+  # scratch history table. No remote session, production rows, or real history.
+  pre1_project_id="$(python3 - "$project_dir/supabase/config.toml" <<'PY'
+import re, sys, tomllib
+with open(sys.argv[1], "rb") as f:
+    project = tomllib.load(f)["project_id"]
+assert re.fullmatch(r"validation_20261120211526_[0-9a-f]{8}", project)
+print(project)
+PY
+)"
+  pre1_container="supabase_db_$pre1_project_id"
+  test "$(docker inspect --format '{{.State.Running}}' "$pre1_container")" = true
+  docker port "$pre1_container" 5432/tcp | grep -Eq ":$local_database_port$"
+  # Pinned Supabase CLI v2.116.0 native history columns are version text PK,
+  # statements text[] and name text (pkg/migration/history.go). Noel's own
+  # existing releaser additionally records created_by text. An empty local
+  # table with those columns is needed for an authentic release-wrapper test.
+  # The command refuses a pre-existing history table instead of overriding it.
+  phase="PRE1 disposable native migration-history compatibility"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -q \
+    >"$artifacts_dir/pre1-local-history-bootstrap.log" 2>&1 <<'SQL'
+BEGIN;
+DO $pre1_missing_local_history$
+BEGIN
+  IF to_regclass('supabase_migrations.schema_migrations') IS NOT NULL THEN
+    RAISE EXCEPTION 'PRE1 disposable migration history already exists';
+  END IF;
+END
+$pre1_missing_local_history$;
+CREATE SCHEMA IF NOT EXISTS supabase_migrations;
+CREATE TABLE supabase_migrations.schema_migrations (
+  version text NOT NULL PRIMARY KEY,
+  statements text[],
+  name text,
+  created_by text
+);
+REVOKE ALL ON TABLE supabase_migrations.schema_migrations FROM PUBLIC;
+COMMIT;
+SQL
+  if [ "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc       "SELECT string_agg(column_name || ':' || udt_name, ',' ORDER BY ordinal_position)
+       FROM information_schema.columns
+       WHERE table_schema='supabase_migrations' AND table_name='schema_migrations'")" \
+      != 'version:text,statements:_text,name:text,created_by:text' ] ||
+     [ "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc       'SELECT count(*) FROM supabase_migrations.schema_migrations')" != 0 ]; then
+    echo 'Refusing PRE1 proof: disposable history table has unexpected shape or rows.' >&2
+    exit 2
+  fi
+  phase="PRE1 guarded candidate migration application"
   (
     cd "$repo_root"
     NOEL_CORE_DATABASE_URL="$database_url" \
