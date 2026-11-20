@@ -116,6 +116,26 @@ for forbidden in [
     if forbidden.lower() in workflow.lower():
         errors.append(f'Forbidden production-schema-validation behavior: {forbidden}')
 
+# Exact held generated listening scope: no new protected workflow or hosted writer.
+for fragment in (
+    '7fab77e3957cc4a85cf459a0394d252fba236a09', 'f6bee2ef5e1fa8cef5995267bceeea1a0803ae9e', '68abed463591181b5ec60c9a9eaedd3680f49721', 'f25cca3c9dadfea921709c794fdf4b1c9c245138',
+    'shared_generated_listening_storage_signed_clone_only_v1',
+    'held-generated-listening-storage', 'verify_generated_listening_storage_signed.py',
+):
+    if fragment not in workflow:
+        errors.append('Missing held generated listening scope: '+fragment)
+for fragment in (
+    'f6bee2ef5e1fa8cef5995267bceeea1a0803ae9e', '68abed463591181b5ec60c9a9eaedd3680f49721', 'f25cca3c9dadfea921709c794fdf4b1c9c245138', 'signed_generated_listening_storage_probe=true',
+    'cat "$listening_completion" "$listening_staging"',
+    'signed-generated-listening-storage-summary.txt',
+    'PASS signed local Storage staging and byte readback; independent denials; no admission or publication.',
+):
+    if fragment not in harness:
+        errors.append('Missing exact signed generated listening harness gate: '+fragment)
+storage_start = harness.split('elif [ "$signed_generated_listening_storage_probe" = true ]; then',1)[-1].split('elif ',1)[0]
+if 'supabase start -x ' not in storage_start or 'storage-api' in storage_start or 'supabase db start' in storage_start:
+    errors.append('Signed generated listening must start actual local Storage API, Auth and REST.')
+
 snapshot_marker = '- name: Snapshot production user schemas read-only'
 candidate_marker = '- name: Checkout immutable candidate'
 resolve_marker = '- name: Resolve exact candidate migration package'
