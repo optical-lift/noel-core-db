@@ -134,7 +134,7 @@ jobs:
               m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
               if not m or m.group(1) in fields: raise SystemExit('invalid request')
               fields[m.group(1)]=m.group(2)
-          assert fields=={'candidate_sha':'bf61c987a3d0393ffeb50d81493a4991e505df1f','test_scope':'titus_original_title_signed_clone_only_v1','production_target':'zirqkouammpwxlqfbsvf'}
+          assert fields=={'candidate_sha':'814aa95b1158bb376f74f16a4a78f6e88f2e916e','test_scope':'titus_original_title_signed_clone_only_v1','production_target':'zirqkouammpwxlqfbsvf'}
           print('PASS exact owner-selected schema-only title proof')
           PY
       - name: Checkout canonical validator
@@ -146,7 +146,7 @@ jobs:
       - name: Checkout immutable held title candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: bf61c987a3d0393ffeb50d81493a4991e505df1f
+          ref: 814aa95b1158bb376f74f16a4a78f6e88f2e916e
           path: held-title
           persist-credentials: false
       - name: Verify exact reviewed package
@@ -155,10 +155,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/3035" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-teaching-object-title-v1-20261119|bf61c987a3d0393ffeb50d81493a4991e505df1f"
-          test "$(git -C held-title rev-parse HEAD)" = bf61c987a3d0393ffeb50d81493a4991e505df1f
+          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/3035" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-teaching-object-title-v1-20261119|814aa95b1158bb376f74f16a4a78f6e88f2e916e"
+          test "$(git -C held-title rev-parse HEAD)" = 814aa95b1158bb376f74f16a4a78f6e88f2e916e
           test "$(git -C held-title hash-object candidates/shared-teaching-object-title-v1/candidate.sql)" = 6c7f9387c9cda8014762f8c3f7678c87e993cf1a
-          test "$(git -C held-title hash-object scripts/validate-titus-object-title-signed-http.py)" = 4d434ccd05689841290df26d10c41bd2c6e789cc
+          test "$(git -C held-title hash-object scripts/validate-titus-object-title-signed-http.py)" = 761059e2029f7238ac619d3409d969c8b2a3f8eb
           cd canonical
           test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
           bash scripts/check-custody.sh
@@ -261,7 +261,7 @@ jobs:
           )
           print('TITLE_PROOF_FAILURE_CLASS='+next((name for name,pat in labels if re.search(pat,raw)),'unclassified'))
           if phase=='signed-title':
-              cases={133:'other-author-save',134:'outsider-read',135:'foreign-unit-read',136:'foreign-unit-save',137:'empty-title',138:'control-character-title',142:'changed-replay',143:'stale-revision',148:'cross-object-replay',170:'effective-rpc-table-acl',173:'revoked-author-save',174:'revoked-title-read'}
+              cases={133:'other-author-save',134:'outsider-read',135:'foreign-unit-read',136:'foreign-unit-save',137:'empty-title',138:'control-character-title',142:'changed-replay',143:'stale-revision',148:'cross-object-replay',170:'effective-rpc-table-acl',173:'effective-authority-ended',174:'revoked-author-save',175:'revoked-title-read'}
               lines=re.findall(r'File "[^"\n]*validate-titus-object-title-signed-http[.]py", line ([0-9]+), in main',raw)
               case=cases.get(int(lines[-1]),'unclassified') if lines else 'unclassified'
               print('TITLE_PROOF_FAILURE_CASE='+case)
