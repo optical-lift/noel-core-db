@@ -39,7 +39,7 @@ static void serve(void) {
     need(fd>=0,"server socket");setsockopt(fd,SOL_SOCKET,SO_REUSEADDR,&one,sizeof(one));
     struct sockaddr_in a={.sin_family=AF_INET,.sin_port=htons(18080),.sin_addr.s_addr=htonl(INADDR_ANY)};
     need(bind(fd,(struct sockaddr*)&a,sizeof(a))==0 && listen(fd,8)==0,"server bind/listen");
-    for(;;){int c=accept(fd,NULL,NULL);if(c>=0){(void)write(c,"OK",2);close(c);}else if(errno!=EINTR)exit(1);}
+    for(;;){int c=accept(fd,NULL,NULL);if(c>=0){ssize_t sent=write(c,"OK",2);close(c);if(sent!=2&&sent!=-1)exit(1);}else if(errno!=EINTR)exit(1);}
 }
 static void status(const char *key,const char *value) {
     FILE *f=fopen("/proc/self/status","r");need(f!=NULL,"proc status missing");
@@ -49,7 +49,7 @@ static void status(const char *key,const char *value) {
 }
 static void no_default_route(void) {
     FILE *f=fopen("/proc/net/route","r");need(f!=NULL,"route table missing");char line[512],iface[64],dest[16],gw[16],flags[16];
-    (void)fgets(line,sizeof(line),f);
+    need(fgets(line,sizeof(line),f)!=NULL,"route table header missing");
     while(fgets(line,sizeof(line),f))if(sscanf(line,"%63s %15s %15s %15s",iface,dest,gw,flags)==4)need(strcmp(dest,"00000000")!=0,"default IPv4 route present");
     fclose(f);
 }
