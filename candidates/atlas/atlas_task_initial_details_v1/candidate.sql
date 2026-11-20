@@ -198,8 +198,18 @@ BEGIN
  SELECT * INTO work FROM atlas.work_items WHERE id=intake.work_item_id;
  RETURN jsonb_build_object('ok',true,'contractVersion','ledger_work_submission_status_v1',
    'intakeId',intake.id,'workItemId',work.id,'ledgerId',intake.ledger_id,
-   'title',work.title,'instructions',work.instructions,'reviewState',intake.review_state,
-   'attentionDateProposal',intake.attention_date_proposal);
+   'title',work.title,'reviewState',intake.review_state,
+   'attentionDateProposal',intake.attention_date_proposal)
+ || CASE WHEN work.id=intake.work_item_id AND work.organization_id=intake.organization_id
+   AND work.source_object_type='ledger_work_intake' AND work.source_object_id=intake.id
+   AND work.created_by_user_id=auth.uid() AND work.household_id IS NULL
+   AND intake.source_action_id LIKE 'composer:%'
+   AND work.work_state='open'
+   AND NOT EXISTS(SELECT 1 FROM atlas.work_item_context_links c
+      WHERE c.organization_id=work.organization_id AND c.work_item_id=work.id
+      AND NOT (c.subject_domain='temporal' AND c.subject_kind='occurrence'))
+   THEN jsonb_build_object('instructions',work.instructions)
+   ELSE '{}'::jsonb END;
 END;
 $function$;
 
