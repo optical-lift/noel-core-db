@@ -193,7 +193,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held initial details':
               expected = {'diagnostic_scope':'atlas_task_initial_details_clone_only_v1',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'400c48a5889c190ae6afdd984cc94f2d7381cfc2'}
+                          'candidate_sha':'7887bc7b638090e37fec0faeb4ee98a561287630'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held initial details validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -690,15 +690,15 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-task-initial-details" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "400c48a5889c190ae6afdd984cc94f2d7381cfc2"
+            test "$(git -C candidate rev-parse HEAD)" = "7887bc7b638090e37fec0faeb4ee98a561287630"
             src="candidate/candidates/atlas/atlas_task_initial_details_v1/candidate.sql"
             fixture="candidate/candidates/atlas/atlas_task_initial_details_v1/fixture.sql"
             post="candidate/candidates/atlas/atlas_task_initial_details_v1/postconditions.sql"
             proof="candidate/candidates/atlas/atlas_task_initial_details_v1/validate_signed_initial_details.py"
-            test "$(git hash-object "$src")" = bc2ea0d0e5950abbb6c0d58e01bb17d727801f1e
+            test "$(git hash-object "$src")" = b84f0782b1adca2253b957bef62a83fc62a13b76
             test "$(git hash-object "$fixture")" = 01d36beb7116e7fd7c27c89e9d5dfb2c9d6a3f9f
-            test "$(git hash-object "$post")" = 51064eacbc4ad92893a3099190f33df4d069e764
-            test "$(git hash-object "$proof")" = ad7b99dc4da598e81d75bc2dd85cfb139c7b143e
+            test "$(git hash-object "$post")" = a6cd2160b7a14832c3390921d2e9aeced5d58f43
+            test "$(git hash-object "$proof")" = c3d8b0df0569775facfadcaf1c81511ab165db26
             test "$(git hash-object "scripts/validate-atlas-c1-signed-http.py")" = 1b82e698705e473280f1fc55b0e762bce243effb
             test "$(git hash-object "scripts/validate-atlas-work-prerequisite-signed-http.py")" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
             # Existing protected read-only snapshot already completed. No
