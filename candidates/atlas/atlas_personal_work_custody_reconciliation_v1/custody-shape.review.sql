@@ -815,6 +815,215 @@ CREATE UNIQUE INDEX work_execution_results_personal_idempotency_v1
  ON atlas.work_execution_results(personal_principal_id,idempotency_key)
  WHERE personal_principal_id IS NOT NULL;
 
+
+-- Reuse the existing original-Work responsibility-change receipt relation,
+-- rather than create a new roster event table. Existing Event writer shape
+-- and keys remain unchanged. Rename/generalize the relation only at cutover.
+-- Historical import is intentionally not admitted by this current-write shape:
+-- old events have no allocation UUID and must not be assigned invented ones.
+ALTER TABLE atlas.event_work_responsibility_changes_v1
+ ADD COLUMN personal_principal_id uuid REFERENCES atlas.principals(id) ON DELETE RESTRICT,
+ ADD COLUMN actor_user_id uuid REFERENCES auth.users(id) ON DELETE RESTRICT,
+ ADD COLUMN personal_revision bigint,
+ ADD COLUMN participant_person_ids uuid[],
+ ADD COLUMN connection_evidence jsonb,
+ ALTER COLUMN organization_id DROP NOT NULL,
+ ALTER COLUMN ledger_id DROP NOT NULL,
+ ALTER COLUMN occurrence_id DROP NOT NULL,
+ ALTER COLUMN reason DROP NOT NULL,
+ ADD CONSTRAINT work_responsibility_receipt_custody_shape_v1 CHECK (
+  (personal_principal_id IS NULL AND organization_id IS NOT NULL AND ledger_id IS NOT NULL
+   AND occurrence_id IS NOT NULL AND reason IS NOT NULL AND actor_user_id IS NULL
+   AND personal_revision IS NULL AND participant_person_ids IS NULL AND connection_evidence IS NULL)
+  OR
+  (personal_principal_id IS NOT NULL AND organization_id IS NULL AND ledger_id IS NULL
+   AND occurrence_id IS NULL AND standing_scope_id IS NULL AND reason IS NULL
+   AND actor_user_id IS NOT NULL AND personal_revision IS NOT NULL AND personal_revision>0
+   AND participant_person_ids IS NOT NULL AND cardinality(participant_person_ids)<=100
+   AND array_position(participant_person_ids,NULL) IS NULL
+   AND NOT (recipient_person_id=ANY(participant_person_ids))
+   AND connection_evidence IS NOT NULL AND jsonb_typeof(connection_evidence)='object'
+   AND authority_basis='personal_original_direct_assignment_v1'
+   AND source_action_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')),
+ ADD CONSTRAINT work_responsibility_receipt_personal_original_fk_v1
+ FOREIGN KEY(personal_principal_id,work_item_id)
+ REFERENCES atlas.work_items(personal_principal_id,id) ON DELETE RESTRICT,
+ ADD CONSTRAINT work_responsibility_receipt_personal_previous_fk_v1
+ FOREIGN KEY(personal_principal_id,work_item_id,previous_allocation_id)
+ REFERENCES atlas.work_allocations(personal_principal_id,work_item_id,id) ON DELETE RESTRICT,
+ ADD CONSTRAINT work_responsibility_receipt_personal_new_fk_v1
+ FOREIGN KEY(personal_principal_id,work_item_id,new_allocation_id)
+ REFERENCES atlas.work_allocations(personal_principal_id,work_item_id,id) ON DELETE RESTRICT;
+
+-- Preserve the old Personal Task uniqueness scopes: original revision and
+-- actor-user action across ALL of that actor's originals, not per Work alone.
+CREATE UNIQUE INDEX work_responsibility_personal_revision_v1
+ ON atlas.event_work_responsibility_changes_v1(work_item_id,personal_revision)
+ WHERE personal_principal_id IS NOT NULL;
+CREATE UNIQUE INDEX work_responsibility_personal_action_v1
+ ON atlas.event_work_responsibility_changes_v1(actor_user_id,source_action_id)
+ WHERE personal_principal_id IS NOT NULL;
+-- Reuse the existing stateless rejection guard; it has no Task table dependency.
+CREATE TRIGGER work_responsibility_personal_immutable_update_v1
+ BEFORE UPDATE ON atlas.event_work_responsibility_changes_v1 FOR EACH ROW
+ WHEN (OLD.personal_principal_id IS NOT NULL OR NEW.personal_principal_id IS NOT NULL)
+ EXECUTE FUNCTION atlas.reject_personal_task_assignment_rewrite_v1();
+CREATE TRIGGER work_responsibility_personal_immutable_delete_v1
+ BEFORE DELETE ON atlas.event_work_responsibility_changes_v1 FOR EACH ROW
+ WHEN (OLD.personal_principal_id IS NOT NULL)
+ EXECUTE FUNCTION atlas.reject_personal_task_assignment_rewrite_v1();
+
+-- Review-only replacement of the existing signature. NOT an extra writer
+-- alongside it: cutover must replace the old source atomically with creation,
+-- reads, amendment, completion and retirement. Existing PUBLIC facade and ACL
+-- are deliberately not changed. This draft has no historical import path.
+CREATE OR REPLACE FUNCTION atlas.change_personal_task_assignment_self_api_v1(
+ p_task_id uuid,p_expected_revision bigint,p_primary_person_id uuid,
+ p_participant_person_ids uuid[],p_source_action_id uuid)
+ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $personal_roster$
+DECLARE
+ v_principal uuid:=atlas.require_active_task_principal_v1();
+ v_actor uuid:=atlas.personal_task_ready_person_v1(auth.uid());
+ v_work atlas.work_items%ROWTYPE;
+ v_latest atlas.event_work_responsibility_changes_v1%ROWTYPE;
+ v_prior atlas.event_work_responsibility_changes_v1%ROWTYPE;
+ v_participants uuid[]; v_person uuid; v_link uuid; v_connections jsonb:='{}'::jsonb;
+ v_revision bigint; v_event uuid; v_idempotent boolean:=false;
+ v_primary_allocation uuid; v_new_allocation uuid; v_current_primary uuid;
+ v_current_participants uuid[]; v_current_connections jsonb;
+ v_role text; v_basis jsonb;
+BEGIN
+ IF v_actor IS NULL OR p_task_id IS NULL OR p_source_action_id IS NULL
+  OR p_expected_revision IS NULL OR p_expected_revision<0
+  OR p_primary_person_id IS NULL OR p_participant_person_ids IS NULL
+  OR cardinality(p_participant_person_ids)>100
+  OR array_position(p_participant_person_ids,NULL) IS NOT NULL
+  OR p_primary_person_id=ANY(p_participant_person_ids)
+  OR (SELECT count(DISTINCT x) FROM unnest(p_participant_person_ids) x)<>cardinality(p_participant_person_ids)
+ THEN RAISE EXCEPTION 'Exact original, expected revision, action and distinct roster required' USING ERRCODE='22023'; END IF;
+ SELECT coalesce(array_agg(x ORDER BY x),'{}'::uuid[]) INTO v_participants
+ FROM unnest(p_participant_person_ids) x;
+ SELECT * INTO v_work FROM atlas.work_items w
+ WHERE w.id=p_task_id AND w.personal_principal_id=v_principal
+ AND EXISTS(SELECT 1 FROM atlas.principals p WHERE p.id=v_principal
+   AND p.user_id=auth.uid() AND p.person_id=v_actor AND p.status='active')
+ FOR UPDATE;
+ IF v_work.id IS NULL THEN RAISE EXCEPTION 'Owned original unavailable' USING ERRCODE='42501'; END IF;
+ IF v_work.work_state<>'open' OR v_work.superseded_by_work_item_id IS NOT NULL
+ THEN RAISE EXCEPTION 'Open original required' USING ERRCODE='23514'; END IF;
+
+ -- Existing receipt/revision and actual current allocations must agree.
+ SELECT * INTO v_latest FROM atlas.event_work_responsibility_changes_v1 r
+ WHERE r.personal_principal_id=v_principal AND r.work_item_id=v_work.id
+ ORDER BY r.personal_revision DESC LIMIT 1;
+ v_revision:=coalesce(v_latest.personal_revision,0);
+ SELECT a.id,a.assignee_canonical_person_id INTO v_primary_allocation,v_current_primary
+ FROM atlas.work_allocations a WHERE a.work_item_id=v_work.id AND a.personal_principal_id=v_principal
+ AND a.state='active' AND a.allocation_role='responsible';
+ SELECT coalesce(array_agg(a.assignee_canonical_person_id ORDER BY a.assignee_canonical_person_id),'{}'::uuid[])
+ INTO v_current_participants FROM atlas.work_allocations a
+ WHERE a.work_item_id=v_work.id AND a.personal_principal_id=v_principal
+ AND a.state='active' AND a.allocation_role='participant';
+ SELECT coalesce(jsonb_object_agg(a.assignee_canonical_person_id::text,a.establishment_basis->>'connectionId'),'{}'::jsonb)
+ INTO v_current_connections FROM atlas.work_allocations a
+ WHERE a.work_item_id=v_work.id AND a.personal_principal_id=v_principal AND a.state='active'
+ AND a.assignee_canonical_person_id<>v_actor;
+ IF v_primary_allocation IS NULL
+ OR (v_latest.id IS NULL AND (v_current_primary IS DISTINCT FROM v_actor
+    OR v_current_participants<>'{}'::uuid[] OR v_current_connections<>'{}'::jsonb))
+ OR (v_latest.id IS NOT NULL AND (v_latest.new_allocation_id IS DISTINCT FROM v_primary_allocation
+    OR v_latest.recipient_person_id IS DISTINCT FROM v_current_primary
+    OR v_latest.participant_person_ids IS DISTINCT FROM v_current_participants
+    OR v_latest.connection_evidence IS DISTINCT FROM v_current_connections))
+ THEN RAISE EXCEPTION 'Current allocation and exact roster receipt disagree' USING ERRCODE='PT409'; END IF;
+
+ -- Original connection selection and lock semantics, even on retries.
+ FOR v_person IN SELECT DISTINCT x FROM unnest(array_prepend(p_primary_person_id,v_participants)) x
+ WHERE x<>v_actor ORDER BY x LOOP
+  SELECT q.connection_id INTO v_link FROM atlas.personal_task_connection_peers_v1(auth.uid()) q
+  WHERE q.peer_person_id=v_person ORDER BY q.connection_id LIMIT 1;
+  IF v_link IS NULL THEN RAISE EXCEPTION 'Current connection required' USING ERRCODE='42501'; END IF;
+  PERFORM 1 FROM atlas.household_member_identity_links l
+  WHERE l.id=v_link AND l.link_state='active' AND l.revoked_at IS NULL FOR SHARE;
+  IF NOT FOUND OR NOT EXISTS(SELECT 1 FROM atlas.personal_task_connection_peers_v1(auth.uid()) q
+     WHERE q.peer_person_id=v_person AND q.connection_id=v_link)
+  THEN RAISE EXCEPTION 'Current connection required' USING ERRCODE='42501'; END IF;
+  v_connections:=v_connections||jsonb_build_object(v_person::text,v_link::text);
+ END LOOP;
+ SELECT * INTO v_prior FROM atlas.event_work_responsibility_changes_v1 r
+ WHERE r.personal_principal_id IS NOT NULL AND r.actor_user_id=auth.uid()
+ AND r.source_action_id=p_source_action_id::text;
+ IF v_prior.id IS NOT NULL THEN
+  IF v_prior.work_item_id<>v_work.id OR v_prior.actor_person_id<>v_actor
+   OR v_prior.personal_principal_id<>v_principal OR v_prior.personal_revision<>p_expected_revision+1
+   OR v_prior.personal_revision<>v_revision OR v_prior.recipient_person_id<>p_primary_person_id
+   OR v_prior.participant_person_ids<>v_participants OR v_prior.connection_evidence<>v_connections
+  THEN RAISE EXCEPTION 'Stale or conflicting assignment action' USING ERRCODE='PT409'; END IF;
+  v_event:=v_prior.id; v_idempotent:=true;
+ ELSE
+  IF v_revision<>p_expected_revision THEN RAISE EXCEPTION 'Assignment changed; reopen original' USING ERRCODE='PT409'; END IF;
+  IF v_current_primary=p_primary_person_id AND v_current_participants=v_participants
+     AND v_current_connections=v_connections
+  THEN RAISE EXCEPTION 'No assignment change requested' USING ERRCODE='22023'; END IF;
+
+  -- Retire only changed allocations; keep unchanged primary and participant
+  -- identities and timestamps. No completion or Result generated.
+  UPDATE atlas.work_allocations a SET state='released',released_at=now(),
+    release_reason='personal roster revision',updated_at=now()
+  WHERE a.work_item_id=v_work.id AND a.personal_principal_id=v_principal AND a.state='active'
+    AND NOT (( (a.allocation_role='responsible' AND a.assignee_canonical_person_id=p_primary_person_id)
+              OR (a.allocation_role='participant' AND a.assignee_canonical_person_id=ANY(v_participants)) )
+      AND (a.establishment_basis->>'connectionId') IS NOT DISTINCT FROM
+        (v_connections->>a.assignee_canonical_person_id::text));
+
+  FOR v_person IN SELECT x FROM unnest(array_prepend(p_primary_person_id,v_participants)) x LOOP
+   v_role:=CASE WHEN v_person=p_primary_person_id THEN 'responsible' ELSE 'participant' END;
+   IF NOT EXISTS(SELECT 1 FROM atlas.work_allocations a WHERE a.work_item_id=v_work.id
+      AND a.personal_principal_id=v_principal AND a.state='active'
+      AND a.allocation_role=v_role AND a.assignee_canonical_person_id=v_person)
+   THEN
+    v_basis:=jsonb_strip_nulls(jsonb_build_object(
+     'contractVersion','personal_original_direct_assignment_v1',
+     'personalPrincipalId',v_principal,'workItemId',v_work.id,'actorPersonId',v_actor,
+     'assigneePersonId',v_person,'allocationRole',v_role,'sourceActionId',p_source_action_id,
+     'connectionId',v_connections->>v_person::text));
+    INSERT INTO atlas.work_allocations(personal_principal_id,work_item_id,
+     assignee_canonical_person_id,allocation_role,state,establishment_basis_kind,establishment_basis)
+    VALUES(v_principal,v_work.id,v_person,v_role,'active','personal_original_direct_assignment_v1',v_basis);
+   END IF;
+  END LOOP;
+  SELECT a.id INTO STRICT v_new_allocation FROM atlas.work_allocations a
+  WHERE a.work_item_id=v_work.id AND a.personal_principal_id=v_principal
+    AND a.state='active' AND a.allocation_role='responsible' AND a.assignee_canonical_person_id=p_primary_person_id;
+  INSERT INTO atlas.event_work_responsibility_changes_v1(
+   personal_principal_id,work_item_id,actor_user_id,actor_person_id,source_action_id,
+   personal_revision,recipient_person_id,participant_person_ids,connection_evidence,
+   previous_allocation_id,new_allocation_id,authority_basis)
+  VALUES(v_principal,v_work.id,auth.uid(),v_actor,p_source_action_id::text,
+   v_revision+1,p_primary_person_id,v_participants,v_connections,
+   v_primary_allocation,v_new_allocation,'personal_original_direct_assignment_v1')
+  RETURNING id INTO v_event;
+  v_revision:=v_revision+1;
+ END IF;
+ RETURN jsonb_build_object('ok',true,'contractVersion','personal_task_assignment_change_v1',
+ 'taskId',v_work.id,'assignmentEventId',v_event,'revision',v_revision,
+ 'primaryPersonId',p_primary_person_id,'participantPersonIds',to_jsonb(v_participants),
+ 'idempotent',v_idempotent,'oneOriginalTaskId',true,'newTaskCreated',false,
+ 'acceptanceRequired',false,'recipientAttested',false,'institutionalWorkChanged',false);
+EXCEPTION WHEN unique_violation THEN
+ -- Cross-original action collision races fail atomically. The established
+ -- Personal Task caller sees conflict, not a partial allocation mutation.
+ RAISE EXCEPTION 'Conflicting assignment action or active roster' USING ERRCODE='PT409';
+END;
+$personal_roster$;
+
+-- Still requires exact full current receipt provenance check, private
+-- archive/transfer exclusions, signed recipient read/write and initial
+-- self allocation creation, full guard/ACL closure, existing Event
+-- regression, and historical import with genuine old evidence. No
+-- independent execution or release of this review fragment.
+
 -- This is an incomplete review shape, not a security/behavior/no-loss proof.
 -- No Personal Task records are moved, no public facades altered, no guards waived.
 -- The complete source must reconcile ALL affected triggers, RLS/ACLs, actual
