@@ -3,7 +3,8 @@
 // The existing owner/event gate must authenticate the request independently.
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { isAbsolute } from "node:path";
+import { isAbsolute, join, dirname } from "node:path";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, statSync } from "node:fs";
 import { inspectCandidatePackage } from "./development-candidate-admission-v1.mjs";
 
 const hash = (algorithm,bytes) => createHash(algorithm).update(bytes).digest("hex");
@@ -30,9 +31,9 @@ function observe(repo,commit,asset) {
   const bytes=git(repo,["cat-file","blob",m[2]]);
   const calculated=hash("sha1",Buffer.concat([Buffer.from("blob "+bytes.length+"\0"),bytes]));
   if (bytes.length!==size || calculated!==m[2]) throw Error("Git blob bytes mismatch");
-  return {origin:asset.origin,commit,path:asset.path,blob:calculated,mode:m[1]};
+  return {observation:{origin:asset.origin,commit,path:asset.path,blob:calculated,mode:m[1]},bytes};
 }
-export function verifyReviewedPackage(manifest,binding,repositories) {
+function readReviewedPackage(manifest,binding,repositories) {
   // Structural preflight only: synthetic observations are deliberately discarded.
   if (!Array.isArray(manifest?.assets) || manifest.assets.length>16) throw Error("invalid package assets");
   inspectCandidatePackage(manifest,manifest.assets.map(a=>({origin:a.origin,path:a.path,blob:a.blob,
@@ -43,6 +44,31 @@ export function verifyReviewedPackage(manifest,binding,repositories) {
       binding.package_sha256!==packageDigest(manifest)) throw Error("independent reviewed binding mismatch");
   const observed=manifest.assets.map(a=>observe(repositories[a.origin],
     a.origin==="candidate"?binding.candidate_sha:binding.controller_sha,a));
-  return {...inspectCandidatePackage(manifest,observed),package_sha256:binding.package_sha256,
+  const identity={...inspectCandidatePackage(manifest,observed.map(o=>o.observation)),package_sha256:binding.package_sha256,
     reviewed_binding_matched:true,git_objects_verified:true};
+  return {identity,observed};
+}
+
+export function verifyReviewedPackage(manifest,binding,repositories) {
+  return readReviewedPackage(manifest,binding,repositories).identity;
+}
+
+// Private staging only: no execution, registration, or promotion of these bytes.
+// The parent is selected by the trusted carrier; never by the request or package.
+export function stageReviewedPackage(manifest,binding,repositories,parent) {
+  const {identity,observed}=readReviewedPackage(manifest,binding,repositories);
+  if(typeof parent!=="string"||!isAbsolute(parent)||realpathSync(parent)!==parent||!statSync(parent).isDirectory())
+    throw Error("trusted real staging parent required");
+  const root=mkdtempSync(join(parent,"noel-clone-package-"));
+  try {
+    const files=observed.map(({observation,bytes},index)=>{
+      const path=join(root,observation.origin,observation.path);
+      mkdirSync(dirname(path),{recursive:true,mode:0o700});
+      writeFileSync(path,bytes,{flag:"wx",mode:0o600});
+      return {role:manifest.assets[index].role,origin:observation.origin,path,blob:observation.blob};
+    });
+    return {identity,root,files,execution_authorized:false,release_authorized:false};
+  } catch(error) {
+    rmSync(root,{recursive:true,force:true});throw error;
+  }
 }
