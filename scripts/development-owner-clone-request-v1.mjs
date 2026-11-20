@@ -1,6 +1,6 @@
 // Source-only resolver. Caller must supply authentic GitHub event/context from
 // the existing canonical owner-gated workflow; a JSON fixture proves no authority.
-import { verifyReviewedPackage } from "./development-candidate-git-observation-v1.mjs";
+import { verifyReviewedPackage, stageReviewedPackage } from "./development-candidate-git-observation-v1.mjs";
 const sha = x=>typeof x==="string"&&/^[0-9a-f]{40}$/.test(x);
 const digest = x=>typeof x==="string"&&/^[0-9a-f]{64}$/.test(x);
 const positive = x=>Number.isSafeInteger(x)&&x>0;
@@ -54,4 +54,14 @@ export function verifyOwnerClonePackage(event,context,manifest,repositories) {
   const request=resolveOwnerCloneRequest(event,context);
   const identity=verifyReviewedPackage(manifest,request,repositories);
   return assertRequestPackage(request,manifest,identity);
+}
+
+// Resolve real event provenance before observing or staging anything.
+export function stageOwnerClonePackage(event,context,manifest,repositories,parent) {
+  const request=resolveOwnerCloneRequest(event,context);
+  // Check the request's lane/scope before staging; digest and bytes are checked
+  // again by the independent Git reader. No caller-supplied receipt is used.
+  if(manifest?.intent!==request.intent||manifest.lane!==request.lane||manifest.scope!==request.scope) fail();
+  const stage=stageReviewedPackage(manifest,request,repositories,parent);
+  return {...stage,request:assertRequestPackage(request,manifest,stage.identity)};
 }
