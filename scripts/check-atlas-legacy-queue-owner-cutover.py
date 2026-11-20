@@ -23,5 +23,5 @@ assert "INSERT INTO atlas.tasks" not in s
 assert "UPDATE atlas.task_release_queue_items" not in s
 assert "DELETE FROM " not in s and "DROP TABLE" not in s and "CASCADE" not in s
 assert s.count("BEGIN;")==1 and s.count("COMMIT;")==1
-for marker in ("$source$","$read$","$decide$"): assert s.count(marker)==2
+assert s.count("$source$")==2 and s.count("$function$")==4
 print("PASS held queue-to-existing-Work owner reconciliation source contract ONLY")
