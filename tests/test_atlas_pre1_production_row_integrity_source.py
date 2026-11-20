@@ -85,4 +85,10 @@ assert "from atlas_pre1_production_row_integrity import augment" in release_sour
 assert "governed_sql = augment(governed_sql, raw, version, name)" in release_source
 assert "out_path.write_text(governed_sql" in release_source
 assert "psql \"$NOEL_CORE_DATABASE_URL\"" in release_source
+clone_source = (ROOT / "scripts" / "validate-production-schema-clone.sh").read_text()
+assert 'if [ "$lane" = atlas ] && [ "$version" = 20261120211526 ]' in clone_source
+assert "NOEL_CORE_DATABASE_URL=\"$database_url\"" in clone_source
+assert "GITHUB_RELEASE_SHA=0000000000000000000000000000000000000000" in clone_source
+assert 'bash scripts/release-production-migration.sh "$version"' in clone_source
+assert "PASS PRE1 same-transaction original-row conservation: 730 Atlas base relations" in clone_source
 print("PASS PRE1 exact-version release row guard and fail-closed source contract")
