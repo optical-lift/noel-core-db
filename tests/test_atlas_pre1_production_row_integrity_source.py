@@ -100,6 +100,25 @@ assert '[ "$database_url" != "postgresql://postgres:postgres@127.0.0.1:${local_d
 assert "[ \"$database_url\" != 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' ]" not in clone_source
 assert '[ "$(git hash-object "$candidate_migration")" != ac8552f35e4de14f1ae337c29cfc1c2971af1c9b ]' in clone_source
 assert '[ "$(git hash-object "$candidate_validation")" != aff86ae537a7dfbffefa4320e6d21328c32c78d7 ]' in clone_source
+# The production user-schema snapshot deliberately excludes Supabase-managed
+# migration metadata. Prove only the exact PRE1 disposable test can provision
+# the pinned native version/statement/name columns plus Noel's created_by.
+assert 'pre1_container="supabase_db_$pre1_project_id"' in clone_source
+assert 'test "$(docker inspect --format' in clone_source
+assert 'docker port "$pre1_container" 5432/tcp | grep -Eq ":$local_database_port$"' in clone_source
+assert 'validation_20261120211526_[0-9a-f]{8}' in clone_source
+assert 'phase="PRE1 disposable native migration-history compatibility"' in clone_source
+assert "CREATE SCHEMA IF NOT EXISTS supabase_migrations;" in clone_source
+assert "CREATE TABLE supabase_migrations.schema_migrations (" in clone_source
+assert "version text NOT NULL PRIMARY KEY," in clone_source
+assert "statements text[]," in clone_source
+assert "name text," in clone_source
+assert "created_by text" in clone_source
+assert "REVOKE ALL ON TABLE supabase_migrations.schema_migrations FROM PUBLIC;" in clone_source
+assert "to_regclass('supabase_migrations.schema_migrations') IS NOT NULL" in clone_source
+assert "SELECT count(*) FROM supabase_migrations.schema_migrations" in clone_source
+assert clone_source.index("phase=\"PRE1 disposable native migration-history compatibility\"") > clone_source.index('if [ "$lane" = atlas ] && [ "$version" = 20261120211526 ]')
+assert clone_source.index("phase=\"PRE1 disposable native migration-history compatibility\"") < clone_source.index('bash scripts/release-production-migration.sh "$version"')
 assert "NOEL_CORE_DATABASE_URL=\"$database_url\"" in clone_source
 assert "GITHUB_RELEASE_SHA=0000000000000000000000000000000000000000" in clone_source
 assert 'bash scripts/release-production-migration.sh "$version"' in clone_source
