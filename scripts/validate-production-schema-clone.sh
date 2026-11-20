@@ -363,7 +363,7 @@ if [ "$lane" = "atlas" ] &&
      [ "$(git hash-object "$candidate_migration")" != 2d54e30d73c7fd2b83bd06d36f5634f51b5c573b ] ||
      [ "$(git hash-object "$candidate_fixture")" != 01d36beb7116e7fd7c27c89e9d5dfb2c9d6a3f9f ] ||
      [ "$(git hash-object "$candidate_validation")" != 6d924c434f8720fa061a8d0afa4493f028f64318 ] ||
-     [ "$(git hash-object "$personal_connected_assignment_proof")" != 5ea9d9db864147e4352bf2780dacab3bcc945586 ] ||
+     [ "$(git hash-object "$personal_connected_assignment_proof")" != 0190b3f3ef8e2761ee59a0800f4447e0afe9b9ce ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
     echo "Held compact composer needs exact reviewed migration, fixture, postconditions and signed local probe." >&2
