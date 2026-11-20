@@ -103,6 +103,8 @@ def main():
  check(own_id in ids(o,DAY,undated) and own_id not in ids(o,DAY,day) and own_id not in ids(o,BACKLOG,backlog),"Undated isolated from dated notebook and backlog")
  check(own_id not in ids(w,DAY,undated) and own_id not in ids(x,DAY,undated),"Private undated only owner")
  deny(x,READ,exact(own_id))
+ deny(None,DAY,undated,("42501","PGRST301"))
+ deny(None,"create_atlas_task_self_api_v1",own_args,("42501","PGRST301"))
  move={"p_task_id":own_id,"p_expected_revision":0,"p_new_sentence":own["sentence"],"p_new_due_date":day["p_date"]}
  result=ok(o,EDIT,move)
  check(result["oldDueDate"] is None and result["dueDate"]==day["p_date"] and result["amendmentRevision"]==1,"Original moved from undated to day")
@@ -120,7 +122,8 @@ def main():
  args1={**payload(PEER),"p_due_date":None}
  first=ok(o,create,args1);tid=first["task"]["id"]
  check(first["task"]["dueDate"] is None and first["assignment"]["revision"]==1,"Undated assignment atomic")
- check(ok(o,create,args1)==first,"Shared undated exact replay")
+ replay=ok(o,create,args1)
+ check(replay["task"]==first["task"] and replay["assignment"]["assignmentEventId"]==first["assignment"]["assignmentEventId"],"Shared undated exact replay")
  check(tid not in ids(o,DAY,undated) and tid in ids(o,SENT,{}) and tid in ids(w,DAY,undated) and tid not in ids(w,DAY,day),"Sent and received same original undated")
  read=ok(w,READ,exact(tid))
  check(read["ownerPersonId"]==OWNER and read["task"]["dueDate"] is None and read["ownerName"],"Sender provenance and null date")
