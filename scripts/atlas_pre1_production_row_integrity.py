@@ -151,12 +151,16 @@ def augment(governed_sql: str, raw: bytes, version: str, name: str) -> str:
         raise ValueError("PRE1 live row guard: unapproved version, name or SQL source")
     if governed_sql.count("insert into supabase_migrations.schema_migrations") != 1:
         raise ValueError("PRE1 live row guard: missing unique atomic custody receipt")
-    if len(re.findall(r"(?m)^BEGIN;\s*$", governed_sql)) != 1:
+    receipt = governed_sql.index("insert into supabase_migrations.schema_migrations")
+    # The canonical custody receipt contains an archival dollar-quoted copy
+    # of the exact source migration, including its BEGIN; line. Count only
+    # executable transaction entry before that receipt, never quoted history.
+    executable_prefix = governed_sql[:receipt]
+    if len(re.findall(r"(?m)^BEGIN;\s*$", executable_prefix)) != 1:
         raise ValueError("PRE1 live row guard: missing unique canonical BEGIN")
-    begin = re.search(r"(?m)^BEGIN;[ \t]*(?:\r?\n)", governed_sql)
+    begin = re.search(r"(?m)^BEGIN;[ \t]*(?:\r?\n)", executable_prefix)
     if begin is None:
         raise ValueError("PRE1 live row guard: canonical BEGIN line changed")
-    receipt = governed_sql.index("insert into supabase_migrations.schema_migrations")
     if receipt <= begin.end():
         raise ValueError("PRE1 live row guard: invalid transaction order")
     if not governed_sql.rstrip().lower().endswith("commit;"):
