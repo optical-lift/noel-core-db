@@ -49,6 +49,7 @@ SET search_path TO '' AS $shared_truth$
  AND rr.scope @> COALESCE(p_required_scope,'{}'::jsonb)
  ORDER BY rr.began_at DESC,rr.id LIMIT 1
 $shared_truth$;
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/shared_institution_publishing_standing_probe_tests_pg17.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_institution_account_admission_issuer_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_institution_account_self_service_candidate.sql
 
