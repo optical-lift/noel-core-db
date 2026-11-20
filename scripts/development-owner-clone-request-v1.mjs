@@ -60,16 +60,27 @@ export function assertRequestPackage(request,manifest,identity) {
   return Object.freeze({...request,status:"owner_and_source_binding_matched_only"});
 }
 
+// Caller fetches this current issue independently from GitHub, not the event.
+// A revoked or replaced request may not be replayed from an old workflow event.
+export function assertCurrentOwnerIssue(event,currentIssue) {
+  const i=event?.issue,c=currentIssue;
+  if(!i||!c||c.state!=="open"||c.pull_request!==undefined||
+     c.id!==i.id||c.number!==i.number||c.title!==i.title||c.body!==i.body||
+     c.author_association!=="OWNER"||c.user?.id!==i.user?.id||c.user?.login!==i.user?.login) fail();
+}
+
 // The trusted entry point never accepts a caller-supplied identity receipt.
-export function verifyOwnerClonePackage(event,context,repositories) {
+export function verifyOwnerClonePackage(event,context,currentIssue,repositories) {
   const request=resolveOwnerCloneRequest(event,context),manifest=request.manifest;
+  assertCurrentOwnerIssue(event,currentIssue);
   const identity=verifyReviewedPackage(manifest,request,repositories);
   return assertRequestPackage(request,manifest,identity);
 }
 
 // Resolve real event provenance before observing or staging anything.
-export function stageOwnerClonePackage(event,context,repositories,parent) {
+export function stageOwnerClonePackage(event,context,currentIssue,repositories,parent) {
   const request=resolveOwnerCloneRequest(event,context),manifest=request.manifest;
+  assertCurrentOwnerIssue(event,currentIssue);
   // Digest and bytes are checked again by the independent Git reader.
   // No caller-supplied manifest or receipt is used.
   const stage=stageReviewedPackage(manifest,request,repositories,parent);
