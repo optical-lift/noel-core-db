@@ -413,10 +413,10 @@ if [ "$lane" = "atlas" ] &&
    [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_task_initial_details_clone_only_v1[.]sql$ ]]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$task_initial_details_proof" ] ||
-     [ "$(git hash-object "$candidate_migration")" != bc2ea0d0e5950abbb6c0d58e01bb17d727801f1e ] ||
+     [ "$(git hash-object "$candidate_migration")" != b84f0782b1adca2253b957bef62a83fc62a13b76 ] ||
      [ "$(git hash-object "$candidate_fixture")" != 01d36beb7116e7fd7c27c89e9d5dfb2c9d6a3f9f ] ||
-     [ "$(git hash-object "$candidate_validation")" != 51064eacbc4ad92893a3099190f33df4d069e764 ] ||
-     [ "$(git hash-object "$task_initial_details_proof")" != ad7b99dc4da598e81d75bc2dd85cfb139c7b143e ] ||
+     [ "$(git hash-object "$candidate_validation")" != a6cd2160b7a14832c3390921d2e9aeced5d58f43 ] ||
+     [ "$(git hash-object "$task_initial_details_proof")" != c3d8b0df0569775facfadcaf1c81511ab165db26 ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
     echo "Held initial details needs exact reviewed migration, fixture, postconditions and signed local probe." >&2
