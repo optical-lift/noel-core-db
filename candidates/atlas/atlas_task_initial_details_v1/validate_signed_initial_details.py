@@ -113,6 +113,10 @@ def main():
  # Use exact fixture organization, Ledger and Event bindings, not inferred title.
  event="a6300000-0000-4000-8000-000000000411"
  work_writer="create_contextual_ledger_work_initial_details_self_api_v1"
+ # Preserve the older intake status contract without expanding older instructions.
+ historical=ok(o,"record_ledger_work_self_api_v2",{"p_ledger_id":ledger,"p_title":"Synthetic non-composer original","p_attention_date_proposal":None,"p_source_action_id":"older:"+str(uuid.uuid4())})
+ historical_status=ok(o,"ledger_work_submission_status_self_api_v1",{"p_intake_id":historical["intakeId"]})
+ check(historical_status["workItemId"]==historical["workItemId"] and "instructions" not in historical_status,"Non-composer submission does not gain instructions disclosure")
  for occurrence in (None,event):
   for target,date in ((OWNER,None),(OWNER,day["p_date"]),(PEER,None),(PEER,day["p_date"])):
    p={"p_organization_id":org,"p_ledger_id":ledger,"p_occurrence_id":occurrence,"p_sentence":"Synthetic contextual details","p_recipient_person_id":target,"p_execution_date":date,"p_unassigned":False,"p_source_action_id":str(uuid.uuid4()),"p_details":details}
