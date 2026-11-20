@@ -239,4 +239,10 @@ require("127[.]0[.]0[.]1" in proof and "c1.sign_in" in proof
         "Signed acceptance must require genuine local GoTrue and reject production")
 print("PASS synthetic fixture DML-only and signed local acceptance source")
 
+# Reuse this EXISTING custody preflight for the held queue-to-Work group.
+# The file is source-only; no SQL is executed against any database here.
+queue_source=BASE / "atlas_legacy_queue_owner_canonical_work_cutover_v1" / "candidate.sql"
+if queue_source.exists():
+    import runpy
+    runpy.run_path(str(ROOT / "scripts/check-atlas-legacy-queue-owner-cutover.py"),run_name="__main__")
 print("PENDING full schema-clone compilation + signed Household/Anna/outsider/Event proof")
