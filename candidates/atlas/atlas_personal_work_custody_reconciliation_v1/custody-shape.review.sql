@@ -55,6 +55,21 @@ ALTER TABLE atlas.work_time_contracts
  ADD CONSTRAINT work_time_contracts_one_native_custody_v1 CHECK (num_nonnulls(organization_id,household_id,personal_principal_id)=1);
 
 ALTER TABLE atlas.work_items ADD CONSTRAINT work_items_personal_original_key_v1 UNIQUE(personal_principal_id,id);
+
+-- Same creation key scope as task_entries(owner_user_id,source_action_id).
+-- Reuse existing stable_key, title and instructions. Archive is distinct
+-- from completion/cancellation and must not be converted into either.
+ALTER TABLE atlas.work_items
+ ADD COLUMN personal_archived_at timestamptz,
+ ADD CONSTRAINT work_items_personal_original_shape_v1 CHECK (
+  (personal_principal_id IS NULL AND personal_archived_at IS NULL)
+  OR (personal_principal_id IS NOT NULL AND created_by_user_id IS NOT NULL
+     AND stable_key IS NOT NULL AND length(btrim(stable_key)) BETWEEN 1 AND 128
+     AND length(btrim(title)) BETWEEN 1 AND 500
+     AND (instructions IS NULL OR length(btrim(instructions)) BETWEEN 1 AND 10000)
+     AND organization_unit_id IS NULL));
+CREATE UNIQUE INDEX work_items_personal_source_action_v1
+ ON atlas.work_items(created_by_user_id,stable_key) WHERE personal_principal_id IS NOT NULL;
 ALTER TABLE atlas.work_allocations ADD CONSTRAINT work_allocations_personal_original_fk_v1
  FOREIGN KEY(personal_principal_id,work_item_id) REFERENCES atlas.work_items(personal_principal_id,id) ON DELETE RESTRICT;
 ALTER TABLE atlas.work_execution_plans ADD CONSTRAINT work_execution_plans_personal_original_fk_v1
@@ -910,8 +925,11 @@ BEGIN
    AND p.user_id=auth.uid() AND p.person_id=v_actor AND p.status='active')
  FOR UPDATE;
  IF v_work.id IS NULL THEN RAISE EXCEPTION 'Owned original unavailable' USING ERRCODE='42501'; END IF;
- IF v_work.work_state<>'open' OR v_work.superseded_by_work_item_id IS NOT NULL
- THEN RAISE EXCEPTION 'Open original required' USING ERRCODE='23514'; END IF;
+ IF v_work.work_state<>'open' OR v_work.personal_archived_at IS NOT NULL
+  OR v_work.superseded_by_work_item_id IS NOT NULL
+  OR EXISTS(SELECT 1 FROM atlas.work_items w WHERE w.source_object_type='personal_dated_task'
+     AND w.source_object_id=v_work.id)
+ THEN RAISE EXCEPTION 'Open untransferred original required' USING ERRCODE='23514'; END IF;
 
  -- Existing receipt/revision and actual current allocations must agree.
  SELECT * INTO v_latest FROM atlas.event_work_responsibility_changes_v1 r
@@ -929,14 +947,21 @@ BEGIN
  INTO v_current_connections FROM atlas.work_allocations a
  WHERE a.work_item_id=v_work.id AND a.personal_principal_id=v_principal AND a.state='active'
  AND a.assignee_canonical_person_id<>v_actor;
- IF v_primary_allocation IS NULL
- OR (v_latest.id IS NULL AND (v_current_primary IS DISTINCT FROM v_actor
-    OR v_current_participants<>'{}'::uuid[] OR v_current_connections<>'{}'::jsonb))
- OR (v_latest.id IS NOT NULL AND (v_latest.new_allocation_id IS DISTINCT FROM v_primary_allocation
+ -- Revision zero is personal ownership, not an explicit roster action.
+ -- The released creator requires an active Principal, not a ready Person.
+ -- Do not fabricate an initial allocation/receipt merely to create Work.
+ IF v_latest.id IS NULL THEN
+  IF v_primary_allocation IS NOT NULL OR v_current_participants<>'{}'::uuid[]
+   OR v_current_connections<>'{}'::jsonb THEN
+   RAISE EXCEPTION 'Unreceipted private roster' USING ERRCODE='PT409';
+  END IF;
+  v_current_primary:=v_actor;
+ ELSIF v_primary_allocation IS NULL OR v_latest.new_allocation_id IS DISTINCT FROM v_primary_allocation
     OR v_latest.recipient_person_id IS DISTINCT FROM v_current_primary
     OR v_latest.participant_person_ids IS DISTINCT FROM v_current_participants
-    OR v_latest.connection_evidence IS DISTINCT FROM v_current_connections))
- THEN RAISE EXCEPTION 'Current allocation and exact roster receipt disagree' USING ERRCODE='PT409'; END IF;
+    OR v_latest.connection_evidence IS DISTINCT FROM v_current_connections THEN
+  RAISE EXCEPTION 'Current allocation and exact roster receipt disagree' USING ERRCODE='PT409';
+ END IF;
 
  -- Original connection selection and lock semantics, even on retries.
  FOR v_person IN SELECT DISTINCT x FROM unnest(array_prepend(p_primary_person_id,v_participants)) x
@@ -1023,6 +1048,217 @@ $personal_roster$;
 -- self allocation creation, full guard/ACL closure, existing Event
 -- regression, and historical import with genuine old evidence. No
 -- independent execution or release of this review fragment.
+
+
+-- Extend the existing immutable original revision store to carry actual
+-- date-only amendments and the recorded integer revision, not a second log.
+-- Nonpersonal events retain all old required identity/timestamp fields.
+-- A historical personal event has its recorded_at, but no old/new Work
+-- updated_at or recorded Person; those must not be invented.
+ALTER TABLE atlas.native_work_text_revision_events_v1
+ ADD COLUMN personal_revision bigint,
+ ADD COLUMN before_due_on_date date,
+ ADD COLUMN after_due_on_date date,
+ ALTER COLUMN actor_person_id DROP NOT NULL,
+ ALTER COLUMN old_updated_at DROP NOT NULL,
+ ALTER COLUMN new_updated_at DROP NOT NULL,
+ DROP CONSTRAINT native_work_text_revision_actual_change,
+ ADD CONSTRAINT native_work_revision_exact_shape_v1 CHECK (
+  (personal_principal_id IS NULL AND actor_person_id IS NOT NULL
+   AND old_updated_at IS NOT NULL AND new_updated_at IS NOT NULL
+   AND personal_revision IS NULL AND before_due_on_date IS NULL AND after_due_on_date IS NULL)
+  OR
+  (personal_principal_id IS NOT NULL AND personal_revision IS NOT NULL
+   AND personal_revision>0
+   AND ((old_updated_at IS NULL AND new_updated_at IS NULL)
+    OR (old_updated_at IS NOT NULL AND new_updated_at IS NOT NULL)))),
+ ADD CONSTRAINT native_work_text_revision_actual_change CHECK (
+   before_title IS DISTINCT FROM after_title OR before_instructions IS DISTINCT FROM after_instructions
+   OR (personal_principal_id IS NOT NULL AND before_due_on_date IS DISTINCT FROM after_due_on_date));
+CREATE UNIQUE INDEX native_work_personal_revision_v1
+ ON atlas.native_work_text_revision_events_v1(work_item_id,personal_revision)
+ WHERE personal_principal_id IS NOT NULL;
+
+-- Replace the existing underlying creator in place. No new exposed
+-- operation; the connected creation wrapper continues to call it atomically
+-- with the existing assignment signature. No per-person readiness gate
+-- added to self creation; assignment still requires the existing ready Person.
+-- This is a review fragment; complete root/actor write guards and existing
+-- indirect privileged-path proof are prerequisites to any activation.
+CREATE OR REPLACE FUNCTION atlas.create_atlas_task_initial_details_internal_v1(
+ p_sentence text,p_due_date date,p_source_action_id text,p_details text)
+ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
+ SET search_path TO 'pg_catalog', 'atlas', 'auth'
+AS $personal_create$
+DECLARE
+ v_principal uuid:=atlas.require_active_task_principal_v1();
+ v_user uuid:=auth.uid();
+ v_sentence text:=btrim(coalesce(p_sentence,''));
+ v_key text:=btrim(coalesce(p_source_action_id,''));
+ v_details text:=nullif(btrim(coalesce(p_details,'')),'');
+ v_work atlas.work_items%ROWTYPE;
+ v_due date;
+BEGIN
+ IF length(v_sentence) NOT BETWEEN 1 AND 500 THEN
+  RAISE EXCEPTION 'Enter one sentence (1-500 characters).' USING ERRCODE='22023';
+ END IF;
+ IF char_length(v_details)>10000 THEN RAISE EXCEPTION 'Details too long' USING ERRCODE='22023'; END IF;
+ IF length(v_key) NOT BETWEEN 1 AND 128 THEN RAISE EXCEPTION 'Source action ID is required.' USING ERRCODE='22023'; END IF;
+ INSERT INTO atlas.work_items(personal_principal_id,created_by_user_id,stable_key,title,instructions,source_object_type)
+ VALUES(v_principal,v_user,v_key,v_sentence,v_details,'personal_original_work')
+ ON CONFLICT(created_by_user_id,stable_key) WHERE personal_principal_id IS NOT NULL DO NOTHING
+ RETURNING * INTO v_work;
+ IF v_work.id IS NOT NULL THEN
+  IF p_due_date IS NOT NULL THEN
+   INSERT INTO atlas.work_time_contracts(personal_principal_id,work_item_id,due_on_date,movement_policy,source_kind,source_id)
+   VALUES(v_principal,v_work.id,p_due_date,'unplaced','personal_original_work',v_work.id);
+  END IF;
+  v_due:=p_due_date;
+ ELSE
+  SELECT * INTO v_work FROM atlas.work_items
+   WHERE created_by_user_id=v_user AND stable_key=v_key AND personal_principal_id IS NOT NULL
+   FOR UPDATE;
+  IF v_work.id IS NULL OR v_work.personal_principal_id IS DISTINCT FROM v_principal
+   OR v_work.title IS DISTINCT FROM v_sentence OR v_work.instructions IS DISTINCT FROM v_details
+   OR v_work.work_state NOT IN ('open','completed') THEN
+   RAISE EXCEPTION 'The submission key belongs to a different task.' USING ERRCODE='23505';
+  END IF;
+  SELECT due_on_date INTO v_due FROM atlas.work_time_contracts
+   WHERE personal_principal_id=v_principal AND work_item_id=v_work.id AND contract_state='active';
+  IF v_due IS DISTINCT FROM p_due_date THEN
+   RAISE EXCEPTION 'The submission key belongs to a different task.' USING ERRCODE='23505';
+  END IF;
+ END IF;
+ RETURN jsonb_build_object('ok',true,'task',jsonb_build_object(
+   'id',v_work.id,'sentence',v_work.title,'dueDate',v_due,
+   'status',CASE WHEN v_work.work_state='completed' THEN 'done' ELSE 'open' END,
+   'details',v_work.instructions));
+END;
+$personal_create$;
+
+-- Existing owner amendment signature only. Numeric revision is the
+-- latest immutable event, not a second mutable revision register.
+-- This relies on a complete historical event chain at cutover.
+CREATE OR REPLACE FUNCTION atlas.amend_personal_task_text_date_self_api_v1(
+ p_task_id uuid,p_expected_revision bigint,p_new_sentence text,p_new_due_date date)
+ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $personal_amend$
+DECLARE
+ v_principal uuid:=atlas.require_active_task_principal_v1();
+ v_old atlas.work_items%ROWTYPE; v_new atlas.work_items%ROWTYPE;
+ v_time atlas.work_time_contracts%ROWTYPE;
+ v_latest atlas.native_work_text_revision_events_v1%ROWTYPE;
+ v_sentence text:=btrim(coalesce(p_new_sentence,''));
+ v_revision bigint; v_event uuid; v_original_day date;
+BEGIN
+ IF p_task_id IS NULL OR p_expected_revision IS NULL OR p_expected_revision<0
+ OR char_length(v_sentence) NOT BETWEEN 1 AND 500 THEN
+  RAISE EXCEPTION 'Exact task, revision and text required' USING ERRCODE='22023';
+ END IF;
+ SELECT * INTO v_old FROM atlas.work_items w WHERE w.id=p_task_id
+ AND w.created_by_user_id=auth.uid() AND w.personal_principal_id=v_principal FOR UPDATE;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Owned task unavailable' USING ERRCODE='42501'; END IF;
+ IF v_old.work_state<>'open' OR v_old.personal_archived_at IS NOT NULL THEN
+  RAISE EXCEPTION 'Only open unarchived tasks may be amended' USING ERRCODE='23514';
+ END IF;
+ IF EXISTS(SELECT 1 FROM atlas.work_items w WHERE w.source_object_type='personal_dated_task'
+   AND w.source_object_id=v_old.id) THEN
+  RAISE EXCEPTION 'Transferred task text and date remain source evidence' USING ERRCODE='23514';
+ END IF;
+ SELECT * INTO v_time FROM atlas.work_time_contracts t WHERE t.work_item_id=v_old.id
+ AND t.personal_principal_id=v_principal AND t.contract_state='active' FOR UPDATE;
+ SELECT * INTO v_latest FROM atlas.native_work_text_revision_events_v1 r
+ WHERE r.work_item_id=v_old.id AND r.personal_principal_id=v_principal
+ ORDER BY r.personal_revision DESC LIMIT 1;
+ v_revision:=coalesce(v_latest.personal_revision,0);
+ IF v_revision<>p_expected_revision THEN
+  IF v_revision=p_expected_revision+1 AND v_old.title IS NOT DISTINCT FROM v_sentence
+   AND v_time.due_on_date IS NOT DISTINCT FROM p_new_due_date
+   AND v_latest.actor_user_id=auth.uid() AND v_latest.after_title IS NOT DISTINCT FROM v_sentence
+   AND v_latest.after_due_on_date IS NOT DISTINCT FROM p_new_due_date THEN
+   RETURN jsonb_build_object('ok',true,'contractVersion','personal_task_text_date_amend_v1',
+    'taskId',v_old.id,'sentence',v_old.title,'oldDueDate',v_latest.before_due_on_date,
+    'dueDate',v_time.due_on_date,'amendmentRevision',v_revision,
+    'changed',true,'idempotent',true,'amendmentEventId',v_latest.id,
+    'oneOriginalTaskId',true,'noInstitutionalWorkChanged',true);
+  END IF;
+  RAISE EXCEPTION 'Task changed; read again before editing' USING ERRCODE='PT409';
+ END IF;
+ IF v_old.title IS NOT DISTINCT FROM v_sentence AND v_time.due_on_date IS NOT DISTINCT FROM p_new_due_date THEN
+  RETURN jsonb_build_object('ok',true,'contractVersion','personal_task_text_date_amend_v1',
+   'taskId',v_old.id,'sentence',v_old.title,'dueDate',v_time.due_on_date,
+   'amendmentRevision',v_revision,'changed',false,'idempotent',true,
+   'oneOriginalTaskId',true,'noInstitutionalWorkChanged',true);
+ END IF;
+ v_original_day:=v_time.due_on_date;
+ IF v_original_day IS DISTINCT FROM p_new_due_date THEN
+  IF v_time.id IS NOT NULL THEN
+   -- Only the date-only contract created by this source may be displaced.
+   IF v_time.source_kind IS DISTINCT FROM 'personal_original_work' OR v_time.source_id IS DISTINCT FROM v_old.id
+    OR v_time.earliest_lawful_at IS NOT NULL OR v_time.preferred_start_at IS NOT NULL
+    OR v_time.preferred_end_at IS NOT NULL OR v_time.latest_lawful_at IS NOT NULL
+    OR v_time.hard_finish_at IS NOT NULL OR v_time.expected_duration_minutes IS NOT NULL
+    OR v_time.minimum_duration_minutes IS NOT NULL OR v_time.maximum_duration_minutes IS NOT NULL
+   THEN RAISE EXCEPTION 'Different time contract requires its own disposition' USING ERRCODE='23514'; END IF;
+   UPDATE atlas.work_time_contracts SET contract_state='superseded',superseded_at=clock_timestamp(),updated_at=clock_timestamp()
+   WHERE id=v_time.id AND personal_principal_id=v_principal;
+  END IF;
+  IF p_new_due_date IS NOT NULL THEN
+   INSERT INTO atlas.work_time_contracts(personal_principal_id,work_item_id,due_on_date,movement_policy,source_kind,source_id)
+   VALUES(v_principal,v_old.id,p_new_due_date,'unplaced','personal_original_work',v_old.id);
+  END IF;
+ END IF;
+ UPDATE atlas.work_items w SET title=v_sentence,updated_at=clock_timestamp()
+ WHERE w.id=v_old.id AND w.personal_principal_id=v_principal AND w.created_by_user_id=auth.uid()
+ RETURNING * INTO v_new;
+ IF v_new.id IS NULL THEN RAISE EXCEPTION 'Original task write unavailable' USING ERRCODE='PT409'; END IF;
+ INSERT INTO atlas.native_work_text_revision_events_v1(
+  personal_principal_id,work_item_id,actor_user_id,actor_person_id,personal_revision,
+  before_title,after_title,before_instructions,after_instructions,
+  before_due_on_date,after_due_on_date,old_updated_at,new_updated_at)
+ VALUES(v_principal,v_old.id,auth.uid(),atlas.personal_task_ready_person_v1(auth.uid()),v_revision+1,
+  v_old.title,v_new.title,v_old.instructions,v_new.instructions,
+  v_original_day,p_new_due_date,v_old.updated_at,v_new.updated_at)
+ RETURNING id INTO v_event;
+ RETURN jsonb_build_object('ok',true,'contractVersion','personal_task_text_date_amend_v1',
+  'taskId',v_new.id,'sentence',v_new.title,'oldDueDate',v_original_day,'dueDate',p_new_due_date,
+  'amendmentRevision',v_revision+1,'changed',true,'idempotent',false,
+  'amendmentEventId',v_event,'oneOriginalTaskId',true,'noInstitutionalWorkChanged',true);
+END;
+$personal_amend$;
+
+-- Existing owner read signature; preserve transfer/archival restrictions
+-- and never disclose this source to a connected person through owner-read.
+CREATE OR REPLACE FUNCTION atlas.read_personal_task_text_date_self_api_v1(p_task_id uuid)
+ RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
+AS $personal_read$
+DECLARE
+ v_principal uuid:=atlas.require_active_task_principal_v1();
+ v_work atlas.work_items%ROWTYPE;v_due date;v_revision bigint;v_linked boolean;
+BEGIN
+ IF p_task_id IS NULL THEN RAISE EXCEPTION 'Exact task required' USING ERRCODE='22023'; END IF;
+ SELECT * INTO v_work FROM atlas.work_items w WHERE w.id=p_task_id
+ AND w.created_by_user_id=auth.uid() AND w.personal_principal_id=v_principal;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Owned task unavailable' USING ERRCODE='42501'; END IF;
+ SELECT due_on_date INTO v_due FROM atlas.work_time_contracts WHERE work_item_id=v_work.id
+ AND personal_principal_id=v_principal AND contract_state='active';
+ SELECT coalesce(max(personal_revision),0) INTO v_revision FROM atlas.native_work_text_revision_events_v1
+ WHERE work_item_id=v_work.id AND personal_principal_id=v_principal;
+ SELECT EXISTS(SELECT 1 FROM atlas.work_items w WHERE w.source_object_type='personal_dated_task'
+ AND w.source_object_id=v_work.id) INTO v_linked;
+ RETURN jsonb_build_object('ok',true,'contractVersion','personal_task_text_date_read_v1',
+  'taskId',v_work.id,'sentence',v_work.title,'dueDate',v_due,
+  'status',CASE WHEN v_work.work_state='completed' THEN 'done' ELSE v_work.work_state END,
+  'amendmentRevision',v_revision,'archived',v_work.personal_archived_at IS NOT NULL,
+  'linkedCompanyWork',v_linked,'canEdit',v_work.work_state='open' AND v_work.personal_archived_at IS NULL AND NOT v_linked,
+  'oneOriginalTaskId',true);
+END;
+$personal_read$;
+
+-- Source-specific root and receipt ingress, immutable original action key,
+-- trusted historical receipt chain and timestamps, time contract ownership,
+-- complete lifecycle and all indirect privileged callers remain mandatory.
+-- No historical source data imported or old source object dropped here.
 
 -- This is an incomplete review shape, not a security/behavior/no-loss proof.
 -- No Personal Task records are moved, no public facades altered, no guards waived.
