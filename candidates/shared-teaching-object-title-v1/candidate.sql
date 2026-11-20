@@ -138,7 +138,7 @@ BEGIN
   RAISE EXCEPTION 'current Person unavailable' USING ERRCODE='42501';
  END IF;
  SELECT * INTO v_found FROM atlas.teaching_courses
- WHERE created_by_person_entity_id=v_person AND create_request_id=p_request_id;
+ WHERE created_by_person_entity_id=v_person AND create_request_id=p_request_id FOR UPDATE;
  IF v_found.id IS NOT NULL THEN
   IF coalesce((SELECT r.previous_title FROM atlas.teaching_object_title_revisions r
     WHERE r.course_id=v_found.id AND r.object_kind='course'
