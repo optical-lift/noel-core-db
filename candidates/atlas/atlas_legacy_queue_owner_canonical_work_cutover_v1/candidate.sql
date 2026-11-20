@@ -19,7 +19,7 @@ CREATE OR REPLACE FUNCTION atlas.company_work_legacy_queue_owner_self_api_v1(
  p_organization_id uuid,p_ledger_id uuid,p_limit int DEFAULT 100,
  p_after_queue_item_id uuid DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO ''
-AS $read$
+AS $function$
 DECLARE actor uuid; rows jsonb; more boolean; cursor uuid;
 BEGIN
  actor:=atlas.company_work_native_ledger_owner_self_v1(p_organization_id,p_ledger_id);
@@ -76,7 +76,7 @@ BEGIN
  'ownerReviewOnly',true,'queueIsNotCurrentWorkAuthority',true,
  'noCanonicalWorkCreated',true,'noResponsibilityEstablished',true,
  'noScheduleOrQueueStateChanged',true);
-END;$read$;
+END;$function$;
 
 -- Task-linked queue evidence may be explicitly matched to an existing Work
 -- original or declared no longer current. The queue does NOT create Work.
@@ -87,7 +87,7 @@ CREATE OR REPLACE FUNCTION atlas.decide_company_work_legacy_queue_owner_self_api
  p_expected_task_id uuid,p_expected_task_status text,p_expected_task_title text,
  p_decision text,p_reason text,p_existing_work_item_id uuid DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
-AS $decide$
+AS $function$
 DECLARE actor uuid; q atlas.task_release_queue_items%rowtype;
  t atlas.tasks%rowtype; reviewed atlas.company_work_legacy_task_reviews_v1%rowtype;
  original_work uuid; target_work uuid; original_person uuid; executor_label text;
@@ -179,7 +179,7 @@ BEGIN
  'workItemId',target_work,'newWorkCreated',false,
  'queueStateChanged',false,'legacyTaskChanged',false,
  'responsibilityEstablished',false,'planCreated',false,'physicalResultCreated',false);
-END;$decide$;
+END;$function$;
 
 REVOKE ALL ON FUNCTION atlas.company_work_legacy_queue_owner_self_api_v1(uuid,uuid,integer,uuid) FROM PUBLIC,anon,service_role;
 REVOKE ALL ON FUNCTION atlas.decide_company_work_legacy_queue_owner_self_api_v1(uuid,uuid,uuid,text,timestamptz,uuid,text,text,text,text,uuid) FROM PUBLIC,anon,service_role;
