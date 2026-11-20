@@ -34,6 +34,22 @@ jobs:
           git --version
           node --test tests/development-candidate-admission-v1.test.mjs tests/development-candidate-git-observation-v1.test.mjs tests/development-owner-clone-request-v1.test.mjs
 
+      - name: Prove fictional development execution boundary on hosted Linux
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 4
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$BASE_SHA^{commit}" 2>/dev/null || git fetch --no-tags --depth=1 origin "$BASE_SHA"
+          paths="$(git diff --name-only "$BASE_SHA" HEAD)"
+          if grep -Eq '^(scripts/.*development-|tests/development-|\.github/workflows/custody\.yml$)' <<< "$paths"; then
+            env -u NOEL_CORE_SUPABASE_URL -u NOEL_CORE_SUPABASE_PUBLISHABLE_KEY bash scripts/check-development-runtime-boundary-v1.sh
+          else
+            echo 'No development-boundary source change.'
+          fi
+
       - name: Reject new employee/consultant Person admission paths
         run: |
           python3 -m unittest discover -s tests -p 'test_universal_person_authority.py'
