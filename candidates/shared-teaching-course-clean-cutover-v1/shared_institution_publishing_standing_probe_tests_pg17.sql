@@ -60,6 +60,7 @@ BEGIN
  EXCEPTION WHEN insufficient_privilege THEN denied:=true; END;
  IF NOT denied THEN RAISE EXCEPTION 'wrong Ledger inherited authority'; END IF;
 END $publisher$;
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/radio_station_establishment_offer_tests_pg17.sql
 SET LOCAL request.jwt.claims='{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","session_id":"5ccccccc-cccc-4ccc-8ccc-cccccccccccc"}';
 DO $outsider$
 DECLARE denied boolean:=false;
