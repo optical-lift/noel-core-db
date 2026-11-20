@@ -129,7 +129,7 @@ jobs:
               m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
               if not m or m.group(1) in fields: raise SystemExit('invalid request')
               fields[m.group(1)]=m.group(2)
-          assert fields=={'candidate_sha':'bf62efca651d2461009da2e0aaadfd4bfa32d95f','test_scope':'titus_original_title_signed_clone_only_v1','production_target':'zirqkouammpwxlqfbsvf'}
+          assert fields=={'candidate_sha':'bf61c987a3d0393ffeb50d81493a4991e505df1f','test_scope':'titus_original_title_signed_clone_only_v1','production_target':'zirqkouammpwxlqfbsvf'}
           print('PASS exact owner-selected schema-only title proof')
           PY
       - name: Checkout canonical validator
@@ -141,7 +141,7 @@ jobs:
       - name: Checkout immutable held title candidate
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: bf62efca651d2461009da2e0aaadfd4bfa32d95f
+          ref: bf61c987a3d0393ffeb50d81493a4991e505df1f
           path: held-title
           persist-credentials: false
       - name: Verify exact reviewed package
@@ -150,10 +150,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/3035" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-teaching-object-title-v1-20261119|bf62efca651d2461009da2e0aaadfd4bfa32d95f"
-          test "$(git -C held-title rev-parse HEAD)" = bf62efca651d2461009da2e0aaadfd4bfa32d95f
+          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/3035" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-teaching-object-title-v1-20261119|bf61c987a3d0393ffeb50d81493a4991e505df1f"
+          test "$(git -C held-title rev-parse HEAD)" = bf61c987a3d0393ffeb50d81493a4991e505df1f
           test "$(git -C held-title hash-object candidates/shared-teaching-object-title-v1/candidate.sql)" = 6c7f9387c9cda8014762f8c3f7678c87e993cf1a
-          test "$(git -C held-title hash-object scripts/validate-titus-object-title-signed-http.py)" = 6ddb86fb33b85a3cd763a3045b209d2bf041f6c5
+          test "$(git -C held-title hash-object scripts/validate-titus-object-title-signed-http.py)" = 4d434ccd05689841290df26d10c41bd2c6e789cc
           cd canonical
           test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
           bash scripts/check-custody.sh
@@ -249,12 +249,273 @@ jobs:
               ('issued-edition',r'AssertionError: (?:exact issued title and body before rename|sealed curriculum unchanged|issued Unit remains exact|concurrent title changes preserve edition)'),
               ('conflict',r'AssertionError: (?:one concurrent winner and one stale conflict|one concurrent revision)'),
               ('replay',r'AssertionError: (?:replay exact|old receipt plus current read|founding creation retry|founding Unit retry)'),
-              ('authorization',r'AssertionError: (?:expected exact title source denial|private table/RPC ACL|no write on revoked grant)'),
+              ('authorization',r'AssertionError: (?:TITLE_DENIAL_V1|expected exact title source denial|private table/RPC ACL|no write on revoked grant)'),
               ('rpc',r'AssertionError: .*expected HTTP'),
               ('sql',r'(?i)\bERROR:'),
               ('assertion',r'AssertionError:'),
           )
           print('TITLE_PROOF_FAILURE_CLASS='+next((name for name,pat in labels if re.search(pat,raw)),'unclassified'))
+          if phase=='signed-title':
+              cases={133:'other-author-save',134:'outsider-read',135:'foreign-unit-read',136:'foreign-unit-save',137:'empty-title',138:'control-character-title',142:'changed-replay',143:'stale-revision',148:'cross-object-replay',170:'effective-rpc-table-acl',173:'revoked-author-save',174:'revoked-title-read'}
+              lines=re.findall(r'File "[^"\n]*validate-titus-object-title-signed-http[.]py", line ([0-9]+), in main',raw)
+              case=cases.get(int(lines[-1]),'unclassified') if lines else 'unclassified'
+              print('TITLE_PROOF_FAILURE_CASE='+case)
+              codes=r'(42501|22023|23505|40001|55000|PGRST202|PGRST203|PGRST301|PGRST302|PGRST204|PGRST205|other)'
+              detail=re.findall(r'^AssertionError: TITLE_DENIAL_V1 expected='+codes+r' observed='+codes+r' http=([1-5][0-9]{2}|other)
+          PY
+            echo 'FAIL protected signed title proof; private diagnostics not published' >&2
+            exit 1
+          fi
+      - name: Remove private scratch and record bounded outcome
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/title-proof-private"
+          echo 'Title proof is disposable schema-only; no hosted DDL/DML, real users, grant, release or publication.' >> "$GITHUB_STEP_SUMMARY"
+
+  validate-owner-protected:
+    concurrency:
+      group: titus-t5-owner-protected-signed-study
+      cancel-in-progress: false
+    if: >-
+      github.event_name == 'issues' &&
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'HELD Titus T5 protected signed study validation request'
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Resolve exact owner-selected held scope
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          fields={}
+          for raw in os.environ.get('ISSUE_BODY','').splitlines():
+              if not raw.strip(): continue
+              m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
+              if not m: raise SystemExit('unexpected owner request content')
+              k,v=m.groups()
+              if k in fields: raise SystemExit('duplicate owner request field')
+              fields[k]=v
+          if set(fields)!=set(('candidate_sha','titus_sha','test_scope','production_target')):
+              raise SystemExit('exact four-field T5 request required')
+          if fields['candidate_sha']!='e71fc75d37a047ec52ebbace72fb7698fec00284' or fields['titus_sha']!='4150cf7b83ef6ed3a50b9a78502889dc818b2005':
+              raise SystemExit('only reviewed immutable T5 heads allowed')
+          if fields['test_scope']!='titus_t5_protected_signed_study_test_only_v1' or fields['production_target']!='zirqkouammpwxlqfbsvf':
+              raise SystemExit('wrong read-only schema target or scope')
+          print('PASS exact owner-selected T5 schema-only scope')
+          PY
+      - name: Checkout canonical validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          path: canonical
+          persist-credentials: false
+      - name: Verify exact frozen drafts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/2617" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|candidate/shared-course-unification-clean-cutover-v1-20261107|e71fc75d37a047ec52ebbace72fb7698fec00284"
+          echo 'PASS exact frozen Noel draft'
+          cd canonical
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash -n scripts/validate-production-schema-clone.sh
+      - name: Verify exact private Titus draft with existing read-only PR credential
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.TITUS_PR_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo 'BLOCKED: existing protected Titus read-only PR credential is not configured' >&2
+            exit 1
+          fi
+          test "$(gh api "repos/optical-lift/titus/pulls/72" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|work/titus-unified-manuscript-surface-20261106|4150cf7b83ef6ed3a50b9a78502889dc818b2005"
+          echo 'PASS exact frozen private Titus draft'
+      - name: Install pinned CLI
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/t5-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/t5-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null
+      - name: Snapshot production schema/roles READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          test -n "$NOEL_CORE_DATABASE_URL"
+          mkdir "$RUNNER_TEMP/t5-private"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/t5-private/roles.sql" >"$RUNNER_TEMP/t5-private/roles.log" 2>&1
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/t5-private/schema.sql" >"$RUNNER_TEMP/t5-private/schema.log" 2>&1
+          test -s "$RUNNER_TEMP/t5-private/roles.sql"
+          test -s "$RUNNER_TEMP/t5-private/schema.sql"
+          echo 'PASS read-only schema/role snapshot; no records'
+      - name: Checkout exact reviewed teaching source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: e71fc75d37a047ec52ebbace72fb7698fec00284
+          path: held
+          persist-credentials: false
+      - name: Assemble exact scratch source
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          test "$(git -C held rev-parse HEAD)" = 'e71fc75d37a047ec52ebbace72fb7698fec00284'
+          test "$(git -C held hash-object scripts/prepare-titus-t5-protected-clone-source.py)" = '70e1c1ae842ff5a3768a29348a11b206d42b3e7c'
+          python3 -m unittest discover -s held/tests -p test_titus_u1_protected_bundle_safety.py -v >"$RUNNER_TEMP/t5-private/source-check.log" 2>&1
+          python3 held/scripts/prepare-titus-t5-protected-clone-source.py --source-root held --expected-sha 'e71fc75d37a047ec52ebbace72fb7698fec00284' --test-scope titus_t5_protected_source_shape_test_only_v1 --output "$RUNNER_TEMP/t5-private/20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql" --manifest "$RUNNER_TEMP/t5-private/package.json"
+      - name: Disposable rollback-only teaching schema check
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          d="$RUNNER_TEMP/t5-private"
+          if bash canonical/scripts/validate-production-schema-clone.sh --migration-version 20261119100000 --release-lane shared --t5-rollback-shape --t5-signed-study --candidate-migration "$d/20261119100000_shared_titus_t5_teaching_TEST_ONLY.sql" --roles-dump "$d/roles.sql" --schema-dump "$d/schema.sql" --artifacts-dir "$d/diagnostics" >"$d/run.log" 2>&1; then
+            echo 'PASS protected teaching schema and independent signed fictional study'
+          else
+            echo 'FAIL protected signed teaching proof; raw schema/diagnostics not published' >&2
+            exit 1
+          fi
+      - name: Report bounded result and remove private scratch
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/t5-private"
+          echo 'T5 fictional signed proof: no live DDL/DML, release, real learner data, or browser acceptance.' >> "$GITHUB_STEP_SUMMARY"
+
+  validate-owner-release-shape:
+    concurrency:
+      group: titus-t5-exact-release-rehearsal
+      cancel-in-progress: false
+    if: >-
+      github.event_name == 'issues' &&
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.author_association == 'OWNER' &&
+      github.actor == github.repository_owner &&
+      github.event.issue.title == 'HELD Titus T5 exact migration rehearsal request'
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Resolve distinct exact migration rehearsal request
+        shell: bash
+        env:
+          ISSUE_BODY: ${{ github.event.issue.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re
+          fields={}
+          for raw in os.environ.get('ISSUE_BODY','').splitlines():
+              if not raw.strip(): continue
+              m=re.fullmatch(r'([a-z_]+):\s*([a-zA-Z0-9_-]+)\s*',raw)
+              if not m or m.group(1) in fields: raise SystemExit('invalid exact migration request')
+              fields[m.group(1)]=m.group(2)
+          assert fields=={'candidate_sha':'c330c20ab9245d3c2e21c04447894929496915ac','migration_version':'20261119165500','test_scope':'titus_t5_exact_release_schema_rehearsal_only_v1','production_target':'zirqkouammpwxlqfbsvf'}
+          print('PASS exact migration-specific read-only schema authorization')
+          PY
+      - name: Checkout canonical validator
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          path: canonical
+          persist-credentials: false
+      - name: Checkout exact held migration candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: c330c20ab9245d3c2e21c04447894929496915ac
+          path: held-release
+          persist-credentials: false
+      - name: Verify exact staged migration
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/pulls/2983" --jq '[.state,(.draft|tostring),.head.ref,.head.sha]|join("|")')" = "open|true|review/titus-t5-personal-teaching-release-20261119|c330c20ab9245d3c2e21c04447894929496915ac"
+          test "$(git -C held-release rev-parse HEAD)" = 'c330c20ab9245d3c2e21c04447894929496915ac'
+          test "$(git -C held-release hash-object supabase/migrations/20261119165500_shared_titus_private_teaching_v1.sql)" = 'b1f5e656afc5158bafe9353f813caa4449db3188'
+          test "$(git -C held-release hash-object validation/migrations/20261119165500_shared_titus_private_teaching_v1.sql)" = 'ccbbfef0429a1c5c5ecba5b8516bf2c0fc75d23f'
+          cd canonical
+          bash scripts/check-custody.sh
+          bash scripts/check-production-release-contract.sh
+          bash scripts/check-production-schema-validation-contract.sh
+          bash scripts/check-migration-release-lane.sh 20261119165500 shared "../held-release/supabase/migrations/20261119165500_shared_titus_private_teaching_v1.sql"
+      - name: Install pinned CLI
+        shell: bash
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/t5-release-cli.tgz"
+          tar -xzf "$RUNNER_TEMP/t5-release-cli.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = '2.116.0'
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GHCR_USER" --password-stdin >/dev/null
+      - name: Snapshot protected schema/roles READ ONLY
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          umask 077
+          d="$RUNNER_TEMP/t5-release-private"
+          mkdir "$d"
+          test -n "$NOEL_CORE_DATABASE_URL"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$d/roles.sql" >"$d/roles.log" 2>&1
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$d/schema.sql" >"$d/schema.log" 2>&1
+          test -s "$d/roles.sql"
+          test -s "$d/schema.sql"
+          echo 'PASS read-only schema and roles; no records'
+      - name: Rehearse exact versioned transaction
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          d="$RUNNER_TEMP/t5-release-private"
+          if bash canonical/scripts/validate-production-schema-clone.sh --migration-version 20261119165500 --release-lane shared --candidate-migration "$GITHUB_WORKSPACE/held-release/supabase/migrations/20261119165500_shared_titus_private_teaching_v1.sql" --candidate-validation "$GITHUB_WORKSPACE/held-release/validation/migrations/20261119165500_shared_titus_private_teaching_v1.sql" --roles-dump "$d/roles.sql" --schema-dump "$d/schema.sql" --artifacts-dir "$d/diagnostics" >"$d/run.log" 2>&1; then
+            echo 'PASS exact migration transaction, postconditions, and lint delta on disposable schema'
+          else
+            echo 'FAIL exact migration rehearsal; raw diagnostics not published' >&2
+            exit 1
+          fi
+      - name: Remove protected scratch without publishing diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf "$RUNNER_TEMP/t5-release-private"
+          echo 'Exact migration rehearsal only: no production changes, real rows, grants, deployment or release authorization.' >> "$GITHUB_STEP_SUMMARY"
+,raw,re.M)
+              if detail:
+                  expected,observed,http=detail[-1]
+                  print('TITLE_PROOF_DENIAL_CODES='+expected+'/'+observed+'/'+http)
           PY
             echo 'FAIL protected signed title proof; private diagnostics not published' >&2
             exit 1
