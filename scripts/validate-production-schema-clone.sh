@@ -965,6 +965,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
        [ "$signed_personal_connected_assignment_probe" = true ] ||
+       [ "$signed_personal_optional_date_probe" = true ] ||
        [ "$signed_titus_object_title_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
@@ -985,6 +986,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_personal_task_amendment_probe" = true ] ||
        [ "$signed_personal_task_progress_probe" = true ] ||
        [ "$signed_personal_connected_assignment_probe" = true ] ||
+       [ "$signed_personal_optional_date_probe" = true ] ||
        [ "$signed_titus_object_title_probe" = true ] ||
        [ "$signed_native_intake_responsibility_probe" = true ] ||
        [ "$signed_native_work_journal_probe" = true ] ||
