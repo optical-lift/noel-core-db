@@ -1,5 +1,6 @@
 // Source-only resolver. Caller must supply authentic GitHub event/context from
 // the existing canonical owner-gated workflow; a JSON fixture proves no authority.
+import { verifyReviewedPackage } from "./development-candidate-git-observation-v1.mjs";
 const sha = x=>typeof x==="string"&&/^[0-9a-f]{40}$/.test(x);
 const digest = x=>typeof x==="string"&&/^[0-9a-f]{64}$/.test(x);
 const positive = x=>Number.isSafeInteger(x)&&x>0;
@@ -46,4 +47,11 @@ export function assertRequestPackage(request,manifest,identity) {
        x.candidate_sha===request.candidate_sha&&x.controller_sha===request.controller_sha)||
      request.package_sha256!==identity.package_sha256) fail();
   return Object.freeze({...request,status:"owner_and_source_binding_matched_only"});
+}
+
+// The trusted entry point never accepts a caller-supplied identity receipt.
+export function verifyOwnerClonePackage(event,context,manifest,repositories) {
+  const request=resolveOwnerCloneRequest(event,context);
+  const identity=verifyReviewedPackage(manifest,request,repositories);
+  return assertRequestPackage(request,manifest,identity);
 }
