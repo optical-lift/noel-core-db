@@ -54,6 +54,8 @@ DECLARE
  v_subject_domain text;
  v_subject_kind text;
  v_subject_id uuid;
+ v_subject_stable_key text;
+ v_child_stable_key text;
  v_title text;
  v_instructions text;
  v_result_contract text;
@@ -79,10 +81,8 @@ BEGIN
  IF v_parent.id IS NULL THEN
    RAISE EXCEPTION 'Original Work unavailable on governed Ledger.' USING ERRCODE='42501';
  END IF;
- IF NOT EXISTS (
-   SELECT 1 FROM atlas.company_work_native_ledger_relevance rel
-    WHERE rel.work_item_id=v_parent.id AND rel.organization_id=p_organization_id
-      AND rel.ledger_id=p_ledger_id AND rel.attribution_state='active'
+ IF NOT atlas.work_prerequisite_ledger_scope_v1(
+   p_organization_id,p_ledger_id,v_parent.id
  ) THEN
    RAISE EXCEPTION 'Work lacks established relevance to governed Ledger.' USING ERRCODE='42501';
  END IF;
@@ -90,7 +90,8 @@ BEGIN
  SELECT * INTO v_group FROM atlas.work_decomposition_groups
   WHERE parent_work_item_id=v_parent.id;
  IF v_group.id IS NOT NULL THEN
-   IF v_group.action_id IS DISTINCT FROM p_action_id OR
+   IF v_group.authorized_ledger_id IS DISTINCT FROM p_ledger_id OR
+      v_group.action_id IS DISTINCT FROM p_action_id OR
       v_group.source_fingerprint IS DISTINCT FROM v_fingerprint THEN
      RAISE EXCEPTION 'Work was already decomposed by a different decision.' USING ERRCODE='23505';
    END IF;
@@ -151,9 +152,20 @@ BEGIN
      IF NOT EXISTS(
        SELECT 1 FROM atlas.growing_objects obj
        JOIN atlas.farms f ON f.id=obj.farm_id
-       WHERE obj.id=v_subject_id AND f.organization_id=p_organization_id
+       JOIN atlas.farm_crop_ledger_custody_v1 cu ON cu.farm_id=f.id
+         AND cu.ledger_id=p_ledger_id AND cu.custody_state='active'
+         AND cu.ended_at IS NULL
+       JOIN atlas.ledger_organization_participations lp
+         ON lp.organization_id=f.organization_id AND lp.ledger_id=cu.ledger_id
+         AND lp.status='active' AND lp.ended_at IS NULL
+         AND lp.participation_kind IN ('governing','operating')
+       JOIN ledger.ledgers nl ON nl.id=cu.ledger_id
+         AND nl.ledger_state='active' AND nl.retired_at IS NULL
+       WHERE obj.id=v_subject_id AND obj.object_type='bed'
+         AND f.organization_id=p_organization_id
+         AND f.organization_unit_id=v_parent.organization_unit_id
      ) THEN
-       RAISE EXCEPTION 'Original Subject not admitted to governed Organization.'
+       RAISE EXCEPTION 'Original Subject lacks exact Work/Ledger custody.'
          USING ERRCODE='42501';
      END IF;
    ELSIF v_subject_domain='temporal' AND v_subject_kind='occurrence' THEN
@@ -195,10 +207,10 @@ BEGIN
    v_result_contract:=coalesce(nullif(btrim(v_part->>'resultContractKey'),''),
      v_parent.result_contract_key);
    INSERT INTO atlas.work_items(
-      organization_id,title,instructions,work_state,source_object_type,
+      organization_id,organization_unit_id,title,instructions,work_state,source_object_type,
       source_object_id,result_contract_key,created_by_user_id,stable_key,metadata)
    VALUES (
-      p_organization_id,v_title,v_instructions,'open','work_decomposition',
+      p_organization_id,v_parent.organization_unit_id,v_title,v_instructions,'open','work_decomposition',
       v_parent.id,v_result_contract,auth.uid(),
       'decomposition:'||v_parent.id::text||':'||v_ordinal::text,
       jsonb_build_object(
@@ -212,22 +224,42 @@ BEGIN
         'workerAttestationExplicit',v_result_contract='ordinary_company_work_worker_attestation_v1'
           AND v_result_contract IS DISTINCT FROM v_parent.result_contract_key
       )
-   ) RETURNING id INTO v_child;
+   ) RETURNING id,stable_key INTO v_child,v_child_stable_key;
    INSERT INTO atlas.work_decomposition_members(
      group_id,child_work_item_id,part_ordinal,subject_domain,subject_kind,subject_id)
    VALUES (v_group.id,v_child,v_ordinal,v_subject_domain,v_subject_kind,v_subject_id);
-   INSERT INTO atlas.work_item_context_links(
-     organization_id,work_item_id,subject_domain,subject_kind,subject_id,
-     relation_kind,provenance,metadata)
-   VALUES (p_organization_id,v_child,v_subject_domain,v_subject_kind,v_subject_id,
-     'acts_on',jsonb_build_object('source','original_work_decomposition',
-     'parentWorkItemId',v_parent.id,'decisionId',v_group.id),'{}'::jsonb);
+   -- Establish the child's exact Ledger relevance before its Subject link.
    INSERT INTO atlas.company_work_native_ledger_relevance(
      organization_id,work_item_id,ledger_id,evidence_kind,
      attestation_source_ref,attestation_reason,established_by_person_id)
    VALUES (p_organization_id,v_child,p_ledger_id,'owner_attested',
       'original-canonical-work:'||v_parent.id::text,
       btrim(p_decision_reason),v_owner);
+   -- Spatial context carries the actual source keys of the signed decision.
+   -- The independent context trigger verifies the group/member, current
+   -- governor and exact Ledger scope, not a client-supplied association.
+   v_subject_stable_key:=NULL;
+   IF v_subject_domain='spatial' AND v_subject_kind='growing_object' THEN
+     SELECT g.stable_key INTO v_subject_stable_key
+     FROM atlas.growing_objects g WHERE g.id=v_subject_id;
+   END IF;
+   INSERT INTO atlas.work_item_context_links(
+     organization_id,work_item_id,subject_domain,subject_kind,subject_id,
+     relation_kind,provenance,metadata)
+   VALUES (p_organization_id,v_child,v_subject_domain,v_subject_kind,v_subject_id,
+     'acts_on',jsonb_build_object('source','original_work_decomposition',
+       'parentWorkItemId',v_parent.id,'decisionId',v_group.id) ||
+       CASE WHEN v_subject_domain='spatial' AND v_subject_kind='growing_object'
+       THEN jsonb_build_object(
+         'humanConfirmed',true,'nativeLedgerId',p_ledger_id,
+         'decisionKind','signed_original_work_decomposition_subject_v1',
+         'reviewedByPrincipalId',atlas.current_principal_id_v1(),
+         'reviewedObjectKey',v_subject_stable_key,
+         'reviewedWorkStableKey',v_child_stable_key)
+       ELSE '{}'::jsonb END,
+     CASE WHEN v_subject_domain='spatial' AND v_subject_kind='growing_object'
+       THEN jsonb_build_object('confersAccess',false,'createsWork',false)
+       ELSE '{}'::jsonb END);
    v_children:=v_children||jsonb_build_array(jsonb_build_object(
       'workItemId',v_child,'resultContractKey',v_result_contract,
       'subjectDomain',v_subject_domain,

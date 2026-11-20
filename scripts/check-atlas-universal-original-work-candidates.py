@@ -106,6 +106,97 @@ require("INSERT INTO atlas.work_items(" not in assignment
         and "INSERT INTO atlas.work_execution_plans(" in assignment,
         "assigning existing Bed Work must not create a separate task")
 print("PASS single canonical Work and independently governed Bed split")
+# Reject a same-Organization shortcut for either spatial Subject selection
+# or decomposition. This is source shape, not signed actor proof.
+for name in ("original_subject_choices_for_work_decomposition_v1",
+             "universal_original_work_decomposition_v1"):
+    subject_source = texts[name]
+    for token in ("atlas.work_prerequisite_ledger_scope_v1(",
+                  "atlas.farm_crop_ledger_custody_v1 cu",
+                  "cu.ledger_id=p_ledger_id",
+                  "cu.custody_state='active'",
+                  "cu.ended_at IS NULL",
+                  "lp.ledger_id=cu.ledger_id",
+                  "lp.status='active'",
+                  "lp.ended_at IS NULL",
+                  "nl.ledger_state='active'",
+                  "nl.retired_at IS NULL",
+                  "f.organization_unit_id"):
+        require(token in subject_source, f"{name}: missing exact custody check: {token}")
+    require("atlas.tasks" not in subject_source,
+            f"{name}: original Subject choices must not require legacy Task")
+print("PASS same exact native Ledger custody in spatial Subject choice and decomposition source")
+# Current-schema native Subject admission is a separate held guard correction,
+# not a replay of the historical integrated CREATE TABLE bundle.
+native_guard_path = BASE / "universal_original_work_decomposition_v1" / "native_subject_context_guard_held.sql"
+if native_guard_path.is_file():
+    guard_source = native_guard_path.read_text()
+    historical = (ROOT / "supabase/migrations/20261026010327_atlas_farm_crop_custody_and_work_growing_object_link_v1.sql").read_text()
+    legacy_start = "  IF NOT EXISTS (\n    SELECT 1\n    FROM atlas.work_items w\n    JOIN atlas.tasks t"
+    original_guard = historical.split("CREATE FUNCTION atlas.guard_work_growing_object_context_v1()",1)[1].split("\nCREATE TRIGGER work_growing_object_context_guard_v1",1)[0]
+    require(legacy_start in original_guard and legacy_start in guard_source, "legacy guard source missing")
+    require(guard_source.split(legacy_start,1)[1].split("$body$;",1)[0] ==
+            original_guard.split(legacy_start,1)[1].split("$body$;",1)[0],
+            "legacy Task admission predicate changed")
+    native_branch = guard_source.split("IF NEW.provenance->>'source'='original_work_decomposition' THEN",1)[1].split(legacy_start,1)[0]
+    for token in ("work_decomposition_members", "work_decomposition_groups",
+                  "d.authorized_ledger_id=v_ledger", "m.subject_id=NEW.subject_id",
+                  "parent.organization_unit_id=w.organization_unit_id",
+                  "company_work_native_ledger_owner_self_v1(",
+                  "work_prerequisite_ledger_scope_v1(",
+                  "r.established_by_person_id=d.decided_by_person_id",
+                  "custody.ended_at IS NULL", "nl.retired_at IS NULL",
+                  "TG_OP<>'INSERT'", "NEW.relation_kind<>'acts_on'",
+                  "NEW.metadata->>'confersAccess' IS DISTINCT FROM 'false'",
+                  "NEW.metadata->>'createsWork' IS DISTINCT FROM 'false'"):
+        require(token in native_branch, "missing native context source boundary: " + token)
+    require("atlas.tasks" not in native_branch and "atlas.work_allocations" not in native_branch,
+            "native Subject context must precede assignment and not require a Task")
+    require("0278360920a2d26a301ceda4591b9994" in guard_source,
+            "held current-schema guard must be source pinned")
+    require("GRANT " not in guard_source and "REVOKE " not in guard_source,
+            "no privilege changes in native context source")
+    require(decomp.index("INSERT INTO atlas.work_decomposition_members(")
+            < decomp.index("INSERT INTO atlas.company_work_native_ledger_relevance(")
+            < decomp.index("INSERT INTO atlas.work_item_context_links("),
+            "native child/member/Ledger evidence must precede context admission")
+    for token in ("'signed_original_work_decomposition_subject_v1'",
+                  "'reviewedByPrincipalId',atlas.current_principal_id_v1()",
+                  "'reviewedObjectKey',v_subject_stable_key",
+                  "'reviewedWorkStableKey',v_child_stable_key",
+                  "v_group.authorized_ledger_id IS DISTINCT FROM p_ledger_id"):
+        require(token in decomp, "missing native split provenance: " + token)
+    print("PASS held native Subject-before-allocation source contract; legacy predicate unchanged")
+    current_schema_path = native_guard_path.with_name("current_schema_subject_functions_held.sql")
+    require(current_schema_path.is_file(), "missing narrow current-schema Subject bundle")
+    current_schema = current_schema_path.read_text()
+    exact_functions = (
+        ("owner_original_subject_choices_for_work_self_api_v1",
+         texts["original_subject_choices_for_work_decomposition_v1"], "$function$;",
+         "0a966d596481d1bc58bf9f63fcc1b639"),
+        ("split_original_canonical_work_owner_self_api_v1",
+         decomp, "$function$;", "fe2d6c24c997b3f462c6eda5fae5a2bf"),
+        ("guard_work_growing_object_context_v1",
+         guard_source, "$body$;", "0278360920a2d26a301ceda4591b9994"),
+    )
+    for name, source, end, fingerprint in exact_functions:
+        marker = "CREATE OR REPLACE FUNCTION atlas." + name + "("
+        exact = marker + source.split(marker, 1)[1].split(end, 1)[0] + end
+        require(current_schema.count(exact) == 1,
+                "current-schema bundle does not preserve exact " + name)
+        require(current_schema.count(fingerprint) >= 1,
+                "missing current installed source fingerprint for " + name)
+    require(re.findall(r"(?m)^CREATE OR REPLACE FUNCTION atlas\.([a-z_0-9]+)\(", current_schema)
+            == [x[0] for x in exact_functions],
+            "current-schema package must contain exactly the three reviewed functions")
+    require(not re.search(r"(?mi)^\s*(CREATE TABLE|ALTER TABLE|DROP\s|GRANT\s|REVOKE\s|CREATE TRIGGER)", current_schema),
+            "current-schema function bundle must preserve tables, triggers and privileges")
+    require(current_schema.startswith("BEGIN;") and current_schema.rstrip().endswith("COMMIT;"),
+            "current-schema package transaction boundary")
+    print("PASS three exact current-schema replacements; no historical table/ACL replay")
+
+
+
 
 # All old full-farm routes must be source-guarded, not hidden only in React.
 source_names = []
