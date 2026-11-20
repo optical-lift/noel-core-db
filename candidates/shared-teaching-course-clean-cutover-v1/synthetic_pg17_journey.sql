@@ -22,6 +22,7 @@ SET LOCAL app.shared_course_clone='approved';
 -- no registered issuer, no license grant and no production migration.
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_account_context_candidate.sql
 \i /source/candidates/shared-teaching-course-clean-cutover-v1/titus_account_context_tests_pg17.sql
+\i /source/candidates/shared-teaching-course-clean-cutover-v1/radio_subscribed_station_collection_tests_pg17.sql
 
 -- U1.1: exact institution authority -> invitation -> signed recipient consent
 -- -> irreversible admission / append-only withdrawal. Synthetic-only.
