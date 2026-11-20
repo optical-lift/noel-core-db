@@ -93,7 +93,12 @@ def main():
         return out
     def denied(role,action,p,code):
         status,out=auth.rpc(api,key,"shared_teaching_object_title_"+action+"_self_api_v1",p,tokens.get(role))
-        check(status>=400 and isinstance(out,dict) and out.get("code")==code,"expected exact title source denial "+code)
+        if not (status>=400 and isinstance(out,dict) and out.get("code")==code):
+            observed=out.get("code") if isinstance(out,dict) else None
+            allowed_codes={"42501","22023","23505","40001","55000","PGRST202","PGRST203","PGRST301","PGRST302","PGRST204","PGRST205"}
+            safe_code=observed if isinstance(observed,str) and observed in allowed_codes else "other"
+            safe_status=str(status) if isinstance(status,int) and 100<=status<=599 else "other"
+            raise AssertionError("TITLE_DENIAL_V1 expected="+code+" observed="+safe_code+" http="+safe_status)
     for _ in range(20):
         st,_=auth.rpc(api,key,"shared_teaching_object_title_read_self_api_v1",{"p_course_id":uid(),"p_unit_id":None},tokens["author"])
         if st==403: break
