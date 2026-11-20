@@ -1226,8 +1226,30 @@ if [ "$orphan_queue_retirement_proof" = true ]; then
 fi
 
 phase="candidate migration application"
-psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration" \
-  >"$artifacts_dir/candidate-migration.log" 2>&1
+# Test the NEW exact-version live row guard with the ORIGINAL canonical
+# migration through the EXISTING releaser on this disposable local clone.
+# This is not the protected production release. Remote URLs are never used.
+if [ "$lane" = atlas ] && [ "$version" = 20261120211526 ] &&
+   [ "$(basename "$candidate_migration")" = "20261120211526_atlas_access03c_pre1_tending_v1_pair_retirement_v1.sql" ]; then
+  if [ "$database_url" != 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' ] ||
+     [ "$(git hash-object "$candidate_migration")" != ac8552f35e4de14f1ae337c29cfc1c2971af1c9b ] ||
+     [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_validation")" != aff86ae537a7dfbffefa4320e6d21328c32c78d7 ]; then
+    echo 'Refusing PRE1 guarded release proof without exact local clone and source.' >&2
+    exit 2
+  fi
+  (
+    cd "$repo_root"
+    NOEL_CORE_DATABASE_URL="$database_url" \
+      GITHUB_RELEASE_SHA=0000000000000000000000000000000000000000 \
+      bash scripts/release-production-migration.sh "$version"
+  ) >"$artifacts_dir/candidate-migration.log" 2>&1
+  grep -q 'PASS PRE1 same-transaction original-row conservation: 730 Atlas base relations' \
+    "$artifacts_dir/candidate-migration.log"
+else
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_migration" \
+    >"$artifacts_dir/candidate-migration.log" 2>&1
+fi
 
 # ACCESS-02 TEST ONLY: exact My Work wrapper clone-only anonymous ACL
 # parity, never a migration or permission change on a linked database.
