@@ -60,12 +60,12 @@ def main():
         sql(f"""INSERT INTO titus.course_authoring_access_grants(person_entity_id,grant_source_auth_user_id,
            grant_kind,grant_source_receipt,state,granted_at)
            VALUES('{person(n+100)}','{person(1)}','private_pilot','fictional-title-proof-{n}','active',now())""")
-    # Explicit synthetic owner responsibility, not new production standing.
-    sql(f"""INSERT INTO reality.responsibility_relations(carrier_person_entity_id,responsibility_key,title,relation_state,
-        jurisdiction_kind,jurisdiction_domain,permitted_operations,establishment_kind,establishment_basis)
-        VALUES('{person(101)}','titus_private_pilot_issuance','Fictional owner','active','domain','titus',
-        ARRAY['author_course_as_owner'],'clone_validation_fixture','{{"cloneFixture":true}}');
-        NOTIFY pgrst,'reload schema';""")
+    # Both fictional authors have ONLY a pilot grant. The independent
+    # owner responsibility introduced by 20261118194010 must not exist in
+    # this revocation fixture: ending a pilot grant cannot end that separate
+    # lawful source of authoring access.
+    check(sql("SELECT count(*) FROM reality.responsibility_relations WHERE responsibility_key='titus_private_pilot_issuance'")=="0","single-source authoring fixture")
+    sql("NOTIFY pgrst,'reload schema';")
     api,key=auth.local_status()
     tokens={}
     for role,n in (("author",1),("learner",2),("outsider",3)):
@@ -170,6 +170,7 @@ def main():
     check(sql("SELECT (NOT has_table_privilege('authenticated','atlas.teaching_object_title_revisions','INSERT') AND NOT has_function_privilege('anon','public.shared_teaching_object_title_save_self_api_v1(uuid,uuid,uuid,integer,text,text)','EXECUTE') AND NOT has_function_privilege('service_role','public.shared_teaching_object_title_save_self_api_v1(uuid,uuid,uuid,integer,text,text)','EXECUTE'))")=="t","private table/RPC ACL")
     sql(f"""INSERT INTO titus.course_authoring_access_status_events(person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
         VALUES('{person(101)}','{uid()}','revoked','fictional-title-end','{person(1)}')""")
+    check(rpc("author","titus_authoring_access_self_api_v1",{})["canUseTitus"] is False,"pilot grant actually ended effective authority")
     denied("author","save",dict(rename,p_request_id=uid(),p_expected_revision=3,p_expected_title=winning_title,p_title="Revoked edit"),"42501")
     check(title("author","read",course_scope)["title"]==winning_title,"no write on revoked grant")
     check(course("learner","catalog")["courses"][0]["courseId"]==other,"second owner unchanged")
