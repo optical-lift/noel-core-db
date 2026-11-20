@@ -174,6 +174,7 @@ signed_personal_task_amendment_probe=false
 signed_personal_task_progress_probe=false
 signed_personal_connected_assignment_probe=false
 signed_personal_optional_date_probe=false
+signed_task_initial_details_probe=false
 signed_titus_object_title_probe=false
 signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
@@ -390,6 +391,25 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_personal_optional_date_probe=true
+fi
+
+# Exact held initial details, admitted solely by the protected
+# owner request. Never execute a candidate-selected unpinned probe.
+task_initial_details_proof="$repo_root/candidates/atlas/atlas_task_initial_details_v1/validate_signed_initial_details.py"
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_task_initial_details_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$task_initial_details_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != bc2ea0d0e5950abbb6c0d58e01bb17d727801f1e ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 01d36beb7116e7fd7c27c89e9d5dfb2c9d6a3f9f ] ||
+     [ "$(git hash-object "$candidate_validation")" != 51064eacbc4ad92893a3099190f33df4d069e764 ] ||
+     [ "$(git hash-object "$task_initial_details_proof")" != ad7b99dc4da598e81d75bc2dd85cfb139c7b143e ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
+    echo "Held initial details needs exact reviewed migration, fixture, postconditions and signed local probe." >&2
+    exit 2
+  fi
+  signed_task_initial_details_probe=true
 fi
 
 # Exact signed personal task amendment requires a fictional disposable clone.
@@ -966,6 +986,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_personal_task_progress_probe" = true ] ||
        [ "$signed_personal_connected_assignment_probe" = true ] ||
        [ "$signed_personal_optional_date_probe" = true ] ||
+       [ "$signed_task_initial_details_probe" = true ] ||
        [ "$signed_titus_object_title_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
@@ -987,6 +1008,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_personal_task_progress_probe" = true ] ||
        [ "$signed_personal_connected_assignment_probe" = true ] ||
        [ "$signed_personal_optional_date_probe" = true ] ||
+       [ "$signed_task_initial_details_probe" = true ] ||
        [ "$signed_titus_object_title_probe" = true ] ||
        [ "$signed_native_intake_responsibility_probe" = true ] ||
        [ "$signed_native_work_journal_probe" = true ] ||
@@ -1562,6 +1584,16 @@ if [ "$signed_personal_optional_date_probe" = true ]; then
     >"$artifacts_dir/signed-personal-optional-date.log" 2>&1
   test -s "$artifacts_dir/signed-personal-optional-date-summary.txt"
   grep -q '^PASS' "$artifacts_dir/signed-personal-optional-date-summary.txt"
+fi
+
+if [ "$signed_task_initial_details_probe" = true ]; then
+  phase="signed initial details on exact Personal originals"
+  python3 "$task_initial_details_proof" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-task-initial-details-summary.txt" \
+    >"$artifacts_dir/signed-task-initial-details.log" 2>&1
+  test -s "$artifacts_dir/signed-task-initial-details-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-task-initial-details-summary.txt"
 fi
 
 if [ "$signed_personal_task_amendment_probe" = true ]; then

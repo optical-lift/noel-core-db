@@ -176,6 +176,18 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact held initial details; no release identity.
+          if title == 'Production schema validation request: Atlas held initial details':
+              expected = {'diagnostic_scope':'atlas_task_initial_details_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'400c48a5889c190ae6afdd984cc94f2d7381cfc2'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held initial details validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-task-initial-details\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
           missing = [key for key in required if key not in fields]
           if missing:
@@ -628,6 +640,42 @@ jobs:
             cp "$src" "$candidate_migration"
             bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
             held_proof="candidates/atlas/atlas_personal_optional_date_v1/validate_signed_optional_date.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-task-initial-details" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "400c48a5889c190ae6afdd984cc94f2d7381cfc2"
+            src="candidate/candidates/atlas/atlas_task_initial_details_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_task_initial_details_v1/fixture.sql"
+            post="candidate/candidates/atlas/atlas_task_initial_details_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/atlas_task_initial_details_v1/validate_signed_initial_details.py"
+            test "$(git hash-object "$src")" = bc2ea0d0e5950abbb6c0d58e01bb17d727801f1e
+            test "$(git hash-object "$fixture")" = 01d36beb7116e7fd7c27c89e9d5dfb2c9d6a3f9f
+            test "$(git hash-object "$post")" = 51064eacbc4ad92893a3099190f33df4d069e764
+            test "$(git hash-object "$proof")" = ad7b99dc4da598e81d75bc2dd85cfb139c7b143e
+            test "$(git hash-object "scripts/validate-atlas-c1-signed-http.py")" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object "scripts/validate-atlas-work-prerequisite-signed-http.py")" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            # Existing protected read-only snapshot already completed. No
+            # production secrets in this or subsequent local execution steps.
+            scratch="$(mktemp -d "$RUNNER_TEMP/personal-assignment-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_task_initial_details_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_task_initial_details_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            held_proof="candidates/atlas/atlas_task_initial_details_v1/validate_signed_initial_details.py"
             mkdir -p "$(dirname "$held_proof")"
             cp "$proof" "$held_proof"
             sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
