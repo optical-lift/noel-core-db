@@ -65,9 +65,26 @@ def request(api, key, path, method="GET", token=None, body=None, mime="applicati
     except urllib.error.HTTPError as exc:
         return exc.code,exc.read(4096)
 
+def diagnostic(data):
+    # Do not echo response bodies, tokens, object paths or fixture identities.
+    try:
+        packet=json.loads(data)
+    except (ValueError,UnicodeError):
+        return "non-JSON error"
+    if not isinstance(packet,dict):
+        return "non-object error"
+    terms=" ".join(str(packet.get(k,"")) for k in ("code","error","message","statusCode")).lower()
+    categories=(("row-level security","RLS denial"),("permission denied","permission denial"),
+                ("unauthorized","unauthorized"),("jwt","JWT rejected"),("bucket not found","bucket missing"),
+                ("not found","not found"),("already exists","duplicate"),("duplicate","duplicate"),
+                ("mime","MIME rejected"),("size","size rejected"),("invalid","invalid request"))
+    code=packet.get("code")
+    code=code if isinstance(code,str) and re.fullmatch(r"[A-Za-z0-9_]{1,40}",code) else "unavailable"
+    return "code="+code+"; "+next((label for term,label in categories if term in terms),"unclassified error")
+
 def ok(result, label):
     status,data=result
-    check(200<=status<300, f"{label}: local HTTP {status}")
+    check(200<=status<300, f"{label}: local HTTP {status}; {diagnostic(data)}")
     return data
 
 def denied(result,label,expected=(400,401,403,404)):
@@ -88,6 +105,48 @@ def digest(data):
 def literal(v):
     return "'"+str(v).replace("'","''")+"'"
 
+def restore_native_storage_policy_parity(db):
+    """Exact two already released policies (20260928200427), local only.
+
+    The default schema dump excludes Supabase-managed storage schema.
+    Preserve existing exact policies; never replace differing policies.
+    Refuse if the expected RLS boundary or grants differ.
+    """
+    check(sql(db,"select relrowsecurity from pg_class where oid='storage.objects'::regclass")=="t",
+          "Local Storage RLS must remain enabled")
+    check(sql(db,"select has_table_privilege('authenticated','storage.objects','INSERT') and has_table_privilege('authenticated','storage.objects','SELECT')")=="t",
+          "Existing authenticated Storage privileges required; no clone grants added")
+    policies={
+        "transcript_core_source_insert":("INSERT",None,
+          "((bucket_id = ANY (ARRAY['transcript-core-observed-originals'::text, 'transcript-core-script-sources'::text])) AND transcript_core_can_workspace_edit(transcript_core_path_workspace(name)))",
+          """create policy transcript_core_source_insert on storage.objects
+             for insert to authenticated with check (
+               bucket_id in ('transcript-core-observed-originals','transcript-core-script-sources')
+               and public.transcript_core_can_workspace_edit(public.transcript_core_path_workspace(name)))"""),
+        "transcript_core_asset_read":("SELECT",
+          "((bucket_id = ANY (ARRAY['transcript-core-observed-originals'::text, 'transcript-core-observed-derivatives'::text, 'transcript-core-script-sources'::text, 'transcript-core-generated-takes'::text, 'transcript-core-generated-renders'::text])) AND transcript_core_is_workspace_member(transcript_core_path_workspace(name)))",None,
+          """create policy transcript_core_asset_read on storage.objects
+             for select to authenticated using (
+               bucket_id in ('transcript-core-observed-originals','transcript-core-observed-derivatives',
+                             'transcript-core-script-sources','transcript-core-generated-takes','transcript-core-generated-renders')
+               and public.transcript_core_is_workspace_member(public.transcript_core_path_workspace(name)))""")}
+    def read(name):
+        return json.loads(sql(db,f"""select coalesce((select json_build_object(
+              'cmd',cmd,'roles',roles,'permissive',permissive,'qual',qual,'with_check',with_check)
+              from pg_policies where schemaname='storage' and tablename='objects' and policyname={literal(name)}),'null'::json)"""))
+    for name,(cmd,qual,with_check,ddl) in policies.items():
+        expected={"cmd":cmd,"roles":["authenticated"],"permissive":"PERMISSIVE","qual":qual,"with_check":with_check}
+        current=read(name)
+        if current is None:
+            sql(db,ddl)
+            current=read(name)
+            print("RESTORED exact released clone policy "+name,flush=True)
+        for k in ("qual","with_check"):
+            if isinstance(current.get(k),str):
+                current[k]=current[k].replace("public.","")
+        check(current==expected,"Unexpected existing clone policy shape: "+name)
+    print("PASS exact preexisting native Storage policy parity",flush=True)
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--db-url",required=True)
@@ -106,6 +165,7 @@ def main():
           "Internal completion must remain unexposed")
     check(sql(db,"select count(*) from transcript_core.productions")=="0",
           "Fresh schema-only clone, without real production rows, required")
+    restore_native_storage_policy_parity(db)
     # Buckets are metadata, not application records. The schema-only clone
     # may omit them; seed only the native private test buckets locally.
     for bucket in (BUCKET,SOURCE):
@@ -140,6 +200,10 @@ def main():
     workspace=uid(rpc("transcript_core_create_workspace",{"p_name":"Fictional listening proof"}))
     for role in ("editor","viewer"):
         sql(db,f"insert into transcript_core.workspace_memberships(workspace_id,user_id,role) values('{workspace}','{actors[role][0]}','{role}')")
+    check(rpc("transcript_core_can_workspace_edit",{"target_workspace":workspace}) is True,
+          "Signed original owner must be native workspace editor")
+    check(rpc("transcript_core_can_workspace_edit",{"target_workspace":workspace},actors["viewer"][1]) is False,
+          "Signed viewer must lack native workspace edit authority")
     original=b"Fictional private manuscript for a transport proof."
     original_path=workspace+"/fixture-original.txt"
     def object_path(bucket,name,authenticated=False):
