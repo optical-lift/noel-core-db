@@ -335,20 +335,20 @@ if [ "$lane" = "atlas" ] &&
   signed_personal_task_progress_probe=true
 fi
 
-# Exact held Personal reciprocal assignment, admitted solely by the protected
+# Exact held compact composer, admitted solely by the protected
 # owner request. Never execute a candidate-selected unpinned probe.
-personal_connected_assignment_proof="$repo_root/candidates/atlas/atlas_personal_connected_original_assignment_v1/validate_signed_personal_assignment.py"
+personal_connected_assignment_proof="$repo_root/candidates/atlas/atlas_personal_connected_task_creation_v1/validate_signed_composer.py"
 if [ "$lane" = "atlas" ] &&
-   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_personal_connected_assignment_clone_only_v1[.]sql$ ]]; then
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_compact_composer_creation_clone_only_v1[.]sql$ ]]; then
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$personal_connected_assignment_proof" ] ||
-     [ "$(git hash-object "$candidate_migration")" != a41bc8544c4fa6314efd2645294b7b25d22d271f ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 789c37e63942fbf6fd7b18af1e8ce22087b890fe ] ||
-     [ "$(git hash-object "$candidate_validation")" != 3652890d8938272663f0524a6d9df298158f28c0 ] ||
-     [ "$(git hash-object "$personal_connected_assignment_proof")" != f5bc25e3c16f749dcf6b81b870955b06ad9d4245 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 2d54e30d73c7fd2b83bd06d36f5634f51b5c573b ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 889511494d55c9fc8957e2552377deef43da2679 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 6d924c434f8720fa061a8d0afa4493f028f64318 ] ||
+     [ "$(git hash-object "$personal_connected_assignment_proof")" != 1c700d9f6609b248ded7c1cd4356db7a2c0cef0e ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
-    echo "Held Personal assignment needs exact reviewed migration, fixture, postconditions and signed local probe." >&2
+    echo "Held compact composer needs exact reviewed migration, fixture, postconditions and signed local probe." >&2
     exit 2
   fi
   signed_personal_connected_assignment_probe=true
@@ -1502,13 +1502,13 @@ if [ "$signed_titus_object_title_probe" = true ]; then
 fi
 
 if [ "$signed_personal_connected_assignment_probe" = true ]; then
-  phase="signed reciprocal Personal assignment on exact original"
+  phase="signed atomic Personal and Ledger self creation on exact originals"
   python3 "$personal_connected_assignment_proof" \
     --db-url "$database_url" \
-    --output "$artifacts_dir/signed-personal-connected-assignment-summary.txt" \
-    >"$artifacts_dir/signed-personal-connected-assignment.log" 2>&1
-  test -s "$artifacts_dir/signed-personal-connected-assignment-summary.txt"
-  grep -q '^PASS' "$artifacts_dir/signed-personal-connected-assignment-summary.txt"
+    --output "$artifacts_dir/signed-compact-composer-creation-summary.txt" \
+    >"$artifacts_dir/signed-compact-composer-creation.log" 2>&1
+  test -s "$artifacts_dir/signed-compact-composer-creation-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-compact-composer-creation-summary.txt"
 fi
 
 if [ "$signed_personal_task_amendment_probe" = true ]; then
