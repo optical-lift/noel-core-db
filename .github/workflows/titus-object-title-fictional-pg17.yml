@@ -1,0 +1,24 @@
+name: Titus original title changes — fictional PG17 only
+on:
+  pull_request:
+    paths:
+      - 'candidates/shared-teaching-object-title-v1/**'
+      - 'scripts/test-titus-object-title-hosted-pg17.sh'
+      - 'scripts/validate-titus-object-title-signed-http.py'
+      - '.github/workflows/titus-object-title-fictional-pg17.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Syntax and local-only signed probe source
+        run: |
+          python3 -m py_compile scripts/validate-titus-object-title-signed-http.py
+          bash -n scripts/test-titus-object-title-hosted-pg17.sh
+      - name: Fictional isolated title transaction
+        run: bash scripts/test-titus-object-title-hosted-pg17.sh
