@@ -7,6 +7,6 @@ BEGIN
  IF f IS NULL OR has_function_privilege('anon',f,'EXECUTE')
  OR has_function_privilege('authenticated',f,'EXECUTE') IS DISTINCT FROM (sig NOT LIKE 'atlas.create_atlas_task_self_api_v1(%' AND sig NOT LIKE 'atlas.atlas_task_day_self_api_v1(%')
  OR has_function_privilege('service_role',f,'EXECUTE') IS DISTINCT FROM (sig LIKE 'public.%')
- OR (SELECT prosecdef FROM pg_proc WHERE oid=f) IS DISTINCT FROM (sig LIKE 'atlas.%' OR sig LIKE 'public.create_atlas_task_self_api_v1(%' OR sig LIKE 'public.atlas_task_day_self_api_v1(%') THEN RAISE EXCEPTION 'Original date API custody failed: %',sig; END IF;
+ OR (SELECT prosecdef FROM pg_proc WHERE oid=f) IS DISTINCT FROM (sig LIKE 'atlas.%' OR sig LIKE 'public.create_atlas_task_self_api_v1(%' OR sig LIKE 'public.atlas_task_day_self_api_v1(%') THEN RAISE EXCEPTION 'Original date API custody failed: % (oid=%, anon=%, auth=%, service=%, definer=%)',sig,f,has_function_privilege('anon',f,'EXECUTE'),has_function_privilege('authenticated',f,'EXECUTE'),has_function_privilege('service_role',f,'EXECUTE'),(SELECT prosecdef FROM pg_proc WHERE oid=f); END IF;
  END LOOP;
 END $check$;

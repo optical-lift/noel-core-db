@@ -205,4 +205,13 @@ begin
 end
 $function$;
 
+
+-- Preserve the established production ACL. Disposable schema restores can retain
+-- extra direct anon grants from local default privileges (ACCESS-01 precedent).
+-- These exact four public wrappers are already anon-denied in production;
+-- never grant access or modify signed/internal custody.
+REVOKE EXECUTE ON FUNCTION public.create_atlas_task_self_api_v1(text,date,text) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.atlas_task_day_self_api_v1(date) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.amend_personal_task_text_date_self_api_v1(uuid,bigint,text,date) FROM anon;
+REVOKE EXECUTE ON FUNCTION public.personal_archived_tasks_day_self_api_v1(date) FROM anon;
 COMMIT;
