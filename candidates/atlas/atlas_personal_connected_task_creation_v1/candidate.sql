@@ -64,4 +64,61 @@ REVOKE ALL ON FUNCTION public.personal_connected_task_choices_self_api_v1() FROM
 REVOKE ALL ON FUNCTION public.create_connected_personal_task_self_api_v1(text,date,uuid,uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.personal_connected_task_choices_self_api_v1() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.create_connected_personal_task_self_api_v1(text,date,uuid,uuid) TO authenticated;
+-- Self-responsibility is not a peer dispatch. Reuse the governed native intake,
+-- original responsibility and actual placement in one transaction.
+CREATE FUNCTION atlas.create_self_ledger_task_self_api_v1(
+ p_ledger_id uuid,p_sentence text,p_execution_date date,p_source_action_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
+AS $fn$
+DECLARE v_actor uuid:=atlas.current_person_id_v1();
+ v_intake jsonb; v_assignment jsonb; v_place jsonb;
+ v_id uuid; v_org uuid; v_allocation uuid; v_plan uuid;
+BEGIN
+ IF v_actor IS NULL OR p_ledger_id IS NULL OR p_execution_date IS NULL OR p_source_action_id IS NULL
+ THEN RAISE EXCEPTION 'Exact Ledger, day and action required' USING ERRCODE='22023'; END IF;
+ PERFORM 1 FROM atlas.capability_root_authority_context_self_v1(p_ledger_id) c WHERE c.person_id=v_actor;
+ IF NOT FOUND THEN RAISE EXCEPTION 'Exact Ledger authority required' USING ERRCODE='42501'; END IF;
+ v_intake:=atlas.record_ledger_work_self_api_v2(p_ledger_id,p_sentence,p_execution_date,
+   'daily:self-ledger:'||p_source_action_id::text);
+ v_id:=(v_intake->>'workItemId')::uuid;
+ SELECT organization_id INTO v_org FROM atlas.ledger_work_intakes
+ WHERE id=(v_intake->>'intakeId')::uuid AND work_item_id=v_id AND ledger_id=p_ledger_id
+ AND submitted_by_person_id=v_actor AND review_state='accepted_for_ledger';
+ IF v_intake->>'ok' IS DISTINCT FROM 'true' OR v_id IS NULL OR v_org IS NULL
+ THEN RAISE EXCEPTION 'Accepted original required' USING ERRCODE='PT409'; END IF;
+ v_assignment:=atlas.work_focus_owner_reassign_direct_self_api_v1(v_org,p_ledger_id,v_id,NULL,
+   v_actor,'Author selected own Ledger responsibility in Today.',p_source_action_id);
+ v_allocation:=(v_assignment->>'newAllocationId')::uuid;
+ IF v_assignment->>'ok' IS DISTINCT FROM 'true' OR v_allocation IS NULL
+ OR v_assignment->>'currentResponsiblePersonId' IS DISTINCT FROM v_actor::text
+ OR v_assignment->>'workItemId' IS DISTINCT FROM v_id::text
+ THEN RAISE EXCEPTION 'Original responsibility unconfirmed' USING ERRCODE='PT409'; END IF;
+ IF v_intake->>'createdNow'='true' THEN
+   v_place:=atlas.connected_person_place_work_self_api_v1(v_id,p_execution_date,
+     'Author selected work day in Today.');
+   IF v_place->>'ok' IS DISTINCT FROM 'true' OR v_place->>'executionDate' IS DISTINCT FROM p_execution_date::text
+   OR v_place->>'responsiblePersonId' IS DISTINCT FROM v_actor::text
+   OR v_place->>'workItemId' IS DISTINCT FROM v_id::text
+   OR v_place->>'ledgerId' IS DISTINCT FROM p_ledger_id::text
+   THEN RAISE EXCEPTION 'Original placement unconfirmed' USING ERRCODE='PT409'; END IF;
+ END IF;
+ -- An exact retry may confirm the still-current original, never reschedule it.
+ SELECT id INTO v_plan FROM atlas.work_execution_plans WHERE work_item_id=v_id
+  AND organization_id=v_org AND responsible_allocation_id=v_allocation AND plan_state='active'
+  AND planned_service_date=p_execution_date AND exposure_service_date=p_execution_date;
+ IF v_plan IS NULL THEN RAISE EXCEPTION 'Original plan changed; reopen Work' USING ERRCODE='PT409'; END IF;
+ RETURN jsonb_build_object('ok',true,'contractVersion','self_ledger_task_creation_v1',
+  'workItemId',v_id,'ledgerId',p_ledger_id,'organizationId',v_org,'allocationId',v_allocation,
+  'planId',v_plan,'responsiblePersonId',v_actor,'executionDate',p_execution_date,
+  'oneCanonicalWorkIdentity',true,'newPersonalTaskCreated',false,'acceptanceRequired',false);
+END
+$fn$;
+REVOKE ALL ON FUNCTION atlas.create_self_ledger_task_self_api_v1(uuid,text,date,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION atlas.create_self_ledger_task_self_api_v1(uuid,text,date,uuid) TO authenticated;
+CREATE FUNCTION public.create_self_ledger_task_self_api_v1(
+ p_ledger_id uuid,p_sentence text,p_execution_date date,p_source_action_id uuid)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO ''
+AS $fn$ SELECT atlas.create_self_ledger_task_self_api_v1(p_ledger_id,p_sentence,p_execution_date,p_source_action_id); $fn$;
+REVOKE ALL ON FUNCTION public.create_self_ledger_task_self_api_v1(uuid,text,date,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.create_self_ledger_task_self_api_v1(uuid,text,date,uuid) TO authenticated;
 COMMIT;
