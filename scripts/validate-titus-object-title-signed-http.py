@@ -4,6 +4,7 @@ Exact held source must be installed on the job-owned disposable DB first.
 No real account, course, data dump, public release, or external mailbox.
 """
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import importlib.util
 import os
 from pathlib import Path
@@ -110,6 +111,14 @@ def main():
     other_unit=course("learner","unit_create",p_course_id=other,p_request_id=uid(),p_kind="lesson",p_title="Other lesson")["units"][0]["unitId"]
     body="## Opening\n\nFictional original text."
     rev=course("author","unit_save",p_unit_id=root,p_request_id=uid(),p_expected_revision=0,p_text=body)["material"]
+    course("author","material_save",p_course_id=cid,p_request_id=uid(),p_expected_revision=0,p_text="Fictional complete manuscript.")
+    edition=study("author","prepare_edition",p_course_id=cid,p_request_id=uid(),p_title="Original sealed course")
+    sealed=course("author","curriculum_snapshot",p_course_version_id=edition["courseVersionId"])
+    inv=study("author","invite",p_course_id=cid,p_learner_person_entity_id=person(102),p_request_id=uid(),p_expires_at=None)["invitationId"]
+    study("learner","respond",p_invitation_id=inv,p_request_id=uid(),p_decision="accept")
+    study("author","unit_decide",p_invitation_id=inv,p_unit_id=root,p_request_id=uid(),p_decision="allow",p_course_version_id=edition["courseVersionId"])
+    issued=study("learner","sealed_unit_read",p_invitation_id=inv,p_unit_id=root)
+    check(issued["unit"]["text"]==body and issued["unit"]["title"]=="Original lesson","exact issued title and body before rename")
     course_scope=dict(p_course_id=cid,p_unit_id=None)
     unit_scope=dict(p_course_id=cid,p_unit_id=root)
     check(title("author","read",course_scope)["revisionNumber"]==0,"baseline")
@@ -138,12 +147,26 @@ def main():
     check(course("author","catalog")["courses"][0]["title"]=="Current course","catalog current")
     check(course("author","unit_read",p_unit_id=root)["unit"]["title"]=="Renamed lesson","Unit current")
     check(course("author","unit_read",p_unit_id=root)["material"]==rev,"manuscript exact")
+    check(course("author","curriculum_snapshot",p_course_version_id=edition["courseVersionId"])==sealed,"sealed curriculum unchanged")
+    after_issue=study("learner","sealed_unit_read",p_invitation_id=inv,p_unit_id=root)
+    check(after_issue["unit"]==issued["unit"] and after_issue["snapshotId"]==issued["snapshotId"],"issued Unit remains exact")
     check(sql(f"SELECT count(*) FROM atlas.teaching_object_title_revisions WHERE course_id='{cid}'")=="3","no duplicate revision")
+    competing=[dict(rename,p_request_id=uid(),p_expected_revision=2,p_expected_title="Current course",p_title="Concurrent "+str(i)) for i in range(2)]
+    def compete(p):
+        return auth.rpc(api,key,"shared_teaching_object_title_save_self_api_v1",p,tokens["author"])
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results=list(pool.map(compete,competing))
+    winners=[out for status,out in results if status==200]
+    losers=[out for status,out in results if status>=400]
+    check(len(winners)==len(losers)==1 and losers[0].get("code")=="40001","one concurrent winner and one stale conflict")
+    winning_title=winners[0]["title"]
+    check(sql(f"SELECT count(*) FROM atlas.teaching_object_title_revisions WHERE course_id='{cid}'")=="4","one concurrent revision")
+    check(course("author","curriculum_snapshot",p_course_version_id=edition["courseVersionId"])==sealed,"concurrent title changes preserve edition")
     check(sql("SELECT (NOT has_table_privilege('authenticated','atlas.teaching_object_title_revisions','INSERT') AND NOT has_function_privilege('anon','public.shared_teaching_object_title_save_self_api_v1(uuid,uuid,uuid,integer,text,text)','EXECUTE') AND NOT has_function_privilege('service_role','public.shared_teaching_object_title_save_self_api_v1(uuid,uuid,uuid,integer,text,text)','EXECUTE'))")=="t","private table/RPC ACL")
     sql(f"""INSERT INTO titus.course_authoring_access_status_events(person_entity_id,request_id,next_state,source_evidence_receipt,recorded_by_auth_user_id)
         VALUES('{person(101)}','{uid()}','revoked','fictional-title-end','{person(1)}')""")
-    denied("author","save",dict(rename,p_request_id=uid(),p_expected_revision=2,p_expected_title="Current course",p_title="Revoked edit"),"42501")
-    check(title("author","read",course_scope)["title"]=="Current course","no write on revoked grant")
+    denied("author","save",dict(rename,p_request_id=uid(),p_expected_revision=3,p_expected_title=winning_title,p_title="Revoked edit"),"42501")
+    check(title("author","read",course_scope)["title"]==winning_title,"no write on revoked grant")
     check(course("learner","catalog")["courses"][0]["courseId"]==other,"second owner unchanged")
     Path(a.output).write_text("PASS independent local signed title proof\n")
     print("PASS independent local signed title proof")
