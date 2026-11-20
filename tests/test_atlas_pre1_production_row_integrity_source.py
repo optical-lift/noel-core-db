@@ -87,6 +87,19 @@ assert "out_path.write_text(governed_sql" in release_source
 assert "psql \"$NOEL_CORE_DATABASE_URL\"" in release_source
 clone_source = (ROOT / "scripts" / "validate-production-schema-clone.sh").read_text()
 assert 'if [ "$lane" = atlas ] && [ "$version" = 20261120211526 ]' in clone_source
+# The canonical clone allocates its own 38000..60999 loopback port.
+# The exact-version guard must bind to THAT port, not a fixed default or a
+# remote-compatible connection string; candidate/source guards remain intact.
+assert 'ports=list(range(38000, 61000))' in clone_source
+assert 'port = {port}' in clone_source
+assert 'database_url="postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres"' in clone_source
+assert '[[ ! "$local_database_port" =~ ^[0-9]{5}$ ]]' in clone_source
+assert '[ "$local_database_port" -lt 38000 ]' in clone_source
+assert '[ "$local_database_port" -ge 61000 ]' in clone_source
+assert '[ "$database_url" != "postgresql://postgres:postgres@127.0.0.1:${local_database_port}/postgres" ]' in clone_source
+assert "[ \"$database_url\" != 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' ]" not in clone_source
+assert '[ "$(git hash-object "$candidate_migration")" != ac8552f35e4de14f1ae337c29cfc1c2971af1c9b ]' in clone_source
+assert '[ "$(git hash-object "$candidate_validation")" != aff86ae537a7dfbffefa4320e6d21328c32c78d7 ]' in clone_source
 assert "NOEL_CORE_DATABASE_URL=\"$database_url\"" in clone_source
 assert "GITHUB_RELEASE_SHA=0000000000000000000000000000000000000000" in clone_source
 assert 'bash scripts/release-production-migration.sh "$version"' in clone_source
