@@ -121,4 +121,134 @@ RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO ''
 AS $fn$ SELECT atlas.create_self_ledger_task_self_api_v1(p_ledger_id,p_sentence,p_execution_date,p_source_action_id); $fn$;
 REVOKE ALL ON FUNCTION public.create_self_ledger_task_self_api_v1(uuid,text,date,uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.create_self_ledger_task_self_api_v1(uuid,text,date,uuid) TO authenticated;
+-- Exact contextual authoring: reuse canonical ordinary Work, never Event checklist.
+-- A date is optional; NULL Person means signed author unless explicitly unassigned.
+CREATE FUNCTION atlas.create_contextual_ledger_work_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_occurrence_id uuid,p_sentence text,
+ p_recipient_person_id uuid,p_execution_date date,p_unassigned boolean,p_source_action_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO ''
+AS $fn$
+DECLARE actor uuid:=atlas.current_person_id_v1(); target uuid;
+ action text:='composer:'||p_source_action_id::text;
+ original uuid; intake_original uuid; direct_original uuid; link_occurrence uuid; link_count integer;
+ receipt jsonb; allocation jsonb; placement jsonb; linked jsonb;
+ work_id uuid; alloc_id uuid; plan_id uuid; intake_id uuid; review_state text;
+ new_now boolean; actual_org uuid; n integer;
+BEGIN
+ IF auth.uid() IS NULL OR actor IS NULL OR p_organization_id IS NULL OR p_ledger_id IS NULL
+ OR p_unassigned IS NULL OR p_source_action_id IS NULL OR
+ (p_unassigned AND (p_recipient_person_id IS NOT NULL OR p_execution_date IS NOT NULL))
+ THEN RAISE EXCEPTION 'Exact composer context and action required' USING ERRCODE='22023'; END IF;
+ SELECT count(*),(array_agg(x.organization_id))[1] INTO n,actual_org
+ FROM atlas.ledger_organization_participations x JOIN atlas.ledgers l ON l.id=x.ledger_id AND l.status='active'
+ JOIN ledger.ledgers nl ON nl.id=x.ledger_id AND nl.ledger_state='active' AND nl.retired_at IS NULL
+ WHERE x.ledger_id=p_ledger_id AND x.status='active' AND x.ended_at IS NULL AND x.participation_kind IN ('governing','operating');
+ IF n<>1 OR actual_org IS DISTINCT FROM p_organization_id THEN
+  RAISE EXCEPTION 'Exact operating Ledger required' USING ERRCODE='42501'; END IF;
+ IF p_occurrence_id IS NOT NULL THEN
+  PERFORM atlas.ledger_occurrence_shared_work_actor_self_v1(p_organization_id,p_ledger_id,p_occurrence_id);
+ END IF;
+ IF NOT p_unassigned THEN
+  PERFORM 1 FROM atlas.capability_root_authority_context_self_v1(p_ledger_id) c WHERE c.person_id=actor;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Exact Ledger governing authority required' USING ERRCODE='42501'; END IF;
+  target:=coalesce(p_recipient_person_id,actor);
+  IF NOT atlas.person_has_native_ledger_connection_v1(p_organization_id,p_ledger_id,target)
+  THEN RAISE EXCEPTION 'Current connected Person required' USING ERRCODE='42501'; END IF;
+ END IF;
+ -- Serialize across both existing source writers for the same logical action.
+ PERFORM pg_advisory_xact_lock(hashtextextended('atlas.contextual-composer:'||actor::text||':'||action,0));
+ SELECT i.work_item_id INTO intake_original FROM atlas.ledger_work_intakes i
+ WHERE i.submitted_by_person_id=actor AND i.source_action_id=action;
+ SELECT w.id INTO direct_original FROM atlas.work_items w
+ WHERE w.organization_id=p_organization_id AND w.stable_key='ledger-direct:'||auth.uid()::text||':'||md5(action);
+ -- A different Ledger/organization with the same direct action must not create a second original.
+ IF EXISTS(SELECT 1 FROM atlas.work_items w WHERE w.stable_key='ledger-direct:'||auth.uid()::text||':'||md5(action)
+ AND w.organization_id<>p_organization_id) OR (intake_original IS NOT NULL AND direct_original IS NOT NULL)
+ THEN RAISE EXCEPTION 'Action already belongs to another original' USING ERRCODE='23505'; END IF;
+ original:=coalesce(intake_original,direct_original);
+ IF original IS NOT NULL THEN
+  SELECT count(*),(array_agg(a.occurrence_id))[1] INTO link_count,link_occurrence
+  FROM atlas.ledger_occurrence_work_actions_v1 a
+  WHERE a.work_item_id=original AND a.actor_person_id=actor AND a.action_kind='linked' AND a.source_action_id=action;
+  IF link_count>1 OR link_occurrence IS DISTINCT FROM p_occurrence_id
+  OR (p_occurrence_id IS NOT NULL AND EXISTS(SELECT 1 FROM atlas.ledger_occurrence_work_actions_v1 a
+    WHERE a.work_item_id=original AND a.ledger_id=p_ledger_id AND a.occurrence_id=p_occurrence_id AND a.action_kind='removed'))
+  THEN RAISE EXCEPTION 'Original Event context changed' USING ERRCODE='23505'; END IF;
+ END IF;
+ IF NOT p_unassigned AND target<>actor AND p_execution_date IS NOT NULL THEN
+  IF intake_original IS NOT NULL THEN RAISE EXCEPTION 'Different original operation' USING ERRCODE='23505'; END IF;
+  receipt:=atlas.connected_ledger_direct_assign_self_api_v1(p_ledger_id,target,p_sentence,p_execution_date,action);
+  work_id:=(receipt->>'workItemId')::uuid;alloc_id:=(receipt->>'allocationId')::uuid;plan_id:=(receipt->>'planId')::uuid;
+  IF receipt->>'ok' IS DISTINCT FROM 'true' OR work_id IS NULL OR alloc_id IS NULL OR plan_id IS NULL
+  THEN RAISE EXCEPTION 'Dated original not confirmed' USING ERRCODE='PT409'; END IF;
+  review_state:='accepted_for_ledger';
+ ELSE
+  IF direct_original IS NOT NULL THEN RAISE EXCEPTION 'Different original operation' USING ERRCODE='23505'; END IF;
+  receipt:=atlas.record_ledger_work_self_api_v2(p_ledger_id,p_sentence,p_execution_date,action);
+  work_id:=(receipt->>'workItemId')::uuid;intake_id:=(receipt->>'intakeId')::uuid;
+  review_state:=receipt->>'reviewState';new_now:=receipt->>'createdNow'='true';
+  IF receipt->>'ok' IS DISTINCT FROM 'true' OR work_id IS NULL OR intake_id IS NULL
+  THEN RAISE EXCEPTION 'Original intake not confirmed' USING ERRCODE='PT409'; END IF;
+  IF NOT p_unassigned THEN
+   IF review_state IS DISTINCT FROM 'accepted_for_ledger'
+   THEN RAISE EXCEPTION 'Accepted original required' USING ERRCODE='42501'; END IF;
+   -- Do not turn a prior explicit unassigned submission into a different action.
+   IF NOT new_now AND NOT EXISTS(SELECT 1 FROM atlas.work_allocations a WHERE a.work_item_id=work_id
+     AND a.metadata->>'source'='native_ledger_intake_responsibility_v1'
+     AND a.establishment_basis->>'sourceActionId'=p_source_action_id::text)
+   THEN RAISE EXCEPTION 'Prior action was unassigned' USING ERRCODE='23505'; END IF;
+   allocation:=atlas.work_focus_owner_reassign_direct_self_api_v1(p_organization_id,p_ledger_id,work_id,NULL,target,
+    'Author selected responsibility in the notebook.',p_source_action_id);
+   alloc_id:=(allocation->>'newAllocationId')::uuid;
+   IF allocation->>'ok' IS DISTINCT FROM 'true' OR alloc_id IS NULL
+    OR allocation->>'currentResponsiblePersonId' IS DISTINCT FROM target::text
+   THEN RAISE EXCEPTION 'Original responsibility not confirmed' USING ERRCODE='PT409'; END IF;
+   IF p_execution_date IS NOT NULL THEN
+    IF target IS DISTINCT FROM actor THEN RAISE EXCEPTION 'Exact self placement required' USING ERRCODE='42501'; END IF;
+    IF new_now THEN
+     placement:=atlas.connected_person_place_work_self_api_v1(work_id,p_execution_date,'Author selected work day in the notebook.');
+     IF placement->>'ok' IS DISTINCT FROM 'true' OR placement->>'executionDate' IS DISTINCT FROM p_execution_date::text
+     THEN RAISE EXCEPTION 'Original placement not confirmed' USING ERRCODE='PT409'; END IF;
+    END IF;
+    SELECT id INTO plan_id FROM atlas.work_execution_plans WHERE work_item_id=work_id AND responsible_allocation_id=alloc_id
+     AND plan_state='active' AND planned_service_date=p_execution_date AND exposure_service_date=p_execution_date;
+    IF plan_id IS NULL THEN RAISE EXCEPTION 'Original plan changed' USING ERRCODE='PT409'; END IF;
+   END IF;
+  ELSE
+   IF EXISTS(SELECT 1 FROM atlas.work_allocations a WHERE a.work_item_id=work_id AND a.allocation_role='responsible')
+   THEN RAISE EXCEPTION 'Original responsibility changed' USING ERRCODE='PT409'; END IF;
+  END IF;
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM atlas.work_items w WHERE w.id=work_id AND w.organization_id=p_organization_id
+   AND w.work_state='open' AND w.title=btrim(p_sentence))
+ OR (NOT p_unassigned AND NOT EXISTS(SELECT 1 FROM atlas.work_allocations a
+   WHERE a.id=alloc_id AND a.work_item_id=work_id AND a.state='active' AND a.allocation_role='responsible'
+    AND a.assignee_canonical_person_id=target))
+ OR (p_execution_date IS NOT NULL AND NOT EXISTS(SELECT 1 FROM atlas.work_execution_plans p
+   WHERE p.id=plan_id AND p.work_item_id=work_id AND p.responsible_allocation_id=alloc_id
+    AND p.plan_state='active' AND p.planned_service_date=p_execution_date AND p.exposure_service_date=p_execution_date))
+ OR (p_execution_date IS NULL AND EXISTS(SELECT 1 FROM atlas.work_execution_plans p
+   WHERE p.work_item_id=work_id AND p.plan_state IN ('active','needs_replan')))
+ THEN RAISE EXCEPTION 'Original Work changed; reopen it' USING ERRCODE='PT409'; END IF;
+ IF p_occurrence_id IS NOT NULL THEN
+  linked:=atlas.link_existing_ledger_event_work_self_api_v1(p_organization_id,p_ledger_id,p_occurrence_id,work_id,action);
+  IF linked->>'ok' IS DISTINCT FROM 'true' OR linked->>'workItemId' IS DISTINCT FROM work_id::text
+  THEN RAISE EXCEPTION 'Event context not confirmed' USING ERRCODE='PT409'; END IF;
+ END IF;
+ RETURN jsonb_build_object('ok',true,'contractVersion','contextual_ledger_work_creation_v1',
+ 'organizationId',p_organization_id,'ledgerId',p_ledger_id,'occurrenceId',p_occurrence_id,
+ 'workItemId',work_id,'intakeId',intake_id,'allocationId',alloc_id,'planId',plan_id,
+ 'responsiblePersonId',target,'executionDate',p_execution_date,'reviewState',review_state,
+ 'newPersonalTaskCreated',false,'oneCanonicalWorkIdentity',true);
+END
+$fn$;
+REVOKE ALL ON FUNCTION atlas.create_contextual_ledger_work_self_api_v1(uuid,uuid,uuid,text,uuid,date,boolean,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION atlas.create_contextual_ledger_work_self_api_v1(uuid,uuid,uuid,text,uuid,date,boolean,uuid) TO authenticated;
+CREATE FUNCTION public.create_contextual_ledger_work_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_occurrence_id uuid,p_sentence text,
+ p_recipient_person_id uuid,p_execution_date date,p_unassigned boolean,p_source_action_id uuid)
+RETURNS jsonb LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path TO ''
+AS $fn$ SELECT atlas.create_contextual_ledger_work_self_api_v1($1,$2,$3,$4,$5,$6,$7,$8); $fn$;
+REVOKE ALL ON FUNCTION public.create_contextual_ledger_work_self_api_v1(uuid,uuid,uuid,text,uuid,date,boolean,uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.create_contextual_ledger_work_self_api_v1(uuid,uuid,uuid,text,uuid,date,boolean,uuid) TO authenticated;
 COMMIT;
