@@ -27,6 +27,13 @@ jobs:
       - name: Verify static custody boundaries
         run: bash scripts/check-custody.sh
 
+      - name: Verify offline development package admission contracts
+        if: github.event_name == 'pull_request' || github.event_name == 'push'
+        run: |
+          node --version
+          git --version
+          node --test tests/development-candidate-admission-v1.test.mjs tests/development-candidate-git-observation-v1.test.mjs tests/development-owner-clone-request-v1.test.mjs
+
       - name: Reject new employee/consultant Person admission paths
         run: |
           python3 -m unittest discover -s tests -p 'test_universal_person_authority.py'
