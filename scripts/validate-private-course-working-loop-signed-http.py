@@ -40,6 +40,15 @@ def main():
     sql = lambda statement: auth.sql(args.db_url, statement)
     check(sql("SELECT current_setting('server_version_num')::int/10000") == "17", "PG17 required")
     check(sql("SELECT NOT EXISTS(SELECT 1 FROM auth.users) AND NOT EXISTS(SELECT 1 FROM atlas.teaching_courses) AND NOT EXISTS(SELECT 1 FROM atlas.delegated_agent_authorizations)") == "t", "schema-only fixture required")
+    # A production schema dump has no command registry rows. Recreate only the
+    # exact already-released command definition for this local fictional test;
+    # never infer grant authority from the SQL function's mere existence.
+    check(sql("SELECT count(*) FROM atlas.agent_command_definitions WHERE command_key='teaching.course.authoring.save_draft'") == "0", "no inherited command fixture")
+    sql("""INSERT INTO atlas.agent_command_definitions(command_key,command_version,label,scope_kind,execution_class,
+      confirmation_requirement,handler_key,status,input_contract,target_contract)
+      VALUES('teaching.course.authoring.save_draft',1,'Save private Course working draft','personal','commit',
+      'none','teaching.course.authoring.save_draft.v1','active',
+      '{"contractVersion":"titus_course_authoring_proposal_v1","maxItems":12}'::jsonb,'{"kind":"teaching_course"}'::jsonb)""")
     for name, n in (("course-owner", 1), ("course-outsider", 2)):
         user, entity = person(n), person(n + 100)
         email = f"atlas-c1-{name}@example.invalid"
