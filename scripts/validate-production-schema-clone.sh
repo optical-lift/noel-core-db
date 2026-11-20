@@ -173,6 +173,7 @@ signed_native_work_release_probe=false
 signed_personal_task_amendment_probe=false
 signed_personal_task_progress_probe=false
 signed_personal_connected_assignment_probe=false
+signed_personal_optional_date_probe=false
 signed_titus_object_title_probe=false
 signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
@@ -370,6 +371,25 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_personal_connected_assignment_probe=true
+fi
+
+# Exact held optional date, admitted solely by the protected
+# owner request. Never execute a candidate-selected unpinned probe.
+personal_optional_date_proof="$repo_root/candidates/atlas/atlas_personal_optional_date_v1/validate_signed_optional_date.py"
+if [ "$lane" = "atlas" ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_personal_optional_date_clone_only_v1[.]sql$ ]]; then
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$personal_optional_date_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 51755751dace74d6a5d9361b18fade89dcb2693c ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 01d36beb7116e7fd7c27c89e9d5dfb2c9d6a3f9f ] ||
+     [ "$(git hash-object "$candidate_validation")" != 0b3b81094c9aed20f193b0c63290aa3ebd6fa021 ] ||
+     [ "$(git hash-object "$personal_optional_date_proof")" != 3b6aca3d427b62a0139d870b985ee1057ab5821d ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ]; then
+    echo "Held optional date needs exact reviewed migration, fixture, postconditions and signed local probe." >&2
+    exit 2
+  fi
+  signed_personal_optional_date_probe=true
 fi
 
 # Exact signed personal task amendment requires a fictional disposable clone.
@@ -1530,6 +1550,16 @@ if [ "$signed_personal_connected_assignment_probe" = true ]; then
     >"$artifacts_dir/signed-compact-composer-creation.log" 2>&1
   test -s "$artifacts_dir/signed-compact-composer-creation-summary.txt"
   grep -q '^PASS' "$artifacts_dir/signed-compact-composer-creation-summary.txt"
+fi
+
+if [ "$signed_personal_optional_date_probe" = true ]; then
+  phase="signed optional date on exact Personal originals"
+  python3 "$personal_optional_date_proof" \
+    --db-url "$database_url" \
+    --output "$artifacts_dir/signed-personal-optional-date-summary.txt" \
+    >"$artifacts_dir/signed-personal-optional-date.log" 2>&1
+  test -s "$artifacts_dir/signed-personal-optional-date-summary.txt"
+  grep -q '^PASS' "$artifacts_dir/signed-personal-optional-date-summary.txt"
 fi
 
 if [ "$signed_personal_task_amendment_probe" = true ]; then
