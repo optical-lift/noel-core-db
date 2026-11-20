@@ -4,7 +4,7 @@ import {execFileSync} from "node:child_process";
 import {mkdtempSync,mkdirSync,writeFileSync,symlinkSync,rmSync,readFileSync,readdirSync,statSync,realpathSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join,dirname} from "node:path";
-import {packageDigest,verifyReviewedPackage} from "../scripts/development-candidate-git-observation-v1.mjs";
+import {canonicalPackageJSON,packageDigest,verifyReviewedPackage} from "../scripts/development-candidate-git-observation-v1.mjs";
 
 import {verifyOwnerClonePackage,stageOwnerClonePackage} from "../scripts/development-owner-clone-request-v1.mjs";
 
@@ -60,24 +60,24 @@ function ownerEvent(manifest,binding) {
   const repo="optical-lift/noel-core-db",owner="optical-lift",owner_id=290109753,repository_id=1346595523;
   const person={login:owner,id:owner_id};
   const context={event_name:"issues",ref:"refs/heads/main",repository:repo,repository_id,owner,owner_id,actor:owner,actor_id:owner_id,triggering_actor:owner,controller_sha:binding.controller_sha,workflow_ref:repo+"/.github/workflows/production-schema-clone-validation.yml@refs/heads/main"};
-  const event={action:"opened",repository:{full_name:repo,id:repository_id,owner:{...person}},sender:{...person},issue:{state:"open",user:{...person},author_association:"OWNER",number:42,id:9001,title:"Production schema validation request: package "+manifest.scope,body:["diagnostic_scope: "+manifest.scope,"release_lane: "+manifest.lane,"production_target: zirqkouammpwxlqfbsvf","candidate_sha: "+binding.candidate_sha,"controller_sha: "+binding.controller_sha,"package_sha256: "+binding.package_sha256].join("\n")}};
+  const event={action:"opened",repository:{full_name:repo,id:repository_id,owner:{...person}},sender:{...person},issue:{state:"open",user:{...person},author_association:"OWNER",number:42,id:9001,title:"Production schema validation request: package "+manifest.scope,body:["diagnostic_scope: "+manifest.scope,"release_lane: "+manifest.lane,"production_target: zirqkouammpwxlqfbsvf","candidate_sha: "+binding.candidate_sha,"controller_sha: "+binding.controller_sha,"package_sha256: "+binding.package_sha256,"manifest_json: "+canonicalPackageJSON(manifest)].join("\n")}};
   return {context,event};
 }
 test("synthetic owner event through independent actual Git reader",t=>{
   const {manifest,binding,repositories}=fixture(t),{context,event}=ownerEvent(manifest,binding);
-  const result=verifyOwnerClonePackage(event,context,manifest,repositories);
+  const result=verifyOwnerClonePackage(event,context,repositories);
   assert.equal(result.status,"owner_and_source_binding_matched_only");
   assert.equal(result.execution_authorized,false);assert.equal(result.release_authorized,false);
 });
 test("reject manifest substitution despite valid original owner event",t=>{
   const {manifest,binding,repositories}=fixture(t),{context,event}=ownerEvent(manifest,binding);
-  manifest.assets[0].blob="a".repeat(40);
-  assert.throws(()=>verifyOwnerClonePackage(event,context,manifest,repositories),/binding mismatch/);
+  event.issue.body=event.issue.body.replace(manifest.assets[0].blob,"a".repeat(40));
+  assert.throws(()=>verifyOwnerClonePackage(event,context,repositories),/owner clone request refused/);
 });
 test("reject event before touching Git when source repository is unavailable",t=>{
   const {manifest,binding}=fixture(t),{context,event}=ownerEvent(manifest,binding);
   event.sender.login="outsider";
-  assert.throws(()=>verifyOwnerClonePackage(event,context,manifest,undefined),/owner clone request refused/);
+  assert.throws(()=>verifyOwnerClonePackage(event,context,undefined),/owner clone request refused/);
 });
 
 function stagingParent(t) {
@@ -87,7 +87,7 @@ test("stage only immutable admitted bytes privately, never overwrite source or e
   const {manifest,binding,repositories}=fixture(t),{context,event}=ownerEvent(manifest,binding),parent=stagingParent(t);
   writeFileSync(join(repositories.candidate,manifest.assets[0].path),"uncommitted substitution");
   writeFileSync(join(repositories.candidate,"not-admitted.py"),"raise RuntimeError('never stage')");
-  const result=stageOwnerClonePackage(event,context,manifest,repositories,parent);
+  const result=stageOwnerClonePackage(event,context,repositories,parent);
   assert.equal(result.request.status,"owner_and_source_binding_matched_only");
   assert.equal(result.execution_authorized,false);assert.equal(result.release_authorized,false);
   assert.equal(result.files.length,5);assert.equal(statSync(result.root).mode&0o777,0o700);
@@ -96,23 +96,23 @@ test("stage only immutable admitted bytes privately, never overwrite source or e
   assert.deepEqual(readdirSync(result.root).sort(),["candidate","controller"]);
   assert.deepEqual(readdirSync(join(result.root,"candidate","candidates","atlas")).sort(),["candidate.sql","fixture.sql","probe.py"]);
   assert.equal(readFileSync(join(repositories.candidate,manifest.assets[0].path),"utf8"),"uncommitted substitution");
-  const next=stageOwnerClonePackage(event,context,manifest,repositories,parent);assert.notEqual(result.root,next.root);
+  const next=stageOwnerClonePackage(event,context,repositories,parent);assert.notEqual(result.root,next.root);
 });
 test("no staging occurs for substituted bytes even with newly matched digest",t=>{
   const x=fixture(t),parent=stagingParent(t);x.manifest.assets[0].blob="1".repeat(40);
   const {context,event}=ownerEvent(x.manifest,x.bind());
-  assert.throws(()=>stageOwnerClonePackage(event,context,x.manifest,x.repositories,parent),/source mismatch/);
+  assert.throws(()=>stageOwnerClonePackage(event,context,x.repositories,parent),/source mismatch/);
   assert.deepEqual(readdirSync(parent),[]);
 });
 test("no staging occurs for valid digest but unapproved scope",t=>{
   const x=fixture(t),parent=stagingParent(t),{context,event}=ownerEvent(x.manifest,x.binding);
-  x.manifest.scope="atlas_other_clone_only_v1";
-  assert.throws(()=>stageOwnerClonePackage(event,context,x.manifest,x.repositories,parent),/refused/);
+  event.issue.body=event.issue.body.replace('"scope":"atlas_fixture_clone_only_v1"','"scope":"atlas_other_clone_only_v1"');
+  assert.throws(()=>stageOwnerClonePackage(event,context,x.repositories,parent),/refused/);
   assert.deepEqual(readdirSync(parent),[]);
 });
 test("refuses symbolic-link staging parent",t=>{
   const x=fixture(t),parent=stagingParent(t),{context,event}=ownerEvent(x.manifest,x.binding);
   const target=join(parent,"target"),link=join(parent,"link");mkdirSync(target);symlinkSync(target,link);
-  assert.throws(()=>stageOwnerClonePackage(event,context,x.manifest,x.repositories,link),/real staging parent/);
+  assert.throws(()=>stageOwnerClonePackage(event,context,x.repositories,link),/real staging parent/);
   assert.deepEqual(readdirSync(target),[]);
 });
