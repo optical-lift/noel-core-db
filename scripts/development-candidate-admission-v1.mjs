@@ -5,7 +5,7 @@ export function inspectCandidatePackage(manifest, observed) {
   // This is an offline identity check, not authorization or a test/release receipt.
   const fail = message => { throw new Error(message); };
   const keys = (value, expected) => value !== null && typeof value === "object" &&
-    !Array.isArray(value) && Object.keys(value).sort().join("|") === [...expected].sort().join("|");
+    !Array.isArray(value) && Object.keys(value).length === expected.length && expected.every(k => Object.hasOwn(value,k));
   const sha = value => typeof value === "string" && /^[0-9a-f]{40}$/.test(value);
   const lanes = ["atlas","titus","wnph","noel","shared"];
   const roles = ["migration","fixture","postconditions","signed_probe","trusted_helper"];
