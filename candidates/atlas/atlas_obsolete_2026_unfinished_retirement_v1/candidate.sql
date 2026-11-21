@@ -5,6 +5,10 @@
 -- shared Rulebook/release policy. It retires old schedule authority only.
 --
 -- Read-only production inventory (2026-11-21):
+-- Two released original Task-backed occurrences are deliberately allowed
+-- to retire through their existing terminal-Task trigger. All other historical
+-- source rows remain unchanged, and the 64 old planned/eligible are cancelled
+-- directly. The operation never attests to physical completion.
 -- 97 historical queue rows, exactly seven historical queue keys;
 -- 64 queued-linked occurrences planned(62)/eligible(2), none with a
 -- released_task_id, current canonical Work or active adapters/children;
@@ -24,6 +28,13 @@ SET LOCAL statement_timeout = '90s';
 DO $historical_retirement$
 DECLARE
     v_occ_ids uuid[];
+    -- Two original released occurrences will be cancelled by the existing
+    -- Task-terminal trigger when their old execution Tasks are archived.
+    v_released_occ_ids uuid[] := ARRAY[
+      '5d6123f4-ba5d-43c6-9185-816143bcc754'::uuid,
+      '70909d03-21f8-4d22-975c-bff8a428f8be'::uuid
+    ];
+    v_guarded_occ_ids uuid[];
     v_queue_ids uuid[];
     v_task_ids uuid[] := ARRAY[
       'e05f3870-7c74-47d5-9998-483aa238f115'::uuid,
@@ -40,9 +51,6 @@ DECLARE
     v_requirements_fp text;
     v_unaffected_tasks_fp text;
     v_unaffected_occ_fp text;
-    v_other_occ_before jsonb;
-    v_other_occ_changed integer;
-    v_other_occ_changed_fields text;
     v_unaffected_queue_fp text;
     v_changed integer;
 BEGIN
@@ -79,6 +87,18 @@ BEGIN
       RAISE EXCEPTION 'Unexpected 2026 unfinished occurrence/queue count; stop';
     END IF;
 
+    -- No new Work source is inferred. Explicitly include only the two
+    -- genuine release-linked source IDs, never arbitrary trigger effects.
+    SELECT array_agg(source_id ORDER BY source_id) INTO v_guarded_occ_ids
+    FROM (
+      SELECT unnest(v_occ_ids) AS source_id
+      UNION
+      SELECT unnest(v_released_occ_ids) AS source_id
+    ) allowlisted;
+    IF coalesce(array_length(v_guarded_occ_ids,1),0) <> 66 THEN
+      RAISE EXCEPTION 'Expected 64 old scheduled plus two released source occurrence identities';
+    END IF;
+
     SELECT md5(string_agg(o.id::text||':'||o.state, '|' ORDER BY o.id::text))
       INTO v_occ_fp
     FROM atlas.planned_work_occurrences o
@@ -111,13 +131,32 @@ BEGIN
       RAISE EXCEPTION 'Three original source-identified historical Tasks changed';
     END IF;
 
+    -- Confirm the original three Task/occurrence links, including
+    -- two released originals and the one queued original Task with a
+    -- still-planned source occurrence. This is source identity, not Results.
+    IF (
+      SELECT count(*) FROM (
+        VALUES
+        ('e05f3870-7c74-47d5-9998-483aa238f115'::uuid,'5d6123f4-ba5d-43c6-9185-816143bcc754'::uuid,'released'::text),
+        ('d1bb49af-667f-47e6-b03b-06d75c6e93e6'::uuid,'70909d03-21f8-4d22-975c-bff8a428f8be'::uuid,'released'::text),
+        ('63ade0e9-28bc-4543-805f-d2c82d678315'::uuid,'71ef03fa-36ff-4a54-bdad-dfe5336014c9'::uuid,'planned'::text)
+      ) AS expected(task_id,occ_id,before_state)
+      JOIN atlas.tasks t ON t.id=expected.task_id AND t.planned_occurrence_id=expected.occ_id
+      JOIN atlas.planned_work_occurrences o ON o.id=expected.occ_id AND o.state=expected.before_state
+      JOIN atlas.task_release_queue_items q ON q.task_id=t.id AND q.planned_occurrence_id=o.id
+      WHERE (expected.before_state='released' AND o.released_task_id=t.id)
+         OR (expected.before_state='planned' AND o.released_task_id IS NULL)
+    ) <> 3 THEN
+      RAISE EXCEPTION 'Exact historical Task/occurrence released links drifted; stop';
+    END IF;
+
     IF EXISTS (
          SELECT 1 FROM atlas.planned_work_occurrences o
          WHERE o.id=ANY(v_occ_ids) AND o.released_task_id IS NOT NULL
        )
        OR EXISTS (
          SELECT 1 FROM atlas.planned_work_occurrences ch
-         WHERE ch.parent_occurrence_id=ANY(v_occ_ids)
+         WHERE ch.parent_occurrence_id=ANY(v_guarded_occ_ids)
            AND ch.state NOT IN ('completed','cancelled')
        )
        OR EXISTS (
@@ -131,12 +170,12 @@ BEGIN
          SELECT 1 FROM atlas.work_execution_adapters a
          WHERE a.state='active'
            AND (a.task_id=ANY(v_task_ids)
-                OR a.planned_occurrence_id=ANY(v_occ_ids))
+                OR a.planned_occurrence_id=ANY(v_guarded_occ_ids))
        )
        OR EXISTS (
          SELECT 1 FROM atlas.work_items w
          WHERE w.source_object_id=ANY(v_task_ids)
-            OR w.source_object_id=ANY(v_occ_ids)
+            OR w.source_object_id=ANY(v_guarded_occ_ids)
        ) THEN
       RAISE EXCEPTION 'Current Work, Task, or child evidence changed; stop';
     END IF;
@@ -156,15 +195,10 @@ BEGIN
       FROM atlas.tasks t WHERE NOT (t.id=ANY(v_task_ids));
     SELECT md5(string_agg(to_jsonb(o)::text, E'\\n' ORDER BY o.id::text))
       INTO v_unaffected_occ_fp
-      FROM atlas.planned_work_occurrences o WHERE NOT (o.id=ANY(v_occ_ids));
+      FROM atlas.planned_work_occurrences o WHERE NOT (o.id=ANY(v_guarded_occ_ids));
     SELECT md5(string_agg(to_jsonb(q)::text, E'\\n' ORDER BY q.id::text))
       INTO v_unaffected_queue_fp
       FROM atlas.task_release_queue_items q WHERE NOT (q.id=ANY(v_queue_ids));
-
-    SELECT coalesce(jsonb_object_agg(o.id::text,to_jsonb(o)),'{}'::jsonb)
-      INTO v_other_occ_before
-      FROM atlas.planned_work_occurrences o
-      WHERE NOT (o.id=ANY(v_occ_ids));
 
     -- Withdraw schedule authority only. No completed_at, Result or crop
     -- observation is generated. The physical Field Row 9 crop remains real.
@@ -176,14 +210,6 @@ BEGIN
       RAISE EXCEPTION 'Expected 64 exact occurrence withdrawals, got %',v_changed;
     END IF;
 
-    -- Local protected clone diagnostic only: number of non-target
-    -- occurrence rows changed; no IDs, values, metadata or fingerprints.
-    SELECT count(*)::integer INTO v_other_occ_changed
-    FROM atlas.planned_work_occurrences o
-    WHERE NOT (o.id=ANY(v_occ_ids))
-      AND v_other_occ_before->(o.id::text) IS DISTINCT FROM to_jsonb(o);
-    RAISE NOTICE 'retirement non-target occurrence changes after occurrence cancellation: %', v_other_occ_changed;
-
     -- Archive three historical owner-adjudicated items; never mark 'done'.
     UPDATE atlas.tasks t
        SET status='archived', completed_at=NULL, updated_at=now()
@@ -192,14 +218,6 @@ BEGIN
     IF v_changed <> 3 THEN
       RAISE EXCEPTION 'Expected three exact Task archives, got %',v_changed;
     END IF;
-
-    -- Local protected clone diagnostic only: number of non-target
-    -- occurrence rows changed; no IDs, values, metadata or fingerprints.
-    SELECT count(*)::integer INTO v_other_occ_changed
-    FROM atlas.planned_work_occurrences o
-    WHERE NOT (o.id=ANY(v_occ_ids))
-      AND v_other_occ_before->(o.id::text) IS DISTINCT FROM to_jsonb(o);
-    RAISE NOTICE 'retirement non-target occurrence changes after three Task archives: %', v_other_occ_changed;
 
     -- Stop remaining historical queue pointers being offered as unfinished.
     -- Existing completed/skipped queue states and completed Task records stay.
@@ -211,19 +229,17 @@ BEGIN
       RAISE EXCEPTION 'Expected 75 exact historical queue withdrawals, got %',v_changed;
     END IF;
 
-    -- Local protected clone diagnostic only: number of non-target
-    -- occurrence rows changed; no IDs, values, metadata or fingerprints.
-    SELECT count(*)::integer INTO v_other_occ_changed
-    FROM atlas.planned_work_occurrences o
-    WHERE NOT (o.id=ANY(v_occ_ids))
-      AND v_other_occ_before->(o.id::text) IS DISTINCT FROM to_jsonb(o);
-    RAISE NOTICE 'retirement non-target occurrence changes after queue pointer skips: %', v_other_occ_changed;
-
     IF (SELECT count(*) FROM atlas.task_release_queue_items) <> v_before_queue_count
        OR (SELECT count(*) FROM atlas.planned_work_occurrences) <> v_before_occ_count
        OR (SELECT count(*) FROM atlas.tasks) <> v_before_task_count
        OR (SELECT count(*) FROM atlas.planned_work_occurrences o
            WHERE o.id=ANY(v_occ_ids) AND o.state='cancelled') <> 64
+       OR (SELECT count(*) FROM atlas.planned_work_occurrences o
+           JOIN atlas.tasks t ON t.id=o.released_task_id
+           WHERE o.id=ANY(v_released_occ_ids)
+             AND o.state='cancelled' AND t.status='archived'
+             AND o.metadata->>'terminal_task_status'='archived'
+             AND o.metadata->>'terminal_task_id'=t.id::text) <> 2
        OR (SELECT count(*) FROM atlas.tasks t
            WHERE t.id=ANY(v_task_ids) AND t.status='archived'
              AND t.completed_at IS NULL) <> 3
@@ -250,35 +266,12 @@ BEGIN
            FROM atlas.tasks t WHERE NOT(t.id=ANY(v_task_ids)))
             IS DISTINCT FROM v_unaffected_tasks_fp
        OR (SELECT md5(string_agg(to_jsonb(o)::text, E'\\n' ORDER BY o.id::text))
-           FROM atlas.planned_work_occurrences o WHERE NOT(o.id=ANY(v_occ_ids)))
+           FROM atlas.planned_work_occurrences o WHERE NOT(o.id=ANY(v_guarded_occ_ids)))
             IS DISTINCT FROM v_unaffected_occ_fp
        OR (SELECT md5(string_agg(to_jsonb(q)::text, E'\\n' ORDER BY q.id::text))
            FROM atlas.task_release_queue_items q WHERE NOT(q.id=ANY(v_queue_ids)))
             IS DISTINCT FROM v_unaffected_queue_fp THEN
-
-      SELECT string_agg(DISTINCT changed_field.field_name, ',' ORDER BY changed_field.field_name)
-        INTO v_other_occ_changed_fields
-        FROM atlas.planned_work_occurrences o
-        CROSS JOIN LATERAL jsonb_object_keys(to_jsonb(o)) AS changed_field(field_name)
-        WHERE NOT (o.id=ANY(v_occ_ids))
-          AND v_other_occ_before->(o.id::text) IS DISTINCT FROM to_jsonb(o)
-          AND v_other_occ_before->(o.id::text)->changed_field.field_name
-              IS DISTINCT FROM to_jsonb(o)->changed_field.field_name;
-      RAISE NOTICE 'Non-target occurrence changed columns only: %',coalesce(v_other_occ_changed_fields,'(none)');
-      RAISE EXCEPTION 'Untargeted history or canonical Work changed; rollback; work=%, requirements=%, other_tasks=%, other_occ=%, other_queue=%',
-        (SELECT md5(string_agg(to_jsonb(w)::text, E'\\n' ORDER BY w.id::text))
-           IS DISTINCT FROM v_work_fp FROM atlas.work_items w),
-        (SELECT md5(string_agg(to_jsonb(r)::text, E'\\n' ORDER BY r.id::text))
-           IS DISTINCT FROM v_requirements_fp FROM atlas.work_requirements r),
-        (SELECT md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY t.id::text))
-           IS DISTINCT FROM v_unaffected_tasks_fp
-           FROM atlas.tasks t WHERE NOT (t.id=ANY(v_task_ids))),
-        (SELECT md5(string_agg(to_jsonb(o)::text, E'\\n' ORDER BY o.id::text))
-           IS DISTINCT FROM v_unaffected_occ_fp
-           FROM atlas.planned_work_occurrences o WHERE NOT (o.id=ANY(v_occ_ids))),
-        (SELECT md5(string_agg(to_jsonb(q)::text, E'\\n' ORDER BY q.id::text))
-           IS DISTINCT FROM v_unaffected_queue_fp
-           FROM atlas.task_release_queue_items q WHERE NOT (q.id=ANY(v_queue_ids)));
+      RAISE EXCEPTION 'Untargeted history or canonical Work changed; rollback';
     END IF;
 
     RAISE NOTICE 'Source-guarded withdrawal: 64 old occurrences cancelled, 3 legacy Tasks archived, 75 queue pointers skipped; unrelated Work and historic rows intact.';
