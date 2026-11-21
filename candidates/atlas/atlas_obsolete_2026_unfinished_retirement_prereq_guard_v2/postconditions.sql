@@ -64,10 +64,22 @@ BEGIN
         WHERE trg.tgrelid='atlas.tasks'::regclass
         AND trg.tgname='tasks_reconcile_prerequisite_dependents_v1'
         AND trg.tgenabled='O'
-     ) THEN
-    RAISE EXCEPTION 'Source-positive prerequisite / trigger custody was changed; rollback';
+     )
+     OR NOT EXISTS (
+       SELECT 1 FROM pg_catalog.pg_trigger trg
+       WHERE trg.tgrelid='atlas.tasks'::regclass
+         AND trg.tgname='tasks_goal_recalculate_v1'
+         AND trg.tgenabled='O'
+     )
+     OR (SELECT count(*) FROM atlas.goals g
+         WHERE g.farm_id='f9200000-0000-4000-8000-000000000002'::uuid
+           AND g.active) <> 4
+     OR (SELECT count(*) FROM atlas.goal_evaluations e
+         WHERE e.farm_id='f9200000-0000-4000-8000-000000000002'::uuid) <> 4
+     THEN
+    RAISE EXCEPTION 'Source-positive prerequisites, Goals or trigger custody changed; rollback';
   END IF;
-  RAISE NOTICE 'PASS exact 2 active unsatisfied prerequisites preserved and normal trigger fully restored.';
+  RAISE NOTICE 'PASS 2 unsatisfied prerequisites and 4 active Goal evaluations preserved, both normal triggers fully restored.';
   RAISE NOTICE 'PASS disposable 97-row legacy queue: 0 open pointers, 0 unfinished linked occurrences, 0 linked open historical Tasks, 3 archived without Done; canonical Work remains.';
 END
 $held_retirement_post$;
