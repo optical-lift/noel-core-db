@@ -7,6 +7,7 @@ DECLARE
   v_unfinished_occ integer;
   v_linked_open_tasks integer;
   v_archived_tasks integer;
+  v_terminal_released_occ integer;
   v_work_count integer;
   v_requirement_count integer;
 BEGIN
@@ -29,10 +30,21 @@ BEGIN
     '63ade0e9-28bc-4543-805f-d2c82d678315'::uuid
   )
   AND t.status='archived' AND t.completed_at IS NULL;
+  SELECT count(*) INTO v_terminal_released_occ
+  FROM atlas.planned_work_occurrences o
+  JOIN atlas.tasks t ON t.id=o.released_task_id
+  WHERE o.id IN (
+    '5d6123f4-ba5d-43c6-9185-816143bcc754'::uuid,
+    '70909d03-21f8-4d22-975c-bff8a428f8be'::uuid
+  )
+  AND o.state='cancelled'
+  AND o.metadata->>'terminal_task_status'='archived'
+  AND o.metadata->>'terminal_task_id'=t.id::text
+  AND t.status='archived' AND t.completed_at IS NULL;
   SELECT count(*) INTO v_work_count FROM atlas.work_items;
   SELECT count(*) INTO v_requirement_count FROM atlas.work_requirements;
   IF v_queue_count<>97 OR v_active_queue<>0 OR v_unfinished_occ<>0
-     OR v_linked_open_tasks<>0 OR v_archived_tasks<>3
+     OR v_linked_open_tasks<>0 OR v_archived_tasks<>3 OR v_terminal_released_occ<>2
      OR v_work_count=0 THEN
     RAISE EXCEPTION 'Historical unfinished clone retirement failed: source or Work postconditions';
   END IF;
