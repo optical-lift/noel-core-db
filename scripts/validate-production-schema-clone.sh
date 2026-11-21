@@ -229,7 +229,7 @@ fi
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != d2c4e0039d5db685a1901c6458bd83107a17dc40 ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 1b204350f8225e4a6e47c78de35c18a73bb92691 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != dfb675b25746adb2e928c5c5c10a27840466ef69 ] ||
      [ "$(git hash-object "$candidate_validation")" != 89eada21385c66fe34e2f9abad86a2340dd9f78f ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-obsolete-queue-retirement-row-change.py")" != 066af3e6ab7812c4c25efe992d814899aacd36f3 ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
