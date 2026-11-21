@@ -760,7 +760,7 @@ jobs:
             test "$(git hash-object "$fixture")" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
             test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
             test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
-            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243eff62be8a0cd3
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
             # Above signed C1 provenance remains independently pinned below;
             # no releaseable migration exists in candidate/supabase/migrations.
             scratch="$(mktemp -d "$RUNNER_TEMP/queue-progression-clone.XXXXXX")"
