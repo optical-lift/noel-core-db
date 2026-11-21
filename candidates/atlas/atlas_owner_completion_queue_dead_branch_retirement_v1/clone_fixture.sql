@@ -7,24 +7,21 @@
 -- This models the *aggregate* real post-cleanup state, not source identities,
 -- a physical Done, live Work, need, or user/person/permission record.
 
-DO $historical_queue_fixture_guard$
-BEGIN
-  IF (SELECT count(*) FROM atlas.task_release_queue_items)<>0
-     OR NOT EXISTS (
-       SELECT 1 FROM atlas.organizations
-       WHERE id='e5200000-0000-4000-8000-000000000801'::uuid
-     ) THEN
-    RAISE EXCEPTION 'Original signed C1 fixture or empty independent historical queue missing';
-  END IF;
-  IF EXISTS (
+-- DATA-ONLY source-positive preflight; any mismatch fails with
+-- division-by-zero inside this isolated test fixture, no procedural SQL.
+SELECT 1 / (CASE WHEN
+  (SELECT count(*) FROM atlas.task_release_queue_items)=0
+  AND EXISTS (
+    SELECT 1 FROM atlas.organizations
+    WHERE id='e5200000-0000-4000-8000-000000000801'::uuid
+  )
+  AND NOT EXISTS (
     SELECT 1 FROM pg_trigger t
     WHERE t.tgrelid='atlas.tasks'::regclass
-    AND t.tgname='advance_owner_completion_gated_queue_v1'
-    AND NOT t.tgisinternal
-  ) THEN
-    RAISE EXCEPTION 'Obsolete owner queue trigger still active in current-schema clone';
-  END IF;
-END $historical_queue_fixture_guard$;
+      AND t.tgname='advance_owner_completion_gated_queue_v1'
+      AND NOT t.tgisinternal
+  )
+  THEN 1 ELSE 0 END) AS fictional_original_c1_queue_preflight;
 
 INSERT INTO atlas.farms(id,organization_id,stable_key,name,status)
 VALUES (
@@ -47,14 +44,12 @@ SELECT
  jsonb_build_object('fixtureOnly',true,'historicalSource','fictional-no-live-ids')
 FROM generate_series(1,97) AS n;
 
-DO $historical_queue_fixture_post$
-BEGIN
- IF (SELECT count(*) FROM atlas.task_release_queue_items)<>97
-    OR (SELECT count(*) FROM atlas.task_release_queue_items WHERE state='skipped')<>82
-    OR (SELECT count(*) FROM atlas.task_release_queue_items WHERE state='completed')<>15
-    OR (SELECT count(*) FROM atlas.task_release_queue_items WHERE state IN('active','queued'))<>0
-    OR (SELECT count(*) FROM atlas.task_release_queue_items
-        WHERE task_id IS NOT NULL OR planned_occurrence_id IS NOT NULL)<>0 THEN
-   RAISE EXCEPTION 'Fictional clone-only completed/retired 97-row census mismatch';
- END IF;
-END $historical_queue_fixture_post$;
+-- DATA-ONLY positive/negative check of *fictional* historical state.
+SELECT 1 / (CASE WHEN
+  (SELECT count(*) FROM atlas.task_release_queue_items)=97
+  AND (SELECT count(*) FROM atlas.task_release_queue_items WHERE state='skipped')=82
+  AND (SELECT count(*) FROM atlas.task_release_queue_items WHERE state='completed')=15
+  AND (SELECT count(*) FROM atlas.task_release_queue_items WHERE state IN('active','queued'))=0
+  AND (SELECT count(*) FROM atlas.task_release_queue_items
+       WHERE task_id IS NOT NULL OR planned_occurrence_id IS NOT NULL)=0
+  THEN 1 ELSE 0 END) AS fictional_terminal_queue_fixture_check;
