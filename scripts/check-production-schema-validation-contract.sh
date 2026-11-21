@@ -588,6 +588,33 @@ if not (harness.index('orphan-local-row-integrity-baseline.log') <
         harness.index('phase="signed local prerequisite owner/worker authority')):
     errors.append('Orphan backfill proof must compare all rows around deletion before signed fixture mutation.')
 
+# Queue owner reconciliation: exactly one immutable test-only candidate,
+# never an arbitrary migration, mutable fixture, remote DB, or missing signer.
+for fragment in (
+  'signed_legacy_queue_owner_probe=false',
+  '[ "$version" = 20261120235959 ]',
+  '20261120235959_atlas_legacy_queue_owner_canonical_work_clone_only_v1.sql',
+  '642180e6b0538802588b99417a9402fe0f11e762',
+  '835e40d6566b9d356694e2c33edda5f4c021f6ae',
+  '19848e442641e5074a954fcd4832d8207fb38117',
+  '1be7b50c1a8171fdbcba7b4f55c543e95ceb8e12',
+  'ba2be33fa479e7d24523c10eaee3bbcf12918b3b',
+  'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+  '1b82e698705e473280f1fc55b0e762bce243effb',
+  'signed_legacy_queue_owner_probe=true',
+  'phase="genuinely signed local Ledger-owner queue evidence and original Work denial matrix"',
+  'signed-legacy-queue-owner-summary.txt',
+  'signed-legacy-queue-owner.log',
+  'Queue owner signed proof refuses nonlocal database'
+):
+    if fragment not in harness:
+        errors.append('Exact signed queue owner disposable source protection missing: '+fragment)
+if not (harness.index('phase="candidate migration postconditions"') <
+        harness.index('phase="genuinely signed local Ledger-owner queue evidence')):
+    errors.append('Queue owner signed probe must run only after candidate postconditions')
+if harness.count('signed_legacy_queue_owner_probe=true') != 1:
+    errors.append('Queue owner proof admission must have one exact source gate')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
