@@ -595,7 +595,7 @@ for fragment in (
   '[ "$version" = 20261120235959 ]',
   '20261120235959_atlas_legacy_queue_owner_canonical_work_clone_only_v1.sql',
   '0a47afde4f84b5d08baa025e2bc3f5b1db15df8a',
-  '3bfdf13588326c9335ccfd037f65f271be3c2a74',
+  'f24b3f40ecaa32df2f88cf9d9718f0011d240222',
   'c563231ca64bf07c5bdccc805e09997496e3a00b',
   '7b07b29b1968af6ae0140871413eff62be8a0cd3',
   'ba2be33fa479e7d24523c10eaee3bbcf12918b3b',
