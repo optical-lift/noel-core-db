@@ -615,6 +615,51 @@ if not (harness.index('phase="candidate migration postconditions"') <
 if harness.count('signed_legacy_queue_owner_probe=true') != 1:
     errors.append('Queue owner proof admission must have one exact source gate')
 
+# Exactly two owner-completion serial queue functions: original immutable held
+# source and disposable original PG17/full-730-table/signed C1 custody path.
+for fragment in (
+    'Production schema validation request: Atlas held owner-completion serial orphan branch',
+    'atlas_owner_completion_queue_orphan_branch_clone_only_v1',
+    'held-owner-completion-serial-orphan',
+    '98df1f8f45fb52535b3c513a3872d9ea98ba034d',
+    'a5a23c42557bf6913321689fb9853afb57ff2c0e',
+    'a3dbc4fe6f5db230ed3dbf071e514ff06487e807',
+    '6a2bd592eba7c6caac57c1974f7f88ca6ad55e4a',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
+    'Exact owner-held two-function serial orphan branch test approval required',
+):
+    if fragment not in workflow:
+        errors.append('Original held owner-completion serial orphan source admission missing: '+fragment)
+for fragment in (
+    'atlas_owner_completion_queue_orphan_branch_clone_only_v1',
+    'a5a23c42557bf6913321689fb9853afb57ff2c0e',
+    'a3dbc4fe6f5db230ed3dbf071e514ff06487e807',
+    '6a2bd592eba7c6caac57c1974f7f88ca6ad55e4a',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
+    'orphan_queue_retirement_proof=true',
+    'signed_work_prerequisite_probe=true',
+    'orphan-all-atlas-row-fingerprints.json',
+):
+    if fragment not in harness:
+        errors.append('Original protected owner-completion serial orphan signed/no-loss machinery missing: '+fragment)
+if not (
+    "if title == 'Production schema validation request: Atlas held owner-completion serial orphan branch':" in workflow
+    and 'test "$(git -C candidate rev-parse HEAD)" = "98df1f8f45fb52535b3c513a3872d9ea98ba034d"' in workflow
+    and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ ]]' in harness
+):
+    errors.append('Two-function orphan branch must be source-pinned in SAME existing protected workflow')
+if not (harness.index('phase="orphan backfill local all-Atlas-row baseline"') <
+        harness.index('phase="candidate migration application"') <
+        harness.index('orphan-local-row-integrity-after-candidate.log') <
+        harness.index('phase="signed local prerequisite owner/worker authority')):
+    errors.append('Two-function orphan must use original full-Atlas-row proof before signed C1 regression')
+
 # Six-trigger Package B subtraction: exact held SHA/source/postcondition,
 # existing production-shaped disposable clone and trusted signer, never release.
 for fragment in (

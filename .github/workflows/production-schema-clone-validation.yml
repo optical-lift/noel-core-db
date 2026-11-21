@@ -249,6 +249,19 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # HELD orphan owner-completion serial branch ONLY: test on disposable
+          # source-exact PG17 clone, never a production-release approval.
+          if title == 'Production schema validation request: Atlas held owner-completion serial orphan branch':
+              expected = {'diagnostic_scope':'atlas_owner_completion_queue_orphan_branch_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'98df1f8f45fb52535b3c513a3872d9ea98ba034d'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held two-function serial orphan branch test approval required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-owner-completion-serial-orphan\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # One immutable held queue-progression retirement, disposable clone only.
           # It does not authorize harvest cutover or physical queue/table removal.
           if title == 'Production schema validation request: Atlas held queue progression trigger retirement':
@@ -908,6 +921,39 @@ jobs:
             scratch="$(mktemp -d "$RUNNER_TEMP/queue-consumer-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_legacy_queue_live_consumer_decoupling_clone_only_v1)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Original owner-only exact held source, never a releasable migration.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-owner-completion-serial-orphan" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "98df1f8f45fb52535b3c513a3872d9ea98ba034d"
+            src="candidate/candidates/atlas/atlas_owner_completion_queue_dead_branch_retirement_v1/candidate.sql"
+            post="candidate/candidates/atlas/atlas_owner_completion_queue_dead_branch_retirement_v1/postconditions.sql"
+            fixture="candidate/candidates/atlas/atlas_owner_completion_queue_dead_branch_retirement_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = a5a23c42557bf6913321689fb9853afb57ff2c0e
+            test "$(git hash-object "$post")" = a3dbc4fe6f5db230ed3dbf071e514ff06487e807
+            test "$(git hash-object "$fixture")" = 6a2bd592eba7c6caac57c1974f7f88ca6ad55e4a
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test ! -e "candidate/supabase/migrations/held-owner-completion-serial-orphan.sql"
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-owner-queue-orphan-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_owner_completion_queue_orphan_branch_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_owner_completion_queue_orphan_branch_clone_only_v1.sql')
             test "${#scratch_files[@]}" = 1
             candidate_migration="${scratch_files[0]}"
             version="$(basename "$candidate_migration" | cut -d_ -f1)"
