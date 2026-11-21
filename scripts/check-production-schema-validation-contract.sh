@@ -661,9 +661,9 @@ for fragment in (
     'Production schema validation request: Atlas held five live queue consumer decoupling',
     'atlas_legacy_queue_live_consumer_decoupling_clone_only_v1',
     'held-queue-consumer-decoupling',
-    '6e53e3749bafed7f9c621d0aac79f3f3426e01ac',
+    'eeded0cd1d3d26977c2f499af5288b59858195d2',
     'd62d42837f4a36e7ba0ded4bf4b8c29f948488fa',
-    '7cf080f816ee7a5cab53ce51691eb38fb50c149c',
+    '7d3b3ff7c7951405b823b3a2a25f3ef4c087832c',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
     'a6dbf950b689505babe33811f421add9db2a742d',
     'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
@@ -675,7 +675,7 @@ for fragment in (
 for fragment in (
     'atlas_legacy_queue_live_consumer_decoupling_clone_only_v1',
     'd62d42837f4a36e7ba0ded4bf4b8c29f948488fa',
-    '7cf080f816ee7a5cab53ce51691eb38fb50c149c',
+    '7d3b3ff7c7951405b823b3a2a25f3ef4c087832c',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
     'a6dbf950b689505babe33811f421add9db2a742d',
     'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
@@ -686,7 +686,7 @@ for fragment in (
     if fragment not in harness:
         errors.append('Five live consumer held signed harness admission missing: '+fragment)
 if not ('if title == \'Production schema validation request: Atlas held five live queue consumer decoupling\':' in workflow
-        and 'test "$(git -C candidate rev-parse HEAD)" = "6e53e3749bafed7f9c621d0aac79f3f3426e01ac"' in workflow
+        and 'test "$(git -C candidate rev-parse HEAD)" = "eeded0cd1d3d26977c2f499af5288b59858195d2"' in workflow
         and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ ]]' in harness):
     errors.append('Five live consumer candidate not pinned to exact owner request/immutable source')
 if not (harness.index('phase="orphan backfill local all-Atlas-row baseline"') <
