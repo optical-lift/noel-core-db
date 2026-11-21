@@ -496,7 +496,7 @@ if [ "$lane" = atlas ] && [ "$version" = 20261120235959 ] &&
      [ ! -s "$queue_signed_proof" ] ||
      [ "$(git hash-object "$candidate_migration")" != 0a47afde4f84b5d08baa025e2bc3f5b1db15df8a ] ||
      [ "$(git hash-object "$candidate_validation")" != c563231ca64bf07c5bdccc805e09997496e3a00b ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 3bfdf13588326c9335ccfd037f65f271be3c2a74 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != f24b3f40ecaa32df2f88cf9d9718f0011d240222 ] ||
      [ "$(git hash-object "$queue_signed_proof")" != 7b07b29b1968af6ae0140871413eff62be8a0cd3 ] ||
      [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
