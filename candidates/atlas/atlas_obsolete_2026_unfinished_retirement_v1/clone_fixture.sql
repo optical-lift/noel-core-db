@@ -10,6 +10,12 @@ INSERT INTO atlas.organizations(id,stable_key,name,status,onboarding_state) VALU
 ('f9200000-0000-4000-8000-000000000001','held-queue-retirement-org-2026','Fictional Historical Queue Org','active','ready');
 INSERT INTO atlas.farms(id,organization_id,stable_key,name,status) VALUES
 ('f9200000-0000-4000-8000-000000000002','f9200000-0000-4000-8000-000000000001','held-queue-retirement-farm-2026','Fictional Historical Farm','active');
+-- Mirror the existence, not private contents, of this farm's original
+-- release settings. This prevents the legacy terminal release trigger from
+-- inserting a new unrelated settings row after the no-loss baseline.
+INSERT INTO atlas.farm_task_release_settings(farm_id)
+VALUES ('f9200000-0000-4000-8000-000000000002');
+
 INSERT INTO atlas.work_definitions(id,farm_id,stable_key,title_template,task_type,active) VALUES
 ('f9200000-0000-4000-8000-000000000003','f9200000-0000-4000-8000-000000000002','held-2026-queue-definition','Fictional obsolete queue task','general',false);
 INSERT INTO atlas.work_release_policies(id,farm_id,work_definition_id,stable_key,gate_type,active) VALUES
