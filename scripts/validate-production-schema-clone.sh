@@ -250,9 +250,9 @@ fi
 # synthetic queue fixture. No arbitrary data/role/source admission.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2[.]sql$ ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 5ed5730b773cb1ac210cf1e4d767c9b636d5e8a0 ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 418f2b2f9900058b723d57ab39d5b747920550f9 ] ||
-     [ "$(git hash-object "$candidate_validation")" != ff69c14bdbfda03eb4693252fa7e42e5f459b1c6 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 7d8d56797f553618b1b6fff73feddf464f394878 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 26ec0ece68dccb5d9d966a20ecf30dcbf2fc7f32 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 1a539dae9781ca6524abbbfd3f45ce96951e4141 ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-obsolete-queue-retirement-row-change.py")" != bed62188f2e6ab3d8540c317e562c631b0f5bd0f ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
      [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
