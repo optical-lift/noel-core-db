@@ -147,10 +147,13 @@ BEGIN
      RAISE EXCEPTION 'Selected canonical Work unavailable' USING ERRCODE='42501';
    END IF;
  END IF;
- SELECT atlas.organization_person_canonical_reality_v1(p_organization_id,m.person_id)
- INTO original_person FROM atlas.organization_memberships m
- WHERE m.organization_id=p_organization_id AND m.user_id=t.assigned_user_id
- AND m.person_id IS NOT NULL ORDER BY m.created_at LIMIT 1;
+ -- Resolve historical source attribution through one existing canonical Principal,
+ -- never by resurrecting Organization Membership as Person authority.
+ -- If current organization-specific canonical Person reality is unproven,
+ -- preserve historical Task evidence and leave original_person NULL.
+ SELECT atlas.organization_person_canonical_reality_v1(p_organization_id,p.person_id)
+ INTO original_person FROM atlas.principals p
+ WHERE p.user_id=t.assigned_user_id AND p.person_id IS NOT NULL;
  executor_label:=coalesce(t.metadata->>'executor_label',t.metadata->>'assigned_to');
  INSERT INTO atlas.company_work_legacy_task_reviews_v1(
  organization_id,native_ledger_id,source_task_id,decision_kind,target_work_item_id,
