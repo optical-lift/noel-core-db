@@ -1,0 +1,40 @@
+name: Held Course composition — isolated PostgreSQL
+on:
+  pull_request:
+    paths:
+      - 'candidates/shared-course-class-composition-v1/**'
+      - '.github/workflows/shared-course-class-composition-candidate.yml'
+permissions:
+  contents: read
+jobs:
+  isolated:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: ephemeral-fixture-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: ephemeral-fixture-only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Disposable candidate proof only
+        run: |
+          set -euo pipefail
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-course-class-composition-v1/fixture-schema.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-course-class-composition-v1/candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-course-class-composition-v1/fixture-test.sql
