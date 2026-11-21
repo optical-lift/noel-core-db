@@ -702,10 +702,10 @@ for fragment in (
     'Production schema validation request: Atlas held obsolete 2026 unfinished retirement',
     'atlas_obsolete_2026_unfinished_retirement_clone_only_v1',
     'held-obsolete-unfinished-retirement',
-    '52ece1c7e6b54142b25691dac97cd2e3fee56404',
-    '712bd641d3366b2babfa8336b1a96d8dc4659cfc',
-    'dfb675b25746adb2e928c5c5c10a27840466ef69',
-    '89eada21385c66fe34e2f9abad86a2340dd9f78f',
+    '75a4180bc51e0eeac1169a5dd39b132a5812019b',
+    '4e5b626468908eac500d65a3bb4a29f26b669460',
+    'c1d565486f39bf0f69acd46b0be790710370c7eb',
+    '722d802f517b99e34fbe284e2e20b71daa99c6a6',
     '066af3e6ab7812c4c25efe992d814899aacd36f3',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
     'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
@@ -716,9 +716,9 @@ for fragment in (
         errors.append('2026 unfinished source-only protected owner admission missing: '+fragment)
 for fragment in (
     'atlas_obsolete_2026_unfinished_retirement_clone_only_v1',
-    '712bd641d3366b2babfa8336b1a96d8dc4659cfc',
-    'dfb675b25746adb2e928c5c5c10a27840466ef69',
-    '89eada21385c66fe34e2f9abad86a2340dd9f78f',
+    '4e5b626468908eac500d65a3bb4a29f26b669460',
+    'c1d565486f39bf0f69acd46b0be790710370c7eb',
+    '722d802f517b99e34fbe284e2e20b71daa99c6a6',
     '066af3e6ab7812c4c25efe992d814899aacd36f3',
     'a6dbf950b689505babe33811f421add9db2a742d',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
@@ -731,7 +731,7 @@ for fragment in (
     if fragment not in harness:
         errors.append('2026 unfinished held DML guard, row no-loss, or genuine signer missing: '+fragment)
 if not ('if title == \'Production schema validation request: Atlas held obsolete 2026 unfinished retirement\':' in workflow
-        and 'test "$(git -C candidate rev-parse HEAD)" = "52ece1c7e6b54142b25691dac97cd2e3fee56404"' in workflow
+        and 'test "$(git -C candidate rev-parse HEAD)" = "75a4180bc51e0eeac1169a5dd39b132a5812019b"' in workflow
         and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ ]]' in harness):
     errors.append('Unfinished retirement requires exact owner request, candidate SHA and local DML identity')
 if not (harness.index('phase="trusted original C1 Work fixture before bounded old-queue synthetic data"') <
