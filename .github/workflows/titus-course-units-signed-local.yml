@@ -1,0 +1,76 @@
+name: Titus Course Units — genuine local GoTrue signed acceptance (disposable)
+
+on:
+  push:
+    branches:
+      - candidate/titus-private-course-units-v1-20261105
+    paths:
+      - 'scripts/validate-titus-course-units-signed-local.py'
+      - 'scripts/test-titus-course-units-signed-local.sh'
+      - 'candidates/titus-private-course-units-v1/candidate.sql'
+      - 'candidates/titus-private-course-units-v1/clone_validation.sql'
+      - '.github/workflows/titus-course-units-signed-local.yml'
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: titus-course-units-signed-local-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.repository == 'optical-lift/noel-core-db' && github.ref == 'refs/heads/candidate/titus-private-course-units-v1-20261105'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout exact immutable test source, no deploy
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Verify local-only script syntax and refused remote destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n scripts/test-titus-course-units-signed-local.sh
+          python3 -m py_compile scripts/validate-titus-course-units-signed-local.py
+          python3 - <<'PY'
+          from pathlib import Path
+          source=Path('scripts/validate-titus-course-units-signed-local.py').read_text()
+          shell=Path('scripts/test-titus-course-units-signed-local.sh').read_text()
+          assert 'Refuse nonlocal Auth API' in source
+          assert 'Refuse nonlocal or privileged production database' in source
+          assert 'realHumanAcceptance":False' in source
+          assert 'supabase stop --no-backup' in shell
+          assert 'NOEL_CORE_DATABASE_URL' in shell and 'unset' in shell
+          assert 'supabase db push' not in shell
+          print('PASS signed test is restricted to local disposable source')
+          PY
+
+      - name: Install pinned Supabase CLI 2.116.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o /tmp/titus-supabase.tgz
+          tar -xzf /tmp/titus-supabase.tgz -C /tmp supabase
+          sudo install -m 0755 /tmp/supabase /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = "2.116.0"
+          supabase start --help >/dev/null
+          supabase stop --help >/dev/null
+
+      - name: Authenticate image-registry pulls with job-only GitHub token
+        shell: bash
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GHCR_TOKEN"
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+
+      - name: Run real local GoTrue signed Course Units owner/outsider/replay/concurrency
+        shell: bash
+        run: bash scripts/test-titus-course-units-signed-local.sh
