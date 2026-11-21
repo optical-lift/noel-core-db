@@ -1,11 +1,19 @@
 -- Source-only postconditions for protected disposable current-schema proof.
 DO $queue_owner_post$
-DECLARE reader oid;writer oid;
+DECLARE reader oid;writer oid; transport_reader oid;transport_writer oid;
 BEGIN
  reader:=to_regprocedure('atlas.company_work_legacy_queue_owner_self_api_v1(uuid,uuid,integer,uuid)');
  writer:=to_regprocedure('atlas.decide_company_work_legacy_queue_owner_self_api_v1(uuid,uuid,uuid,text,timestamptz,uuid,text,text,text,text,uuid)');
- IF reader IS NULL OR writer IS NULL THEN
-   RAISE EXCEPTION 'Both exact owner-review RPC definitions required';
+ transport_reader:=to_regprocedure('public.company_work_legacy_queue_owner_self_api_v1(uuid,uuid,integer,uuid)');
+ transport_writer:=to_regprocedure('public.decide_company_work_legacy_queue_owner_self_api_v1(uuid,uuid,uuid,text,timestamptz,uuid,text,text,text,text,uuid)');
+ IF reader IS NULL OR writer IS NULL OR transport_reader IS NULL OR transport_writer IS NULL THEN
+   RAISE EXCEPTION 'Both private owner review RPCs and public transports required';
+ END IF;
+ IF EXISTS (
+   SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid IN(transport_reader,transport_writer)
+     AND (p.prosecdef OR p.proconfig IS NULL
+       OR NOT ('search_path=""'=ANY(p.proconfig)))
+ ) THEN RAISE EXCEPTION 'Public transport must be invoker-only with empty search path';
  END IF;
  IF EXISTS(
    SELECT 1 FROM pg_catalog.pg_proc p WHERE p.oid IN(reader,writer)
@@ -19,7 +27,13 @@ BEGIN
  OR has_function_privilege('anon',writer,'EXECUTE')
  OR has_function_privilege('service_role',reader,'EXECUTE')
  OR has_function_privilege('service_role',writer,'EXECUTE')
- THEN RAISE EXCEPTION 'Review RPC effective grants changed';
+ OR NOT has_function_privilege('authenticated',transport_reader,'EXECUTE')
+ OR NOT has_function_privilege('authenticated',transport_writer,'EXECUTE')
+ OR has_function_privilege('anon',transport_reader,'EXECUTE')
+ OR has_function_privilege('anon',transport_writer,'EXECUTE')
+ OR has_function_privilege('service_role',transport_reader,'EXECUTE')
+ OR has_function_privilege('service_role',transport_writer,'EXECUTE')
+ THEN RAISE EXCEPTION 'Owner RPC or public transport effective grants changed';
  END IF;
  IF (SELECT count(*) FROM atlas.tasks
    WHERE id IN (
