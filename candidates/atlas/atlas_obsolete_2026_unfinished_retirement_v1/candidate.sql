@@ -56,6 +56,8 @@ DECLARE
     v_unaffected_tasks_fp text;
     v_unaffected_occ_fp text;
     v_unaffected_queue_fp text;
+    v_capacity_profiles_count integer;
+    v_unaffected_capacity_fp text;
     v_changed integer;
     v_prior_reservoir_flag text;
 BEGIN
@@ -185,6 +187,25 @@ BEGIN
       RAISE EXCEPTION 'Current Work, Task, or child evidence changed; stop';
     END IF;
 
+    -- The normal Task status trigger maintains derived capacity projections.
+    -- The three exact source Tasks already have capacity profiles in live Noel;
+    -- require that exact existing set and refuse owner-locked profile mutation.
+    -- Every unrelated profile identity and row is full-row fingerprinted.
+    IF (SELECT count(*) FROM atlas.task_capacity_profiles p
+        WHERE p.task_id=ANY(v_task_ids)) <> 3
+       OR EXISTS (
+         SELECT 1 FROM atlas.task_capacity_profiles p
+         WHERE p.task_id=ANY(v_task_ids) AND p.owner_locked
+       ) THEN
+      RAISE EXCEPTION 'Target historical capacity profiles missing or owner-locked; stop';
+    END IF;
+    SELECT count(*) INTO v_capacity_profiles_count
+      FROM atlas.task_capacity_profiles;
+    SELECT md5(string_agg(to_jsonb(p)::text, E'\\n' ORDER BY p.task_id::text))
+      INTO v_unaffected_capacity_fp
+      FROM atlas.task_capacity_profiles p
+      WHERE NOT (p.task_id=ANY(v_task_ids));
+
     SELECT count(*) INTO v_before_queue_count
       FROM atlas.task_release_queue_items;
     SELECT count(*) INTO v_before_occ_count
@@ -267,6 +288,16 @@ BEGIN
       RAISE EXCEPTION 'Expected 75 exact historical queue withdrawals, got %',v_changed;
     END IF;
 
+    IF (SELECT count(*) FROM atlas.task_capacity_profiles) <> v_capacity_profiles_count
+       OR (SELECT count(*) FROM atlas.task_capacity_profiles p
+           WHERE p.task_id=ANY(v_task_ids)) <> 3
+       OR EXISTS (
+           SELECT 1 FROM atlas.task_capacity_profiles p
+           WHERE p.task_id=ANY(v_task_ids) AND p.owner_locked
+       ) THEN
+      RAISE EXCEPTION 'Capacity profile identity, row count or owner lock changed; rollback';
+    END IF;
+
     IF (SELECT count(*) FROM atlas.task_release_queue_items) <> v_before_queue_count
        OR (SELECT count(*) FROM atlas.planned_work_occurrences) <> v_before_occ_count
        OR (SELECT count(*) FROM atlas.tasks) <> v_before_task_count
@@ -308,11 +339,14 @@ BEGIN
             IS DISTINCT FROM v_unaffected_occ_fp
        OR (SELECT md5(string_agg(to_jsonb(q)::text, E'\\n' ORDER BY q.id::text))
            FROM atlas.task_release_queue_items q WHERE NOT(q.id=ANY(v_queue_ids)))
-            IS DISTINCT FROM v_unaffected_queue_fp THEN
-      RAISE EXCEPTION 'Untargeted history or canonical Work changed; rollback';
+            IS DISTINCT FROM v_unaffected_queue_fp
+       OR (SELECT md5(string_agg(to_jsonb(p)::text, E'\\n' ORDER BY p.task_id::text))
+           FROM atlas.task_capacity_profiles p WHERE NOT(p.task_id=ANY(v_task_ids)))
+            IS DISTINCT FROM v_unaffected_capacity_fp THEN
+      RAISE EXCEPTION 'Untargeted history, capacity profile or canonical Work changed; rollback';
     END IF;
 
-    RAISE NOTICE 'Source-guarded withdrawal: 64 old occurrences cancelled, 3 legacy Tasks archived, 75 queue pointers skipped; unrelated Work and historic rows intact.';
+    RAISE NOTICE 'Source-guarded withdrawal: 64 old occurrences cancelled, 3 legacy Tasks archived, 2 released source occurrences cancelled, 75 queue pointers skipped, only 3 source-owned capacity profiles refreshed; other Work, profiles and history intact.';
 END
 $historical_retirement$;
 
