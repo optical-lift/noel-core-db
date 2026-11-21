@@ -940,6 +940,29 @@ for fragment in (
         errors.append('Exact five-consumer canonical immutable trusted fixture admission missing: '+fragment)
 
 
+
+# HELD two-function serial orphan requires the original frozen signed C1
+# source before the fictional 97-row queue data; no second identity system.
+# This is a strict local-only test-phase ordering fix, not migration authority.
+for fragment in (
+    'phase="trusted original C1 Work fixture before historical owner queue data"',
+    'owner-queue-original-signed-c1-fixture.log',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    '19981823e3d6e7da8a82b5d609fb1558e38c4251',
+    'a5a23c42557bf6913321689fb9853afb57ff2c0e',
+    'orphan_queue_retirement_proof',
+    'Refuse C1 pre-load without exact original Work fixture, immutable candidate, and local-only database',
+):
+    if fragment not in harness:
+        errors.append('Original immutable C1 preload source gate absent for held owner-completion orphan: '+fragment)
+if not (
+    harness.index('phase="trusted original C1 Work fixture before historical owner queue data"')
+    < harness.index('phase="candidate validation fixture application"')
+    < harness.index('phase="orphan backfill local all-Atlas-row baseline"')
+    < harness.index('phase="candidate migration application"')
+):
+    errors.append('Original C1 must precede historical test data and full-row baseline before candidate')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
