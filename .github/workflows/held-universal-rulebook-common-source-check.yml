@@ -1,0 +1,44 @@
+name: HELD universal Rulebook common-source static acceptance (no database)
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas_universal_rulebook_common_source_v1/**'
+      - 'tests/atlas-universal-rulebook-common-source.test.mjs'
+      - '.github/workflows/held-universal-rulebook-common-source-check.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Exact universal common source test
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/atlas-universal-rulebook-common-source.test.mjs
+      - name: Source custody and unreleased scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e supabase/migrations/20261106000000_atlas_universal_rulebook_common_source_v1.sql
+          python3 - <<'PY'
+          from pathlib import Path
+          sql=Path('candidates/atlas_universal_rulebook_common_source_v1/candidate.sql').read_text()
+          workflow=Path('.github/workflows/held-universal-rulebook-common-source-check.yml').read_text()
+          assert "state','common_checks_only_not_admitted'" in sql
+          assert "'policyAdoptable',false" in sql
+          assert "'domainAdapterAccepted',false" in sql
+          assert "GRANT EXECUTE" not in sql
+          assert 'secrets'+'.' not in workflow
+          assert 'environment:'+' production' not in workflow
+          assert 'workflow_'+'dispatch:' not in workflow
+          assert 'supabase db '+'push' not in workflow
+          print('PASS candidate held: no credentials, release or acquired domain authority')
+          PY
