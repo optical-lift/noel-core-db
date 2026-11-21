@@ -702,9 +702,9 @@ for fragment in (
     'Production schema validation request: Atlas held obsolete 2026 unfinished retirement',
     'atlas_obsolete_2026_unfinished_retirement_clone_only_v1',
     'held-obsolete-unfinished-retirement',
-    '75a4180bc51e0eeac1169a5dd39b132a5812019b',
-    '4e5b626468908eac500d65a3bb4a29f26b669460',
-    'c1d565486f39bf0f69acd46b0be790710370c7eb',
+    'e9db0b1a08e4817d35f0bea7e05387778d400cd1',
+    '48f2e52b269a1767d50b9b40d5064ff149af710d',
+    '5f1db88c053d5f1c189dd5fc72738fe7b082c4f6',
     '722d802f517b99e34fbe284e2e20b71daa99c6a6',
     '066af3e6ab7812c4c25efe992d814899aacd36f3',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
@@ -716,8 +716,8 @@ for fragment in (
         errors.append('2026 unfinished source-only protected owner admission missing: '+fragment)
 for fragment in (
     'atlas_obsolete_2026_unfinished_retirement_clone_only_v1',
-    '4e5b626468908eac500d65a3bb4a29f26b669460',
-    'c1d565486f39bf0f69acd46b0be790710370c7eb',
+    '48f2e52b269a1767d50b9b40d5064ff149af710d',
+    '5f1db88c053d5f1c189dd5fc72738fe7b082c4f6',
     '722d802f517b99e34fbe284e2e20b71daa99c6a6',
     '066af3e6ab7812c4c25efe992d814899aacd36f3',
     'a6dbf950b689505babe33811f421add9db2a742d',
@@ -731,7 +731,7 @@ for fragment in (
     if fragment not in harness:
         errors.append('2026 unfinished held DML guard, row no-loss, or genuine signer missing: '+fragment)
 if not ('if title == \'Production schema validation request: Atlas held obsolete 2026 unfinished retirement\':' in workflow
-        and 'test "$(git -C candidate rev-parse HEAD)" = "75a4180bc51e0eeac1169a5dd39b132a5812019b"' in workflow
+        and 'test "$(git -C candidate rev-parse HEAD)" = "e9db0b1a08e4817d35f0bea7e05387778d400cd1"' in workflow
         and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ ]]' in harness):
     errors.append('Unfinished retirement requires exact owner request, candidate SHA and local DML identity')
 if not (harness.index('phase="trusted original C1 Work fixture before bounded old-queue synthetic data"') <
