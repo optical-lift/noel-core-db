@@ -254,7 +254,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held owner-completion serial orphan branch':
               expected = {'diagnostic_scope':'atlas_owner_completion_queue_orphan_branch_clone_only_v1',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'98df1f8f45fb52535b3c513a3872d9ea98ba034d'}
+                          'candidate_sha':'ae73258185a6d9840ec9528c6f498ef620fb1fee'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held two-function serial orphan branch test approval required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -939,13 +939,13 @@ jobs:
 
           # Original owner-only exact held source, never a releasable migration.
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-owner-completion-serial-orphan" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "98df1f8f45fb52535b3c513a3872d9ea98ba034d"
+            test "$(git -C candidate rev-parse HEAD)" = "ae73258185a6d9840ec9528c6f498ef620fb1fee"
             src="candidate/candidates/atlas/atlas_owner_completion_queue_dead_branch_retirement_v1/candidate.sql"
             post="candidate/candidates/atlas/atlas_owner_completion_queue_dead_branch_retirement_v1/postconditions.sql"
             fixture="candidate/candidates/atlas/atlas_owner_completion_queue_dead_branch_retirement_v1/clone_fixture.sql"
             test "$(git hash-object "$src")" = a5a23c42557bf6913321689fb9853afb57ff2c0e
             test "$(git hash-object "$post")" = a3dbc4fe6f5db230ed3dbf071e514ff06487e807
-            test "$(git hash-object "$fixture")" = 6a2bd592eba7c6caac57c1974f7f88ca6ad55e4a
+            test "$(git hash-object "$fixture")" = 19981823e3d6e7da8a82b5d609fb1558e38c4251
             test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
             test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
             test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
