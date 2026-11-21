@@ -93,6 +93,11 @@ def main():
          and match.get("newWorkCreated") is False and match.get("queueStateChanged") is False
          and match.get("planCreated") is False and match.get("responsibilityEstablished") is False,
          "Owner exact-original match falsely issued Work or Plan")
+    must(sql(a.db_url,f"SELECT original_assignee_canonical_person_id::text "
+      f"FROM atlas.company_work_legacy_task_reviews_v1 "
+      f"WHERE source_task_id='{T1}'::uuid")
+      =="e5200000-0000-4000-8000-000000000102",
+      "Original canonical Person provenance not preserved from the signed source")
     replay=accepted(api,key,owner,DECIDE,req(r1,"matched_existing_work",EXISTING))
     must(replay.get("state")=="already_reviewed" and replay.get("workItemId")==EXISTING,
          "Idempotent owner source decision not recovered")
