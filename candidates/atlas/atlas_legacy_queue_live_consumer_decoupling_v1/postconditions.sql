@@ -35,7 +35,8 @@ BEGIN
    AND NOT t.tgisinternal
  ) THEN RAISE EXCEPTION 'Real harvest preparation trigger lost'; END IF;
  SELECT count(*)::integer INTO body_count FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
- WHERE n.nspname IN ('atlas','public') AND pg_get_functiondef(p.oid) ILIKE '%task_release_queue_items%';
+ WHERE n.nspname IN ('atlas','public') AND p.prokind IN ('f','p')
+   AND pg_get_functiondef(p.oid) ILIKE '%task_release_queue_items%';
  IF body_count<>29 THEN
    RAISE EXCEPTION 'Expected only five of 34 live source consumers retired, got % remaining',body_count;
  END IF;
