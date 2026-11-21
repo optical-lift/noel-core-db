@@ -290,7 +290,7 @@ fi
 
 # Held Package B: remove only five exact live queue table dependencies.
 # Existing all-row fingerprints and genuine signed Work regressions remain mandatory.
-if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ ]]; then
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121211411_atlas_legacy_queue_five_live_consumer_decoupling_v1.sql" ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != d62d42837f4a36e7ba0ded4bf4b8c29f948488fa ] ||
      [ "$(git hash-object "$candidate_validation")" != 7d3b3ff7c7951405b823b3a2a25f3ef4c087832c ] ||
