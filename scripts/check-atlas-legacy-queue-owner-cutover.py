@@ -45,6 +45,9 @@ signed_path=package/"validate_signed_queue_owner.py"
 signed=signed_path.read_text()
 ast.parse(signed,filename=str(signed_path))
 assert "INSERT INTO atlas.tasks" in fixture and "INSERT INTO atlas.task_release_queue_items" in fixture
+assert "INSERT INTO atlas.institutional_person_records" in fixture
+assert "metadata,assigned_user_id)" in fixture
+assert "Original canonical Person provenance not preserved" in signed
 assert "UPDATE atlas.tasks" not in fixture and "DELETE FROM atlas" not in fixture
 assert "e5200000-0000-4000-8000-000000000d24" in fixture
 assert "noTaskMeansSeparateOriginalNeedReview" in s
