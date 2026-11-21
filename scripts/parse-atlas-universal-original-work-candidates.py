@@ -12,6 +12,10 @@ root = Path(__file__).resolve().parents[1] / "candidates" / "atlas"
 paths = sorted(root.glob("*/candidate.sql"))
 paths += sorted(root.glob("*/guarded_native_reader_extensions.sql"))
 paths += sorted(root.glob("*/postconditions.sql"))
+# Nested held increments must be parsed too, not silently omitted.
+paths += sorted(root.glob("*/*/candidate.sql"))
+paths += sorted(root.glob("*/*/postconditions.sql"))
+paths += sorted(root.glob("*/*/guarded_native_reader_extensions.sql"))
 if len(paths) < 15:
     raise SystemExit(f"Missing original SQL candidate sources (found {len(paths)})")
 
@@ -73,3 +77,64 @@ if functions < 20:
 print(f"PASS SQL and PL/pgSQL grammar on {len(paths)} held candidates and postconditions, "
       f"{functions} function bodies")
 print("PENDING disposable production-schema compilation and independent signed acceptance")
+
+# W07 ordinary comments are held source code, not an installed RPC. Validate
+# the local-only signed probe source on the same PR without any database access.
+w07=root/"atlas_native_original_work_comments_v1"
+if w07.is_dir():
+    import ast
+    probe=root.parents[1]/"scripts"/"validate-atlas-native-original-work-comments-signed-http.py"
+    if not probe.is_file():
+        raise SystemExit("W07 held candidate is missing its signed local probe")
+    source=probe.read_text()
+    ast.parse(source, filename=str(probe))
+    sql=(w07/"candidate.sql").read_text()
+    required_sql=(
+        "native_original_work_comments_v1",
+        "append_native_original_work_comment_self_api_v1",
+        "read_native_original_work_comments_self_api_v1",
+        "native_original_work_comment_actor_v1",
+        "BEFORE UPDATE OR DELETE",
+        "originalWorkStateUnchanged",
+        "notificationDelivered",
+        "isWorkResult",
+        "authorIdentityDisclosure",
+        "p_after_recorded_at",
+    )
+    required_signed=(
+        "127[.]0[.]0[.]1",
+        "c1.local_status()",
+        "base.setup_auth",
+        "c1.sign_in",
+        '"owner", "worker", "outsider", "no-seat"',
+        "revoked worker",
+        "different",
+        "original Work",
+        "work_execution_results",
+    )
+    for token in required_sql:
+        if token not in sql:
+            raise SystemExit("W07 SQL source required token absent: "+token)
+    if "atlas.organization_memberships" in sql or "'receiver_acceptance'" in sql:
+        raise SystemExit("W07 cannot establish new comment authority from historical membership carriers")
+    if "legacy-accepted-carrier-denial" not in source or "native-physical-allocation-fixture" not in source:
+        raise SystemExit("W07 must deny legacy accepted collaboration and retain native physical signed tests")
+    if "'self_adoption'" in sql:
+        raise SystemExit("W07 must not admit a retired allocation establishment basis")
+    for token in required_signed:
+        if token.lower() not in source.lower():
+            raise SystemExit("W07 signed local probe required token absent: "+token)
+    if "mcp.supabase.com" in source or "zirqkouammpwxlqfbsvf.supabase.co" in source:
+        raise SystemExit("W07 local-only signed probe contains a production endpoint")
+    print("PASS W07 source grammar plus parseable local-only signed GoTrue/REST probe")
+    print("PENDING W07 real protected disposable signed-clone execution")
+
+# Parse the signed three-Person probe and assert the current ACCESS-02 gate
+# stays BEFORE any role-aware projection or pagination.
+shared=w07/"native_self_participation"
+if shared.is_dir():
+    probe=shared/"validate_signed_shared_work.py"
+    ast.parse(probe.read_text(),filename=str(probe))
+    reader=(shared/"guarded_native_reader_extensions.sql").read_text()
+    assert 0 < reader.index("AND coalesce(relevance.has_relevance,false)") < reader.index("AND atlas.person_original_work_identity_disclosed_self_v1") < reader.index("LIMIT p_limit+1")
+    print("PASS shared Work probe syntax and mandatory current relevance guard; signed clone still pending")
