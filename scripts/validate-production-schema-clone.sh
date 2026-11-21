@@ -226,7 +226,7 @@ fi
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != d62d42837f4a36e7ba0ded4bf4b8c29f948488fa ] ||
-     [ "$(git hash-object "$candidate_validation")" != 7cf080f816ee7a5cab53ce51691eb38fb50c149c ] ||
+     [ "$(git hash-object "$candidate_validation")" != 7d3b3ff7c7951405b823b3a2a25f3ef4c087832c ] ||
      [ "$(git hash-object "$candidate_fixture")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
