@@ -208,7 +208,7 @@ fi
 # Their former progression trigger was previously separately released.
 # Source-positive fictional 97-row terminal historical queue, original C1
 # signed Work fixture, 730-base-table no-loss proof; NEVER use live credentials.
-if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ ]]; then
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121225626_atlas_owner_completion_queue_dead_branch_retirement_v1.sql" ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != a5a23c42557bf6913321689fb9853afb57ff2c0e ] ||
      [ "$(git hash-object "$candidate_validation")" != a3dbc4fe6f5db230ed3dbf071e514ff06487e807 ] ||
@@ -1353,7 +1353,7 @@ fi
 # The bounded 97-row historical queue fixture refers to that exact identity.
 # Do not widen admission, clone production data, or bypass real actor checks.
 if [ "$orphan_queue_retirement_proof" = true ] &&
-   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ ]]; then
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121225626_atlas_owner_completion_queue_dead_branch_retirement_v1.sql" ]]; then
   phase="trusted original C1 Work fixture before historical owner queue data"
   trusted_c1="$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql"
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
