@@ -878,6 +878,23 @@ if not (
     errors.append('Canonical 20261121211411 must use original hash-pinned signed 730-table five-consumer proof')
 
 
+
+# Generated exact Atlas five-consumer package intentionally has no duplicated
+# fixture file. Main's ORIGINAL frozen signed Work fixture is the only
+# permitted input to the immutable signed 730-table clone, after SHA pinning.
+for fragment in (
+    'if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261121211411" ]]; then',
+    '694bb5e6b7f9a452cffa5343ffd1c0e1063cc52a',
+    'd62d42837f4a36e7ba0ded4bf4b8c29f948488fa',
+    '7d3b3ff7c7951405b823b3a2a25f3ef4c087832c',
+    'validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'fixtures=("$trusted_fixture")',
+):
+    if fragment not in workflow:
+        errors.append('Exact five-consumer canonical immutable trusted fixture admission missing: '+fragment)
+
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
