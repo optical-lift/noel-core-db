@@ -204,6 +204,27 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_orph
   orphan_queue_retirement_proof=true
   signed_work_prerequisite_probe=true
 fi
+# TEST ONLY: exactly two original deprecated owner-completion queue functions.
+# Their former progression trigger was previously separately released.
+# Source-positive fictional 97-row terminal historical queue, original C1
+# signed Work fixture, 730-base-table no-loss proof; NEVER use live credentials.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != a5a23c42557bf6913321689fb9853afb57ff2c0e ] ||
+     [ "$(git hash-object "$candidate_validation")" != a3dbc4fe6f5db230ed3dbf071e514ff06487e807 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 6a2bd592eba7c6caac57c1974f7f88ca6ad55e4a ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse owner-completion serial orphan clone without exact source, fictional historical fixture and original signed no-loss proofs.' >&2
+    exit 2
+  fi
+  orphan_queue_retirement_proof=true
+  signed_work_prerequisite_probe=true
+fi
+
 # Six-trigger retirement uses the EXISTING all-Atlas original-row fingerprint
 # and genuinely signed owner/worker prerequisites, never a new validator.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_queue_progression_trigger_retirement_clone_only_v1[.]sql$ ]]; then
