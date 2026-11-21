@@ -226,7 +226,7 @@ fi
 # This is DML on a disposable schema clone ONLY; no production credentials.
 # Use the original signed C1 fixture/proof, plus an exact scoped 97-row
 # synthetic queue fixture. No arbitrary data/role/source admission.
-if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ ]]; then
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121184327_atlas_obsolete_2026_unfinished_retirement_v1.sql" ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != 55f7f92430cea0beeef79f9c4705a8a7f2afe9a0 ] ||
      [ "$(git hash-object "$candidate_fixture")" != d06aa20d0c0694160cb32126abf3ffa49b2d3822 ] ||
