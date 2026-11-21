@@ -181,8 +181,37 @@ BEGIN
  'responsibilityEstablished',false,'planCreated',false,'physicalResultCreated',false);
 END;$function$;
 
+-- Existing Atlas browser contract: public PostgREST transport -> native atlas
+-- governor. The public functions are INVOKER-only, have no independent
+-- authority, and never expose tables or bypass the private owner check.
+CREATE OR REPLACE FUNCTION public.company_work_legacy_queue_owner_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_limit integer DEFAULT 100,
+ p_after_queue_item_id uuid DEFAULT NULL
+) RETURNS jsonb LANGUAGE sql STABLE SET search_path TO ''
+AS $function$
+ SELECT atlas.company_work_legacy_queue_owner_self_api_v1(
+   p_organization_id,p_ledger_id,p_limit,p_after_queue_item_id);
+$function$;
+
+CREATE OR REPLACE FUNCTION public.decide_company_work_legacy_queue_owner_self_api_v1(
+ p_organization_id uuid,p_ledger_id uuid,p_queue_item_id uuid,
+ p_expected_queue_state text,p_expected_queue_updated_at timestamptz,
+ p_expected_task_id uuid,p_expected_task_status text,p_expected_task_title text,
+ p_decision text,p_reason text,p_existing_work_item_id uuid DEFAULT NULL
+) RETURNS jsonb LANGUAGE sql SET search_path TO ''
+AS $function$
+ SELECT atlas.decide_company_work_legacy_queue_owner_self_api_v1(
+   p_organization_id,p_ledger_id,p_queue_item_id,p_expected_queue_state,
+   p_expected_queue_updated_at,p_expected_task_id,p_expected_task_status,
+   p_expected_task_title,p_decision,p_reason,p_existing_work_item_id);
+$function$;
+
 REVOKE ALL ON FUNCTION atlas.company_work_legacy_queue_owner_self_api_v1(uuid,uuid,integer,uuid) FROM PUBLIC,anon,service_role;
 REVOKE ALL ON FUNCTION atlas.decide_company_work_legacy_queue_owner_self_api_v1(uuid,uuid,uuid,text,timestamptz,uuid,text,text,text,text,uuid) FROM PUBLIC,anon,service_role;
 GRANT EXECUTE ON FUNCTION atlas.company_work_legacy_queue_owner_self_api_v1(uuid,uuid,integer,uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION atlas.decide_company_work_legacy_queue_owner_self_api_v1(uuid,uuid,uuid,text,timestamptz,uuid,text,text,text,text,uuid) TO authenticated;
+REVOKE ALL ON FUNCTION public.company_work_legacy_queue_owner_self_api_v1(uuid,uuid,integer,uuid) FROM PUBLIC,anon,service_role;
+REVOKE ALL ON FUNCTION public.decide_company_work_legacy_queue_owner_self_api_v1(uuid,uuid,uuid,text,timestamptz,uuid,text,text,text,text,uuid) FROM PUBLIC,anon,service_role;
+GRANT EXECUTE ON FUNCTION public.company_work_legacy_queue_owner_self_api_v1(uuid,uuid,integer,uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.decide_company_work_legacy_queue_owner_self_api_v1(uuid,uuid,uuid,text,timestamptz,uuid,text,text,text,text,uuid) TO authenticated;
 COMMIT;
