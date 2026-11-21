@@ -67,6 +67,9 @@ DECLARE
     v_changed integer;
     v_prior_reservoir_flag text;
     v_source_prerequisite_count integer;
+    v_active_goal_count integer;
+    v_goals_fp text;
+    v_goal_evaluations_fp text;
 BEGIN
     LOCK TABLE atlas.tasks, atlas.planned_work_occurrences,
       atlas.task_release_queue_items IN SHARE ROW EXCLUSIVE MODE;
@@ -286,7 +289,39 @@ BEGIN
       RAISE EXCEPTION 'Prerequisite reconciliation trigger custody changed; stop';
     END IF;
 
-    -- Exactly one NON-AUTHORIZATION business-projection trigger is paused.
+    -- A second original live-only condition: four active farm Goals.
+    -- The normal goal status trigger recomputes all four and UPDATEs
+    -- goal_evaluations even when the archived Task is not a Goal input.
+    -- Historical retirement is not a physical Goal outcome, so its
+    -- independent Goal history must remain byte-identical.
+    SELECT count(*) INTO v_active_goal_count
+    FROM atlas.goals g
+    WHERE g.active AND g.farm_id IN (
+      SELECT DISTINCT farm_id FROM atlas.tasks t WHERE t.id=ANY(v_task_ids)
+    );
+    IF v_active_goal_count <> 4
+       OR NOT EXISTS (
+         SELECT 1 FROM pg_catalog.pg_trigger trg
+         WHERE trg.tgrelid='atlas.tasks'::regclass
+           AND trg.tgname='tasks_goal_recalculate_v1'
+           AND trg.tgenabled='O' AND NOT trg.tgisinternal
+       ) THEN
+      RAISE EXCEPTION 'Four active original Goals or Goal trigger custody drifted; stop';
+    END IF;
+    SELECT md5(string_agg(to_jsonb(g)::text, E'\\n' ORDER BY g.id::text))
+      INTO v_goals_fp
+    FROM atlas.goals g
+    WHERE g.farm_id IN (
+      SELECT DISTINCT farm_id FROM atlas.tasks t WHERE t.id=ANY(v_task_ids)
+    );
+    SELECT md5(string_agg(to_jsonb(e)::text, E'\\n' ORDER BY e.id::text))
+      INTO v_goal_evaluations_fp
+    FROM atlas.goal_evaluations e
+    WHERE e.farm_id IN (
+      SELECT DISTINCT farm_id FROM atlas.tasks t WHERE t.id=ANY(v_task_ids)
+    );
+
+    -- Exactly TWO NON-AUTHORIZATION business-projection triggers are paused.
     -- The transaction already holds the Task table, and ALTER TABLE takes
     -- ACCESS EXCLUSIVE until COMMIT: no concurrent Task mutation can bypass
     -- the trigger in another session. Its DDL setting rolls back on ANY
@@ -294,6 +329,7 @@ BEGIN
     -- remain enabled and unchanged, including the original 730-table check.
     -- The two downstream prerequisite rows and Tasks must remain unchanged.
     EXECUTE 'ALTER TABLE atlas.tasks DISABLE TRIGGER tasks_reconcile_prerequisite_dependents_v1';
+    EXECUTE 'ALTER TABLE atlas.tasks DISABLE TRIGGER tasks_goal_recalculate_v1';
 
     v_prior_reservoir_flag := current_setting('atlas.reservoir_migration',true);
     PERFORM set_config('atlas.reservoir_migration','on',true);
@@ -303,6 +339,7 @@ BEGIN
     GET DIAGNOSTICS v_changed = ROW_COUNT;
     PERFORM set_config('atlas.reservoir_migration',coalesce(v_prior_reservoir_flag,''),true);
 
+    EXECUTE 'ALTER TABLE atlas.tasks ENABLE TRIGGER tasks_goal_recalculate_v1';
     EXECUTE 'ALTER TABLE atlas.tasks ENABLE TRIGGER tasks_reconcile_prerequisite_dependents_v1';
     IF NOT EXISTS (
       SELECT 1 FROM pg_catalog.pg_trigger trg
@@ -312,6 +349,14 @@ BEGIN
         AND NOT trg.tgisinternal
     ) THEN
       RAISE EXCEPTION 'Prerequisite reconciliation trigger was not fully restored; rollback';
+    END IF;
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_catalog.pg_trigger trg
+      WHERE trg.tgrelid='atlas.tasks'::regclass
+        AND trg.tgname='tasks_goal_recalculate_v1'
+        AND trg.tgenabled='O' AND NOT trg.tgisinternal
+    ) THEN
+      RAISE EXCEPTION 'Goal recalculation trigger was not fully restored; rollback';
     END IF;
     IF v_changed <> 3 THEN
       RAISE EXCEPTION 'Expected three exact Task archives, got %',v_changed;
@@ -405,7 +450,17 @@ BEGIN
             IS DISTINCT FROM v_unaffected_queue_fp
        OR (SELECT md5(string_agg(to_jsonb(p)::text, E'\\n' ORDER BY p.task_id::text))
            FROM atlas.task_capacity_profiles p WHERE NOT(p.task_id=ANY(v_task_ids)))
-            IS DISTINCT FROM v_unaffected_capacity_fp THEN
+            IS DISTINCT FROM v_unaffected_capacity_fp
+       OR (SELECT md5(string_agg(to_jsonb(g)::text, E'\\n' ORDER BY g.id::text))
+           FROM atlas.goals g
+           WHERE g.farm_id IN (
+             SELECT DISTINCT farm_id FROM atlas.tasks t WHERE t.id=ANY(v_task_ids)
+           )) IS DISTINCT FROM v_goals_fp
+       OR (SELECT md5(string_agg(to_jsonb(e)::text, E'\\n' ORDER BY e.id::text))
+           FROM atlas.goal_evaluations e
+           WHERE e.farm_id IN (
+             SELECT DISTINCT farm_id FROM atlas.tasks t WHERE t.id=ANY(v_task_ids)
+           )) IS DISTINCT FROM v_goal_evaluations_fp THEN
       RAISE EXCEPTION 'Untargeted history, capacity profile or canonical Work changed; rollback';
     END IF;
 
