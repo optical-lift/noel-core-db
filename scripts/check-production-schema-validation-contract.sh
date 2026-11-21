@@ -988,6 +988,42 @@ if not (
 ):
     errors.append('Exact 20261121225626 must retain original frozen C1 signer, 730-table full-row proof and hash-pinned two-function retirement')
 
+# Exact new 20261121235035 Anna serial orphan source only. This does not
+# broaden the previous immutable owner-completion / original C1 proof.
+new_anna_name = '20261121235035_atlas_anna_orphaned_serial_effect_retirement_v1.sql'
+new_anna_sha = '8c181e8190bba385392f3679554fc83228d9f6f3'
+new_anna_blobs = (
+    '7fb7c4bdefc735484448fa3845e0125a2ffaa4eb',
+    '5ddc096700e726fd9681df0067f23576b848f124',
+    '5de235c8b83d3bfa4504aa9f3c28948cbd5848c9',
+)
+for fragment in (new_anna_name, new_anna_sha, *new_anna_blobs,
+                 'if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261121235035" ]]; then',
+                 'test "${#fixtures[@]}" = 1',
+                 'test "${#validations[@]}" = 1'):
+    if fragment not in workflow:
+        errors.append('Exact immutable Anna orphan package workflow gate absent: ' + fragment)
+for fragment in (new_anna_name, *new_anna_blobs,
+                 'orphan_queue_retirement_proof=true',
+                 'signed_work_prerequisite_probe=true',
+                 'anna-orphan-original-signed-c1-fixture.log',
+                 "Refuse Anna orphan clone without exact generated source, original signed fixture and all-row no-loss tests.",
+                 "Refuse new Anna orphan C1 preload without immutable source, synthetic fixture and local-only PostgreSQL"):
+    if fragment not in harness:
+        errors.append('Exact Anna orphan protected clone proof absent: ' + fragment)
+if not (
+    workflow.count('if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261121235035" ]]; then') == 1
+    and harness.count('if [[ "$(basename "$candidate_migration")" == "' + new_anna_name + '" ]]; then') == 1
+    and harness.count('[[ "$(basename "$candidate_migration")" == "' + new_anna_name + '" ]]') == 2
+    and harness.index('anna-orphan-original-signed-c1-fixture.log')
+        < harness.index('phase="candidate validation fixture application"')
+        < harness.index('phase="orphan backfill local all-Atlas-row baseline"')
+        < harness.index('phase="orphan backfill local all-Atlas-row unchanged after exact deletion"')
+    and 'scripts/validate-atlas-access03c-pre1-local-row-integrity.py' in harness
+    and 'scripts/validate-atlas-work-prerequisite-signed-http.py' in harness
+):
+    errors.append('Anna orphan must reuse exact protected C1, signed Work and full Atlas base-row conservation proof')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
