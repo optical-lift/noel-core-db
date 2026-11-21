@@ -201,6 +201,18 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact 2026 unfinished retirement; owner-only disposable clone, no release.
+          if title == 'Production schema validation request: Atlas held obsolete 2026 unfinished retirement':
+              expected = {'diagnostic_scope':'atlas_obsolete_2026_unfinished_retirement_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'a1217e8da2f9f8d5b6821fe6d920d41ef3e42c75'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held obsolete 2026 unfinished retirement proof required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-obsolete-unfinished-retirement\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # Five existing live Work/worker-day consumers, exact held source only.
           if title == 'Production schema validation request: Atlas held five live queue consumer decoupling':
               expected = {'diagnostic_scope':'atlas_legacy_queue_live_consumer_decoupling_clone_only_v1',
@@ -753,6 +765,38 @@ jobs:
             mkdir -p "$(dirname "$held_proof")"
             cp "$proof" "$held_proof"
             sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-obsolete-unfinished-retirement" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "a1217e8da2f9f8d5b6821fe6d920d41ef3e42c75"
+            src="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_v1/candidate.sql"
+            post="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_v1/postconditions.sql"
+            fixture="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = d2c4e0039d5db685a1901c6458bd83107a17dc40
+            test "$(git hash-object "$post")" = 89eada21385c66fe34e2f9abad86a2340dd9f78f
+            test "$(git hash-object "$fixture")" = 1b204350f8225e4a6e47c78de35c18a73bb92691
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-obsolete-queue-retirement-row-change.py)" = 066af3e6ab7812c4c25efe992d814899aacd36f3
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            scratch="$(mktemp -d "$RUNNER_TEMP/obsolete-unfinished-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_obsolete_2026_unfinished_retirement_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_obsolete_2026_unfinished_retirement_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
             {
               echo "path=$candidate_migration"
               echo "actual_version=$version"
