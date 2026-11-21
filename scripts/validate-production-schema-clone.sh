@@ -1348,6 +1348,27 @@ if [ "$obsolete_unfinished_retirement_proof" = true ]; then
     >"$artifacts_dir/obsolete-retirement-original-c1-fixture.log" 2>&1
 fi
 
+# P0 orphan owner-completion disposable proof ONLY: the independent signed
+# original C1 Work fixture must establish its fictional owner/Organization first.
+# The bounded 97-row historical queue fixture refers to that exact identity.
+# Do not widen admission, clone production data, or bypass real actor checks.
+if [ "$orphan_queue_retirement_proof" = true ] &&
+   [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ ]]; then
+  phase="trusted original C1 Work fixture before historical owner queue data"
+  trusted_c1="$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql"
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$trusted_c1")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 19981823e3d6e7da8a82b5d609fb1558e38c4251 ] ||
+     [ "$(git hash-object "$candidate_migration")" != a5a23c42557bf6913321689fb9853afb57ff2c0e ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
+     [[ ! "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo "Refuse C1 pre-load without exact original Work fixture, immutable candidate, and local-only database" >&2
+    exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$trusted_c1" \
+    >"$artifacts_dir/owner-queue-original-signed-c1-fixture.log" 2>&1
+fi
+
 if [ -n "$candidate_fixture" ]; then
   phase="candidate validation fixture application"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_fixture" \
