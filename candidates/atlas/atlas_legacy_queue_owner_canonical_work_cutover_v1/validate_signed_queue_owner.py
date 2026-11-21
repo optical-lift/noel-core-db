@@ -118,8 +118,12 @@ def main():
       f"FROM atlas.task_release_queue_items WHERE id IN ('{Q1}'::uuid,'{Q2}'::uuid,'{Q3}'::uuid,'{Q4}'::uuid)")==before_queue,
       "Legacy queue source state changed")
     # Withdraw live governing authority in the DISPOSABLE C1 clone only.
-    sql(a.db_url,f"UPDATE atlas.principal_ledger_authorities SET status='ended' "
+    sql(a.db_url,f"UPDATE atlas.principal_ledger_authorities SET status='ended', ended_at=now() "
       f"WHERE id='{c1.ROOT_AUTHORITY}'::uuid")
+    must(sql(a.db_url,f"SELECT count(*) FROM atlas.principal_ledger_authorities "
+      f"WHERE id='{c1.ROOT_AUTHORITY}'::uuid AND status='ended' "
+      f"AND ended_at IS NOT NULL")=="1",
+      "Native synthetic root was not ended with its required timestamp")
     denied(api,key,owner,READ,params,"revoked native root cannot read")
     denied(api,key,owner,DECIDE,req(r3,"not_current"),"revoked native root cannot decide")
     Path(a.output).parent.mkdir(parents=True,exist_ok=True)
