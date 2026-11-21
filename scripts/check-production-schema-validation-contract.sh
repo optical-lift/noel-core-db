@@ -615,6 +615,46 @@ if not (harness.index('phase="candidate migration postconditions"') <
 if harness.count('signed_legacy_queue_owner_probe=true') != 1:
     errors.append('Queue owner proof admission must have one exact source gate')
 
+# Six-trigger Package B subtraction: exact held SHA/source/postcondition,
+# existing production-shaped disposable clone and trusted signer, never release.
+for fragment in (
+    'Production schema validation request: Atlas held queue progression trigger retirement',
+    'atlas_historical_queue_progression_trigger_retirement_clone_only_v1',
+    'held-queue-progression-retirement',
+    '849fb0eb5123545ddc10fb67e4c0bd9efe798c0e',
+    'a34107ba634c558af40fa437c29a013d6a7adc29',
+    '999201b8a73dfb04bbd680241a7fafab6028a218',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243eff62be8a0cd3',
+    'Exact owner-held progression trigger retirement validation authorization required',
+):
+    if fragment not in workflow:
+        errors.append('Queue trigger retirement source admission missing: '+fragment)
+for fragment in (
+    'atlas_historical_queue_progression_trigger_retirement_clone_only_v1',
+    'a34107ba634c558af40fa437c29a013d6a7adc29',
+    '999201b8a73dfb04bbd680241a7fafab6028a218',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243eff62be8a0cd3',
+    'orphan_queue_retirement_proof=true',
+    'signed_work_prerequisite_probe=true',
+):
+    if fragment not in harness:
+        errors.append('Queue trigger retirement protected clone or signer missing: '+fragment)
+if not ('if title == \'Production schema validation request: Atlas held queue progression trigger retirement\':' in workflow
+        and 'test "$(git -C candidate rev-parse HEAD)" = "849fb0eb5123545ddc10fb67e4c0bd9efe798c0e"' in workflow
+        and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_queue_progression_trigger_retirement_clone_only_v1[.]sql$ ]]' in harness):
+    errors.append('Queue trigger retirement package must be independently pinned to owner request, SHA and local harness.')
+if not (harness.index('phase="orphan backfill local all-Atlas-row baseline"') <
+        harness.index('phase="candidate migration application"') <
+        harness.index('phase="orphan backfill local all-Atlas-row unchanged after exact deletion"') <
+        harness.index('phase="signed local prerequisite owner/worker authority')):
+    errors.append('Queue trigger retirement must use existing before/after ALL-row fingerprint and signed actor regression.')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
