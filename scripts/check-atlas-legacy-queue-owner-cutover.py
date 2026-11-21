@@ -18,6 +18,12 @@ require=[
 ]
 for token in require: assert token in s,token
 assert s.count("CREATE OR REPLACE FUNCTION atlas.")==2
+assert s.count("CREATE OR REPLACE FUNCTION public.")==2
+assert s.count("LANGUAGE sql STABLE SET search_path TO ''")==1
+assert s.count("LANGUAGE sql SET search_path TO ''")==1
+assert s.count("REVOKE ALL ON FUNCTION public.")==2
+assert s.count("GRANT EXECUTE ON FUNCTION public.")==2
+assert "SECURITY DEFINER" not in s.split("CREATE OR REPLACE FUNCTION public.",1)[1].split("REVOKE ALL ON FUNCTION",1)[0]
 assert "INSERT INTO atlas.work_items" not in s
 assert "INSERT INTO atlas.tasks" not in s
 assert "UPDATE atlas.task_release_queue_items" not in s
