@@ -89,7 +89,7 @@ BEGIN
 
     IF coalesce(array_length(v_occ_ids,1),0) <> 64
        OR coalesce(array_length(v_queue_ids,1),0) <> 75 THEN
-      RAISE EXCEPTION 'Unexpected 2026 unfinished occurrence/queue count; stop';
+      RAISE EXCEPTION 'Unexpected 2026 unfinished occurrence/queue count; stop (occurrence_count=%, queue_count=%)', coalesce(array_length(v_occ_ids,1),0), coalesce(array_length(v_queue_ids,1),0);
     END IF;
 
     -- No new Work source is inferred. Explicitly include only the two
