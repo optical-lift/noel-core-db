@@ -228,7 +228,7 @@ fi
 # synthetic queue fixture. No arbitrary data/role/source admission.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 3752f32ca6317b02d5cfe832905a115b297502c1 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 712bd641d3366b2babfa8336b1a96d8dc4659cfc ] ||
      [ "$(git hash-object "$candidate_fixture")" != dfb675b25746adb2e928c5c5c10a27840466ef69 ] ||
      [ "$(git hash-object "$candidate_validation")" != 89eada21385c66fe34e2f9abad86a2340dd9f78f ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-obsolete-queue-retirement-row-change.py")" != 066af3e6ab7812c4c25efe992d814899aacd36f3 ] ||
