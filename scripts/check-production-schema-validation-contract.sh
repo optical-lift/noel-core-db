@@ -739,9 +739,7 @@ if not (harness.index('phase="trusted original C1 Work fixture before bounded ol
         harness.index('phase="held obsolete queue full-Atlas pre-retirement row baseline"') <
         harness.index('phase="candidate migration application"') <
         harness.index('phase="held obsolete queue exact three-table change and all-other-Atlas-row conservation"') <
-        harness.index('phase="signed local person-native exact Work prerequisite projection"') if
-        'phase="signed local person-native exact Work prerequisite projection"' in harness else
-        harness.index('phase="signed local HTTP API authorization matrix"')):
+        harness.index('phase="signed local prerequisite owner/worker authority, history and concurrent cycle proof"')):
     errors.append('Unfinished retirement must be fixture->730-table before->exact DML->730-table bounded compare->signed Work')
 
 if errors:
