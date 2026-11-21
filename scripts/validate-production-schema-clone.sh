@@ -244,6 +244,28 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unf
   signed_work_prerequisite_probe=true
 fi
 
+# TEST ONLY: source-positive prerequisite-safe V2 of the same exact obsolete queue.
+# This is DML on a disposable schema clone ONLY; no production credentials.
+# Use the original signed C1 fixture/proof, plus an exact scoped 97-row
+# synthetic queue fixture. No arbitrary data/role/source admission.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 5ed5730b773cb1ac210cf1e4d767c9b636d5e8a0 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 418f2b2f9900058b723d57ab39d5b747920550f9 ] ||
+     [ "$(git hash-object "$candidate_validation")" != ff69c14bdbfda03eb4693252fa7e42e5f459b1c6 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-obsolete-queue-retirement-row-change.py")" != bed62188f2e6ab3d8540c317e562c631b0f5bd0f ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse obsolete unfinished queue DML clone without pinned candidate, data fixture, trusted all-row and signed tests.' >&2
+    exit 2
+  fi
+  obsolete_unfinished_retirement_proof=true
+  signed_work_prerequisite_probe=true
+fi
+
 # Held Package B: remove only five exact live queue table dependencies.
 # Existing all-row fingerprints and genuine signed Work regressions remain mandatory.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ ]]; then
