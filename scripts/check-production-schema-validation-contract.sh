@@ -842,6 +842,23 @@ if not (
     errors.append('Canonical 20261121194446 V2 must use original hash-pinned source-positive 730-table/signed proof')
 
 
+
+# Generated canonical V3 is explicitly bound to the SAME original
+# source-positive 730-table full-row proof and genuine signed actor acceptance.
+# A different/new migration basename must NEVER inherit generic weaker checks.
+if not (
+    '20261121204646_atlas_obsolete_2026_unfinished_retirement_prereq_chain_v3.sql' in harness
+    and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_prereq_chain_clone_only_v3[.]sql$ || "$(basename "$candidate_migration")" == "20261121204646_atlas_obsolete_2026_unfinished_retirement_prereq_chain_v3.sql" ]]' in harness
+    and '12bc33affcd9a57eba4d19e332a010588f2b22cb' in harness
+    and '8e4ed1f4e10b178bdd9afdf25a5b42445e22f1d0' in harness
+    and '1a96988eef4bffd515e03be9d5c918ed08641faf' in harness
+    and 'bed62188f2e6ab3d8540c317e562c631b0f5bd0f' in harness
+    and 'obsolete_unfinished_retirement_proof=true' in harness
+    and 'signed_work_prerequisite_probe=true' in harness
+):
+    errors.append('Canonical 20261121204646 V3 must use original exact source-positive 730-table/signed proof')
+
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
