@@ -14,8 +14,7 @@ INSERT INTO atlas.farms(id,organization_id,stable_key,name,status) VALUES
 -- release settings. This prevents the legacy terminal release trigger from
 -- inserting a new unrelated settings row after the no-loss baseline.
 INSERT INTO atlas.farm_task_release_settings(farm_id)
-VALUES ('f9200000-0000-4000-8000-000000000002')
-ON CONFLICT (farm_id) DO NOTHING;
+VALUES ('f9200000-0000-4000-8000-000000000002');
 
 INSERT INTO atlas.work_definitions(id,farm_id,stable_key,title_template,task_type,active) VALUES
 ('f9200000-0000-4000-8000-000000000003','f9200000-0000-4000-8000-000000000002','held-2026-queue-definition','Fictional obsolete queue task','general',false);
