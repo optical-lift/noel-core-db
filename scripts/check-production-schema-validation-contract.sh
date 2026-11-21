@@ -781,16 +781,8 @@ for fragment in (
         errors.append('V2 original 730-table/canonical Work/signed C1 proof missing: '+fragment)
 if not ("if title == 'Production schema validation request: Atlas held obsolete 2026 prerequisite-safe retirement V2':" in workflow
        and 'test "$(git -C candidate rev-parse HEAD)" = "b2f136356fd642c62d432c68591aca528cab2a97"' in workflow
-       and 'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2[.]sql    print('Production schema validation contract FAILED:')
-    for error in errors:
-        print(f'- {error}')
-    raise SystemExit(1)
-
-print('Production schema validation contract passed: owner-only main workflow, immutable candidate SHA, dependency-complete schema plus custom-role production reads, immutable candidate fixtures/postconditions, DML-only local fixture setup, one local/CI harness, baseline-aware Atlas lint deltas, durable failure artifacts, local-only candidate execution, and no production DDL path.')
-PY
- in harness):
+       and 'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2[.]sql$' in harness):
     errors.append('V2 must preserve exact owner, immutable source SHA and local disposable admission')
-
 
 if errors:
     print('Production schema validation contract FAILED:')
