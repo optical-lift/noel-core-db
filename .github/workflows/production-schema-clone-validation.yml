@@ -1091,6 +1091,23 @@ jobs:
             fixtures=("$trusted_fixture")
           fi
 
+
+          # Exact canonical two-function migration: reuse ORIGINAL signed,
+          # current-schema 730-Atlas-row local proof, never production SQL.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261121225626" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "efedc90e4186349f7c7b904fc14344bdc86e7206"
+            test "$(basename "$candidate_migration")" = "20261121225626_atlas_owner_completion_queue_dead_branch_retirement_v1.sql"
+            test "$(git hash-object "$candidate_migration")" = a5a23c42557bf6913321689fb9853afb57ff2c0e
+            test "${#fixtures[@]}" = 1
+            test "${#validations[@]}" = 1
+            test "$(git hash-object "${fixtures[0]}")" = 19981823e3d6e7da8a82b5d609fb1558e38c4251
+            test "$(git hash-object "${validations[0]}")" = a3dbc4fe6f5db230ed3dbf071e514ff06487e807
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+          fi
+
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"
