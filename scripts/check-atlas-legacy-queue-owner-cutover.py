@@ -6,6 +6,8 @@ require=[
 "BEGIN;","COMMIT;","atlas.company_work_native_ledger_owner_self_v1(",
 "atlas.company_work_legacy_task_reviews_v1","atlas.work_items",
 "atlas.company_work_native_ledger_relevance",
+"atlas.principals p","p.user_id=t.assigned_user_id",
+"atlas.organization_person_canonical_reality_v1",
 "q.task_id IS DISTINCT FROM p_expected_task_id",
 "q.updated_at IS DISTINCT FROM p_expected_queue_updated_at",
 "p_decision NOT IN ('matched_existing_work','not_current')",
@@ -24,6 +26,7 @@ assert s.count("LANGUAGE sql SET search_path TO ''")==1
 assert s.count("REVOKE ALL ON FUNCTION public.")==2
 assert s.count("GRANT EXECUTE ON FUNCTION public.")==2
 assert "SECURITY DEFINER" not in s.split("CREATE OR REPLACE FUNCTION public.",1)[1].split("REVOKE ALL ON FUNCTION",1)[0]
+assert "atlas.organization_memberships" not in s, "New owner writer must not derive Person through legacy membership"
 assert "INSERT INTO atlas.work_items" not in s
 assert "INSERT INTO atlas.tasks" not in s
 assert "UPDATE atlas.task_release_queue_items" not in s
