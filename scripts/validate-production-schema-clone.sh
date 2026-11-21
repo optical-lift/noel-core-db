@@ -178,6 +178,7 @@ signed_task_initial_details_probe=false
 signed_titus_object_title_probe=false
 signed_ledger_reciprocal_probe=false
 signed_ledger_disposition_v2_probe=false
+signed_legacy_queue_owner_probe=false
 signed_unified_today_p0_probe=false
 signed_person_mail_probe=false
 signed_venue_bed_probe=false
@@ -483,6 +484,27 @@ if [ "$lane" = "atlas" ] &&
     exit 2
   fi
   signed_ledger_disposition_v2_probe=true
+fi
+
+# Exactly one TEST-ONLY owner queue-to-original-Work source package.
+# All source/fixture/proof blobs are immutable and scoped to the owner's
+# disposable issue request. Never admit this as a production migration.
+if [ "$lane" = atlas ] && [ "$version" = 20261120235959 ] &&
+   [ "$(basename "$candidate_migration")" = "20261120235959_atlas_legacy_queue_owner_canonical_work_clone_only_v1.sql" ]; then
+  queue_signed_proof="$repo_root/candidate/candidates/atlas/atlas_legacy_queue_owner_canonical_work_cutover_v1/validate_signed_queue_owner.py"
+  if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ ! -s "$queue_signed_proof" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 642180e6b0538802588b99417a9402fe0f11e762 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 19848e442641e5074a954fcd4832d8207fb38117 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 835e40d6566b9d356694e2c33edda5f4c021f6ae ] ||
+     [ "$(git hash-object "$queue_signed_proof")" != 1be7b50c1a8171fdbcba7b4f55c543e95ceb8e12 ] ||
+     [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-ledger-reciprocal-signed-http.py")" != ba2be33fa479e7d24523c10eaee3bbcf12918b3b ]; then
+    echo "Refuse legacy queue owner signed proof without exact disposable source, fixture and GoTrue harness." >&2
+    exit 2
+  fi
+  signed_legacy_queue_owner_probe=true
 fi
 
 # An exact named source-only physical care validation, not a release.
@@ -1022,6 +1044,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_titus_object_title_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
+       [ "$signed_legacy_queue_owner_probe" = true ] ||
        [ "$signed_unified_today_p0_probe" = true ] ||
        [ "$signed_person_mail_probe" = true ] ||
        [ "$signed_venue_bed_probe" = true ] ||
@@ -1049,6 +1072,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
        [ "$signed_native_original_work_comments_probe" = true ] ||
        [ "$signed_ledger_reciprocal_probe" = true ] ||
        [ "$signed_ledger_disposition_v2_probe" = true ] ||
+       [ "$signed_legacy_queue_owner_probe" = true ] ||
        [ "$signed_venue_bed_probe" = true ] ||
        [ "$signed_access01_event_choices_probe" = true ] ||
        [ "$signed_access02_my_work_probe" = true ] ||
@@ -1359,6 +1383,20 @@ if [ "$pre1_rest_proof" = true ]; then
     >"$artifacts_dir/pre1-local-row-integrity-after-candidate.log" 2>&1
   grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
     "$artifacts_dir/pre1-local-row-integrity-after-candidate.log"
+fi
+
+if [ "$signed_legacy_queue_owner_probe" = true ]; then
+  phase="genuinely signed local Ledger-owner queue evidence and original Work denial matrix"
+  if [[ ! "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'Queue owner signed proof refuses nonlocal database' >&2
+    exit 2
+  fi
+  python3 "$queue_signed_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-legacy-queue-owner-summary.txt" \
+    >"$artifacts_dir/signed-legacy-queue-owner.log" 2>&1
+  test -s "$artifacts_dir/signed-legacy-queue-owner-summary.txt"
+  grep -q '^PASS signed original queue owner, wrong Ledger' \
+    "$artifacts_dir/signed-legacy-queue-owner-summary.txt"
 fi
 
 if [ "$signed_access02_my_work_probe" = true ]; then
@@ -1944,6 +1982,9 @@ if [ "$signed_person_mail_probe" = true ]; then
 fi
 if [ "$signed_ledger_reciprocal_probe" = true ]; then
   printf '\nSIGNED reciprocal native Ledger Work: independent GoTrue owner/worker/outsider, root scoping, non-disclosure, unassigned original, revocation, no shadow People/Principals passed.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_legacy_queue_owner_probe" = true ]; then
+  printf '\nSIGNED queue-owner reconciliation: independent local GoTrue owner/worker/outsider, wrong Ledger, stale original, replay, no Task fabrication or automatic Work and governing root cutoff passed.\n' >> "$artifacts_dir/summary.md"
 fi
 if [ "$signed_ledger_disposition_v2_probe" = true ]; then
   printf '\nSIGNED Ledger disposition v2: independent GoTrue worker/governor/outsider, follow-up recovery, edited/rejected same original, idempotent retry, root cutoff and true 42501 denials.\n' >> "$artifacts_dir/summary.md"
