@@ -743,6 +743,47 @@ if not (harness.index('phase="trusted original C1 Work fixture before bounded ol
         harness.index('phase="signed local prerequisite owner/worker authority, history and concurrent cycle proof"')):
     errors.append('Unfinished retirement must be fixture->730-table before->exact DML->730-table bounded compare->signed Work')
 
+
+# Independent TEST-ONLY admission of the source-positive V2 prerequisite fix.
+# The V1 versioned release stays immutable and is not authorized for retry.
+for fragment in (
+    'Production schema validation request: Atlas held obsolete 2026 prerequisite-safe retirement V2',
+    'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2',
+    'held-obsolete-unfinished-prereq-v2',
+    'b2f136356fd642c62d432c68591aca528cab2a97',
+    'candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_guard_v2/',
+    '5ed5730b773cb1ac210cf1e4d767c9b636d5e8a0',
+    '418f2b2f9900058b723d57ab39d5b747920550f9',
+    'ff69c14bdbfda03eb4693252fa7e42e5f459b1c6',
+    'bed62188f2e6ab3d8540c317e562c631b0f5bd0f',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
+    'Exact owner-held obsolete 2026 unfinished retirement proof required',
+):
+    if fragment not in workflow:
+        errors.append('V2 source-positive protected owner/custody admission missing: '+fragment)
+for fragment in (
+    'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2',
+    '5ed5730b773cb1ac210cf1e4d767c9b636d5e8a0',
+    '418f2b2f9900058b723d57ab39d5b747920550f9',
+    'ff69c14bdbfda03eb4693252fa7e42e5f459b1c6',
+    'bed62188f2e6ab3d8540c317e562c631b0f5bd0f',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
+    'obsolete_unfinished_retirement_proof=true',
+    'signed_work_prerequisite_probe=true',
+):
+    if fragment not in harness:
+        errors.append('V2 original 730-table/canonical Work/signed C1 proof missing: '+fragment)
+if not ("if title == 'Production schema validation request: Atlas held obsolete 2026 prerequisite-safe retirement V2':" in workflow
+       and 'test "$(git -C candidate rev-parse HEAD)" = "b2f136356fd642c62d432c68591aca528cab2a97"' in workflow
+       and 'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2[.]sql$' in harness):
+    errors.append('V2 must preserve exact owner, immutable source SHA and local disposable admission')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
