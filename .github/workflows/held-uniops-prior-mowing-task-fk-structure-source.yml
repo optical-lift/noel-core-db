@@ -1,0 +1,42 @@
+name: HELD UNI-OPS Task FK structural provenance (SOURCE ONLY)
+
+on:
+  pull_request:
+    paths:
+      - 'tests/uniops_prior_mowing_task_fk_structure_held.py'
+      - 'tests/test_uniops_prior_mowing_task_fk_structure_held.py'
+      - '.github/workflows/held-uniops-prior-mowing-task-fk-structure-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify held finite FK structure classifier, no database or authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/uniops_prior_mowing_task_fk_structure_held.py tests/test_uniops_prior_mowing_task_fk_structure_held.py
+          PYTHONPATH=tests python3 -m unittest -v test_uniops_prior_mowing_task_fk_structure_held
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('tests/uniops_prior_mowing_task_fk_structure_held.py').read_text()
+          wf=Path('.github/workflows/held-uniops-prior-mowing-task-fk-structure-source.yml').read_text()
+          assert 'current_database()' in src
+          assert 'pg_catalog.pg_constraint' in src and 'pg_catalog.pg_trigger' in src
+          assert 'not_disposable' in src and 'catalog_untrusted' in src
+          assert 'classify_exception' in src and 'catalog_sql' in src
+          # Inspect the actual workflow header, not these self-check literals.
+          header=wf.split('      - name: Verify held finite FK structure classifier',1)[0]
+          assert '\n  pull_request:' in header
+          assert '\n  issues:' not in header and '\n  workflow_dispatch:' not in header
+          assert '\n    environment:' not in header
+          assert not any(token in header for token in ('NOEL_CORE_DATABASE_URL','supabase db dump','apply_migration'))
+          print('PASS: finite provenance labels only; no DB, test execution, release, secrets or owner-event trigger')
+          PY
