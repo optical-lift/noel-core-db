@@ -1,0 +1,40 @@
+name: Atlas Option C P0B contextual authority source (held)
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/atlas-option-c-contextual-review-source.yml"
+      - "candidates/atlas/governor_effective_subject_disclosure_review_v1/**"
+      - "scripts/validate-atlas-option-c-contextual-review-source.py"
+      - "scripts/validate-atlas-option-c-contextual-signed-http.py"
+      - "scripts/install-atlas-option-c-contextual-signed-hook-HELD.py"
+permissions:
+  contents: read
+jobs:
+  source-review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate read-only context shape (not an authorization test)
+        run: |
+          python3 -m py_compile scripts/validate-atlas-option-c-contextual-review-source.py
+          python3 scripts/validate-atlas-option-c-contextual-review-source.py
+          python3 -m py_compile scripts/validate-atlas-option-c-contextual-signed-http.py
+          python3 -m py_compile scripts/install-atlas-option-c-contextual-signed-hook-HELD.py
+          python3 - <<'PY'
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          import subprocess
+          with TemporaryDirectory() as temp:
+              copy=Path(temp)/"scripts"/"validate-production-schema-clone.sh"
+              copy.parent.mkdir(parents=True)
+              copy.write_bytes(Path("scripts/validate-production-schema-clone.sh").read_bytes())
+              subprocess.run(["python3","scripts/install-atlas-option-c-contextual-signed-hook-HELD.py","--controller",str(copy)],check=True)
+              subprocess.run(["bash","-n",str(copy)],check=True)
+              code=copy.read_text()
+              assert code.count("signed_option_c_probe=true")==1
+              assert "atlas_option_c_contextual_review_signed_clone_only_v1" in code
+              assert "validate-atlas-option-c-contextual-signed-http.py" in code
+          print("PASS patched disposable option C signed runner source and shell syntax")
+          PY
