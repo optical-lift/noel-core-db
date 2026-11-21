@@ -224,17 +224,17 @@ BEGIN
            FROM atlas.task_release_queue_items q WHERE NOT(q.id=ANY(v_queue_ids)))
             IS DISTINCT FROM v_unaffected_queue_fp THEN
       RAISE EXCEPTION 'Untargeted history or canonical Work changed; rollback; work=%, requirements=%, other_tasks=%, other_occ=%, other_queue=%',
-        (SELECT md5(string_agg(to_jsonb(w)::text, E'\\\\n' ORDER BY w.id::text))
+        (SELECT md5(string_agg(to_jsonb(w)::text, E'\\n' ORDER BY w.id::text))
            IS DISTINCT FROM v_work_fp FROM atlas.work_items w),
-        (SELECT md5(string_agg(to_jsonb(r)::text, E'\\\\n' ORDER BY r.id::text))
+        (SELECT md5(string_agg(to_jsonb(r)::text, E'\\n' ORDER BY r.id::text))
            IS DISTINCT FROM v_requirements_fp FROM atlas.work_requirements r),
-        (SELECT md5(string_agg(to_jsonb(t)::text, E'\\\\n' ORDER BY t.id::text))
+        (SELECT md5(string_agg(to_jsonb(t)::text, E'\\n' ORDER BY t.id::text))
            IS DISTINCT FROM v_unaffected_tasks_fp
            FROM atlas.tasks t WHERE NOT (t.id=ANY(v_task_ids))),
-        (SELECT md5(string_agg(to_jsonb(o)::text, E'\\\\n' ORDER BY o.id::text))
+        (SELECT md5(string_agg(to_jsonb(o)::text, E'\\n' ORDER BY o.id::text))
            IS DISTINCT FROM v_unaffected_occ_fp
            FROM atlas.planned_work_occurrences o WHERE NOT (o.id=ANY(v_occ_ids))),
-        (SELECT md5(string_agg(to_jsonb(q)::text, E'\\\\n' ORDER BY q.id::text))
+        (SELECT md5(string_agg(to_jsonb(q)::text, E'\\n' ORDER BY q.id::text))
            IS DISTINCT FROM v_unaffected_queue_fp
            FROM atlas.task_release_queue_items q WHERE NOT (q.id=ANY(v_queue_ids)));
     END IF;
