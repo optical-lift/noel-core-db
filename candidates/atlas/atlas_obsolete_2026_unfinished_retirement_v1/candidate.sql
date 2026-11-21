@@ -5,6 +5,10 @@
 -- shared Rulebook/release policy. It retires old schedule authority only.
 --
 -- Read-only production inventory (2026-11-21):
+-- The two original released occurrence links are explicitly retired within
+-- this migration; suppress the legacy terminal trigger's otherwise unavoidable
+-- FARM-WIDE release sweep only for the three Task archive transitions.
+-- Other Task guards remain active; the prior setting is restored immediately.
 -- Two released original Task-backed occurrences are deliberately allowed
 -- to retire through their existing terminal-Task trigger. All other historical
 -- source rows remain unchanged, and the 64 old planned/eligible are cancelled
@@ -53,6 +57,7 @@ DECLARE
     v_unaffected_occ_fp text;
     v_unaffected_queue_fp text;
     v_changed integer;
+    v_prior_reservoir_flag text;
 BEGIN
     LOCK TABLE atlas.tasks, atlas.planned_work_occurrences,
       atlas.task_release_queue_items IN SHARE ROW EXCLUSIVE MODE;
@@ -210,13 +215,46 @@ BEGIN
       RAISE EXCEPTION 'Expected 64 exact occurrence withdrawals, got %',v_changed;
     END IF;
 
-    -- Archive three historical owner-adjudicated items; never mark 'done'.
+    -- Archive exactly these three owner-adjudicated obsolete Tasks, never Done.
+    -- The original atlas.release_after_task_terminal_v1 trigger would also
+    -- run atlas.release_eligible_work_v1(farm,NULL,10) after EACH archive.
+    -- That farm-wide scheduler could release unrelated current Work. Noel's
+    -- existing atlas.reservoir_migration guard is read by that trigger only.
+    -- Scope the suppression to this three-row archival statement and restore
+    -- the previous value immediately. Other database/Task guards remain live.
+    v_prior_reservoir_flag := current_setting('atlas.reservoir_migration',true);
+    PERFORM set_config('atlas.reservoir_migration','on',true);
     UPDATE atlas.tasks t
        SET status='archived', completed_at=NULL, updated_at=now()
      WHERE t.id=ANY(v_task_ids) AND t.status IN ('open','blocked');
     GET DIAGNOSTICS v_changed = ROW_COUNT;
+    PERFORM set_config('atlas.reservoir_migration',coalesce(v_prior_reservoir_flag,''),true);
     IF v_changed <> 3 THEN
       RAISE EXCEPTION 'Expected three exact Task archives, got %',v_changed;
+    END IF;
+
+    -- Reproduce only the intended linked-occurrence retirement which the
+    -- trigger otherwise performs. Exact two source IDs were verified above.
+    -- Record historical withdrawal, never physical completion or Result.
+    UPDATE atlas.planned_work_occurrences o
+       SET state='cancelled',
+           metadata=coalesce(o.metadata,'{}'::jsonb) || jsonb_build_object(
+             'terminal_task_status','archived',
+             'terminal_task_id',t.id,
+             'terminal_at',now(),
+             'historical_disposition_kind','withdrawn_obsolete_2026_queue',
+             'historical_disposition_at',now()
+           ),
+           updated_at=now()
+      FROM atlas.tasks t
+     WHERE o.id=ANY(v_released_occ_ids)
+       AND o.state='released'
+       AND t.id=o.released_task_id
+       AND t.planned_occurrence_id=o.id
+       AND t.status='archived';
+    GET DIAGNOSTICS v_changed = ROW_COUNT;
+    IF v_changed <> 2 THEN
+      RAISE EXCEPTION 'Expected exactly two linked released source withdrawals, got %',v_changed;
     END IF;
 
     -- Stop remaining historical queue pointers being offered as unfinished.
