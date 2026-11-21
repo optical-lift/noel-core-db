@@ -217,7 +217,7 @@ jobs:
           if title == 'Production schema validation request: Atlas held obsolete 2026 prerequisite-safe retirement V2':
               expected = {'diagnostic_scope':'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2',
                           'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'b2f136356fd642c62d432c68591aca528cab2a97'}
+                          'candidate_sha':'6ed2978f7b79da1ffdb5dff096375c016f0a987d'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held obsolete 2026 unfinished retirement proof required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -819,13 +819,13 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-obsolete-unfinished-prereq-v2" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "b2f136356fd642c62d432c68591aca528cab2a97"
+            test "$(git -C candidate rev-parse HEAD)" = "6ed2978f7b79da1ffdb5dff096375c016f0a987d"
             src="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_guard_v2/candidate.sql"
             post="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_guard_v2/postconditions.sql"
             fixture="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_guard_v2/clone_fixture.sql"
-            test "$(git hash-object "$src")" = 5ed5730b773cb1ac210cf1e4d767c9b636d5e8a0
-            test "$(git hash-object "$post")" = ff69c14bdbfda03eb4693252fa7e42e5f459b1c6
-            test "$(git hash-object "$fixture")" = 418f2b2f9900058b723d57ab39d5b747920550f9
+            test "$(git hash-object "$src")" = 7d8d56797f553618b1b6fff73feddf464f394878
+            test "$(git hash-object "$post")" = 1a539dae9781ca6524abbbfd3f45ce96951e4141
+            test "$(git hash-object "$fixture")" = 26ec0ece68dccb5d9d966a20ecf30dcbf2fc7f32
             test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
             test "$(git hash-object scripts/validate-atlas-obsolete-queue-retirement-row-change.py)" = bed62188f2e6ab3d8540c317e562c631b0f5bd0f
             test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
