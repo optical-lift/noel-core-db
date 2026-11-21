@@ -1,0 +1,285 @@
+name: HELD UNI-OPS U2F native delegated first-original command SOURCE ONLY
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/**'
+      - 'tests/test_uniops_u2f_universal_delegated_command_draft_source.py'
+      - 'tests/test_uniops_u2f_signed_hook_source.py'
+      - '.github/workflows/held-uniops-u2f-universal-command-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Prove draft-only existing-registry admission and no database access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_uniops_u2f_universal_delegated_command_draft_source.py
+          python3 tests/test_uniops_u2f_universal_delegated_command_draft_source.py
+          python3 tests/test_uniops_u2f_signed_hook_source.py
+          echo 'UNI_OPS_U2F_UNIVERSAL_COMMAND_SOURCE=PASS'
+          echo 'NONHUMAN_CARRIER=UNBOUND'
+          echo 'CAN_ISSUE_WORK=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
+
+  pg17-synthetic-native-identity:
+    # Separate from protected current-schema signed tests. No Supabase connection.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: u2f_synthetic
+          POSTGRES_PASSWORD: synthetic-only-no-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d u2f_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: u2f_synthetic
+      PGPASSWORD: synthetic-only-no-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact PR source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: PostgreSQL 17 synthetic native identity positive/negative proof
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = "17"
+          psql -X -v ON_ERROR_STOP=1 -f candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/runtime_checks.sql
+          echo 'ISOLATED_SYNTHETIC_POSTGRES=YES'
+          echo 'REAL_NOEL_SCHEMA_RESTORED=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
+
+  pg17-synthetic-legacy-ledger-retirement:
+    # Separate disposable fake records. Never reads live Feast Guild IDs.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: u2f_legacy_migration_synthetic
+          POSTGRES_PASSWORD: synthetic-only-no-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d u2f_legacy_migration_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: u2f_legacy_migration_synthetic
+      PGPASSWORD: synthetic-only-no-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Check legacy-to-native read-only preflight in synthetic PostgreSQL 17
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = '17'
+          python3 candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/test_legacy_ledger_retirement_preflight.py
+          echo 'PRIVATE_LIVE_SOURCE=NOT_ACCESSED'
+          echo 'REAL_IDENTITY_MAPPING=NOT_INFERRED'
+          echo 'REAL_ROOT_AUTHORITY_MIGRATED=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
+
+
+  pg17-synthetic-governing-root-source-noloss:
+    # Fake identities only. No current-schema restore, Supabase access or actor authority.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: u2f_root_source_synthetic
+          POSTGRES_PASSWORD: synthetic-only-no-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d u2f_root_source_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: u2f_root_source_synthetic
+      PGPASSWORD: synthetic-only-no-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact PR source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Prove held root/seat/provenance cannot become authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = '17'
+          python3 candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/test_governing_root_source_noloss.py
+          echo 'REAL_GOVERNING_ROOT_MIGRATION=NOT_PERFORMED'
+          echo 'CAN_ISSUE_WORK=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
+
+
+  pg17-synthetic-native-governing-root-custody:
+    # Fictional data only; verifies old root evidence cannot become a native grant.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: u2f_root_native_synthetic
+          POSTGRES_PASSWORD: synthetic-only-no-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d u2f_root_native_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: u2f_root_native_synthetic
+      PGPASSWORD: synthetic-only-no-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact PR head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Run five-root exact-Ledger custody and no-authority PG17 tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = '17'
+          python3 candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/test_native_root_custody_plan.py
+          echo 'LIVE_SCHEMA_RESTORED=NO'
+          echo 'SOURCE_AUTHORITY_GRANTED=NO'
+          echo 'PRODUCTION_MUTATION=NONE'
+
+
+  pg17-synthetic-root-signed-lifecycle:
+    # Fictional session claim and fictional records. NOT a GoTrue signed test.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: u2f_root_lifecycle_synthetic
+          POSTGRES_PASSWORD: synthetic-only-no-secret
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d u2f_root_lifecycle_synthetic"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGDATABASE: u2f_root_lifecycle_synthetic
+      PGPASSWORD: synthetic-only-no-secret
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify exact held PR source
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - name: Verify one-time signed-actor shape, exact Ledger and revocation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v psql >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq postgresql-client
+          fi
+          test "$(psql -Atqc 'SHOW server_version_num' | cut -c 1-2)" = '17'
+          python3 candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/test_root_lifecycle.py
+          python3 candidates/atlas/uni_ops_u2f_universal_delegated_command_v1/pg17/test_signed_clone_bridge_sql.py
+          echo 'REAL_GOTRUE_SESSION=NO'
+          echo 'NATIVE_ROOT_AUTHORITY_RELEASED=NO'
+          echo 'EXECUTABLE_U2F_COMMAND=NO'
+          echo 'PRODUCTION_MUTATION=NONE'

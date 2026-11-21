@@ -1,0 +1,66 @@
+\set ON_ERROR_STOP on
+-- HELD U2F 04. Read-only, exact-root, source-to-native custody inspection.
+-- Required psql variables: governing_root_receipt_id, native_ledger_id.
+-- No IDs, names, source row contents, or credentials are returned.
+-- A matching native Seat or Reality responsibility is never a root grant.
+-- Never execute against Production without separate scoped authorization.
+WITH requested AS (
+ SELECT :'governing_root_receipt_id'::uuid AS receipt_id,
+        :'native_ledger_id'::uuid AS native_ledger_id
+), source_decision AS (
+ SELECT a.id, a.authority_kind, a.status, a.ended_at, a.ledger_id,
+        p.status AS principal_state, p.person_id,
+        al.status AS old_ledger_state,
+        nl.id AS native_id, nl.ledger_state, nl.retired_at AS native_retired_at,
+        nl.subject_entity_id
+ FROM requested q
+ LEFT JOIN atlas.principal_ledger_authorities a
+   ON a.id=q.receipt_id AND a.ledger_id=q.native_ledger_id
+ LEFT JOIN atlas.principals p ON p.id=a.principal_id
+ LEFT JOIN atlas.ledgers al ON al.id=a.ledger_id
+ LEFT JOIN ledger.ledgers nl ON nl.id=a.ledger_id
+)
+SELECT pg_catalog.jsonb_build_object(
+ 'contractVersion','uni_ops_u2f_root_source_noloss_preflight_held_v1',
+ 'sourceOriginalReceiptMatched', r.id IS NOT NULL,
+ 'sourceOriginalGoverningDecisionCurrent', (
+    r.id IS NOT NULL AND r.authority_kind='root_governing'
+    AND r.status='active' AND r.ended_at IS NULL
+    AND r.principal_state='active' AND r.person_id IS NOT NULL
+    AND r.old_ledger_state='active'
+ ),
+ 'nativeLedgerSameIdentityCurrent', (
+    r.native_id IS NOT NULL AND r.ledger_state='active'
+    AND r.native_retired_at IS NULL
+ ),
+ 'nativePersonSeatAligned', EXISTS (
+    SELECT 1 FROM ledger.seats s
+    WHERE s.ledger_id=r.native_id AND s.person_entity_id=r.person_id
+      AND s.seat_state='active' AND s.began_at<=pg_catalog.now()
+      AND (s.ended_at IS NULL OR s.ended_at>pg_catalog.now())
+ ),
+ 'seatProvenanceNamesExactOriginalReceipt', EXISTS (
+    SELECT 1 FROM ledger.seats s
+    WHERE s.ledger_id=r.native_id AND s.person_entity_id=r.person_id
+      AND s.seat_state='active' AND s.began_at<=pg_catalog.now()
+      AND (s.ended_at IS NULL OR s.ended_at>pg_catalog.now())
+      AND s.seat_basis->>'legacyLedgerAuthorityEvidenceId'=r.id::text
+ ),
+ 'entityResponsibilityCandidateObserved', EXISTS (
+    SELECT 1 FROM reality.responsibility_relations rr
+    WHERE rr.carrier_person_entity_id=r.person_id
+      AND rr.jurisdiction_kind='entity'
+      AND rr.jurisdiction_entity_id=r.subject_entity_id
+      AND rr.relation_state='active'
+      AND rr.began_at<=pg_catalog.now()
+      AND rr.ended_at IS NULL
+ ),
+ 'nativeGoverningRootVerified',false,
+ 'sourceAdjudicationComplete',false,
+ 'workIssuerAuthorized',false,
+ 'originalWorkCreated',false,
+ 'legacyRootRetirementAuthorized',false,
+ 'productionMutation',false,
+ 'sourceOnly',true
+)
+FROM source_decision r;
