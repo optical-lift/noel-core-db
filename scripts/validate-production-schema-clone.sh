@@ -494,10 +494,10 @@ if [ "$lane" = atlas ] && [ "$version" = 20261120235959 ] &&
   queue_signed_proof="$repo_root/candidate/candidates/atlas/atlas_legacy_queue_owner_canonical_work_cutover_v1/validate_signed_queue_owner.py"
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$queue_signed_proof" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 10c10fe25d4d2076a50647eb490d130266d50021 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 0a47afde4f84b5d08baa025e2bc3f5b1db15df8a ] ||
      [ "$(git hash-object "$candidate_validation")" != c563231ca64bf07c5bdccc805e09997496e3a00b ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 835e40d6566b9d356694e2c33edda5f4c021f6ae ] ||
-     [ "$(git hash-object "$queue_signed_proof")" != 2fa5a076902365423ec45fd15e676fe8acbd5417 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 3bfdf13588326c9335ccfd037f65f271be3c2a74 ] ||
+     [ "$(git hash-object "$queue_signed_proof")" != 7b07b29b1968af6ae0140871413eff62be8a0cd3 ] ||
      [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
      [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-ledger-reciprocal-signed-http.py")" != ba2be33fa479e7d24523c10eaee3bbcf12918b3b ]; then
