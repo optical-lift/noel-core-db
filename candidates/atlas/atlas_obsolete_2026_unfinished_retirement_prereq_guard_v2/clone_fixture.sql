@@ -287,3 +287,32 @@ INSERT INTO atlas.task_prerequisites(
  'f9200000-0000-4000-8000-000000000102',
  'd1bb49af-667f-47e6-b03b-06d75c6e93e6',
  'done','deferred_hidden',1,true,NULL);
+
+-- Source-positive live relation shape: the real farm has exactly FOUR active
+-- Goals. These test Goals are invented and have no actual crop/Task evidence.
+-- Normal Task status updates would refresh these Goal evaluation records
+-- even though none is a beneficiary of obsolete queue retirement.
+INSERT INTO atlas.goals(id,farm_id,stable_key,title,summary,release_config,active)
+VALUES
+('f9200000-0000-4000-8000-000000000301','f9200000-0000-4000-8000-000000000002','fictional-retirement-goal-01','Fictional unrelated Goal A','Fictional only','{"mode":"task_key_list","task_keys":[]}'::jsonb,true),
+('f9200000-0000-4000-8000-000000000302','f9200000-0000-4000-8000-000000000002','fictional-retirement-goal-02','Fictional unrelated Goal B','Fictional only','{"mode":"object_action","object_keys":[],"action_keys":[]}'::jsonb,true),
+('f9200000-0000-4000-8000-000000000303','f9200000-0000-4000-8000-000000000002','fictional-retirement-goal-03','Fictional unrelated Goal C','Fictional only','{"mode":"planned_occurrence_selector","definition_key_like":"nonexistent-goal-test:%"}'::jsonb,true),
+('f9200000-0000-4000-8000-000000000304','f9200000-0000-4000-8000-000000000002','fictional-retirement-goal-04','Fictional unrelated Goal D','Fictional only','{"mode":"task_key_list","task_keys":[]}'::jsonb,true);
+
+-- Baseline the four source-positive Goal observations so an accidental Goal
+-- recalc changes only original unrelated evaluation history. It must not.
+INSERT INTO atlas.goal_evaluations(
+ goal_id,farm_id,as_of_date,state,satisfied_count,total_count,snapshot_hash,snapshot
+)
+SELECT g.id,g.farm_id,(now() AT TIME ZONE 'America/Chicago')::date,
+       calculated.snapshot->>'state',
+       coalesce((calculated.snapshot#>>'{progress,satisfied}')::integer,0),
+       coalesce((calculated.snapshot#>>'{progress,total}')::integer,0),
+       md5(calculated.snapshot::text),calculated.snapshot
+FROM atlas.goals g
+CROSS JOIN LATERAL (
+ SELECT atlas.resolve_goal_state_v1(g.id,(now() AT TIME ZONE 'America/Chicago')::date) AS snapshot
+) calculated
+WHERE g.farm_id='f9200000-0000-4000-8000-000000000002'::uuid
+  AND g.stable_key LIKE 'fictional-retirement-goal-%';
+
