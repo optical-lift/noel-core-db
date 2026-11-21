@@ -29,7 +29,7 @@ assert "INSERT INTO atlas.tasks" not in s
 assert "UPDATE atlas.task_release_queue_items" not in s
 assert "DELETE FROM " not in s and "DROP TABLE" not in s and "CASCADE" not in s
 assert s.count("BEGIN;")==1 and s.count("COMMIT;")==1
-assert s.count("$source$")==2 and s.count("$function$")==4
+assert s.count("$source$")==2 and s.count("$function$")==8
 # The EXISTING full-schema clone carrier will invoke this signed proof only
 # after exact source admission and a disposable C1 fixture. A static CI pass
 # here cannot substitute for PostgreSQL semantic compile or signed execution.
