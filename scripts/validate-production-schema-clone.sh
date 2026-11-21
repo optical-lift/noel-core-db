@@ -188,6 +188,7 @@ signed_access03_zone_retirement_probe=false
 signed_generated_listening_storage_probe=false
 signed_private_course_working_loop_probe=false
 orphan_queue_retirement_proof=false
+obsolete_unfinished_retirement_proof=false
 # Exact held deletion only; preserve every existing signed proof admission.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_orphan_backfill_retirement_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
@@ -218,6 +219,28 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_queue_
     exit 2
   fi
   orphan_queue_retirement_proof=true
+  signed_work_prerequisite_probe=true
+fi
+
+# TEST ONLY: source-exact retirement of obsolete historical unfinished rows.
+# This is DML on a disposable schema clone ONLY; no production credentials.
+# Use the original signed C1 fixture/proof, plus an exact scoped 97-row
+# synthetic queue fixture. No arbitrary data/role/source admission.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != d2c4e0039d5db685a1901c6458bd83107a17dc40 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 1b204350f8225e4a6e47c78de35c18a73bb92691 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 89eada21385c66fe34e2f9abad86a2340dd9f78f ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-obsolete-queue-retirement-row-change.py")" != 066af3e6ab7812c4c25efe992d814899aacd36f3 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse obsolete unfinished queue DML clone without pinned candidate, data fixture, trusted all-row and signed tests.' >&2
+    exit 2
+  fi
+  obsolete_unfinished_retirement_proof=true
   signed_work_prerequisite_probe=true
 fi
 
@@ -1093,7 +1116,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
     # public ECR quota before signed tests could start (two protected runs).
     # Limit this to the existing care probe; no change to other clone lanes,
     # image registries, pinned CLI, health checks, JWT verification or SQL.
-    if [ "$orphan_queue_retirement_proof" = true ]; then
+    if [ "$orphan_queue_retirement_proof" = true ] || [ "$obsolete_unfinished_retirement_proof" = true ]; then
       supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
     elif [ "$signed_care_single_done_probe" = true ] ||
        [ "$signed_native_work_release_probe" = true ] ||
@@ -1253,6 +1276,13 @@ fi
 phase="baseline domain schema lint"
 run_lint baseline
 
+if [ "$obsolete_unfinished_retirement_proof" = true ]; then
+  phase="trusted original C1 Work fixture before bounded old-queue synthetic data"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+    >"$artifacts_dir/obsolete-retirement-original-c1-fixture.log" 2>&1
+fi
+
 if [ -n "$candidate_fixture" ]; then
   phase="candidate validation fixture application"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_fixture" \
@@ -1283,6 +1313,14 @@ if [ "$orphan_queue_retirement_proof" = true ]; then
   python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
     --db-url "$database_url" --snapshot "$orphan_row_snapshot" --mode capture \
     >"$artifacts_dir/orphan-local-row-integrity-baseline.log" 2>&1
+fi
+
+if [ "$obsolete_unfinished_retirement_proof" = true ]; then
+  phase="held obsolete queue full-Atlas pre-retirement row baseline"
+  obsolete_row_snapshot="$runtime_dir/obsolete-queue-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-obsolete-queue-retirement-row-change.py" \
+    --db-url "$database_url" --snapshot "$obsolete_row_snapshot" --mode capture \
+    >"$artifacts_dir/obsolete-queue-row-baseline.log" 2>&1
 fi
 
 phase="candidate migration application"
@@ -1399,6 +1437,15 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$obsolete_unfinished_retirement_proof" = true ]; then
+  phase="held obsolete queue exact three-table change and all-other-Atlas-row conservation"
+  python3 "$repo_root/scripts/validate-atlas-obsolete-queue-retirement-row-change.py" \
+    --db-url "$database_url" --snapshot "$obsolete_row_snapshot" --mode verify \
+    >"$artifacts_dir/obsolete-queue-row-after-candidate.log" 2>&1
+  grep -q "^PASS historical retirement: exactly three authorized Atlas base relations changed" \
+    "$artifacts_dir/obsolete-queue-row-after-candidate.log"
 fi
 
 if [ "$orphan_queue_retirement_proof" = true ]; then
