@@ -221,6 +221,24 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_queue_
   signed_work_prerequisite_probe=true
 fi
 
+# Held Package B: remove only five exact live queue table dependencies.
+# Existing all-row fingerprints and genuine signed Work regressions remain mandatory.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != d62d42837f4a36e7ba0ded4bf4b8c29f948488fa ] ||
+     [ "$(git hash-object "$candidate_validation")" != 7cf080f816ee7a5cab53ce51691eb38fb50c149c ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse historical queue live consumer cutover without exact immutable source, fixture, and signed actor proof.' >&2
+    exit 2
+  fi
+  orphan_queue_retirement_proof=true
+  signed_work_prerequisite_probe=true
+fi
+
 # Exact owner-admitted immutable package; never infer proof from a filename.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_course_working_loop_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||

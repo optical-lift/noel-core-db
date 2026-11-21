@@ -655,6 +655,46 @@ if not (harness.index('phase="orphan backfill local all-Atlas-row baseline"') <
         harness.index('phase="signed local prerequisite owner/worker authority')):
     errors.append('Queue trigger retirement must use existing before/after ALL-row fingerprint and signed actor regression.')
 
+# Five-function queue consumer subtraction: pinned immutable source,
+# original Work/source-row preservation, no special SQL execution carrier.
+for fragment in (
+    'Production schema validation request: Atlas held five live queue consumer decoupling',
+    'atlas_legacy_queue_live_consumer_decoupling_clone_only_v1',
+    'held-queue-consumer-decoupling',
+    '6e53e3749bafed7f9c621d0aac79f3f3426e01ac',
+    'd62d42837f4a36e7ba0ded4bf4b8c29f948488fa',
+    '7cf080f816ee7a5cab53ce51691eb38fb50c149c',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
+    'Exact owner-held five live queue consumer validation authorization required',
+):
+    if fragment not in workflow:
+        errors.append('Five live consumer held source workflow admission missing: '+fragment)
+for fragment in (
+    'atlas_legacy_queue_live_consumer_decoupling_clone_only_v1',
+    'd62d42837f4a36e7ba0ded4bf4b8c29f948488fa',
+    '7cf080f816ee7a5cab53ce51691eb38fb50c149c',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
+    'orphan_queue_retirement_proof=true',
+    'signed_work_prerequisite_probe=true',
+):
+    if fragment not in harness:
+        errors.append('Five live consumer held signed harness admission missing: '+fragment)
+if not ('if title == \'Production schema validation request: Atlas held five live queue consumer decoupling\':' in workflow
+        and 'test "$(git -C candidate rev-parse HEAD)" = "6e53e3749bafed7f9c621d0aac79f3f3426e01ac"' in workflow
+        and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ ]]' in harness):
+    errors.append('Five live consumer candidate not pinned to exact owner request/immutable source')
+if not (harness.index('phase="orphan backfill local all-Atlas-row baseline"') <
+        harness.index('phase="candidate migration application"') <
+        harness.index('phase="orphan backfill local all-Atlas-row unchanged after exact deletion"') <
+        harness.index('phase="signed local prerequisite owner/worker authority')):
+    errors.append('Five live consumer source cutover must retain all-row preservation and signed actor regression')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
