@@ -40,6 +40,9 @@ DECLARE
     v_requirements_fp text;
     v_unaffected_tasks_fp text;
     v_unaffected_occ_fp text;
+    v_other_occ_before jsonb;
+    v_other_occ_changed integer;
+    v_other_occ_changed_fields text;
     v_unaffected_queue_fp text;
     v_changed integer;
 BEGIN
@@ -158,6 +161,11 @@ BEGIN
       INTO v_unaffected_queue_fp
       FROM atlas.task_release_queue_items q WHERE NOT (q.id=ANY(v_queue_ids));
 
+    SELECT coalesce(jsonb_object_agg(o.id::text,to_jsonb(o)),'{}'::jsonb)
+      INTO v_other_occ_before
+      FROM atlas.planned_work_occurrences o
+      WHERE NOT (o.id=ANY(v_occ_ids));
+
     -- Withdraw schedule authority only. No completed_at, Result or crop
     -- observation is generated. The physical Field Row 9 crop remains real.
     UPDATE atlas.planned_work_occurrences o
@@ -168,6 +176,14 @@ BEGIN
       RAISE EXCEPTION 'Expected 64 exact occurrence withdrawals, got %',v_changed;
     END IF;
 
+    -- Local protected clone diagnostic only: number of non-target
+    -- occurrence rows changed; no IDs, values, metadata or fingerprints.
+    SELECT count(*)::integer INTO v_other_occ_changed
+    FROM atlas.planned_work_occurrences o
+    WHERE NOT (o.id=ANY(v_occ_ids))
+      AND v_other_occ_before->(o.id::text) IS DISTINCT FROM to_jsonb(o);
+    RAISE NOTICE 'retirement non-target occurrence changes after occurrence cancellation: %', v_other_occ_changed;
+
     -- Archive three historical owner-adjudicated items; never mark 'done'.
     UPDATE atlas.tasks t
        SET status='archived', completed_at=NULL, updated_at=now()
@@ -176,6 +192,14 @@ BEGIN
     IF v_changed <> 3 THEN
       RAISE EXCEPTION 'Expected three exact Task archives, got %',v_changed;
     END IF;
+
+    -- Local protected clone diagnostic only: number of non-target
+    -- occurrence rows changed; no IDs, values, metadata or fingerprints.
+    SELECT count(*)::integer INTO v_other_occ_changed
+    FROM atlas.planned_work_occurrences o
+    WHERE NOT (o.id=ANY(v_occ_ids))
+      AND v_other_occ_before->(o.id::text) IS DISTINCT FROM to_jsonb(o);
+    RAISE NOTICE 'retirement non-target occurrence changes after three Task archives: %', v_other_occ_changed;
 
     -- Stop remaining historical queue pointers being offered as unfinished.
     -- Existing completed/skipped queue states and completed Task records stay.
@@ -186,6 +210,14 @@ BEGIN
     IF v_changed <> 75 THEN
       RAISE EXCEPTION 'Expected 75 exact historical queue withdrawals, got %',v_changed;
     END IF;
+
+    -- Local protected clone diagnostic only: number of non-target
+    -- occurrence rows changed; no IDs, values, metadata or fingerprints.
+    SELECT count(*)::integer INTO v_other_occ_changed
+    FROM atlas.planned_work_occurrences o
+    WHERE NOT (o.id=ANY(v_occ_ids))
+      AND v_other_occ_before->(o.id::text) IS DISTINCT FROM to_jsonb(o);
+    RAISE NOTICE 'retirement non-target occurrence changes after queue pointer skips: %', v_other_occ_changed;
 
     IF (SELECT count(*) FROM atlas.task_release_queue_items) <> v_before_queue_count
        OR (SELECT count(*) FROM atlas.planned_work_occurrences) <> v_before_occ_count
@@ -223,6 +255,16 @@ BEGIN
        OR (SELECT md5(string_agg(to_jsonb(q)::text, E'\\n' ORDER BY q.id::text))
            FROM atlas.task_release_queue_items q WHERE NOT(q.id=ANY(v_queue_ids)))
             IS DISTINCT FROM v_unaffected_queue_fp THEN
+
+      SELECT string_agg(DISTINCT changed_field.field_name, ',' ORDER BY changed_field.field_name)
+        INTO v_other_occ_changed_fields
+        FROM atlas.planned_work_occurrences o
+        CROSS JOIN LATERAL jsonb_object_keys(to_jsonb(o)) AS changed_field(field_name)
+        WHERE NOT (o.id=ANY(v_occ_ids))
+          AND v_other_occ_before->(o.id::text) IS DISTINCT FROM to_jsonb(o)
+          AND v_other_occ_before->(o.id::text)->changed_field.field_name
+              IS DISTINCT FROM to_jsonb(o)->changed_field.field_name;
+      RAISE NOTICE 'Non-target occurrence changed columns only: %',coalesce(v_other_occ_changed_fields,'(none)');
       RAISE EXCEPTION 'Untargeted history or canonical Work changed; rollback; work=%, requirements=%, other_tasks=%, other_occ=%, other_queue=%',
         (SELECT md5(string_agg(to_jsonb(w)::text, E'\\n' ORDER BY w.id::text))
            IS DISTINCT FROM v_work_fp FROM atlas.work_items w),
