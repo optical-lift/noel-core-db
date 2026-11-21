@@ -245,3 +245,11 @@ INSERT INTO atlas.task_release_queue_items(id,farm_id,queue_key,position,state,p
 ('faad9d75-bdcb-49b4-ae2c-027f6fa52f1f','f9200000-0000-4000-8000-000000000002','owner_social_content_queue',27,'queued','ce028b29-d46f-4f7e-a802-0e4862e701c8',NULL,false),
 ('fed45925-a79f-4178-9625-56160d6c4bd2','f9200000-0000-4000-8000-000000000002','owner_social_content_queue',11,'queued','f07002a0-7cc0-4f02-8710-8802086a32af',NULL,false),
 ('ffb39773-9bb5-4b7d-9209-87f93e7875d8','f9200000-0000-4000-8000-000000000002','owner_social_content_queue',1,'completed','9007f67e-2c6a-4582-ace4-69b896a8a832',NULL,false);
+
+-- The original blocked Task owns a still-planned occurrence, even though
+-- generic task-insertion normalization may release its fictional counterpart.
+-- Restore the exact original planned state before the no-loss snapshot.
+UPDATE atlas.planned_work_occurrences
+   SET state='planned',released_task_id=NULL
+ WHERE id='71ef03fa-36ff-4a54-bdad-dfe5336014c9'::uuid
+   AND state IS DISTINCT FROM 'planned';
