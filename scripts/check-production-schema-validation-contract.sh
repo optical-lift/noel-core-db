@@ -716,6 +716,7 @@ for fragment in (
         errors.append('2026 unfinished source-only protected owner admission missing: '+fragment)
 for fragment in (
     'atlas_obsolete_2026_unfinished_retirement_clone_only_v1',
+    '20261121184327_atlas_obsolete_2026_unfinished_retirement_v1.sql',
     '55f7f92430cea0beeef79f9c4705a8a7f2afe9a0',
     'd06aa20d0c0694160cb32126abf3ffa49b2d3822',
     '722d802f517b99e34fbe284e2e20b71daa99c6a6',
@@ -732,7 +733,7 @@ for fragment in (
         errors.append('2026 unfinished held DML guard, row no-loss, or genuine signer missing: '+fragment)
 if not ('if title == \'Production schema validation request: Atlas held obsolete 2026 unfinished retirement\':' in workflow
         and 'test "$(git -C candidate rev-parse HEAD)" = "a6c1522ea5cc154ae13dd4f872bc7251337f69e9"' in workflow
-        and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ ]]' in harness):
+        and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121184327_atlas_obsolete_2026_unfinished_retirement_v1.sql" ]]' in harness):
     errors.append('Unfinished retirement requires exact owner request, candidate SHA and local DML identity')
 if not (harness.index('phase="trusted original C1 Work fixture before bounded old-queue synthetic data"') <
         harness.index('phase="candidate validation fixture application"') <
