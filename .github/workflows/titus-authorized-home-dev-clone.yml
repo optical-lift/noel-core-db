@@ -1,0 +1,129 @@
+name: Titus authorized-home disposable development clone (NO RELEASE)
+
+on:
+  push:
+    branches:
+      - work/shared-titus-authorized-home-source-20261101
+    paths:
+      - 'candidates/shared-titus-authorized-home-v1/candidate.sql'
+      - 'candidates/shared-titus-authorized-home-v1/structural_postconditions.sql'
+      - '.github/workflows/titus-authorized-home-dev-clone.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: titus-home-dev-clone
+  cancel-in-progress: false
+
+jobs:
+  clone:
+    # Owner's existing development branch only, never PR code.
+    if: >-
+      github.repository == 'optical-lift/noel-core-db' &&
+      github.ref == 'refs/heads/work/shared-titus-authorized-home-source-20261101' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - name: Checkout reviewed canonical clone runner only
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Checkout exact held source separately, never execute its scripts
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: held
+          persist-credentials: false
+
+      - name: Validate trusted custody and exact held inputs
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git -C held rev-parse HEAD)" = "$EXPECTED_SHA"
+          bash scripts/check-migration-release-lane.sh --help >/dev/null 2>&1 && exit 1 || true
+          bash scripts/check-custody.sh
+          source_path="held/candidates/shared-titus-authorized-home-v1"
+          test -s "$source_path/candidate.sql"
+          test -s "$source_path/structural_postconditions.sql"
+          test ! -e held/supabase/migrations/20261102000000_shared_titus_authorized_home_self_clone_only.sql
+          grep -q 'public.titus_authorized_home_self_api_v1()' "$source_path/candidate.sql"
+          grep -q "o.closed_at is null and o.retired_at is null" "$source_path/candidate.sql"
+          grep -q 'limit 100' "$source_path/candidate.sql"
+          cp "$source_path/candidate.sql" "$RUNNER_TEMP/20261102000000_shared_titus_authorized_home_self_clone_only.sql"
+          echo "Held SQL hash: $(sha256sum "$RUNNER_TEMP/20261102000000_shared_titus_authorized_home_self_clone_only.sql" | cut -d' ' -f1)"
+          echo 'Source stays candidate-only. No migration release is prepared.'
+
+      - name: Install the existing pinned Supabase CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://github.com/supabase/cli/releases/download/v2.116.0/supabase_linux_amd64.tar.gz -o "$RUNNER_TEMP/supabase.tgz"
+          tar -xzf "$RUNNER_TEMP/supabase.tgz" -C "$RUNNER_TEMP" supabase
+          sudo install -m 0755 "$RUNNER_TEMP/supabase" /usr/local/bin/supabase
+          test "$(supabase --version | tail -n1)" = "2.116.0"
+
+      - name: Authenticate read-only Docker registry pulls
+        shell: bash
+        env:
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$TOKEN" | docker login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      - name: Read-only production structural snapshot (no rows)
+        shell: bash
+        env:
+          NOEL_CORE_DATABASE_URL: ${{ secrets.NOEL_CORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NOEL_CORE_DATABASE_URL:-}" ]; then
+            echo "::error::Protected environment has no read-only schema snapshot connection."
+            exit 1
+          fi
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --role-only --file "$RUNNER_TEMP/titus-clone-roles.sql"
+          supabase db dump --db-url "$NOEL_CORE_DATABASE_URL" --file "$RUNNER_TEMP/titus-clone-schema.sql"
+          test -s "$RUNNER_TEMP/titus-clone-roles.sql"
+          test -s "$RUNNER_TEMP/titus-clone-schema.sql"
+          echo 'Schema-only snapshot collected. No production data rows were exported.'
+
+      - name: Apply held Titus candidate and verify structural assertions in clone only
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/validate-production-schema-clone.sh \
+            --migration-version 20261102000000 \
+            --release-lane shared \
+            --candidate-migration "$RUNNER_TEMP/20261102000000_shared_titus_authorized_home_self_clone_only.sql" \
+            --candidate-validation held/candidates/shared-titus-authorized-home-v1/structural_postconditions.sql \
+            --roles-dump "$RUNNER_TEMP/titus-clone-roles.sql" \
+            --schema-dump "$RUNNER_TEMP/titus-clone-schema.sql" \
+            --artifacts-dir "$RUNNER_TEMP/titus-home-dev-clone-evidence"
+          test -s "$RUNNER_TEMP/titus-home-dev-clone-evidence/summary.md"
+
+      - name: Record bounded development result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo '### Titus held current-Person home — development clone only'
+            echo
+            echo "Held commit: \`\${GITHUB_SHA}\`"
+            echo
+            if test -s "$RUNNER_TEMP/titus-home-dev-clone-evidence/summary.md"; then
+              cat "$RUNNER_TEMP/titus-home-dev-clone-evidence/summary.md"
+            else
+              echo 'Clone did not complete; inspect failed step. No production mutations were authorized.'
+            fi
+            echo
+            echo '**Not tested here:** real OAuth user bearers, enrolled learner vs outsider, revocation, browser, teacher/author, production release.'
+          } >>"$GITHUB_STEP_SUMMARY"

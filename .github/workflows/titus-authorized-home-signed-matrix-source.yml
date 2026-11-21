@@ -1,0 +1,81 @@
+name: Titus authorized-home signed matrix source checks (no database)
+
+on:
+  push:
+    branches:
+      - work/shared-titus-authorized-home-source-20261101
+    paths:
+      - 'candidates/shared-titus-authorized-home-v1/**'
+      - '.github/workflows/titus-authorized-home-signed-matrix-source.yml'
+  pull_request:
+    paths:
+      - 'candidates/shared-titus-authorized-home-v1/**'
+      - '.github/workflows/titus-authorized-home-signed-matrix-source.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: titus-authorized-home-signed-matrix-source
+  cancel-in-progress: false
+
+jobs:
+  source:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Assert exact source revision and hold boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Source SHA: $(git rev-parse HEAD)"
+          test ! -f supabase/migrations/20261102_shared_titus_authorized_home_self_api_v1.sql
+          test -s candidates/shared-titus-authorized-home-v1/candidate.sql
+          test -s candidates/shared-titus-authorized-home-v1/structural_postconditions.sql
+          test -s candidates/shared-titus-authorized-home-v1/signed_isolation_matrix.py
+          test -s candidates/shared-titus-authorized-home-v1/test_signed_isolation_matrix.py
+      - name: Python-only offline negative matrix contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile \
+            candidates/shared-titus-authorized-home-v1/signed_isolation_matrix.py \
+            candidates/shared-titus-authorized-home-v1/test_signed_isolation_matrix.py \
+            candidates/shared-titus-authorized-home-v1/signed_self_read_test.py
+          python3 -m unittest discover \
+            -s candidates/shared-titus-authorized-home-v1 \
+            -p 'test_signed_isolation_matrix.py' \
+            -v
+      - name: Static boundary assertions, not a signed security claim
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("candidates/shared-titus-authorized-home-v1")
+          sql=(root/"candidate.sql").read_text()
+          matrix=(root/"signed_isolation_matrix.py").read_text()
+          for token in (
+            "public.titus_authorized_home_self_api_v1()",
+            "titus.current_authenticated_person_entity_id_v1()",
+            "atlas.person_auth_credentials",
+            "atlas.teaching_enrollments",
+            "coalesce(v_claims->>'client_id','')",
+            "credential.retired_at is null",
+            "e.state='active'",
+            "v.published_at is not null",
+            "to authenticated;"
+          ):
+            assert token in sql, "Required source condition absent: "+token
+          assert "grant execute on function" in sql
+          assert "from public, anon, service_role;" in sql
+          assert "Only explicit loopback HTTP with a port is allowed" in matrix
+          assert "404 is not a proven permission denial" in matrix
+          assert "INCOMPLETE: mandatory independently signed scenarios unavailable" in matrix
+          assert "from service_role" not in matrix
+          print("PASS only static and offline harness checks; signed production-shaped clone proof STILL REQUIRED")
+          PY
