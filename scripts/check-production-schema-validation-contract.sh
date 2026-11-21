@@ -784,6 +784,23 @@ if not ("if title == 'Production schema validation request: Atlas held obsolete 
        and 'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2[.]sql$' in harness):
     errors.append('V2 must preserve exact owner, immutable source SHA and local disposable admission')
 
+
+# New canonical Atlas V2 must take precisely the same source-positive,
+# full 730-table PRE1 conservation, and genuine C1 signed proof as the held
+# clone-only V2. An unpinned version must not silently take generic checks.
+if not (
+    '20261121194446_atlas_obsolete_2026_unfinished_retirement_prereq_guard_v2.sql' in harness
+    and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2[.]sql$ || "$(basename "$candidate_migration")" == "20261121194446_atlas_obsolete_2026_unfinished_retirement_prereq_guard_v2.sql" ]]' in harness
+    and '7d8d56797f553618b1b6fff73feddf464f394878' in harness
+    and '26ec0ece68dccb5d9d966a20ecf30dcbf2fc7f32' in harness
+    and '1a539dae9781ca6524abbbfd3f45ce96951e4141' in harness
+    and 'bed62188f2e6ab3d8540c317e562c631b0f5bd0f' in harness
+    and 'obsolete_unfinished_retirement_proof=true' in harness
+    and 'signed_work_prerequisite_probe=true' in harness
+):
+    errors.append('Canonical 20261121194446 V2 must use original hash-pinned source-positive 730-table/signed proof')
+
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
