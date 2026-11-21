@@ -702,9 +702,9 @@ for fragment in (
     'Production schema validation request: Atlas held obsolete 2026 unfinished retirement',
     'atlas_obsolete_2026_unfinished_retirement_clone_only_v1',
     'held-obsolete-unfinished-retirement',
-    'a1217e8da2f9f8d5b6821fe6d920d41ef3e42c75',
+    '7a57de9abd52d287de3da019b445a552e085e10f',
     'd2c4e0039d5db685a1901c6458bd83107a17dc40',
-    '1b204350f8225e4a6e47c78de35c18a73bb92691',
+    'dfb675b25746adb2e928c5c5c10a27840466ef69',
     '89eada21385c66fe34e2f9abad86a2340dd9f78f',
     '066af3e6ab7812c4c25efe992d814899aacd36f3',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
@@ -717,7 +717,7 @@ for fragment in (
 for fragment in (
     'atlas_obsolete_2026_unfinished_retirement_clone_only_v1',
     'd2c4e0039d5db685a1901c6458bd83107a17dc40',
-    '1b204350f8225e4a6e47c78de35c18a73bb92691',
+    'dfb675b25746adb2e928c5c5c10a27840466ef69',
     '89eada21385c66fe34e2f9abad86a2340dd9f78f',
     '066af3e6ab7812c4c25efe992d814899aacd36f3',
     'a6dbf950b689505babe33811f421add9db2a742d',
@@ -731,7 +731,7 @@ for fragment in (
     if fragment not in harness:
         errors.append('2026 unfinished held DML guard, row no-loss, or genuine signer missing: '+fragment)
 if not ('if title == \'Production schema validation request: Atlas held obsolete 2026 unfinished retirement\':' in workflow
-        and 'test "$(git -C candidate rev-parse HEAD)" = "a1217e8da2f9f8d5b6821fe6d920d41ef3e42c75"' in workflow
+        and 'test "$(git -C candidate rev-parse HEAD)" = "7a57de9abd52d287de3da019b445a552e085e10f"' in workflow
         and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_obsolete_2026_unfinished_retirement_clone_only_v1[.]sql$ ]]' in harness):
     errors.append('Unfinished retirement requires exact owner request, candidate SHA and local DML identity')
 if not (harness.index('phase="trusted original C1 Work fixture before bounded old-queue synthetic data"') <
