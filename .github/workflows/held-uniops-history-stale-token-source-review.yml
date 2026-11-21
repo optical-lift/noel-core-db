@@ -1,0 +1,48 @@
+name: HELD UNI-OPS historical stale-impact source-law review (no-network)
+
+on:
+  pull_request:
+    paths:
+      - 'tests/uniops_history_stale_token_source_contract_held.py'
+      - 'tests/test_uniops_history_stale_token_source_contract_held.py'
+      - 'docs/review/UNI_OPS_HISTORICAL_STALE_IMPACT_CONFLICT_20261109.md'
+      - '.github/workflows/held-uniops-history-stale-token-source-review.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout frozen held historical-cancel source only
+        uses: actions/checkout@v4
+        with:
+          ref: ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          path: historical-source-review
+          persist-credentials: false
+      - name: Checkout frozen merged signed bridge only
+        uses: actions/checkout@v4
+        with:
+          ref: 1be7e54778c7fc6c3941aace036d8c4c4f63c2c1
+          path: historical-bridge-review
+          persist-credentials: false
+      - name: Source pin, denial invariants and exact in-memory conflict proposal
+        shell: bash
+        env:
+          UNI_OPS_HISTORY_ORIGINAL_SQL: historical-source-review/candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql
+          UNI_OPS_HISTORY_ORIGINAL_BRIDGE: historical-bridge-review/tests/uniops_historical_retirement_signed_bridge_held.py
+        run: |
+          set -euo pipefail
+          test "$(git -C historical-source-review rev-parse HEAD)" = ddfb0bf5374798301fe076a61d2b944dfb52ff63
+          test "$(git -C historical-bridge-review rev-parse HEAD)" = 1be7e54778c7fc6c3941aace036d8c4c4f63c2c1
+          test "$(git -C historical-source-review hash-object candidates/atlas_universal_work_lifecycle_v1/20_native_historical_retirement_candidate.sql)" = 93f7b9cf0bad5eb536ffa90d3973aabfe75542d9
+          test "$(git -C historical-bridge-review hash-object tests/uniops_historical_retirement_signed_bridge_held.py)" = f1a4eadb4d0199e8b4d9c1f17738675c281e249d
+          python3 -m py_compile tests/uniops_history_stale_token_source_contract_held.py tests/test_uniops_history_stale_token_source_contract_held.py
+          python3 -m unittest discover -s tests -p 'test_uniops_history_stale_token_source_contract_held.py' -v
+          echo 'PASS exact source-only proposed non-retryable conflict; NOT source-approved, NOT signed-tested'
