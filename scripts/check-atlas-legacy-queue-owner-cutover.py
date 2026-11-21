@@ -24,4 +24,25 @@ assert "UPDATE atlas.task_release_queue_items" not in s
 assert "DELETE FROM " not in s and "DROP TABLE" not in s and "CASCADE" not in s
 assert s.count("BEGIN;")==1 and s.count("COMMIT;")==1
 assert s.count("$source$")==2 and s.count("$function$")==4
-print("PASS held queue-to-existing-Work owner reconciliation source contract ONLY")
+# The EXISTING full-schema clone carrier will invoke this signed proof only
+# after exact source admission and a disposable C1 fixture. A static CI pass
+# here cannot substitute for PostgreSQL semantic compile or signed execution.
+from pathlib import Path
+import ast
+package=Path(__file__).resolve().parents[1]/"candidates/atlas/atlas_legacy_queue_owner_canonical_work_cutover_v1"
+fixture=(package/"clone_fixture.sql").read_text()
+post=(package/"postconditions.sql").read_text()
+signed_path=package/"validate_signed_queue_owner.py"
+signed=signed_path.read_text()
+ast.parse(signed,filename=str(signed_path))
+assert "INSERT INTO atlas.tasks" in fixture and "INSERT INTO atlas.task_release_queue_items" in fixture
+assert "UPDATE atlas.tasks" not in fixture and "DELETE FROM atlas" not in fixture
+assert "e5200000-0000-4000-8000-000000000d24" in fixture
+assert "noTaskMeansSeparateOriginalNeedReview" in s
+assert "has_function_privilege('anon'" in post and "has_function_privilege('service_role'" in post
+for marker in ("127[.]0[.]0[.]1","c1.sign_in(","\"worker\"","\"outsider\"","\"no-seat\"",
+               "already_reviewed","p_expected_queue_updated_at","pg_advisory_xact_lock"):
+    assert marker in (signed+s),marker
+assert "INSERT INTO atlas.work_items" not in signed
+assert "supabase.co" not in signed and "https://" not in signed
+print("PASS held queue-to-existing-Work source and local signed-proof contract ONLY")
