@@ -1108,6 +1108,23 @@ jobs:
             test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
           fi
 
+
+          # Exact P0 Anna orphan branch: source-only deletion on protected
+          # disposable signed clone, not a production-release permission.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261121235035" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "8c181e8190bba385392f3679554fc83228d9f6f3"
+            test "$(basename "$candidate_migration")" = "20261121235035_atlas_anna_orphaned_serial_effect_retirement_v1.sql"
+            test "$(git hash-object "$candidate_migration")" = 7fb7c4bdefc735484448fa3845e0125a2ffaa4eb
+            test "${#fixtures[@]}" = 1
+            test "${#validations[@]}" = 1
+            test "$(git hash-object "${fixtures[0]}")" = 5ddc096700e726fd9681df0067f23576b848f124
+            test "$(git hash-object "${validations[0]}")" = 5de235c8b83d3bfa4504aa9f3c28948cbd5848c9
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+          fi
+
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"
