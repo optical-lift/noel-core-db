@@ -1,0 +1,169 @@
+name: HELD UNI-OPS native Notebook Result allocation source preflight (no database)
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/held-uniops-native-notebook-source-preflight.yml"
+      - "candidates/atlas_uniops_governor_result_allocation_v1/**"
+      - "tests/atlas_uniops_governor_result_allocation_source.test.mjs"
+      - "tests/prepare_uniops_native_worker_actual_hook_held.py"
+      - "tests/test_prepare_uniops_native_worker_actual_hook_source.py"
+      - "tests/prepare_uniops_native_p3_browser_composition_held.py"
+      - "tests/test_prepare_uniops_native_p3_browser_composition_source.py"
+      - "tests/run-uniops-native-governor-readback-local.sh"
+      - "tests/install_uniops_native_notebook_validator_copy_held.py"
+      - "tests/test_install_uniops_native_notebook_validator_copy_source.py"
+      - "tests/classify_uniops_native_pre_u2_stage_held.py"
+      - "tests/test_classify_uniops_native_pre_u2_stage_source.py"
+      - ".github/workflows/held-uniops-native-preu2-diagnostic-one-shot.yml"
+      - "tests/test_held_uniops_preu2_diagnostic_controller_source.py"
+      - ".github/workflows/held-uniops-native-notebook-one-shot-signed-clone.yml"
+      - "tests/test_held_uniops_native_owner_controller_source.py"
+      - "tests/run-uniops-native-worker-actual-local.sh"
+      - "tests/uniops_native_governor_test_access_local_held.py"
+      - "tests/reconcile_uniops_native_governor_acl_local_held.py"
+      - "tests/test_reconcile_uniops_native_governor_acl_source.py"
+      - "tests/test_uniops_native_governor_test_access_source.py"
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout original signed U4 test source for exact offline patch test
+        uses: actions/checkout@v4
+        with:
+          ref: 075919564dc340ad86be8e969a2ad2d02ec19a15
+          path: frozen-u4
+          persist-credentials: false
+      - name: Validate native worker browser replacement preserves U4 negatives and retry
+        shell: bash
+        env:
+          FROZEN_U4_SOURCE: frozen-u4/tests/uniops_u2_qualified_actual_followon_held.py
+        run: |
+          set -euo pipefail
+          test "$(git -C frozen-u4 rev-parse HEAD)" = 075919564dc340ad86be8e969a2ad2d02ec19a15
+          test "$(git -C frozen-u4 hash-object tests/uniops_u2_qualified_actual_followon_held.py)" = 2e180aa2363201e75ca0d717eeeddd5a708193ab
+          python3 -m py_compile tests/prepare_uniops_native_worker_actual_hook_held.py tests/test_prepare_uniops_native_worker_actual_hook_source.py
+          python3 -m unittest discover -s tests -p 'test_prepare_uniops_native_worker_actual_hook_source.py' -v
+          python3 tests/prepare_uniops_native_worker_actual_hook_held.py             --source "$FROZEN_U4_SOURCE"             --output "$RUNNER_TEMP/uniops_u2_qualified_actual_browser_local_only.py"
+          python3 -m py_compile "$RUNNER_TEMP/uniops_u2_qualified_actual_browser_local_only.py"
+          bash -n tests/run-uniops-native-worker-actual-local.sh
+          python3 -m py_compile tests/uniops_native_governor_test_access_local_held.py tests/test_uniops_native_governor_test_access_source.py
+          python3 -m unittest discover -s tests -p 'test_uniops_native_governor_test_access_source.py' -v
+          echo 'PASS exact immutable U4 negatives, same-action replay and browser-only positive hook; NOT RUN'
+          echo 'PASS existing canonical source-bound governor test access grant contract; NOT RUN'
+      - name: Checkout immutable P3 before/after/replay instrumentation for offline composition
+        uses: actions/checkout@v4
+        with:
+          ref: 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
+          path: pinned-p3
+          persist-credentials: false
+      - name: Reconcile one signed browser positive with exact frozen P3 snapshots
+        shell: bash
+        env:
+          FROZEN_U4_SOURCE: frozen-u4/tests/uniops_u2_qualified_actual_followon_held.py
+          PINNED_P3_SCRIPT: pinned-p3/candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py
+        run: |
+          set -euo pipefail
+          test "$(git -C pinned-p3 rev-parse HEAD)" = 7f4fc633c0d36daa005f0f7e2a85f0743f23ef1e
+          test "$(git -C pinned-p3 hash-object candidates/uni_ops_p3_no_auto_successor_v1/23_signed_p3_snapshot_hook_held.py)" = 4efef70ea67209b04def420aade39b8a6fd44f38
+          python3 -m py_compile tests/prepare_uniops_native_p3_browser_composition_held.py tests/test_prepare_uniops_native_p3_browser_composition_source.py
+          python3 -m unittest discover -s tests -p 'test_prepare_uniops_native_p3_browser_composition_source.py' -v
+          python3 - <<'PY'
+          import importlib.util,os,pathlib
+          from tempfile import TemporaryDirectory
+          script=pathlib.Path('tests/prepare_uniops_native_p3_browser_composition_held.py')
+          spec=importlib.util.spec_from_file_location('held_p3',script)
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          frozen=pathlib.Path(os.environ['FROZEN_U4_SOURCE'])
+          p3=pathlib.Path(os.environ['PINNED_P3_SCRIPT'])
+          patcher=pathlib.Path('tests/prepare_uniops_native_worker_actual_hook_held.py')
+          with TemporaryDirectory(prefix='held-p3-composition-') as work:
+            previous=pathlib.Path(work)/'p3-instrumented-u4.py'
+            previous.write_bytes(m.p3_expected(frozen.read_bytes(),p3))
+            result=m.compose(frozen,p3,previous,patcher)
+            compile(result,'p3-u4-browser-copy','exec')
+          print('PASS exact P3 snapshot BEFORE browser-positive and AFTER/REPLAY original; no execution')
+          PY
+      - name: Offline exact canonical ACL restore guard; no database connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/reconcile_uniops_native_governor_acl_local_held.py tests/test_reconcile_uniops_native_governor_acl_source.py
+          python3 -m unittest discover -s tests -p 'test_reconcile_uniops_native_governor_acl_source.py' -v
+          echo 'PASS function-specific canonical ACL source and all refusal paths; never executed against a DB'
+      - name: Check native owner projection and signed Notebook readback attach only to disposable validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/run-uniops-native-governor-readback-local.sh
+          python3 -m py_compile tests/install_uniops_native_notebook_validator_copy_held.py tests/test_install_uniops_native_notebook_validator_copy_source.py
+          python3 -m unittest discover -s tests -p 'test_install_uniops_native_notebook_validator_copy_source.py' -v
+          echo 'PASS held native signed validator-copy composition and no generic Work/Result writer; NOT RUN'
+      - name: Verify independent new owner-issue transition and source-only protected clone proposal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_held_uniops_native_owner_controller_source.py
+          python3 -m unittest discover -s tests -p 'test_held_uniops_native_owner_controller_source.py' -v
+          echo 'PASS only issue #2831 changed from prior review title can propose native signed test; NOT RUN'
+      - name: Verify failed protected #44174878774 stage classifier is finite and source-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/classify_uniops_native_pre_u2_stage_held.py tests/test_classify_uniops_native_pre_u2_stage_source.py
+          python3 -m unittest discover -s tests -p 'test_classify_uniops_native_pre_u2_stage_source.py' -v
+          echo 'PASS exact finite private pre-U2 governor source/grant classification; no DB or trigger'
+      - name: Audit distinct issue-2833 diagnostic one-shot controller without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tests/test_held_uniops_preu2_diagnostic_controller_source.py
+          python3 -m unittest discover -s tests -p 'test_held_uniops_preu2_diagnostic_controller_source.py' -v
+          echo 'PASS separate issue-2833 diagnostic owner gate and allowlisted native pre-U2 reporter; no protected run'
+      - name: Node synthetic exact Work/Result/reporter source negatives
+        run: node --test tests/atlas_uniops_governor_result_allocation_source.test.mjs
+      - name: PostgreSQL top-level SQL syntax only; never install
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          p=Path('candidates/atlas_uniops_governor_result_allocation_v1/candidate.sql')
+          sql=p.read_text(encoding='utf-8')
+          assert sql.count('CREATE OR REPLACE FUNCTION atlas.company_work_accountability_native_ledger_self_api_v1(')==1
+          assert '302be9714957f5bf76d665092c9609b1' in sql
+          assert 'company_work_native_ledger_owner_self_v1' in sql
+          assert "'reportAllocation',CASE" in sql
+          assert "'recordedReporterMatchesAllocation'," in sql
+          assert "report_allocation.id=lr.responsible_allocation_id" in sql
+          assert "report_allocation.work_item_id=w.id" in sql
+          assert "report_allocation.organization_id=w.organization_id" in sql
+          assert "lr.metadata->>'authenticatedReporterPersonId'" in sql
+          assert "lr.reported_by_user_id IS NOT NULL" in sql
+          assert 'CREATE POLICY' not in sql and 'GRANT EXECUTE' not in sql
+          statements=parse_sql(sql)
+          assert len(statements)==2, 'Guard DO and one CREATE OR REPLACE FUNCTION only'
+          import importlib.util
+          spec=importlib.util.spec_from_file_location(
+            'test_governor_access','tests/uniops_native_governor_test_access_local_held.py')
+          module=importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          for category,statement in module.source_queries().items():
+            assert len(parse_sql(statement))==1,category
+          print('PASS all six canonical governor-source fixture SQL clauses parse; NOT RUN')
+          print('PASS held owner projection SQL top-level grammar and source custody')
+          print('HELD_PLPGSQL_BODY_COMPILE=NOT_RUN')
+          print('HELD_SIGNED_GOTRUE_BROWSER=NOT_RUN')
+          print('HELD_PRODUCTION_CHANGE=NONE')
+          PY
