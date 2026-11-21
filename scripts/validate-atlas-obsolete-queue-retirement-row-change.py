@@ -3,9 +3,10 @@
 
 This reuses the protected existing PRE1 full-row fingerprint implementation
 without modifying its exact trusted Git blob or weakening its verify mode.
-Only the three directly authorized historical tables may change; counts
-must remain exactly equal for them. The held source itself independently
-checks exact 64/75/3 row identities, unmodified non-target rows, and Work.
+Only the three directly authorized historical source tables plus the single
+derived Task capacity-profile relation may change; all four row counts
+must remain identical. The held source independently checks exact 64/75/3
+identities and all unrelated profile rows, Tasks, occurrences, queues, Work.
 Source/user authorization: optical-lift/atlas#532.
 """
 import argparse
@@ -19,6 +20,7 @@ EXPECTED_CHANGED = frozenset({
     "atlas.tasks",
     "atlas.planned_work_occurrences",
     "atlas.task_release_queue_items",
+    "atlas.task_capacity_profiles",
 })
 
 def main():
@@ -52,8 +54,8 @@ def main():
     for table in EXPECTED_CHANGED:
         if current[table]["rows"] != baseline[table]["rows"]:
             raise RuntimeError("Original rows inserted or deleted: "+table)
-    print("PASS historical retirement: exactly three authorized Atlas base relations changed, "+
-          str(len(current)-3)+" other Atlas tables unchanged, all original row counts held")
+    print("PASS historical retirement: exactly four source-owned Atlas relations changed, "+
+          str(len(current)-4)+" other Atlas tables unchanged, all original row counts held")
     return 0
 
 if __name__ == "__main__":
