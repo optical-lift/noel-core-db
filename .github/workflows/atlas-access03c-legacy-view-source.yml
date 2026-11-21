@@ -1,0 +1,27 @@
+name: Atlas ACCESS-03C four legacy view retirement SOURCE ONLY
+
+on:
+  pull_request:
+    paths:
+      - 'candidates/atlas/atlas_access03c_retire_legacy_farm_operational_views_v1/**'
+      - 'tests/test_atlas_access03c_retire_legacy_farm_views_source.py'
+      - '.github/workflows/atlas-access03c-legacy-view-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  source-only:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fail-closed retired view family SQL and universal source preservation
+        run: |
+          set -euo pipefail
+          python3 tests/test_atlas_access03c_retire_legacy_farm_views_source.py
+          python3 tests/test_atlas_access03_trusted_signed_source.py
+          # SOURCE ONLY. Never connect to Production, apply SQL, or deploy.
