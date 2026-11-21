@@ -494,8 +494,8 @@ if [ "$lane" = atlas ] && [ "$version" = 20261120235959 ] &&
   queue_signed_proof="$repo_root/candidate/candidates/atlas/atlas_legacy_queue_owner_canonical_work_cutover_v1/validate_signed_queue_owner.py"
   if [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ ! -s "$queue_signed_proof" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 642180e6b0538802588b99417a9402fe0f11e762 ] ||
-     [ "$(git hash-object "$candidate_validation")" != 19848e442641e5074a954fcd4832d8207fb38117 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 10c10fe25d4d2076a50647eb490d130266d50021 ] ||
+     [ "$(git hash-object "$candidate_validation")" != c563231ca64bf07c5bdccc805e09997496e3a00b ] ||
      [ "$(git hash-object "$candidate_fixture")" != 835e40d6566b9d356694e2c33edda5f4c021f6ae ] ||
      [ "$(git hash-object "$queue_signed_proof")" != 1be7b50c1a8171fdbcba7b4f55c543e95ceb8e12 ] ||
      [ "$(git hash-object "$repo_root/candidate/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
