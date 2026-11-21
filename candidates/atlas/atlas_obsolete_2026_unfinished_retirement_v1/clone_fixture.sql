@@ -117,10 +117,25 @@ INSERT INTO atlas.planned_work_occurrences(id,farm_id,work_definition_id,release
 
 -- Three previously owner-adjudicated source Task IDs. No 'Done' status
 -- or physical completion is manufactured by this fixture.
-INSERT INTO atlas.tasks(id,farm_id,organization_id,title,task_scope,task_type,status,visibility_scope,metadata) VALUES
-('d1bb49af-667f-47e6-b03b-06d75c6e93e6','f9200000-0000-4000-8000-000000000002','f9200000-0000-4000-8000-000000000001','Fictional retired historical Task','farm_operation','general','open','owner',jsonb_build_object('release_queue_key','owner_venue_marketing_queue','heldFixture',true)),
-('e05f3870-7c74-47d5-9998-483aa238f115','f9200000-0000-4000-8000-000000000002','f9200000-0000-4000-8000-000000000001','Fictional retired historical Task','farm_operation','general','open','owner',jsonb_build_object('release_queue_key','owner_social_content_queue','heldFixture',true)),
-('63ade0e9-28bc-4543-805f-d2c82d678315','f9200000-0000-4000-8000-000000000002','f9200000-0000-4000-8000-000000000001','Fictional retired historical Task','farm_operation','general','blocked','owner',jsonb_build_object('release_queue_key','owner_venue_marketing_queue','heldFixture',true));
+INSERT INTO atlas.tasks(id,farm_id,organization_id,title,task_scope,task_type,status,visibility_scope,metadata,planned_occurrence_id,release_policy_id,released_at) VALUES
+('d1bb49af-667f-47e6-b03b-06d75c6e93e6','f9200000-0000-4000-8000-000000000002','f9200000-0000-4000-8000-000000000001','Fictional retired historical Task','farm_operation','general','open','owner',jsonb_build_object('release_queue_key','owner_venue_marketing_queue','heldFixture',true),'70909d03-21f8-4d22-975c-bff8a428f8be','f9200000-0000-4000-8000-000000000004',now()),
+('e05f3870-7c74-47d5-9998-483aa238f115','f9200000-0000-4000-8000-000000000002','f9200000-0000-4000-8000-000000000001','Fictional retired historical Task','farm_operation','general','open','owner',jsonb_build_object('release_queue_key','owner_social_content_queue','heldFixture',true),'5d6123f4-ba5d-43c6-9185-816143bcc754','f9200000-0000-4000-8000-000000000004',now()),
+('63ade0e9-28bc-4543-805f-d2c82d678315','f9200000-0000-4000-8000-000000000002','f9200000-0000-4000-8000-000000000001','Fictional retired historical Task','farm_operation','general','blocked','owner',jsonb_build_object('release_queue_key','owner_venue_marketing_queue','heldFixture',true),'71ef03fa-36ff-4a54-bdad-dfe5336014c9','f9200000-0000-4000-8000-000000000004',now());
+
+-- Original Task/occurrence association from the source is preserved
+-- after synthetic Task insert, respecting the two released-Task FKs.
+-- Third Task is linked to a planned occurrence but not released by that plan.
+UPDATE atlas.planned_work_occurrences
+   SET released_task_id=CASE id
+     WHEN '70909d03-21f8-4d22-975c-bff8a428f8be'::uuid
+       THEN 'd1bb49af-667f-47e6-b03b-06d75c6e93e6'::uuid
+     WHEN '5d6123f4-ba5d-43c6-9185-816143bcc754'::uuid
+       THEN 'e05f3870-7c74-47d5-9998-483aa238f115'::uuid
+     ELSE released_task_id END
+ WHERE id IN (
+   '70909d03-21f8-4d22-975c-bff8a428f8be'::uuid,
+   '5d6123f4-ba5d-43c6-9185-816143bcc754'::uuid
+ );
 
 -- Exactly 97 original opaque queue row identities; known seven
 -- family keys and queue positions/states, but no true live person or crop data.
