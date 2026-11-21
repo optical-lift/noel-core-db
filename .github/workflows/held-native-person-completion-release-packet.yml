@@ -1,0 +1,65 @@
+name: HELD native Person completion-only release packet SOURCE (no release)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/held-native-person-completion-release-packet.yml'
+      - 'candidates/atlas_native_person_completion_release_packet_v1/**'
+      - 'tests/atlas-native-person-completion-release-packet-source.test.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: held-native-person-completion-release-packet-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  packet-source:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify immutable seven-source composition, source-only authority, denials
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test tests/atlas-native-person-completion-release-packet-source.test.mjs
+          node candidates/atlas_native_person_completion_release_packet_v1/verify_release_packet.mjs --check
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('candidates/atlas_native_person_completion_release_packet_v1')
+          packet=(root/'candidate.sql').read_text()
+          workflow=Path('.github/workflows/held-native-person-completion-release-packet.yml').read_text()
+          assert packet.startswith('BEGIN;\n') and packet.endswith('\nCOMMIT;\n')
+          assert not list(Path('supabase/migrations').glob('*_atlas_native_person_completion*'))
+          header=workflow.split('jobs:',1)[0]
+          assert 'permissions:\n  contents: read' in header
+          assert 'pull_request:' in header
+          assert not any(line.lstrip().startswith(('environment:', 'secrets:', 'env:', 'workflow_dispatch:'))
+                         for line in workflow.splitlines())
+          assert sum(line.strip()=='- uses: actions/checkout@v4' for line in workflow.splitlines())==1
+          assert 'current_database()' not in packet
+          assert 'historical_self_adoption_review_events_v1' not in packet
+          assert 'e5200000' not in packet
+          assert 'recognize_assigned_care_activity_self_api_v1' not in packet
+          print('PASS held unversioned SQL packet contains no synthetic identity, history or production release command')
+          PY
+      - name: Parse unversioned candidate and read-only postconditions as PostgreSQL SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pglast==8.7
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          root=Path('candidates/atlas_native_person_completion_release_packet_v1')
+          for name in ('candidate.sql','postconditions.sql'):
+              sql=(root/name).read_text()
+              statements=parse_sql(sql)
+              assert len(statements)>1 if name=='candidate.sql' else len(statements)>=1
+              print('PASS PostgreSQL outer grammar',name,'statements:',len(statements))
+          PY
