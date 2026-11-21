@@ -651,7 +651,7 @@ for fragment in (
 if not (
     "if title == 'Production schema validation request: Atlas held owner-completion serial orphan branch':" in workflow
     and 'test "$(git -C candidate rev-parse HEAD)" = "ae73258185a6d9840ec9528c6f498ef620fb1fee"' in workflow
-    and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ ]]' in harness
+    and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121225626_atlas_owner_completion_queue_dead_branch_retirement_v1.sql" ]]' in harness
 ):
     errors.append('Two-function orphan branch must be source-pinned in SAME existing protected workflow')
 if not (harness.index('phase="orphan backfill local all-Atlas-row baseline"') <
@@ -962,6 +962,31 @@ if not (
     < harness.index('phase="candidate migration application"')
 ):
     errors.append('Original C1 must precede historical test data and full-row baseline before candidate')
+
+
+# One NEW generated two-function canonical version, exact source / fixture /
+# postconditions hashes, same frozen C1 signed and full 730-table proof.
+# This is only test admission. It does not weaken old held source gates or
+# grant approval to release any generated migration to production.
+if not (
+    'if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261121225626" ]]; then' in workflow
+    and 'efedc90e4186349f7c7b904fc14344bdc86e7206' in workflow
+    and '20261121225626_atlas_owner_completion_queue_dead_branch_retirement_v1.sql' in workflow
+    and 'a5a23c42557bf6913321689fb9853afb57ff2c0e' in workflow
+    and '19981823e3d6e7da8a82b5d609fb1558e38c4251' in workflow
+    and 'a3dbc4fe6f5db230ed3dbf071e514ff06487e807' in workflow
+    and '766ab2b69c53796ca6aa892d57a1188fab799bc8' in workflow
+    and 'a6dbf950b689505babe33811f421add9db2a742d' in workflow
+    and 'eb3bbfb45848a7fca90cc503e153f1451d8d7471' in workflow
+    and '1b82e698705e473280f1fc55b0e762bce243effb' in workflow
+    and '[[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121225626_atlas_owner_completion_queue_dead_branch_retirement_v1.sql" ]]' in harness
+    and harness.count('[[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121225626_atlas_owner_completion_queue_dead_branch_retirement_v1.sql" ]]') == 2
+    and 'orphan_queue_retirement_proof=true' in harness
+    and 'signed_work_prerequisite_probe=true' in harness
+    and 'owner-queue-original-signed-c1-fixture.log' in harness
+    and 'orphan-local-row-integrity-after-candidate.log' in harness
+):
+    errors.append('Exact 20261121225626 must retain original frozen C1 signer, 730-table full-row proof and hash-pinned two-function retirement')
 
 if errors:
     print('Production schema validation contract FAILED:')
