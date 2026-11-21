@@ -687,7 +687,7 @@ for fragment in (
         errors.append('Five live consumer held signed harness admission missing: '+fragment)
 if not ('if title == \'Production schema validation request: Atlas held five live queue consumer decoupling\':' in workflow
         and 'test "$(git -C candidate rev-parse HEAD)" = "eeded0cd1d3d26977c2f499af5288b59858195d2"' in workflow
-        and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ ]]' in harness):
+        and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121211411_atlas_legacy_queue_five_live_consumer_decoupling_v1.sql" ]]' in harness):
     errors.append('Five live consumer candidate not pinned to exact owner request/immutable source')
 if not (harness.index('phase="orphan backfill local all-Atlas-row baseline"') <
         harness.index('phase="candidate migration application"') <
@@ -857,6 +857,25 @@ if not (
     and 'signed_work_prerequisite_probe=true' in harness
 ):
     errors.append('Canonical 20261121204646 V3 must use original exact source-positive 730-table/signed proof')
+
+
+
+# NEW exact governed five-live-consumer canonical version uses the ORIGINAL
+# signed owner/worker/outsider/concurrency and all-730-Atlas-row proof.
+# No version outside this exact allowlist may silently receive generic checks.
+if not (
+    '20261121211411_atlas_legacy_queue_five_live_consumer_decoupling_v1.sql' in harness
+    and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1[.]sql$ || "$(basename "$candidate_migration")" == "20261121211411_atlas_legacy_queue_five_live_consumer_decoupling_v1.sql" ]]' in harness
+    and 'd62d42837f4a36e7ba0ded4bf4b8c29f948488fa' in harness
+    and '7d3b3ff7c7951405b823b3a2a25f3ef4c087832c' in harness
+    and '766ab2b69c53796ca6aa892d57a1188fab799bc8' in harness
+    and 'a6dbf950b689505babe33811f421add9db2a742d' in harness
+    and 'eb3bbfb45848a7fca90cc503e153f1451d8d7471' in harness
+    and '1b82e698705e473280f1fc55b0e762bce243effb' in harness
+    and 'orphan_queue_retirement_proof=true' in harness
+    and 'signed_work_prerequisite_probe=true' in harness
+):
+    errors.append('Canonical 20261121211411 must use original hash-pinned signed 730-table five-consumer proof')
 
 
 if errors:
