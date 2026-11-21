@@ -621,10 +621,10 @@ for fragment in (
     'Production schema validation request: Atlas held owner-completion serial orphan branch',
     'atlas_owner_completion_queue_orphan_branch_clone_only_v1',
     'held-owner-completion-serial-orphan',
-    '98df1f8f45fb52535b3c513a3872d9ea98ba034d',
+    'ae73258185a6d9840ec9528c6f498ef620fb1fee',
     'a5a23c42557bf6913321689fb9853afb57ff2c0e',
     'a3dbc4fe6f5db230ed3dbf071e514ff06487e807',
-    '6a2bd592eba7c6caac57c1974f7f88ca6ad55e4a',
+    '19981823e3d6e7da8a82b5d609fb1558e38c4251',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
     'a6dbf950b689505babe33811f421add9db2a742d',
     'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
@@ -637,7 +637,7 @@ for fragment in (
     'atlas_owner_completion_queue_orphan_branch_clone_only_v1',
     'a5a23c42557bf6913321689fb9853afb57ff2c0e',
     'a3dbc4fe6f5db230ed3dbf071e514ff06487e807',
-    '6a2bd592eba7c6caac57c1974f7f88ca6ad55e4a',
+    '19981823e3d6e7da8a82b5d609fb1558e38c4251',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
     'a6dbf950b689505babe33811f421add9db2a742d',
     'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
@@ -650,7 +650,7 @@ for fragment in (
         errors.append('Original protected owner-completion serial orphan signed/no-loss machinery missing: '+fragment)
 if not (
     "if title == 'Production schema validation request: Atlas held owner-completion serial orphan branch':" in workflow
-    and 'test "$(git -C candidate rev-parse HEAD)" = "98df1f8f45fb52535b3c513a3872d9ea98ba034d"' in workflow
+    and 'test "$(git -C candidate rev-parse HEAD)" = "ae73258185a6d9840ec9528c6f498ef620fb1fee"' in workflow
     and 'if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_owner_completion_queue_orphan_branch_clone_only_v1[.]sql$ ]]' in harness
 ):
     errors.append('Two-function orphan branch must be source-pinned in SAME existing protected workflow')
