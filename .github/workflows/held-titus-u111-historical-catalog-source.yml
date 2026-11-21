@@ -1,0 +1,39 @@
+name: HELD Titus U1.11 historical FK catalog safety (source only)
+
+on:
+  push:
+    branches:
+      - candidate/titus-u111-historical-retention-graph-v1-20261118
+    paths:
+      - 'scripts/audit-titus-u111-historical-fk-closure.py'
+      - 'tests/test_titus_u111_historical_catalog_safety.py'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_11_HISTORICAL_*'
+      - '.github/workflows/held-titus-u111-historical-catalog-source.yml'
+  pull_request:
+    paths:
+      - 'scripts/audit-titus-u111-historical-fk-closure.py'
+      - 'tests/test_titus_u111_historical_catalog_safety.py'
+      - 'candidates/shared-teaching-course-clean-cutover-v1/U1_11_HISTORICAL_*'
+      - '.github/workflows/held-titus-u111-historical-catalog-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  catalog-source-only:
+    if: github.repository == 'optical-lift/noel-core-db'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require catalog-only fixture and no hosted access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s scripts/audit-titus-u111-historical-fk-closure.py
+          test -s candidates/shared-teaching-course-clean-cutover-v1/U1_11_HISTORICAL_FK_CATALOG_ONLY.sql
+          test ! -e supabase/migrations/20261118_titus_u111_historical_retention.sql
+          python3 -m unittest discover -s tests -p test_titus_u111_historical_catalog_safety.py -v
+          echo 'PASS source-only historical closure checks; no real data, backup, or release'
