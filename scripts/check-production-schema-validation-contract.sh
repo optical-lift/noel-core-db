@@ -627,7 +627,7 @@ for fragment in (
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
     'a6dbf950b689505babe33811f421add9db2a742d',
     'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
-    '1b82e698705e473280f1fc55b0e762bce243eff62be8a0cd3',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
     'Exact owner-held progression trigger retirement validation authorization required',
 ):
     if fragment not in workflow:
@@ -639,7 +639,7 @@ for fragment in (
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
     'a6dbf950b689505babe33811f421add9db2a742d',
     'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
-    '1b82e698705e473280f1fc55b0e762bce243eff62be8a0cd3',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
     'orphan_queue_retirement_proof=true',
     'signed_work_prerequisite_probe=true',
 ):
