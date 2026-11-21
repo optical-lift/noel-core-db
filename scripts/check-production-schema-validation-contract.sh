@@ -750,11 +750,11 @@ for fragment in (
     'Production schema validation request: Atlas held obsolete 2026 prerequisite-safe retirement V2',
     'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2',
     'held-obsolete-unfinished-prereq-v2',
-    'b2f136356fd642c62d432c68591aca528cab2a97',
+    '6ed2978f7b79da1ffdb5dff096375c016f0a987d',
     'candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_guard_v2/',
-    '5ed5730b773cb1ac210cf1e4d767c9b636d5e8a0',
-    '418f2b2f9900058b723d57ab39d5b747920550f9',
-    'ff69c14bdbfda03eb4693252fa7e42e5f459b1c6',
+    '7d8d56797f553618b1b6fff73feddf464f394878',
+    '26ec0ece68dccb5d9d966a20ecf30dcbf2fc7f32',
+    '1a539dae9781ca6524abbbfd3f45ce96951e4141',
     'bed62188f2e6ab3d8540c317e562c631b0f5bd0f',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
     'a6dbf950b689505babe33811f421add9db2a742d',
@@ -766,9 +766,9 @@ for fragment in (
         errors.append('V2 source-positive protected owner/custody admission missing: '+fragment)
 for fragment in (
     'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2',
-    '5ed5730b773cb1ac210cf1e4d767c9b636d5e8a0',
-    '418f2b2f9900058b723d57ab39d5b747920550f9',
-    'ff69c14bdbfda03eb4693252fa7e42e5f459b1c6',
+    '7d8d56797f553618b1b6fff73feddf464f394878',
+    '26ec0ece68dccb5d9d966a20ecf30dcbf2fc7f32',
+    '1a539dae9781ca6524abbbfd3f45ce96951e4141',
     'bed62188f2e6ab3d8540c317e562c631b0f5bd0f',
     'a6dbf950b689505babe33811f421add9db2a742d',
     '766ab2b69c53796ca6aa892d57a1188fab799bc8',
@@ -780,7 +780,7 @@ for fragment in (
     if fragment not in harness:
         errors.append('V2 original 730-table/canonical Work/signed C1 proof missing: '+fragment)
 if not ("if title == 'Production schema validation request: Atlas held obsolete 2026 prerequisite-safe retirement V2':" in workflow
-       and 'test "$(git -C candidate rev-parse HEAD)" = "b2f136356fd642c62d432c68591aca528cab2a97"' in workflow
+       and 'test "$(git -C candidate rev-parse HEAD)" = "6ed2978f7b79da1ffdb5dff096375c016f0a987d"' in workflow
        and 'atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2[.]sql$' in harness):
     errors.append('V2 must preserve exact owner, immutable source SHA and local disposable admission')
 
