@@ -1030,6 +1030,21 @@ jobs:
             exit 1
           fi
 
+          # EXACT canonical five-consumer cutover: generator intentionally
+          # carries no new fixture. Reuse the existing trusted original
+          # signed Work fixture from MAIN, never arbitrary candidate data.
+          # This runs solely in the disposable restored PG17 clone.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261121211411" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "694bb5e6b7f9a452cffa5343ffd1c0e1063cc52a"
+            test "$(git hash-object "$candidate_migration")" = d62d42837f4a36e7ba0ded4bf4b8c29f948488fa
+            test "${#fixtures[@]}" = 0
+            test "${#validations[@]}" = 1
+            test "$(git hash-object "${validations[0]}")" = 7d3b3ff7c7951405b823b3a2a25f3ef4c087832c
+            trusted_fixture="validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql"
+            test "$(git hash-object "$trusted_fixture")" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            fixtures=("$trusted_fixture")
+          fi
+
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"
