@@ -785,6 +785,47 @@ if not ("if title == 'Production schema validation request: Atlas held obsolete 
     errors.append('V2 must preserve exact owner, immutable source SHA and local disposable admission')
 
 
+# Independent TEST-ONLY admission of the actual internal/external chain V3.
+# The V1 versioned release stays immutable and is not authorized for retry.
+for fragment in (
+    'Production schema validation request: Atlas held obsolete 2026 prerequisite-chain retirement V3',
+    'atlas_obsolete_2026_unfinished_retirement_prereq_chain_clone_only_v3',
+    'held-obsolete-unfinished-chain-v3',
+    '1b966a47d3cbb3672a0deb47c93c1a6aab9d0460',
+    'candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_chain_v3/',
+    '12bc33affcd9a57eba4d19e332a010588f2b22cb',
+    '8e4ed1f4e10b178bdd9afdf25a5b42445e22f1d0',
+    '1a96988eef4bffd515e03be9d5c918ed08641faf',
+    'bed62188f2e6ab3d8540c317e562c631b0f5bd0f',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
+    'Exact owner-held obsolete 2026 unfinished retirement proof required',
+):
+    if fragment not in workflow:
+        errors.append('V3 source-positive chain protected owner/custody admission missing: '+fragment)
+for fragment in (
+    'atlas_obsolete_2026_unfinished_retirement_prereq_chain_clone_only_v3',
+    '12bc33affcd9a57eba4d19e332a010588f2b22cb',
+    '8e4ed1f4e10b178bdd9afdf25a5b42445e22f1d0',
+    '1a96988eef4bffd515e03be9d5c918ed08641faf',
+    'bed62188f2e6ab3d8540c317e562c631b0f5bd0f',
+    'a6dbf950b689505babe33811f421add9db2a742d',
+    '766ab2b69c53796ca6aa892d57a1188fab799bc8',
+    'eb3bbfb45848a7fca90cc503e153f1451d8d7471',
+    '1b82e698705e473280f1fc55b0e762bce243effb',
+    'obsolete_unfinished_retirement_proof=true',
+    'signed_work_prerequisite_probe=true',
+):
+    if fragment not in harness:
+        errors.append('V3 original 730-table/canonical Work/signed C1 proof missing: '+fragment)
+if not ("if title == 'Production schema validation request: Atlas held obsolete 2026 prerequisite-chain retirement V3':" in workflow
+       and 'test "$(git -C candidate rev-parse HEAD)" = "1b966a47d3cbb3672a0deb47c93c1a6aab9d0460"' in workflow
+       and 'atlas_obsolete_2026_unfinished_retirement_prereq_chain_clone_only_v3[.]sql$' in harness):
+    errors.append('V3 must preserve exact owner, immutable source SHA and local disposable admission')
+
+
 # New canonical Atlas V2 must take precisely the same source-positive,
 # full 730-table PRE1 conservation, and genuine C1 signed proof as the held
 # clone-only V2. An unpinned version must not silently take generic checks.

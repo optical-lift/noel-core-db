@@ -225,6 +225,18 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # V3 exact actual prerequisite CHAIN, owner-only disposable clone, no release.
+          if title == 'Production schema validation request: Atlas held obsolete 2026 prerequisite-chain retirement V3':
+              expected = {'diagnostic_scope':'atlas_obsolete_2026_unfinished_retirement_prereq_chain_clone_only_v3',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'1b966a47d3cbb3672a0deb47c93c1a6aab9d0460'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held obsolete 2026 unfinished retirement proof required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-obsolete-unfinished-chain-v3\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # Five existing live Work/worker-day consumers, exact held source only.
           if title == 'Production schema validation request: Atlas held five live queue consumer decoupling':
               expected = {'diagnostic_scope':'atlas_legacy_queue_live_consumer_decoupling_clone_only_v1',
@@ -834,6 +846,38 @@ jobs:
             scratch="$(mktemp -d "$RUNNER_TEMP/obsolete-prerequisite-safe-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_obsolete_2026_unfinished_retirement_prereq_guard_clone_only_v2.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-obsolete-unfinished-chain-v3" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "1b966a47d3cbb3672a0deb47c93c1a6aab9d0460"
+            src="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_chain_v3/candidate.sql"
+            post="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_chain_v3/postconditions.sql"
+            fixture="candidate/candidates/atlas/atlas_obsolete_2026_unfinished_retirement_prereq_chain_v3/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 12bc33affcd9a57eba4d19e332a010588f2b22cb
+            test "$(git hash-object "$post")" = 1a96988eef4bffd515e03be9d5c918ed08641faf
+            test "$(git hash-object "$fixture")" = 8e4ed1f4e10b178bdd9afdf25a5b42445e22f1d0
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-obsolete-queue-retirement-row-change.py)" = bed62188f2e6ab3d8540c317e562c631b0f5bd0f
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            scratch="$(mktemp -d "$RUNNER_TEMP/obsolete-prerequisite-safe-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_obsolete_2026_unfinished_retirement_prereq_chain_clone_only_v3)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_obsolete_2026_unfinished_retirement_prereq_chain_clone_only_v3.sql')
             test "${#scratch_files[@]}" = 1
             candidate_migration="${scratch_files[0]}"
             version="$(basename "$candidate_migration" | cut -d_ -f1)"
