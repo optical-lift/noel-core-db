@@ -1,6 +1,3 @@
--- Atlas Census TIGER state-scoped refresh v1.
--- Makes national rollout incremental and records state coverage completeness.
-
 create or replace function atlas.refresh_census_tiger_state_geography_v1(
   p_state_fips text,
   p_source_vintage text default '2026',

@@ -323,17 +323,13 @@ begin
     from walk w
     join edges e
       on w.can_continue
-     and (
-       (p_direction='ancestors' and e.child_entity_id=w.related_entity_id)
-       or
-       (p_direction='descendants' and e.parent_entity_id=w.related_entity_id)
-     )
+     and ((p_direction='ancestors' and e.child_entity_id=w.related_entity_id)
+       or (p_direction='descendants' and e.parent_entity_id=w.related_entity_id))
     where w.depth<p_max_depth
       and not (case when p_direction='ancestors' then e.parent_entity_id else e.child_entity_id end = any(w.path_entity_ids))
   )
-  select
-    w.start_entity_id,w.related_entity_id,w.depth,w.path_entity_ids,w.path_relationship_ids,
-    w.path_relationship_kinds,w.path_topology_axes,w.path_relationship_states,w.path_presence_classes
+  select w.start_entity_id,w.related_entity_id,w.depth,w.path_entity_ids,w.path_relationship_ids,
+         w.path_relationship_kinds,w.path_topology_axes,w.path_relationship_states,w.path_presence_classes
   from walk w
   order by w.depth,w.related_entity_id,w.path_relationship_ids;
 end
@@ -368,14 +364,12 @@ as $function$
     p.depth,
     case
       when exists(
-        select 1
-        from unnest(p.path_presence_classes) pc
+        select 1 from unnest(p.path_presence_classes) pc
         join reality.presence_classes c on c.presence_class=pc
         where c.presence_effect='contextual'
       ) then 'contextual'
       when exists(
-        select 1
-        from unnest(p.path_presence_classes) pc
+        select 1 from unnest(p.path_presence_classes) pc
         join reality.presence_classes c on c.presence_class=pc
         where c.presence_effect='conditional'
       ) then 'conditional'
@@ -383,9 +377,7 @@ as $function$
     end as effective_presence_effect,
     p.path_presence_classes[array_length(p.path_presence_classes,1)] as terminal_presence_class,
     p.path_entity_ids,p.path_relationship_ids,p.path_relationship_kinds,p.path_topology_axes,p.path_relationship_states,p.path_presence_classes
-  from reality.entity_topology_paths_service_v1(
-    p_root_entity_id,p_topology_axis,'descendants',p_max_depth,p_as_of,true
-  ) p
+  from reality.entity_topology_paths_service_v1(p_root_entity_id,p_topology_axis,'descendants',p_max_depth,p_as_of,true) p
 $function$;
 
 create or replace function reality.relationship_would_create_topology_cycle_v1(
@@ -406,18 +398,13 @@ declare
   v_parent uuid;
   v_cycle boolean:=false;
 begin
-  select * into v_sem
-  from reality.relationship_topology_semantics
+  select * into v_sem from reality.relationship_topology_semantics
   where relationship_kind=p_relationship_kind and semantics_state='active';
 
-  if v_sem.relationship_kind is null or not v_sem.is_structural then
-    return false;
-  end if;
+  if v_sem.relationship_kind is null or not v_sem.is_structural then return false; end if;
 
   select * into v_axis from reality.topology_axes where topology_axis=v_sem.topology_axis and axis_state='active';
-  if v_axis.topology_axis is null or v_axis.cycle_policy='cycles_permitted' then
-    return false;
-  end if;
+  if v_axis.topology_axis is null or v_axis.cycle_policy='cycles_permitted' then return false; end if;
 
   v_child:=case when v_sem.parent_direction='subject_to_object' then p_subject_entity_id else p_object_entity_id end;
   v_parent:=case when v_sem.parent_direction='subject_to_object' then p_object_entity_id else p_subject_entity_id end;
@@ -428,10 +415,7 @@ begin
       case when s.parent_direction='subject_to_object' then r.object_entity_id else r.subject_entity_id end as parent_entity_id
     from reality.entity_relationships r
     join reality.relationship_topology_semantics s
-      on s.relationship_kind=r.relationship_kind
-     and s.semantics_state='active'
-     and s.is_structural
-     and s.topology_axis=v_sem.topology_axis
+      on s.relationship_kind=r.relationship_kind and s.semantics_state='active' and s.is_structural and s.topology_axis=v_sem.topology_axis
     where r.relationship_state in ('observed','established')
       and tstzrange(coalesce(r.valid_from,'-infinity'::timestamptz),coalesce(r.valid_until,'infinity'::timestamptz),'[)')
           && tstzrange(coalesce(p_valid_from,'-infinity'::timestamptz),coalesce(p_valid_until,'infinity'::timestamptz),'[)')
@@ -440,8 +424,7 @@ begin
     from edges e where e.child_entity_id=v_parent
     union all
     select e.parent_entity_id,w.path||e.parent_entity_id
-    from walk w
-    join edges e on e.child_entity_id=w.entity_id
+    from walk w join edges e on e.child_entity_id=w.entity_id
     where not (e.parent_entity_id=any(w.path))
   )
   select exists(select 1 from walk where entity_id=v_child) into v_cycle;
@@ -470,22 +453,18 @@ as $function$
   with paths as (
     select * from reality.entity_topology_paths_service_v1(p_entity_id,p_topology_axis,'ancestors',p_max_depth,p_as_of,false)
   ), candidates as (
-    select p.related_entity_id as entity_id,p.depth,p.path_entity_ids,p.path_relationship_ids,p.path_relationship_kinds
-    from paths p
+    select p.related_entity_id as entity_id,p.depth,p.path_entity_ids,p.path_relationship_ids,p.path_relationship_kinds from paths p
     union all
-    select p_entity_id,0,array[p_entity_id]::uuid[],'{}'::uuid[],'{}'::text[]
-    where not exists(select 1 from paths)
+    select p_entity_id,0,array[p_entity_id]::uuid[],'{}'::uuid[],'{}'::text[] where not exists(select 1 from paths)
   )
   select c.entity_id,c.depth,c.path_entity_ids,c.path_relationship_ids,c.path_relationship_kinds
   from candidates c
   where not exists(
-    select 1
-    from reality.entity_topology_paths_service_v1(c.entity_id,p_topology_axis,'ancestors',1,p_as_of,false) next_path
+    select 1 from reality.entity_topology_paths_service_v1(c.entity_id,p_topology_axis,'ancestors',1,p_as_of,false) next_path
   )
   order by c.depth desc,c.entity_id
 $function$;
 
--- Extend relationship validation with topology cycle/cardinality laws.
 create or replace function reality.validate_relationship_proposition_v1(
   p_subject_entity_id uuid,
   p_relationship_kind text,
@@ -537,10 +516,7 @@ begin
     select 1
     from reality.entity_relationships r
     join reality.relationship_topology_semantics s
-      on s.relationship_kind=r.relationship_kind
-     and s.semantics_state='active'
-     and s.is_structural
-     and s.topology_axis=v_sem.topology_axis
+      on s.relationship_kind=r.relationship_kind and s.semantics_state='active' and s.is_structural and s.topology_axis=v_sem.topology_axis
     where r.relationship_state in ('observed','established')
       and (case when s.parent_direction='subject_to_object' then r.subject_entity_id else r.object_entity_id end)=v_child
       and (case when s.parent_direction='subject_to_object' then r.object_entity_id else r.subject_entity_id end)<>v_parent
@@ -552,7 +528,6 @@ begin
 end
 $function$;
 
--- Target predicate grammar extension: AT_LEAST_N and topology_path_exists.
 create or replace function ledger.validate_target_predicate_v1(p_predicate jsonb,p_depth integer default 0)
 returns void
 language plpgsql
@@ -621,9 +596,7 @@ begin
   if v_op='topology_path_exists' then
     if p_predicate-'op'-'topologyAxis'-'allAxes'-'direction'-'maxDepth'-'presenceOnly'-'endpointPredicate'<>'{}'::jsonb then raise exception 'topology_path_exists contains unsupported fields.' using errcode='22023'; end if;
     v_all_axes:=coalesce((p_predicate->>'allAxes')::boolean,false);
-    if (nullif(btrim(p_predicate->>'topologyAxis'),'') is null)=not v_all_axes then
-      raise exception 'topology_path_exists requires exactly one of topologyAxis or allAxes=true.' using errcode='22023';
-    end if;
+    if (nullif(btrim(p_predicate->>'topologyAxis'),'') is null)=not v_all_axes then raise exception 'topology_path_exists requires exactly one of topologyAxis or allAxes=true.' using errcode='22023'; end if;
     if coalesce(p_predicate->>'direction','') not in ('ancestors','descendants') then raise exception 'topology_path_exists direction must be ancestors or descendants.' using errcode='22023'; end if;
     begin v_max_depth:=coalesce((p_predicate->>'maxDepth')::integer,8); exception when others then raise exception 'topology_path_exists maxDepth must be an integer.' using errcode='22023'; end;
     if v_max_depth<1 or v_max_depth>16 then raise exception 'topology_path_exists maxDepth must be between 1 and 16.' using errcode='22023'; end if;

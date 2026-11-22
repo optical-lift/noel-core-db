@@ -1,5 +1,5 @@
 -- Atlas Universal Temporal Adapter Protocol v1
--- No persisted Temporal Field state is created.
+-- Candidate only. No persisted Temporal Field state is created.
 
 create or replace function atlas.organization_context_temporal_overlay_adapter_v1(
   p_organization_id uuid,

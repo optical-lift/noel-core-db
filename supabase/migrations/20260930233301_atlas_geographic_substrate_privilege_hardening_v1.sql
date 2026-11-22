@@ -1,6 +1,3 @@
--- Atlas Geographic Substrate privilege hardening v1.
--- Geographic corpus mutation and canonical admission remain internal/service-only.
-
 revoke all on schema geography from public,anon,authenticated;
 grant usage on schema geography to service_role;
 

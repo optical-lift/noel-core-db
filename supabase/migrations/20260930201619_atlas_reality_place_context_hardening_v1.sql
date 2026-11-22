@@ -1,6 +1,3 @@
--- ATLAS_REALITY_PLACE_CONTEXT_HARDENING_V1
--- Full FK support index plus registration-function parity with the canonical candidate.
-
 create index if not exists reality_place_profiles_place_kind_fk_idx
   on reality.place_profiles(place_kind);
 

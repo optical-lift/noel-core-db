@@ -1,6 +1,3 @@
--- Atlas Geographic Substrate convergence + named resolution v1.
--- Converges unique authoritative Census localities with existing Place identity and makes named Place resolution substrate-first.
-
 create or replace function atlas.admit_authoritative_geography_feature_to_reality_service_v1(p_source_feature_id uuid,p_admission_basis jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
