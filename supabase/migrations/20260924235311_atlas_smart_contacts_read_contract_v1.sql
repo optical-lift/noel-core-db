@@ -1,62 +1,8 @@
--- Production-synchronized migration: Atlas Smart Contacts read contract v1
--- Applied to Supabase as migration 20260924235311.
 
 create or replace view local_intel.v_smart_contact_signals_v1 as
- WITH mapped AS (
-         SELECT ec.id AS evidence_claim_id,
-            ec.entity_id,
-            ec.claim_kind,
-            ec.value_text,
-            ec.normalized_value,
-            ec.source_id,
-            ec.source_class_key,
-            ec.evidence_strength,
-            ec.disclosure_posture,
-            ec.lifecycle_state,
-            ec.observed_at,
-            ec.last_verified_at,
-            ec.metadata,
-            x.signal_key
-           FROM local_intel.entity_evidence_claims ec
-             CROSS JOIN LATERAL unnest(
-                CASE ec.claim_kind
-                    WHEN 'wholesale_purchase_behavior'::text THEN ARRAY['commercial_buyer'::text, 'wholesale_buyer'::text, 'cut_flower_buyer'::text]
-                    WHEN 'local_flower_sourcing_preference'::text THEN ARRAY['commercial_buyer'::text, 'local_sourcing'::text, 'cut_flower_buyer'::text]
-                    WHEN 'local_exchange_sourcing'::text THEN ARRAY['commercial_buyer'::text, 'local_sourcing'::text, 'cut_flower_buyer'::text]
-                    WHEN 'flower_supply_cadence'::text THEN ARRAY['commercial_buyer'::text, 'cut_flower_buyer'::text, 'recurring_flower_demand'::text]
-                    WHEN 'local_flower_use'::text THEN ARRAY['commercial_buyer'::text, 'local_sourcing'::text, 'cut_flower_buyer'::text]
-                    WHEN 'fresh_flower_demand_context'::text THEN ARRAY['commercial_buyer'::text, 'cut_flower_buyer'::text, 'fresh_flower_demand'::text]
-                    WHEN 'documented_exchange_buyer_history'::text THEN ARRAY['commercial_buyer'::text, 'wholesale_buyer'::text, 'cut_flower_buyer'::text, 'historical_buyer'::text]
-                    WHEN 'supplier_capability'::text THEN ARRAY['commercial_supplier'::text, 'cut_flower_supplier'::text]
-                    WHEN 'distribution_capability'::text THEN ARRAY['commercial_supplier'::text, 'distribution_capable'::text]
-                    WHEN 'ordering_logistics'::text THEN ARRAY['commercial_supplier'::text, 'ordering_process_known'::text]
-                    WHEN 'market_membership'::text THEN ARRAY['commercial_supplier'::text, 'market_member'::text]
-                    WHEN 'event_flower_service'::text THEN ARRAY['commercial_supplier'::text, 'cut_flower_supplier'::text, 'fresh_flower_service'::text]
-                    WHEN 'commercial_role'::text THEN ARRAY['commercially_relevant'::text]
-                    WHEN 'decision_contact'::text THEN ARRAY['decision_contact_known'::text]
-                    WHEN 'flower_contact_route'::text THEN ARRAY['public_contact_route'::text]
-                    WHEN 'public_contact_route'::text THEN ARRAY['public_contact_route'::text]
-                    ELSE ARRAY[]::text[]
-                END) x(signal_key)
-          WHERE (ec.disclosure_posture = ANY (ARRAY['public_directory'::text, 'public_contactable'::text])) AND ('directory_display'::text = ANY (ec.permitted_uses))
-        )
- SELECT mapped.evidence_claim_id,
-    mapped.entity_id,
-    mapped.claim_kind,
-    mapped.value_text,
-    mapped.normalized_value,
-    mapped.source_id,
-    mapped.source_class_key,
-    mapped.evidence_strength,
-    mapped.disclosure_posture,
-    mapped.lifecycle_state,
-    mapped.observed_at,
-    mapped.last_verified_at,
-    mapped.metadata,
-    mapped.signal_key
-   FROM mapped
-UNION ALL
- SELECT ec.id AS evidence_claim_id,
+with mapped as (
+  select
+    ec.id as evidence_claim_id,
     ec.entity_id,
     ec.claim_kind,
     ec.value_text,
@@ -69,19 +15,73 @@ UNION ALL
     ec.observed_at,
     ec.last_verified_at,
     ec.metadata,
-    'wholesale_supplier'::text AS signal_key
-   FROM local_intel.entity_evidence_claims ec
-  WHERE ec.claim_kind = 'supplier_capability'::text AND (lower(COALESCE(ec.value_text, ''::text)) ~~ '%wholesale%'::text OR lower(COALESCE(ec.normalized_value, ''::text)) ~~ '%wholesale%'::text OR lower(COALESCE(ec.metadata::text, ''::text)) ~~ '%wholesale%'::text) AND (ec.disclosure_posture = ANY (ARRAY['public_directory'::text, 'public_contactable'::text])) AND ('directory_display'::text = ANY (ec.permitted_uses));;
+    x.signal_key
+  from local_intel.entity_evidence_claims ec
+  cross join lateral unnest(
+    case ec.claim_kind
+      when 'wholesale_purchase_behavior' then array['commercial_buyer','wholesale_buyer','cut_flower_buyer']
+      when 'local_flower_sourcing_preference' then array['commercial_buyer','local_sourcing','cut_flower_buyer']
+      when 'local_exchange_sourcing' then array['commercial_buyer','local_sourcing','cut_flower_buyer']
+      when 'flower_supply_cadence' then array['commercial_buyer','cut_flower_buyer','recurring_flower_demand']
+      when 'local_flower_use' then array['commercial_buyer','local_sourcing','cut_flower_buyer']
+      when 'fresh_flower_demand_context' then array['commercial_buyer','cut_flower_buyer','fresh_flower_demand']
+      when 'documented_exchange_buyer_history' then array['commercial_buyer','wholesale_buyer','cut_flower_buyer','historical_buyer']
+      when 'supplier_capability' then array['commercial_supplier','cut_flower_supplier']
+      when 'distribution_capability' then array['commercial_supplier','distribution_capable']
+      when 'ordering_logistics' then array['commercial_supplier','ordering_process_known']
+      when 'market_membership' then array['commercial_supplier','market_member']
+      when 'event_flower_service' then array['commercial_supplier','cut_flower_supplier','fresh_flower_service']
+      when 'commercial_role' then array['commercially_relevant']
+      when 'decision_contact' then array['decision_contact_known']
+      when 'flower_contact_route' then array['public_contact_route']
+      when 'public_contact_route' then array['public_contact_route']
+      else array[]::text[]
+    end
+  ) x(signal_key)
+  where ec.disclosure_posture in ('public_directory','public_contactable')
+    and 'directory_display'=any(ec.permitted_uses)
+)
+select * from mapped
+union all
+select
+  ec.id,
+  ec.entity_id,
+  ec.claim_kind,
+  ec.value_text,
+  ec.normalized_value,
+  ec.source_id,
+  ec.source_class_key,
+  ec.evidence_strength,
+  ec.disclosure_posture,
+  ec.lifecycle_state,
+  ec.observed_at,
+  ec.last_verified_at,
+  ec.metadata,
+  'wholesale_supplier'::text
+from local_intel.entity_evidence_claims ec
+where ec.claim_kind='supplier_capability'
+  and (
+    lower(coalesce(ec.value_text,'')) like '%wholesale%'
+    or lower(coalesce(ec.normalized_value,'')) like '%wholesale%'
+    or lower(coalesce(ec.metadata::text,'')) like '%wholesale%'
+  )
+  and ec.disclosure_posture in ('public_directory','public_contactable')
+  and 'directory_display'=any(ec.permitted_uses);
 
 comment on view local_intel.v_smart_contact_signals_v1 is
   'Internal Shared Intelligence semantic signal projection consumed by Atlas Smart Contacts. It translates source-backed public evidence claims into stable search signals without writing Organization intent into canonical truth.';
 
-CREATE OR REPLACE FUNCTION atlas.smart_contacts_search_service_v1(p_organization_id uuid, p_query jsonb, p_limit integer DEFAULT 50)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE
- SET search_path TO ''
-AS $function$
+create or replace function atlas.smart_contacts_search_service_v1(
+  p_organization_id uuid,
+  p_query jsonb,
+  p_limit integer default 50
+)
+returns jsonb
+language plpgsql
+stable
+security invoker
+set search_path=''
+as $function$
 declare
   v_text text;
   v_entity_types text[]:='{}'::text[];
@@ -605,15 +605,19 @@ begin
     )
   );
 end
-$function$
-;
+$function$;
 
-CREATE OR REPLACE FUNCTION atlas.smart_contacts_search_self_api_v1(p_organization_id uuid, p_query jsonb, p_limit integer DEFAULT 50)
- RETURNS jsonb
- LANGUAGE plpgsql
- STABLE SECURITY DEFINER
- SET search_path TO ''
-AS $function$
+create or replace function atlas.smart_contacts_search_self_api_v1(
+  p_organization_id uuid,
+  p_query jsonb,
+  p_limit integer default 50
+)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=''
+as $function$
 begin
   if auth.uid() is null then
     raise exception 'Sign in required.' using errcode='42501';
@@ -625,8 +629,7 @@ begin
 
   return atlas.smart_contacts_search_service_v1(p_organization_id,p_query,p_limit);
 end
-$function$
-;
+$function$;
 
 revoke all on function atlas.smart_contacts_search_service_v1(uuid,jsonb,integer)
   from public,anon,authenticated;
