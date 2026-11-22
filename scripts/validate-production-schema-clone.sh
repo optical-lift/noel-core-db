@@ -500,7 +500,7 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_listenin
      [ "$(git hash-object "$candidate_migration")" != b5aa4105e9816d194f740ac365113263f67d8086 ] ||
      [ "$(git hash-object "$candidate_validation")" != a749d7ef221ad82fd19a76e1f565612037c997fb ] ||
      [ "$(git hash-object "$native_signed_helper")" != e7d3f38887ea1419940bf371f1dbb8aea7b16455 ] ||
-     [ "$(git hash-object "$private_callback_signed_proof")" != e769aba500e26c0e34ee816f17df809d80e40986 ]; then
+     [ "$(git hash-object "$private_callback_signed_proof")" != 2431a312b1002bc05241bafad1c81da002dfa7df ]; then
     echo 'Refuse unpinned private callback role or noncanonical GoTrue proof.' >&2
     exit 2
   fi
@@ -2645,6 +2645,46 @@ PY_CALLBACK_EXISTING_STORAGE_POLICIES
   psql "$database_url" -X -v ON_ERROR_STOP=1 \
     -f "$artifacts_dir/private-callback-existing-storage-policy-parity.sql" \
     >"$artifacts_dir/private-callback-storage-policy-parity.log" 2>&1
+  # PostgreSQL 17 CREATEROLE automatically returns ADMIN but SET FALSE to
+  # the non-superuser creator. The protected localhost clone's trusted psql
+  # fixture cannot SET LOCAL ROLE without SET TRUE membership. Simulate only
+  # the future delegated host's SET boundary on this disposable clone;
+  # do NOT modify candidate SQL, real membership, login or credentials.
+  phase="local-only role SET membership for signed private callback simulation"
+  if [[ ! "$database_url" =~ ^postgresql://postgres:postgres@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'REFUSE private callback role fixture outside disposable loopback clone' >&2
+    exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    >"$artifacts_dir/private-callback-local-role-set.log" 2>&1 <<'SQL_LOCAL_PRIVATE_CALLBACK_SET'
+BEGIN;
+DO $local_caller_preflight$
+BEGIN
+ IF session_user IS DISTINCT FROM 'postgres' OR current_user IS DISTINCT FROM 'postgres'
+   OR NOT EXISTS (
+     SELECT 1 FROM pg_roles
+     WHERE rolname='transcript_core_private_callback_executor_v1'
+       AND NOT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls
+       AND NOT rolcreaterole AND NOT rolcreatedb
+   )
+ THEN RAISE EXCEPTION 'Refuse non-local or overpowered private callback role fixture'; END IF;
+END $local_caller_preflight$;
+GRANT transcript_core_private_callback_executor_v1 TO postgres
+  WITH SET TRUE, INHERIT FALSE;
+DO $local_caller_postcondition$
+BEGIN
+ IF NOT pg_has_role('postgres','transcript_core_private_callback_executor_v1','SET')
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_auth_members m
+      JOIN pg_roles r ON r.oid=m.roleid
+      JOIN pg_roles u ON u.oid=m.member
+      WHERE r.rolname='transcript_core_private_callback_executor_v1'
+        AND u.rolname='postgres' AND m.set_option AND NOT m.inherit_option
+    )
+ THEN RAISE EXCEPTION 'Exact non-inherited localhost role SET membership missing'; END IF;
+END $local_caller_postcondition$;
+COMMIT;
+SQL_LOCAL_PRIVATE_CALLBACK_SET
   phase="signed local private NOLOGIN callback executor and native Storage proof"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/private-callback-local-reload.log" 2>&1
   (cd "$project_dir"; python3 "$private_callback_signed_proof" --db-url "$database_url" \
