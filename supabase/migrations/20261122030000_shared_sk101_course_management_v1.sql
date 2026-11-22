@@ -125,7 +125,7 @@ CREATE OR REPLACE FUNCTION public.shared_delegated_course_management_write_servi
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog'
 AS $
 DECLARE v_course uuid; v_auth uuid; v_person uuid; v_user uuid; v_title text; v_old text;
- v_latest integer; v_rev atlas.teaching_object_title_revisions%ROWTYPE;
+ v_latest integer; v_rev atlas.teaching_object_title_revisions%ROWTYPE; v_prior_manuscript atlas.teaching_course_manuscript_revisions%ROWTYPE;
  v_text text; v_members jsonb; v_current integer; v_unit atlas.teaching_course_units%ROWTYPE;
 BEGIN
  v_course:=atlas.require_private_course_management_v1(p_token_hash,p_course,
@@ -176,10 +176,10 @@ BEGIN
  IF p_operation IN ('course_material_save','unit_subsection_save','revision_recover') THEN
   v_text:=p_payload->>'text';
   IF v_text IS NULL OR char_length(v_text)>40000 THEN RAISE EXCEPTION 'invalid manuscript request' USING ERRCODE='22023'; END IF;
-  SELECT revision_id,revision_number,body_text INTO v_rev FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course AND edit_request_id=p_request;
-  IF v_rev.revision_id IS NOT NULL THEN
-   IF v_rev.body_text IS DISTINCT FROM v_text OR v_rev.based_on_revision IS DISTINCT FROM p_expected_revision THEN RAISE EXCEPTION 'replayed manuscript request differs' USING ERRCODE='23505'; END IF;
-   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'requestId',p_request,'revisionNumber',v_rev.revision_number,'textLength',char_length(v_rev.body_text));
+  SELECT * INTO v_prior_manuscript FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course AND edit_request_id=p_request;
+  IF v_prior_manuscript.revision_id IS NOT NULL THEN
+   IF v_prior_manuscript.body_text IS DISTINCT FROM v_text OR v_prior_manuscript.based_on_revision IS DISTINCT FROM p_expected_revision THEN RAISE EXCEPTION 'replayed manuscript request differs' USING ERRCODE='23505'; END IF;
+   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'requestId',p_request,'revisionNumber',v_prior_manuscript.revision_number,'textLength',char_length(v_prior_manuscript.body_text));
   END IF;
   SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course;
   IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale manuscript revision' USING ERRCODE='40001'; END IF;
