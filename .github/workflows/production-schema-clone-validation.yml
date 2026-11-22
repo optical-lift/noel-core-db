@@ -71,8 +71,8 @@ jobs:
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held SK101 Course-management validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
-                  handle.write('migration_version=held-sk101-course-management\\nrelease_lane=shared\\n')
-                  handle.write('candidate_sha='+expected['candidate_sha']+'\\n')
+                  handle.write('migration_version=held-sk101-course-management\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
           # Exact held Household package only. This branch is a disposable
