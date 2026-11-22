@@ -14,8 +14,8 @@ import sys
 import verify_generated_listening_storage_signed as native
 
 ROLE = "transcript_core_private_callback_executor_v1"
-_REGISTER = "transcript_core.private_register_verified_manuscript_original_v1"
-_COMPLETE = "transcript_core.private_complete_verified_listening_production_v1"
+_REGISTER = "transcript_core_callback_v1.private_register_verified_manuscript_original_v1"
+_COMPLETE = "transcript_core_callback_v1.private_complete_verified_listening_production_v1"
 _original_registration = native.trusted_signed_local_original_registration
 _original_completion = native.trusted_signed_local_completion
 
