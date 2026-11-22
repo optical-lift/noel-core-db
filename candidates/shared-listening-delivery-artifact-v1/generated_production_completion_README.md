@@ -1,0 +1,75 @@
+# Held generated-listening production admission — internal completion only
+
+This is a narrow follow-on to the released shared_listening_delivery_artifact_v1 migration (20261119235547). Source-only; no live migration, actor grant, data, upload, storage policy, direct client access, publication, publication registry or deployment.
+
+The existing native manuscript revision and original asset, production/source relationship, and delivery profile must first exist and be reconciled by exact IDs, not by title. The completion operation creates/reopens the existing native generated-render assets, master (production + ordinal), and delivery package (master + profile), then calls the released internal binding. It preserves exact original asset, extracted source digest, native receipt, verified master timeline and export identifiers. Use existing validation_report to retain verified carrier evidence; no new table. It deliberately refuses a preexisting package that does not carry the same exact completion report rather than overwrite it or guess its provenance. Current production row locking serializes this candidate's completion calls; future independent master/package writers require integrated concurrency review. A manuscript original with no exact registered source asset remains blocked, not silently fabricated.
+
+The function is internal SECURITY INVOKER; authenticated, anon and service_role have NO EXECUTE grant. It checks the trusted transport's authenticated nonanonymous JWT session claims against current Auth user/session and exact native production workspace editor/owner membership, locks the source lineage, checks current private storage object ID/version, metadata and uniqueness, rejects conflicting replay, and returns only original source IDs and existing bounded artifact receipt. Test GUC claims in the scratch fixture are not cryptographic authentication. The future carrier MUST validate the signed JWT, verify actual immutable received bytes and native extraction/timeline/export/codec/profile evidence, keep producer material private, and recheck exact version on completion/retrieval; storage metadata/SQL alone cannot prove byte integrity. A trusted carrier is not implemented here. An unregistered original manuscript, missing delivery profile, missing version metadata or missing approved transfer is a blocker. No service-role bypass, public endpoint, storage SQL writes or new grants. No publication rights, library membership, publisher standing, or listener access follows.
+
+The existing isolated listening delivery workflow runs the existing test plus this additional synthetic fixture. Full live-shaped isolated clone, genuine signed owner/editor/viewer/outsider/revocation, actual immutable object transfer, source original intake and profile validation, concurrent writer integration, review/generation/release remain separate gates. No private content or real IDs belong in this public candidate. The same Titus publication encounter will consume this capability when lawfully available; no new view.
+
+## Held signed storage staging extension
+
+Owner approved a narrowly scoped extension of existing private Supabase transfer and mandatory FFmpeg proof. No new bucket or storage service. The separate candidate policy permits authenticated INSERT only in transcript-core-generated-renders at <workspace UUID>/<existing production UUID>/listening/<SHA-256>.wav or .mp3, requiring current nonanonymous session, confirmed active Auth user, exact workspace editor/owner, existing nonarchived manuscript-backed production with original source asset, private bucket. Uses a private-schema boolean SECURITY DEFINER policy lookup to avoid granting table/schema read; execute only authenticated. Restrictive SELECT prevents viewers and revoked producers from reading this listening namespace under the earlier general workspace read rule. Restrictive UPDATE/DELETE prevent ordinary authenticated replacement or removal. Other namespaces retain existing policies. Actual Storage API semantics including resumable upload, missing or revoked sessions, duplicate/no-upsert, version metadata, private read-back, MIME and capacity/size behavior must be tested with real signed independent actors in protected isolation. SQL fixture role/GUC claims are not signed JWT proof. Hash-shaped paths are NOT byte evidence: the staged file may still be wrong, unverified or incomplete. The trusted receiver must verify actual bytes and source/profile/receipt, read back immutable exact version, then use the separately restricted internal completion; no authenticated/service role grant to that writer. Unverified/orphaned staged bytes require a governed recovery/retention policy; do not overwrite an existing hash path. Bucket size limits and media profile validation are not changed by this policy; before release prove bounded upload capacity and abuse handling. No public read, new credentials, live policy, deployment, or application change.
+
+## Signed local Storage HTTP proof — candidate only
+
+Added verify_generated_listening_storage_signed.py for the existing protected disposable local clone, requiring the default loopback API and DB and rejecting hosted credential variables. Creates independent fictional GoTrue actors locally, uses real native source RPCs and a clone-only original asset association, transfers deliberately unverified synthetic bytes through the existing Storage HTTP API and verifies current object version, metadata and readback. Exercises owner/editor success, viewer/outsider/anonymous/path denial, replacement/deletion preservation, revoked role/session with the same bearer, and zero generated admission rows. This is a staging probe, not a real audio admission or full resumable TUS proof. No protected validator workflow or release contract changed. Current canonical production-schema clone workflow permits only older exact held listening-artifact SHA or governed versioned packages, and does not invoke this signed Storage probe. Need exact owner-reviewed addition to the existing protected clone request/hook, with immutable candidate and probe blob hashes, no production secret present during candidate execution, local-only storage/Auth stack, no live release. Actual signed runtime proof remains unexecuted until that approved route is available.
+
+## First signed clone result and exact parity correction
+
+Run 44659224999 restored and applied both held SQL packages, minted four independently signed GoTrue sessions, then failed at original script-source upload with HTTP 400. No generated transfer executed. Default CLI schema dump omits managed Storage schema; read-only live metadata confirms the two native policies are exactly the released 20260928200427 definitions. The test now asserts local RLS and existing INSERT/SELECT grants, restores only either missing identical released policy in the disposable clone, refuses divergent policies, confirms real signed workspace edit/denial before upload, and reports bounded diagnostic categories rather than raw response bodies. No candidate SQL, production grants, or scoped generated-render guard changes. This is a likely clone parity correction; actual rerun must establish whether it resolves the failure.
+
+## Real signed multi-chunk TUS follow-on (held source)
+
+The existing protected HTTP proof has been extended to upload its synthetic master with the actual local Supabase TUS endpoint (>6 MiB). It verifies an independently signed owner, native workspace/production authorization, create-only metadata, server-issued same-origin Location, 6 MiB PATCH chunks with returned Upload-Offset, explicit HEAD reconciliation between chunks, private readback and hash/byte/object-version preservation, as well as the existing independent outsider/viewer/revocation tests. The fixture bytes are deliberately not audio and remain inadmissible production evidence; no canonical admission or actual audiobook transfer is implied. This is one live protocol test within the existing disposable protected clone, not restart-persistent recovery or a privileged completion carrier. Do not release without a passing signed run and separate end-to-end receipt completion proof.
+
+## Held authored manuscript original source registration (source-only)
+
+The released asset enum has no truthful manuscript-original class: neither observed recording nor performance script describes the author's source. The existing source-ingest RPC accepts only recording/script and creates corresponding parse/transcription jobs. This narrowly extends the existing enum with `manuscript_source`, reuses `transcript_core.assets` and the existing private `transcript-core-script-sources` bucket, and creates one internal SECURITY INVOKER current-session-bound write-once registration function (no anon/authenticated/service_role EXECUTE). Expected private path is `<workspace>/manuscript/<original SHA-256>.txt|docx`, and the carrier must separately prove exact original bytes/native extraction. An exact session, workspace editor, private bucket/current version/size/MIME and idempotent source binding are required. Restrictive Storage policies deny viewer/anonymous/revoked manuscript-original read/insert and all ordinary original replacement/deletion; other preexisting script paths are unchanged. Completion/staging guards now require `manuscript_source`, not the semantically false `script_source`. The enum addition is committed before type use; no new table, app registry, credentials, publication, release or production write. Source-only tests must pass before separately rerunning protected real HTTP signed proof with new pins and the expanded package. The earlier protected TUS run 44969496995 proves the earlier pinned version only.
+
+## Signed authored original registration extension
+
+The protected fictional local GoTrue test now uploads a content-addressed private original manuscript, verifies actual signed bearer with GoTrue and current Auth session, uses a **trusted local psql-only transaction** to install exactly those verified claims, and invokes the internal non-client manuscript-source registration function. The exact retry returns the same asset. This is an isolated proof of the carrier boundary, not a general privileged adapter: real producer credential custody and a production-hosted server remain unresolved. The generated-render policy now accepts `manuscript_source` (not the old script label), and all eight namespace policies are required. No public/private data, real manuscript, or production release.
+
+## Protected signed native private completion (additional candidate proof)
+
+The same owner-signed local GoTrue evidence now invokes the existing held internal `complete_verified_listening_production_v1` through a disposable-clone only trusted PostgreSQL transaction, with exact verified claims and original/master/MP3 object identities. It asserts that viewer and stale-version completion cannot leave rows, original owner completion returns `publication_approved=false`, exact replay remains identity-stable, conflicting export receipt is refused, and revoked session cannot repeat completion. This proof deliberately uses fictional non-audio bytes, no production credential, no external DB, no public function grant, and no publication. Real media/provenance/rights validation and deployable server-only carrier are still outstanding.
+
+## Canonical source release partition — required before generation
+
+The historical `canonical_native_private_listening_admission_v1.sql` is an
+**evidence-only concatenation**, not a releasable migration. The protected
+scratch clone accepts multiple transaction boundaries; the governed production
+releaser requires **one transaction and its migration-ledger receipt together**.
+Never ask the source generator to release the historical concatenation.
+
+The exact previously tested SQL statements now have two versionable Shared
+source candidates, in this mandatory release order:
+
+1. `canonical_native_manuscript_source_provenance_v1.sql`: one
+   `BEGIN; ALTER TYPE ... ADD VALUE IF NOT EXISTS 'manuscript_source'; COMMIT;`.
+   The enum must be committed before the second migration may use the value.
+   Read-only source postconditions:
+   `canonical_native_manuscript_source_postconditions_v1.sql`.
+2. `canonical_native_private_listening_completion_v1.sql`: one
+   `BEGIN;` wrapping the original internal completion functions, manuscript
+   registration, source Storage guards and generated-render Storage guards,
+   followed by one `COMMIT;`. The actual SQL operations retain their
+   previously tested text. Read-only source postconditions:
+   `canonical_native_private_listening_postconditions_v1.sql`.
+
+The existing isolated source workflow uses
+`validation/shared-listening-delivery-artifact-v1/verify_canonical_migration_partition.py`
+to reconstitute both files from the immutable SQL components and compare
+byte-for-byte. The actual PostgreSQL test then applies the first migration,
+asserts its source type, applies the second, and exercises the inherited
+synthetic denial/replay/zero-seed postconditions. This does **not** replace the
+protected full production-schema clone and genuine signed GoTrue/Storage proof.
+
+Owner review of source merge, each generator request, independently validated
+canonical migration identity and rehearsal, and separately authorized
+production release of *each exact version* remain distinct. Never use direct
+production SQL or authorize the second version by approving the first.
+The trusted production completion carrier, real audio provenance, publisher
+rights and listener subscriptions remain unimplemented.
