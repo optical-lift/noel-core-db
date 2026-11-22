@@ -191,6 +191,7 @@ signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
 signed_private_mp3_profile_probe=false
 signed_private_course_working_loop_probe=false
+signed_sk101_course_management_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
 # HELD original pot-up serial THREE-function source; only pinned original
@@ -460,6 +461,51 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_native_private_m
   fi
   python3 -m py_compile "$profile_signed_proof"
   signed_private_mp3_profile_probe=true
+fi
+
+# Exact owner-held SK101 management proof, disposable clone only. The
+# protected resolver and this local guard must agree on every immutable input.
+if [[ "$(basename "$candidate_migration")" == "candidate.sql" ]] &&
+   [[ "$candidate_migration" == *"shared-sk101-course-management-v1/candidate.sql" ]]; then
+  if [ "$lane" != shared ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != b3c4591ec23d13db6b2a92d781f907278c106b22 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
+     [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 3fdbf090c4b85c7bd44ee6d923b07480b7965eb3 ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse SK101 management proof without exact isolated package and signed harness.' >&2
+    exit 2
+  fi
+  python3 - "$repo_root/scripts/validate-production-schema-clone.sh" "$repo_root/scripts/validate-sk101-course-management-signed-http.py" <<'PY'
+import pathlib, sys
+shell = pathlib.Path(sys.argv[1]).read_text()
+harness = pathlib.Path(sys.argv[2]).read_text()
+for required in (
+    'signed_sk101_course_management_probe=false',
+    'signed_sk101_course_management_probe=true',
+    'shared-sk101-course-management-v1/candidate.sql',
+    'b3c4591ec23d13db6b2a92d781f907278c106b22',
+    '3f05af628dc4df7f8c483947f77c9996aa9655b3',
+    'a7e5fd416d3ebb490fcfb57827adef58a1749a4f',
+    '3fdbf090c4b85c7bd44ee6d923b07480b7965eb3',
+):
+    if required not in shell:
+        raise SystemExit("SK101 source-contract missing: " + required)
+def marker(name):
+    return "phase=" + chr(34) + name + chr(34)
+fixture = shell.rindex(marker("candidate validation fixture application"))
+application = shell.rindex(marker("candidate migration application"))
+postconditions = shell.rindex(marker("candidate migration postconditions"))
+probe = shell.rindex(marker("independent signed SK101 Course-management matrix"))
+if not (fixture < application < postconditions < probe):
+    raise SystemExit("SK101 setup ordering must be fixture -> migration -> postconditions -> signed probe")
+if 'email=f"atlas-c1-sk101-management-{label}@example.invalid"' not in harness:
+    raise SystemExit("SK101 GoTrue fixture login convention is not atlas-c1 prefixed")
+for login in ("sk101-management-owner", "sk101-management-outsider"):
+    if f'auth.sign_in(api,anon,"{login}")' not in harness:
+        raise SystemExit("SK101 signed login convention missing: " + login)
+PY
+  signed_sk101_course_management_probe=true
 fi
 
 # Exact signed Storage proof, never a generated production migration.
@@ -1247,6 +1293,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   set +e
   if [ "$t5_signed_study" = true ]; then
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_sk101_course_management_probe" = true ]; then
+    # Same disposable PostgreSQL/Auth/REST footprint as the existing signed Course proof.
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_generated_listening_storage_probe" = true ]; then
     # Storage, Auth, REST and Kong must all run; no unrelated services.
     supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
@@ -1760,6 +1809,15 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$signed_sk101_course_management_probe" = true ]; then
+  phase="independent signed SK101 Course-management matrix"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/sk101-management-reload.log" 2>&1
+  python3 "$repo_root/scripts/validate-sk101-course-management-signed-http.py" \
+    --db-url "$database_url" --output "$artifacts_dir/sk101-management-signed-receipt.txt" \
+    >"$artifacts_dir/sk101-management-signed-local.log" 2>&1
+  test "$(cat "$artifacts_dir/sk101-management-signed-receipt.txt")" = 'PASS signed SK101 management clone'
 fi
 
 if [ "$signed_pot_up_retirement_probe" = true ]; then
