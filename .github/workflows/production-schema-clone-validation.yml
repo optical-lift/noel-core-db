@@ -67,7 +67,7 @@ jobs:
           if title == 'Production schema validation request: Shared held SK101 Course management':
               expected = {'diagnostic_scope':'shared_sk101_course_management_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'a708ecb733aa2470e6463f1a69ea3955e43647cc'}
+                          'candidate_sha':'2c66cbc5643ae967d8c8f827d38d3da53018933f'}
               print(f"SK101 admission fields={fields!r} expected={expected!r} actor={os.environ.get('REQUEST_ACTOR')!r} owner={os.environ.get('REPO_OWNER')!r}")
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held SK101 Course-management validation authorization required')
@@ -666,11 +666,11 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "20261122030000" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "a708ecb733aa2470e6463f1a69ea3955e43647cc"
+            test "$(git -C candidate rev-parse HEAD)" = "2c66cbc5643ae967d8c8f827d38d3da53018933f"
             src="candidate/candidates/shared-sk101-course-management-v1/candidate.sql"
             fixture="candidate/validation/fixtures/20261122030000_shared_sk101_course_management_v1.sql"
             post="candidate/validation/migrations/20261122030000_shared_sk101_course_management_v1.sql"
-            test "$(git hash-object "$src")" = b41464bc0d41e85feea798aa1d7681068c1d156b
+            test "$(git hash-object "$src")" = 2b89bcaad9f5d0780bab3bc2d29676a2a7080eb0
             test "$(git hash-object "$fixture")" = 3f05af628dc4df7f8c483947f77c9996aa9655b3
             test "$(git hash-object "$post")" = a7e5fd416d3ebb490fcfb57827adef58a1749a4f
             test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 19db2b16772539a884437801758a15ee6a16db00
