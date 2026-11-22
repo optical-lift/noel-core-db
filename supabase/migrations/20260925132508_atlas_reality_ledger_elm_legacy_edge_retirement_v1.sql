@@ -1,3 +1,4 @@
+
 insert into compatibility.legacy_bindings(
   legacy_schema,legacy_table,legacy_key,disposition,basis
 ) values
