@@ -36,8 +36,13 @@ jobs:
       - name: Apply held candidate to fictional source subset and prove denials
         run: |
           set -euo pipefail
+          cmp -s candidates/shared-listening-delivery-artifact-v1/canonical_native_private_listening_admission_v1.sql <(cat \
+            candidates/shared-listening-delivery-artifact-v1/generated_production_completion_candidate.sql \
+            candidates/shared-listening-delivery-artifact-v1/manuscript_original_registration_candidate.sql \
+            candidates/shared-listening-delivery-artifact-v1/generated_listening_storage_candidate.sql)
           psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/fixture.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/candidate.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/postconditions.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/test.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/canonical_native_private_listening_postconditions_v1.sql
           echo "Synthetic isolated PostgreSQL only; no production clone, publication grant, delivery or release."
