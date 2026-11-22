@@ -391,7 +391,7 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listen
      [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
      [ "$(git hash-object "$listening_completion")" != f6bee2ef5e1fa8cef5995267bceeea1a0803ae9e ] ||
      [ "$(git hash-object "$listening_staging")" != 68abed463591181b5ec60c9a9eaedd3680f49721 ] ||
-     [ "$(git hash-object "$listening_proof")" != a3ceddceb3f96ef948d6e44a537bad1ae3e5675e ] ||
+     [ "$(git hash-object "$listening_proof")" != 98ca3f9f8bdfe81461b03172e1fb7bc2962e5c7f ] ||
      ! cmp -s "$candidate_migration" <(cat "$listening_completion" "$listening_staging"); then
     echo 'Refuse without exact held generated listening SQL and signed proof.' >&2; exit 2
   fi
