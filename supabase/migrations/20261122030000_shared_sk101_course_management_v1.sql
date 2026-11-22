@@ -309,12 +309,23 @@ BEGIN
   SELECT coalesce(max(revision_number),0) INTO v_current FROM atlas.teaching_course_unit_order_revisions WHERE course_id=v_course;
   IF v_current<>p_expected_revision THEN RAISE EXCEPTION 'stale ordering revision' USING ERRCODE='40001'; END IF;
   IF v_position>(SELECT count(*) FROM atlas.teaching_course_units WHERE course_id=v_course) THEN RAISE EXCEPTION 'valid Unit position required' USING ERRCODE='22023'; END IF;
-  IF v_position<v_unit.display_position THEN
-   UPDATE atlas.teaching_course_units SET display_position=display_position+1 WHERE course_id=v_course AND unit_id<>p_unit AND display_position>=v_position AND display_position<v_unit.display_position;
-  ELSIF v_position>v_unit.display_position THEN
-   UPDATE atlas.teaching_course_units SET display_position=display_position-1 WHERE course_id=v_course AND unit_id<>p_unit AND display_position>v_unit.display_position AND display_position<=v_position;
-  END IF;
-  UPDATE atlas.teaching_course_units SET display_position=v_position WHERE unit_id=p_unit;
+  SELECT old_rank INTO v_latest FROM (
+   SELECT unit_id,row_number() OVER (ORDER BY display_position,unit_id)::integer AS old_rank
+   FROM atlas.teaching_course_units WHERE course_id=v_course
+  ) ranked WHERE unit_id=p_unit;
+  WITH ranked AS (
+   SELECT unit_id,row_number() OVER (ORDER BY display_position,unit_id)::integer AS old_rank
+   FROM atlas.teaching_course_units WHERE course_id=v_course
+  ), desired AS (
+   SELECT unit_id,CASE
+    WHEN unit_id=p_unit THEN v_position
+    WHEN old_rank<v_latest AND old_rank>=v_position THEN old_rank+1
+    WHEN old_rank>v_latest AND old_rank<=v_position THEN old_rank-1
+    ELSE old_rank END AS new_position
+   FROM ranked
+  )
+  UPDATE atlas.teaching_course_units u SET display_position=d.new_position
+   FROM desired d WHERE d.unit_id=u.unit_id;
   SELECT coalesce(jsonb_agg(jsonb_build_object('unitId',unit_id,'position',display_position) ORDER BY display_position,unit_id),'[]'::jsonb) INTO v_ordering FROM atlas.teaching_course_units WHERE course_id=v_course;
   INSERT INTO atlas.teaching_course_unit_order_revisions(course_id,edit_request_id,based_on_revision,revision_number,moved_unit_id,position,ordering,recorded_by_person_entity_id,recorded_by_auth_user_id)
    VALUES(v_course,p_request,v_current,v_current+1,p_unit,v_position,v_ordering,v_person,v_user) RETURNING * INTO v_prior_order;
