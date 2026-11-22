@@ -86,8 +86,8 @@ CREATE POLICY fixture_future_source_delete ON storage.objects
 SELECT pg_temp.sign(1);
 SET LOCAL ROLE authenticated;
 DO $$ BEGIN
- IF (SELECT count(*) FROM storage.objects)<>2
- THEN RAISE EXCEPTION 'owner should read original and broad other-source fixture'; END IF;
+ IF (SELECT count(*) FROM storage.objects)<>1
+ THEN RAISE EXCEPTION 'owner must read own original and NOT another workspace manuscript'; END IF;
  UPDATE storage.objects SET version='tampered' WHERE name=pg_temp.manuscript_path();
  IF FOUND THEN RAISE EXCEPTION 'manuscript original was overwritten'; END IF;
  DELETE FROM storage.objects WHERE name=pg_temp.manuscript_path();
