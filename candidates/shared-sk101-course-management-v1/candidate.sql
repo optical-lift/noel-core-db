@@ -129,7 +129,7 @@ BEGIN
    SELECT jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at) INTO v_compare FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit AND revision_id=v_reference;
   END IF;
   IF v_base IS NULL OR v_compare IS NULL THEN RAISE EXCEPTION 'historical revision not found' USING ERRCODE='42501'; END IF;
-  RETURN jsonb_build_object('contractVersion','atlas_course_management_revision_compare_v1','courseId',v_course,'unitId',p_unit,'baseRevision',v_base,'compareRevision',v_compare,'same',v_base->>'text'=v_compare->>'text');
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_revision_compare_v1','courseId',v_course,'unitId',p_unit,'baseRevision',v_base,'compareRevision',v_compare,'same',(v_base->>'text')=(v_compare->>'text'));
  END IF;
  RAISE EXCEPTION 'management read operation not admitted' USING ERRCODE='22023';
 END $$;
