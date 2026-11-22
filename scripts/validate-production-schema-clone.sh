@@ -189,6 +189,7 @@ signed_legacy_farm_invite_probe=false
 signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
 signed_private_course_working_loop_probe=false
+signed_sk101_course_management_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
 # HELD original pressure-wash branch: exact SQL + authentic C1 signed
@@ -420,6 +421,18 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_course_w
     echo 'Refuse private Course proof without exact isolated package and signed harness.' >&2; exit 2
   fi
   signed_private_course_working_loop_probe=true
+fi
+# Exact owner-held SK101 management proof, disposable clone only.
+if [[ "$(basename "$candidate_migration")" == "candidate.sql" ]] && [[ "$candidate_migration" == *"shared-sk101-course-management-v1/candidate.sql" ]]; then
+  if [ "$lane" != shared ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != b3c4591ec23d13db6b2a92d781f907278c106b22 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 4b6d8b1a2a3c4d5e6f708192a3b4c5d6e7f8091a ] ||
+     [ "$(git hash-object "$candidate_validation")" != 91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 1b1d65b33bbd77e85b0b66f15bb5d0b71864bdf8 ] ||
+     [ -n "\${NOEL_CORE_DATABASE_URL:-}\${DATABASE_URL:-}\${SUPABASE_DB_URL:-}\${SUPABASE_ACCESS_TOKEN:-}\${SUPABASE_SERVICE_ROLE_KEY:-}\${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse SK101 management proof without exact isolated package and signed harness.' >&2; exit 2
+  fi
+  signed_sk101_course_management_probe=true
 fi
 # Exact signed Storage proof, never a generated production migration.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listening_storage_signed_clone_only_v1[.]sql$ ]]; then
@@ -1209,7 +1222,16 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   elif [ "$signed_generated_listening_storage_probe" = true ]; then
     # Storage, Auth, REST and Kong must all run; no unrelated services.
     supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
-  elif [ "$signed_private_course_working_loop_probe" = true ]; then
+  elif [ "$signed_sk101_course_management_probe" = true ]; then
+  phase="independent signed SK101 Course-management matrix"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/sk101-management-reload.log" 2>&1
+  python3 "$repo_root/scripts/validate-sk101-course-management-signed-http.py" \\
+    --db-url "$database_url" --output "$artifacts_dir/sk101-management-signed-receipt.txt" \\
+    >"$artifacts_dir/sk101-management-signed-local.log" 2>&1
+  test "$(cat "$artifacts_dir/sk101-management-signed-receipt.txt")" = 'PASS signed SK101 management clone'
+fi
+
+if [ "$signed_private_course_working_loop_probe" = true ]; then
     # Same local GoTrue, REST and PostgreSQL footprint, on the pinned Course package.
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_legacy_farm_invite_probe" = true ]; then
