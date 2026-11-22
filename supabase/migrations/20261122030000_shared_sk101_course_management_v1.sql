@@ -2,6 +2,10 @@
 -- SK101 coordinated management facade. No real Course data or grant is touched.
 BEGIN;
 
+ALTER TABLE atlas.teaching_course_unit_revisions ADD COLUMN IF NOT EXISTS recovered_from_revision_id uuid REFERENCES atlas.teaching_course_unit_revisions(revision_id) ON DELETE RESTRICT;
+CREATE TABLE IF NOT EXISTS atlas.teaching_course_unit_order_revisions (revision_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),course_id uuid NOT NULL REFERENCES atlas.teaching_courses(id) ON DELETE RESTRICT,edit_request_id uuid NOT NULL,based_on_revision integer NOT NULL CHECK (based_on_revision BETWEEN 0 AND 99999),revision_number integer NOT NULL CHECK (revision_number=based_on_revision+1),moved_unit_id uuid NOT NULL REFERENCES atlas.teaching_course_units(unit_id) ON DELETE RESTRICT,position integer NOT NULL CHECK (position>0),ordering jsonb NOT NULL CHECK (jsonb_typeof(ordering)='array'),recorded_by_person_entity_id uuid NOT NULL REFERENCES reality.entities(id),recorded_by_auth_user_id uuid NOT NULL REFERENCES auth.users(id),recorded_at timestamptz NOT NULL DEFAULT clock_timestamp(),UNIQUE(course_id,edit_request_id),UNIQUE(course_id,revision_number));
+ALTER TABLE atlas.teaching_course_unit_order_revisions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE atlas.teaching_course_unit_order_revisions FROM PUBLIC,anon,authenticated,service_role;
 -- Separate command admission. This does not alter existing save_draft authority.
 INSERT INTO atlas.agent_command_definitions
 (command_key,command_version,label,scope_kind,execution_class,confirmation_requirement,handler_key,status,input_contract,target_contract)
@@ -49,7 +53,7 @@ CREATE OR REPLACE FUNCTION public.shared_delegated_course_management_read_servic
  p_revision uuid DEFAULT NULL,p_reference text DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog'
 AS $$
-DECLARE v_course uuid; v_title text; v_last jsonb; v_units jsonb;
+DECLARE v_course uuid; v_title text; v_last jsonb; v_units jsonb; v_base jsonb; v_compare jsonb; v_reference uuid;
 BEGIN
  v_course:=atlas.require_private_course_management_v1(p_token_hash,p_course,
   'teaching.course.management.read',false);
@@ -76,8 +80,9 @@ BEGIN
    'title',title,'position',display_position,'createdAt',created_at)
    ORDER BY display_position,unit_id),'[]'::jsonb) INTO v_units
   FROM atlas.teaching_course_units WHERE course_id=v_course;
-  RETURN jsonb_build_object('contractVersion','atlas_course_management_outline_v1',
-   'courseId',v_course,'units',v_units);
+  SELECT jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,'requestId',edit_request_id,'ordering',ordering) INTO v_last
+   FROM atlas.teaching_course_unit_order_revisions WHERE course_id=v_course ORDER BY revision_number DESC LIMIT 1;
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_outline_v1','courseId',v_course,'revisionId',v_last->'revisionId','revisionNumber',coalesce((v_last->>'revisionNumber')::int,0),'requestId',v_last->'requestId','units',v_units);
  END IF;
  IF p_operation='course_material_read' THEN
   SELECT jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,
@@ -103,22 +108,28 @@ BEGIN
   RETURN jsonb_build_object('contractVersion','atlas_course_management_pending_proposals_v1',
    'courseId',v_course,'proposals',v_units);
  END IF;
- IF p_operation IN ('revision_history_read','revision_compare') THEN
+ IF p_operation='revision_history_read' THEN
   IF p_unit IS NULL THEN
-   SELECT coalesce(jsonb_agg(jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,
-    'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at)
-    ORDER BY revision_number),'[]'::jsonb) INTO v_units
-   FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course;
+   SELECT coalesce(jsonb_agg(jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at) ORDER BY revision_number),'[]'::jsonb) INTO v_units FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course;
   ELSE
-   SELECT coalesce(jsonb_agg(jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,
-    'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at)
-    ORDER BY revision_number),'[]'::jsonb) INTO v_units
-   FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit
-     AND EXISTS (SELECT 1 FROM atlas.teaching_course_units u WHERE u.unit_id=p_unit AND u.course_id=v_course);
+   IF NOT EXISTS (SELECT 1 FROM atlas.teaching_course_units WHERE unit_id=p_unit AND course_id=v_course) THEN RAISE EXCEPTION 'authorized Unit required' USING ERRCODE='42501'; END IF;
+   SELECT coalesce(jsonb_agg(jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at) ORDER BY revision_number),'[]'::jsonb) INTO v_units FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit;
   END IF;
-  RETURN jsonb_build_object('contractVersion','atlas_course_management_revision_read_v1',
-   'courseId',v_course,'operation',p_operation,'unitId',p_unit,'revisionId',p_revision,
-   'revisions',v_units);
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_revision_read_v1','courseId',v_course,'operation',p_operation,'unitId',p_unit,'revisionId',p_revision,'revisions',v_units);
+ END IF;
+ IF p_operation='revision_compare' THEN
+  IF p_revision IS NULL OR p_reference IS NULL OR p_reference !~ '^[0-9a-fA-F-]{36}$' THEN RAISE EXCEPTION 'two historical revisions required' USING ERRCODE='22023'; END IF;
+  v_reference:=p_reference::uuid;
+  IF p_unit IS NULL THEN
+   SELECT jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at) INTO v_base FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course AND revision_id=p_revision;
+   SELECT jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at) INTO v_compare FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course AND revision_id=v_reference;
+  ELSE
+   IF NOT EXISTS (SELECT 1 FROM atlas.teaching_course_units WHERE unit_id=p_unit AND course_id=v_course) THEN RAISE EXCEPTION 'authorized Unit required' USING ERRCODE='42501'; END IF;
+   SELECT jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at) INTO v_base FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit AND revision_id=p_revision;
+   SELECT jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at) INTO v_compare FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit AND revision_id=v_reference;
+  END IF;
+  IF v_base IS NULL OR v_compare IS NULL THEN RAISE EXCEPTION 'historical revision not found' USING ERRCODE='42501'; END IF;
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_revision_compare_v1','courseId',v_course,'unitId',p_unit,'baseRevision',v_base,'compareRevision',v_compare,'same',v_base->>'text'=v_compare->>'text');
  END IF;
  RAISE EXCEPTION 'management read operation not admitted' USING ERRCODE='22023';
 END $$;
@@ -137,6 +148,10 @@ AS $$
 DECLARE v_course uuid; v_auth uuid; v_person uuid; v_user uuid; v_title text; v_old text;
  v_latest integer; v_rev atlas.teaching_object_title_revisions%ROWTYPE; v_prior_manuscript atlas.teaching_course_manuscript_revisions%ROWTYPE;
  v_text text; v_members jsonb; v_expected_title text; v_prior_unit atlas.teaching_course_unit_revisions%ROWTYPE; v_current integer; v_unit atlas.teaching_course_units%ROWTYPE;
+ v_prior_order atlas.teaching_course_unit_order_revisions%ROWTYPE; v_ordering jsonb; v_position integer;
+ v_source_unit_revision atlas.teaching_course_unit_revisions%ROWTYPE; v_source_revision uuid;
+ v_prior_composition atlas.teaching_course_composition_revisions%ROWTYPE;
+ v_current_text text; v_base_text text; v_replacement text; v_start integer; v_end integer;
 BEGIN
  v_course:=atlas.require_private_course_management_v1(p_token_hash,p_course,
    'teaching.course.management.write',true);
@@ -153,6 +168,11 @@ BEGIN
  JOIN reality.auth_person_bindings b ON b.auth_user_id=pr.user_id AND b.binding_state='active' AND b.retired_at IS NULL
  WHERE c.token_hash=lower(p_token_hash) AND c.authorization_id IS NOT NULL LIMIT 1;
  IF v_person IS NULL THEN RAISE EXCEPTION 'canonical Person required' USING ERRCODE='42501'; END IF;
+ IF p_operation IN ('unit_title_save','unit_move','unit_subsection_save','revision_recover') THEN
+  SELECT * INTO v_unit FROM atlas.teaching_course_units WHERE course_id=v_course AND unit_id=p_unit FOR UPDATE;
+  IF v_unit.unit_id IS NULL THEN RAISE EXCEPTION 'authorized Unit required' USING ERRCODE='42501'; END IF;
+ END IF;
+ PERFORM 1 FROM atlas.teaching_courses WHERE id=v_course FOR UPDATE;
  IF p_operation IN ('course_title_save','unit_title_save') THEN
   v_title:=p_payload->>'title'; v_expected_title:=p_payload->>'expectedTitle';
   IF v_title IS NULL OR v_title<>btrim(v_title) OR char_length(v_title) NOT BETWEEN 1 AND 150
@@ -190,27 +210,66 @@ BEGIN
    'operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,
    'revisionId',v_rev.revision_id,'revisionNumber',v_rev.revision_number,'title',v_title);
  END IF;
- IF p_operation IN ('unit_subsection_save','revision_recover') THEN
-  IF p_unit IS NULL THEN RAISE EXCEPTION 'exact Unit required' USING ERRCODE='42501'; END IF;
-  v_text:=p_payload->>'text';
-  IF v_text IS NULL OR char_length(v_text)>20000 THEN RAISE EXCEPTION 'invalid Unit revision' USING ERRCODE='22023'; END IF;
+ IF p_operation='unit_subsection_save' THEN
+  IF p_payload ? 'text' OR NOT (p_payload ?& ARRAY['baseText','selectionStart','selectionEnd','replacement'])
+  THEN RAISE EXCEPTION 'selection witness required' USING ERRCODE='22023'; END IF;
+  v_base_text:=p_payload->>'baseText'; v_replacement:=p_payload->>'replacement';
+  v_start:=(p_payload->>'selectionStart')::integer; v_end:=(p_payload->>'selectionEnd')::integer;
+  IF v_base_text IS NULL OR v_replacement IS NULL OR char_length(v_base_text)>20000 OR char_length(v_replacement)>20000
+  THEN RAISE EXCEPTION 'invalid Unit subsection request' USING ERRCODE='22023'; END IF;
+  SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit;
+  SELECT body_text INTO v_current_text FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit ORDER BY revision_number DESC LIMIT 1;
+  v_current_text:=coalesce(v_current_text,'');
+  IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale Unit revision' USING ERRCODE='40001'; END IF;
+  IF v_base_text IS DISTINCT FROM v_current_text OR v_start<0 OR v_end<v_start OR v_end>char_length(v_base_text)
+  THEN RAISE EXCEPTION 'stale Unit subsection source' USING ERRCODE='40001'; END IF;
+  v_text:=left(v_base_text,v_start)||v_replacement||substr(v_base_text,v_end+1);
+  IF char_length(v_text)>20000 THEN RAISE EXCEPTION 'invalid Unit revision' USING ERRCODE='22023'; END IF;
   SELECT * INTO v_prior_unit FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit AND edit_request_id=p_request;
   IF v_prior_unit.revision_id IS NOT NULL THEN
-   IF v_prior_unit.body_text IS DISTINCT FROM v_text OR v_prior_unit.based_on_revision IS DISTINCT FROM p_expected_revision THEN RAISE EXCEPTION 'replayed Unit request differs' USING ERRCODE='23505'; END IF;
-   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionNumber',v_prior_unit.revision_number,'textLength',char_length(v_prior_unit.body_text));
+   IF v_prior_unit.body_text IS DISTINCT FROM v_text OR v_prior_unit.based_on_revision IS DISTINCT FROM p_expected_revision
+      OR v_prior_unit.recorded_by_person_entity_id IS DISTINCT FROM v_person OR v_prior_unit.recorded_by_auth_user_id IS DISTINCT FROM v_user
+      OR v_prior_unit.recovered_from_revision_id IS NOT NULL
+   THEN RAISE EXCEPTION 'replayed Unit request differs' USING ERRCODE='23505'; END IF;
+   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_unit.revision_id,'revisionNumber',v_prior_unit.revision_number,'textLength',char_length(v_prior_unit.body_text));
   END IF;
+  INSERT INTO atlas.teaching_course_unit_revisions(unit_id,edit_request_id,based_on_revision,revision_number,body_text,recorded_by_person_entity_id,recorded_by_auth_user_id)
+   VALUES(p_unit,p_request,v_latest,v_latest+1,v_text,v_person,v_user) RETURNING * INTO v_prior_unit;
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_unit.revision_id,'revisionNumber',v_prior_unit.revision_number,'textLength',char_length(v_text));
+ END IF;
+ IF p_operation='revision_recover' THEN
+  IF p_payload ? 'text' OR NOT (p_payload ? 'revisionId')
+  THEN RAISE EXCEPTION 'historical source revision required' USING ERRCODE='22023'; END IF;
+  v_source_revision:=(p_payload->>'revisionId')::uuid;
+  SELECT r.* INTO v_source_unit_revision FROM atlas.teaching_course_unit_revisions r
+   JOIN atlas.teaching_course_units u ON u.unit_id=r.unit_id AND u.course_id=v_course
+   WHERE r.unit_id=p_unit AND r.revision_id=v_source_revision;
+  IF v_source_unit_revision.revision_id IS NULL THEN RAISE EXCEPTION 'historical source revision not found' USING ERRCODE='42501'; END IF;
+  v_text:=v_source_unit_revision.body_text;
   SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit;
   IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale Unit revision' USING ERRCODE='40001'; END IF;
-  INSERT INTO atlas.teaching_course_unit_revisions(unit_id,edit_request_id,based_on_revision,revision_number,body_text,recorded_by_person_entity_id,recorded_by_auth_user_id)
-   VALUES(p_unit,p_request,v_latest,v_latest+1,v_text,v_person,v_user);
-  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionNumber',v_latest+1,'textLength',char_length(v_text));
+  SELECT * INTO v_prior_unit FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit AND edit_request_id=p_request;
+  IF v_prior_unit.revision_id IS NOT NULL THEN
+   IF v_prior_unit.body_text IS DISTINCT FROM v_text OR v_prior_unit.based_on_revision IS DISTINCT FROM p_expected_revision
+      OR v_prior_unit.recorded_by_person_entity_id IS DISTINCT FROM v_person OR v_prior_unit.recorded_by_auth_user_id IS DISTINCT FROM v_user
+      OR v_prior_unit.recovered_from_revision_id IS DISTINCT FROM v_source_revision
+   THEN RAISE EXCEPTION 'replayed recovery request differs' USING ERRCODE='23505'; END IF;
+   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_unit.revision_id,'revisionNumber',v_prior_unit.revision_number,'sourceRevisionId',v_source_revision,'textLength',char_length(v_prior_unit.body_text));
+  END IF;
+  INSERT INTO atlas.teaching_course_unit_revisions(unit_id,edit_request_id,based_on_revision,revision_number,body_text,recovered_from_revision_id,recorded_by_person_entity_id,recorded_by_auth_user_id)
+   VALUES(p_unit,p_request,v_latest,v_latest+1,v_text,v_source_revision,v_person,v_user) RETURNING * INTO v_prior_unit;
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_unit.revision_id,'revisionNumber',v_prior_unit.revision_number,'sourceRevisionId',v_source_revision,'textLength',char_length(v_text));
  END IF;
  IF p_operation='course_material_save' THEN
   v_text:=p_payload->>'text';
   IF v_text IS NULL OR char_length(v_text)>40000 THEN RAISE EXCEPTION 'invalid manuscript request' USING ERRCODE='22023'; END IF;
   SELECT * INTO v_prior_manuscript FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course AND edit_request_id=p_request;
   IF v_prior_manuscript.revision_id IS NOT NULL THEN
-   IF v_prior_manuscript.body_text IS DISTINCT FROM v_text OR v_prior_manuscript.based_on_revision IS DISTINCT FROM p_expected_revision THEN RAISE EXCEPTION 'replayed manuscript request differs' USING ERRCODE='23505'; END IF;
+   IF v_prior_manuscript.body_text IS DISTINCT FROM v_text
+      OR v_prior_manuscript.based_on_revision IS DISTINCT FROM p_expected_revision
+      OR v_prior_manuscript.recorded_by_person_entity_id IS DISTINCT FROM v_person
+      OR v_prior_manuscript.recorded_by_auth_user_id IS DISTINCT FROM v_user
+   THEN RAISE EXCEPTION 'replayed manuscript request differs' USING ERRCODE='23505'; END IF;
    RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'requestId',p_request,'revisionNumber',v_prior_manuscript.revision_number,'textLength',char_length(v_prior_manuscript.body_text));
   END IF;
   SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course;
@@ -222,24 +281,44 @@ BEGIN
  END IF;
  IF p_operation='composition_save' THEN
   v_members:=p_payload->'members';
+  SELECT * INTO v_prior_composition FROM atlas.teaching_course_composition_revisions WHERE course_id=v_course AND edit_request_id=p_request;
+  IF v_prior_composition.revision_id IS NOT NULL THEN
+   IF v_prior_composition.members IS DISTINCT FROM v_members OR v_prior_composition.based_on_revision IS DISTINCT FROM p_expected_revision
+      OR v_prior_composition.recorded_by_person_entity_id IS DISTINCT FROM v_person OR v_prior_composition.recorded_by_auth_user_id IS DISTINCT FROM v_user
+   THEN RAISE EXCEPTION 'replayed composition request differs' USING ERRCODE='23505'; END IF;
+   RETURN jsonb_build_object('contractVersion','shared_teaching_course_composition_v1','courseId',v_course,'requestId',p_request,'revisionNumber',v_prior_composition.revision_number,'members',v_prior_composition.members);
+  END IF;
   PERFORM atlas.validate_course_composition_v1(v_course,v_members);
   SELECT coalesce(max(revision_number),0) INTO v_current FROM atlas.teaching_course_composition_revisions WHERE course_id=v_course;
   IF v_current<>p_expected_revision THEN RAISE EXCEPTION 'stale composition revision' USING ERRCODE='40001'; END IF;
   INSERT INTO atlas.teaching_course_composition_revisions(course_id,edit_request_id,based_on_revision,revision_number,members,recorded_by_person_entity_id,recorded_by_auth_user_id)
-   VALUES(v_course,p_request,v_current,v_current+1,v_members,v_person,v_user);
-  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,
-   'courseId',v_course,'requestId',p_request,'revisionNumber',v_current+1,'members',v_members);
+   VALUES(v_course,p_request,v_current,v_current+1,v_members,v_person,v_user) RETURNING * INTO v_prior_composition;
+  RETURN jsonb_build_object('contractVersion','shared_teaching_course_composition_v1','operation',p_operation,'courseId',v_course,'requestId',p_request,'revisionNumber',v_prior_composition.revision_number,'members',v_members);
  END IF;
  IF p_operation='unit_move' THEN
-  SELECT * INTO v_unit FROM atlas.teaching_course_units WHERE course_id=v_course AND unit_id=p_unit FOR UPDATE;
-  IF v_unit.unit_id IS NULL THEN RAISE EXCEPTION 'authorized Unit required' USING ERRCODE='42501'; END IF;
-  UPDATE atlas.teaching_course_units SET display_position=display_position+1
-   WHERE course_id=v_course AND display_position>=v_unit.display_position
-   AND unit_id<>p_unit;
-  UPDATE atlas.teaching_course_units SET display_position=(p_payload->>'position')::integer
-   WHERE unit_id=p_unit;
-  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,
-   'courseId',v_course,'unitId',p_unit,'requestId',p_request,'position',(p_payload->>'position')::integer);
+  v_position:=(p_payload->>'position')::integer;
+  SELECT * INTO v_prior_order FROM atlas.teaching_course_unit_order_revisions WHERE course_id=v_course AND edit_request_id=p_request;
+  IF v_prior_order.revision_id IS NOT NULL THEN
+   IF v_prior_order.moved_unit_id IS DISTINCT FROM p_unit OR v_prior_order.position IS DISTINCT FROM v_position
+      OR v_prior_order.based_on_revision IS DISTINCT FROM p_expected_revision
+      OR v_prior_order.recorded_by_person_entity_id IS DISTINCT FROM v_person OR v_prior_order.recorded_by_auth_user_id IS DISTINCT FROM v_user
+   THEN RAISE EXCEPTION 'replayed ordering request differs' USING ERRCODE='23505'; END IF;
+   RETURN jsonb_build_object('contractVersion','atlas_course_management_order_receipt_v1','courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_order.revision_id,'revisionNumber',v_prior_order.revision_number,'position',v_prior_order.position,'ordering',v_prior_order.ordering);
+  END IF;
+  IF v_position IS NULL OR v_position<1 THEN RAISE EXCEPTION 'valid Unit position required' USING ERRCODE='22023'; END IF;
+  SELECT coalesce(max(revision_number),0) INTO v_current FROM atlas.teaching_course_unit_order_revisions WHERE course_id=v_course;
+  IF v_current<>p_expected_revision THEN RAISE EXCEPTION 'stale ordering revision' USING ERRCODE='40001'; END IF;
+  IF v_position>(SELECT count(*) FROM atlas.teaching_course_units WHERE course_id=v_course) THEN RAISE EXCEPTION 'valid Unit position required' USING ERRCODE='22023'; END IF;
+  IF v_position<v_unit.display_position THEN
+   UPDATE atlas.teaching_course_units SET display_position=display_position+1 WHERE course_id=v_course AND unit_id<>p_unit AND display_position>=v_position AND display_position<v_unit.display_position;
+  ELSIF v_position>v_unit.display_position THEN
+   UPDATE atlas.teaching_course_units SET display_position=display_position-1 WHERE course_id=v_course AND unit_id<>p_unit AND display_position>v_unit.display_position AND display_position<=v_position;
+  END IF;
+  UPDATE atlas.teaching_course_units SET display_position=v_position WHERE unit_id=p_unit;
+  SELECT coalesce(jsonb_agg(jsonb_build_object('unitId',unit_id,'position',display_position) ORDER BY display_position,unit_id),'[]'::jsonb) INTO v_ordering FROM atlas.teaching_course_units WHERE course_id=v_course;
+  INSERT INTO atlas.teaching_course_unit_order_revisions(course_id,edit_request_id,based_on_revision,revision_number,moved_unit_id,position,ordering,recorded_by_person_entity_id,recorded_by_auth_user_id)
+   VALUES(v_course,p_request,v_current,v_current+1,p_unit,v_position,v_ordering,v_person,v_user) RETURNING * INTO v_prior_order;
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_order_receipt_v1','courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_order.revision_id,'revisionNumber',v_prior_order.revision_number,'position',v_position,'ordering',v_ordering);
  END IF;
  RAISE EXCEPTION 'management write operation not admitted' USING ERRCODE='22023';
 END $$;
