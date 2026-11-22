@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Signed disposable PostgreSQL proof for the pinned SK101 management candidate."""
-import argparse, importlib.util, os, re, subprocess, uuid
+import argparse, importlib.util, os, re, subprocess, sys, uuid
 from pathlib import Path
 spec=importlib.util.spec_from_file_location("local_auth",Path(__file__).with_name("validate-atlas-c1-signed-http.py"))
 auth=importlib.util.module_from_spec(spec); spec.loader.exec_module(auth)
@@ -12,7 +12,12 @@ def main():
     ap=argparse.ArgumentParser(); ap.add_argument("--db-url",required=True); ap.add_argument("--output",required=True); a=ap.parse_args()
     check(re.fullmatch(r"postgresql://postgres:postgres@127[.]0[.]0[.]1:[0-9]+/postgres",a.db_url),"loopback clone")
     check(not any(os.getenv(k) for k in ("NOEL_CORE_DATABASE_URL","DATABASE_URL","SUPABASE_DB_URL","SUPABASE_SERVICE_ROLE_KEY")),"hosted credential")
-    sql=lambda q: auth.sql(a.db_url,q)
+    def sql(q):
+        try:
+            return auth.sql(a.db_url,q)
+        except subprocess.CalledProcessError as exc:
+            print(exc.stderr or exc.stdout or "synthetic fixture SQL failed", file=sys.stderr)
+            raise
     check(sql("select current_setting('server_version_num')::int/10000")=="17","PG17")
     check(sql("select not exists(select 1 from auth.users) and not exists(select 1 from atlas.teaching_courses)")=="t","empty clone")
     owner, outsider, entity, other = person(1),person(2),person(101),person(102)
