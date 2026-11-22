@@ -336,6 +336,19 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Original pot-up serial THREE-function branch, one owner-only source-pinned
+          # disposable clone. No live SQL, credentials, or production release.
+          if title == 'Production schema validation request: Atlas held pot up serial retirement':
+              expected = {'diagnostic_scope':'atlas_historical_pot_up_serial_branch_signed_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'6d60443cd167dd5323ebd8c9c9ad656238ef5eb2'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held pot-up original source clone approval required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-pot-up-serial-retirement\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
           missing = [key for key in required if key not in fields]
           if missing:
@@ -491,6 +504,39 @@ jobs:
             scratch="$(mktemp -d "$RUNNER_TEMP/held-pressure-wash-serial.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_historical_pressure_wash_serial_branch_clone_only_v1)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_historical_pressure_wash_serial_branch_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Immutable ORIGINAL source package, not a production version.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-pot-up-serial-retirement" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = 6d60443cd167dd5323ebd8c9c9ad656238ef5eb2
+            src="candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/clone_fixture.sql"
+            post="candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/postconditions.sql"
+            test "$(git hash-object "$src")" = eb06b31b273f010549e4a39678f2c6a44b39ba13
+            test "$(git hash-object "$fixture")" = 4d22ffe6cf1c59e2c11d89dc717f399032b18f59
+            test "$(git hash-object "$post")" = eb37d62f184e26185fe567f2471cc4eb80f9eb03
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test ! -e candidate/supabase/migrations/held-pot-up-serial-retirement.sql
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-pot-up-serial.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_historical_pot_up_serial_branch_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_historical_pot_up_serial_branch_clone_only_v1.sql')
             test "${#scratch_files[@]}" -eq 1
             candidate_migration="${scratch_files[0]}"
             version="$(basename "$candidate_migration" | cut -d_ -f1)"
