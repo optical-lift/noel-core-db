@@ -199,7 +199,7 @@ obsolete_unfinished_retirement_proof=false
 # immutable original candidate, source/caller/ACL guards, real signed local
 # GoTrue owner/worker/outsider/no-seat and full Atlas base row fingerprints.
 # Disposable local PostgreSQL17 ONLY; explicitly no production credentials.
-if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_anna_two_service_roots_clone_only_v1[.]sql$ ]]; then
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_anna_two_service_roots_clone_only_v1[.]sql$ ]] || [ "$(basename "$candidate_migration")" = "20261122175225_atlas_historical_anna_two_service_roots_retirement_v1.sql" ]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != cb4f5cf649663ca9d18e7e77133fc03cd754685a ] ||
      [ "$(git hash-object "$candidate_fixture")" != 76667bafa100414423367b109b3ee04ad21bbd12 ] ||
