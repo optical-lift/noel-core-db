@@ -491,11 +491,12 @@ for required in (
 ):
     if required not in shell:
         raise SystemExit("SK101 source-contract missing: " + required)
-application = shell.index('phase="candidate migration application"')
-postconditions = shell.index('phase="candidate migration postconditions"')
-probe = shell.index('phase="independent signed SK101 Course-management matrix"')
-if not (application < postconditions < probe):
-    raise SystemExit("SK101 probe must run after candidate migration and postconditions")
+fixture = shell.rindex('phase="candidate validation fixture application"')
+application = shell.rindex('phase="candidate migration application"')
+postconditions = shell.rindex('phase="candidate migration postconditions"')
+probe = shell.rindex('phase="independent signed SK101 Course-management matrix"')
+if not (fixture < application < postconditions < probe):
+    raise SystemExit("SK101 setup ordering must be fixture -> migration -> postconditions -> signed probe")
 if 'email=f"atlas-c1-sk101-management-{label}@example.invalid"' not in harness:
     raise SystemExit("SK101 GoTrue fixture login convention is not atlas-c1 prefixed")
 for login in ("sk101-management-owner", "sk101-management-outsider"):
