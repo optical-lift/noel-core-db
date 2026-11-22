@@ -287,6 +287,18 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Only the immutable held farm invitation candidate, disposable signed clone.
+          if title == 'Production schema validation request: Atlas held legacy farm invitation signed':
+              expected = {'diagnostic_scope':'atlas_legacy_farm_invitation_retirement_signed_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'81164b4f75c8f616a01ad1d7cf906b3d6c9d080f'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held farm member signed validation approval required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-legacy-farm-invitation-retirement\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
           missing = [key for key in required if key not in fields]
           if missing:
@@ -392,6 +404,39 @@ jobs:
           RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
         run: |
           set -euo pipefail
+          # Original held SQL, original fixture and tests. Never a live release.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-legacy-farm-invitation-retirement" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = 81164b4f75c8f616a01ad1d7cf906b3d6c9d080f
+            src="candidate/candidates/atlas/atlas_legacy_farm_invitation_retirement_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_legacy_farm_invitation_retirement_v1/clone_fixture.sql"
+            post="candidate/candidates/atlas/atlas_legacy_farm_invitation_retirement_v1/postconditions.sql"
+            test "$(git hash-object "$src")" = 080ba4d73e4340cba0211c6b804bcea46231e016
+            test "$(git hash-object "$fixture")" = 83fd7f693be14f5b36cd4f135346f637ef49c45c
+            test "$(git hash-object "$post")" = 45152d53023ee4ca68a5b6188584edf9c08786bc
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-legacy-farm-invite-signed-http.py)" = a8cb9318d48e85ac61cc81d5ad063fdc8989d9e9
+            test "$(git hash-object scripts/atlas-legacy-farm-member-disposable-fixture.sql)" = db6a08e231fa5fbee0efb37fd798a938a8fd79af
+            test ! -e candidate/supabase/migrations/held-legacy-farm-invitation-retirement.sql
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-legacy-farm-invite.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_legacy_farm_invitation_retirement_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_legacy_farm_invitation_retirement_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-course-working-loop" ]]; then
             test "$(git -C candidate rev-parse HEAD)" = "0fd98326892e9ed4cf22c15e572882fe97d3e383"
             src="candidate/candidates/shared-private-course-working-loop-validation-v1/combined_candidate.sql"
