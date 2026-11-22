@@ -55,7 +55,7 @@ def main():
     check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit2})["title"]==other_before,"unrelated Unit unchanged")
     rpc("shared_delegated_course_management_write_service_v1",write,"outsider",403,"person")
     sql(f"update atlas.delegated_agent_authorizations set authorization_state='revoked' where id='{authz}'")
-    rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"owner",403,"person")
+    rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"owner",403,"service")
     check(sql(f"select count(*) from atlas.teaching_course_versions where course_id='{course}'")=="0","unpublished")
     Path(a.output).write_text("PASS signed SK101 management clone\n")
     print("PASS signed SK101 management clone")
