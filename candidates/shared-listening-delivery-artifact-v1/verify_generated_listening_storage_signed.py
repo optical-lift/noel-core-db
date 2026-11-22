@@ -147,6 +147,67 @@ def restore_native_storage_policy_parity(db):
         check(current==expected,"Unexpected existing clone policy shape: "+name)
     print("PASS exact preexisting native Storage policy parity",flush=True)
 
+# Existing Supabase Storage TUS endpoint. This is a signed local HTTP proof,
+# not a generalized network client, SDK, worker or production uploader.
+_TUS_CHUNK = 6 * 1024 * 1024
+
+def tus_upload_local(api,key,bucket,name,data,token,mime):
+    """Upload two or more real chunks with HEAD offset reconciliation.
+
+    All requests stay on the CLI loopback gateway. The location is a
+    server-issued token and is never sent to another origin.
+    """
+    base=urllib.parse.urlsplit(api)
+    check(base.scheme=="http" and base.hostname=="127.0.0.1" and base.port==54321,
+          "TUS may only contact disposable loopback gateway")
+    check(isinstance(token,str) and len(token)>100 and 6*1024*1024<len(data)<=LIMIT,
+          "TUS requires signed actor and bounded multi-chunk source")
+    meta={"bucketName":bucket,"objectName":name,"contentType":mime,"cacheControl":"0"}
+    encoded=",".join(k+" "+base64.b64encode(v.encode()).decode("ascii") for k,v in meta.items())
+    shared={"apikey":key,"Authorization":"Bearer "+token,"Tus-Resumable":"1.0.0"}
+    endpoint=api+"/storage/v1/upload/resumable"
+    headers={**shared,"Upload-Length":str(len(data)),"Upload-Metadata":encoded,
+             "x-upsert":"false","Content-Length":"0"}
+    def call(url,method,body=None,extra=None):
+        req=urllib.request.Request(url,data=body,headers={**shared,**(extra or {})},method=method)
+        try:
+            return OPENER.open(req,timeout=90)
+        except urllib.error.HTTPError as exc:
+            raise AssertionError("TUS "+method+" refused: HTTP "+str(exc.code)+
+                                 "; "+diagnostic(exc.read(4096))) from None
+    with call(endpoint,"POST",b"",headers) as initial:
+        check(initial.status==201,"TUS creation did not return 201")
+        location=initial.headers.get("Location")
+    check(isinstance(location,str) and 0<len(location)<=4096,"Missing bounded TUS location")
+    target=urllib.parse.urlsplit(urllib.parse.urljoin(api+"/",location))
+    check(target.scheme=="http" and target.hostname=="127.0.0.1" and
+          target.port==54321 and not target.username and not target.password and
+          not target.query and not target.fragment and
+          target.path.startswith("/storage/v1/upload/resumable/") and
+          all(s not in ("",".","..") for s in target.path.split("/")[5:]),
+          "Resumable location changed destination")
+    upload_url=urllib.parse.urlunsplit(target)
+    offset=0
+    count=0
+    while offset<len(data):
+        chunk=data[offset:offset+_TUS_CHUNK]
+        with call(upload_url,"PATCH",chunk,
+                  {"Content-Type":"application/offset+octet-stream",
+                   "Upload-Offset":str(offset)}) as response:
+            check(response.status==204 and response.headers.get("Upload-Offset")==str(offset+len(chunk)),
+                  "Signed TUS chunk offset mismatch")
+        offset+=len(chunk); count+=1
+        # Not just a simulated retry: reopen the actual current server-side
+        # upload offset before continuing, as a resumed client would.
+        if offset<len(data):
+            with call(upload_url,"HEAD",extra={"Content-Length":"0"}) as head:
+                check(head.status in (200,204) and
+                      head.headers.get("Upload-Offset")==str(offset) and
+                      head.headers.get("Upload-Length")==str(len(data)),
+                      "Signed TUS resume offset mismatch")
+    check(count>=2,"A multi-chunk real upload was not exercised")
+    print("PASS actual signed TUS multi-chunk upload and HEAD resume",flush=True)
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--db-url",required=True)
@@ -229,7 +290,7 @@ def main():
     # Arbitrary fixture bytes deliberately exercise untrusted staging. Audio
     # validity is tested in Transcript Core and must not be inferred from MIME
     # or digest-shaped path here.
-    master=b"transport proof master bytes; not valid audio"
+    master=b"transport proof master bytes; not valid audio"+b"."*(_TUS_CHUNK+19)
     mp3=b"transport proof derivative bytes; not valid audio"
     def render(data,suffix,p=production,w=workspace):
         return f"{w}/{p}/listening/{digest(data)}.{suffix}"
@@ -241,7 +302,7 @@ def main():
     denied(upload(BUCKET,render(master,"wav",p=str(uuid.uuid4())),master,owner,"audio/wav"),"unknown production")
     denied(upload(BUCKET,render(master,"wav",w=str(uuid.uuid4())),master,owner,"audio/wav"),"wrong workspace")
     denied(upload(BUCKET,workspace+"/"+production+"/listening/not-a-hash.wav",master,owner,"audio/wav"),"malformed path")
-    ok(upload(BUCKET,master_path,master,owner,"audio/wav"),"signed owner upload")
+    tus_upload_local(api,key,BUCKET,master_path,master,owner,"audio/wav")
     ok(upload(BUCKET,mp3_path,mp3,editor,"audio/mpeg"),"signed editor upload")
     def state(name):
         row=sql(db,f"select json_build_object('id',id,'version',version,'size',metadata->>'size','mime',metadata->>'mimetype')::text from storage.objects where bucket_id='{BUCKET}' and name={literal(name)}")
