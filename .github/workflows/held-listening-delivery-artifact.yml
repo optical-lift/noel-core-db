@@ -55,6 +55,7 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_mp3_delivery_profile_candidate.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/private_mp3_profile_tests.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_mp3_delivery_profile_postconditions.sql
+          python3 -m py_compile candidates/shared-listening-delivery-artifact-v1/verify_private_callback_executor_signed.py
           # One held NOLOGIN, fixed-function source-only executor proposal.
           # UNSIGNED fictional ACL proof; never deploy or grant credentials.
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_callback_executor_candidate.sql
