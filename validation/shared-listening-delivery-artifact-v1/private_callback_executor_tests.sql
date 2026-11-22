@@ -18,24 +18,27 @@ END $denial$;
 -- None of the three client/service roles can invoke a private wrapper.
 SET LOCAL ROLE anon;
 SELECT pg_temp.expect_private_callback_denial(
-  'SELECT transcript_core.private_register_verified_manuscript_original_v1(
+  'SELECT transcript_core_callback_v1.private_register_verified_manuscript_original_v1(
     NULL::uuid,NULL::uuid,NULL::text,NULL::text,NULL::bigint,NULL::text)',
   '42501');
 RESET ROLE;
 SET LOCAL ROLE authenticated;
 SELECT pg_temp.expect_private_callback_denial(
-  'SELECT transcript_core.private_complete_verified_listening_production_v1(
+  'SELECT transcript_core_callback_v1.private_complete_verified_listening_production_v1(
     NULL::uuid,NULL::uuid,NULL::integer,NULL::uuid,NULL::text,
     NULL::jsonb,NULL::jsonb,NULL::jsonb)',
   '42501');
 RESET ROLE;
 SET LOCAL ROLE service_role;
 SELECT pg_temp.expect_private_callback_denial(
-  'SELECT transcript_core.private_register_verified_manuscript_original_v1(
+  'SELECT transcript_core_callback_v1.private_register_verified_manuscript_original_v1(
     NULL::uuid,NULL::uuid,NULL::text,NULL::text,NULL::bigint,NULL::text)',
   '42501');
 RESET ROLE;
 
+-- The NOLOGIN role cannot USE transcript_core or its other functions
+-- despite inherited PG PUBLIC defaults; the isolated namespace has only
+-- the two approved wrappers.
 -- The dedicated NOLOGIN role can ONLY enter the two wrappers.
 -- Even under that role, invalid source/evidence is denied by the existing
 -- canonical invoker function; direct inner invocation remains impossible.
@@ -50,11 +53,11 @@ SELECT pg_temp.expect_private_callback_denial(
     NULL::jsonb,NULL::jsonb,NULL::jsonb)',
   '42501');
 SELECT pg_temp.expect_private_callback_denial(
-  'SELECT transcript_core.private_register_verified_manuscript_original_v1(
+  'SELECT transcript_core_callback_v1.private_register_verified_manuscript_original_v1(
     NULL::uuid,NULL::uuid,NULL::text,NULL::text,NULL::bigint,NULL::text)',
   '22023');
 SELECT pg_temp.expect_private_callback_denial(
-  'SELECT transcript_core.private_complete_verified_listening_production_v1(
+  'SELECT transcript_core_callback_v1.private_complete_verified_listening_production_v1(
     NULL::uuid,NULL::uuid,NULL::integer,NULL::uuid,NULL::text,
     NULL::jsonb,NULL::jsonb,NULL::jsonb)',
   '22023');
