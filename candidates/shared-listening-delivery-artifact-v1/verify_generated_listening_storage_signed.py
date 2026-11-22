@@ -208,6 +208,49 @@ def tus_upload_local(api,key,bucket,name,data,token,mime):
     check(count>=2,"A multi-chunk real upload was not exercised")
     print("PASS actual signed TUS multi-chunk upload and HEAD resume",flush=True)
 
+def trusted_signed_local_original_registration(db,api,key,token,workspace,obj_id,version,content):
+    """Trusted disposable clone-only carrier invocation.
+
+    Verify the real GoTrue bearer before installing its exact claims in one
+    local protected Postgres transaction. No claim is accepted from a client
+    payload; there is no production SQL connection or exposed RPC grant.
+    This does NOT make a deployable privileged carrier.
+    """
+    response=json.loads(ok(request(api,key,"/auth/v1/user",token=token),"verified GoTrue bearer"))
+    claims=payload(token)
+    check(uid(response["id"])==uid(claims["sub"]) and
+          claims.get("role")=="authenticated" and claims.get("is_anonymous") is False and
+          uid(claims["session_id"]) and int(claims["exp"])>0,
+          "GoTrue verified producer session required")
+    check(sql(db,"select count(*) from auth.sessions where id="+literal(claims["session_id"])+
+              " and user_id="+literal(claims["sub"]))=="1","Current native signed session required")
+    h=digest(content)
+    statement=("BEGIN;\n"
+        "SELECT set_config('request.jwt.claims',"+literal(json.dumps(claims,separators=(",",":")))+",true) IS NOT NULL;\n"
+        "SELECT set_config('request.jwt.claim.sub',"+literal(claims["sub"])+",true) IS NOT NULL;\n"
+        "SELECT transcript_core.register_verified_manuscript_original_v1("
+         +literal(workspace)+"::uuid,"+literal(obj_id)+"::uuid,"
+         +literal(version)+","+literal(h)+","+str(len(content))+",'txt')::text;\n"
+        "COMMIT;\n")
+    # Send source-bound fixture claims over stdin, never command arguments or
+    # files/artifacts. Any error message is categorized, never reproduced.
+    out=subprocess.run(["psql",db,"-XAt","-v","ON_ERROR_STOP=1","-f","-"],
+                       input=statement,capture_output=True,text=True)
+    check(out.returncode==0,"Trusted local manuscript registration denied")
+    receipts=[]
+    for line in out.stdout.splitlines():
+        if line.startswith('{"contractVersion"') or line.startswith('{"assetId"'):
+            receipts.append(json.loads(line))
+    check(len(receipts)==1 and receipts[0]["contractVersion"]==
+          "transcript_core_verified_manuscript_original_v1" and
+          receipts[0]["originalSha256"]==h and
+          receipts[0]["objectId"]==obj_id and
+          receipts[0]["objectVersion"]==version and
+          receipts[0]["sourceFormat"]=="txt" and
+          receipts[0]["publication_approved"] is False,
+          "Original source registration receipt mismatch")
+    return uid(receipts[0]["assetId"])
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--db-url",required=True)
@@ -220,8 +263,9 @@ def main():
         check(not os.environ.get(k),"Hosted credential environment forbidden")
     api,key,admin=local_status()
     db=args.db_url
-    check(sql(db,"select count(*) from pg_policies where schemaname='storage' and tablename='objects' and policyname like 'transcript_core_listening_render_%_v1'")=="4",
-          "Exact four held storage policies required")
+    check(sql(db,"select count(*) from pg_policies where schemaname='storage' and tablename='objects' and policyname like 'transcript_core_listening_render_%_v1'")=="4" and
+          sql(db,"select count(*) from pg_policies where schemaname='storage' and tablename='objects' and policyname like 'transcript_core_manuscript_original_%_v1'")=="4",
+          "Exact eight held listening and original Storage policies required")
     check(sql(db,"select has_function_privilege('authenticated','transcript_core.complete_verified_listening_production_v1(uuid,uuid,integer,uuid,text,jsonb,jsonb,jsonb)','EXECUTE')")=="f",
           "Internal completion must remain unexposed")
     check(sql(db,"select count(*) from transcript_core.productions")=="0",
@@ -266,7 +310,7 @@ def main():
     check(rpc("transcript_core_can_workspace_edit",{"target_workspace":workspace},actors["viewer"][1]) is False,
           "Signed viewer must lack native workspace edit authority")
     original=b"Fictional private manuscript for a transport proof."
-    original_path=workspace+"/fixture-original.txt"
+    original_path=workspace+"/manuscript/"+digest(original)+".txt"
     def object_path(bucket,name,authenticated=False):
         return "/storage/v1/object/"+("authenticated/" if authenticated else "")+bucket+"/"+urllib.parse.quote(name,safe="/")
     def upload(bucket,name,data,token,mime,upsert=False):
@@ -276,11 +320,18 @@ def main():
         return request(api,key,object_path(bucket,name,True),token=token)
     ok(upload(SOURCE,original_path,original,owner,"text/plain"),"native original upload")
     check(ok(get(SOURCE,original_path,owner),"native original readback")==original,"Original byte mismatch")
-    # Clone-only source fixture, since generated-manuscript original
-    # registration is outside this storage-policy proof. No fake observed
-    # recording, script parsing job, or production registry.
-    asset=uid(sql(db,f"""insert into transcript_core.assets(workspace_id,provenance_class,storage_bucket,storage_path,content_hash,mime_type,byte_size)
-          values('{workspace}','script_source','{SOURCE}',{literal(original_path)},'{digest(original)}','text/plain',{len(original)}) returning id""").splitlines()[0])
+    source_obj=json.loads(sql(db,"select json_build_object('id',id,'version',version)::text from storage.objects where bucket_id="+
+                       literal(SOURCE)+" and name="+literal(original_path)))
+    asset=trusted_signed_local_original_registration(db,api,key,owner,workspace,
+                    uid(source_obj["id"]),source_obj["version"],original)
+    check(sql(db,"select count(*) from transcript_core.assets where id="+literal(asset)+
+                  " and provenance_class='manuscript_source' and storage_bucket="+literal(SOURCE)+
+                  " and storage_path="+literal(original_path)+" and content_hash="+literal(digest(original)))=="1",
+          "Native original was not registered as its actual authored source")
+    check(trusted_signed_local_original_registration(db,api,key,owner,workspace,
+                    uid(source_obj["id"]),source_obj["version"],original)==asset,
+          "Original source registration changed on exact retry")
+    print("PASS current signed GoTrue-bound internal native original registration and replay",flush=True)
     doc=uid(rpc("transcript_core_create_manuscript_document",{"p_workspace_id":workspace,"p_title":"Fictional manuscript"}))
     rev=uid(rpc("transcript_core_create_manuscript_revision",{"p_manuscript_document_id":doc,
         "p_content_hash":digest(original),"p_source_format":"txt","p_units":[{"sequence":1,"kind":"paragraph","text":original.decode()}],
@@ -334,6 +385,8 @@ def main():
     sql(db,f"delete from auth.sessions where id='{actors['owner'][2]}' and user_id='{actors['owner'][0]}'")
     denied(get(BUCKET,master_path,owner),"same bearer after session revocation")
     denied(upload(BUCKET,render(b'newer','wav'),b'newer',owner,"audio/wav"),"revoked owner insertion")
+    check(sql(db,"select has_function_privilege('authenticated','transcript_core.register_verified_manuscript_original_v1(uuid,uuid,text,text,bigint,text)','EXECUTE')")=="f",
+          "Internal manuscript registration must remain unexposed")
     check(sql(db,"select count(*) from transcript_core.delivery_package_artifacts")=="0" and
           sql(db,"select count(*) from transcript_core.production_masters")=="0" and
           sql(db,"select count(*) from transcript_core.delivery_packages")=="0" and
