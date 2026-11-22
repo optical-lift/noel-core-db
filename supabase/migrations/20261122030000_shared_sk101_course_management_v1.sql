@@ -34,7 +34,7 @@ BEGIN
  IF NOT EXISTS(SELECT 1 FROM atlas.delegated_agent_authorizations a
    WHERE a.id=v_auth AND a.authorization_state='active'
    AND a.allowed_command_keys @> ARRAY[p_command]::text[]
-   AND a.denied_command_keys @> ARRAY[]::text[]
+   AND NOT (p_command=ANY(a.denied_command_keys))
    AND a.scope=jsonb_build_object('targetKinds',jsonb_build_array('teaching_course'),
                                   'targetIds',jsonb_build_array(p_course::text)))
  THEN RAISE EXCEPTION 'exact Course management command admission required' USING ERRCODE='42501'; END IF;
@@ -94,8 +94,21 @@ BEGIN
   RETURN v_last;
  END IF;
  IF p_operation IN ('revision_history_read','revision_compare') THEN
+  IF p_unit IS NULL THEN
+   SELECT coalesce(jsonb_agg(jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,
+    'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at)
+    ORDER BY revision_number),'[]'::jsonb) INTO v_units
+   FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course;
+  ELSE
+   SELECT coalesce(jsonb_agg(jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,
+    'basedOnRevision',based_on_revision,'text',body_text,'recordedAt',recorded_at)
+    ORDER BY revision_number),'[]'::jsonb) INTO v_units
+   FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit
+     AND EXISTS (SELECT 1 FROM atlas.teaching_course_units u WHERE u.unit_id=p_unit AND u.course_id=v_course);
+  END IF;
   RETURN jsonb_build_object('contractVersion','atlas_course_management_revision_read_v1',
-   'courseId',v_course,'operation',p_operation,'unitId',p_unit,'revisionId',p_revision);
+   'courseId',v_course,'operation',p_operation,'unitId',p_unit,'revisionId',p_revision,
+   'revisions',v_units);
  END IF;
  RAISE EXCEPTION 'management read operation not admitted' USING ERRCODE='22023';
 END $$;
