@@ -429,7 +429,7 @@ if [[ "$(basename "$candidate_migration")" == "candidate.sql" ]] && [[ "$candida
      [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
      [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 1b1d65b33bbd77e85b0b66f15bb5d0b71864bdf8 ] ||
-     [ -n "\${NOEL_CORE_DATABASE_URL:-}\${DATABASE_URL:-}\${SUPABASE_DB_URL:-}\${SUPABASE_ACCESS_TOKEN:-}\${SUPABASE_SERVICE_ROLE_KEY:-}\${SUPABASE_SECRET_KEY:-}" ]; then
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
     echo 'Refuse SK101 management proof without exact isolated package and signed harness.' >&2; exit 2
   fi
   signed_sk101_course_management_probe=true
