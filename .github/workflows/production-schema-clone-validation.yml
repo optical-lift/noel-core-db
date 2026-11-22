@@ -1249,7 +1249,12 @@ jobs:
             test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
             test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
             test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
-            test "$(git -C candidate rev-parse d23113bf916796fe1d176a51c909f3a843d47c8b^{commit})" = d23113bf916796fe1d176a51c909f3a843d47c8b
+            # Candidate checkout is deliberately shallow (exact HEAD only).
+            # Generator independently verified original ancestor on full-history main.
+            # Pin the original source packet bytes within this exact generated HEAD.
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/candidate.sql)" = 25e2791bd2da2477015260017eb2e982ec5b083d
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/clone_fixture.sql)" = 18b25f7902786e2a1697fb6ac35dbff74328ae69
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/postconditions.sql)" = 2397e06f23bfdce901400fcbc68c7c6b56900b96
           fi
 
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
