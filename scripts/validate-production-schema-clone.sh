@@ -1523,6 +1523,15 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     >"$artifacts_dir/legacy-farm-member-fixture.log" 2>&1
 fi
 
+if [ "$signed_sk101_course_management_probe" = true ]; then
+  phase="independent signed SK101 Course-management matrix"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/sk101-management-reload.log" 2>&1
+  python3 "$repo_root/scripts/validate-sk101-course-management-signed-http.py" \
+    --db-url "$database_url" --output "$artifacts_dir/sk101-management-signed-receipt.txt" \
+    >"$artifacts_dir/sk101-management-signed-local.log" 2>&1
+  test "$(cat "$artifacts_dir/sk101-management-signed-receipt.txt")" = 'PASS signed SK101 management clone'
+fi
+
 if [ "$signed_pressure_wash_retirement_probe" = true ]; then
   phase="held pressure-wash original signed C1 fictional Person/Work fixture"
   psql "$database_url" -X -v ON_ERROR_STOP=1 \
