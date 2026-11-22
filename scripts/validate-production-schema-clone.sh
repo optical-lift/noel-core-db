@@ -393,7 +393,7 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listen
      [ "$(git hash-object "$listening_completion")" != 1c7b398136b399983b1acdb2712b70958761d768 ] ||
      [ "$(git hash-object "$listening_staging")" != 106268970a69c33c5a8d30d737e5d98af807ccfa ] ||
      [ "$(git hash-object "$listening_original")" != de89478c094719912a9ac145af28e01186584c32 ] ||
-     [ "$(git hash-object "$listening_proof")" != f18ff5d4aa7217dbfcc1f6a145d8028827a862b2 ] ||
+     [ "$(git hash-object "$listening_proof")" != e7d3f38887ea1419940bf371f1dbb8aea7b16455 ] ||
      ! cmp -s "$candidate_migration" <(cat "$listening_completion" "$listening_original" "$listening_staging"); then
     echo 'Refuse without exact held generated listening SQL and signed proof.' >&2; exit 2
   fi
