@@ -505,7 +505,16 @@ def main():
     denied(upload(BUCKET,render(b'newer','wav'),b'newer',owner,"audio/wav"),"revoked owner insertion")
     check(sql(db,"select has_function_privilege('authenticated','transcript_core.register_verified_manuscript_original_v1(uuid,uuid,text,text,bigint,text)','EXECUTE')")=="f",
           "Internal manuscript registration must remain unexposed")
-    trusted_signed_local_completion(db,api,key,owner,intent,expected_denial=True)
+    # A revoked GoTrue session cannot authenticate a further completion at
+    # all. The earlier signed transaction proved internal native completion;
+    # now assert the independently signed bearer is rejected before a trusted
+    # caller could install claims. Do not force a revoked user into SQL.
+    denied(request(api,key,"/auth/v1/user",token=owner),
+           "revoked producer cannot authenticate to initiate completion",
+           expected=(401,403))
+    check(sql(db,"select count(*) from auth.sessions where id="+literal(actors["owner"][2])+
+                  " and user_id="+literal(actors["owner"][0]))=="0",
+          "Revoked owner session unexpectedly persisted")
     check(sql(db,"select count(*) from transcript_core.delivery_package_artifacts")=="1" and
           sql(db,"select count(*) from transcript_core.production_masters")=="1" and
           sql(db,"select count(*) from transcript_core.delivery_packages")=="1" and
