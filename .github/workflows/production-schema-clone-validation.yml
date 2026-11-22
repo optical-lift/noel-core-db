@@ -1125,6 +1125,22 @@ jobs:
             test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
           fi
 
+          # TEST ONLY: exact two person/site-specific LEGACY Task trigger
+          # retirement, on disposable signed PG17 full-row clone, NOT live.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261122003235" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "4406fd7e9a6179fa225b33ba663d50ec812a3201"
+            test "$(basename "$candidate_migration")" = "20261122003235_atlas_legacy_person_specific_task_trigger_retirement_v1.sql"
+            test "$(git hash-object "$candidate_migration")" = fade2e58598e4e32e49f9e84f481c54b3611ad9f
+            test "${#fixtures[@]}" = 1
+            test "${#validations[@]}" = 1
+            test "$(git hash-object "${fixtures[0]}")" = 60ac062da84b34be539ede296dda5434aa58d061
+            test "$(git hash-object "${validations[0]}")" = b720cc35fa78f3626a4a0f2c8d3138c7557cdea6
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+          fi
+
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"
