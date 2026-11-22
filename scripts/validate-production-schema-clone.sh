@@ -190,6 +190,7 @@ signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
 signed_private_mp3_profile_probe=false
 signed_private_course_working_loop_probe=false
+signed_sk101_course_management_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
 # HELD original pressure-wash branch: exact SQL + authentic C1 signed
@@ -439,6 +440,22 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_native_private_m
   fi
   python3 -m py_compile "$profile_signed_proof"
   signed_private_mp3_profile_probe=true
+fi
+
+# Exact owner-held SK101 management proof, disposable clone only. The
+# protected resolver and this local guard must agree on every immutable input.
+if [[ "$(basename "$candidate_migration")" == "candidate.sql" ]] &&
+   [[ "$candidate_migration" == *"shared-sk101-course-management-v1/candidate.sql" ]]; then
+  if [ "$lane" != shared ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != b3c4591ec23d13db6b2a92d781f907278c106b22 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
+     [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 258ac8ca0f9d849b3ab18a2cf6c3dd343936ac9e ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse SK101 management proof without exact isolated package and signed harness.' >&2
+    exit 2
+  fi
+  signed_sk101_course_management_probe=true
 fi
 
 # Exact signed Storage proof, never a generated production migration.
