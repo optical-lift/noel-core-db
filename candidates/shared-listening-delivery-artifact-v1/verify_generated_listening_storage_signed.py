@@ -320,6 +320,9 @@ def main():
         return request(api,key,object_path(bucket,name,True),token=token)
     ok(upload(SOURCE,original_path,original,owner,"text/plain"),"native original upload")
     check(ok(get(SOURCE,original_path,owner),"native original readback")==original,"Original byte mismatch")
+    denied(get(SOURCE,original_path,actors["viewer"][1]),"viewer manuscript original read")
+    denied(get(SOURCE,original_path,actors["outsider"][1]),"outsider manuscript original read")
+    denied(upload(SOURCE,original_path,b"unapproved",actors["viewer"][1],"text/plain"),"viewer manuscript original insert")
     source_obj=json.loads(sql(db,"select json_build_object('id',id,'version',version)::text from storage.objects where bucket_id="+
                        literal(SOURCE)+" and name="+literal(original_path)))
     asset=trusted_signed_local_original_registration(db,api,key,owner,workspace,
@@ -384,6 +387,7 @@ def main():
     denied(upload(BUCKET,render(b'new','mp3'),b'new',editor,"audio/mpeg"),"revoked editor insertion")
     sql(db,f"delete from auth.sessions where id='{actors['owner'][2]}' and user_id='{actors['owner'][0]}'")
     denied(get(BUCKET,master_path,owner),"same bearer after session revocation")
+    denied(get(SOURCE,original_path,owner),"same bearer manuscript original after session revocation")
     denied(upload(BUCKET,render(b'newer','wav'),b'newer',owner,"audio/wav"),"revoked owner insertion")
     check(sql(db,"select has_function_privilege('authenticated','transcript_core.register_verified_manuscript_original_v1(uuid,uuid,text,text,bigint,text)','EXECUTE')")=="f",
           "Internal manuscript registration must remain unexposed")
