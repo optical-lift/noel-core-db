@@ -1463,6 +1463,29 @@ jobs:
             test "$(git hash-object candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/postconditions.sql)" = eb37d62f184e26185fe567f2471cc4eb80f9eb03
           fi
 
+
+          # Exact canonical generator-produced Anna TWO-service-root package.
+          # Reuse the original immutable SQL, fictional fixture and post with
+          # existing genuine signed GoTrue and whole-Atlas row proof; no live SQL.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261122175225" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = c9cc72002bad833f35d3bbee8de34244748a8e0c
+            test "$(basename "$candidate_migration")" = "20261122175225_atlas_historical_anna_two_service_roots_retirement_v1.sql"
+            test "$(git hash-object "$candidate_migration")" = cb4f5cf649663ca9d18e7e77133fc03cd754685a
+            test "${#fixtures[@]}" -eq 1
+            test "${#validations[@]}" -eq 1
+            test "$(git hash-object "${fixtures[0]}")" = 76667bafa100414423367b109b3ee04ad21bbd12
+            test "$(git hash-object "${validations[0]}")" = 411b0a9ee497969752bde4aa7c39bcbc0654dec1
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            # The original source-only merged PR #3264 is included in the
+            # immutable generated head; every original blob remains identical.
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/candidate.sql)" = cb4f5cf649663ca9d18e7e77133fc03cd754685a
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/clone_fixture.sql)" = 76667bafa100414423367b109b3ee04ad21bbd12
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/postconditions.sql)" = 411b0a9ee497969752bde4aa7c39bcbc0654dec1
+          fi
+
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"
