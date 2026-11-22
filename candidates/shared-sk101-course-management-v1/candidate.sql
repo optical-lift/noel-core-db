@@ -168,11 +168,11 @@ BEGIN
  JOIN reality.auth_person_bindings b ON b.auth_user_id=pr.user_id AND b.binding_state='active' AND b.retired_at IS NULL
  WHERE c.token_hash=lower(p_token_hash) AND c.authorization_id IS NOT NULL LIMIT 1;
  IF v_person IS NULL THEN RAISE EXCEPTION 'canonical Person required' USING ERRCODE='42501'; END IF;
+ PERFORM 1 FROM atlas.teaching_courses WHERE id=v_course FOR UPDATE;
  IF p_operation IN ('unit_title_save','unit_move','unit_subsection_save','revision_recover') THEN
   SELECT * INTO v_unit FROM atlas.teaching_course_units WHERE course_id=v_course AND unit_id=p_unit FOR UPDATE;
   IF v_unit.unit_id IS NULL THEN RAISE EXCEPTION 'authorized Unit required' USING ERRCODE='42501'; END IF;
  END IF;
- PERFORM 1 FROM atlas.teaching_courses WHERE id=v_course FOR UPDATE;
  IF p_operation IN ('course_title_save','unit_title_save') THEN
   v_title:=p_payload->>'title'; v_expected_title:=p_payload->>'expectedTitle';
   IF v_title IS NULL OR v_title<>btrim(v_title) OR char_length(v_title) NOT BETWEEN 1 AND 150
