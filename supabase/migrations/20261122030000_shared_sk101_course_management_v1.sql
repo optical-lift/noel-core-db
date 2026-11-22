@@ -93,6 +93,16 @@ BEGIN
     INTO v_last FROM atlas.teaching_course_composition_revisions WHERE course_id=v_course;
   RETURN v_last;
  END IF;
+ IF p_operation='pending_proposals_read' THEN
+  SELECT coalesce(jsonb_agg(jsonb_build_object('invocationId',id,'createdAt',created_at,
+    'state',invocation_state,'proposal',input) ORDER BY created_at),'[]'::jsonb) INTO v_units
+  FROM atlas.agent_command_invocations
+  WHERE command_key='teaching.course.authoring.apply_proposal'
+    AND target=jsonb_build_object('kind','teaching_course','id',v_course::text)
+    AND invocation_state IN ('needs_confirmation','authorized');
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_pending_proposals_v1',
+   'courseId',v_course,'proposals',v_units);
+ END IF;
  IF p_operation IN ('revision_history_read','revision_compare') THEN
   IF p_unit IS NULL THEN
    SELECT coalesce(jsonb_agg(jsonb_build_object('revisionId',revision_id,'revisionNumber',revision_number,
