@@ -329,7 +329,7 @@ BEGIN
   SELECT coalesce(jsonb_agg(jsonb_build_object('unitId',unit_id,'position',display_position) ORDER BY display_position,unit_id),'[]'::jsonb) INTO v_ordering FROM atlas.teaching_course_units WHERE course_id=v_course;
   INSERT INTO atlas.teaching_course_unit_order_revisions(course_id,edit_request_id,based_on_revision,revision_number,moved_unit_id,position,ordering,recorded_by_person_entity_id,recorded_by_auth_user_id)
    VALUES(v_course,p_request,v_current,v_current+1,p_unit,v_position,v_ordering,v_person,v_user) RETURNING * INTO v_prior_order;
-  RETURN jsonb_build_object('contractVersion','atlas_course_management_order_receipt_v1','courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_order.revision_id,'revisionNumber',v_prior_order.revision_number,'position',v_position,'ordering',v_ordering);
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_order_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_order.revision_id,'revisionNumber',v_prior_order.revision_number,'position',v_position,'ordering',v_ordering);
  END IF;
  RAISE EXCEPTION 'management write operation not admitted' USING ERRCODE='22023';
 END $$;
