@@ -157,7 +157,7 @@ jobs:
           if title == 'Production schema validation request: Shared held generated listening storage':
               expected = {'diagnostic_scope':'shared_generated_listening_storage_signed_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'d2b693b0c7efaf4bab638fb2c7fec1da26997151'}
+                          'candidate_sha':'66422d71e46daa14a2693043d6059c6ea35ca04d'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held generated listening validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -676,7 +676,7 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-generated-listening-storage" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "d2b693b0c7efaf4bab638fb2c7fec1da26997151"
+            test "$(git -C candidate rev-parse HEAD)" = "66422d71e46daa14a2693043d6059c6ea35ca04d"
             completion="candidate/candidates/shared-listening-delivery-artifact-v1/generated_production_completion_candidate.sql"
             staging="candidate/candidates/shared-listening-delivery-artifact-v1/generated_listening_storage_candidate.sql"
             original="candidate/candidates/shared-listening-delivery-artifact-v1/manuscript_original_registration_candidate.sql"
@@ -684,7 +684,7 @@ jobs:
             test "$(git hash-object "$completion")" = 1c7b398136b399983b1acdb2712b70958761d768
             test "$(git hash-object "$staging")" = 106268970a69c33c5a8d30d737e5d98af807ccfa
             test "$(git hash-object "$original")" = de89478c094719912a9ac145af28e01186584c32
-            test "$(git hash-object "$proof")" = f18ff5d4aa7217dbfcc1f6a145d8028827a862b2
+            test "$(git hash-object "$proof")" = e7d3f38887ea1419940bf371f1dbb8aea7b16455
             python3 -m py_compile "$proof"
             scratch="$(mktemp -d "$RUNNER_TEMP/generated-listening-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new shared_generated_listening_storage_signed_clone_only_v1)

@@ -118,14 +118,14 @@ for forbidden in [
 
 # Exact held generated listening scope: no new protected workflow or hosted writer.
 for fragment in (
-    'd2b693b0c7efaf4bab638fb2c7fec1da26997151', '1c7b398136b399983b1acdb2712b70958761d768', '106268970a69c33c5a8d30d737e5d98af807ccfa', 'de89478c094719912a9ac145af28e01186584c32', 'f18ff5d4aa7217dbfcc1f6a145d8028827a862b2',
+    '66422d71e46daa14a2693043d6059c6ea35ca04d', '1c7b398136b399983b1acdb2712b70958761d768', '106268970a69c33c5a8d30d737e5d98af807ccfa', 'de89478c094719912a9ac145af28e01186584c32', 'e7d3f38887ea1419940bf371f1dbb8aea7b16455',
     'shared_generated_listening_storage_signed_clone_only_v1',
     'held-generated-listening-storage', 'verify_generated_listening_storage_signed.py',
 ):
     if fragment not in workflow:
         errors.append('Missing held generated listening scope: '+fragment)
 for fragment in (
-    '1c7b398136b399983b1acdb2712b70958761d768', '106268970a69c33c5a8d30d737e5d98af807ccfa', 'de89478c094719912a9ac145af28e01186584c32', 'f18ff5d4aa7217dbfcc1f6a145d8028827a862b2', 'signed_generated_listening_storage_probe=true',
+    '1c7b398136b399983b1acdb2712b70958761d768', '106268970a69c33c5a8d30d737e5d98af807ccfa', 'de89478c094719912a9ac145af28e01186584c32', 'e7d3f38887ea1419940bf371f1dbb8aea7b16455', 'signed_generated_listening_storage_probe=true',
     'cat "$listening_completion" "$listening_original" "$listening_staging"',
     'signed-generated-listening-storage-summary.txt',
     'PASS signed local Storage and manuscript-original proof; bounded private native completion, replay and revocation denials; no publication.',
