@@ -35,3 +35,41 @@ The protected fictional local GoTrue test now uploads a content-addressed privat
 ## Protected signed native private completion (additional candidate proof)
 
 The same owner-signed local GoTrue evidence now invokes the existing held internal `complete_verified_listening_production_v1` through a disposable-clone only trusted PostgreSQL transaction, with exact verified claims and original/master/MP3 object identities. It asserts that viewer and stale-version completion cannot leave rows, original owner completion returns `publication_approved=false`, exact replay remains identity-stable, conflicting export receipt is refused, and revoked session cannot repeat completion. This proof deliberately uses fictional non-audio bytes, no production credential, no external DB, no public function grant, and no publication. Real media/provenance/rights validation and deployable server-only carrier are still outstanding.
+
+## Canonical source release partition — required before generation
+
+The historical `canonical_native_private_listening_admission_v1.sql` is an
+**evidence-only concatenation**, not a releasable migration. The protected
+scratch clone accepts multiple transaction boundaries; the governed production
+releaser requires **one transaction and its migration-ledger receipt together**.
+Never ask the source generator to release the historical concatenation.
+
+The exact previously tested SQL statements now have two versionable Shared
+source candidates, in this mandatory release order:
+
+1. `canonical_native_manuscript_source_provenance_v1.sql`: one
+   `BEGIN; ALTER TYPE ... ADD VALUE IF NOT EXISTS 'manuscript_source'; COMMIT;`.
+   The enum must be committed before the second migration may use the value.
+   Read-only source postconditions:
+   `canonical_native_manuscript_source_postconditions_v1.sql`.
+2. `canonical_native_private_listening_completion_v1.sql`: one
+   `BEGIN;` wrapping the original internal completion functions, manuscript
+   registration, source Storage guards and generated-render Storage guards,
+   followed by one `COMMIT;`. The actual SQL operations retain their
+   previously tested text. Read-only source postconditions:
+   `canonical_native_private_listening_postconditions_v1.sql`.
+
+The existing isolated source workflow uses
+`validation/shared-listening-delivery-artifact-v1/verify_canonical_migration_partition.py`
+to reconstitute both files from the immutable SQL components and compare
+byte-for-byte. The actual PostgreSQL test then applies the first migration,
+asserts its source type, applies the second, and exercises the inherited
+synthetic denial/replay/zero-seed postconditions. This does **not** replace the
+protected full production-schema clone and genuine signed GoTrue/Storage proof.
+
+Owner review of source merge, each generator request, independently validated
+canonical migration identity and rehearsal, and separately authorized
+production release of *each exact version* remain distinct. Never use direct
+production SQL or authorize the second version by approving the first.
+The trusted production completion carrier, real audio provenance, publisher
+rights and listener subscriptions remain unimplemented.
