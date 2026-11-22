@@ -29,7 +29,7 @@ BEGIN
  SELECT authorization_id INTO v_auth FROM atlas.delegated_agent_credentials
  WHERE token_hash=lower(p_token_hash) AND credential_state='active'
    AND begins_at<=clock_timestamp() AND (expires_at IS NULL OR expires_at>clock_timestamp());
- IF v_auth IS NULL OR NOT atlas.private_atlas_carrier_standing_grant_current_v1(v_auth)
+ IF v_auth IS NULL
  THEN RAISE EXCEPTION 'exact Course management grant required' USING ERRCODE='42501'; END IF;
  IF NOT EXISTS(SELECT 1 FROM atlas.delegated_agent_authorizations a
    WHERE a.id=v_auth AND a.authorization_state='active'
@@ -88,8 +88,10 @@ BEGIN
    'courseId',v_course,'material',v_last);
  END IF;
  IF p_operation='composition_read' THEN
-  SELECT public.shared_teaching_course_composition_read_self_api_v1(v_course) INTO v_last;
-  RETURN v_last||jsonb_build_object('courseId',v_course);
+  SELECT jsonb_build_object('contractVersion','shared_teaching_course_composition_v1','courseId',v_course,
+    'revisionNumber',coalesce(max(revision_number),0),'members',coalesce((array_agg(members ORDER BY revision_number DESC))[1],'[]'::jsonb))
+    INTO v_last FROM atlas.teaching_course_composition_revisions WHERE course_id=v_course;
+  RETURN v_last;
  END IF;
  IF p_operation IN ('revision_history_read','revision_compare') THEN
   RETURN jsonb_build_object('contractVersion','atlas_course_management_revision_read_v1',
