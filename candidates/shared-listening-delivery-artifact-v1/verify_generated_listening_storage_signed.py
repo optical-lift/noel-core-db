@@ -431,10 +431,12 @@ def main():
     # ad hoc application table insert or an authenticated public RPC.
     profile_config={"format":"mp3","purpose":"fictional source-owned private listening proof"}
     profile_version="signed-test-profile-v1"
-    profile=uid(sql(db,"insert into transcript_core.delivery_profiles("
-             "workspace_id,profile_key,display_name,rule_version,configuration) values("
-             +literal(workspace)+",'fictional-listening','Fictional listening test',"
-             +literal(profile_version)+","+literal(json.dumps(profile_config))+"::jsonb) returning id"))
+    profile=str(uuid.uuid4())
+    sql(db,"insert into transcript_core.delivery_profiles("
+        "id,workspace_id,profile_key,display_name,rule_version,configuration) values("
+        +literal(profile)+"::uuid,"+literal(workspace)+"::uuid,"
+        "'fictional-listening','Fictional listening test',"
+        +literal(profile_version)+","+literal(json.dumps(profile_config))+"::jsonb)")
     intent={
         "p_production_id":production,
         "p_manuscript_revision_id":rev,
