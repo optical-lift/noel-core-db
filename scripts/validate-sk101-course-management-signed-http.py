@@ -37,8 +37,9 @@ def main():
     def rpc(name,p,role="owner",expected=200):
         if isinstance(role,int):
             expected,role=role,"owner"
-        bearer=ot if role=="owner" else xt
-        status,val=auth.rpc(api,key,name,p,bearer); check(status==expected,f"{name} status {status}"); return val
+        bearer=key if expected==200 else (ot if role=="owner" else xt)
+        status,val=auth.rpc(api,key,name,p,bearer); check(status==expected,f"{name} status {status}: {val}"); return val
+    rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"owner",403)
     title=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit}) 
     check(title["title"]=="Class 1","unit title read")
     rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"outsider",403)
@@ -47,6 +48,7 @@ def main():
     write={"p_token_hash":h,"p_course":course,"p_operation":"unit_title_save","p_unit":unit,"p_request":req,"p_expected_revision":0,"p_payload":{"expectedTitle":"Class 1","title":"Class 01 — Reality Is Readable"}}
     receipt=rpc("shared_delegated_course_management_write_service_v1",write); replay=rpc("shared_delegated_course_management_write_service_v1",write); check(replay==receipt,"title replay")
     changed={**write,"p_payload":{"expectedTitle":"Class 1","title":"Changed replay"}}; rpc("shared_delegated_course_management_write_service_v1",changed,409)
+    stale={**write,"p_request":uid()}; rpc("shared_delegated_course_management_write_service_v1",stale,"owner",409)
     check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit})["title"]=="Class 01 — Reality Is Readable","title readback")
     rpc("shared_delegated_course_management_write_service_v1",write,"outsider",403)
     sql(f"update atlas.delegated_agent_authorizations set authorization_state='revoked' where id='{authz}'")
