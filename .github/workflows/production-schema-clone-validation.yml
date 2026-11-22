@@ -498,6 +498,7 @@ jobs:
           RELEASE_LANE: ${{ steps.request.outputs.release_lane }}
         run: |
           set -euo pipefail
+          trap 'rc=$?; echo "::error::SK101 resolver ERR rc=${rc} line=${LINENO} command=${BASH_COMMAND}"' ERR
           # Original held SQL, original fixture and tests. Never a live release.
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-legacy-farm-invitation-retirement" ]]; then
             test "$(git -C candidate rev-parse HEAD)" = 81164b4f75c8f616a01ad1d7cf906b3d6c9d080f
