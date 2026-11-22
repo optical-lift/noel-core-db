@@ -187,6 +187,7 @@ signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
 signed_legacy_farm_invite_probe=false
 signed_anna_two_service_roots_probe=false
+signed_orphan_cancelled_trigger_fn_probe=false
 signed_pot_up_retirement_probe=false
 signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
@@ -214,6 +215,26 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_anna_t
     exit 2
   fi
   signed_anna_two_service_roots_probe=true
+  signed_work_prerequisite_probe=true
+fi
+
+# One immutable owner-approved private caller cutoff, signed clone ONLY.
+# The removed original progression trigger had already been retired on main;
+# deny all live credentials; keep all five current source-linked functions.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_orphan_cancelled_occurrence_queue_trigger_function_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 3033f34ea33af750028ac51df9a307c6d2cd4975 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 6401f4cf44f2c172c156fcc9729c87836988c252 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 9b8fdd20c8ea65e0bae98d7b905b4b98967ff24d ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'REFUSE unpinned or privileged orphan cancelled-trigger-function source' >&2
+    exit 2
+  fi
+  signed_orphan_cancelled_trigger_fn_probe=true
   signed_work_prerequisite_probe=true
 fi
 
@@ -1731,6 +1752,17 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     >"$artifacts_dir/legacy-farm-member-before.log" 2>&1
 fi
 
+if [ "$signed_orphan_cancelled_trigger_fn_probe" = true ]; then
+  phase="held orphan cancellation trigger function: all Atlas base rows BEFORE SQL"
+  [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select current_setting('server_version_num')::int/10000")" = 17
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select count(*) from atlas.work_items")" -gt 0
+  orphan_cancel_trigger_snapshot="$runtime_dir/held-orphan-cancelled-trigger-fn-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$orphan_cancel_trigger_snapshot" --mode capture \
+    >"$artifacts_dir/orphan-cancelled-trigger-all-atlas-row-baseline.log" 2>&1
+fi
+
 if [ "$signed_anna_two_service_roots_probe" = true ]; then
   phase="held anna-two-service-roots all Atlas base rows BEFORE original SQL"
   [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
@@ -1887,6 +1919,15 @@ if [ "$signed_sk101_course_management_probe" = true ]; then
     --db-url "$database_url" --output "$artifacts_dir/sk101-management-signed-receipt.txt" \
     >"$artifacts_dir/sk101-management-signed-local.log" 2>&1
   test "$(cat "$artifacts_dir/sk101-management-signed-receipt.txt")" = 'PASS signed SK101 management clone'
+fi
+
+if [ "$signed_orphan_cancelled_trigger_fn_probe" = true ]; then
+  phase="held orphan cancellation trigger function: all Atlas rows AFTER DROP RESTRICT"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$orphan_cancel_trigger_snapshot" --mode verify \
+    >"$artifacts_dir/orphan-cancelled-trigger-all-atlas-row-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/orphan-cancelled-trigger-all-atlas-row-after-candidate.log"
 fi
 
 if [ "$signed_anna_two_service_roots_probe" = true ]; then
@@ -2652,6 +2693,12 @@ if [ "$orphan_queue_retirement_proof" = true ]; then
   test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
   printf '\nOrphan backfill TEST ONLY: exact function DROP RESTRICT, all local Atlas base-table rows unchanged immediately around deletion and postconditions; existing signed Work prerequisite regression passed afterwards. Synthetic Work fixture only; no historical Production row data or external caller closure.\n' >> "$artifacts_dir/summary.md"
 fi
+if [ "$signed_orphan_cancelled_trigger_fn_probe" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  test -s "$artifacts_dir/orphan-cancelled-trigger-all-atlas-row-after-candidate.log"
+  printf '\nHELD orphan cancelled-occurrence trigger-function TEST ONLY: one exact original DROP FUNCTION RESTRICT in disposable local PG17, all Atlas base-table identities and content conserved, genuine signed GoTrue owner/worker/outsider/no-seat and replay/concurrency/revocation prerequisite proof passed. Does not prove external caller absence and does not authorize production SQL, release or historical row deletion.\n' >> "$artifacts_dir/summary.md"
+fi
+
 if [ "$signed_anna_two_service_roots_probe" = true ]; then
   test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
   test -s "$artifacts_dir/anna-two-service-roots-all-atlas-row-after-candidate.log"

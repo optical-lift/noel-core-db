@@ -75,6 +75,19 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact OWNER authorized orphan cancelled-occurrence trigger function.
+          # Source-only signed disposable PG17 proof, never a release request.
+          if title == 'Production schema validation request: Atlas held orphan cancellation trigger function':
+              expected = {'diagnostic_scope':'atlas_orphan_cancelled_occurrence_queue_trigger_function_signed_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'d99335becb6a40fee45b326991340e895ea4ae4f'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner cutoff and protected orphan cancellation source approval required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-orphan-cancelled-occurrence-function\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # Exact owner-held original TWO Anna/field-weeding service roots.
           # This is only signed disposable current-schema validation, not a
           # production migration version or a release authorization.
@@ -501,6 +514,40 @@ jobs:
             scratch="$(mktemp -d "$RUNNER_TEMP/held-legacy-farm-invite.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_legacy_farm_invitation_retirement_clone_only_v1)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_legacy_farm_invitation_retirement_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Original immutable orphan cancellation trigger-function packet.
+          # This branch is local signed clone ONLY; no numbered migration.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-orphan-cancelled-occurrence-function" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = d99335becb6a40fee45b326991340e895ea4ae4f
+            src="candidate/candidates/atlas/atlas_orphan_cancelled_occurrence_queue_trigger_function_retirement_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_orphan_cancelled_occurrence_queue_trigger_function_retirement_v1/clone_fixture.sql"
+            post="candidate/candidates/atlas/atlas_orphan_cancelled_occurrence_queue_trigger_function_retirement_v1/postconditions.sql"
+            test "$(git hash-object "$src")" = 3033f34ea33af750028ac51df9a307c6d2cd4975
+            test "$(git hash-object "$fixture")" = 6401f4cf44f2c172c156fcc9729c87836988c252
+            test "$(git hash-object "$post")" = 9b8fdd20c8ea65e0bae98d7b905b4b98967ff24d
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test ! -e candidate/supabase/migrations/held-orphan-cancelled-occurrence-function.sql
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-orphan-cancelled-occurrence.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_orphan_cancelled_occurrence_queue_trigger_function_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_orphan_cancelled_occurrence_queue_trigger_function_clone_only_v1.sql')
             test "${#scratch_files[@]}" -eq 1
             candidate_migration="${scratch_files[0]}"
             version="$(basename "$candidate_migration" | cut -d_ -f1)"
