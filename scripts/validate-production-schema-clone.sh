@@ -471,11 +471,37 @@ if [[ "$(basename "$candidate_migration")" == "candidate.sql" ]] &&
      [ "$(git hash-object "$candidate_migration")" != b3c4591ec23d13db6b2a92d781f907278c106b22 ] ||
      [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
      [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
-     [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 258ac8ca0f9d849b3ab18a2cf6c3dd343936ac9e ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 3fdbf090c4b85c7bd44ee6d923b07480b7965eb3 ] ||
      [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
     echo 'Refuse SK101 management proof without exact isolated package and signed harness.' >&2
     exit 2
   fi
+  python3 - "$repo_root/scripts/validate-production-schema-clone.sh" "$repo_root/scripts/validate-sk101-course-management-signed-http.py" <<'PY'
+import pathlib, sys
+shell = pathlib.Path(sys.argv[1]).read_text()
+harness = pathlib.Path(sys.argv[2]).read_text()
+for required in (
+    'signed_sk101_course_management_probe=false',
+    'signed_sk101_course_management_probe=true',
+    'shared-sk101-course-management-v1/candidate.sql',
+    'b3c4591ec23d13db6b2a92d781f907278c106b22',
+    '3f05af628dc4df7f8c483947f77c9996aa9655b3',
+    'a7e5fd416d3ebb490fcfb57827adef58a1749a4f',
+    '3fdbf090c4b85c7bd44ee6d923b07480b7965eb3',
+):
+    if required not in shell:
+        raise SystemExit("SK101 source-contract missing: " + required)
+application = shell.index('phase="candidate migration application"')
+postconditions = shell.index('phase="candidate migration postconditions"')
+probe = shell.index('phase="independent signed SK101 Course-management matrix"')
+if not (application < postconditions < probe):
+    raise SystemExit("SK101 probe must run after candidate migration and postconditions")
+if 'email=f"atlas-c1-sk101-management-{label}@example.invalid"' not in harness:
+    raise SystemExit("SK101 GoTrue fixture login convention is not atlas-c1 prefixed")
+for login in ("sk101-management-owner", "sk101-management-outsider"):
+    if f'auth.sign_in(api,anon,"{login}")' not in harness:
+        raise SystemExit("SK101 signed login convention missing: " + login)
+PY
   signed_sk101_course_management_probe=true
 fi
 
