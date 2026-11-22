@@ -42,7 +42,7 @@ def violations(sql, prior_functions):
         # Standard Postgres SQL/PLpgSQL function bodies are dollar-quoted.
         # Inspect precisely through the matching closing delimiter. Unknown
         # syntaxes/unclosed delimiters stay conservatively on the old path.
-        dollar = re.search(r"\\bAS\\s+(\\$[A-Za-z_][A-Za-z_0-9]*\\$|\\$\\$)", body, re.I)
+        dollar = re.search(r"\bAS\s+(\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$)", body, re.I)
         if dollar:
             marker = dollar.group(1)
             closing = body.find(marker, dollar.end())
