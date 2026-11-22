@@ -57,7 +57,7 @@ def main():
     other_before=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit2})["title"]
     receipt=rpc("shared_delegated_course_management_write_service_v1",write); replay=rpc("shared_delegated_course_management_write_service_v1",write); check(replay==receipt,"title replay")
     changed={**write,"p_payload":{"expectedTitle":"Class 1","title":"Changed replay"}}; rpc("shared_delegated_course_management_write_service_v1",changed,"owner",409,"service")
-    stale={**write,"p_request":uid(),"p_payload":{"expectedTitle":"Class 1","title":"Stale title attempt"}}; rpc("shared_delegated_course_management_write_service_v1",stale,"owner",409,"service")
+    stale={**write,"p_request":uid(),"p_payload":{"expectedTitle":"Class 1","title":"Stale title attempt"}}; stale_value=rpc("shared_delegated_course_management_write_service_v1",stale,"owner",500,"service"); check(stale_value.get("code")=="40001","stale title SQLSTATE")
     check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit})["title"]=="Class 01 — Reality Is Readable","title readback")
     check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit2})["title"]==other_before,"unrelated Unit unchanged")
     rpc("shared_delegated_course_management_write_service_v1",write,"outsider",403,"person")
