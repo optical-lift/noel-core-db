@@ -105,4 +105,91 @@ REVOKE ALL ON FUNCTION public.shared_delegated_course_management_read_service_v1
 GRANT EXECUTE ON FUNCTION public.shared_delegated_course_management_read_service_v1(text,uuid,text,uuid,uuid,text)
  TO service_role;
 
+
+CREATE OR REPLACE FUNCTION public.shared_delegated_course_management_write_service_v1(
+ p_token_hash text,p_course uuid,p_operation text,p_unit uuid,p_request uuid,
+ p_expected_revision integer,p_payload jsonb
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog'
+AS $
+DECLARE v_course uuid; v_auth uuid; v_person uuid; v_user uuid; v_title text; v_old text;
+ v_latest integer; v_rev atlas.teaching_object_title_revisions%ROWTYPE;
+ v_text text; v_members jsonb; v_current integer; v_unit atlas.teaching_course_units%ROWTYPE;
+BEGIN
+ v_course:=atlas.require_private_course_management_v1(p_token_hash,p_course,
+   'teaching.course.management.write',true);
+ IF p_request IS NULL OR p_operation NOT IN
+  ('course_title_save','unit_title_save','course_material_save','unit_move',
+   'composition_save','unit_subsection_save','revision_recover')
+ THEN RAISE EXCEPTION 'fixed management write required' USING ERRCODE='22023'; END IF;
+ IF p_expected_revision IS NULL OR p_expected_revision<0 OR p_expected_revision>=100000
+ THEN RAISE EXCEPTION 'expected revision required' USING ERRCODE='22023'; END IF;
+ SELECT c.authorization_id,pr.user_id,b.person_entity_id INTO v_auth,v_user,v_person
+ FROM atlas.delegated_agent_credentials c
+ JOIN atlas.delegated_agent_authorizations a ON a.id=c.authorization_id
+ JOIN atlas.principals pr ON pr.id=a.principal_id
+ JOIN reality.auth_person_bindings b ON b.auth_user_id=pr.user_id AND b.binding_state='active' AND b.retired_at IS NULL
+ WHERE c.token_hash=lower(p_token_hash) AND c.authorization_id IS NOT NULL LIMIT 1;
+ IF v_person IS NULL THEN RAISE EXCEPTION 'canonical Person required' USING ERRCODE='42501'; END IF;
+ IF p_operation IN ('course_title_save','unit_title_save') THEN
+  v_title:=p_payload->>'title';
+  IF v_title IS NULL OR v_title<>btrim(v_title) OR char_length(v_title) NOT BETWEEN 1 AND 150
+  THEN RAISE EXCEPTION 'invalid title request' USING ERRCODE='22023'; END IF;
+  IF p_operation='course_title_save' THEN
+   SELECT name INTO v_old FROM atlas.teaching_courses WHERE id=v_course FOR UPDATE;
+  ELSE
+   SELECT title INTO v_old FROM atlas.teaching_course_units WHERE course_id=v_course AND unit_id=p_unit FOR UPDATE;
+   IF v_old IS NULL THEN RAISE EXCEPTION 'authorized Unit required' USING ERRCODE='42501'; END IF;
+  END IF;
+  IF v_old=v_title THEN RAISE EXCEPTION 'title must change' USING ERRCODE='22023'; END IF;
+  INSERT INTO atlas.teaching_object_title_revisions(course_id,object_kind,object_id,unit_id,request_id,
+   revision_number,previous_title,title,recorded_by_person_entity_id,recorded_by_auth_user_id)
+  VALUES(v_course,CASE WHEN p_operation='course_title_save' THEN 'course' ELSE 'unit' END,
+   CASE WHEN p_operation='course_title_save' THEN v_course ELSE p_unit END,
+   CASE WHEN p_operation='course_title_save' THEN NULL ELSE p_unit END,p_request,p_expected_revision+1,
+   v_old,v_title,v_person,v_user) RETURNING * INTO v_rev;
+  IF p_operation='course_title_save' THEN UPDATE atlas.teaching_courses SET name=v_title WHERE id=v_course;
+  ELSE UPDATE atlas.teaching_course_units SET title=v_title WHERE course_id=v_course AND unit_id=p_unit;
+  END IF;
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1',
+   'operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,
+   'revisionId',v_rev.revision_id,'revisionNumber',v_rev.revision_number,'title',v_title);
+ END IF;
+ IF p_operation IN ('course_material_save','unit_subsection_save','revision_recover') THEN
+  v_text:=p_payload->>'text';
+  IF v_text IS NULL OR char_length(v_text)>40000 THEN RAISE EXCEPTION 'invalid manuscript request' USING ERRCODE='22023'; END IF;
+  SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course;
+  IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale manuscript revision' USING ERRCODE='40001'; END IF;
+  INSERT INTO atlas.teaching_course_manuscript_revisions(course_id,edit_request_id,based_on_revision,revision_number,body_text,recorded_by_person_entity_id,recorded_by_auth_user_id)
+   VALUES(v_course,p_request,v_latest,v_latest+1,v_text,v_person,v_user);
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,
+   'courseId',v_course,'requestId',p_request,'revisionNumber',v_latest+1,'textLength',char_length(v_text));
+ END IF;
+ IF p_operation='composition_save' THEN
+  v_members:=p_payload->'members';
+  PERFORM atlas.validate_course_composition_v1(v_course,v_members);
+  SELECT coalesce(max(revision_number),0) INTO v_current FROM atlas.teaching_course_composition_revisions WHERE course_id=v_course;
+  IF v_current<>p_expected_revision THEN RAISE EXCEPTION 'stale composition revision' USING ERRCODE='40001'; END IF;
+  INSERT INTO atlas.teaching_course_composition_revisions(course_id,edit_request_id,based_on_revision,revision_number,members,recorded_by_person_entity_id,recorded_by_auth_user_id)
+   VALUES(v_course,p_request,v_current,v_current+1,v_members,v_person,v_user);
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,
+   'courseId',v_course,'requestId',p_request,'revisionNumber',v_current+1,'members',v_members);
+ END IF;
+ IF p_operation='unit_move' THEN
+  SELECT * INTO v_unit FROM atlas.teaching_course_units WHERE course_id=v_course AND unit_id=p_unit FOR UPDATE;
+  IF v_unit.unit_id IS NULL THEN RAISE EXCEPTION 'authorized Unit required' USING ERRCODE='42501'; END IF;
+  UPDATE atlas.teaching_course_units SET display_position=display_position+1
+   WHERE course_id=v_course AND display_position>=v_unit.display_position
+   AND unit_id<>p_unit;
+  UPDATE atlas.teaching_course_units SET display_position=(p_payload->>'position')::integer
+   WHERE unit_id=p_unit;
+  RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,
+   'courseId',v_course,'unitId',p_unit,'requestId',p_request,'position',(p_payload->>'position')::integer);
+ END IF;
+ RAISE EXCEPTION 'management write operation not admitted' USING ERRCODE='22023';
+END $;
+REVOKE ALL ON FUNCTION public.shared_delegated_course_management_write_service_v1(text,uuid,text,uuid,uuid,integer,jsonb)
+ FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.shared_delegated_course_management_write_service_v1(text,uuid,text,uuid,uuid,integer,jsonb)
+ TO service_role;
+
 COMMIT;
