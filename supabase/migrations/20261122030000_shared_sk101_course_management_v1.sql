@@ -217,12 +217,8 @@ BEGIN
   v_start:=(p_payload->>'selectionStart')::integer; v_end:=(p_payload->>'selectionEnd')::integer;
   IF v_base_text IS NULL OR v_replacement IS NULL OR char_length(v_base_text)>20000 OR char_length(v_replacement)>20000
   THEN RAISE EXCEPTION 'invalid Unit subsection request' USING ERRCODE='22023'; END IF;
-  SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit;
-  SELECT body_text INTO v_current_text FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit ORDER BY revision_number DESC LIMIT 1;
-  v_current_text:=coalesce(v_current_text,'');
-  IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale Unit revision' USING ERRCODE='40001'; END IF;
-  IF v_base_text IS DISTINCT FROM v_current_text OR v_start<0 OR v_end<v_start OR v_end>char_length(v_base_text)
-  THEN RAISE EXCEPTION 'stale Unit subsection source' USING ERRCODE='40001'; END IF;
+  IF v_start<0 OR v_end<v_start OR v_end>char_length(v_base_text)
+  THEN RAISE EXCEPTION 'invalid Unit subsection selection' USING ERRCODE='22023'; END IF;
   v_text:=left(v_base_text,v_start)||v_replacement||substr(v_base_text,v_end+1);
   IF char_length(v_text)>20000 THEN RAISE EXCEPTION 'invalid Unit revision' USING ERRCODE='22023'; END IF;
   SELECT * INTO v_prior_unit FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit AND edit_request_id=p_request;
@@ -233,11 +229,16 @@ BEGIN
    THEN RAISE EXCEPTION 'replayed Unit request differs' USING ERRCODE='23505'; END IF;
    RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_unit.revision_id,'revisionNumber',v_prior_unit.revision_number,'textLength',char_length(v_prior_unit.body_text));
   END IF;
+  SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit;
+  SELECT body_text INTO v_current_text FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit ORDER BY revision_number DESC LIMIT 1;
+  v_current_text:=coalesce(v_current_text,'');
+  IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale Unit revision' USING ERRCODE='40001'; END IF;
+  IF v_base_text IS DISTINCT FROM v_current_text
+  THEN RAISE EXCEPTION 'stale Unit subsection source' USING ERRCODE='40001'; END IF;
   INSERT INTO atlas.teaching_course_unit_revisions(unit_id,edit_request_id,based_on_revision,revision_number,body_text,recorded_by_person_entity_id,recorded_by_auth_user_id)
    VALUES(p_unit,p_request,v_latest,v_latest+1,v_text,v_person,v_user) RETURNING * INTO v_prior_unit;
   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_unit.revision_id,'revisionNumber',v_prior_unit.revision_number,'textLength',char_length(v_text));
- END IF;
- IF p_operation='revision_recover' THEN
+ END IF; IF p_operation='revision_recover' THEN
   IF p_payload ? 'text' OR NOT (p_payload ? 'revisionId')
   THEN RAISE EXCEPTION 'historical source revision required' USING ERRCODE='22023'; END IF;
   v_source_revision:=(p_payload->>'revisionId')::uuid;
@@ -246,8 +247,6 @@ BEGIN
    WHERE r.unit_id=p_unit AND r.revision_id=v_source_revision;
   IF v_source_unit_revision.revision_id IS NULL THEN RAISE EXCEPTION 'historical source revision not found' USING ERRCODE='42501'; END IF;
   v_text:=v_source_unit_revision.body_text;
-  SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit;
-  IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale Unit revision' USING ERRCODE='40001'; END IF;
   SELECT * INTO v_prior_unit FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit AND edit_request_id=p_request;
   IF v_prior_unit.revision_id IS NOT NULL THEN
    IF v_prior_unit.body_text IS DISTINCT FROM v_text OR v_prior_unit.based_on_revision IS DISTINCT FROM p_expected_revision
@@ -256,11 +255,12 @@ BEGIN
    THEN RAISE EXCEPTION 'replayed recovery request differs' USING ERRCODE='23505'; END IF;
    RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_unit.revision_id,'revisionNumber',v_prior_unit.revision_number,'sourceRevisionId',v_source_revision,'textLength',char_length(v_prior_unit.body_text));
   END IF;
+  SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_unit_revisions WHERE unit_id=p_unit;
+  IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale Unit revision' USING ERRCODE='40001'; END IF;
   INSERT INTO atlas.teaching_course_unit_revisions(unit_id,edit_request_id,based_on_revision,revision_number,body_text,recovered_from_revision_id,recorded_by_person_entity_id,recorded_by_auth_user_id)
    VALUES(p_unit,p_request,v_latest,v_latest+1,v_text,v_source_revision,v_person,v_user) RETURNING * INTO v_prior_unit;
   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_unit.revision_id,'revisionNumber',v_prior_unit.revision_number,'sourceRevisionId',v_source_revision,'textLength',char_length(v_text));
- END IF;
- IF p_operation='course_material_save' THEN
+ END IF; IF p_operation='course_material_save' THEN
   v_text:=p_payload->>'text';
   IF v_text IS NULL OR char_length(v_text)>40000 THEN RAISE EXCEPTION 'invalid manuscript request' USING ERRCODE='22023'; END IF;
   SELECT * INTO v_prior_manuscript FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course AND edit_request_id=p_request;
