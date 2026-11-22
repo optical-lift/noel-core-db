@@ -166,14 +166,14 @@ BEGIN
   SELECT * INTO v_rev FROM atlas.teaching_object_title_revisions WHERE course_id=v_course AND request_id=p_request;
   IF v_rev.revision_id IS NOT NULL THEN
    IF v_rev.title IS DISTINCT FROM v_title OR v_rev.previous_title IS DISTINCT FROM coalesce(v_expected_title,v_rev.previous_title)
-    OR v_rev.object_id IS DISTINCT FROM CASE WHEN p_operation='course_title_save' THEN v_course ELSE p_unit END
+    OR v_rev.object_id IS DISTINCT FROM (CASE WHEN p_operation='course_title_save' THEN v_course ELSE p_unit END)
    THEN RAISE EXCEPTION 'replayed title request differs' USING ERRCODE='23505'; END IF;
    RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_rev.revision_id,'revisionNumber',v_rev.revision_number,'title',v_rev.title);
   END IF;
   IF v_old=v_title THEN RAISE EXCEPTION 'title must change' USING ERRCODE='22023'; END IF;
   IF v_expected_title IS NULL OR v_old IS DISTINCT FROM v_expected_title THEN RAISE EXCEPTION 'stale title revision' USING ERRCODE='40001'; END IF;
   IF v_rev.revision_id IS NOT NULL THEN
-   IF v_rev.title IS DISTINCT FROM v_title OR v_rev.previous_title IS DISTINCT FROM v_old OR v_rev.object_id IS DISTINCT FROM CASE WHEN p_operation='course_title_save' THEN v_course ELSE p_unit END
+   IF v_rev.title IS DISTINCT FROM v_title OR v_rev.previous_title IS DISTINCT FROM v_old OR v_rev.object_id IS DISTINCT FROM (CASE WHEN p_operation='course_title_save' THEN v_course ELSE p_unit END)
    THEN RAISE EXCEPTION 'replayed title request differs' USING ERRCODE='23505'; END IF;
    RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_rev.revision_id,'revisionNumber',v_rev.revision_number,'title',v_rev.title);
   END IF;
