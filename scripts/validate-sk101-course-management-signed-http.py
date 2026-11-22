@@ -30,12 +30,15 @@ def main():
     insert into atlas.delegated_agent_carriers(id,stable_key,display_name,carrier_kind,provider_key,status,metadata) values('{carrier}','chatgpt_atlas_private','Synthetic carrier','ai_agent','openai','active',jsonb_build_object('pluginId','plugin_asdk_app_sites_4c5c75d7fb808191a0f80e42ba2ce6e1','ownerPrincipalId','{principal}'));
     insert into atlas.delegated_agent_authorizations(id,carrier_id,principal_id,authorization_state,max_execution_class,allowed_command_keys,denied_command_keys,scope,confirmation_policy,purpose,basis,begins_at,ends_at,created_by_user_id) values('{authz}','{carrier}','{principal}','active','commit',array['teaching.course.management.read','teaching.course.management.write'],array[]::text[],jsonb_build_object('targetKinds',jsonb_build_array('teaching_course'),'targetIds',jsonb_build_array('{course}')),jsonb_build_object('forceAllCommits',false),'Synthetic management grant','{{"establishedBy":"cloneFixture","userId":"{owner}"}}',now(),null,'{owner}');
     insert into atlas.delegated_agent_credentials(id,authorization_id,token_hash,credential_state,begins_at,expires_at,metadata) values('{cred}','{authz}',lower(encode(digest('{token}','sha256'),'hex')),'active',now(),null,'{{"privateCarrierCredentialV1":"true"}}');""")
-    api,anon=auth.local_status(); ot,_=auth.sign_in(api,anon,"course-owner"); xt,_=auth.sign_in(api,anon,"course-outsider")
+    api,anon=auth.local_status(); ot,_=auth.sign_in(api,anon,"sk101-management-owner"); xt,_=auth.sign_in(api,anon,"sk101-management-outsider")
     service=subprocess.run(["supabase","status","-o","env"],capture_output=True,text=True,check=True).stdout
     env=dict(x.split("=",1) for x in service.splitlines() if "=" in x); key=(env.get("SERVICE_ROLE_KEY") or env.get("SUPABASE_SERVICE_ROLE_KEY") or "").strip('"'); check(key,"local service key")
     h=__import__("hashlib").sha256(token.encode()).hexdigest()
-    def rpc(name,p,expected=200):
-        status,val=auth.rpc(api,key,name,p,key); check(status==expected,f"{name} status {status}"); return val
+    def rpc(name,p,role="owner",expected=200):
+        if isinstance(role,int):
+            expected,role=role,"owner"
+        bearer=ot if role=="owner" else xt
+        status,val=auth.rpc(api,key,name,p,bearer); check(status==expected,f"{name} status {status}"); return val
     title=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit}) 
     check(title["title"]=="Class 1","unit title read")
     rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"outsider",403)
