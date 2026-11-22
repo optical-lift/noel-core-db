@@ -27,7 +27,9 @@ def main():
         values('{user}','authenticated','authenticated',now(),now(),false,'00000000-0000-0000-0000-000000000000','{email}',extensions.crypt('{auth.PASSWORD}',extensions.gen_salt('bf')),now(),'','','','','','','','','{{"provider":"email","providers":["email"]}}','{{}}');
         insert into auth.identities(id,provider_id,user_id,identity_data,provider,created_at,updated_at) values(gen_random_uuid(),'{email}','{user}',jsonb_build_object('sub','{user}','email','{email}'),'email',now(),now());
         insert into reality.entities(id,stable_key,entity_kind,display_name,identity_state) values('{ent}','sk101-{label}','person','Synthetic {label}','canonical');
-        insert into reality.auth_person_bindings(auth_user_id,person_entity_id,binding_state,binding_basis) values('{user}','{ent}','active','{{"cloneFixture":true}}');""")
+        insert into reality.auth_person_bindings(auth_user_id,person_entity_id,binding_state,binding_basis) values('{user}','{ent}','active','{{"cloneFixture":true}}');
+        insert into atlas.people(id,display_name,status) values('{ent}','Synthetic {label}','active');
+        insert into atlas.person_auth_credentials(person_id,credential_kind,auth_user_id,status,provenance) values('{ent}','supabase_auth_user','{user}','active','{{"cloneFixture":true}}');""")
     course=uid(); unit=uid(); unit2=uid(); carrier=uid(); principal=uid(); authz=uid(); cred=uid(); req=uid(); token="A"*43
     sql(f"""insert into atlas.principals(id,user_id,person_id,stable_key,name,status) values('{principal}','{owner}','{entity}','sk101-management','Synthetic owner','active');
     insert into atlas.teaching_courses(id,course_key,name,status,created_by_person_entity_id,created_by_auth_user_id,created_at) values('{course}','synthetic-sk101','Synthetic SK101','active','{entity}','{owner}',now());
