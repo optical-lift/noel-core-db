@@ -71,7 +71,34 @@ jobs:
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held SK101 Course-management validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
-                  handle.write('migration_version=held-sk101-course-management\nrelease_lane=shared\n')
+                  handle.write('migration_version=20261122030000\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
+          # Exact OWNER authorized orphan cancelled-occurrence trigger function.
+          # Source-only signed disposable PG17 proof, never a release request.
+          if title == 'Production schema validation request: Atlas held orphan cancellation trigger function':
+              expected = {'diagnostic_scope':'atlas_orphan_cancelled_occurrence_queue_trigger_function_signed_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'d99335becb6a40fee45b326991340e895ea4ae4f'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner cutoff and protected orphan cancellation source approval required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-orphan-cancelled-occurrence-function\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
+          # Exact owner-held original TWO Anna/field-weeding service roots.
+          # This is only signed disposable current-schema validation, not a
+          # production migration version or a release authorization.
+          if title == 'Production schema validation request: Atlas held Anna two service roots':
+              expected = {'diagnostic_scope':'atlas_historical_anna_two_service_roots_signed_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'abb37a36db19dc407c907217545200b725e69f57'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held Anna two service roots source and caller-cutoff authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-anna-two-service-roots\nrelease_lane=atlas\n')
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
@@ -150,6 +177,35 @@ jobs:
                   raise SystemExit('Exact owner-held clean Need renewal due validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
                   handle.write('migration_version=held-clean-renewal-due\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
+
+          # Corrected immutable private callback: full-clone permission proof
+          # showed broad native schema access. New source puts exactly two
+          # approved wrappers in a dedicated private callback schema.
+          # The NOLOGIN role SQL runs on disposable protected clone only.
+          if title == 'Production schema validation request: Shared held private callback executor':
+              expected = {'diagnostic_scope':'shared_native_private_callback_executor_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'9936d07bcdb6130f441fc7e9a54ad958137d81d7'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held private callback executor clone authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-private-callback-executor\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
+          # One exact held private MP3 profile candidate. This is a source-
+          # pinned disposable full-schema clone, NOT an authorized migration.
+          if title == 'Production schema validation request: Shared held private MP3 profile':
+              expected = {'diagnostic_scope':'shared_native_private_mp3_profile_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'a873fdb0d92370687d2f675080dd5bf50ac5927f'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held private MP3 profile clone authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-private-mp3-profile\nrelease_lane=shared\n')
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
@@ -311,6 +367,31 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact held pressure-wash serial retirement, isolated original signed clone only.
+          if title == 'Production schema validation request: Atlas held pressure wash serial retirement':
+              expected = {'diagnostic_scope':'atlas_historical_pressure_wash_serial_branch_signed_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'d23113bf916796fe1d176a51c909f3a843d47c8b'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held pressure-wash original source approval required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-pressure-wash-serial-retirement\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
+          # Original pot-up serial THREE-function branch, one owner-only source-pinned
+          # disposable clone. No live SQL, credentials, or production release.
+          if title == 'Production schema validation request: Atlas held pot up serial retirement':
+              expected = {'diagnostic_scope':'atlas_historical_pot_up_serial_branch_signed_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'6d60443cd167dd5323ebd8c9c9ad656238ef5eb2'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held pot-up original source clone approval required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-pot-up-serial-retirement\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           required = ('migration_version', 'release_lane', 'production_target', 'candidate_sha')
           missing = [key for key in required if key not in fields]
           if missing:
@@ -440,6 +521,167 @@ jobs:
             cp "$src" "$candidate_migration"
             cmp "$src" "$candidate_migration"
             bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Original immutable orphan cancellation trigger-function packet.
+          # This branch is local signed clone ONLY; no numbered migration.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-orphan-cancelled-occurrence-function" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = d99335becb6a40fee45b326991340e895ea4ae4f
+            src="candidate/candidates/atlas/atlas_orphan_cancelled_occurrence_queue_trigger_function_retirement_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_orphan_cancelled_occurrence_queue_trigger_function_retirement_v1/clone_fixture.sql"
+            post="candidate/candidates/atlas/atlas_orphan_cancelled_occurrence_queue_trigger_function_retirement_v1/postconditions.sql"
+            test "$(git hash-object "$src")" = 3033f34ea33af750028ac51df9a307c6d2cd4975
+            test "$(git hash-object "$fixture")" = 6401f4cf44f2c172c156fcc9729c87836988c252
+            test "$(git hash-object "$post")" = 9b8fdd20c8ea65e0bae98d7b905b4b98967ff24d
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test ! -e candidate/supabase/migrations/held-orphan-cancelled-occurrence-function.sql
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-orphan-cancelled-occurrence.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_orphan_cancelled_occurrence_queue_trigger_function_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_orphan_cancelled_occurrence_queue_trigger_function_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Exact three-function original source; not canonical production version.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-pressure-wash-serial-retirement" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = d23113bf916796fe1d176a51c909f3a843d47c8b
+            src="candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/clone_fixture.sql"
+            post="candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/postconditions.sql"
+            test "$(git hash-object "$src")" = 25e2791bd2da2477015260017eb2e982ec5b083d
+            test "$(git hash-object "$fixture")" = 18b25f7902786e2a1697fb6ac35dbff74328ae69
+            test "$(git hash-object "$post")" = 2397e06f23bfdce901400fcbc68c7c6b56900b96
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test ! -e candidate/supabase/migrations/held-pressure-wash-serial-retirement.sql
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-pressure-wash-serial.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_historical_pressure_wash_serial_branch_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_historical_pressure_wash_serial_branch_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Exact original HELD Anna two-service-root SOURCE ONLY; not a
+          # generated migration or production-release permission.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-anna-two-service-roots" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = abb37a36db19dc407c907217545200b725e69f57
+            src="candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/clone_fixture.sql"
+            post="candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/postconditions.sql"
+            test "$(git hash-object "$src")" = cb4f5cf649663ca9d18e7e77133fc03cd754685a
+            test "$(git hash-object "$fixture")" = 76667bafa100414423367b109b3ee04ad21bbd12
+            test "$(git hash-object "$post")" = 411b0a9ee497969752bde4aa7c39bcbc0654dec1
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test ! -e candidate/supabase/migrations/held-anna-two-service-roots.sql
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-anna-two-service-roots.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_historical_anna_two_service_roots_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_historical_anna_two_service_roots_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Immutable ORIGINAL source package, not a production version.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-pot-up-serial-retirement" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = 6d60443cd167dd5323ebd8c9c9ad656238ef5eb2
+            src="candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/clone_fixture.sql"
+            post="candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/postconditions.sql"
+            test "$(git hash-object "$src")" = eb06b31b273f010549e4a39678f2c6a44b39ba13
+            test "$(git hash-object "$fixture")" = 4d22ffe6cf1c59e2c11d89dc717f399032b18f59
+            test "$(git hash-object "$post")" = eb37d62f184e26185fe567f2471cc4eb80f9eb03
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test ! -e candidate/supabase/migrations/held-pot-up-serial-retirement.sql
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-pot-up-serial.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_historical_pot_up_serial_branch_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_historical_pot_up_serial_branch_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "20261122030000" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "8477b45e2c091297ef9585ee84ca1ca7940d4650"
+            src="candidate/candidates/shared-sk101-course-management-v1/candidate.sql"
+            fixture="candidate/validation/fixtures/20261122030000_shared_sk101_course_management_v1.sql"
+            post="candidate/validation/migrations/20261122030000_shared_sk101_course_management_v1.sql"
+            test "$(git hash-object "$src")" = 72ad12b66c6fd60b3689aae58289a0eacfa1b107
+            test "$(git hash-object "$fixture")" = 3f05af628dc4df7f8c483947f77c9996aa9655b3
+            test "$(git hash-object "$post")" = a7e5fd416d3ebb490fcfb57827adef58a1749a4f
+            test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 3922d2ca7bd17b63cf8812527f804e6e9a7046b1
+            scratch="$(mktemp -d "$RUNNER_TEMP/sk101-course-management.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_course_management_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_sk101_course_management_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
             {
               echo "path=$candidate_migration"
               echo "actual_version=$version"
@@ -702,6 +944,79 @@ jobs:
               echo "path=$candidate_migration"
               echo "actual_version=$version"
               echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-callback-executor" ]]; then
+            # Immutable source-only held candidate from draft Noel PR #3274.
+            test "$(git -C candidate rev-parse HEAD)" = "9936d07bcdb6130f441fc7e9a54ad958137d81d7"
+            src="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_executor_candidate.sql"
+            post="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_executor_postconditions.sql"
+            signed="candidate/candidates/shared-listening-delivery-artifact-v1/verify_private_callback_executor_signed.py"
+            test "$(git hash-object "$src")" = b5aa4105e9816d194f740ac365113263f67d8086
+            test "$(git hash-object "$post")" = a749d7ef221ad82fd19a76e1f565612037c997fb
+            test "$(git hash-object "$signed")" = 2431a312b1002bc05241bafad1c81da002dfa7df
+            # Original trusted signed probe from canonical MAIN, unmodified.
+            test "$(git hash-object candidates/shared-listening-delivery-artifact-v1/verify_generated_listening_storage_signed.py)" = e7d3f38887ea1419940bf371f1dbb8aea7b16455
+            python3 -m py_compile "$signed"
+            held_dir="candidates/shared-listening-delivery-artifact-v1"
+            cp "$signed" "$held_dir/verify_private_callback_executor_signed.py"
+            test ! -e "candidate/supabase/migrations/held-private-callback-executor.sql"
+            scratch="$(mktemp -d "$RUNNER_TEMP/private-callback-executor-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_private_listening_callback_executor_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_private_listening_callback_executor_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            sha256sum "$candidate_migration" "$post" "$signed"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-mp3-profile" ]]; then
+            # Exact reviewed immutable source/shape only; no fixture with fake
+            # identities is accepted as a signed protected test.
+            test "$(git -C candidate rev-parse HEAD)" = "a873fdb0d92370687d2f675080dd5bf50ac5927f"
+            src="candidate/candidates/shared-listening-delivery-artifact-v1/private_mp3_delivery_profile_candidate.sql"
+            post="candidate/candidates/shared-listening-delivery-artifact-v1/private_mp3_delivery_profile_postconditions.sql"
+            test "$(git hash-object "$src")" = 861a34074818d33ff2f260bfbecfb1fe9738a7dd
+            test "$(git hash-object "$post")" = 724c57e6b3cc224351480d636a417e9408a2798d
+            signed="candidate/candidates/shared-listening-delivery-artifact-v1/verify_private_mp3_profile_signed.py"
+            test "$(git hash-object "$signed")" = fbb3632c5ce4dc22c31ffd2a2938ee570c14ba2d
+            # The original trusted helper is on MAIN, never candidate-supplied.
+            test "$(git hash-object candidates/shared-listening-delivery-artifact-v1/verify_generated_listening_storage_signed.py)" = e7d3f38887ea1419940bf371f1dbb8aea7b16455
+            python3 -m py_compile "$signed"
+            held_dir="candidates/shared-listening-delivery-artifact-v1"
+            mkdir -p "$held_dir"
+            cp "$signed" "$held_dir/verify_private_mp3_profile_signed.py"
+            test ! -e "candidate/supabase/migrations/held-private-mp3-profile.sql"
+            # Keep migration identity TEST-ONLY, generated by the canonical
+            # CLI in the existing protected clone machinery.
+            scratch="$(mktemp -d "$RUNNER_TEMP/private-mp3-profile-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_native_private_mp3_profile_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_native_private_mp3_profile_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            sha256sum "$candidate_migration" "$post"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
               echo "validation_path=$post"
             } >> "$GITHUB_OUTPUT"
             exit 0
@@ -1199,6 +1514,74 @@ jobs:
             test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
             test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
             test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+          fi
+
+          # EXACT generator-produced pressure-wash THREE-function package only.
+          # Clone-only validation of immutable, versioned source; not a release.
+          # Preserves the original fixed GoTrue signed, full-Atlas row witness.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261122143231" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = 3d3d609ed72ceed87812892e2ae7f6d4f7f39ed2
+            test "$(basename "$candidate_migration")" = "20261122143231_atlas_historical_pressure_wash_serial_branch_retirement_v1.sql"
+            test "$(git hash-object "$candidate_migration")" = 25e2791bd2da2477015260017eb2e982ec5b083d
+            test "${#fixtures[@]}" -eq 1
+            test "${#validations[@]}" -eq 1
+            test "$(git hash-object "${fixtures[0]}")" = 18b25f7902786e2a1697fb6ac35dbff74328ae69
+            test "$(git hash-object "${validations[0]}")" = 2397e06f23bfdce901400fcbc68c7c6b56900b96
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            # Candidate checkout is deliberately shallow (exact HEAD only).
+            # Generator independently verified original ancestor on full-history main.
+            # Pin the original source packet bytes within this exact generated HEAD.
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/candidate.sql)" = 25e2791bd2da2477015260017eb2e982ec5b083d
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/clone_fixture.sql)" = 18b25f7902786e2a1697fb6ac35dbff74328ae69
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pressure_wash_serial_branch_retirement_v1/postconditions.sql)" = 2397e06f23bfdce901400fcbc68c7c6b56900b96
+          fi
+
+          # Exact generator-produced pot-up three-function package only;
+          # same original immutable source bytes, real signed C1 and all-Atlas
+          # row no-loss witness on disposable PG17 clone. NO production release.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261122162537" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = bf3122174ea0ee52d446e2b849ef6f98cf17c9ec
+            test "$(basename "$candidate_migration")" = "20261122162537_atlas_historical_pot_up_serial_branch_retirement_v1.sql"
+            test "$(git hash-object "$candidate_migration")" = eb06b31b273f010549e4a39678f2c6a44b39ba13
+            test "${#fixtures[@]}" -eq 1
+            test "${#validations[@]}" -eq 1
+            test "$(git hash-object "${fixtures[0]}")" = 4d22ffe6cf1c59e2c11d89dc717f399032b18f59
+            test "$(git hash-object "${validations[0]}")" = eb37d62f184e26185fe567f2471cc4eb80f9eb03
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            # Shallow candidate checkout has only this exact generated HEAD.
+            # The canonical generator independently checked source ancestry.
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/candidate.sql)" = eb06b31b273f010549e4a39678f2c6a44b39ba13
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/clone_fixture.sql)" = 4d22ffe6cf1c59e2c11d89dc717f399032b18f59
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_pot_up_serial_branch_retirement_v1/postconditions.sql)" = eb37d62f184e26185fe567f2471cc4eb80f9eb03
+          fi
+
+
+          # Exact canonical generator-produced Anna TWO-service-root package.
+          # Reuse the original immutable SQL, fictional fixture and post with
+          # existing genuine signed GoTrue and whole-Atlas row proof; no live SQL.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261122175225" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = c9cc72002bad833f35d3bbee8de34244748a8e0c
+            test "$(basename "$candidate_migration")" = "20261122175225_atlas_historical_anna_two_service_roots_retirement_v1.sql"
+            test "$(git hash-object "$candidate_migration")" = cb4f5cf649663ca9d18e7e77133fc03cd754685a
+            test "${#fixtures[@]}" -eq 1
+            test "${#validations[@]}" -eq 1
+            test "$(git hash-object "${fixtures[0]}")" = 76667bafa100414423367b109b3ee04ad21bbd12
+            test "$(git hash-object "${validations[0]}")" = 411b0a9ee497969752bde4aa7c39bcbc0654dec1
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            # The original source-only merged PR #3264 is included in the
+            # immutable generated head; every original blob remains identical.
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/candidate.sql)" = cb4f5cf649663ca9d18e7e77133fc03cd754685a
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/clone_fixture.sql)" = 76667bafa100414423367b109b3ee04ad21bbd12
+            test "$(git hash-object candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/postconditions.sql)" = 411b0a9ee497969752bde4aa7c39bcbc0654dec1
           fi
 
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
