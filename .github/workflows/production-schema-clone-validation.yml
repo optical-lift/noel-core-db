@@ -1626,6 +1626,20 @@ jobs:
           fi
           bash scripts/validate-production-schema-clone.sh "${args[@]}"
 
+      - name: Print SK101 signed harness failure diagnostic
+        if: failure() && steps.validation.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          diagnostic="$RUNNER_TEMP/production-schema-validation-artifacts/sk101-management-signed-local.log"
+          if [[ -f "$diagnostic" ]]; then
+            echo '::group::SK101 signed harness diagnostic'
+            sed -n '1,240p' "$diagnostic"
+            echo '::endgroup::'
+          else
+            echo "SK101 signed harness diagnostic not present"
+          fi
+
       - name: Publish validation summary
         if: always()
         shell: bash
