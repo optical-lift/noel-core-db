@@ -8,6 +8,7 @@ connection, credential, HTTP host or media publication.
 """
 import json
 import os
+import re
 from pathlib import Path
 import sys
 
@@ -55,14 +56,23 @@ def execute_wrapper(db, claims, function_call, expected_denial=False):
         "COMMIT;\n"
     )
     run = native.subprocess.run(
-        ["psql", db, "-XAt", "-v", "ON_ERROR_STOP=1", "-f", "-"],
+        ["psql", db, "-XAt", "-v", "ON_ERROR_STOP=1",
+         "-v", "VERBOSITY=sqlstate", "-f", "-"],
         input=statement, capture_output=True, text=True)
     if expected_denial:
         native.check(run.returncode != 0,
                      "Invalid private callback unexpectedly succeeded")
         return None
+    # Capture ONLY the structural psql line and SQLSTATE on unexpected
+    # failure, never the raw psql stderr, signed claims, bearer or SQL inputs.
+    # PostgreSQL 17 non-superusers require explicit SET membership before
+    # SET LOCAL ROLE; the protected clone fixture provisions that locally.
+    safe_failure = re.search(
+        r"psql:<stdin>:(\\d+): ERROR:\\s*([A-Z0-9]{5})", run.stderr)
+    diagnostic = (" SQLSTATE=" + safe_failure.group(2) +
+                  " statement_line=" + safe_failure.group(1)) if safe_failure else ""
     native.check(run.returncode == 0,
-                 "Genuine signed private fixed callback failed")
+                 "Genuine signed private fixed callback failed" + diagnostic)
     values = []
     for line in run.stdout.splitlines():
         if line.startswith('{"contractVersion"') or line.startswith('{"assetId"') or line.startswith('{"binding"'):
