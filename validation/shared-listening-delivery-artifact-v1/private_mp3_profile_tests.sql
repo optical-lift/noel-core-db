@@ -18,8 +18,8 @@ CREATE FUNCTION pg_temp.profile_identity(
  p_role text DEFAULT 'authenticated')
 RETURNS void LANGUAGE plpgsql AS $identity$
 BEGIN
-  PERFORM set_config('request.jwt.claim.sub',p_user::text,true);
-  PERFORM set_config('request.jwt.claims',jsonb_build_object(
+  PERFORM set_config('test.listening_uid',p_user::text,true);
+  PERFORM set_config('test.listening_claims',jsonb_build_object(
     'sub',p_user::text,'role',p_role,'session_id',p_session::text,
     'is_anonymous',p_anonymous,
     'exp',floor(extract(epoch from clock_timestamp()+interval '1 hour'))::bigint
