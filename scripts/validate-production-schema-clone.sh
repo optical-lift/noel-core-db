@@ -426,8 +426,8 @@ fi
 if [[ "$(basename "$candidate_migration")" == "candidate.sql" ]] && [[ "$candidate_migration" == *"shared-sk101-course-management-v1/candidate.sql" ]]; then
   if [ "$lane" != shared ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != b3c4591ec23d13db6b2a92d781f907278c106b22 ] ||
-     [ "$(git hash-object "$candidate_fixture")" != 4b6d8b1a2a3c4d5e6f708192a3b4c5d6e7f8091a ] ||
-     [ "$(git hash-object "$candidate_validation")" != 91a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
+     [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 1b1d65b33bbd77e85b0b66f15bb5d0b71864bdf8 ] ||
      [ -n "\${NOEL_CORE_DATABASE_URL:-}\${DATABASE_URL:-}\${SUPABASE_DB_URL:-}\${SUPABASE_ACCESS_TOKEN:-}\${SUPABASE_SERVICE_ROLE_KEY:-}\${SUPABASE_SECRET_KEY:-}" ]; then
     echo 'Refuse SK101 management proof without exact isolated package and signed harness.' >&2; exit 2
