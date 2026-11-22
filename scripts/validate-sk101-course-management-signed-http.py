@@ -38,11 +38,16 @@ def main():
         status,val=auth.rpc(api,key,name,p,key); check(status==expected,f"{name} status {status}"); return val
     title=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit}) 
     check(title["title"]=="Class 1","unit title read")
-    check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":"b"*64,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},403) is not None,"bad credential denied")
+    rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"outsider",403)
+    rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":uid(),"p_operation":"unit_title_read","p_unit":unit},"owner",403)
+    check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":"b"*64,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"owner",403) is not None,"bad credential denied")
     write={"p_token_hash":h,"p_course":course,"p_operation":"unit_title_save","p_unit":unit,"p_request":req,"p_expected_revision":0,"p_payload":{"expectedTitle":"Class 1","title":"Class 01 — Reality Is Readable"}}
     receipt=rpc("shared_delegated_course_management_write_service_v1",write); replay=rpc("shared_delegated_course_management_write_service_v1",write); check(replay==receipt,"title replay")
     changed={**write,"p_payload":{"expectedTitle":"Class 1","title":"Changed replay"}}; rpc("shared_delegated_course_management_write_service_v1",changed,409)
     check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit})["title"]=="Class 01 — Reality Is Readable","title readback")
+    rpc("shared_delegated_course_management_write_service_v1",write,"outsider",403)
+    sql(f"update atlas.delegated_agent_authorizations set authorization_state='revoked' where id='{authz}'")
+    rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"owner",403)
     check(sql(f"select count(*) from atlas.teaching_course_versions where course_id='{course}'")=="0","unpublished")
     Path(a.output).write_text("PASS signed owner/nonowner credential, exact target, title replay, stale/change denial and readback\n")
     print("PASS signed SK101 management clone")
