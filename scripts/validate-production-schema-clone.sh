@@ -476,10 +476,10 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_listenin
   native_signed_helper="$native_dir/verify_generated_listening_storage_signed.py"
   if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 38d5f2ed496af4bd3b09d5b2b046687c433a1db3 ] ||
-     [ "$(git hash-object "$candidate_validation")" != a821cef18c61a0988dc13d7d51df2e818440af91 ] ||
+     [ "$(git hash-object "$candidate_migration")" != b5aa4105e9816d194f740ac365113263f67d8086 ] ||
+     [ "$(git hash-object "$candidate_validation")" != a749d7ef221ad82fd19a76e1f565612037c997fb ] ||
      [ "$(git hash-object "$native_signed_helper")" != e7d3f38887ea1419940bf371f1dbb8aea7b16455 ] ||
-     [ "$(git hash-object "$private_callback_signed_proof")" != f71007525b72c9d8b00922382024357b091596a5 ]; then
+     [ "$(git hash-object "$private_callback_signed_proof")" != e769aba500e26c0e34ee816f17df809d80e40986 ]; then
     echo 'Refuse unpinned private callback role or noncanonical GoTrue proof.' >&2
     exit 2
   fi
