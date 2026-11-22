@@ -246,6 +246,27 @@ if [[ "$(basename "$candidate_migration")" == "20261121235035_atlas_anna_orphane
   signed_work_prerequisite_probe=true
 fi
 
+
+# TEST ONLY: the original legacy Task automatic assignment/Sunday policy
+# two triggers + two functions; reuse the original C1 signed Work fixture and
+# exact full-Atlas-table row fingerprints. NOT live authorization.
+if [[ "$(basename "$candidate_migration")" == "20261122003235_atlas_legacy_person_specific_task_trigger_retirement_v1.sql" ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != fade2e58598e4e32e49f9e84f481c54b3611ad9f ] ||
+     [ "$(git hash-object "$candidate_validation")" != b720cc35fa78f3626a4a0f2c8d3138c7557cdea6 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 60ac062da84b34be539ede296dda5434aa58d061 ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse person-specific legacy Task trigger clone unless exact source, original signer, fictional C1 source and full-row proof.' >&2
+    exit 2
+  fi
+  orphan_queue_retirement_proof=true
+  signed_work_prerequisite_probe=true
+fi
+
 # Six-trigger retirement uses the EXISTING all-Atlas original-row fingerprint
 # and genuinely signed owner/worker prerequisites, never a new validator.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_queue_progression_trigger_retirement_clone_only_v1[.]sql$ ]]; then
@@ -1408,6 +1429,27 @@ if [ "$orphan_queue_retirement_proof" = true ] &&
   fi
   psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$trusted_c1" \
     >"$artifacts_dir/anna-orphan-original-signed-c1-fixture.log" 2>&1
+fi
+
+
+# New exact-version C1 identity pre-load. Original protected C1 fixture is
+# immutable, non-production, and installed before synthetic fixture and
+# before ALL local Atlas row fingerprints; no historical rows copied.
+if [ "$orphan_queue_retirement_proof" = true ] &&
+   [[ "$(basename "$candidate_migration")" == "20261122003235_atlas_legacy_person_specific_task_trigger_retirement_v1.sql" ]]; then
+  phase="trusted original C1 Work fixture before legacy Task trigger retirement"
+  trusted_c1="$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql"
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$trusted_c1")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 60ac062da84b34be539ede296dda5434aa58d061 ] ||
+     [ "$(git hash-object "$candidate_migration")" != fade2e58598e4e32e49f9e84f481c54b3611ad9f ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
+     [[ ! "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'Refuse exact Task trigger C1 pre-load without fixed source and local-only PostgreSQL.' >&2
+    exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$trusted_c1" \
+    >"$artifacts_dir/person-task-original-signed-c1-fixture.log" 2>&1
 fi
 
 if [ -n "$candidate_fixture" ]; then

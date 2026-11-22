@@ -1024,6 +1024,44 @@ if not (
 ):
     errors.append('Anna orphan must reuse exact protected C1, signed Work and full Atlas base-row conservation proof')
 
+# One immutable new legacy Task hardcoded policy removal candidate only.
+# Retain the original signed C1 and all-Atlas-row/negative test contract.
+legacy_task_version = '20261122003235'
+legacy_task_name = '20261122003235_atlas_legacy_person_specific_task_trigger_retirement_v1.sql'
+legacy_task_sha = '4406fd7e9a6179fa225b33ba663d50ec812a3201'
+legacy_task_blobs = (
+    'fade2e58598e4e32e49f9e84f481c54b3611ad9f',
+    '60ac062da84b34be539ede296dda5434aa58d061',
+    'b720cc35fa78f3626a4a0f2c8d3138c7557cdea6',
+)
+for fragment in (legacy_task_version, legacy_task_name, legacy_task_sha, *legacy_task_blobs,
+                 'if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261122003235" ]]; then',
+                 'test "${#fixtures[@]}" = 1',
+                 'test "${#validations[@]}" = 1'):
+    if fragment not in workflow:
+        errors.append('Exact legacy Task immutable workflow gate missing: ' + fragment)
+for fragment in (legacy_task_name, *legacy_task_blobs,
+                 'orphan_queue_retirement_proof=true',
+                 'signed_work_prerequisite_probe=true',
+                 'person-task-original-signed-c1-fixture.log',
+                 'Refuse person-specific legacy Task trigger clone unless exact source, original signer, fictional C1 source and full-row proof.',
+                 'Refuse exact Task trigger C1 pre-load without fixed source and local-only PostgreSQL.'):
+    if fragment not in harness:
+        errors.append('Exact legacy Task protected C1/full-row signer missing: ' + fragment)
+if not (
+    workflow.count('if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261122003235" ]]; then') == 1
+    and harness.count('if [[ "$(basename "$candidate_migration")" == "' + legacy_task_name + '" ]]; then') == 1
+    and harness.count('[[ "$(basename "$candidate_migration")" == "' + legacy_task_name + '" ]]') == 2
+    and harness.index('person-task-original-signed-c1-fixture.log')
+        < harness.index('phase="candidate validation fixture application"')
+        < harness.index('phase="orphan backfill local all-Atlas-row baseline"')
+        < harness.index('phase="orphan backfill local all-Atlas-row unchanged after exact deletion"')
+    and 'scripts/validate-atlas-access03c-pre1-local-row-integrity.py' in harness
+    and 'scripts/validate-atlas-work-prerequisite-signed-http.py' in harness
+    and 'scripts/validate-atlas-c1-signed-http.py' in harness
+):
+    errors.append('Legacy Task trigger deletion must use original protected C1, signed and all-Atlas-row no-loss machinery')
+
 if errors:
     print('Production schema validation contract FAILED:')
     for error in errors:
