@@ -27,7 +27,7 @@ BEGIN
     OR length(p_object_version) NOT BETWEEN 1 AND 200 OR p_object_version ~ '[[:cntrl:]]'
     OR p_original_sha256 IS NULL OR p_original_sha256 !~ '^[0-9a-f]{64}$'
     OR p_original_byte_size IS NULL OR p_original_byte_size NOT BETWEEN 1 AND 8388608
-    OR p_original_format NOT IN ('txt','docx')
+    OR p_original_format IS NULL OR p_original_format NOT IN ('txt','docx')
   THEN RAISE EXCEPTION 'exact bounded authored manuscript original required' USING ERRCODE='22023'; END IF;
   v_mime:=CASE p_original_format WHEN 'txt' THEN 'text/plain'
     WHEN 'docx' THEN 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' END;
