@@ -188,7 +188,7 @@ jobs:
           if title == 'Production schema validation request: Shared held private callback executor':
               expected = {'diagnostic_scope':'shared_native_private_callback_executor_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'9d56607c586458b99b3e6e9c9912802f17c63b2e'}
+                          'candidate_sha':'9936d07bcdb6130f441fc7e9a54ad958137d81d7'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held private callback executor clone authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -952,13 +952,13 @@ jobs:
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-callback-executor" ]]; then
             # Immutable source-only held candidate from draft Noel PR #3274.
-            test "$(git -C candidate rev-parse HEAD)" = "9d56607c586458b99b3e6e9c9912802f17c63b2e"
+            test "$(git -C candidate rev-parse HEAD)" = "9936d07bcdb6130f441fc7e9a54ad958137d81d7"
             src="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_executor_candidate.sql"
             post="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_executor_postconditions.sql"
             signed="candidate/candidates/shared-listening-delivery-artifact-v1/verify_private_callback_executor_signed.py"
             test "$(git hash-object "$src")" = b5aa4105e9816d194f740ac365113263f67d8086
             test "$(git hash-object "$post")" = a749d7ef221ad82fd19a76e1f565612037c997fb
-            test "$(git hash-object "$signed")" = e769aba500e26c0e34ee816f17df809d80e40986
+            test "$(git hash-object "$signed")" = 2431a312b1002bc05241bafad1c81da002dfa7df
             # Original trusted signed probe from canonical MAIN, unmodified.
             test "$(git hash-object candidates/shared-listening-delivery-artifact-v1/verify_generated_listening_storage_signed.py)" = e7d3f38887ea1419940bf371f1dbb8aea7b16455
             python3 -m py_compile "$signed"
