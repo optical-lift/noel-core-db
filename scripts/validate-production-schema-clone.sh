@@ -1223,14 +1223,8 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
     # Storage, Auth, REST and Kong must all run; no unrelated services.
     supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_sk101_course_management_probe" = true ]; then
-  phase="independent signed SK101 Course-management matrix"
-  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/sk101-management-reload.log" 2>&1
-  python3 "$repo_root/scripts/validate-sk101-course-management-signed-http.py" \\
-    --db-url "$database_url" --output "$artifacts_dir/sk101-management-signed-receipt.txt" \\
-    >"$artifacts_dir/sk101-management-signed-local.log" 2>&1
-  test "$(cat "$artifacts_dir/sk101-management-signed-receipt.txt")" = 'PASS signed SK101 management clone'
-fi
-
+    # Same disposable PostgreSQL/Auth/REST footprint as the existing signed Course proof.
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
 if [ "$signed_private_course_working_loop_probe" = true ]; then
     # Same local GoTrue, REST and PostgreSQL footprint, on the pinned Course package.
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
