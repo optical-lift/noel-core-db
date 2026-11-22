@@ -251,6 +251,51 @@ def trusted_signed_local_original_registration(db,api,key,token,workspace,obj_id
           "Original source registration receipt mismatch")
     return uid(receipts[0]["assetId"])
 
+def trusted_signed_local_completion(db,api,key,token,intent,expected_denial=False):
+    """Disposable-clone internal completion using a *verified* GoTrue user.
+
+    All SQL is constructed from the test's own exact native source values.
+    No browser-controlled SQL, hosted DB credentials, ordinary RPC privilege,
+    service-role authority, or real production write is involved.
+    """
+    actual=json.loads(ok(request(api,key,"/auth/v1/user",token=token),"independent GoTrue completion bearer"))
+    claims=payload(token)
+    check(uid(actual["id"])==uid(claims["sub"]) and
+          uid(claims["session_id"]) and claims["role"]=="authenticated" and
+          claims.get("is_anonymous") is False and int(claims["exp"])>0,
+          "Independently signed completion identity required")
+    signature=["p_production_id","p_manuscript_revision_id","p_master_ordinal",
+               "p_delivery_profile_id","p_profile_rule_version","p_profile_configuration",
+               "p_timeline_manifest","p_evidence"]
+    check(set(intent)==set(signature),"Exactly one canonical completion argument contract required")
+    for item in (signature[0],signature[1],signature[3]):
+        uid(intent[item])
+    check(type(intent["p_master_ordinal"]) is int and 0<intent["p_master_ordinal"]<2147483648,
+          "Exact source master ordinal required")
+    stmt=("BEGIN;\n"
+       "SELECT set_config('request.jwt.claims',"+literal(json.dumps(claims,separators=(",",":")))+",true) IS NOT NULL;\n"
+       "SELECT set_config('request.jwt.claim.sub',"+literal(claims["sub"])+",true) IS NOT NULL;\n"
+       "SELECT transcript_core.complete_verified_listening_production_v1("
+       +literal(intent[signature[0]])+"::uuid,"+literal(intent[signature[1]])+"::uuid,"
+       +str(intent[signature[2]])+","+literal(intent[signature[3]])+"::uuid,"
+       +literal(intent[signature[4]])+","
+       +literal(json.dumps(intent[signature[5]],sort_keys=True))+"::jsonb,"
+       +literal(json.dumps(intent[signature[6]],sort_keys=True))+"::jsonb,"
+       +literal(json.dumps(intent[signature[7]],sort_keys=True))+"::jsonb)::text;\n"
+       "COMMIT;\n")
+    run=subprocess.run(["psql",db,"-XAt","-v","ON_ERROR_STOP=1","-f","-"],
+                      input=stmt,capture_output=True,text=True)
+    if expected_denial:
+        check(run.returncode!=0,"Unauthorized or conflicting native completion unexpectedly succeeded")
+        return None
+    check(run.returncode==0,"Trusted local internal production completion denied")
+    values=[]
+    for line in run.stdout.splitlines():
+        if line.startswith('{"binding"') or line.startswith('{"contractVersion"'):
+            values.append(json.loads(line))
+    check(len(values)==1,"Exact one internal completion receipt required")
+    return values[0]
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument("--db-url",required=True)
@@ -382,6 +427,73 @@ def main():
     check(state(master_path)==before[master_path] and ok(get(BUCKET,master_path,owner),"post-delete readback")==master,
           "Authenticated deletion changed the custody object")
     print("PASS actual signed uploads, exact byte readback, object version and replacement/delete denial",flush=True)
+    # Exercise the actual native internal completion transaction, not an
+    # ad hoc application table insert or an authenticated public RPC.
+    profile_config={"format":"mp3","purpose":"fictional source-owned private listening proof"}
+    profile_version="signed-test-profile-v1"
+    profile=uid(sql(db,"insert into transcript_core.delivery_profiles("
+             "workspace_id,profile_key,display_name,rule_version,configuration) values("
+             +literal(workspace)+",'fictional-listening','Fictional listening test',"
+             +literal(profile_version)+","+literal(json.dumps(profile_config))+"::jsonb) returning id"))
+    intent={
+        "p_production_id":production,
+        "p_manuscript_revision_id":rev,
+        "p_master_ordinal":1,
+        "p_delivery_profile_id":profile,
+        "p_profile_rule_version":profile_version,
+        "p_profile_configuration":profile_config,
+        "p_timeline_manifest":{"fixture":"actual private byte transfer; synthetic not-audio"},
+        "p_evidence":{
+            "original_object_id":uid(source_obj["id"]),
+            "original_object_version":source_obj["version"],
+            "original_sha256":digest(original),
+            "original_byte_size":len(original),
+            "extracted_sha256":digest(original),
+            "intake_receipt_sha256":digest(b"fictional native intake receipt"),
+            "master_object_id":before[master_path]["id"],
+            "master_object_version":before[master_path]["version"],
+            "master_sha256":digest(master),
+            "master_byte_size":len(master),
+            "mp3_object_id":before[mp3_path]["id"],
+            "mp3_object_version":before[mp3_path]["version"],
+            "mp3_sha256":digest(mp3),
+            "mp3_byte_size":len(mp3),
+            "export_receipt_sha256":digest(b"fictional native export receipt"),
+            "export_id":digest(b"fictional selected export identity"),
+            "publication_approved":False,
+        }
+    }
+    check(sql(db,"select has_function_privilege('authenticated','transcript_core.complete_verified_listening_production_v1(uuid,uuid,integer,uuid,text,jsonb,jsonb,jsonb)','EXECUTE')")=="f",
+          "Native completion must not be a user RPC")
+    # Denials cannot leave canonical objects because each invocation is
+    # transaction-bound and rolls back when the internal function refuses.
+    trusted_signed_local_completion(db,api,key,viewer,intent,expected_denial=True)
+    mismatched=json.loads(json.dumps(intent))
+    mismatched["p_evidence"]["mp3_object_version"]="stale-current-version"
+    trusted_signed_local_completion(db,api,key,owner,mismatched,expected_denial=True)
+    check(sql(db,"select count(*) from transcript_core.delivery_package_artifacts")=="0" and
+          sql(db,"select count(*) from transcript_core.production_masters")=="0" and
+          sql(db,"select count(*) from transcript_core.delivery_packages")=="0",
+          "Rejected completion created an artifact")
+    admitted=trusted_signed_local_completion(db,api,key,owner,intent)
+    check(admitted.get("contractVersion")=="transcript_core_verified_listening_completion_v1"
+          and admitted.get("productionId")==production
+          and admitted.get("manuscriptRevisionId")==rev
+          and admitted.get("publication_approved") is False
+          and admitted.get("binding",{}).get("artifact_sha256")==digest(mp3)
+          and admitted.get("binding",{}).get("publication_approved") is False,
+          "Native private completion returned an incorrect receipt")
+    check(trusted_signed_local_completion(db,api,key,owner,intent)==admitted,
+          "Exact source native completion replay changed its receipt")
+    conflicting=json.loads(json.dumps(intent))
+    conflicting["p_evidence"]["export_receipt_sha256"]=digest(b"conflicting private export")
+    trusted_signed_local_completion(db,api,key,owner,conflicting,expected_denial=True)
+    check(sql(db,"select count(*) from transcript_core.production_masters")=="1" and
+          sql(db,"select count(*) from transcript_core.delivery_packages")=="1" and
+          sql(db,"select count(*) from transcript_core.delivery_package_artifacts")=="1" and
+          sql(db,"select count(*) from transcript_core.assets where provenance_class='generated_render'")=="2",
+          "Native admission did not preserve one master, one package and one bound derivative")
+    print("PASS signed owner internal native fictional completion, replay, stale/foreign denial, no publication",flush=True)
     sql(db,f"update transcript_core.workspace_memberships set role='viewer' where workspace_id='{workspace}' and user_id='{actors['editor'][0]}'")
     denied(get(BUCKET,mp3_path,editor),"same bearer after role revocation")
     denied(upload(BUCKET,render(b'new','mp3'),b'new',editor,"audio/mpeg"),"revoked editor insertion")
@@ -391,11 +503,12 @@ def main():
     denied(upload(BUCKET,render(b'newer','wav'),b'newer',owner,"audio/wav"),"revoked owner insertion")
     check(sql(db,"select has_function_privilege('authenticated','transcript_core.register_verified_manuscript_original_v1(uuid,uuid,text,text,bigint,text)','EXECUTE')")=="f",
           "Internal manuscript registration must remain unexposed")
-    check(sql(db,"select count(*) from transcript_core.delivery_package_artifacts")=="0" and
-          sql(db,"select count(*) from transcript_core.production_masters")=="0" and
-          sql(db,"select count(*) from transcript_core.delivery_packages")=="0" and
-          sql(db,"select count(*) from transcript_core.assets where provenance_class='generated_render'")=="0",
-          "Unverified upload incorrectly admitted canonical production")
-    Path(args.output).write_text("PASS signed local Storage staging and byte readback; independent denials; no admission or publication.\n")
+    trusted_signed_local_completion(db,api,key,owner,intent,expected_denial=True)
+    check(sql(db,"select count(*) from transcript_core.delivery_package_artifacts")=="1" and
+          sql(db,"select count(*) from transcript_core.production_masters")=="1" and
+          sql(db,"select count(*) from transcript_core.delivery_packages")=="1" and
+          sql(db,"select count(*) from transcript_core.assets where provenance_class='generated_render'")=="2",
+          "Revoked or conflicting completion changed native private custody")
+    Path(args.output).write_text("PASS signed local Storage and manuscript-original proof; bounded private native completion, replay and revocation denials; no publication.\n")
 if __name__=="__main__":
     main()
