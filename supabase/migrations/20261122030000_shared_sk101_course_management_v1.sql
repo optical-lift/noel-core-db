@@ -154,6 +154,12 @@ BEGIN
    IF v_old IS NULL THEN RAISE EXCEPTION 'authorized Unit required' USING ERRCODE='42501'; END IF;
   END IF;
   IF v_old=v_title THEN RAISE EXCEPTION 'title must change' USING ERRCODE='22023'; END IF;
+  SELECT * INTO v_rev FROM atlas.teaching_object_title_revisions WHERE course_id=v_course AND request_id=p_request;
+  IF v_rev.revision_id IS NOT NULL THEN
+   IF v_rev.title IS DISTINCT FROM v_title OR v_rev.previous_title IS DISTINCT FROM v_old OR v_rev.object_id IS DISTINCT FROM CASE WHEN p_operation='course_title_save' THEN v_course ELSE p_unit END
+   THEN RAISE EXCEPTION 'replayed title request differs' USING ERRCODE='23505'; END IF;
+   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_rev.revision_id,'revisionNumber',v_rev.revision_number,'title',v_rev.title);
+  END IF;
   INSERT INTO atlas.teaching_object_title_revisions(course_id,object_kind,object_id,unit_id,request_id,
    revision_number,previous_title,title,recorded_by_person_entity_id,recorded_by_auth_user_id)
   VALUES(v_course,CASE WHEN p_operation='course_title_save' THEN 'course' ELSE 'unit' END,
@@ -170,6 +176,11 @@ BEGIN
  IF p_operation IN ('course_material_save','unit_subsection_save','revision_recover') THEN
   v_text:=p_payload->>'text';
   IF v_text IS NULL OR char_length(v_text)>40000 THEN RAISE EXCEPTION 'invalid manuscript request' USING ERRCODE='22023'; END IF;
+  SELECT revision_id,revision_number,body_text INTO v_rev FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course AND edit_request_id=p_request;
+  IF v_rev.revision_id IS NOT NULL THEN
+   IF v_rev.body_text IS DISTINCT FROM v_text OR v_rev.based_on_revision IS DISTINCT FROM p_expected_revision THEN RAISE EXCEPTION 'replayed manuscript request differs' USING ERRCODE='23505'; END IF;
+   RETURN jsonb_build_object('contractVersion','atlas_course_management_write_receipt_v1','operation',p_operation,'courseId',v_course,'requestId',p_request,'revisionNumber',v_rev.revision_number,'textLength',char_length(v_rev.body_text));
+  END IF;
   SELECT coalesce(max(revision_number),0) INTO v_latest FROM atlas.teaching_course_manuscript_revisions WHERE course_id=v_course;
   IF v_latest<>p_expected_revision THEN RAISE EXCEPTION 'stale manuscript revision' USING ERRCODE='40001'; END IF;
   INSERT INTO atlas.teaching_course_manuscript_revisions(course_id,edit_request_id,based_on_revision,revision_number,body_text,recorded_by_person_entity_id,recorded_by_auth_user_id)
