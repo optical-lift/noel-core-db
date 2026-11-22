@@ -2499,6 +2499,94 @@ fi
 
 
 if [ "$signed_private_callback_executor_probe" = true ]; then
+  # Supabase-managed storage.objects policies are intentionally absent from the
+  # production USER-schema-only dump. These eight existing released policies
+  # must be restored from their ORIGINAL immutable Noel SQL SOURCE, into this
+  # disposable local PostgreSQL clone ONLY, before invoking the unchanged
+  # canonical signed Storage/GoTrue fixture. Do not forge permissions or
+  # weaken the signed precondition. Refuse any altered source/shape.
+  phase="restore exact released native Storage policy parity in disposable clone only"
+  listening_generated_source="$repo_root/candidates/shared-listening-delivery-artifact-v1/generated_listening_storage_candidate.sql"
+  listening_original_source="$repo_root/candidates/shared-listening-delivery-artifact-v1/manuscript_original_registration_candidate.sql"
+  if [ "$(git hash-object "$listening_generated_source")" != 106268970a69c33c5a8d30d737e5d98af807ccfa ] ||
+     [ "$(git hash-object "$listening_original_source")" != de89478c094719912a9ac145af28e01186584c32 ]; then
+    echo 'REFUSE noncanonical native Storage policy source on callback clone.' >&2
+    exit 2
+  fi
+  python3 - "$listening_generated_source" "$listening_original_source" \
+    "$artifacts_dir/private-callback-existing-storage-policy-parity.sql" <<'PY_CALLBACK_EXISTING_STORAGE_POLICIES'
+import pathlib
+import re
+import sys
+
+generated, original, output = map(pathlib.Path, sys.argv[1:])
+names = (
+  "transcript_core_listening_render_insert_v1",
+  "transcript_core_listening_render_read_guard_v1",
+  "transcript_core_listening_render_update_guard_v1",
+  "transcript_core_listening_render_delete_guard_v1",
+  "transcript_core_manuscript_original_insert_guard_v1",
+  "transcript_core_manuscript_original_read_guard_v1",
+  "transcript_core_manuscript_original_update_guard_v1",
+  "transcript_core_manuscript_original_delete_guard_v1",
+)
+statements = []
+found = []
+for source in (generated, original):
+    content = source.read_text()
+    matches = list(re.finditer(
+        r"^CREATE POLICY ([a-z][a-z0-9_]*) ON storage[.]objects\s+([\s\S]*?);",
+        content, re.MULTILINE))
+    if len(matches) != 4 or content.count("CREATE POLICY ") != 4:
+        raise SystemExit("REFUSE changed original native Storage policy statement count")
+    for match in matches:
+        found.append(match.group(1))
+        statements.append(match.group(0))
+if tuple(found) != names or len(set(found)) != 8:
+    raise SystemExit("REFUSE altered original native Storage policy identity/order")
+
+escaped_names = ",".join("'" + name + "'" for name in names)
+# The source copy has NO DROP, no broad grant and no synthetic substitute.
+# Production's original eight policies are checked below by exact pg_policies
+# structural fingerprint, not merely by counting their names.
+sql = (
+    "BEGIN;\n"
+    "DO $policy_preflight$\nBEGIN\n"
+    " IF (SELECT count(*) FROM pg_policies WHERE schemaname='storage' "
+    "AND tablename='objects' AND (policyname LIKE "
+    "'transcript_core_listening_render_%_v1' OR policyname LIKE "
+    "'transcript_core_manuscript_original_%_v1')) <> 0 THEN\n"
+    "  RAISE EXCEPTION 'Existing clone Storage policies require reconciliation';\n"
+    " END IF;\n"
+    " IF (SELECT relrowsecurity FROM pg_class WHERE oid='storage.objects'::regclass) "
+    "IS DISTINCT FROM true THEN\n"
+    "  RAISE EXCEPTION 'Storage objects RLS must already be enabled';\n"
+    " END IF;\n"
+    "END $policy_preflight$;\n"
+    + "\n".join(statements) + "\n"
+    "DO $policy_postcondition$\nDECLARE actual text;\nBEGIN\n"
+    " IF (SELECT count(*) FROM pg_policies WHERE schemaname='storage' "
+    "AND tablename='objects' AND policyname IN (" + escaped_names +
+    ")) <> 8 THEN\n"
+    "  RAISE EXCEPTION 'Exact released native Storage policies missing';\n"
+    " END IF;\n"
+    " SELECT md5(string_agg(jsonb_build_object("
+    "'name',policyname,'cmd',cmd,'roles',roles,'permissive',permissive,"
+    "'qual',qual,'with_check',with_check)::text, E'\\n' ORDER BY policyname)) "
+    "INTO actual FROM pg_policies WHERE schemaname='storage' "
+    "AND tablename='objects' AND policyname IN (" + escaped_names + ");\n"
+    " IF actual IS DISTINCT FROM 'd3ba560a91e6c042fc1c8601d6df08c1' THEN\n"
+    "  RAISE EXCEPTION 'Clone Storage policy structure differs from read-only "
+    "production eight-policy fingerprint';\n"
+    " END IF;\n"
+    "END $policy_postcondition$;\n"
+    "COMMIT;\n"
+)
+output.write_text(sql)
+PY_CALLBACK_EXISTING_STORAGE_POLICIES
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$artifacts_dir/private-callback-existing-storage-policy-parity.sql" \
+    >"$artifacts_dir/private-callback-storage-policy-parity.log" 2>&1
   phase="signed local private NOLOGIN callback executor and native Storage proof"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/private-callback-local-reload.log" 2>&1
   (cd "$project_dir"; python3 "$private_callback_signed_proof" --db-url "$database_url" \
