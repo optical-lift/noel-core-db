@@ -63,6 +63,18 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact owner-held SK101 coordinated Course-management candidate.
+          if title == 'Production schema validation request: Shared held SK101 Course management':
+              expected = {'diagnostic_scope':'shared_sk101_course_management_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'b3c4591ec23d13db6b2a92d781f907278c106b22'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held SK101 Course-management validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=20261122030000\\nrelease_lane=shared\\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\\n')
+              raise SystemExit(0)
+
           # Exact held Household package only. This branch is a disposable
           # validation request, NOT a migration identity or release request.
           if title == 'Production schema validation request: Atlas held Household Work':
@@ -479,6 +491,13 @@ jobs:
               echo "fixture_path=$fixture"
               echo "validation_path=$post"
             } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "20261122030000" ]]; then
+            test "$(git hash-object candidate/candidates/shared-sk101-course-management-v1/candidate.sql)" = b3c4591ec23d13db6b2a92d781f907278c106b22
+            src="candidate/candidates/shared-sk101-course-management-v1/candidate.sql"
+            echo "candidate_migration=$src" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
