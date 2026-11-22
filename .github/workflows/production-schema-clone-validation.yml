@@ -1409,6 +1409,37 @@ jobs:
             exit 0
           fi
 
+          # Exact held SK101 Course-management source package. This is a
+          # disposable clone path only: the candidate contains source SQL,
+          # fixture and postconditions, never a production migration file.
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "20261122030000" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = 8b1099adcf9de1c5fa7c0b04a904f90caa25566a
+            src="candidate/candidates/shared-sk101-course-management-v1/candidate.sql"
+            fixture="candidate/validation/fixtures/20261122030000_shared_sk101_course_management_v1.sql"
+            post="candidate/validation/migrations/20261122030000_shared_sk101_course_management_v1.sql"
+            test "$(git hash-object "$src")" = 146caf904994e738200f5d79b981d7fdf3942f87
+            test "$(git hash-object "$fixture")" = 3f05af628dc4df7f8c483947f77c9996aa9655b3
+            test "$(git hash-object "$post")" = a7e5fd416d3ebb490fcfb57827adef58a1749a4f
+            test ! -e "candidate/supabase/migrations/20261122030000_shared_sk101_course_management_v1.sql"
+            scratch="$(mktemp -d "$RUNNER_TEMP/sk101-course-management-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_course_management_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_sk101_course_management_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # One exact non-releasable TEST SOURCE path; never accepted by the
           # production release migration directory or arbitrary candidate.
           if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261028235811" ]]; then
