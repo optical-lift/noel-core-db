@@ -186,6 +186,7 @@ signed_access01_event_choices_probe=false
 signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
 signed_legacy_farm_invite_probe=false
+signed_anna_two_service_roots_probe=false
 signed_pot_up_retirement_probe=false
 signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
@@ -194,6 +195,27 @@ signed_private_course_working_loop_probe=false
 signed_sk101_course_management_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
+# HELD exact TWO Anna/field-weeding service-only queue roots;
+# immutable original candidate, source/caller/ACL guards, real signed local
+# GoTrue owner/worker/outsider/no-seat and full Atlas base row fingerprints.
+# Disposable local PostgreSQL17 ONLY; explicitly no production credentials.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_anna_two_service_roots_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != cb4f5cf649663ca9d18e7e77133fc03cd754685a ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 76667bafa100414423367b109b3ee04ad21bbd12 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 411b0a9ee497969752bde4aa7c39bcbc0654dec1 ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'REFUSE unpinned, privileged or nonlocal held Anna two service roots' >&2
+    exit 2
+  fi
+  signed_anna_two_service_roots_probe=true
+  signed_work_prerequisite_probe=true
+fi
+
 # HELD original pot-up serial THREE-function source; only pinned original
 # package, original genuinely signed C1 actor/proof and full-Atlas row witness.
 # Disposable local PG17 ONLY. Separate owner cutoff does NOT grant live release.
@@ -1606,6 +1628,13 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     >"$artifacts_dir/legacy-farm-member-fixture.log" 2>&1
 fi
 
+if [ "$signed_anna_two_service_roots_probe" = true ]; then
+  phase="held anna-two-service-roots original signed C1 fictional Person/Work fixture"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+    >"$artifacts_dir/anna-two-service-roots-original-c1-fixture.log" 2>&1
+fi
+
 if [ "$signed_pot_up_retirement_probe" = true ]; then
   phase="held pot-up original signed C1 fictional Person/Work fixture"
   psql "$database_url" -X -v ON_ERROR_STOP=1 \
@@ -1676,6 +1705,17 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     --state-file "$runtime_dir/legacy-farm-member-original.json" \
     --receipt "$artifacts_dir/legacy-farm-member-signed-summary.txt" \
     >"$artifacts_dir/legacy-farm-member-before.log" 2>&1
+fi
+
+if [ "$signed_anna_two_service_roots_probe" = true ]; then
+  phase="held anna-two-service-roots all Atlas base rows BEFORE original SQL"
+  [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select current_setting('server_version_num')::int/10000")" = 17
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select count(*) from atlas.work_items")" -gt 0
+  anna_two_roots_snapshot="$runtime_dir/held-anna-two-service-roots-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$anna_two_roots_snapshot" --mode capture \
+    >"$artifacts_dir/anna-two-service-roots-all-atlas-row-baseline.log" 2>&1
 fi
 
 if [ "$signed_pot_up_retirement_probe" = true ]; then
@@ -1823,6 +1863,15 @@ if [ "$signed_sk101_course_management_probe" = true ]; then
     --db-url "$database_url" --output "$artifacts_dir/sk101-management-signed-receipt.txt" \
     >"$artifacts_dir/sk101-management-signed-local.log" 2>&1
   test "$(cat "$artifacts_dir/sk101-management-signed-receipt.txt")" = 'PASS signed SK101 management clone'
+fi
+
+if [ "$signed_anna_two_service_roots_probe" = true ]; then
+  phase="held anna-two-service-roots all Atlas rows AFTER two function-only DROP RESTRICT"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$anna_two_roots_snapshot" --mode verify \
+    >"$artifacts_dir/anna-two-service-roots-all-atlas-row-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/anna-two-service-roots-all-atlas-row-after-candidate.log"
 fi
 
 if [ "$signed_pot_up_retirement_probe" = true ]; then
@@ -2477,6 +2526,12 @@ if [ "$orphan_queue_retirement_proof" = true ]; then
   test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
   printf '\nOrphan backfill TEST ONLY: exact function DROP RESTRICT, all local Atlas base-table rows unchanged immediately around deletion and postconditions; existing signed Work prerequisite regression passed afterwards. Synthetic Work fixture only; no historical Production row data or external caller closure.\n' >> "$artifacts_dir/summary.md"
 fi
+if [ "$signed_anna_two_service_roots_probe" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  test -s "$artifacts_dir/anna-two-service-roots-all-atlas-row-after-candidate.log"
+  printf '\nHELD anna-two-service-roots branch TEST ONLY: exact 2 original DROP FUNCTION RESTRICT, all local Atlas base-relation identities and content unchanged, original genuinely signed GoTrue root/worker/outsider/no-seat prerequisite/revocation/concurrency proof passed. Independent private callers retired only by separate owner decision; no production SQL, release or history deletion.\n' >> "$artifacts_dir/summary.md"
+fi
+
 if [ "$signed_pot_up_retirement_probe" = true ]; then
   test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
   test -s "$artifacts_dir/pot-up-all-atlas-row-after-candidate.log"

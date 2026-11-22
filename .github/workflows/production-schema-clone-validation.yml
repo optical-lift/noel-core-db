@@ -75,6 +75,20 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact owner-held original TWO Anna/field-weeding service roots.
+          # This is only signed disposable current-schema validation, not a
+          # production migration version or a release authorization.
+          if title == 'Production schema validation request: Atlas held Anna two service roots':
+              expected = {'diagnostic_scope':'atlas_historical_anna_two_service_roots_signed_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'abb37a36db19dc407c907217545200b725e69f57'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held Anna two service roots source and caller-cutoff authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-anna-two-service-roots\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # Exact held Household package only. This branch is a disposable
           # validation request, NOT a migration identity or release request.
           if title == 'Production schema validation request: Atlas held Household Work':
@@ -504,6 +518,40 @@ jobs:
             scratch="$(mktemp -d "$RUNNER_TEMP/held-pressure-wash-serial.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_historical_pressure_wash_serial_branch_clone_only_v1)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_historical_pressure_wash_serial_branch_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Exact original HELD Anna two-service-root SOURCE ONLY; not a
+          # generated migration or production-release permission.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-anna-two-service-roots" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = abb37a36db19dc407c907217545200b725e69f57
+            src="candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/candidate.sql"
+            fixture="candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/clone_fixture.sql"
+            post="candidate/candidates/atlas/atlas_historical_anna_two_service_roots_retirement_v1/postconditions.sql"
+            test "$(git hash-object "$src")" = cb4f5cf649663ca9d18e7e77133fc03cd754685a
+            test "$(git hash-object "$fixture")" = 76667bafa100414423367b109b3ee04ad21bbd12
+            test "$(git hash-object "$post")" = 411b0a9ee497969752bde4aa7c39bcbc0654dec1
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test ! -e candidate/supabase/migrations/held-anna-two-service-roots.sql
+            scratch="$(mktemp -d "$RUNNER_TEMP/held-anna-two-service-roots.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_historical_anna_two_service_roots_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_historical_anna_two_service_roots_clone_only_v1.sql')
             test "${#scratch_files[@]}" -eq 1
             candidate_migration="${scratch_files[0]}"
             version="$(basename "$candidate_migration" | cut -d_ -f1)"
