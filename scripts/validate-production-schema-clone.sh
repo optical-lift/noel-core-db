@@ -186,10 +186,31 @@ signed_access01_event_choices_probe=false
 signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
 signed_legacy_farm_invite_probe=false
+signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
 signed_private_course_working_loop_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
+# HELD original pressure-wash branch: exact SQL + authentic C1 signed
+# actor and full-Atlas original-row no-loss test, disposable clone ONLY.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_pressure_wash_serial_branch_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 25e2791bd2da2477015260017eb2e982ec5b083d ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 18b25f7902786e2a1697fb6ac35dbff74328ae69 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 2397e06f23bfdce901400fcbc68c7c6b56900b96 ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'REFUSE unsigned or nonlocal held historical pressure-wash source' >&2
+    exit 2
+  fi
+  signed_pressure_wash_retirement_probe=true
+  signed_work_prerequisite_probe=true
+fi
+
+
 # One immutable legacy farm invitation SQL packet, clone only.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_farm_invitation_retirement_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
@@ -1486,6 +1507,13 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     >"$artifacts_dir/legacy-farm-member-fixture.log" 2>&1
 fi
 
+if [ "$signed_pressure_wash_retirement_probe" = true ]; then
+  phase="held pressure-wash original signed C1 fictional Person/Work fixture"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+    >"$artifacts_dir/pressure-wash-original-c1-fixture.log" 2>&1
+fi
+
 if [ -n "$candidate_fixture" ]; then
   phase="candidate validation fixture application"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_fixture" \
@@ -1542,6 +1570,17 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     --state-file "$runtime_dir/legacy-farm-member-original.json" \
     --receipt "$artifacts_dir/legacy-farm-member-signed-summary.txt" \
     >"$artifacts_dir/legacy-farm-member-before.log" 2>&1
+fi
+
+if [ "$signed_pressure_wash_retirement_probe" = true ]; then
+  phase="held pressure-wash all Atlas base rows BEFORE exact original SQL"
+  [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select current_setting('server_version_num')::int/10000")" = 17
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select count(*) from atlas.work_items")" -gt 0
+  pressure_wash_snapshot="$runtime_dir/held-pressure-wash-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pressure_wash_snapshot" --mode capture \
+    >"$artifacts_dir/pressure-wash-all-atlas-row-baseline.log" 2>&1
 fi
 
 phase="candidate migration application"
@@ -1658,6 +1697,15 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$signed_pressure_wash_retirement_probe" = true ]; then
+  phase="held pressure-wash exact original source all Atlas rows AFTER DROP RESTRICT"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pressure_wash_snapshot" --mode verify \
+    >"$artifacts_dir/pressure-wash-all-atlas-row-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/pressure-wash-all-atlas-row-after-candidate.log"
 fi
 
 if [ "$signed_legacy_farm_invite_probe" = true ]; then
@@ -2282,6 +2330,12 @@ if [ "$orphan_queue_retirement_proof" = true ]; then
   test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
   printf '\nOrphan backfill TEST ONLY: exact function DROP RESTRICT, all local Atlas base-table rows unchanged immediately around deletion and postconditions; existing signed Work prerequisite regression passed afterwards. Synthetic Work fixture only; no historical Production row data or external caller closure.\n' >> "$artifacts_dir/summary.md"
 fi
+if [ "$signed_pressure_wash_retirement_probe" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  test -s "$artifacts_dir/pressure-wash-all-atlas-row-after-candidate.log"
+  printf '\nHELD pressure-wash branch TEST ONLY: exact three original DROP FUNCTION RESTRICT, all local Atlas base relation row identities and content unchanged, genuine local GoTrue root/worker/outsider/no-seat prerequisite/revocation/concurrency proof passed. Does NOT prove absence of external privileged service callers. No live SQL or production release.\n' >> "$artifacts_dir/summary.md"
+fi
+
 phase="complete"
 if [ "$signed_household_original_repair_probe" = true ]; then
   printf '\nSIGNED Household repair test only: genuine independent local sessions, same original Need/Work/allocation, native Person read, physical Actual, member and session revocation. No production write or release.\n' >> "$artifacts_dir/summary.md"
