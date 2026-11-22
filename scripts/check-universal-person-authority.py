@@ -37,6 +37,17 @@ def violations(sql, prior_functions):
         end = matches[index + 1].start() if index + 1 < len(matches) else len(without_comments)
         body = without_comments[match.start():end]
         name = match.group(1).lower()
+        # Do not let a following DO/postcondition or source guard turn an
+        # existing membership-only function into a "new legacy reader".
+        # Standard Postgres SQL/PLpgSQL function bodies are dollar-quoted.
+        # Inspect precisely through the matching closing delimiter. Unknown
+        # syntaxes/unclosed delimiters stay conservatively on the old path.
+        dollar = re.search(r"\bAS\s+(\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$)", body, re.I)
+        if dollar:
+            marker = dollar.group(1)
+            closing = body.find(marker, dollar.end())
+            if closing >= 0:
+                body = body[:closing + len(marker)]
         if LEGACY.search(body):
             if name in RETIRED:
                 found.append(f"Retired Person authority reintroduced: {name}")
