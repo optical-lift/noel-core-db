@@ -31,11 +31,13 @@ def main():
         insert into reality.auth_person_bindings(auth_user_id,person_entity_id,binding_state,binding_basis) values('{user}','{ent}','active','{{"cloneFixture":true}}');
         insert into atlas.people(id,display_name,status) values('{ent}','Synthetic {label}','active');
         insert into atlas.person_auth_credentials(person_id,credential_kind,auth_user_id,status,provenance) values('{ent}','supabase_auth_user','{user}','active','{{"cloneFixture":true}}');""")
-    course=uid(); unit=uid(); unit2=uid(); carrier=uid(); principal=uid(); authz=uid(); cred=uid(); req=uid(); token="A"*43
+    course=uid(); other_course=uid(); unit=uid(); unit2=uid(); wrong_unit=uid(); carrier=uid(); principal=uid(); authz=uid(); cred=uid(); req=uid(); token="A"*43
     sql(f"""insert into atlas.principals(id,user_id,person_id,stable_key,name,status) values('{principal}','{owner}','{entity}','sk101-management','Synthetic owner','active');
     insert into atlas.teaching_courses(id,course_key,name,status,created_by_person_entity_id,created_by_auth_user_id,create_request_id,created_at) values('{course}','synthetic-sk101','Synthetic SK101','active','{entity}','{owner}','{req}',now());
+    insert into atlas.teaching_courses(id,course_key,name,status,created_by_person_entity_id,created_by_auth_user_id,create_request_id,created_at) values('{other_course}','synthetic-sk101-other','Synthetic other Course','active','{entity}','{owner}',gen_random_uuid(),now());
     insert into atlas.teaching_course_units(unit_id,course_id,create_request_id,kind,title,display_position,created_by_person_entity_id,created_by_auth_user_id,created_at) values('{unit}','{course}',gen_random_uuid(),'lesson','Class 1',1024,'{entity}','{owner}',now());
     insert into atlas.teaching_course_units(unit_id,course_id,create_request_id,kind,title,display_position,created_by_person_entity_id,created_by_auth_user_id,created_at) values('{unit2}','{course}',gen_random_uuid(),'lesson','Class 2',2048,'{entity}','{owner}',now());
+    insert into atlas.teaching_course_units(unit_id,course_id,create_request_id,kind,title,display_position,created_by_person_entity_id,created_by_auth_user_id,created_at) values('{wrong_unit}','{other_course}',gen_random_uuid(),'lesson','Wrong Course Unit',1,'{entity}','{owner}',now());
     insert into atlas.delegated_agent_carriers(id,stable_key,display_name,carrier_kind,provider_key,status,metadata) values('{carrier}','chatgpt_atlas_private','Synthetic carrier','ai_agent','openai','active',jsonb_build_object('pluginId','plugin_asdk_app_sites_4c5c75d7fb808191a0f80e42ba2ce6e1','ownerPrincipalId','{principal}'));
     insert into atlas.delegated_agent_authorizations(id,carrier_id,principal_id,authorization_state,max_execution_class,allowed_command_keys,denied_command_keys,scope,confirmation_policy,purpose,basis,begins_at,ends_at,created_by_user_id) values('{authz}','{carrier}','{principal}','active','commit',array['teaching.course.management.read','teaching.course.management.write'],array[]::text[],jsonb_build_object('targetKinds',jsonb_build_array('teaching_course'),'targetIds',jsonb_build_array('{course}')),jsonb_build_object('forceAllCommits',false),'Synthetic management grant','{{"establishedBy":"cloneFixture","userId":"{owner}"}}',now(),null,'{owner}');
     insert into atlas.delegated_agent_credentials(id,authorization_id,token_hash,credential_state,begins_at,expires_at,metadata) values('{cred}','{authz}',lower(encode(digest('{token}','sha256'),'hex')),'active',now(),null,'{{"privateCarrierCredentialV1":"true"}}');""")
@@ -73,6 +75,97 @@ def main():
     check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit})["title"]==concurrent_title,"title readback")
     check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit2})["title"]==other_before,"unrelated Unit unchanged")
     rpc("shared_delegated_course_management_write_service_v1",write,"outsider",403,"person")
+    # Course manuscript: replay, conflict, stale, concurrent write, and independent readback.
+    m0=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"course_material_read"})
+    check(m0.get("material") is None,"empty manuscript read")
+    material_request=uid(); material_payload={"text":"Manuscript alpha"}
+    material_write={"p_token_hash":h,"p_course":course,"p_operation":"course_material_save","p_unit":None,"p_request":material_request,"p_expected_revision":0,"p_payload":material_payload}
+    material_receipt=rpc("shared_delegated_course_management_write_service_v1",material_write)
+    check(rpc("shared_delegated_course_management_write_service_v1",material_write)==material_receipt,"manuscript replay")
+    rpc("shared_delegated_course_management_write_service_v1",{**material_write,"p_payload":{"text":"Conflicting manuscript"}},"owner",409,"service")
+    stale_material={**material_write,"p_request":uid(),"p_payload":{"text":"Stale manuscript"}}
+    check(rpc("shared_delegated_course_management_write_service_v1",stale_material,"owner",500,"service").get("code")=="40001","stale manuscript SQLSTATE")
+    def concurrent_material(text):
+        p={**material_write,"p_request":uid(),"p_expected_revision":1,"p_payload":{"text":text}}
+        return auth.rpc(api,key,"shared_delegated_course_management_write_service_v1",p,key)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        material_results=list(pool.map(concurrent_material,["Manuscript concurrent A","Manuscript concurrent B"]))
+    material_success=[v for status,v in material_results if status==200]
+    material_conflicts=[v for status,v in material_results if status==500]
+    check(len(material_success)==1 and len(material_conflicts)==1 and material_conflicts[0].get("code")=="40001","manuscript concurrency")
+    material_read=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"course_material_read"})
+    check(material_read["material"]["text"]==material_success[0]["text"] if "text" in material_success[0] else material_read["material"]["text"] in ("Manuscript concurrent A","Manuscript concurrent B"),"manuscript readback")
+    rpc("shared_delegated_course_management_write_service_v1",material_write,"outsider",403,"person")
+
+    # Composition: the existing validator must resolve both members to this Course.
+    members=[{"unitId":unit2,"classUnitId":unit,"depth":"foundational"}]
+    composition_request=uid(); composition_write={"p_token_hash":h,"p_course":course,"p_operation":"composition_save","p_unit":None,"p_request":composition_request,"p_expected_revision":0,"p_payload":{"members":members}}
+    composition_receipt=rpc("shared_delegated_course_management_write_service_v1",composition_write)
+    check(rpc("shared_delegated_course_management_write_service_v1",composition_write)==composition_receipt,"composition replay")
+    rpc("shared_delegated_course_management_write_service_v1",{**composition_write,"p_payload":{"members":[]}},"owner",409,"service")
+    composition_stale={**composition_write,"p_request":uid(),"p_payload":{"members":members}}
+    check(rpc("shared_delegated_course_management_write_service_v1",composition_stale,"owner",500,"service").get("code")=="40001","stale composition SQLSTATE")
+    composition_read=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"composition_read"})
+    check(composition_read["members"]==members and composition_read["revisionNumber"]==1,"composition readback")
+    rpc("shared_delegated_course_management_write_service_v1",composition_write,"outsider",403,"person")
+
+    # Unit ordering: ranks are normalized, replay is receipt-stable, and races are serialized.
+    outline0=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_outline_read"})
+    order_request=uid(); order_write={"p_token_hash":h,"p_course":course,"p_operation":"unit_move","p_unit":unit2,"p_request":order_request,"p_expected_revision":0,"p_payload":{"position":1}}
+    order_receipt=rpc("shared_delegated_course_management_write_service_v1",order_write)
+    check(rpc("shared_delegated_course_management_write_service_v1",order_write)==order_receipt,"ordering replay")
+    rpc("shared_delegated_course_management_write_service_v1",{**order_write,"p_payload":{"position":2}},"owner",409,"service")
+    stale_order={**order_write,"p_request":uid(),"p_payload":{"position":2}}
+    check(rpc("shared_delegated_course_management_write_service_v1",stale_order,"owner",500,"service").get("code")=="40001","stale ordering SQLSTATE")
+    def concurrent_order(unit_id,position):
+        p={**order_write,"p_unit":unit_id,"p_request":uid(),"p_expected_revision":1,"p_payload":{"position":position}}
+        return auth.rpc(api,key,"shared_delegated_course_management_write_service_v1",p,key)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        order_results=list(pool.map(lambda args: concurrent_order(*args),[(unit,2),(unit2,1)]))
+    order_success=[v for status,v in order_results if status==200]
+    order_conflicts=[v for status,v in order_results if status==500]
+    check(len(order_success)==1 and len(order_conflicts)==1 and order_conflicts[0].get("code")=="40001","ordering concurrency")
+    outline=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_outline_read"})
+    positions=[x["position"] for x in outline["units"]]
+    check(sorted(positions)==[1,2] and len(set(positions))==2,"ordering independent readback")
+    rpc("shared_delegated_course_management_write_service_v1",order_write,"outsider",403,"person")
+
+    # Subsection editing must carry the current text and preserve untouched surroundings.
+    full_text="Keep prefix :: old middle :: keep suffix"
+    subsection_request=uid(); subsection_write={"p_token_hash":h,"p_course":course,"p_operation":"unit_subsection_save","p_unit":unit2,"p_request":subsection_request,"p_expected_revision":0,"p_payload":{"baseText":"","selectionStart":0,"selectionEnd":0,"replacement":full_text}}
+    subsection_receipt=rpc("shared_delegated_course_management_write_service_v1",subsection_write)
+    check(rpc("shared_delegated_course_management_write_service_v1",subsection_write)==subsection_receipt,"subsection replay")
+    rpc("shared_delegated_course_management_write_service_v1",{**subsection_write,"p_payload":{"baseText":"","selectionStart":0,"selectionEnd":0,"replacement":"different"}},"owner",409,"service")
+    start=full_text.index("old middle"); end=start+len("old middle")
+    edit_request=uid(); edit_write={"p_token_hash":h,"p_course":course,"p_operation":"unit_subsection_save","p_unit":unit2,"p_request":edit_request,"p_expected_revision":1,"p_payload":{"baseText":full_text,"selectionStart":start,"selectionEnd":end,"replacement":"new middle"}}
+    edit_receipt=rpc("shared_delegated_course_management_write_service_v1",edit_write)
+    edit_read=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"revision_history_read","p_unit":unit2})
+    check(edit_read["revisions"][-1]["text"]=="Keep prefix :: new middle :: keep suffix","subsection preserves unrelated text")
+    rpc("shared_delegated_course_management_write_service_v1",{**edit_write,"p_expected_revision":0,"p_request":uid()},"owner",500,"service")
+    wrong_subsection={**subsection_write,"p_unit":wrong_unit,"p_request":uid()}
+    rpc("shared_delegated_course_management_write_service_v1",wrong_subsection,"owner",403,"service")
+    def concurrent_subsection(replacement):
+        p={**edit_write,"p_request":uid(),"p_expected_revision":2,"p_payload":{"baseText":"Keep prefix :: new middle :: keep suffix","selectionStart":15,"selectionEnd":25,"replacement":replacement}}
+        return auth.rpc(api,key,"shared_delegated_course_management_write_service_v1",p,key)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        subsection_results=list(pool.map(concurrent_subsection,["winner A","winner B"]))
+    subsection_success=[v for status,v in subsection_results if status==200]
+    subsection_conflicts=[v for status,v in subsection_results if status==500]
+    check(len(subsection_success)==1 and len(subsection_conflicts)==1 and subsection_conflicts[0].get("code")=="40001","subsection concurrency")
+    final_history=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"revision_history_read","p_unit":unit2})
+    check(len(final_history["revisions"])==3,"subsection history")
+    base_revision=final_history["revisions"][0]["revisionId"]; compare_revision=final_history["revisions"][1]["revisionId"]
+    comparison=rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"revision_compare","p_unit":unit2,"p_revision":base_revision,"p_reference":compare_revision})
+    check(comparison["baseRevision"]["text"]==full_text and comparison["compareRevision"]["text"]=="Keep prefix :: new middle :: keep suffix" and comparison["same"] is False,"actual revision comparison")
+    recovery_request=uid(); recovery_write={"p_token_hash":h,"p_course":course,"p_operation":"revision_recover","p_unit":unit2,"p_request":recovery_request,"p_expected_revision":3,"p_payload":{"revisionId":base_revision}}
+    recovery_receipt=rpc("shared_delegated_course_management_write_service_v1",recovery_write)
+    check(recovery_receipt["sourceRevisionId"]==base_revision and rpc("shared_delegated_course_management_write_service_v1",recovery_write)==recovery_receipt,"historical recovery replay")
+    rpc("shared_delegated_course_management_write_service_v1",{**recovery_write,"p_payload":{"revisionId":compare_revision}},"owner",409,"service")
+    wrong_recovery={**recovery_write,"p_unit":wrong_unit,"p_request":uid(),"p_expected_revision":4}
+    rpc("shared_delegated_course_management_write_service_v1",wrong_recovery,"owner",403,"service")
+    check(rpc("shared_delegated_course_management_write_service_v1",{**recovery_write,"p_request":uid(),"p_expected_revision":3},"owner",500,"service").get("code")=="40001","stale recovery SQLSTATE")
+    rpc("shared_delegated_course_management_write_service_v1",recovery_write,"outsider",403,"person")
+    rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"course_material_read"},"outsider",403,"person")
     sql(f"update atlas.delegated_agent_authorizations set authorization_state='revoked' where id='{authz}'")
     rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit},"owner",403,"service")
     check(sql(f"select count(*) from atlas.teaching_course_versions where course_id='{course}'")=="0","unpublished")
