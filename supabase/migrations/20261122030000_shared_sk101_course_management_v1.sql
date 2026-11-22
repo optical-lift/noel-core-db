@@ -123,7 +123,7 @@ CREATE OR REPLACE FUNCTION public.shared_delegated_course_management_write_servi
  p_token_hash text,p_course uuid,p_operation text,p_unit uuid,p_request uuid,
  p_expected_revision integer,p_payload jsonb
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog'
-AS $
+AS $$
 DECLARE v_course uuid; v_auth uuid; v_person uuid; v_user uuid; v_title text; v_old text;
  v_latest integer; v_rev atlas.teaching_object_title_revisions%ROWTYPE; v_prior_manuscript atlas.teaching_course_manuscript_revisions%ROWTYPE;
  v_text text; v_members jsonb; v_current integer; v_unit atlas.teaching_course_units%ROWTYPE;
@@ -210,7 +210,7 @@ BEGIN
    'courseId',v_course,'unitId',p_unit,'requestId',p_request,'position',(p_payload->>'position')::integer);
  END IF;
  RAISE EXCEPTION 'management write operation not admitted' USING ERRCODE='22023';
-END $;
+END $$;
 REVOKE ALL ON FUNCTION public.shared_delegated_course_management_write_service_v1(text,uuid,text,uuid,uuid,integer,jsonb)
  FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.shared_delegated_course_management_write_service_v1(text,uuid,text,uuid,uuid,integer,jsonb)
