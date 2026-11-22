@@ -665,7 +665,7 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "20261122030000" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "8477b45e2c091297ef9585ee84ca1ca7940d4650"
+            test "$(git -C candidate rev-parse HEAD)" = "90d02ba9760b6ed8cdcf156755189efec9105dab"
             src="candidate/candidates/shared-sk101-course-management-v1/candidate.sql"
             fixture="candidate/validation/fixtures/20261122030000_shared_sk101_course_management_v1.sql"
             post="candidate/validation/migrations/20261122030000_shared_sk101_course_management_v1.sql"
