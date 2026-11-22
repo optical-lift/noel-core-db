@@ -1176,7 +1176,7 @@ normalized = re.sub(r'\s+', ' ', text).strip()
 # ON CONFLICT ... DO NOTHING is data-only idempotent setup; remove only
 # that exact clause before the procedural-keyword scan. Standalone DO blocks
 # and every other procedural or privilege statement remain forbidden.
-scan_text = re.sub(r'\bon\s+conflict\s*\\([^;]*?\\)\s+do\s+nothing\\b', ' ', normalized, flags=re.I)
+scan_text = re.sub(r'\bon\s+conflict\s*\([^;]*?\)\s+do\s+nothing\b', ' ', normalized, flags=re.I)
 forbidden = re.compile(
     r'\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|reindex|cluster|refresh|copy|do|call|execute|prepare|deallocate|listen|notify|security)\b',
     re.I,
