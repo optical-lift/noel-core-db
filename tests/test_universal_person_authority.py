@@ -63,9 +63,9 @@ DO $guard$ BEGIN PERFORM 1; END $guard$;"""
 
     def test_new_legacy_reader_inside_untagged_body_still_fails(self):
         src = """CREATE OR REPLACE FUNCTION atlas.unsafe_untagged_reader()
-RETURNS int LANGUAGE sql AS $
+RETURNS int LANGUAGE sql AS $$
 SELECT count(*)::int FROM atlas.organization_memberships;
-$;"""
+$$;"""
         self.assertTrue(module.violations(src, set()))
 
     def test_sequential_functions_are_independently_adjudicated(self):
