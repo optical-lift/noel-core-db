@@ -196,7 +196,7 @@ obsolete_unfinished_retirement_proof=false
 # HELD original pot-up serial THREE-function source; only pinned original
 # package, original genuinely signed C1 actor/proof and full-Atlas row witness.
 # Disposable local PG17 ONLY. Separate owner cutoff does NOT grant live release.
-if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_pot_up_serial_branch_clone_only_v1[.]sql$ ]]; then
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_pot_up_serial_branch_clone_only_v1[.]sql$ ]] || [ "$(basename "$candidate_migration")" = "20261122162537_atlas_historical_pot_up_serial_branch_retirement_v1.sql" ]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != eb06b31b273f010549e4a39678f2c6a44b39ba13 ] ||
      [ "$(git hash-object "$candidate_fixture")" != 4d22ffe6cf1c59e2c11d89dc717f399032b18f59 ] ||
