@@ -387,12 +387,14 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listen
   listening_proof="$listening_dir/verify_generated_listening_storage_signed.py"
   listening_completion="$listening_dir/generated_production_completion_candidate.sql"
   listening_staging="$listening_dir/generated_listening_storage_candidate.sql"
+  listening_original="$listening_dir/manuscript_original_registration_candidate.sql"
   if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -n "$candidate_validation" ] ||
      [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
-     [ "$(git hash-object "$listening_completion")" != f6bee2ef5e1fa8cef5995267bceeea1a0803ae9e ] ||
-     [ "$(git hash-object "$listening_staging")" != 68abed463591181b5ec60c9a9eaedd3680f49721 ] ||
-     [ "$(git hash-object "$listening_proof")" != 98ca3f9f8bdfe81461b03172e1fb7bc2962e5c7f ] ||
-     ! cmp -s "$candidate_migration" <(cat "$listening_completion" "$listening_staging"); then
+     [ "$(git hash-object "$listening_completion")" != 1c7b398136b399983b1acdb2712b70958761d768 ] ||
+     [ "$(git hash-object "$listening_staging")" != 106268970a69c33c5a8d30d737e5d98af807ccfa ] ||
+     [ "$(git hash-object "$listening_original")" != de89478c094719912a9ac145af28e01186584c32 ] ||
+     [ "$(git hash-object "$listening_proof")" != 5edc7bbebbdbaa4ba00e1415fcf58b6102fafa7c ] ||
+     ! cmp -s "$candidate_migration" <(cat "$listening_completion" "$listening_original" "$listening_staging"); then
     echo 'Refuse without exact held generated listening SQL and signed proof.' >&2; exit 2
   fi
   signed_generated_listening_storage_probe=true

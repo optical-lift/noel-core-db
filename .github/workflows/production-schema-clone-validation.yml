@@ -157,7 +157,7 @@ jobs:
           if title == 'Production schema validation request: Shared held generated listening storage':
               expected = {'diagnostic_scope':'shared_generated_listening_storage_signed_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'5ce7e1ad47e899b17b415cea4b5216ea68cd8d19'}
+                          'candidate_sha':'3927e5498298fd79aa47902b073c6b70b7a30cf0'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held generated listening validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -676,13 +676,15 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-generated-listening-storage" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "5ce7e1ad47e899b17b415cea4b5216ea68cd8d19"
+            test "$(git -C candidate rev-parse HEAD)" = "3927e5498298fd79aa47902b073c6b70b7a30cf0"
             completion="candidate/candidates/shared-listening-delivery-artifact-v1/generated_production_completion_candidate.sql"
             staging="candidate/candidates/shared-listening-delivery-artifact-v1/generated_listening_storage_candidate.sql"
+            original="candidate/candidates/shared-listening-delivery-artifact-v1/manuscript_original_registration_candidate.sql"
             proof="candidate/candidates/shared-listening-delivery-artifact-v1/verify_generated_listening_storage_signed.py"
-            test "$(git hash-object "$completion")" = f6bee2ef5e1fa8cef5995267bceeea1a0803ae9e
-            test "$(git hash-object "$staging")" = 68abed463591181b5ec60c9a9eaedd3680f49721
-            test "$(git hash-object "$proof")" = 98ca3f9f8bdfe81461b03172e1fb7bc2962e5c7f
+            test "$(git hash-object "$completion")" = 1c7b398136b399983b1acdb2712b70958761d768
+            test "$(git hash-object "$staging")" = 106268970a69c33c5a8d30d737e5d98af807ccfa
+            test "$(git hash-object "$original")" = de89478c094719912a9ac145af28e01186584c32
+            test "$(git hash-object "$proof")" = 5edc7bbebbdbaa4ba00e1415fcf58b6102fafa7c
             python3 -m py_compile "$proof"
             scratch="$(mktemp -d "$RUNNER_TEMP/generated-listening-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new shared_generated_listening_storage_signed_clone_only_v1)
@@ -691,11 +693,11 @@ jobs:
             candidate_migration="${scratch_files[0]}"
             version="$(basename "$candidate_migration" | cut -d_ -f1)"
             [[ "$version" =~ ^[0-9]{14}$ ]]
-            cat "$completion" "$staging" > "$candidate_migration"
+            cat "$completion" "$original" "$staging" > "$candidate_migration"
             bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
             held_dir="candidates/shared-listening-delivery-artifact-v1"
             mkdir -p "$held_dir"
-            cp "$completion" "$staging" "$proof" "$held_dir/"
+            cp "$completion" "$original" "$staging" "$proof" "$held_dir/"
             sha256sum "$candidate_migration" "$proof"
             {
               echo "path=$candidate_migration"
