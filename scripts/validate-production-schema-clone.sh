@@ -491,10 +491,12 @@ for required in (
 ):
     if required not in shell:
         raise SystemExit("SK101 source-contract missing: " + required)
-fixture = shell.rindex('phase="candidate validation fixture application"')
-application = shell.rindex('phase="candidate migration application"')
-postconditions = shell.rindex('phase="candidate migration postconditions"')
-probe = shell.rindex('phase="independent signed SK101 Course-management matrix"')
+def marker(name):
+    return "phase=" + chr(34) + name + chr(34)
+fixture = shell.rindex(marker("candidate validation fixture application"))
+application = shell.rindex(marker("candidate migration application"))
+postconditions = shell.rindex(marker("candidate migration postconditions"))
+probe = shell.rindex(marker("independent signed SK101 Course-management matrix"))
 if not (fixture < application < postconditions < probe):
     raise SystemExit("SK101 setup ordering must be fixture -> migration -> postconditions -> signed probe")
 if 'email=f"atlas-c1-sk101-management-{label}@example.invalid"' not in harness:
