@@ -68,6 +68,7 @@ jobs:
               expected = {'diagnostic_scope':'shared_sk101_course_management_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
                           'candidate_sha':'90d02ba9760b6ed8cdcf156755189efec9105dab'}
+              print(f"SK101 admission fields={fields!r} expected={expected!r} actor={os.environ.get('REQUEST_ACTOR')!r} owner={os.environ.get('REPO_OWNER')!r}")
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held SK101 Course-management validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
