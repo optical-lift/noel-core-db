@@ -145,7 +145,7 @@ BEGIN
  AND a.workspace_id=v_workspace AND mr.content_hash=p_evidence->>'extracted_sha256'
  AND a.content_hash=p_evidence->>'original_sha256'
  AND a.byte_size=(p_evidence->>'original_byte_size')::bigint
- AND a.provenance_class='script_source' AND a.storage_bucket='transcript-core-script-sources'
+ AND a.provenance_class='manuscript_source' AND a.storage_bucket='transcript-core-script-sources'
  FOR SHARE OF ps,mr,md,a;
  IF NOT FOUND THEN RAISE EXCEPTION 'exact native manuscript revision required' USING ERRCODE='23514'; END IF;
  PERFORM 1 FROM transcript_core.delivery_profiles p WHERE p.id=p_delivery_profile_id AND p.workspace_id=v_workspace

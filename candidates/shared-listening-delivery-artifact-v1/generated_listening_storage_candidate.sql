@@ -29,7 +29,7 @@ BEGIN
  AND s.id=v_session AND (s.not_after IS NULL OR s.not_after>statement_timestamp())
  AND m.workspace_id=w AND m.role IN ('owner','editor') AND pr.id=p AND pr.status<>'archived'
  AND ps.script_revision_id IS NULL AND md.workspace_id=w
- AND a.workspace_id=w AND a.provenance_class='script_source' AND a.storage_bucket='transcript-core-script-sources'
+ AND a.workspace_id=w AND a.provenance_class='manuscript_source' AND a.storage_bucket='transcript-core-script-sources'
  AND EXISTS(SELECT 1 FROM storage.buckets b WHERE b.id=p_bucket AND b.public IS FALSE)
  );
 END $fn$;

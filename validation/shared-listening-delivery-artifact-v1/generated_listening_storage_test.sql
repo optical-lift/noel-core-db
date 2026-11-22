@@ -10,7 +10,7 @@ INSERT INTO transcript_core.workspace_memberships VALUES(pg_temp.u(21),pg_temp.u
  (pg_temp.u(21),pg_temp.u(2),'viewer'),(pg_temp.u(22),pg_temp.u(3),'owner');
 INSERT INTO storage.buckets VALUES('transcript-core-script-sources',false),('transcript-core-generated-renders',false);
 INSERT INTO transcript_core.assets(id,workspace_id,provenance_class,storage_bucket,storage_path,content_hash,mime_type,byte_size)
- VALUES(pg_temp.u(41),pg_temp.u(21),'script_source','transcript-core-script-sources',pg_temp.u(21)::text||'/original.txt',repeat('a',64),'text/plain',20);
+ VALUES(pg_temp.u(41),pg_temp.u(21),'manuscript_source','transcript-core-script-sources',pg_temp.u(21)::text||'/original.txt',repeat('a',64),'text/plain',20);
 INSERT INTO transcript_core.manuscript_documents VALUES(pg_temp.u(51),pg_temp.u(21));
 INSERT INTO transcript_core.manuscript_revisions VALUES(pg_temp.u(52),pg_temp.u(51),pg_temp.u(41),repeat('b',64));
 INSERT INTO transcript_core.productions(id,workspace_id) VALUES(pg_temp.u(61),pg_temp.u(21)),(pg_temp.u(62),pg_temp.u(21));
