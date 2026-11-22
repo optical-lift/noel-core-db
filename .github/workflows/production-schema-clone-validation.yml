@@ -625,7 +625,7 @@ jobs:
             test "$(git hash-object "$src")" = 72ad12b66c6fd60b3689aae58289a0eacfa1b107
             test "$(git hash-object "$fixture")" = 3f05af628dc4df7f8c483947f77c9996aa9655b3
             test "$(git hash-object "$post")" = a7e5fd416d3ebb490fcfb57827adef58a1749a4f
-            test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 6403cfb114295346123798f525863ffc818df0f7
+            test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 2653e1e06fdff03611e4fa1bfd280d36601b4141
             scratch="$(mktemp -d "$RUNNER_TEMP/sk101-course-management.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_course_management_clone_only_v1)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_sk101_course_management_clone_only_v1.sql')
