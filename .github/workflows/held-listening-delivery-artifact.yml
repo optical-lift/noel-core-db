@@ -46,6 +46,9 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/postconditions.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/test.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/canonical_native_private_listening_postconditions_v1.sql
+          # Reuse canonical source helper from this same held package;
+          # static import/compile only, not a credential-bearing signed test.
+          python3 -m py_compile candidates/shared-listening-delivery-artifact-v1/verify_private_mp3_profile_signed.py
           # The same isolated PG17 container proves the incremental fixed
           # private MP3 delivery profile; no extra validation system.
           psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/private_mp3_profile_fixture.sql
