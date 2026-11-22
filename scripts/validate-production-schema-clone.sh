@@ -532,8 +532,8 @@ fi
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_sk101_course_management_clone_only_v1[.]sql$ ]] &&
    [ -f "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql" ]; then
   if [ "$lane" != shared ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 2b89bcaad9f5d0780bab3bc2d29676a2a7080eb0 ] ||
-     [ "$(git hash-object "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql")" != 2b89bcaad9f5d0780bab3bc2d29676a2a7080eb0 ] ||
+     [ "$(git hash-object "$candidate_migration")" != b1ed7da77218706cfa1aadc483e46a322f906346 ] ||
+     [ "$(git hash-object "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql")" != b1ed7da77218706cfa1aadc483e46a322f906346 ] ||
      [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
      [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 19db2b16772539a884437801758a15ee6a16db00 ] ||
@@ -549,7 +549,7 @@ for required in (
     'signed_sk101_course_management_probe=false',
     'signed_sk101_course_management_probe=true',
     'shared-sk101-course-management-v1/candidate.sql',
-    '2b89bcaad9f5d0780bab3bc2d29676a2a7080eb0',
+    'b1ed7da77218706cfa1aadc483e46a322f906346',
     '3f05af628dc4df7f8c483947f77c9996aa9655b3',
     'a7e5fd416d3ebb490fcfb57827adef58a1749a4f',
     '19db2b16772539a884437801758a15ee6a16db00',
