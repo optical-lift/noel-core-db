@@ -168,12 +168,14 @@ jobs:
               raise SystemExit(0)
 
 
-          # One exact held private callback executor. The NOLOGIN/2-wrapper
-          # role source is executed only on the disposable protected clone.
+          # Corrected immutable private callback: full-clone permission proof
+          # showed broad native schema access. New source puts exactly two
+          # approved wrappers in a dedicated private callback schema.
+          # The NOLOGIN role SQL runs on disposable protected clone only.
           if title == 'Production schema validation request: Shared held private callback executor':
               expected = {'diagnostic_scope':'shared_native_private_callback_executor_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'92219b0226f5a9631f5c0f5a3162a41aeec3ef8e'}
+                          'candidate_sha':'9d56607c586458b99b3e6e9c9912802f17c63b2e'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held private callback executor clone authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -903,13 +905,13 @@ jobs:
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-callback-executor" ]]; then
             # Immutable source-only held candidate from draft Noel PR #3274.
-            test "$(git -C candidate rev-parse HEAD)" = "92219b0226f5a9631f5c0f5a3162a41aeec3ef8e"
+            test "$(git -C candidate rev-parse HEAD)" = "9d56607c586458b99b3e6e9c9912802f17c63b2e"
             src="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_executor_candidate.sql"
             post="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_executor_postconditions.sql"
             signed="candidate/candidates/shared-listening-delivery-artifact-v1/verify_private_callback_executor_signed.py"
-            test "$(git hash-object "$src")" = 38d5f2ed496af4bd3b09d5b2b046687c433a1db3
-            test "$(git hash-object "$post")" = a821cef18c61a0988dc13d7d51df2e818440af91
-            test "$(git hash-object "$signed")" = f71007525b72c9d8b00922382024357b091596a5
+            test "$(git hash-object "$src")" = b5aa4105e9816d194f740ac365113263f67d8086
+            test "$(git hash-object "$post")" = a749d7ef221ad82fd19a76e1f565612037c997fb
+            test "$(git hash-object "$signed")" = e769aba500e26c0e34ee816f17df809d80e40986
             # Original trusted signed probe from canonical MAIN, unmodified.
             test "$(git hash-object candidates/shared-listening-delivery-artifact-v1/verify_generated_listening_storage_signed.py)" = e7d3f38887ea1419940bf371f1dbb8aea7b16455
             python3 -m py_compile "$signed"
