@@ -67,7 +67,7 @@ jobs:
           if title == 'Production schema validation request: Shared held SK101 Course management':
               expected = {'diagnostic_scope':'shared_sk101_course_management_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'06526381ec285792154fc7acfdd4776ee32fdada'}
+                          'candidate_sha':'8b1099adcf9de1c5fa7c0b04a904f90caa25566a'}
               print(f"SK101 admission fields={fields!r} expected={expected!r} actor={os.environ.get('REQUEST_ACTOR')!r} owner={os.environ.get('REPO_OWNER')!r}")
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held SK101 Course-management validation authorization required')
