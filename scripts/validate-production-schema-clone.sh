@@ -465,10 +465,11 @@ fi
 
 # Exact owner-held SK101 management proof, disposable clone only. The
 # protected resolver and this local guard must agree on every immutable input.
-if [[ "$(basename "$candidate_migration")" == "candidate.sql" ]] &&
-   [[ "$candidate_migration" == *"shared-sk101-course-management-v1/candidate.sql" ]]; then
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_sk101_course_management_clone_only_v1[.]sql$ ]] &&
+   [ -f "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql" ]; then
   if [ "$lane" != shared ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != b3c4591ec23d13db6b2a92d781f907278c106b22 ] ||
+     [ "$(git hash-object "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql")" != b3c4591ec23d13db6b2a92d781f907278c106b22 ] ||
      [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
      [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 3fdbf090c4b85c7bd44ee6d923b07480b7965eb3 ] ||
