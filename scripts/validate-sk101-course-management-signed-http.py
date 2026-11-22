@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Signed disposable PostgreSQL proof for the pinned SK101 management candidate."""
 import argparse, importlib.util, os, re, subprocess, sys, uuid
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 spec=importlib.util.spec_from_file_location("local_auth",Path(__file__).with_name("validate-atlas-c1-signed-http.py"))
 auth=importlib.util.module_from_spec(spec); spec.loader.exec_module(auth)
@@ -58,7 +59,18 @@ def main():
     receipt=rpc("shared_delegated_course_management_write_service_v1",write); replay=rpc("shared_delegated_course_management_write_service_v1",write); check(replay==receipt,"title replay")
     changed={**write,"p_payload":{"expectedTitle":"Class 1","title":"Changed replay"}}; rpc("shared_delegated_course_management_write_service_v1",changed,"owner",409,"service")
     stale={**write,"p_request":uid(),"p_payload":{"expectedTitle":"Class 1","title":"Stale title attempt"}}; stale_value=rpc("shared_delegated_course_management_write_service_v1",stale,"owner",500,"service"); check(stale_value.get("code")=="40001","stale title SQLSTATE")
-    check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit})["title"]=="Class 01 — Reality Is Readable","title readback")
+    def concurrent_attempt(new_title):
+        attempt={**write,"p_request":uid(),"p_expected_revision":1,"p_payload":{"expectedTitle":"Class 01 — Reality Is Readable","title":new_title}}
+        return auth.rpc(api,key,"shared_delegated_course_management_write_service_v1",attempt,key)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        concurrent_results=list(pool.map(concurrent_attempt,["Concurrent title A","Concurrent title B"]))
+    concurrent_successes=[value for status,value in concurrent_results if status==200]
+    concurrent_conflicts=[value for status,value in concurrent_results if status==500]
+    check(len(concurrent_successes)==1 and len(concurrent_conflicts)==1,"concurrent title race outcome")
+    check(concurrent_conflicts[0].get("code")=="40001","concurrent stale SQLSTATE")
+    concurrent_title=concurrent_successes[0]["title"]
+    check(concurrent_title in ("Concurrent title A","Concurrent title B"),"concurrent winning title")
+    check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit})["title"]==concurrent_title,"title readback")
     check(rpc("shared_delegated_course_management_read_service_v1",{"p_token_hash":h,"p_course":course,"p_operation":"unit_title_read","p_unit":unit2})["title"]==other_before,"unrelated Unit unchanged")
     rpc("shared_delegated_course_management_write_service_v1",write,"outsider",403,"person")
     sql(f"update atlas.delegated_agent_authorizations set authorization_state='revoked' where id='{authz}'")
