@@ -186,10 +186,98 @@ signed_access01_event_choices_probe=false
 signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
 signed_legacy_farm_invite_probe=false
+signed_anna_two_service_roots_probe=false
+signed_orphan_cancelled_trigger_fn_probe=false
+signed_pot_up_retirement_probe=false
+signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
+signed_private_mp3_profile_probe=false
+signed_private_callback_executor_probe=false
 signed_private_course_working_loop_probe=false
+signed_sk101_course_management_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
+# HELD exact TWO Anna/field-weeding service-only queue roots;
+# immutable original candidate, source/caller/ACL guards, real signed local
+# GoTrue owner/worker/outsider/no-seat and full Atlas base row fingerprints.
+# Disposable local PostgreSQL17 ONLY; explicitly no production credentials.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_anna_two_service_roots_clone_only_v1[.]sql$ ]] || [ "$(basename "$candidate_migration")" = "20261122175225_atlas_historical_anna_two_service_roots_retirement_v1.sql" ]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != cb4f5cf649663ca9d18e7e77133fc03cd754685a ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 76667bafa100414423367b109b3ee04ad21bbd12 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 411b0a9ee497969752bde4aa7c39bcbc0654dec1 ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'REFUSE unpinned, privileged or nonlocal held Anna two service roots' >&2
+    exit 2
+  fi
+  signed_anna_two_service_roots_probe=true
+  signed_work_prerequisite_probe=true
+fi
+
+# One immutable owner-approved private caller cutoff, signed clone ONLY.
+# The removed original progression trigger had already been retired on main;
+# deny all live credentials; keep all five current source-linked functions.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_orphan_cancelled_occurrence_queue_trigger_function_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 3033f34ea33af750028ac51df9a307c6d2cd4975 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 6401f4cf44f2c172c156fcc9729c87836988c252 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 9b8fdd20c8ea65e0bae98d7b905b4b98967ff24d ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'REFUSE unpinned or privileged orphan cancelled-trigger-function source' >&2
+    exit 2
+  fi
+  signed_orphan_cancelled_trigger_fn_probe=true
+  signed_work_prerequisite_probe=true
+fi
+
+# HELD original pot-up serial THREE-function source; only pinned original
+# package, original genuinely signed C1 actor/proof and full-Atlas row witness.
+# Disposable local PG17 ONLY. Separate owner cutoff does NOT grant live release.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_pot_up_serial_branch_clone_only_v1[.]sql$ ]] || [ "$(basename "$candidate_migration")" = "20261122162537_atlas_historical_pot_up_serial_branch_retirement_v1.sql" ]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != eb06b31b273f010549e4a39678f2c6a44b39ba13 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 4d22ffe6cf1c59e2c11d89dc717f399032b18f59 ] ||
+     [ "$(git hash-object "$candidate_validation")" != eb37d62f184e26185fe567f2471cc4eb80f9eb03 ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'REFUSE unpinned, privileged or nonlocal held pot-up Task serial source' >&2
+    exit 2
+  fi
+  signed_pot_up_retirement_probe=true
+  signed_work_prerequisite_probe=true
+fi
+
+# HELD original pressure-wash branch: exact SQL + authentic C1 signed
+# actor and full-Atlas original-row no-loss test, disposable clone ONLY.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_pressure_wash_serial_branch_clone_only_v1[.]sql$ ]] || [ "$(basename "$candidate_migration")" = "20261122143231_atlas_historical_pressure_wash_serial_branch_retirement_v1.sql" ]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 25e2791bd2da2477015260017eb2e982ec5b083d ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 18b25f7902786e2a1697fb6ac35dbff74328ae69 ] ||
+     [ "$(git hash-object "$candidate_validation")" != 2397e06f23bfdce901400fcbc68c7c6b56900b96 ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'REFUSE unsigned or nonlocal held historical pressure-wash source' >&2
+    exit 2
+  fi
+  signed_pressure_wash_retirement_probe=true
+  signed_work_prerequisite_probe=true
+fi
+
+
 # One immutable legacy farm invitation SQL packet, clone only.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_farm_invitation_retirement_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
@@ -400,6 +488,91 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_course_w
   fi
   signed_private_course_working_loop_probe=true
 fi
+
+# HELD fixed private callback executor: immutable reviewed two-wrapper
+# candidate, original local signed source, no new runner or credential source.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_listening_callback_executor_clone_only_v1[.]sql$ ]]; then
+  native_dir="$repo_root/candidates/shared-listening-delivery-artifact-v1"
+  private_callback_signed_proof="$native_dir/verify_private_callback_executor_signed.py"
+  native_signed_helper="$native_dir/verify_generated_listening_storage_signed.py"
+  if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
+     [ "$(git hash-object "$candidate_migration")" != b5aa4105e9816d194f740ac365113263f67d8086 ] ||
+     [ "$(git hash-object "$candidate_validation")" != a749d7ef221ad82fd19a76e1f565612037c997fb ] ||
+     [ "$(git hash-object "$native_signed_helper")" != e7d3f38887ea1419940bf371f1dbb8aea7b16455 ] ||
+     [ "$(git hash-object "$private_callback_signed_proof")" != 2431a312b1002bc05241bafad1c81da002dfa7df ]; then
+    echo 'Refuse unpinned private callback role or noncanonical GoTrue proof.' >&2
+    exit 2
+  fi
+  python3 -m py_compile "$private_callback_signed_proof"
+  signed_private_callback_executor_probe=true
+fi
+
+# HELD fixed private MP3 profile: exact source-pinned owner-signed GoTrue
+# proof on the ORIGINAL production-schema disposable clone and harness.
+# This is not a migration or live media-admission authorization.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_native_private_mp3_profile_clone_only_v1[.]sql$ ]]; then
+  profile_dir="$repo_root/candidates/shared-listening-delivery-artifact-v1"
+  profile_signed_proof="$profile_dir/verify_private_mp3_profile_signed.py"
+  native_signed_helper="$profile_dir/verify_generated_listening_storage_signed.py"
+  if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 861a34074818d33ff2f260bfbecfb1fe9738a7dd ] ||
+     [ "$(git hash-object "$candidate_validation")" != 724c57e6b3cc224351480d636a417e9408a2798d ] ||
+     [ "$(git hash-object "$native_signed_helper")" != e7d3f38887ea1419940bf371f1dbb8aea7b16455 ] ||
+     [ "$(git hash-object "$profile_signed_proof")" != fbb3632c5ce4dc22c31ffd2a2938ee570c14ba2d ]; then
+    echo 'Refuse unpinned native private MP3 signed source/clone candidate.' >&2; exit 2
+  fi
+  python3 -m py_compile "$profile_signed_proof"
+  signed_private_mp3_profile_probe=true
+fi
+
+# Exact owner-held SK101 management proof, disposable clone only. The
+# protected resolver and this local guard must agree on every immutable input.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_sk101_course_management_clone_only_v1[.]sql$ ]] &&
+   [ -f "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql" ]; then
+  if [ "$lane" != shared ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 72ad12b66c6fd60b3689aae58289a0eacfa1b107 ] ||
+     [ "$(git hash-object "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql")" != 72ad12b66c6fd60b3689aae58289a0eacfa1b107 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
+     [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 3922d2ca7bd17b63cf8812527f804e6e9a7046b1 ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse SK101 management proof without exact isolated package and signed harness.' >&2
+    exit 2
+  fi
+  python3 - "$repo_root/scripts/validate-production-schema-clone.sh" "$repo_root/scripts/validate-sk101-course-management-signed-http.py" <<'PY'
+import pathlib, sys
+shell = pathlib.Path(sys.argv[1]).read_text()
+harness = pathlib.Path(sys.argv[2]).read_text()
+for required in (
+    'signed_sk101_course_management_probe=false',
+    'signed_sk101_course_management_probe=true',
+    'shared-sk101-course-management-v1/candidate.sql',
+    '72ad12b66c6fd60b3689aae58289a0eacfa1b107',
+    '3f05af628dc4df7f8c483947f77c9996aa9655b3',
+    'a7e5fd416d3ebb490fcfb57827adef58a1749a4f',
+    '3922d2ca7bd17b63cf8812527f804e6e9a7046b1',
+):
+    if required not in shell:
+        raise SystemExit("SK101 source-contract missing: " + required)
+def marker(name):
+    return "phase=" + chr(34) + name + chr(34)
+fixture = shell.rindex(marker("candidate validation fixture application"))
+application = shell.rindex(marker("candidate migration application"))
+postconditions = shell.rindex(marker("candidate migration postconditions"))
+probe = shell.rindex(marker("independent signed SK101 Course-management matrix"))
+if not (fixture < application < postconditions < probe):
+    raise SystemExit("SK101 setup ordering must be fixture -> migration -> postconditions -> signed probe")
+if 'email=f"atlas-c1-sk101-management-{label}@example.invalid"' not in harness:
+    raise SystemExit("SK101 GoTrue fixture login convention is not atlas-c1 prefixed")
+for login in ("sk101-management-owner", "sk101-management-outsider"):
+    if f'auth.sign_in(api,anon,"{login}")' not in harness:
+        raise SystemExit("SK101 signed login convention missing: " + login)
+PY
+  signed_sk101_course_management_probe=true
+fi
+
 # Exact signed Storage proof, never a generated production migration.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listening_storage_signed_clone_only_v1[.]sql$ ]]; then
   listening_dir="$repo_root/candidates/shared-listening-delivery-artifact-v1"
@@ -1064,11 +1237,15 @@ text = Path(sys.argv[1]).read_text(encoding='utf-8')
 text = re.sub(r'/\*.*?\*/', ' ', text, flags=re.S)
 text = re.sub(r'--[^\n]*', ' ', text)
 normalized = re.sub(r'\s+', ' ', text).strip()
+# ON CONFLICT ... DO NOTHING is data-only idempotent setup; remove only
+# that exact clause before the procedural-keyword scan. Standalone DO blocks
+# and every other procedural or privilege statement remain forbidden.
+scan_text = re.sub(r'\bon\s+conflict\s*\([^;]*?\)\s+do\s+nothing\b', ' ', normalized, flags=re.I)
 forbidden = re.compile(
     r'\b(create|alter|drop|truncate|grant|revoke|comment|vacuum|analyze|reindex|cluster|refresh|copy|do|call|execute|prepare|deallocate|listen|notify|security)\b',
     re.I,
 )
-if forbidden.search(normalized):
+if forbidden.search(scan_text):
     raise SystemExit('validation fixture may contain data setup only; schema/privilege/procedural statements are forbidden')
 statements = [s.strip() for s in normalized.split(';') if s.strip()]
 allowed = re.compile(r'^(insert\s+into|update\s+|delete\s+from|select\s+)', re.I)
@@ -1185,9 +1362,19 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   set +e
   if [ "$t5_signed_study" = true ]; then
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_sk101_course_management_probe" = true ]; then
+    # Same disposable PostgreSQL/Auth/REST footprint as the existing signed Course proof.
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_private_callback_executor_probe" = true ]; then
+    # Genuine loopback GoTrue, Storage, REST and DB on the ORIGINAL protected clone.
+    supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_generated_listening_storage_probe" = true ]; then
     # Storage, Auth, REST and Kong must all run; no unrelated services.
     supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_private_mp3_profile_probe" = true ]; then
+    # Only local GoTrue, REST and PostgreSQL for signed profile proof.
+    # Storage is not used; this remains profile-only, no byte transfer.
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_private_course_working_loop_probe" = true ]; then
     # Same local GoTrue, REST and PostgreSQL footprint, on the pinned Course package.
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
@@ -1486,6 +1673,44 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     >"$artifacts_dir/legacy-farm-member-fixture.log" 2>&1
 fi
 
+# The original orphan-cancellation fixture expects the trusted original C1
+# fictional Organization to exist BEFORE its own 97 synthetic queue rows.
+# This isolated preload was missing from test run #45060597787, which failed
+# at the fictional fixture preflight before candidate SQL was attempted.
+if [ "$signed_orphan_cancelled_trigger_fn_probe" = true ]; then
+  phase="held orphan-cancelled-trigger original signed C1 Work/Organization fixture"
+  trusted_c1="$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql"
+  if [ "$lane" != atlas ] ||
+     [ "$(git hash-object "$trusted_c1")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [[ ! "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'REFUSE orphan cancelled-trigger preflight without original trusted C1 and local PG17' >&2
+    exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$trusted_c1" \
+    >"$artifacts_dir/orphan-cancelled-trigger-original-c1-fixture.log" 2>&1
+fi
+
+if [ "$signed_anna_two_service_roots_probe" = true ]; then
+  phase="held anna-two-service-roots original signed C1 fictional Person/Work fixture"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+    >"$artifacts_dir/anna-two-service-roots-original-c1-fixture.log" 2>&1
+fi
+
+if [ "$signed_pot_up_retirement_probe" = true ]; then
+  phase="held pot-up original signed C1 fictional Person/Work fixture"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+    >"$artifacts_dir/pot-up-original-c1-fixture.log" 2>&1
+fi
+
+if [ "$signed_pressure_wash_retirement_probe" = true ]; then
+  phase="held pressure-wash original signed C1 fictional Person/Work fixture"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+    >"$artifacts_dir/pressure-wash-original-c1-fixture.log" 2>&1
+fi
+
 if [ -n "$candidate_fixture" ]; then
   phase="candidate validation fixture application"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_fixture" \
@@ -1542,6 +1767,50 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     --state-file "$runtime_dir/legacy-farm-member-original.json" \
     --receipt "$artifacts_dir/legacy-farm-member-signed-summary.txt" \
     >"$artifacts_dir/legacy-farm-member-before.log" 2>&1
+fi
+
+if [ "$signed_orphan_cancelled_trigger_fn_probe" = true ]; then
+  phase="held orphan cancellation trigger function: all Atlas base rows BEFORE SQL"
+  [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select current_setting('server_version_num')::int/10000")" = 17
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select count(*) from atlas.work_items")" -gt 0
+  orphan_cancel_trigger_snapshot="$runtime_dir/held-orphan-cancelled-trigger-fn-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$orphan_cancel_trigger_snapshot" --mode capture \
+    >"$artifacts_dir/orphan-cancelled-trigger-all-atlas-row-baseline.log" 2>&1
+fi
+
+if [ "$signed_anna_two_service_roots_probe" = true ]; then
+  phase="held anna-two-service-roots all Atlas base rows BEFORE original SQL"
+  [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select current_setting('server_version_num')::int/10000")" = 17
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select count(*) from atlas.work_items")" -gt 0
+  anna_two_roots_snapshot="$runtime_dir/held-anna-two-service-roots-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$anna_two_roots_snapshot" --mode capture \
+    >"$artifacts_dir/anna-two-service-roots-all-atlas-row-baseline.log" 2>&1
+fi
+
+if [ "$signed_pot_up_retirement_probe" = true ]; then
+  phase="held pot-up all Atlas base rows BEFORE original SQL"
+  [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select current_setting('server_version_num')::int/10000")" = 17
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select count(*) from atlas.work_items")" -gt 0
+  pot_up_snapshot="$runtime_dir/held-pot-up-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pot_up_snapshot" --mode capture \
+    >"$artifacts_dir/pot-up-all-atlas-row-baseline.log" 2>&1
+fi
+
+if [ "$signed_pressure_wash_retirement_probe" = true ]; then
+  phase="held pressure-wash all Atlas base rows BEFORE exact original SQL"
+  [[ "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select current_setting('server_version_num')::int/10000")" = 17
+  test "$(psql "$database_url" -X -v ON_ERROR_STOP=1 -Atqc "select count(*) from atlas.work_items")" -gt 0
+  pressure_wash_snapshot="$runtime_dir/held-pressure-wash-all-atlas-row-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pressure_wash_snapshot" --mode capture \
+    >"$artifacts_dir/pressure-wash-all-atlas-row-baseline.log" 2>&1
 fi
 
 phase="candidate migration application"
@@ -1658,6 +1927,51 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$signed_sk101_course_management_probe" = true ]; then
+  phase="independent signed SK101 Course-management matrix"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/sk101-management-reload.log" 2>&1
+  python3 "$repo_root/scripts/validate-sk101-course-management-signed-http.py" \
+    --db-url "$database_url" --output "$artifacts_dir/sk101-management-signed-receipt.txt" \
+    >"$artifacts_dir/sk101-management-signed-local.log" 2>&1
+  test "$(cat "$artifacts_dir/sk101-management-signed-receipt.txt")" = 'PASS signed SK101 management clone'
+fi
+
+if [ "$signed_orphan_cancelled_trigger_fn_probe" = true ]; then
+  phase="held orphan cancellation trigger function: all Atlas rows AFTER DROP RESTRICT"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$orphan_cancel_trigger_snapshot" --mode verify \
+    >"$artifacts_dir/orphan-cancelled-trigger-all-atlas-row-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/orphan-cancelled-trigger-all-atlas-row-after-candidate.log"
+fi
+
+if [ "$signed_anna_two_service_roots_probe" = true ]; then
+  phase="held anna-two-service-roots all Atlas rows AFTER two function-only DROP RESTRICT"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$anna_two_roots_snapshot" --mode verify \
+    >"$artifacts_dir/anna-two-service-roots-all-atlas-row-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/anna-two-service-roots-all-atlas-row-after-candidate.log"
+fi
+
+if [ "$signed_pot_up_retirement_probe" = true ]; then
+  phase="held pot-up all Atlas rows AFTER three function-only DROP RESTRICT"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pot_up_snapshot" --mode verify \
+    >"$artifacts_dir/pot-up-all-atlas-row-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/pot-up-all-atlas-row-after-candidate.log"
+fi
+
+if [ "$signed_pressure_wash_retirement_probe" = true ]; then
+  phase="held pressure-wash exact original source all Atlas rows AFTER DROP RESTRICT"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$pressure_wash_snapshot" --mode verify \
+    >"$artifacts_dir/pressure-wash-all-atlas-row-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/pressure-wash-all-atlas-row-after-candidate.log"
 fi
 
 if [ "$signed_legacy_farm_invite_probe" = true ]; then
@@ -2241,6 +2555,144 @@ if [ "$signed_program_author_probe" = true ]; then
     >"$artifacts_dir/signed-program-author.log" 2>&1
 fi
 
+
+if [ "$signed_private_callback_executor_probe" = true ]; then
+  # Supabase-managed storage.objects policies are intentionally absent from the
+  # production USER-schema-only dump. These eight existing released policies
+  # must be restored from their ORIGINAL immutable Noel SQL SOURCE, into this
+  # disposable local PostgreSQL clone ONLY, before invoking the unchanged
+  # canonical signed Storage/GoTrue fixture. Do not forge permissions or
+  # weaken the signed precondition. Refuse any altered source/shape.
+  phase="restore exact released native Storage policy parity in disposable clone only"
+  listening_generated_source="$repo_root/candidates/shared-listening-delivery-artifact-v1/generated_listening_storage_candidate.sql"
+  listening_original_source="$repo_root/candidates/shared-listening-delivery-artifact-v1/manuscript_original_registration_candidate.sql"
+  if [ "$(git hash-object "$listening_generated_source")" != 106268970a69c33c5a8d30d737e5d98af807ccfa ] ||
+     [ "$(git hash-object "$listening_original_source")" != de89478c094719912a9ac145af28e01186584c32 ]; then
+    echo 'REFUSE noncanonical native Storage policy source on callback clone.' >&2
+    exit 2
+  fi
+  python3 - "$listening_generated_source" "$listening_original_source" \
+    "$artifacts_dir/private-callback-existing-storage-policy-parity.sql" <<'PY_CALLBACK_EXISTING_STORAGE_POLICIES'
+import pathlib
+import re
+import sys
+
+generated, original, output = map(pathlib.Path, sys.argv[1:])
+names = (
+  "transcript_core_listening_render_insert_v1",
+  "transcript_core_listening_render_read_guard_v1",
+  "transcript_core_listening_render_update_guard_v1",
+  "transcript_core_listening_render_delete_guard_v1",
+  "transcript_core_manuscript_original_insert_guard_v1",
+  "transcript_core_manuscript_original_read_guard_v1",
+  "transcript_core_manuscript_original_update_guard_v1",
+  "transcript_core_manuscript_original_delete_guard_v1",
+)
+statements = []
+found = []
+for source in (generated, original):
+    content = source.read_text()
+    matches = list(re.finditer(
+        r"^CREATE POLICY ([a-z][a-z0-9_]*) ON storage[.]objects\s+([\s\S]*?);",
+        content, re.MULTILINE))
+    if len(matches) != 4 or content.count("CREATE POLICY ") != 4:
+        raise SystemExit("REFUSE changed original native Storage policy statement count")
+    for match in matches:
+        found.append(match.group(1))
+        statements.append(match.group(0))
+if tuple(found) != names or len(set(found)) != 8:
+    raise SystemExit("REFUSE altered original native Storage policy identity/order")
+
+escaped_names = ",".join("'" + name + "'" for name in names)
+# The source copy has NO DROP, no broad grant and no synthetic substitute.
+# Production's original eight policies are checked below by exact pg_policies
+# structural fingerprint, not merely by counting their names.
+sql = (
+    "BEGIN;\n"
+    "DO $policy_preflight$\nBEGIN\n"
+    " IF (SELECT count(*) FROM pg_policies WHERE schemaname='storage' "
+    "AND tablename='objects' AND (policyname LIKE "
+    "'transcript_core_listening_render_%_v1' OR policyname LIKE "
+    "'transcript_core_manuscript_original_%_v1')) <> 0 THEN\n"
+    "  RAISE EXCEPTION 'Existing clone Storage policies require reconciliation';\n"
+    " END IF;\n"
+    " IF (SELECT relrowsecurity FROM pg_class WHERE oid='storage.objects'::regclass) "
+    "IS DISTINCT FROM true THEN\n"
+    "  RAISE EXCEPTION 'Storage objects RLS must already be enabled';\n"
+    " END IF;\n"
+    "END $policy_preflight$;\n"
+    + "\n".join(statements) + "\n"
+    "DO $policy_postcondition$\nDECLARE actual text;\nBEGIN\n"
+    " IF (SELECT count(*) FROM pg_policies WHERE schemaname='storage' "
+    "AND tablename='objects' AND policyname IN (" + escaped_names +
+    ")) <> 8 THEN\n"
+    "  RAISE EXCEPTION 'Exact released native Storage policies missing';\n"
+    " END IF;\n"
+    " SELECT md5(string_agg(jsonb_build_object("
+    "'name',policyname,'cmd',cmd,'roles',roles,'permissive',permissive,"
+    "'qual',qual,'with_check',with_check)::text, E'\\n' ORDER BY policyname)) "
+    "INTO actual FROM pg_policies WHERE schemaname='storage' "
+    "AND tablename='objects' AND policyname IN (" + escaped_names + ");\n"
+    " IF actual IS DISTINCT FROM 'd3ba560a91e6c042fc1c8601d6df08c1' THEN\n"
+    "  RAISE EXCEPTION 'Clone Storage policy structure differs from read-only "
+    "production eight-policy fingerprint';\n"
+    " END IF;\n"
+    "END $policy_postcondition$;\n"
+    "COMMIT;\n"
+)
+output.write_text(sql)
+PY_CALLBACK_EXISTING_STORAGE_POLICIES
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$artifacts_dir/private-callback-existing-storage-policy-parity.sql" \
+    >"$artifacts_dir/private-callback-storage-policy-parity.log" 2>&1
+  # PostgreSQL 17 CREATEROLE automatically returns ADMIN but SET FALSE to
+  # the non-superuser creator. The protected localhost clone's trusted psql
+  # fixture cannot SET LOCAL ROLE without SET TRUE membership. Simulate only
+  # the future delegated host's SET boundary on this disposable clone;
+  # do NOT modify candidate SQL, real membership, login or credentials.
+  phase="local-only role SET membership for signed private callback simulation"
+  if [[ ! "$database_url" =~ ^postgresql://postgres:postgres@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'REFUSE private callback role fixture outside disposable loopback clone' >&2
+    exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    >"$artifacts_dir/private-callback-local-role-set.log" 2>&1 <<'SQL_LOCAL_PRIVATE_CALLBACK_SET'
+BEGIN;
+DO $local_caller_preflight$
+BEGIN
+ IF session_user IS DISTINCT FROM 'postgres' OR current_user IS DISTINCT FROM 'postgres'
+   OR NOT EXISTS (
+     SELECT 1 FROM pg_roles
+     WHERE rolname='transcript_core_private_callback_executor_v1'
+       AND NOT rolcanlogin AND NOT rolsuper AND NOT rolbypassrls
+       AND NOT rolcreaterole AND NOT rolcreatedb
+   )
+ THEN RAISE EXCEPTION 'Refuse non-local or overpowered private callback role fixture'; END IF;
+END $local_caller_preflight$;
+GRANT transcript_core_private_callback_executor_v1 TO postgres
+  WITH SET TRUE, INHERIT FALSE;
+DO $local_caller_postcondition$
+BEGIN
+ IF NOT pg_has_role('postgres','transcript_core_private_callback_executor_v1','SET')
+    OR NOT EXISTS (
+      SELECT 1 FROM pg_auth_members m
+      JOIN pg_roles r ON r.oid=m.roleid
+      JOIN pg_roles u ON u.oid=m.member
+      WHERE r.rolname='transcript_core_private_callback_executor_v1'
+        AND u.rolname='postgres' AND m.set_option AND NOT m.inherit_option
+    )
+ THEN RAISE EXCEPTION 'Exact non-inherited localhost role SET membership missing'; END IF;
+END $local_caller_postcondition$;
+COMMIT;
+SQL_LOCAL_PRIVATE_CALLBACK_SET
+  phase="signed local private NOLOGIN callback executor and native Storage proof"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/private-callback-local-reload.log" 2>&1
+  (cd "$project_dir"; python3 "$private_callback_signed_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-private-callback-executor-summary.txt") \
+    >"$artifacts_dir/signed-private-callback-executor.log" 2>&1
+  test "$(cat "$artifacts_dir/signed-private-callback-executor-summary.txt")" = 'PASS signed local private callback executor: genuine GoTrue and Storage, private NOLOGIN wrapper, exact original/completion replay, viewer/outsider/anonymous/service and revoked-session denial; unpublished, clone only.'
+fi
+
 if [ "$signed_generated_listening_storage_probe" = true ]; then
   phase="signed local generated listening Storage upload and readback"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/listening-local-reload.log" 2>&1
@@ -2248,6 +2700,15 @@ if [ "$signed_generated_listening_storage_probe" = true ]; then
     --output "$artifacts_dir/signed-generated-listening-storage-summary.txt") \
     >"$artifacts_dir/signed-generated-listening-storage.log" 2>&1
   test "$(cat "$artifacts_dir/signed-generated-listening-storage-summary.txt")" = 'PASS signed local Storage and manuscript-original proof; bounded private native completion, replay and revocation denials; no publication.'
+fi
+
+if [ "$signed_private_mp3_profile_probe" = true ]; then
+  phase="signed local private MP3 profile GoTrue identities and source authorization"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/private-mp3-profile-local-reload.log" 2>&1
+  (cd "$project_dir"; python3 "$profile_signed_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-private-mp3-profile-summary.txt") \
+    >"$artifacts_dir/signed-private-mp3-profile.log" 2>&1
+  test "$(cat "$artifacts_dir/signed-private-mp3-profile-summary.txt")" = 'PASS signed local native private MP3 profile: exact owner/editor, viewer/outsider/anonymous/service denial, idempotence, source conflict, revoked role/session; no media or publication.'
 fi
 
 phase="candidate domain schema lint"
@@ -2275,6 +2736,13 @@ if [ "$pre1_rest_proof" = true ]; then
     >> "$artifacts_dir/summary.md"
 fi
 
+
+if [ "$signed_private_callback_executor_probe" = true ]; then
+  printf '\\nSIGNED private callback executor: exact NOLOGIN two-function wrapper, genuine local GoTrue identities, original and render Storage byte readback, source/role/replay/revocation denials, no published media or live execution. TEST-ONLY.\\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_private_mp3_profile_probe" = true ]; then
+  printf '\nSIGNED private MP3 profile: independent real GoTrue owner/editor/viewer/outsider; exact native source version, idempotence, cross-workspace denial, revoked membership/session and private table ACL all pass only on disposable clone. No media, publication or production release.\n' >> "$artifacts_dir/summary.md"
+fi
 if [ "$signed_generated_listening_storage_probe" = true ]; then
   printf '\nSIGNED generated listening: genuine local GoTrue owner/editor/viewer/outsider, Storage upload and byte readback, exact object version, denial of replacement and revoked access. No canonical admission or release.\n' >> "$artifacts_dir/summary.md"
 fi
@@ -2282,6 +2750,29 @@ if [ "$orphan_queue_retirement_proof" = true ]; then
   test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
   printf '\nOrphan backfill TEST ONLY: exact function DROP RESTRICT, all local Atlas base-table rows unchanged immediately around deletion and postconditions; existing signed Work prerequisite regression passed afterwards. Synthetic Work fixture only; no historical Production row data or external caller closure.\n' >> "$artifacts_dir/summary.md"
 fi
+if [ "$signed_orphan_cancelled_trigger_fn_probe" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  test -s "$artifacts_dir/orphan-cancelled-trigger-all-atlas-row-after-candidate.log"
+  printf '\nHELD orphan cancelled-occurrence trigger-function TEST ONLY: one exact original DROP FUNCTION RESTRICT in disposable local PG17, all Atlas base-table identities and content conserved, genuine signed GoTrue owner/worker/outsider/no-seat and replay/concurrency/revocation prerequisite proof passed. Does not prove external caller absence and does not authorize production SQL, release or historical row deletion.\n' >> "$artifacts_dir/summary.md"
+fi
+
+if [ "$signed_anna_two_service_roots_probe" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  test -s "$artifacts_dir/anna-two-service-roots-all-atlas-row-after-candidate.log"
+  printf '\nHELD anna-two-service-roots branch TEST ONLY: exact 2 original DROP FUNCTION RESTRICT, all local Atlas base-relation identities and content unchanged, original genuinely signed GoTrue root/worker/outsider/no-seat prerequisite/revocation/concurrency proof passed. Independent private callers retired only by separate owner decision; no production SQL, release or history deletion.\n' >> "$artifacts_dir/summary.md"
+fi
+
+if [ "$signed_pot_up_retirement_probe" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  test -s "$artifacts_dir/pot-up-all-atlas-row-after-candidate.log"
+  printf '\nHELD pot-up branch TEST ONLY: exact 3 original DROP FUNCTION RESTRICT, all local Atlas base-relation identities and content unchanged, original genuinely signed GoTrue root/worker/outsider/no-seat prerequisite/revocation/concurrency proof passed. Independent private callers retired only by separate owner decision; no production SQL, release or history deletion.\n' >> "$artifacts_dir/summary.md"
+fi
+if [ "$signed_pressure_wash_retirement_probe" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  test -s "$artifacts_dir/pressure-wash-all-atlas-row-after-candidate.log"
+  printf '\nHELD pressure-wash branch TEST ONLY: exact three original DROP FUNCTION RESTRICT, all local Atlas base relation row identities and content unchanged, genuine local GoTrue root/worker/outsider/no-seat prerequisite/revocation/concurrency proof passed. Does NOT prove absence of external privileged service callers. No live SQL or production release.\n' >> "$artifacts_dir/summary.md"
+fi
+
 phase="complete"
 if [ "$signed_household_original_repair_probe" = true ]; then
   printf '\nSIGNED Household repair test only: genuine independent local sessions, same original Need/Work/allocation, native Person read, physical Actual, member and session revocation. No production write or release.\n' >> "$artifacts_dir/summary.md"
