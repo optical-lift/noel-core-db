@@ -4,6 +4,7 @@
 -- Existing generated_production_fixture.sql owns auth schema, auth.uid(),
 -- auth.jwt(), auth.users/sessions and workspace_memberships.
 ALTER TABLE auth.users ADD COLUMN is_anonymous boolean NOT NULL DEFAULT false;
+ALTER TABLE transcript_core.delivery_profiles ALTER COLUMN id SET DEFAULT gen_random_uuid();
 -- Earlier listening fixture intentionally models only fields used by its
 -- original proof; extend it with these existing LIVE profile fields.
 ALTER TABLE transcript_core.delivery_profiles
