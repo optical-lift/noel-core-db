@@ -18,7 +18,7 @@ def main():
     owner, outsider, entity, other = person(1),person(2),person(101),person(102)
     for user,ent,label in ((owner,entity,"owner"),(outsider,other,"outsider")):
         email=f"sk101-management-{label}@example.invalid"
-        sql(f"""insert into auth.users(id,aud,role,created_at,updated_at,is_anonymous,instance_id,email,encrypted_password,email_confirmed_at,confirmation_token,recovery_token,email_change,email_change_token_new,email_change_token_current,phone_change,phone_change_token,phone_change_token_current,reauthentication_token,raw_app_meta_data,raw_user_meta_data)
+        sql(f"""insert into auth.users(id,aud,role,created_at,updated_at,is_anonymous,instance_id,email,encrypted_password,email_confirmed_at,confirmation_token,recovery_token,email_change,email_change_token_new,email_change_token_current,phone_change,phone_change_token,reauthentication_token,raw_app_meta_data,raw_user_meta_data)
         values('{user}','authenticated','authenticated',now(),now(),false,'00000000-0000-0000-0000-000000000000','{email}',extensions.crypt('{auth.PASSWORD}',extensions.gen_salt('bf')),now(),'','','','','','','','','','{{"provider":"email","providers":["email"]}}','{{}}');
         insert into auth.identities(id,provider_id,user_id,identity_data,provider,created_at,updated_at) values(gen_random_uuid(),'{email}','{user}',jsonb_build_object('sub','{user}','email','{email}'),'email',now(),now());
         insert into reality.entities(id,stable_key,entity_kind,display_name,identity_state) values('{ent}','sk101-{label}','person','Synthetic {label}','canonical');
