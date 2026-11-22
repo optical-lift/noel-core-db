@@ -67,7 +67,8 @@ jobs:
           if title == 'Production schema validation request: Shared held SK101 Course management':
               expected = {'diagnostic_scope':'shared_sk101_course_management_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'8477b45e2c091297ef9585ee84ca1ca7940d4650'}
+                          'candidate_sha':'2c66cbc5643ae967d8c8f827d38d3da53018933f'}
+              print(f"SK101 admission fields={fields!r} expected={expected!r} actor={os.environ.get('REQUEST_ACTOR')!r} owner={os.environ.get('REPO_OWNER')!r}")
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held SK101 Course-management validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -665,14 +666,14 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "20261122030000" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "8477b45e2c091297ef9585ee84ca1ca7940d4650"
+            test "$(git -C candidate rev-parse HEAD)" = "2c66cbc5643ae967d8c8f827d38d3da53018933f"
             src="candidate/candidates/shared-sk101-course-management-v1/candidate.sql"
             fixture="candidate/validation/fixtures/20261122030000_shared_sk101_course_management_v1.sql"
             post="candidate/validation/migrations/20261122030000_shared_sk101_course_management_v1.sql"
-            test "$(git hash-object "$src")" = 72ad12b66c6fd60b3689aae58289a0eacfa1b107
+            test "$(git hash-object "$src")" = 2b89bcaad9f5d0780bab3bc2d29676a2a7080eb0
             test "$(git hash-object "$fixture")" = 3f05af628dc4df7f8c483947f77c9996aa9655b3
             test "$(git hash-object "$post")" = a7e5fd416d3ebb490fcfb57827adef58a1749a4f
-            test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 3922d2ca7bd17b63cf8812527f804e6e9a7046b1
+            test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 19db2b16772539a884437801758a15ee6a16db00
             scratch="$(mktemp -d "$RUNNER_TEMP/sk101-course-management.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_course_management_clone_only_v1)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_sk101_course_management_clone_only_v1.sql')

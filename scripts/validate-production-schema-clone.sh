@@ -532,11 +532,11 @@ fi
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_sk101_course_management_clone_only_v1[.]sql$ ]] &&
    [ -f "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql" ]; then
   if [ "$lane" != shared ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
-     [ "$(git hash-object "$candidate_migration")" != 72ad12b66c6fd60b3689aae58289a0eacfa1b107 ] ||
-     [ "$(git hash-object "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql")" != 72ad12b66c6fd60b3689aae58289a0eacfa1b107 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 2b89bcaad9f5d0780bab3bc2d29676a2a7080eb0 ] ||
+     [ "$(git hash-object "$repo_root/candidate/candidates/shared-sk101-course-management-v1/candidate.sql")" != 2b89bcaad9f5d0780bab3bc2d29676a2a7080eb0 ] ||
      [ "$(git hash-object "$candidate_fixture")" != 3f05af628dc4df7f8c483947f77c9996aa9655b3 ] ||
      [ "$(git hash-object "$candidate_validation")" != a7e5fd416d3ebb490fcfb57827adef58a1749a4f ] ||
-     [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 3922d2ca7bd17b63cf8812527f804e6e9a7046b1 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-sk101-course-management-signed-http.py")" != 19db2b16772539a884437801758a15ee6a16db00 ] ||
      [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
     echo 'Refuse SK101 management proof without exact isolated package and signed harness.' >&2
     exit 2
@@ -549,10 +549,10 @@ for required in (
     'signed_sk101_course_management_probe=false',
     'signed_sk101_course_management_probe=true',
     'shared-sk101-course-management-v1/candidate.sql',
-    '72ad12b66c6fd60b3689aae58289a0eacfa1b107',
+    '2b89bcaad9f5d0780bab3bc2d29676a2a7080eb0',
     '3f05af628dc4df7f8c483947f77c9996aa9655b3',
     'a7e5fd416d3ebb490fcfb57827adef58a1749a4f',
-    '3922d2ca7bd17b63cf8812527f804e6e9a7046b1',
+    '19db2b16772539a884437801758a15ee6a16db00',
 ):
     if required not in shell:
         raise SystemExit("SK101 source-contract missing: " + required)
