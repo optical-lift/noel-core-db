@@ -188,6 +188,7 @@ signed_access03_zone_retirement_probe=false
 signed_legacy_farm_invite_probe=false
 signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
+signed_private_mp3_profile_probe=false
 signed_private_course_working_loop_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
@@ -421,6 +422,25 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_course_w
   fi
   signed_private_course_working_loop_probe=true
 fi
+# HELD fixed private MP3 profile: exact source-pinned owner-signed GoTrue
+# proof on the ORIGINAL production-schema disposable clone and harness.
+# This is not a migration or live media-admission authorization.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_native_private_mp3_profile_clone_only_v1[.]sql$ ]]; then
+  profile_dir="$repo_root/candidates/shared-listening-delivery-artifact-v1"
+  profile_signed_proof="$profile_dir/verify_private_mp3_profile_signed.py"
+  native_signed_helper="$profile_dir/verify_generated_listening_storage_signed.py"
+  if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 861a34074818d33ff2f260bfbecfb1fe9738a7dd ] ||
+     [ "$(git hash-object "$candidate_validation")" != 724c57e6b3cc224351480d636a417e9408a2798d ] ||
+     [ "$(git hash-object "$native_signed_helper")" != e7d3f38887ea1419940bf371f1dbb8aea7b16455 ] ||
+     [ "$(git hash-object "$profile_signed_proof")" != fbb3632c5ce4dc22c31ffd2a2938ee570c14ba2d ]; then
+    echo 'Refuse unpinned native private MP3 signed source/clone candidate.' >&2; exit 2
+  fi
+  python3 -m py_compile "$profile_signed_proof"
+  signed_private_mp3_profile_probe=true
+fi
+
 # Exact signed Storage proof, never a generated production migration.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listening_storage_signed_clone_only_v1[.]sql$ ]]; then
   listening_dir="$repo_root/candidates/shared-listening-delivery-artifact-v1"
@@ -1209,6 +1229,10 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   elif [ "$signed_generated_listening_storage_probe" = true ]; then
     # Storage, Auth, REST and Kong must all run; no unrelated services.
     supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_private_mp3_profile_probe" = true ]; then
+    # Only local GoTrue, REST and PostgreSQL for signed profile proof.
+    # Storage is not used; this remains profile-only, no byte transfer.
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_private_course_working_loop_probe" = true ]; then
     # Same local GoTrue, REST and PostgreSQL footprint, on the pinned Course package.
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
@@ -2298,6 +2322,15 @@ if [ "$signed_generated_listening_storage_probe" = true ]; then
   test "$(cat "$artifacts_dir/signed-generated-listening-storage-summary.txt")" = 'PASS signed local Storage and manuscript-original proof; bounded private native completion, replay and revocation denials; no publication.'
 fi
 
+if [ "$signed_private_mp3_profile_probe" = true ]; then
+  phase="signed local private MP3 profile GoTrue identities and source authorization"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/private-mp3-profile-local-reload.log" 2>&1
+  (cd "$project_dir"; python3 "$profile_signed_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-private-mp3-profile-summary.txt") \
+    >"$artifacts_dir/signed-private-mp3-profile.log" 2>&1
+  test "$(cat "$artifacts_dir/signed-private-mp3-profile-summary.txt")" = 'PASS signed local native private MP3 profile: exact owner/editor, viewer/outsider/anonymous/service denial, idempotence, source conflict, revoked role/session; no media or publication.'
+fi
+
 phase="candidate domain schema lint"
 cd "$project_dir"
 run_lint candidate
@@ -2323,6 +2356,9 @@ if [ "$pre1_rest_proof" = true ]; then
     >> "$artifacts_dir/summary.md"
 fi
 
+if [ "$signed_private_mp3_profile_probe" = true ]; then
+  printf '\nSIGNED private MP3 profile: independent real GoTrue owner/editor/viewer/outsider; exact native source version, idempotence, cross-workspace denial, revoked membership/session and private table ACL all pass only on disposable clone. No media, publication or production release.\n' >> "$artifacts_dir/summary.md"
+fi
 if [ "$signed_generated_listening_storage_probe" = true ]; then
   printf '\nSIGNED generated listening: genuine local GoTrue owner/editor/viewer/outsider, Storage upload and byte readback, exact object version, denial of replacement and revoked access. No canonical admission or release.\n' >> "$artifacts_dir/summary.md"
 fi
