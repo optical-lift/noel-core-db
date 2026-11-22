@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 25284)
-Total output lines: 1437
-
 name: Production Schema Clone Validation
 
 on:
@@ -579,7 +576,299 @@ jobs:
             held_proof="candidates/atlas/household_work_subject_pair_repair_v1/validate_signed_household_work.py"
             mkdir -p "$(dirname "$held_proof")"
             cp "$proof" "$held_proof"
-            sha256sum "$candidate_migration" "$fixture" "$post"…5284 tokens truncated…etion" "$original" "$staging" "$proof" "$held_dir/"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-laundry-lifecycle" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "d865a4e510e26fdd9a154466ad9deb0af71a243f"
+            src="candidate/candidates/atlas/household_laundry_process_reassessment_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_laundry_process_reassessment_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_laundry_process_reassessment_v1/validate_signed_process_reassessment.py"
+            fixture="candidates/atlas/household_work_subject_pair_repair_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 058c6627e5c369ed9b83b0f972abc949739095e7
+            test "$(git hash-object "$post")" = ce747e365321526757e2302f32572dfd45ca91e9
+            test "$(git hash-object "$proof")" = 9f1ae62612df98ae0a8b2d73482ebbf58f11fa19
+            test "$(git hash-object "$fixture")" = 737c8f98e4c0dcd4e9371a3bc99e123b05aae6c7
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_laundry_lifecycle_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_laundry_lifecycle_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_laundry_process_reassessment_v1/validate_signed_process_reassessment.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-laundry-renewal-initial" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "862e54018648341d1d4ddd8b55c559984b3f8f7c"
+            src="candidate/candidates/atlas/household_laundry_renewal_attention_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_laundry_renewal_attention_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_initial.py"
+            fixture="candidate/candidates/atlas/household_laundry_renewal_attention_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 9cb29da5dfd9042224fcc1e1e08414a537c72fa0
+            test "$(git hash-object "$post")" = 76728974daa1622c11f0c4a9d08e6b26b8c1af11
+            test "$(git hash-object "$proof")" = 09af135127887ca34ed428ec7c4531ab6dc8dc9d
+            renewal_probe="candidate/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_attention.py"
+            test "$(git hash-object "$renewal_probe")" = 69426f1df315dafe528981b69dd50a84100ec78c
+            test "$(git hash-object "$fixture")" = 0a6225004cdd8d693d2f243b770d1b8b7412f5cf
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_laundry_renewal_initial_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_laundry_renewal_initial_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_initial.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_attention.py"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-clean-renewal-initial" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "b5a64691e1e5f96741bde81469f636b8356198b4"
+            src="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_initial.py"
+            fixture="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 27561382cbc33be1da2b1128481702b2d511001f
+            test "$(git hash-object "$post")" = 23eaa37cd92a4e72ba954d5892e6b2bae0466aee
+            test "$(git hash-object "$proof")" = 1251c8971f26518220f8e8851ce9b220b10e60af
+            renewal_probe="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_attention.py"
+            test "$(git hash-object "$renewal_probe")" = 9440ffcedd817b33e2736a969e40c523f75e18a3
+            test "$(git hash-object "$fixture")" = d0c82b47f242b3ef4fe077f86fd1d20f378e359f
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_need_renewal_clean_initial_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_need_renewal_clean_initial_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_initial.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_attention.py"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-laundry-renewal-due" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "e3290c01631f9d28d16fbecd3085c904eaab5a6c"
+            src="candidate/candidates/atlas/household_laundry_renewal_attention_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_laundry_renewal_attention_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_historical.py"
+            fixture="candidate/candidates/atlas/household_laundry_renewal_attention_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 9cb29da5dfd9042224fcc1e1e08414a537c72fa0
+            test "$(git hash-object "$post")" = 76728974daa1622c11f0c4a9d08e6b26b8c1af11
+            test "$(git hash-object "$proof")" = cd244d0f961187bd022309c50790fe5334e92afc
+            renewal_probe="candidate/candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_due.py"
+            test "$(git hash-object "$renewal_probe")" = dde6d83550b892ada267d68a99bde3d493860faa
+            test "$(git hash-object "$fixture")" = 0a6225004cdd8d693d2f243b770d1b8b7412f5cf
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_laundry_renewal_due_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_laundry_renewal_due_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_laundry_renewal_attention_v1/validate_signed_renewal_historical.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_due.py"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-clean-renewal-due" ]]; then
+            # No candidate scripts run before the protected snapshot; no
+            # production secret is available in this or subsequent steps.
+            test "$(git -C candidate rev-parse HEAD)" = "b5a64691e1e5f96741bde81469f636b8356198b4"
+            src="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/candidate.sql"
+            post="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/postconditions.sql"
+            proof="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_historical.py"
+            fixture="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/clone_fixture.sql"
+            test "$(git hash-object "$src")" = 27561382cbc33be1da2b1128481702b2d511001f
+            test "$(git hash-object "$post")" = 23eaa37cd92a4e72ba954d5892e6b2bae0466aee
+            test "$(git hash-object "$proof")" = 6be4632c95c076e3a962a7b8e10967063cc14984
+            renewal_probe="candidate/candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_due.py"
+            test "$(git hash-object "$renewal_probe")" = cbb87cb6cd0feadb459007bc6938f0f566454598
+            test "$(git hash-object "$fixture")" = d0c82b47f242b3ef4fe077f86fd1d20f378e359f
+            # CLI-generated SCRATCH identity only, never a canonical migration.
+            scratch="$(mktemp -d "$RUNNER_TEMP/household-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_household_need_renewal_clean_due_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_household_need_renewal_clean_due_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            # Execute the pinned probe with the trusted MAIN helper modules.
+            # The relative path is required by the existing local C1 loader.
+            held_proof="candidates/atlas/household_need_renewal_clean_cutover_v1/validate_signed_renewal_historical.py"
+            mkdir -p "$(dirname "$held_proof")"
+            cp "$proof" "$held_proof"
+            cp "$renewal_probe" "$(dirname "$held_proof")/validate_signed_renewal_due.py"
+            sha256sum "$candidate_migration" "$fixture" "$post" "$held_proof"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-mp3-profile" ]]; then
+            # Exact reviewed immutable source/shape only; no fixture with fake
+            # identities is accepted as a signed protected test.
+            test "$(git -C candidate rev-parse HEAD)" = "a873fdb0d92370687d2f675080dd5bf50ac5927f"
+            src="candidate/candidates/shared-listening-delivery-artifact-v1/private_mp3_delivery_profile_candidate.sql"
+            post="candidate/candidates/shared-listening-delivery-artifact-v1/private_mp3_delivery_profile_postconditions.sql"
+            test "$(git hash-object "$src")" = 861a34074818d33ff2f260bfbecfb1fe9738a7dd
+            test "$(git hash-object "$post")" = 724c57e6b3cc224351480d636a417e9408a2798d
+            signed="candidate/candidates/shared-listening-delivery-artifact-v1/verify_private_mp3_profile_signed.py"
+            test "$(git hash-object "$signed")" = fbb3632c5ce4dc22c31ffd2a2938ee570c14ba2d
+            # The original trusted helper is on MAIN, never candidate-supplied.
+            test "$(git hash-object candidates/shared-listening-delivery-artifact-v1/verify_generated_listening_storage_signed.py)" = e7d3f38887ea1419940bf371f1dbb8aea7b16455
+            python3 -m py_compile "$signed"
+            held_dir="candidates/shared-listening-delivery-artifact-v1"
+            mkdir -p "$held_dir"
+            cp "$signed" "$held_dir/verify_private_mp3_profile_signed.py"
+            test ! -e "candidate/supabase/migrations/held-private-mp3-profile.sql"
+            # Keep migration identity TEST-ONLY, generated by the canonical
+            # CLI in the existing protected clone machinery.
+            scratch="$(mktemp -d "$RUNNER_TEMP/private-mp3-profile-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_native_private_mp3_profile_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_native_private_mp3_profile_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            sha256sum "$candidate_migration" "$post"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-listening-artifact" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "77e7b87f0f1889622da2199cd10b3980367058e6"
+            src="candidate/candidates/shared-listening-delivery-artifact-v1/candidate.sql"
+            post="candidate/candidates/shared-listening-delivery-artifact-v1/postconditions.sql"
+            test "$(git hash-object "$src")" = e00f5763392744f2dc983df95762c804dad79971
+            test "$(git hash-object "$post")" = 7a48a99393112f7dffed1620c7c277c00aa56520
+            # Existing protected carrier; exact CLI-generated scratch file only.
+            scratch="$(mktemp -d "$RUNNER_TEMP/listening-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_listening_delivery_artifact_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_listening_delivery_artifact_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            sha256sum "$candidate_migration" "$post"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-generated-listening-storage" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "66422d71e46daa14a2693043d6059c6ea35ca04d"
+            completion="candidate/candidates/shared-listening-delivery-artifact-v1/generated_production_completion_candidate.sql"
+            staging="candidate/candidates/shared-listening-delivery-artifact-v1/generated_listening_storage_candidate.sql"
+            original="candidate/candidates/shared-listening-delivery-artifact-v1/manuscript_original_registration_candidate.sql"
+            proof="candidate/candidates/shared-listening-delivery-artifact-v1/verify_generated_listening_storage_signed.py"
+            test "$(git hash-object "$completion")" = 1c7b398136b399983b1acdb2712b70958761d768
+            test "$(git hash-object "$staging")" = 106268970a69c33c5a8d30d737e5d98af807ccfa
+            test "$(git hash-object "$original")" = de89478c094719912a9ac145af28e01186584c32
+            test "$(git hash-object "$proof")" = e7d3f38887ea1419940bf371f1dbb8aea7b16455
+            python3 -m py_compile "$proof"
+            scratch="$(mktemp -d "$RUNNER_TEMP/generated-listening-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_generated_listening_storage_signed_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_generated_listening_storage_signed_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cat "$completion" "$original" "$staging" > "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            held_dir="candidates/shared-listening-delivery-artifact-v1"
+            mkdir -p "$held_dir"
+            cp "$completion" "$original" "$staging" "$proof" "$held_dir/"
             sha256sum "$candidate_migration" "$proof"
             {
               echo "path=$candidate_migration"
