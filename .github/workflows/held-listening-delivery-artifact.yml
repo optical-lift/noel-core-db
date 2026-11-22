@@ -55,4 +55,9 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_mp3_delivery_profile_candidate.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/private_mp3_profile_tests.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_mp3_delivery_profile_postconditions.sql
+          # One held NOLOGIN, fixed-function source-only executor proposal.
+          # UNSIGNED fictional ACL proof; never deploy or grant credentials.
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_callback_executor_candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_callback_executor_postconditions.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/private_callback_executor_tests.sql
           echo "Synthetic isolated PostgreSQL only; no production clone, real signed Auth, media, publication or release."
