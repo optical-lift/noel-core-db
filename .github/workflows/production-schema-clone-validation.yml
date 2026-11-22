@@ -167,6 +167,20 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+
+          # One exact held private callback executor. The NOLOGIN/2-wrapper
+          # role source is executed only on the disposable protected clone.
+          if title == 'Production schema validation request: Shared held private callback executor':
+              expected = {'diagnostic_scope':'shared_native_private_callback_executor_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'92219b0226f5a9631f5c0f5a3162a41aeec3ef8e'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held private callback executor clone authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-private-callback-executor\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # One exact held private MP3 profile candidate. This is a source-
           # pinned disposable full-schema clone, NOT an authorized migration.
           if title == 'Production schema validation request: Shared held private MP3 profile':
@@ -881,6 +895,41 @@ jobs:
               echo "path=$candidate_migration"
               echo "actual_version=$version"
               echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-callback-executor" ]]; then
+            # Immutable source-only held candidate from draft Noel PR #3274.
+            test "$(git -C candidate rev-parse HEAD)" = "92219b0226f5a9631f5c0f5a3162a41aeec3ef8e"
+            src="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_executor_candidate.sql"
+            post="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_executor_postconditions.sql"
+            signed="candidate/candidates/shared-listening-delivery-artifact-v1/verify_private_callback_executor_signed.py"
+            test "$(git hash-object "$src")" = 38d5f2ed496af4bd3b09d5b2b046687c433a1db3
+            test "$(git hash-object "$post")" = a821cef18c61a0988dc13d7d51df2e818440af91
+            test "$(git hash-object "$signed")" = f71007525b72c9d8b00922382024357b091596a5
+            # Original trusted signed probe from canonical MAIN, unmodified.
+            test "$(git hash-object candidates/shared-listening-delivery-artifact-v1/verify_generated_listening_storage_signed.py)" = e7d3f38887ea1419940bf371f1dbb8aea7b16455
+            python3 -m py_compile "$signed"
+            held_dir="candidates/shared-listening-delivery-artifact-v1"
+            cp "$signed" "$held_dir/verify_private_callback_executor_signed.py"
+            test ! -e "candidate/supabase/migrations/held-private-callback-executor.sql"
+            scratch="$(mktemp -d "$RUNNER_TEMP/private-callback-executor-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_private_listening_callback_executor_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_private_listening_callback_executor_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            sha256sum "$candidate_migration" "$post" "$signed"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
               echo "validation_path=$post"
             } >> "$GITHUB_OUTPUT"
             exit 0

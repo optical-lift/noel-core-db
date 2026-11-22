@@ -191,6 +191,7 @@ signed_pot_up_retirement_probe=false
 signed_pressure_wash_retirement_probe=false
 signed_generated_listening_storage_probe=false
 signed_private_mp3_profile_probe=false
+signed_private_callback_executor_probe=false
 signed_private_course_working_loop_probe=false
 signed_sk101_course_management_probe=false
 orphan_queue_retirement_proof=false
@@ -466,6 +467,26 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_course_w
   fi
   signed_private_course_working_loop_probe=true
 fi
+
+# HELD fixed private callback executor: immutable reviewed two-wrapper
+# candidate, original local signed source, no new runner or credential source.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_private_listening_callback_executor_clone_only_v1[.]sql$ ]]; then
+  native_dir="$repo_root/candidates/shared-listening-delivery-artifact-v1"
+  private_callback_signed_proof="$native_dir/verify_private_callback_executor_signed.py"
+  native_signed_helper="$native_dir/verify_generated_listening_storage_signed.py"
+  if [ "$lane" != shared ] || [ -n "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 38d5f2ed496af4bd3b09d5b2b046687c433a1db3 ] ||
+     [ "$(git hash-object "$candidate_validation")" != a821cef18c61a0988dc13d7d51df2e818440af91 ] ||
+     [ "$(git hash-object "$native_signed_helper")" != e7d3f38887ea1419940bf371f1dbb8aea7b16455 ] ||
+     [ "$(git hash-object "$private_callback_signed_proof")" != f71007525b72c9d8b00922382024357b091596a5 ]; then
+    echo 'Refuse unpinned private callback role or noncanonical GoTrue proof.' >&2
+    exit 2
+  fi
+  python3 -m py_compile "$private_callback_signed_proof"
+  signed_private_callback_executor_probe=true
+fi
+
 # HELD fixed private MP3 profile: exact source-pinned owner-signed GoTrue
 # proof on the ORIGINAL production-schema disposable clone and harness.
 # This is not a migration or live media-admission authorization.
@@ -1323,6 +1344,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   elif [ "$signed_sk101_course_management_probe" = true ]; then
     # Same disposable PostgreSQL/Auth/REST footprint as the existing signed Course proof.
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_private_callback_executor_probe" = true ]; then
+    # Genuine loopback GoTrue, Storage, REST and DB on the ORIGINAL protected clone.
+    supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_generated_listening_storage_probe" = true ]; then
     # Storage, Auth, REST and Kong must all run; no unrelated services.
     supabase start -x realtime,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
@@ -2473,6 +2497,16 @@ if [ "$signed_program_author_probe" = true ]; then
     >"$artifacts_dir/signed-program-author.log" 2>&1
 fi
 
+
+if [ "$signed_private_callback_executor_probe" = true ]; then
+  phase="signed local private NOLOGIN callback executor and native Storage proof"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/private-callback-local-reload.log" 2>&1
+  (cd "$project_dir"; python3 "$private_callback_signed_proof" --db-url "$database_url" \
+    --output "$artifacts_dir/signed-private-callback-executor-summary.txt") \
+    >"$artifacts_dir/signed-private-callback-executor.log" 2>&1
+  test "$(cat "$artifacts_dir/signed-private-callback-executor-summary.txt")" = 'PASS signed local private callback executor: genuine GoTrue and Storage, private NOLOGIN wrapper, exact original/completion replay, viewer/outsider/anonymous/service and revoked-session denial; unpublished, clone only.'
+fi
+
 if [ "$signed_generated_listening_storage_probe" = true ]; then
   phase="signed local generated listening Storage upload and readback"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -c "NOTIFY pgrst, 'reload schema'" >"$artifacts_dir/listening-local-reload.log" 2>&1
@@ -2516,6 +2550,10 @@ if [ "$pre1_rest_proof" = true ]; then
     >> "$artifacts_dir/summary.md"
 fi
 
+
+if [ "$signed_private_callback_executor_probe" = true ]; then
+  printf '\\nSIGNED private callback executor: exact NOLOGIN two-function wrapper, genuine local GoTrue identities, original and render Storage byte readback, source/role/replay/revocation denials, no published media or live execution. TEST-ONLY.\\n' >> "$artifacts_dir/summary.md"
+fi
 if [ "$signed_private_mp3_profile_probe" = true ]; then
   printf '\nSIGNED private MP3 profile: independent real GoTrue owner/editor/viewer/outsider; exact native source version, idempotence, cross-workspace denial, revoked membership/session and private table ACL all pass only on disposable clone. No media, publication or production release.\n' >> "$artifacts_dir/summary.md"
 fi
