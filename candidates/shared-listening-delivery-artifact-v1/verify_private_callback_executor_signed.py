@@ -68,7 +68,7 @@ def execute_wrapper(db, claims, function_call, expected_denial=False):
     # PostgreSQL 17 non-superusers require explicit SET membership before
     # SET LOCAL ROLE; the protected clone fixture provisions that locally.
     safe_failure = re.search(
-        r"psql:<stdin>:(\\d+): ERROR:\\s*([A-Z0-9]{5})", run.stderr)
+        r"psql:<stdin>:(\d+): ERROR:\s*([A-Z0-9]{5})", run.stderr)
     diagnostic = (" SQLSTATE=" + safe_failure.group(2) +
                   " statement_line=" + safe_failure.group(1)) if safe_failure else ""
     native.check(run.returncode == 0,
