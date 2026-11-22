@@ -14,9 +14,18 @@ BEGIN
       AND NOT r.rolcanlogin AND NOT r.rolsuper AND NOT r.rolbypassrls
       AND NOT r.rolcreaterole AND NOT r.rolcreatedb AND NOT r.rolreplication
   ) THEN RAISE EXCEPTION 'Missing or overpowered NOLOGIN private executor'; END IF;
-  IF NOT has_schema_privilege(role_name,'transcript_core','USAGE') OR
-     has_schema_privilege(role_name,'transcript_core','CREATE')
-  THEN RAISE EXCEPTION 'Incorrect private executor schema privilege'; END IF;
+  IF NOT has_schema_privilege(role_name,'transcript_core_callback_v1','USAGE')
+     OR has_schema_privilege(role_name,'transcript_core_callback_v1','CREATE')
+     OR has_schema_privilege(role_name,'transcript_core','USAGE')
+     OR has_schema_privilege(role_name,'auth','USAGE')
+     OR has_schema_privilege(role_name,'storage','USAGE')
+     OR has_schema_privilege('anon','transcript_core_callback_v1','USAGE')
+     OR has_schema_privilege('authenticated','transcript_core_callback_v1','USAGE')
+     OR has_schema_privilege('service_role','transcript_core_callback_v1','USAGE')
+  THEN RAISE EXCEPTION 'Dedicated callback schema boundary or client grants changed'; END IF;
+  IF (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+      WHERE n.nspname='transcript_core_callback_v1')<>2
+  THEN RAISE EXCEPTION 'Dedicated callback namespace must contain exactly two functions'; END IF;
   IF has_function_privilege(role_name,original,'EXECUTE')
      OR has_function_privilege(role_name,completion,'EXECUTE')
   THEN RAISE EXCEPTION 'Private role must not invoke original invoker functions'; END IF;
@@ -31,8 +40,8 @@ BEGIN
   ) THEN RAISE EXCEPTION 'Private executor acquired direct source table privilege'; END IF;
 
   FOREACH f IN ARRAY ARRAY[
-    'transcript_core.private_register_verified_manuscript_original_v1(uuid,uuid,text,text,bigint,text)'::regprocedure,
-    'transcript_core.private_complete_verified_listening_production_v1(uuid,uuid,integer,uuid,text,jsonb,jsonb,jsonb)'::regprocedure
+    'transcript_core_callback_v1.private_register_verified_manuscript_original_v1(uuid,uuid,text,text,bigint,text)'::regprocedure,
+    'transcript_core_callback_v1.private_complete_verified_listening_production_v1(uuid,uuid,integer,uuid,text,jsonb,jsonb,jsonb)'::regprocedure
   ] LOOP
     IF NOT EXISTS (
       SELECT 1 FROM pg_proc p WHERE p.oid=f AND p.prosecdef
@@ -47,7 +56,7 @@ BEGIN
   END LOOP;
   IF (
     SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-    WHERE n.nspname='transcript_core'
+    WHERE n.nspname='transcript_core_callback_v1'
       AND has_function_privilege(role_name,p.oid,'EXECUTE')
   )<>2 THEN RAISE EXCEPTION 'Private executor has more than the two fixed callbacks'; END IF;
 END $private_executor_postconditions$;
