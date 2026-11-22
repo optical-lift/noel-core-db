@@ -76,7 +76,7 @@ begin
        and v_existing.metadata=p_metadata then
       return jsonb_build_object('contractVersion','reality_place_kind_registration_v1','placeKind',v_key,'state','existing');
     end if;
-    raise exception 'Place kind % already exists with different semantics or state.',v_key using errcode='23505';
+    raise exception 'Relationship kind % already exists with different semantics or state.',v_key using errcode='23505';
   end if;
   insert into reality.place_kinds(place_kind,display_name,description,is_geographic_area,can_contain_places,metadata)
   values(v_key,btrim(p_display_name),coalesce(p_description,''),p_is_geographic_area,p_can_contain_places,p_metadata);
@@ -148,7 +148,6 @@ begin
 end
 $function$;
 
--- Universal Place kinds. Extensible; these do not exhaust the ontology.
 select reality.register_place_kind_service_v1('physical_site','Physical site','A physical site, venue, campus, facility, parcel-scale place, or other bounded real-world site.',false,true,jsonb_build_object('coreContract','ATLAS_REALITY_PLACE_CONTEXT_V1'));
 select reality.register_place_kind_service_v1('locality','Locality','A named locality such as a city, town, village, or comparable settlement.',true,true,jsonb_build_object('coreContract','ATLAS_REALITY_PLACE_CONTEXT_V1'));
 select reality.register_place_kind_service_v1('administrative_area','Administrative area','A governed administrative geographic area such as a county, province, or state.',true,true,jsonb_build_object('coreContract','ATLAS_REALITY_PLACE_CONTEXT_V1'));
@@ -156,7 +155,6 @@ select reality.register_place_kind_service_v1('region','Region','A geographic re
 select reality.register_place_kind_service_v1('postal_area','Postal area','A geography established for postal addressing or delivery.',true,true,jsonb_build_object('coreContract','ATLAS_REALITY_PLACE_CONTEXT_V1'));
 select reality.register_place_kind_service_v1('country','Country','A country-level geographic place.',true,true,jsonb_build_object('coreContract','ATLAS_REALITY_PLACE_CONTEXT_V1'));
 
--- Spatial topology primitives.
 select reality.register_topology_axis_service_v1(
   'spatial_containment','Spatial containment','Universal acyclic spatial membership/containment axis.',true,'acyclic',jsonb_build_object('coreContract','ATLAS_REALITY_PLACE_CONTEXT_V1')
 );

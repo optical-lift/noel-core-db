@@ -1,6 +1,3 @@
--- Atlas Census TIGERweb geography loader v1.
--- Loads source observations only; no canonical Reality truth is created by this loader.
-
 update geography.datasets
 set current_vintage='2026',
     source_url='https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer',

@@ -1,6 +1,3 @@
--- Atlas Geographic Substrate v1.
--- Source geography is evidence; canonical Place identity remains in Reality.
-
 create extension if not exists postgis with schema extensions;
 
 create schema if not exists geography;

@@ -266,8 +266,8 @@ begin
           'occurrenceBindingId',l.occurrence_binding_id,
           'occurrenceId',l.occurrence_id,
           'occurrenceTitle',l.occurrence_title,
-          'occurrenceStatus',l.occcurrence_status,
-         'occurrenceStartsAt',l.occurrence_start_at,
+          'occurrenceStatus',l.occurrence_status,
+          'occurrenceStartsAt',l.occurrence_start_at,
           'occurrenceEndsAt',l.occurrence_end_at
         )),
         'temporalPressure',case
