@@ -1673,6 +1673,23 @@ if [ "$signed_legacy_farm_invite_probe" = true ]; then
     >"$artifacts_dir/legacy-farm-member-fixture.log" 2>&1
 fi
 
+# The original orphan-cancellation fixture expects the trusted original C1
+# fictional Organization to exist BEFORE its own 97 synthetic queue rows.
+# This isolated preload was missing from test run #45060597787, which failed
+# at the fictional fixture preflight before candidate SQL was attempted.
+if [ "$signed_orphan_cancelled_trigger_fn_probe" = true ]; then
+  phase="held orphan-cancelled-trigger original signed C1 Work/Organization fixture"
+  trusted_c1="$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql"
+  if [ "$lane" != atlas ] ||
+     [ "$(git hash-object "$trusted_c1")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [[ ! "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'REFUSE orphan cancelled-trigger preflight without original trusted C1 and local PG17' >&2
+    exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$trusted_c1" \
+    >"$artifacts_dir/orphan-cancelled-trigger-original-c1-fixture.log" 2>&1
+fi
+
 if [ "$signed_anna_two_service_roots_probe" = true ]; then
   phase="held anna-two-service-roots original signed C1 fictional Person/Work fixture"
   psql "$database_url" -X -v ON_ERROR_STOP=1 \
