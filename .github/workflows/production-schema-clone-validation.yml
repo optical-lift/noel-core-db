@@ -1234,6 +1234,24 @@ jobs:
             test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
           fi
 
+          # EXACT generator-produced pressure-wash THREE-function package only.
+          # Clone-only validation of immutable, versioned source; not a release.
+          # Preserves the original fixed GoTrue signed, full-Atlas row witness.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "20261122143231" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = 3d3d609ed72ceed87812892e2ae7f6d4f7f39ed2
+            test "$(basename "$candidate_migration")" = "20261122143231_atlas_historical_pressure_wash_serial_branch_retirement_v1.sql"
+            test "$(git hash-object "$candidate_migration")" = 25e2791bd2da2477015260017eb2e982ec5b083d
+            test "${#fixtures[@]}" -eq 1
+            test "${#validations[@]}" -eq 1
+            test "$(git hash-object "${fixtures[0]}")" = 18b25f7902786e2a1697fb6ac35dbff74328ae69
+            test "$(git hash-object "${validations[0]}")" = 2397e06f23bfdce901400fcbc68c7c6b56900b96
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git -C candidate rev-parse d23113bf916796fe1d176a51c909f3a843d47c8b^{commit})" = d23113bf916796fe1d176a51c909f3a843d47c8b
+          fi
+
           bash scripts/check-migration-release-lane.sh "$MIGRATION_VERSION" "$RELEASE_LANE" "$candidate_migration"
 
           sha256sum "$candidate_migration"

@@ -193,7 +193,7 @@ orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
 # HELD original pressure-wash branch: exact SQL + authentic C1 signed
 # actor and full-Atlas original-row no-loss test, disposable clone ONLY.
-if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_pressure_wash_serial_branch_clone_only_v1[.]sql$ ]]; then
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_historical_pressure_wash_serial_branch_clone_only_v1[.]sql$ ]] || [ "$(basename "$candidate_migration")" = "${name}" ]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != 25e2791bd2da2477015260017eb2e982ec5b083d ] ||
      [ "$(git hash-object "$candidate_fixture")" != 18b25f7902786e2a1697fb6ac35dbff74328ae69 ] ||
