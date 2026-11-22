@@ -667,11 +667,11 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "20261122030000" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "06526381ec285792154fc7acfdd4776ee32fdada"
+            test "$(git -C candidate rev-parse HEAD)" = "8b1099adcf9de1c5fa7c0b04a904f90caa25566a"
             src="candidate/candidates/shared-sk101-course-management-v1/candidate.sql"
             fixture="candidate/validation/fixtures/20261122030000_shared_sk101_course_management_v1.sql"
             post="candidate/validation/migrations/20261122030000_shared_sk101_course_management_v1.sql"
-            test "$(git hash-object "$src")" = a3087d19aadb9950c926d2135a5682f9863f1653
+            test "$(git hash-object "$src")" = 146caf904994e738200f5d79b981d7fdf3942f87
             test "$(git hash-object "$fixture")" = 3f05af628dc4df7f8c483947f77c9996aa9655b3
             test "$(git hash-object "$post")" = a7e5fd416d3ebb490fcfb57827adef58a1749a4f
             test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 19db2b16772539a884437801758a15ee6a16db00
