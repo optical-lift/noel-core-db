@@ -286,7 +286,7 @@ BEGIN
    IF v_prior_composition.members IS DISTINCT FROM v_members OR v_prior_composition.based_on_revision IS DISTINCT FROM p_expected_revision
       OR v_prior_composition.recorded_by_person_entity_id IS DISTINCT FROM v_person OR v_prior_composition.recorded_by_auth_user_id IS DISTINCT FROM v_user
    THEN RAISE EXCEPTION 'replayed composition request differs' USING ERRCODE='23505'; END IF;
-   RETURN jsonb_build_object('contractVersion','shared_teaching_course_composition_v1','courseId',v_course,'requestId',p_request,'revisionNumber',v_prior_composition.revision_number,'members',v_prior_composition.members);
+   RETURN jsonb_build_object('contractVersion','shared_teaching_course_composition_v1','operation',p_operation,'courseId',v_course,'requestId',p_request,'revisionNumber',v_prior_composition.revision_number,'members',v_prior_composition.members);
   END IF;
   PERFORM atlas.validate_course_composition_v1(v_course,v_members);
   SELECT coalesce(max(revision_number),0) INTO v_current FROM atlas.teaching_course_composition_revisions WHERE course_id=v_course;
@@ -303,7 +303,7 @@ BEGIN
       OR v_prior_order.based_on_revision IS DISTINCT FROM p_expected_revision
       OR v_prior_order.recorded_by_person_entity_id IS DISTINCT FROM v_person OR v_prior_order.recorded_by_auth_user_id IS DISTINCT FROM v_user
    THEN RAISE EXCEPTION 'replayed ordering request differs' USING ERRCODE='23505'; END IF;
-   RETURN jsonb_build_object('contractVersion','atlas_course_management_order_receipt_v1','courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_order.revision_id,'revisionNumber',v_prior_order.revision_number,'position',v_prior_order.position,'ordering',v_prior_order.ordering);
+   RETURN jsonb_build_object('contractVersion','atlas_course_management_order_receipt_v1','operation',p_operation,'courseId',v_course,'unitId',p_unit,'requestId',p_request,'revisionId',v_prior_order.revision_id,'revisionNumber',v_prior_order.revision_number,'position',v_prior_order.position,'ordering',v_prior_order.ordering);
   END IF;
   IF v_position IS NULL OR v_position<1 THEN RAISE EXCEPTION 'valid Unit position required' USING ERRCODE='22023'; END IF;
   SELECT coalesce(max(revision_number),0) INTO v_current FROM atlas.teaching_course_unit_order_revisions WHERE course_id=v_course;
