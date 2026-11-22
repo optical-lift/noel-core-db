@@ -518,7 +518,7 @@ jobs:
             test "$(git hash-object "$src")" = b3c4591ec23d13db6b2a92d781f907278c106b22
             test "$(git hash-object "$fixture")" = 3f05af628dc4df7f8c483947f77c9996aa9655b3
             test "$(git hash-object "$post")" = a7e5fd416d3ebb490fcfb57827adef58a1749a4f
-            test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 61bf834bef792a13941c5fcf9bffa5b45ac3eb25
+            test "$(git hash-object scripts/validate-sk101-course-management-signed-http.py)" = 868e1ed3ac01058fbfd2e74cd81a4b7aecb764de
             {
               echo "path=$src"
               echo "actual_version=20261122030000"
