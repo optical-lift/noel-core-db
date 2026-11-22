@@ -1,3 +1,4 @@
+
 create index ledger_exposures_summary_idx
   on ledger.exposures(summary_id);
 

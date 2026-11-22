@@ -1,3 +1,4 @@
+
 alter table ledger.onboarding_cases
   add column case_kind text not null default 'practitioner_onboarding'
   check (case_kind in ('practitioner_onboarding','legacy_adjudicated_migration'));
