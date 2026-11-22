@@ -393,7 +393,7 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_generated_listen
      [ "$(git hash-object "$listening_completion")" != 1c7b398136b399983b1acdb2712b70958761d768 ] ||
      [ "$(git hash-object "$listening_staging")" != 106268970a69c33c5a8d30d737e5d98af807ccfa ] ||
      [ "$(git hash-object "$listening_original")" != de89478c094719912a9ac145af28e01186584c32 ] ||
-     [ "$(git hash-object "$listening_proof")" != 5edc7bbebbdbaa4ba00e1415fcf58b6102fafa7c ] ||
+     [ "$(git hash-object "$listening_proof")" != cb73c35abd21aaf121758c71361d710a1dd88c16 ] ||
      ! cmp -s "$candidate_migration" <(cat "$listening_completion" "$listening_original" "$listening_staging"); then
     echo 'Refuse without exact held generated listening SQL and signed proof.' >&2; exit 2
   fi
@@ -2183,7 +2183,7 @@ if [ "$signed_generated_listening_storage_probe" = true ]; then
   (cd "$project_dir"; python3 "$listening_proof" --db-url "$database_url" \
     --output "$artifacts_dir/signed-generated-listening-storage-summary.txt") \
     >"$artifacts_dir/signed-generated-listening-storage.log" 2>&1
-  test "$(cat "$artifacts_dir/signed-generated-listening-storage-summary.txt")" = 'PASS signed local Storage staging and byte readback; independent denials; no admission or publication.'
+  test "$(cat "$artifacts_dir/signed-generated-listening-storage-summary.txt")" = 'PASS signed local Storage and manuscript-original proof; bounded private native completion, replay and revocation denials; no publication.'
 fi
 
 phase="candidate domain schema lint"
