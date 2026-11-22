@@ -185,10 +185,29 @@ signed_venue_bed_probe=false
 signed_access01_event_choices_probe=false
 signed_access02_my_work_probe=false
 signed_access03_zone_retirement_probe=false
+signed_legacy_farm_invite_probe=false
 signed_generated_listening_storage_probe=false
 signed_private_course_working_loop_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
+# One immutable legacy farm invitation SQL packet, clone only.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_farm_invitation_retirement_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 080ba4d73e4340cba0211c6b804bcea46231e016 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != 83fd7f693be14f5b36cd4f135346f637ef49c45c ] ||
+     [ "$(git hash-object "$candidate_validation")" != 45152d53023ee4ca68a5b6188584edf9c08786bc ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-legacy-farm-invite-signed-http.py")" != a8cb9318d48e85ac61cc81d5ad063fdc8989d9e9 ] ||
+     [ "$(git hash-object "$repo_root/scripts/atlas-legacy-farm-member-disposable-fixture.sql")" != db6a08e231fa5fbee0efb37fd798a938a8fd79af ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
+    echo 'REFUSE held legacy farm signed test without exact source and local clone' >&2
+    exit 2
+  fi
+  signed_legacy_farm_invite_probe=true
+fi
+
+
 # Exact held deletion only; preserve every existing signed proof admission.
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_legacy_queue_orphan_backfill_retirement_clone_only_v1[.]sql$ ]]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
@@ -1172,6 +1191,9 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   elif [ "$signed_private_course_working_loop_probe" = true ]; then
     # Same local GoTrue, REST and PostgreSQL footprint, on the pinned Course package.
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
+  elif [ "$signed_legacy_farm_invite_probe" = true ]; then
+    # Existing local Auth/PostgREST footprint; preserve all older predicates.
+    supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_http_probe" = true ] || [ "$signed_date_http_probe" = true ] ||
      [ "$signed_schedule_preflight_probe" = true ] ||
       [ "$signed_event_writer_probe" = true ] ||
@@ -1454,6 +1476,16 @@ if [ "$orphan_queue_retirement_proof" = true ] &&
     >"$artifacts_dir/person-task-original-signed-c1-fixture.log" 2>&1
 fi
 
+if [ "$signed_legacy_farm_invite_probe" = true ]; then
+  phase="held farm original fictional identities and member fixture"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+    >"$artifacts_dir/legacy-farm-original-c1-fixture.log" 2>&1
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/scripts/atlas-legacy-farm-member-disposable-fixture.sql" \
+    >"$artifacts_dir/legacy-farm-member-fixture.log" 2>&1
+fi
+
 if [ -n "$candidate_fixture" ]; then
   phase="candidate validation fixture application"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_fixture" \
@@ -1492,6 +1524,24 @@ if [ "$obsolete_unfinished_retirement_proof" = true ]; then
   python3 "$repo_root/scripts/validate-atlas-obsolete-queue-retirement-row-change.py" \
     --db-url "$database_url" --snapshot "$obsolete_row_snapshot" --mode capture \
     >"$artifacts_dir/obsolete-queue-row-baseline.log" 2>&1
+fi
+
+if [ "$signed_legacy_farm_invite_probe" = true ]; then
+  phase="held farm genuine signed original member reader BEFORE SQL candidate"
+  if [[ ! "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'REFUSE nonlocal signed farm member proof' >&2; exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c \
+    "ALTER ROLE authenticator IN DATABASE postgres SET pgrst.db_schemas = 'public,graphql_public,atlas';" \
+    >"$artifacts_dir/legacy-farm-local-exposure.log" 2>&1
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c \
+    "NOTIFY pgrst, 'reload config'; NOTIFY pgrst, 'reload schema';" \
+    >>"$artifacts_dir/legacy-farm-local-exposure.log" 2>&1
+  python3 "$repo_root/scripts/validate-atlas-legacy-farm-invite-signed-http.py" \
+    --db-url "$database_url" --phase before \
+    --state-file "$runtime_dir/legacy-farm-member-original.json" \
+    --receipt "$artifacts_dir/legacy-farm-member-signed-summary.txt" \
+    >"$artifacts_dir/legacy-farm-member-before.log" 2>&1
 fi
 
 phase="candidate migration application"
@@ -1608,6 +1658,20 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$signed_legacy_farm_invite_probe" = true ]; then
+  phase="held farm genuine signed member no-loss AFTER SQL candidate"
+  psql "$database_url" -X -v ON_ERROR_STOP=1 -c \
+    "NOTIFY pgrst, 'reload schema';" \
+    >"$artifacts_dir/legacy-farm-reload-post.log" 2>&1
+  python3 "$repo_root/scripts/validate-atlas-legacy-farm-invite-signed-http.py" \
+    --db-url "$database_url" --phase after \
+    --state-file "$runtime_dir/legacy-farm-member-original.json" \
+    --receipt "$artifacts_dir/legacy-farm-member-signed-summary.txt" \
+    >"$artifacts_dir/legacy-farm-member-after.log" 2>&1
+  grep -q '^PASS HELD farm invitation source retirement signed owner/nonowner ' \
+    "$artifacts_dir/legacy-farm-member-signed-summary.txt"
 fi
 
 if [ "$obsolete_unfinished_retirement_proof" = true ]; then
