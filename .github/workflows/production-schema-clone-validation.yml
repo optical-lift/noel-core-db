@@ -1426,10 +1426,10 @@ jobs:
             test "$(git -C candidate rev-parse HEAD)" = "024c2b813456547eae6a38bddb629b3102fc0bcf"
             src="candidate/candidates/atlas/atlas_worker_day_legacy_queue_projection_cutover_v1/candidate.sql"
             post="candidate/candidates/atlas/atlas_worker_day_legacy_queue_projection_cutover_v1/postconditions.sql"
-            fixture="scripts/atlas-legacy-farm-member-disposable-fixture.sql"
+            fixture="validation/fixtures/atlas_worker_day_queue_projection_farm_member_only_v1.sql"
             test "$(git hash-object "$src")" = 0156d850400d4a949f630625dbb504c5fd18f5f2
             test "$(git hash-object "$post")" = fa7a4462ab6729093c4df575e9efe1db9f240da9
-            test "$(git hash-object "$fixture")" = db6a08e231fa5fbee0efb37fd798a938a8fd79af
+            test "$(git hash-object "$fixture")" = 27d1505aa28a5cb5ada61a6489fc8c1178b5c080
             test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
             test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
             test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
