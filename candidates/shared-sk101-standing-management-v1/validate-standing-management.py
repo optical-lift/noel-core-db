@@ -128,8 +128,8 @@ def main():
     legacy = rpc("shared_private_atlas_carrier_enroll_standing_self_api_v1", {"p_course_id":course})["authorizationId"]
     legacy_hash = "a"*64
     srv("shared_private_atlas_carrier_issue_service_v1", {"p_authorization_id":legacy,"p_token_hash":legacy_hash})
-    enroll = "shared_private_atlas_carrier_enroll_standing_management_self_api_v1"
-    revoke = "shared_private_atlas_carrier_revoke_standing_management_self_api_v1"
+    enroll = "shared_sk101_standing_management_enroll_self_api_v1"
+    revoke = "shared_sk101_standing_management_revoke_self_api_v1"
     read, write = "teaching.course.management.read", "teaching.course.management.write"
     legacy_admit = "shared_private_atlas_carrier_admit_service_v1"
     management_admit = "shared_private_atlas_carrier_admit_management_service_v1"
