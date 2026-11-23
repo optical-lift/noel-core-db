@@ -196,6 +196,7 @@ signed_private_callback_executor_probe=false
 signed_private_course_working_loop_probe=false
 signed_sk101_course_management_probe=false
 signed_sk101_admission_probe=false
+signed_sk101_draft_fence_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
 # HELD exact TWO Anna/field-weeding service-only queue roots;
@@ -526,6 +527,20 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_native_private_m
   fi
   python3 -m py_compile "$profile_signed_proof"
   signed_private_mp3_profile_probe=true
+fi
+
+# Released baseline: use the production schema snapshot and no candidate DDL.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_sk101_released_draft_fence_clone_only_v1[.]sql$ ]]; then
+  sk101_draft_fence_probe="$repo_root/candidate/candidates/shared-sk101-standing-management-v1/validate-released-draft-fence.py"
+  if [ "$lane" != shared ] ||
+     [ "$(git hash-object "$candidate_migration")" != e0ac49d1ecfb8f96f2418b1a87e1d20e587d9d0f ] ||
+     [ "$(git hash-object "$sk101_draft_fence_probe")" != 18e5106a92441eede31c5ca911c643e1b2bc0a34 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse SK101 released draft-fence proof without exact isolated inputs.' >&2
+    exit 2
+  fi
+  signed_sk101_draft_fence_probe=true
 fi
 
 # Exact admission transition. Keep the previously released management SQL in the schema snapshot.
@@ -1377,7 +1392,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   set +e
   if [ "$t5_signed_study" = true ]; then
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
-  elif [ "$signed_sk101_course_management_probe" = true ] || [ "$signed_sk101_admission_probe" = true ]; then
+  elif [ "$signed_sk101_course_management_probe" = true ] || [ "$signed_sk101_admission_probe" = true ] || [ "$signed_sk101_draft_fence_probe" = true ]; then
     # Same disposable PostgreSQL/Auth/REST footprint as the existing signed Course proof.
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_private_callback_executor_probe" = true ]; then
@@ -1942,6 +1957,25 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$signed_sk101_draft_fence_probe" = true ]; then
+  phase="signed SK101 released draft fence"
+  sk101_probe_dir="$(mktemp -d)"
+  cp "$repo_root/scripts/validate-atlas-c1-signed-http.py" "$sk101_draft_fence_probe" "$sk101_probe_dir/"
+  python3 "$sk101_probe_dir/validate-released-draft-fence.py" --db-url "$database_url" \
+    --output "$artifacts_dir/sk101-draft-fence-signed-receipt.txt" \
+    >"$artifacts_dir/sk101-draft-fence-signed-local.log" 2>&1
+  test "$(cat "$artifacts_dir/sk101-draft-fence-signed-receipt.txt")" = 'PASS signed baseline: versioned Course denies timed management; sealed curriculum retained'
+  test "$(psql "$database_url" -XAt -v ON_ERROR_STOP=1 -c "
+    SELECT count(*) = 1
+      AND coalesce(bool_and(c.name = 'Fictional other Course' AND u.title = 'Keep this' AND u.display_position = 1), false)
+    FROM atlas.teaching_courses c JOIN atlas.teaching_course_units u ON u.course_id = c.id
+    WHERE c.course_key = 'fixture-unrelated'
+      AND NOT EXISTS (SELECT 1 FROM atlas.teaching_course_unit_revisions r WHERE r.unit_id = u.unit_id)
+      AND NOT EXISTS (SELECT 1 FROM atlas.teaching_course_manuscript_revisions r WHERE r.course_id = c.id);
+  ")" = t
+  printf '%s\n' 'PASS unrelated fictional Course and Unit preserved' >> "$artifacts_dir/sk101-draft-fence-signed-receipt.txt"
 fi
 
 if [ "$signed_sk101_admission_probe" = true ]; then
