@@ -77,7 +77,7 @@ jobs:
           if title == 'Production schema validation request: Shared held SK101 standing management':
               expected = {'diagnostic_scope':'shared_sk101_standing_management_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'dbcfeeb5ab690b5246855dd69b79ba298d5dbe53'}
+                          'candidate_sha':'7dd1f2bd3adb6abf6020f754e196f3bcdb7a8483'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held SK101 standing management validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -717,7 +717,7 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-sk101-standing-management" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "dbcfeeb5ab690b5246855dd69b79ba298d5dbe53"
+            test "$(git -C candidate rev-parse HEAD)" = "7dd1f2bd3adb6abf6020f754e196f3bcdb7a8483"
             test "$(git hash-object "candidate/candidates/shared-sk101-standing-management-v1/validate-standing-management.py")" = "dee7a1b526c195be9260b0f70bd0b13c5c05d94b"
             scratch="$(mktemp -d "$RUNNER_TEMP/sk101-standing-management.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_standing_management_clone_only_v1)
@@ -727,7 +727,7 @@ jobs:
             version="$(basename "$candidate_migration" | cut -d- -f1 | cut -d_ -f1)"
             [[ "$version" =~ ^[0-9]{14}$ ]]
             src="candidate/candidates/shared-sk101-standing-management-v1/standing-grants.sql"
-            test "$(git hash-object "$src")" = "b97802752d41779c39a56b4f1a22079b10434d84"
+            test "$(git hash-object "$src")" = "8b1d9fff57ba821a0302cc156070f0a0eb9cb2d7"
             cp "$src" "$candidate_migration"
             cmp "$src" "$candidate_migration"
             bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"

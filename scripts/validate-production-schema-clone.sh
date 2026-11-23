@@ -548,8 +548,8 @@ fi
 if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_sk101_standing_management_clone_only_v1[.]sql$ ]]; then
   sk101_standing_management_probe="$repo_root/candidate/candidates/shared-sk101-standing-management-v1/validate-standing-management.py"
   if [ "$lane" != shared ] ||
-     [ "$(git -C "$repo_root/candidate" rev-parse HEAD)" != dbcfeeb5ab690b5246855dd69b79ba298d5dbe53 ] ||
-     [ "$(git hash-object "$candidate_migration")" != b97802752d41779c39a56b4f1a22079b10434d84 ] ||
+     [ "$(git -C "$repo_root/candidate" rev-parse HEAD)" != 7dd1f2bd3adb6abf6020f754e196f3bcdb7a8483 ] ||
+     [ "$(git hash-object "$candidate_migration")" != 8b1d9fff57ba821a0302cc156070f0a0eb9cb2d7 ] ||
      [ "$(git hash-object "$sk101_standing_management_probe")" != dee7a1b526c195be9260b0f70bd0b13c5c05d94b ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
