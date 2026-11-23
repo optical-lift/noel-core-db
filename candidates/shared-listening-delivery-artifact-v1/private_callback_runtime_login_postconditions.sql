@@ -23,9 +23,21 @@ BEGIN
   IF (SELECT count(*)
       FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.member
       WHERE r.rolname=runtime) <> 1 OR
+     -- PostgreSQL 17 creator custody can include one inert
+     -- postgres -> runtime administration edge: ADMIN TRUE but
+     -- SET FALSE and INHERIT FALSE. Isolated fixtures may have zero.
+     -- Reject extra edges or any different privilege-bearing member.
      (SELECT count(*)
       FROM pg_auth_members m JOIN pg_roles r ON r.oid=m.roleid
-      WHERE r.rolname=runtime) <> 0 OR
+      WHERE r.rolname=runtime) > 1 OR
+     EXISTS (
+       SELECT 1 FROM pg_auth_members m
+       JOIN pg_roles r ON r.oid=m.roleid
+       JOIN pg_roles u ON u.oid=m.member
+       WHERE r.rolname=runtime
+         AND NOT (u.rolname='postgres' AND m.admin_option
+                  AND NOT m.inherit_option AND NOT m.set_option)
+     ) OR
      NOT EXISTS (
        SELECT 1 FROM pg_auth_members m
        JOIN pg_roles r ON r.oid=m.roleid
