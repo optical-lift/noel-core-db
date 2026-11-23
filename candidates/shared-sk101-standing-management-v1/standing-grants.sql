@@ -531,4 +531,62 @@ BEGIN
  END IF;
  RAISE EXCEPTION 'management write operation not admitted' USING ERRCODE='22023';
 END $$;
+
+-- The owner reviews this exact working revision before preparing an edition.
+CREATE FUNCTION public.shared_sk101_review_edition_self_api_v1(p_course_id uuid)
+RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog
+AS $$
+DECLARE course_id_value uuid; witness jsonb;
+BEGIN
+ IF p_course_id IS DISTINCT FROM '2763f907-fdce-47d2-8308-3cd42c2d2e35'::uuid
+ THEN RAISE EXCEPTION 'exact SK 101 Course required' USING ERRCODE='42501'; END IF;
+ PERFORM atlas.require_private_carrier_signed_user_v1();
+ course_id_value:=atlas.require_private_course_author_self_v1(p_course_id,true);
+ SELECT jsonb_build_object(
+   'courseId',c.id,'title',c.name,
+   'manuscript',(SELECT jsonb_build_object('revisionId',m.revision_id,'revisionNumber',m.revision_number,'text',m.body_text)
+     FROM atlas.teaching_course_manuscript_revisions m WHERE m.course_id=c.id ORDER BY m.revision_number DESC LIMIT 1),
+   'units',(SELECT coalesce(jsonb_agg(jsonb_build_object(
+     'unitId',u.unit_id,'kind',u.kind,'title',u.title,'position',u.display_position,
+     'revisionId',r.revision_id,'revisionNumber',r.revision_number,'text',r.body_text)
+     ORDER BY u.display_position,u.unit_id),'[]'::jsonb)
+     FROM atlas.teaching_course_units u LEFT JOIN LATERAL
+       (SELECT q.revision_id,q.revision_number,q.body_text FROM atlas.teaching_course_unit_revisions q
+        WHERE q.unit_id=u.unit_id ORDER BY q.revision_number DESC LIMIT 1) r ON true
+     WHERE u.course_id=c.id),
+   'composition', (SELECT jsonb_build_object('revisionId',s->'revisionId',
+     'revisionNumber',s->'revisionNumber','members',s->'members')
+     FROM public.shared_teaching_course_composition_read_self_api_v1(c.id) AS composition(s)))
+ INTO witness FROM atlas.teaching_courses c WHERE c.id=course_id_value;
+ RETURN witness;
+END;
+$$;
+
+CREATE FUNCTION public.shared_sk101_publish_reviewed_edition_self_api_v1(
+ p_course_id uuid,p_request_id uuid,p_reviewed_revision jsonb
+) RETURNS jsonb LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO pg_catalog
+AS $$
+DECLARE witness jsonb; edition jsonb; sealed jsonb;
+BEGIN
+ witness:=public.shared_sk101_review_edition_self_api_v1(p_course_id);
+ IF witness IS DISTINCT FROM p_reviewed_revision
+ THEN RAISE EXCEPTION 'reviewed draft revision is stale' USING ERRCODE='40001'; END IF;
+ edition:=public.shared_teaching_private_study_prepare_edition_self_api_v1(
+  p_course_id,p_request_id,witness->>'title');
+ SELECT s.curriculum_payload INTO STRICT sealed FROM atlas.teaching_course_version_curriculum_snapshots s
+ WHERE s.course_id=p_course_id AND s.snapshot_id=(edition->>'snapshotId')::uuid;
+ IF sealed#>'{definition,title}' IS DISTINCT FROM witness->'title'
+ OR sealed->'manuscript' IS DISTINCT FROM witness->'manuscript'
+ OR sealed->'units' IS DISTINCT FROM witness->'units'
+ OR sealed->'composition' IS DISTINCT FROM witness->'composition'
+ THEN RAISE EXCEPTION 'sealed edition differs from reviewed draft' USING ERRCODE='40001'; END IF;
+ RETURN edition;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.shared_sk101_review_edition_self_api_v1(uuid),
+ public.shared_sk101_publish_reviewed_edition_self_api_v1(uuid,uuid,jsonb)
+ FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.shared_sk101_review_edition_self_api_v1(uuid),
+ public.shared_sk101_publish_reviewed_edition_self_api_v1(uuid,uuid,jsonb) TO authenticated;
 COMMIT;
