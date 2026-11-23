@@ -163,7 +163,8 @@ def main():
     sql(f"""INSERT INTO atlas.teaching_course_units(unit_id,course_id,create_request_id,kind,title,display_position,
       created_by_person_entity_id,created_by_auth_user_id)
       VALUES('{unit2}','{course}',gen_random_uuid(),'lesson','Second',2,'{person(101)}','{person(1)}')""")
-    first_body = "Fictional unit manuscript for sealing."
+    activity = uid()
+    first_body = f"## Question {{#titus-activity:{activity}}}\n\nWhat belongs to the first edition?"
     seed = srv(write_rpc, packet("unit_subsection_save", 0, {
         "baseText": "", "selectionStart": 0, "selectionEnd": 0, "replacement": first_body}, unit))
     srv(write_rpc, packet("course_material_save", 0, {"text": "First edition manuscript"}))
@@ -175,12 +176,37 @@ def main():
     sealed = rpc(seal, {"p_course_id": course, "p_course_version_id": version, "p_request_id": uid()})
     snapshot = str(uuid.UUID(sealed["snapshotId"]))
 
+    invitation = rpc("shared_teaching_private_study_invite_self_api_v1", {
+        "p_course_id": course, "p_learner_person_entity_id": person(102),
+        "p_request_id": uid(), "p_expires_at": None})["invitationId"]
+    rpc("shared_teaching_private_study_respond_self_api_v1", {
+        "p_invitation_id": invitation, "p_request_id": uid(), "p_decision": "accept"}, "outsider")
+    rpc("shared_teaching_private_study_unit_decide_self_api_v1", {
+        "p_invitation_id": invitation, "p_unit_id": unit, "p_request_id": uid(),
+        "p_decision": "allow", "p_course_version_id": version})
+    answer = {"p_invitation": invitation, "p_unit": unit, "p_snapshot": snapshot,
+              "p_unit_revision": seed["revisionId"], "p_activity": activity}
+    saved = rpc("shared_teaching_private_study_answer_save_self_api_v1", {
+        **answer, "p_request": uid(), "p_expected_revision": 0,
+        "p_text": "A fictional answer to the sealed question."}, "outsider")
+    submission = rpc("shared_teaching_private_answer_submit_self_api_v1", {
+        "p_answer_revision_id": saved["answerRevisionId"], "p_reviewer_person_id": person(101),
+        "p_request_id": uid()}, "outsider")["submissionId"]
+
     def published_state():
-        return (sql(f"SELECT curriculum_payload::text FROM atlas.teaching_course_version_curriculum_snapshots WHERE snapshot_id='{snapshot}'"),
-                rpc("shared_teaching_private_study_delivery_self_api_v1", {"p_course_id": course}))
+        return {
+            "snapshot": sql(f"SELECT curriculum_payload::text FROM atlas.teaching_course_version_curriculum_snapshots WHERE snapshot_id='{snapshot}'"),
+            "delivery": rpc("shared_teaching_private_study_delivery_self_api_v1", {"p_course_id": course}),
+            "index": rpc("shared_teaching_private_study_index_self_api_v1", {"p_invitation_id": invitation}, "outsider"),
+            "unit": rpc("shared_teaching_private_study_sealed_unit_read_self_api_v1", {
+                "p_invitation_id": invitation, "p_unit_id": unit}, "outsider"),
+            "answer": rpc("shared_teaching_private_study_answer_read_self_api_v1", answer, "outsider"),
+            "context": rpc("shared_teaching_private_answer_question_context_self_api_v1", {
+                "p_submission_id": submission, "p_mode": "learner"}, "outsider"),
+        }
 
     before = published_state()
-    check(first_body in before[0], "first edition has substantive material")
+    check("What belongs to the first edition?" in before["snapshot"], "first edition has substantive material")
     check(srv(legacy_admit, {"p_token_hash": legacy_hash}) is False, "released legacy write fence after seal")
     check(admitted(read) and admitted(write), "standing read and write after seal")
 
