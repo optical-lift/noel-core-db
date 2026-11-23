@@ -214,6 +214,19 @@ jobs:
               raise SystemExit(0)
 
 
+          # Exact held private callback runtime LOGIN/SET membership source.
+          # Clone ONLY: no production LOGIN, password, credential, host or media.
+          if title == 'Production schema validation request: Shared held private callback runtime login':
+              expected = {'diagnostic_scope':'shared_native_private_callback_runtime_login_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'60071620e04bafe6130dd5a9b3d727cda5ca9bff'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held private runtime validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-private-callback-runtime-login\\nrelease_lane=shared\\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\\n')
+              raise SystemExit(0)
+
           # Corrected immutable private callback: full-clone permission proof
           # showed broad native schema access. New source puts exactly two
           # approved wrappers in a dedicated private callback schema.
@@ -1044,6 +1057,36 @@ jobs:
             exit 0
           fi
 
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-callback-runtime-login" ]]; then
+            # One immutable proposed LOGIN + exact SET-only membership package.
+            # This creates NO credentials, password or hosted worker; test clone only.
+            test "$(git -C candidate rev-parse HEAD)" = 60071620e04bafe6130dd5a9b3d727cda5ca9bff
+            src="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_runtime_login_candidate.sql"
+            post="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_runtime_login_postconditions.sql"
+            isolated="candidate/validation/shared-listening-delivery-artifact-v1/private_callback_runtime_login_tests.sql"
+            test "$(git hash-object "$src")" = e57786e357c82354e78d178fb7e680cc70308f59
+            test "$(git hash-object "$post")" = 842e816b792ab996323f923951b2fd74fc289b80
+            test "$(git hash-object "$isolated")" = a84a4f83a60935e88feda730d53c6fbf44867cc5
+            test ! -e "candidate/supabase/migrations/held-private-callback-runtime-login.sql"
+            scratch="$(mktemp -d "$RUNNER_TEMP/private-callback-runtime-clone.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_private_callback_runtime_login_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_private_callback_runtime_login_clone_only_v1.sql')
+            test "${#scratch_files[@]}" -eq 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            sha256sum "$candidate_migration" "$post" "$isolated"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-callback-executor" ]]; then
             # Immutable source-only held candidate from draft Noel PR #3274.
