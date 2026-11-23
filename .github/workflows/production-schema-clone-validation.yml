@@ -66,7 +66,7 @@ jobs:
           if title == 'Production schema validation request: Shared held SK101 management admission':
               expected = {'diagnostic_scope':'shared_sk101_management_admission_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'1b7c671183412376054285e0d80f2f0aecb86583'}
+                          'candidate_sha':'cadc1985668daead9129ecd86fb46eaa076c69e3'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held SK101 admission validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -676,10 +676,10 @@ jobs:
           fi
 
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-sk101-management-admission" ]]; then
-            test "$(git -C candidate rev-parse HEAD)" = "1b7c671183412376054285e0d80f2f0aecb86583"
+            test "$(git -C candidate rev-parse HEAD)" = "cadc1985668daead9129ecd86fb46eaa076c69e3"
             src="candidate/candidates/shared-sk101-management-admission-v1/management-admission.sql"
             test "$(git hash-object "$src")" = "54ae5e06377a229530807f01a4878bc52ff4a8f7"
-            test "$(git hash-object "candidate/candidates/shared-sk101-management-admission-v1/validate-management-admission-signed-http.py")" = "5ad7f3018328714c4364eb22b6e3cba7ea1aed78"
+            test "$(git hash-object "candidate/candidates/shared-sk101-management-admission-v1/validate-management-admission-signed-http.py")" = "0ff78d8c732329b19c27f8e65adc11d462f48f08"
             scratch="$(mktemp -d "$RUNNER_TEMP/sk101-admission.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_management_admission_clone_only_v1)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_sk101_management_admission_clone_only_v1.sql')
