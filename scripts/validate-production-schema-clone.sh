@@ -533,7 +533,7 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_sk101_management
   sk101_admission_probe="$repo_root/candidate/candidates/shared-sk101-management-admission-v1/validate-management-admission-signed-http.py"
   if [ "$lane" != shared ] ||
      [ "$(git hash-object "$candidate_migration")" != 54ae5e06377a229530807f01a4878bc52ff4a8f7 ] ||
-     [ "$(git hash-object "$sk101_admission_probe")" != 0ff78d8c732329b19c27f8e65adc11d462f48f08 ] ||
+     [ "$(git hash-object "$sk101_admission_probe")" != ab8edf9cfcc4320c4e216e37d986f71ac1dc7b17 ] ||
      [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
      [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
     echo 'Refuse SK101 admission proof without exact isolated inputs.' >&2
