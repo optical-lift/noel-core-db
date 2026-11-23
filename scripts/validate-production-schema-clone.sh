@@ -198,6 +198,7 @@ signed_sk101_course_management_probe=false
 signed_sk101_admission_probe=false
 signed_sk101_draft_fence_probe=false
 signed_sk101_standing_management_probe=false
+worker_day_queue_projection_proof=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
 # HELD exact TWO Anna/field-weeding service-only queue roots;
@@ -239,6 +240,26 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_orphan_cancelled_
     exit 2
   fi
   signed_orphan_cancelled_trigger_fn_probe=true
+  signed_work_prerequisite_probe=true
+fi
+
+# TEST ONLY: immutable one-function Worker Day future projection cutover.
+# Preserve exact signed C1, synthetic farm worker, all-Atlas row witness,
+# and local-only source/ACL safeguards; no release or production credential.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_worker_day_legacy_queue_projection_clone_only_v1[.]sql$ ]]; then
+  if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
+     [ "$(git hash-object "$candidate_migration")" != 0156d850400d4a949f630625dbb504c5fd18f5f2 ] ||
+     [ "$(git hash-object "$candidate_validation")" != fa7a4462ab6729093c4df575e9efe1db9f240da9 ] ||
+     [ "$(git hash-object "$candidate_fixture")" != db6a08e231fa5fbee0efb37fd798a938a8fd79af ] ||
+     [ "$(git hash-object "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql")" != 766ab2b69c53796ca6aa892d57a1188fab799bc8 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py")" != a6dbf950b689505babe33811f421add9db2a742d ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-work-prerequisite-signed-http.py")" != eb3bbfb45848a7fca90cc503e153f1451d8d7471 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'REFUSE unpinned or privileged Worker Day projection cutover source' >&2
+    exit 2
+  fi
+  worker_day_queue_projection_proof=true
   signed_work_prerequisite_probe=true
 fi
 
@@ -1758,12 +1779,30 @@ if [ "$signed_pressure_wash_retirement_probe" = true ]; then
     >"$artifacts_dir/pressure-wash-original-c1-fixture.log" 2>&1
 fi
 
+if [ "$worker_day_queue_projection_proof" = true ]; then
+  phase="trusted original C1 Work/Person fixture before synthetic Farm Worker Day"
+  if [[ ! "$database_url" =~ ^postgres(ql)?://[^@]+@127[.]0[.]0[.]1:[0-9]+/postgres$ ]]; then
+    echo 'REFUSE nonlocal Worker Day C1 fixture' >&2; exit 2
+  fi
+  psql "$database_url" -X -v ON_ERROR_STOP=1 \
+    -f "$repo_root/validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql" \
+    >"$artifacts_dir/worker-day-projection-trusted-c1.log" 2>&1
+fi
+
 if [ -n "$candidate_fixture" ]; then
   phase="candidate validation fixture application"
   psql "$database_url" -X -v ON_ERROR_STOP=1 -f "$candidate_fixture" \
     >"$artifacts_dir/candidate-fixture.log" 2>&1
 else
   echo 'No candidate validation fixture is defined.' >"$artifacts_dir/candidate-fixture.log"
+fi
+
+if [ "$worker_day_queue_projection_proof" = true ]; then
+  phase="held Worker Day original all-Atlas-row baseline"
+  worker_day_projection_snapshot="$runtime_dir/worker-day-projection-all-atlas-fingerprints.json"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$worker_day_projection_snapshot" --mode capture \
+    >"$artifacts_dir/worker-day-projection-all-atlas-row-baseline.log" 2>&1
 fi
 
 # PRE1 TEST ONLY: inspect ALL local Atlas base table rows, including original
@@ -2081,6 +2120,15 @@ if [ "$obsolete_unfinished_retirement_proof" = true ]; then
     >"$artifacts_dir/obsolete-queue-row-after-candidate.log" 2>&1
   grep -q "^PASS historical retirement: exactly four source-owned Atlas relations changed" \
     "$artifacts_dir/obsolete-queue-row-after-candidate.log"
+fi
+
+if [ "$worker_day_queue_projection_proof" = true ]; then
+  phase="held Worker Day all-Atlas base-row identity/content unchanged"
+  python3 "$repo_root/scripts/validate-atlas-access03c-pre1-local-row-integrity.py" \
+    --db-url "$database_url" --snapshot "$worker_day_projection_snapshot" --mode verify \
+    >"$artifacts_dir/worker-day-projection-all-atlas-row-after-candidate.log" 2>&1
+  grep -q '^PASS ACCESS03C-PRE1 local all-base-row identity/content conservation:' \
+    "$artifacts_dir/worker-day-projection-all-atlas-row-after-candidate.log"
 fi
 
 if [ "$orphan_queue_retirement_proof" = true ]; then
@@ -2832,6 +2880,12 @@ fi
 if [ "$signed_generated_listening_storage_probe" = true ]; then
   printf '\nSIGNED generated listening: genuine local GoTrue owner/editor/viewer/outsider, Storage upload and byte readback, exact object version, denial of replacement and revoked access. No canonical admission or release.\n' >> "$artifacts_dir/summary.md"
 fi
+if [ "$worker_day_queue_projection_proof" = true ]; then
+  test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
+  test -s "$artifacts_dir/worker-day-projection-all-atlas-row-after-candidate.log"
+  printf '\nHELD Worker Day projection: one exact existing function source replacement; synthetically verified future automatic queue exclusion and nonqueue preservation; all Atlas original base-table identities/content unchanged; genuine signed GoTrue owner/worker/outsider/no-seat, replay/concurrency/revocation prerequisite regression PASS. No due-bed writer cutover, live release, historical deletion or outside client closure.\n' >> "$artifacts_dir/summary.md"
+fi
+
 if [ "$orphan_queue_retirement_proof" = true ]; then
   test -s "$artifacts_dir/signed-work-prerequisite-summary.txt"
   printf '\nOrphan backfill TEST ONLY: exact function DROP RESTRICT, all local Atlas base-table rows unchanged immediately around deletion and postconditions; existing signed Work prerequisite regression passed afterwards. Synthetic Work fixture only; no historical Production row data or external caller closure.\n' >> "$artifacts_dir/summary.md"
