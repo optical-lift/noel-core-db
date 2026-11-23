@@ -224,7 +224,8 @@ fi
 # One immutable owner-approved private caller cutoff, signed clone ONLY.
 # The removed original progression trigger had already been retired on main;
 # deny all live credentials; keep all five current source-linked functions.
-if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_orphan_cancelled_occurrence_queue_trigger_function_clone_only_v1[.]sql$ ]]; then
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_atlas_orphan_cancelled_occurrence_queue_trigger_function_clone_only_v1[.]sql$ ]] ||
+   [ "$(basename "$candidate_migration")" = "20261123203746_atlas_orphan_cancelled_occurrence_queue_trigger_function_retirement_v1.sql" ]; then
   if [ "$lane" != atlas ] || [ -z "$candidate_fixture" ] || [ -z "$candidate_validation" ] ||
      [ "$(git hash-object "$candidate_migration")" != 3033f34ea33af750028ac51df9a307c6d2cd4975 ] ||
      [ "$(git hash-object "$candidate_fixture")" != 6401f4cf44f2c172c156fcc9729c87836988c252 ] ||
