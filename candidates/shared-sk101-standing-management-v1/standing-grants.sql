@@ -341,6 +341,7 @@ AS $$
 DECLARE v_course uuid; v_auth uuid; v_person uuid; v_user uuid; v_title text; v_old text;
  v_latest integer; v_rev atlas.teaching_object_title_revisions%ROWTYPE; v_prior_manuscript atlas.teaching_course_manuscript_revisions%ROWTYPE;
  v_text text; v_members jsonb; v_expected_title text; v_prior_unit atlas.teaching_course_unit_revisions%ROWTYPE; v_current integer; v_unit atlas.teaching_course_units%ROWTYPE;
+ v_temporary_base bigint; v_ordered_units uuid[];
  v_prior_order atlas.teaching_course_unit_order_revisions%ROWTYPE; v_ordering jsonb; v_position integer;
  v_source_unit_revision atlas.teaching_course_unit_revisions%ROWTYPE; v_source_revision uuid;
  v_prior_composition atlas.teaching_course_composition_revisions%ROWTYPE;
@@ -522,8 +523,19 @@ BEGIN
     ELSE old_rank END AS new_position
    FROM ranked
   )
-  UPDATE atlas.teaching_course_units u SET display_position=d.new_position
-   FROM desired d WHERE d.unit_id=u.unit_id;
+  SELECT array_agg(d.unit_id ORDER BY d.new_position) INTO v_ordered_units FROM desired d;
+  -- Move every Unit above both position ranges before assigning final ranks.
+  -- The Course row lock serializes both passes with other Course mutations.
+  SELECT greatest(max(display_position),cardinality(v_ordered_units))
+  INTO v_temporary_base FROM atlas.teaching_course_units WHERE course_id=v_course;
+  IF v_temporary_base+cardinality(v_ordered_units)>2147483647
+  THEN RAISE EXCEPTION 'Unit ordering position range exhausted' USING ERRCODE='22003'; END IF;
+  UPDATE atlas.teaching_course_units u SET display_position=(v_temporary_base+d.rank)::integer
+  FROM unnest(v_ordered_units) WITH ORDINALITY AS d(unit_id,rank)
+  WHERE u.course_id=v_course AND u.unit_id=d.unit_id;
+  UPDATE atlas.teaching_course_units u SET display_position=d.rank::integer
+  FROM unnest(v_ordered_units) WITH ORDINALITY AS d(unit_id,rank)
+  WHERE u.course_id=v_course AND u.unit_id=d.unit_id;
   SELECT coalesce(jsonb_agg(jsonb_build_object('unitId',unit_id,'position',display_position) ORDER BY display_position,unit_id),'[]'::jsonb) INTO v_ordering FROM atlas.teaching_course_units WHERE course_id=v_course;
   INSERT INTO atlas.teaching_course_unit_order_revisions(course_id,edit_request_id,based_on_revision,revision_number,moved_unit_id,position,ordering,recorded_by_person_entity_id,recorded_by_auth_user_id)
    VALUES(v_course,p_request,v_current,v_current+1,p_unit,v_position,v_ordering,v_person,v_user) RETURNING * INTO v_prior_order;
