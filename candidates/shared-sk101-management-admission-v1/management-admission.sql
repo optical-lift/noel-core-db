@@ -144,6 +144,52 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.shared_private_atlas_carrier_management_status_self_api_v1()
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog'
+AS $$
+DECLARE signed_user uuid:=atlas.require_private_carrier_signed_user_v1(); grants jsonb;
+BEGIN
+ SELECT coalesce(jsonb_agg(jsonb_build_object('authorizationId',a.id,'command',k.command,
+  'endsAt',a.ends_at,'credentialId',cred.id,'credentialExpiresAt',cred.expires_at)
+  ORDER BY k.command),'[]'::jsonb) INTO grants
+ FROM atlas.delegated_agent_authorizations a
+ CROSS JOIN LATERAL unnest(a.allowed_command_keys) k(command)
+ LEFT JOIN atlas.delegated_agent_credentials cred ON cred.authorization_id=a.id
+  AND cred.credential_state='active' AND cred.begins_at<=clock_timestamp()
+  AND cred.expires_at=a.ends_at AND cred.expires_at>clock_timestamp()
+  AND cred.metadata->>'privateCarrierCredentialV1'='true'
+ WHERE a.created_by_user_id=signed_user AND atlas.sk101_management_grant_current_v1(a.id,k.command);
+ RETURN jsonb_build_object('courseId','2763f907-fdce-47d2-8308-3cd42c2d2e35','authorizations',grants);
+END;
+$$;
+
+CREATE FUNCTION public.shared_private_atlas_carrier_revoke_management_self_api_v1(p_authorization uuid,p_command text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog'
+AS $$
+DECLARE signed_user uuid:=atlas.require_private_carrier_signed_user_v1(); pr_id uuid;
+BEGIN
+ IF NOT coalesce(p_command IN ('teaching.course.management.read','teaching.course.management.write'),false)
+ THEN RAISE EXCEPTION 'exact management command required' USING ERRCODE='22023'; END IF;
+ SELECT pr.id INTO pr_id FROM atlas.principals pr
+ JOIN reality.auth_person_bindings b ON b.auth_user_id=pr.user_id AND b.binding_state='active' AND b.retired_at IS NULL
+ WHERE pr.user_id=signed_user AND pr.status='active' AND b.person_entity_id='59e9fd9d-e7fd-48ca-91e0-ee271c05148e'
+ FOR UPDATE OF pr;
+ IF NOT FOUND THEN RAISE EXCEPTION 'signed owner required' USING ERRCODE='42501'; END IF;
+ PERFORM a.id FROM atlas.delegated_agent_authorizations a
+ JOIN atlas.delegated_agent_carriers c ON c.id=a.carrier_id
+ WHERE a.id=p_authorization AND a.principal_id=pr_id AND a.created_by_user_id=signed_user
+ AND c.stable_key='chatgpt_atlas_private' AND c.metadata->>'ownerPrincipalId'=pr_id::text
+ AND c.metadata->>'pluginId'='plugin_asdk_app_sites_4c5c75d7fb808191a0f80e42ba2ce6e1'
+ AND a.allowed_command_keys=ARRAY[p_command] AND a.purpose='Owner-approved private ChatGPT SK 101 '||p_command
+ AND a.scope='{"targetKinds":["teaching_course"],"targetIds":["2763f907-fdce-47d2-8308-3cd42c2d2e35"]}'::jsonb
+ FOR UPDATE OF a;
+ IF NOT FOUND THEN RAISE EXCEPTION 'owned management grant required' USING ERRCODE='42501'; END IF;
+ RETURN atlas.revoke_delegated_agent_authorization_self_api_v1(p_authorization,'Principal revoked exact SK 101 management authority');
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.shared_private_atlas_carrier_management_status_self_api_v1(),public.shared_private_atlas_carrier_revoke_management_self_api_v1(uuid,text) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.shared_private_atlas_carrier_management_status_self_api_v1(),public.shared_private_atlas_carrier_revoke_management_self_api_v1(uuid,text) TO authenticated;
 REVOKE ALL ON FUNCTION public.shared_private_atlas_carrier_enroll_management_self_api_v1(uuid,text,timestamptz) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.shared_private_atlas_carrier_enroll_management_self_api_v1(uuid,text,timestamptz) TO authenticated;
 REVOKE ALL ON FUNCTION public.shared_private_atlas_carrier_issue_management_service_v1(uuid,text,text) FROM PUBLIC,anon,authenticated,service_role;
