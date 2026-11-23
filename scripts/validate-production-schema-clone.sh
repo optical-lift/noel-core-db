@@ -195,6 +195,7 @@ signed_private_mp3_profile_probe=false
 signed_private_callback_executor_probe=false
 signed_private_course_working_loop_probe=false
 signed_sk101_course_management_probe=false
+signed_sk101_admission_probe=false
 orphan_queue_retirement_proof=false
 obsolete_unfinished_retirement_proof=false
 # HELD exact TWO Anna/field-weeding service-only queue roots;
@@ -525,6 +526,20 @@ if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_native_private_m
   fi
   python3 -m py_compile "$profile_signed_proof"
   signed_private_mp3_profile_probe=true
+fi
+
+# Exact admission transition. Keep the previously released management SQL in the schema snapshot.
+if [[ "$(basename "$candidate_migration")" =~ ^[0-9]{14}_shared_sk101_management_admission_clone_only_v1[.]sql$ ]]; then
+  sk101_admission_probe="$repo_root/candidate/candidates/shared-sk101-management-admission-v1/validate-management-admission-signed-http.py"
+  if [ "$lane" != shared ] ||
+     [ "$(git hash-object "$candidate_migration")" != 54ae5e06377a229530807f01a4878bc52ff4a8f7 ] ||
+     [ "$(git hash-object "$sk101_admission_probe")" != 5ad7f3018328714c4364eb22b6e3cba7ea1aed78 ] ||
+     [ "$(git hash-object "$repo_root/scripts/validate-atlas-c1-signed-http.py")" != 1b82e698705e473280f1fc55b0e762bce243effb ] ||
+     [ -n "${NOEL_CORE_DATABASE_URL:-}${DATABASE_URL:-}${SUPABASE_DB_URL:-}${SUPABASE_ACCESS_TOKEN:-}${SUPABASE_SERVICE_ROLE_KEY:-}${SUPABASE_SECRET_KEY:-}" ]; then
+    echo 'Refuse SK101 admission proof without exact isolated inputs.' >&2
+    exit 2
+  fi
+  signed_sk101_admission_probe=true
 fi
 
 # Exact owner-held SK101 management proof, disposable clone only. The
@@ -1362,7 +1377,7 @@ while [ "$startup_attempt" -le "$startup_max_attempts" ]; do
   set +e
   if [ "$t5_signed_study" = true ]; then
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
-  elif [ "$signed_sk101_course_management_probe" = true ]; then
+  elif [ "$signed_sk101_course_management_probe" = true ] || [ "$signed_sk101_admission_probe" = true ]; then
     # Same disposable PostgreSQL/Auth/REST footprint as the existing signed Course proof.
     supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor >"$startup_log" 2>&1
   elif [ "$signed_private_callback_executor_probe" = true ]; then
@@ -1927,6 +1942,16 @@ if [ -n "$candidate_validation" ]; then
 else
   echo "No candidate migration-specific postcondition file is defined for ${version}." \
     >"$artifacts_dir/postconditions.log"
+fi
+
+if [ "$signed_sk101_admission_probe" = true ]; then
+  phase="signed SK101 carrier admission transition"
+  sk101_probe_dir="$(mktemp -d)"
+  cp "$repo_root/scripts/validate-atlas-c1-signed-http.py" "$sk101_admission_probe" "$sk101_probe_dir/"
+  python3 "$sk101_probe_dir/validate-management-admission-signed-http.py" --db-url "$database_url" \
+    --output "$artifacts_dir/sk101-admission-signed-receipt.txt" \
+    >"$artifacts_dir/sk101-admission-signed-local.log" 2>&1
+  test -s "$artifacts_dir/sk101-admission-signed-receipt.txt"
 fi
 
 if [ "$signed_sk101_course_management_probe" = true ]; then

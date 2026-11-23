@@ -63,6 +63,17 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          if title == 'Production schema validation request: Shared held SK101 management admission':
+              expected = {'diagnostic_scope':'shared_sk101_management_admission_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'1b7c671183412376054285e0d80f2f0aecb86583'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held SK101 admission validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-sk101-management-admission\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # Exact owner-held SK101 coordinated Course-management candidate.
           if title == 'Production schema validation request: Shared held SK101 Course management':
               expected = {'diagnostic_scope':'shared_sk101_course_management_clone_only_v1',
@@ -660,6 +671,27 @@ jobs:
               echo "actual_version=$version"
               echo "fixture_path=$fixture"
               echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-sk101-management-admission" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "1b7c671183412376054285e0d80f2f0aecb86583"
+            src="candidate/candidates/shared-sk101-management-admission-v1/management-admission.sql"
+            test "$(git hash-object "$src")" = "54ae5e06377a229530807f01a4878bc52ff4a8f7"
+            test "$(git hash-object "candidate/candidates/shared-sk101-management-admission-v1/validate-management-admission-signed-http.py")" = "5ad7f3018328714c4364eb22b6e3cba7ea1aed78"
+            scratch="$(mktemp -d "$RUNNER_TEMP/sk101-admission.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_management_admission_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_sk101_management_admission_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d- -f1 | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
