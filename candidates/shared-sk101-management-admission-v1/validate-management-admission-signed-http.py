@@ -187,12 +187,16 @@ def main():
     rpc(revoke,{"p_authorization":ids[write],"p_command":write})
     srv(write_rpc,request,403)
     check_legacy()
-    replacement=rpc(enroll,enrollment(read))["authorizationId"]
+    short_expiry=sql("SELECT (clock_timestamp()+interval '20 seconds')::text")
+    replacement=rpc(enroll,enrollment(read,p_ends_at=short_expiry))["authorizationId"]
     srv(issue,{"p_authorization":replacement,"p_command":read,"p_token_hash":"d"*64})
     rpc("shared_private_atlas_carrier_revoke_self_api_v2",{"p_authorization_id":legacy})
     check_legacy(False)
     check(admission(read,"d"*64),"legacy revocation preserves management")
-    sql(f"UPDATE atlas.delegated_agent_credentials SET expires_at=clock_timestamp()-interval '1 second' WHERE authorization_id='{replacement}'")
+    deadline=time.monotonic()+30
+    while sql(f"SELECT clock_timestamp() >= '{short_expiry}'::timestamptz") != "t":
+        check(time.monotonic()<deadline,"local credential did not reach expiry")
+        time.sleep(.25)
     check(not admission(read,"d"*64),"expired credential denied")
     check(sql(f"SELECT title FROM atlas.teaching_course_units WHERE unit_id='{wrong_unit}'")=="Keep this","unrelated Unit preserved")
     Path(args.output).write_text("PASS signed enrollment, concurrency, three authorities, replay, exact scope, independent revocation, expiration and rate limit\n")
