@@ -6,6 +6,7 @@ This probe has no hosted database credentials and creates no real grant.
 """
 import argparse
 import importlib.util
+import json
 import os
 from pathlib import Path
 import re
@@ -159,6 +160,13 @@ def main():
     write_id = rpc(enroll, {"p_course": course, "p_command": write})["authorizationId"]
     check(srv(legacy_admit, {"p_token_hash": legacy_hash}) is True, "legacy survives standing enrollment")
 
+    rpc(revoke, {"p_authorization": write_id, "p_command": write})
+    check(not admitted(write) and admitted(read), "pre-seal write revocation preserves read")
+    check(srv(legacy_admit, {"p_token_hash": legacy_hash}) is True, "legacy survives pre-seal revocation")
+    write_id = rpc(enroll, {"p_course": course, "p_command": write})["authorizationId"]
+    check(not srv(management_admit, {"p_token_hash": "d"*64, "p_command": write,
+                                     "p_course": course}), "unknown credential denied")
+
     unit2 = uid()
     sql(f"""INSERT INTO atlas.teaching_course_units(unit_id,course_id,create_request_id,kind,title,display_position,
       created_by_person_entity_id,created_by_auth_user_id)
@@ -167,6 +175,8 @@ def main():
     first_body = f"## Question {{#titus-activity:{activity}}}\n\nWhat belongs to the first edition?"
     seed = srv(write_rpc, packet("unit_subsection_save", 0, {
         "baseText": "", "selectionStart": 0, "selectionEnd": 0, "replacement": first_body}, unit))
+    srv(write_rpc, packet("unit_subsection_save", 0, {
+        "baseText": "", "selectionStart": 0, "selectionEnd": 0, "replacement": "Second sealed Unit."}, unit2))
     srv(write_rpc, packet("course_material_save", 0, {"text": "First edition manuscript"}))
     publish = "shared_teaching_course_definition_publish_self_api_v1"
     seal = "shared_teaching_course_curriculum_seal_self_api_v1"
@@ -233,8 +243,16 @@ def main():
                     "p_members": []}
     confirm = "shared_sk101_confirm_composition_removal_self_api_v1"
     rpc(confirm, confirmation, "outsider", 403)
+    rpc(confirm, {**confirmation, "p_members": members}, expected=400)
+    status, error = auth.rpc(api, anon, confirm, {**confirmation, "p_base_revision": 2}, tokens["owner"])
+    check(status == 500 and error.get("code") == "40001", "stale confirmation")
     rpc(confirm, confirmation, expected=204)
+    rpc(confirm, confirmation, expected=204)
+    srv(write_rpc, {**removal, "p_request": uid()}, 403)
+    changed_members = [{**members[0], "depth": "advanced"}]
+    srv(write_rpc, {**removal, "p_payload": {"members": changed_members}}, 403)
     mutate(removal)
+    srv(write_rpc, {**removal, "p_payload": {"members": members}}, 409)
     check(draft("composition_read")["members"] == [], "confirmed removal readback")
 
     mutate(packet("unit_subsection_save", 1, {"baseText": first_body, "selectionStart": 0,
@@ -242,6 +260,9 @@ def main():
     recovered = mutate(packet("revision_recover", 2, {"revisionId": seed["revisionId"]}, unit))
     check(recovered["sourceRevisionId"] == seed["revisionId"], "historical revision recovery")
 
+    review = "shared_sk101_review_edition_self_api_v1"
+    reviewed = "shared_sk101_publish_reviewed_edition_self_api_v1"
+    stale = rpc(review, {"p_course_id": course})
     competitors = [packet("course_material_save", 2, {"text": title}) for title in ("Winner A", "Winner B")]
     with ThreadPoolExecutor(max_workers=2) as pool:
         outcomes = list(pool.map(lambda args: auth.rpc(api, service, write_rpc, args, service), competitors))
@@ -256,10 +277,35 @@ def main():
     check(not admitted(read) and not admitted(write), "both standing grants revoked")
     check(srv(legacy_admit, {"p_token_hash": legacy_hash}) is False, "revocation does not reopen legacy write")
     check(published_state() == before, "revocation preserves edition one")
+    check(sql(f"""SELECT count(*) FROM atlas.teaching_courses c
+        JOIN atlas.teaching_course_units u ON u.course_id=c.id
+        WHERE c.id='{foreign}' AND c.name='Fictional other Course'
+          AND u.unit_id='{wrong_unit}' AND u.title='Keep this' AND u.display_position=1
+          AND NOT EXISTS (SELECT 1 FROM atlas.teaching_course_unit_revisions r WHERE r.unit_id=u.unit_id)
+          AND NOT EXISTS (SELECT 1 FROM atlas.teaching_course_manuscript_revisions r WHERE r.course_id=c.id)""")
+        == "1", "unrelated Course and Unit unchanged")
 
-    # This partial probe cannot issue a pass receipt until independent learner
-    # views and exact-revision subsequent publication assertions are in place.
-    raise AssertionError("standing probe incomplete: learner and subsequent edition checks required")
+    reviewed_args = {"p_course_id": course, "p_request_id": uid(), "p_reviewed_revision": stale}
+    status, error = auth.rpc(api, anon, reviewed, reviewed_args, tokens["owner"])
+    check(status == 500 and error.get("code") == "40001", "stale reviewed draft denied")
+    reviewed_args["p_reviewed_revision"] = rpc(review, {"p_course_id": course})
+    rpc(reviewed, reviewed_args, "outsider", 403)
+    status, _ = auth.rpc(api, service, reviewed, reviewed_args, service)
+    check(status in (401, 403, 404), "carrier service cannot publish")
+    edition = rpc(reviewed, reviewed_args)
+    check(edition["courseId"] == course and edition["courseVersionId"] != version, "same Course, new edition")
+    check(rpc(reviewed, reviewed_args)["snapshotId"] == edition["snapshotId"], "exact publication replay")
+    new_snapshot = str(uuid.UUID(edition["snapshotId"]))
+    payload = json.loads(sql(f"SELECT curriculum_payload::text FROM atlas.teaching_course_version_curriculum_snapshots WHERE snapshot_id='{new_snapshot}'"))
+    approved = reviewed_args["p_reviewed_revision"]
+    check(payload["versionNo"] == 2 and payload["definition"]["title"] == approved["title"] and
+          all(payload[key] == approved[key] for key in ("manuscript", "units", "composition")), "approved draft sealed exactly")
+    after = published_state()
+    check(all(after[key] == before[key] for key in before if key != "delivery"),
+          "new publication preserves first snapshot and learner results")
+    check(all(item in after["delivery"]["editions"] for item in before["delivery"]["editions"]),
+          "delivery retains original sealed edition")
+    Path(args.output).write_text("PASS signed SK101 standing management and reviewed subsequent edition\n")
 
 
 if __name__ == "__main__":
