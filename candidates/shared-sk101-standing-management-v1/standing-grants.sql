@@ -1,3 +1,6 @@
+Traceback (most recent call last):
+  File "<stdin>", line 6, in <module>
+ValueError: substring not found
 -- HELD clone candidate. Released legacy write and timed management fences remain intact.
 BEGIN;
 
