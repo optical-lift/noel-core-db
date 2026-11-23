@@ -74,6 +74,17 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          if title == 'Production schema validation request: Shared held SK101 standing management':
+              expected = {'diagnostic_scope':'shared_sk101_standing_management_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'c32115bd7b19e384ece5523f50e6746d6890d2fb'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held SK101 standing management validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-sk101-standing-management\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           if title == 'Production schema validation request: Shared held SK101 management admission':
               expected = {'diagnostic_scope':'shared_sk101_management_admission_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
@@ -697,6 +708,28 @@ jobs:
             version="$(basename "$candidate_migration" | cut -d- -f1 | cut -d_ -f1)"
             [[ "$version" =~ ^[0-9]{14}$ ]]
             printf 'SELECT 1;\n' > "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-sk101-standing-management" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "c32115bd7b19e384ece5523f50e6746d6890d2fb"
+            test "$(git hash-object "candidate/candidates/shared-sk101-standing-management-v1/validate-standing-management.py")" = "9be585eb4531d27ebf766c2b80442b2bc1c1a815"
+            scratch="$(mktemp -d "$RUNNER_TEMP/sk101-standing-management.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_standing_management_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_sk101_standing_management_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d- -f1 | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            src="candidate/candidates/shared-sk101-standing-management-v1/standing-grants.sql"
+            test "$(git hash-object "$src")" = "6d94914e063206ec05ab175adf25c61b12d49e84"
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
             bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
             {
               echo "path=$candidate_migration"
