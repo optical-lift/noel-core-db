@@ -158,7 +158,7 @@ END;
 $$;
 
 
-CREATE FUNCTION atlas.sk101_lock_standing_management_v1(p_token_hash text,p_course uuid,p_command text)
+CREATE FUNCTION atlas.sk101_lock_standing_management_v1(p_token_hash text,p_course uuid,p_command text,p_admission boolean)
 RETURNS boolean LANGUAGE plpgsql SECURITY INVOKER SET search_path TO 'pg_catalog'
 AS $$
 DECLARE anchor atlas.delegated_agent_authorizations%ROWTYPE; grant_id uuid;
@@ -181,10 +181,17 @@ BEGIN
  FOR SHARE OF a;
  IF NOT FOUND THEN RETURN false; END IF;
 
- PERFORM 1 FROM atlas.delegated_agent_credentials c
+ IF p_admission THEN
+  PERFORM 1 FROM atlas.delegated_agent_credentials c
+ WHERE c.authorization_id=anchor.id AND c.token_hash=p_token_hash
+ AND c.credential_state='active' AND c.begins_at<=clock_timestamp() AND c.expires_at IS NULL
+ AND c.metadata->>'privateCarrierCredentialV1'='true' FOR NO KEY UPDATE;
+ ELSE
+  PERFORM 1 FROM atlas.delegated_agent_credentials c
  WHERE c.authorization_id=anchor.id AND c.token_hash=p_token_hash
  AND c.credential_state='active' AND c.begins_at<=clock_timestamp() AND c.expires_at IS NULL
  AND c.metadata->>'privateCarrierCredentialV1'='true' FOR SHARE;
+ END IF;
  RETURN FOUND AND atlas.sk101_standing_carrier_anchor_current_v1(anchor.id)
   AND atlas.sk101_standing_management_grant_current_v1(grant_id,p_command)
   AND atlas.sk101_compatible_management_peer_v1(grant_id,p_course);
@@ -193,7 +200,7 @@ $$;
 
 REVOKE ALL ON FUNCTION atlas.sk101_standing_management_grant_current_v1(uuid,text),
  atlas.sk101_standing_carrier_anchor_current_v1(uuid),
- atlas.sk101_lock_standing_management_v1(text,uuid,text),
+ atlas.sk101_lock_standing_management_v1(text,uuid,text,boolean),
  public.shared_private_atlas_carrier_enroll_standing_management_self_api_v1(uuid,text),
  public.shared_private_atlas_carrier_revoke_standing_management_self_api_v1(uuid,text)
  FROM PUBLIC,anon,authenticated,service_role;
@@ -211,7 +218,7 @@ BEGIN
  OR NOT coalesce(p_command IN ('teaching.course.management.read','teaching.course.management.write'),false)
  OR p_write IS DISTINCT FROM (p_command='teaching.course.management.write')
  THEN RAISE EXCEPTION 'exact Course management grant required' USING ERRCODE='42501'; END IF;
- IF atlas.sk101_lock_standing_management_v1(p_token_hash,p_course,p_command) THEN
+ IF atlas.sk101_lock_standing_management_v1(p_token_hash,p_course,p_command,false) THEN
   RETURN p_course;
  END IF;
  SELECT authorization_id INTO aid FROM atlas.delegated_agent_credentials WHERE token_hash=p_token_hash;
@@ -225,6 +232,46 @@ BEGIN
  IF NOT FOUND OR NOT atlas.sk101_management_admissible_v1(aid,p_command)
  THEN RAISE EXCEPTION 'current management credential required' USING ERRCODE='42501'; END IF;
  RETURN p_course;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.shared_private_atlas_carrier_admit_management_service_v1(p_token_hash text,p_command text,p_course uuid)
+RETURNS boolean LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path TO 'pg_catalog'
+AS $$
+DECLARE aid uuid; cred atlas.delegated_agent_credentials%ROWTYPE;
+        grant_end timestamptz; minute_id bigint; used int:=0; previous jsonb;
+        bucket text;
+BEGIN
+ IF p_course IS DISTINCT FROM '2763f907-fdce-47d2-8308-3cd42c2d2e35'::uuid
+    OR p_token_hash IS NULL OR p_token_hash !~ '^[0-9a-f]{64}$' THEN RETURN false; END IF;
+ IF atlas.sk101_lock_standing_management_v1(p_token_hash,p_course,p_command,true) THEN
+  SELECT * INTO STRICT cred FROM atlas.delegated_agent_credentials WHERE token_hash=p_token_hash;
+ ELSE
+  SELECT authorization_id INTO aid FROM atlas.delegated_agent_credentials WHERE token_hash=p_token_hash;
+  IF aid IS NULL THEN RETURN false; END IF;
+  SELECT ends_at INTO grant_end FROM atlas.delegated_agent_authorizations WHERE id=aid FOR SHARE;
+  IF NOT FOUND OR NOT atlas.sk101_management_admissible_v1(aid,p_command) THEN RETURN false; END IF;
+  SELECT * INTO cred FROM atlas.delegated_agent_credentials
+  WHERE token_hash=p_token_hash AND authorization_id=aid FOR UPDATE;
+  IF NOT FOUND OR cred.credential_state<>'active' OR cred.begins_at>clock_timestamp()
+     OR cred.expires_at IS DISTINCT FROM grant_end OR cred.expires_at<=clock_timestamp()
+     OR cred.metadata->>'privateCarrierCredentialV1' IS DISTINCT FROM 'true'
+     OR NOT atlas.sk101_management_admissible_v1(aid,p_command) THEN RETURN false; END IF;
+ END IF;
+ minute_id:=floor(extract(epoch FROM clock_timestamp())/60)::bigint;
+ bucket:=CASE WHEN cred.expires_at IS NULL THEN 'privateCarrierStandingManagementAdmissionV1'
+              ELSE 'privateCarrierAdmissionV1' END;
+ previous:=cred.metadata->bucket;
+ IF previous IS NOT NULL THEN
+  IF jsonb_typeof(previous)<>'object' OR coalesce(previous->>'window','') !~ '^[0-9]{1,18}$'
+     OR coalesce(previous->>'count','') !~ '^[0-9]{1,2}$' THEN RETURN false; END IF;
+  IF (previous->>'window')::bigint>minute_id THEN RETURN false; END IF;
+  IF (previous->>'window')::bigint=minute_id THEN used:=(previous->>'count')::int; END IF;
+ END IF;
+ IF used>=12 THEN RETURN false; END IF;
+ UPDATE atlas.delegated_agent_credentials SET metadata=jsonb_set(metadata,ARRAY[bucket],
+   jsonb_build_object('window',minute_id,'count',used+1),true) WHERE id=cred.id;
+ RETURN true;
 END;
 $$;
 COMMIT;
