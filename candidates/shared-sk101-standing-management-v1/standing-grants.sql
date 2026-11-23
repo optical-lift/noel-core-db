@@ -83,7 +83,7 @@ AS $function$
  );
 $function$;
 
-CREATE FUNCTION public.shared_private_atlas_carrier_enroll_standing_management_self_api_v1(p_course uuid,p_command text)
+CREATE FUNCTION public.shared_sk101_standing_management_enroll_self_api_v1(p_course uuid,p_command text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog'
 AS $$
 DECLARE signed_user uuid:=atlas.require_private_carrier_signed_user_v1();
@@ -132,7 +132,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION public.shared_private_atlas_carrier_revoke_standing_management_self_api_v1(p_authorization uuid,p_command text)
+CREATE FUNCTION public.shared_sk101_standing_management_revoke_self_api_v1(p_authorization uuid,p_command text)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog'
 AS $$
 DECLARE signed_user uuid:=atlas.require_private_carrier_signed_user_v1(); pr_id uuid;
@@ -201,11 +201,11 @@ $$;
 REVOKE ALL ON FUNCTION atlas.sk101_standing_management_grant_current_v1(uuid,text),
  atlas.sk101_standing_carrier_anchor_current_v1(uuid),
  atlas.sk101_lock_standing_management_v1(text,uuid,text,boolean),
- public.shared_private_atlas_carrier_enroll_standing_management_self_api_v1(uuid,text),
- public.shared_private_atlas_carrier_revoke_standing_management_self_api_v1(uuid,text)
+ public.shared_sk101_standing_management_enroll_self_api_v1(uuid,text),
+ public.shared_sk101_standing_management_revoke_self_api_v1(uuid,text)
  FROM PUBLIC,anon,authenticated,service_role;
-GRANT EXECUTE ON FUNCTION public.shared_private_atlas_carrier_enroll_standing_management_self_api_v1(uuid,text),
- public.shared_private_atlas_carrier_revoke_standing_management_self_api_v1(uuid,text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.shared_sk101_standing_management_enroll_self_api_v1(uuid,text),
+ public.shared_sk101_standing_management_revoke_self_api_v1(uuid,text) TO authenticated;
 
 CREATE OR REPLACE FUNCTION atlas.require_private_course_management_v1(
  p_token_hash text,p_course uuid,p_command text,p_write boolean
