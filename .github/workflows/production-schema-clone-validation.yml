@@ -63,6 +63,17 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          if title == 'Production schema validation request: Shared held SK101 released draft fence':
+              expected = {'diagnostic_scope':'shared_sk101_released_draft_fence_clone_only_v1',
+                          'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'cf8f09c06880639beafa141775b87e2f689bb142'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held SK101 released draft-fence validation authorization required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-sk101-released-draft-fence\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           if title == 'Production schema validation request: Shared held SK101 management admission':
               expected = {'diagnostic_scope':'shared_sk101_management_admission_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
@@ -671,6 +682,25 @@ jobs:
               echo "actual_version=$version"
               echo "fixture_path=$fixture"
               echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-sk101-released-draft-fence" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "cf8f09c06880639beafa141775b87e2f689bb142"
+            test "$(git hash-object "candidate/candidates/shared-sk101-standing-management-v1/validate-released-draft-fence.py")" = "18e5106a92441eede31c5ca911c643e1b2bc0a34"
+            scratch="$(mktemp -d "$RUNNER_TEMP/sk101-draft-fence.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new shared_sk101_released_draft_fence_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_shared_sk101_released_draft_fence_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d- -f1 | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            printf 'SELECT 1;\n' > "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" shared "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
