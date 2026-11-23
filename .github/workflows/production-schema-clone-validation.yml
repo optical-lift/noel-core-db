@@ -350,6 +350,19 @@ jobs:
                   handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
+          # Exact source-only Worker Day future projection cutover. One existing
+          # function/ACL remains unchanged; genuinely signed local clone ONLY.
+          if title == 'Production schema validation request: Atlas held Worker Day queue projection cutover':
+              expected = {'diagnostic_scope':'atlas_worker_day_legacy_queue_projection_clone_only_v1',
+                          'release_lane':'atlas','production_target':'zirqkouammpwxlqfbsvf',
+                          'candidate_sha':'024c2b813456547eae6a38bddb629b3102fc0bcf'}
+              if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
+                  raise SystemExit('Exact owner-held Worker Day source and signed clone approval required')
+              with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
+                  handle.write('migration_version=held-worker-day-queue-projection\nrelease_lane=atlas\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
+              raise SystemExit(0)
+
           # HELD orphan owner-completion serial branch ONLY: test on disposable
           # source-exact PG17 clone, never a production-release approval.
           if title == 'Production schema validation request: Atlas held owner-completion serial orphan branch':
@@ -1391,6 +1404,39 @@ jobs:
             scratch="$(mktemp -d "$RUNNER_TEMP/queue-consumer-clone.XXXXXX")"
             (cd "$scratch"; supabase init --force; supabase migration new atlas_legacy_queue_live_consumer_decoupling_clone_only_v1)
             mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_legacy_queue_live_consumer_decoupling_clone_only_v1.sql')
+            test "${#scratch_files[@]}" = 1
+            candidate_migration="${scratch_files[0]}"
+            version="$(basename "$candidate_migration" | cut -d_ -f1)"
+            [[ "$version" =~ ^[0-9]{14}$ ]]
+            cp "$src" "$candidate_migration"
+            cmp "$src" "$candidate_migration"
+            bash scripts/check-migration-release-lane.sh "$version" atlas "$candidate_migration"
+            {
+              echo "path=$candidate_migration"
+              echo "actual_version=$version"
+              echo "fixture_path=$fixture"
+              echo "validation_path=$post"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Held one-function Worker Day projection: immutable source hash,
+          # existing signed fixture and all-Atlas original-row no-loss proof.
+          if [[ "$RELEASE_LANE" == "atlas" && "$MIGRATION_VERSION" == "held-worker-day-queue-projection" ]]; then
+            test "$(git -C candidate rev-parse HEAD)" = "024c2b813456547eae6a38bddb629b3102fc0bcf"
+            src="candidate/candidates/atlas/atlas_worker_day_legacy_queue_projection_cutover_v1/candidate.sql"
+            post="candidate/candidates/atlas/atlas_worker_day_legacy_queue_projection_cutover_v1/postconditions.sql"
+            fixture="scripts/atlas-legacy-farm-member-disposable-fixture.sql"
+            test "$(git hash-object "$src")" = 0156d850400d4a949f630625dbb504c5fd18f5f2
+            test "$(git hash-object "$post")" = fa7a4462ab6729093c4df575e9efe1db9f240da9
+            test "$(git hash-object "$fixture")" = db6a08e231fa5fbee0efb37fd798a938a8fd79af
+            test "$(git hash-object validation/fixtures/20261022182439_atlas_work_item_prerequisites_v1.sql)" = 766ab2b69c53796ca6aa892d57a1188fab799bc8
+            test "$(git hash-object scripts/validate-atlas-access03c-pre1-local-row-integrity.py)" = a6dbf950b689505babe33811f421add9db2a742d
+            test "$(git hash-object scripts/validate-atlas-work-prerequisite-signed-http.py)" = eb3bbfb45848a7fca90cc503e153f1451d8d7471
+            test "$(git hash-object scripts/validate-atlas-c1-signed-http.py)" = 1b82e698705e473280f1fc55b0e762bce243effb
+            scratch="$(mktemp -d "$RUNNER_TEMP/worker-day-queue-projection.XXXXXX")"
+            (cd "$scratch"; supabase init --force; supabase migration new atlas_worker_day_legacy_queue_projection_clone_only_v1)
+            mapfile -t scratch_files < <(find "$scratch/supabase/migrations" -maxdepth 1 -type f -name '*_atlas_worker_day_legacy_queue_projection_clone_only_v1.sql')
             test "${#scratch_files[@]}" = 1
             candidate_migration="${scratch_files[0]}"
             version="$(basename "$candidate_migration" | cut -d_ -f1)"
