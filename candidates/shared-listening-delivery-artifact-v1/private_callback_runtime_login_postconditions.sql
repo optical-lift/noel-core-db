@@ -56,6 +56,39 @@ BEGIN
         OR has_table_privilege(runtime,c.oid,'UPDATE')
         OR has_table_privilege(runtime,c.oid,'DELETE'))
   ) THEN RAISE EXCEPTION 'Private runtime has direct source table privileges'; END IF;
+  -- PostgreSQL roles inherit the baseline grants held by PUBLIC, even
+  -- when NOINHERIT is specified. The fresh login MUST NOT expose any
+  -- directly callable non-system function unavailable to the existing
+  -- anonymous role before an explicit SET LOCAL ROLE to the executor.
+  -- This compares effective schema USAGE AND function EXECUTE, not EXECUTE
+  -- alone; public SECURITY DEFINER functions remain baseline existing
+  -- surface, not newly claimed as one of the two private callbacks.
+  IF EXISTS (
+    SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+    WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+      AND has_schema_privilege(runtime,n.oid,'USAGE')
+      AND has_function_privilege(runtime,p.oid,'EXECUTE')
+      AND NOT (
+        has_schema_privilege('anon',n.oid,'USAGE')
+        AND has_function_privilege('anon',p.oid,'EXECUTE')
+      )
+  ) THEN RAISE EXCEPTION 'Runtime direct function surface exceeds anonymous baseline'; END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+      AND c.relkind IN ('r','p','v','m','f')
+      AND (
+        (has_table_privilege(runtime,c.oid,'SELECT')
+         AND NOT has_table_privilege('anon',c.oid,'SELECT'))
+        OR (has_table_privilege(runtime,c.oid,'INSERT')
+         AND NOT has_table_privilege('anon',c.oid,'INSERT'))
+        OR (has_table_privilege(runtime,c.oid,'UPDATE')
+         AND NOT has_table_privilege('anon',c.oid,'UPDATE'))
+        OR (has_table_privilege(runtime,c.oid,'DELETE')
+         AND NOT has_table_privilege('anon',c.oid,'DELETE'))
+      )
+  ) THEN RAISE EXCEPTION 'Runtime direct table surface exceeds anonymous baseline'; END IF;
+
   FOREACH f IN ARRAY ARRAY[
     'transcript_core_callback_v1.private_register_verified_manuscript_original_v1(uuid,uuid,text,text,bigint,text)'::regprocedure,
     'transcript_core_callback_v1.private_complete_verified_listening_production_v1(uuid,uuid,integer,uuid,text,jsonb,jsonb,jsonb)'::regprocedure
