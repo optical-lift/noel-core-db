@@ -165,8 +165,11 @@ def main():
     first=srv(write_rpc,request)
     check(srv(write_rpc,request)==first and srv(read_rpc,get)["title"]=="Edited","exact receipt and readback")
     srv(write_rpc,{**request,"p_payload":{"expectedTitle":"Original","title":"Conflicting"}},409)
-    status,value=auth.rpc(api,service,write_rpc,{**request,"p_request":uid()},service)
-    check(status!=200 and value.get("code")=="40001","stale write")
+    stale={**request,"p_request":uid(),"p_payload":{"expectedTitle":"Original","title":"Stale title attempt"}}
+    status,value=auth.rpc(api,service,write_rpc,stale,service)
+    check(status==500 and isinstance(value,dict) and value.get("code")=="40001",
+          f"stale title write: expected HTTP 500 and SQLSTATE 40001, got {status}: {value}")
+    check(srv(read_rpc,get)["title"]=="Edited","stale title write preserves winner")
     # Force a deterministic rate-limit witness irrespective of minute rollover.
     seconds = int(sql("select floor(extract(epoch from clock_timestamp()))::int % 60"))
     if seconds >= 55:
