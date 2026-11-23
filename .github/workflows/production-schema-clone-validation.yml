@@ -223,8 +223,8 @@ jobs:
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held private runtime validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
-                  handle.write('migration_version=held-private-callback-runtime-login\\nrelease_lane=shared\\n')
-                  handle.write('candidate_sha='+expected['candidate_sha']+'\\n')
+                  handle.write('migration_version=held-private-callback-runtime-login\nrelease_lane=shared\n')
+                  handle.write('candidate_sha='+expected['candidate_sha']+'\n')
               raise SystemExit(0)
 
           # Corrected immutable private callback: full-clone permission proof
