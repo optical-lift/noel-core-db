@@ -219,7 +219,7 @@ jobs:
           if title == 'Production schema validation request: Shared held private callback runtime login':
               expected = {'diagnostic_scope':'shared_native_private_callback_runtime_login_clone_only_v1',
                           'release_lane':'shared','production_target':'zirqkouammpwxlqfbsvf',
-                          'candidate_sha':'60071620e04bafe6130dd5a9b3d727cda5ca9bff'}
+                          'candidate_sha':'1b6fb7b28df42f3a53470cfbee837843ef8765af'}
               if fields != expected or os.environ['REQUEST_ACTOR'] != os.environ['REPO_OWNER']:
                   raise SystemExit('Exact owner-held private runtime validation authorization required')
               with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as handle:
@@ -1061,12 +1061,12 @@ jobs:
           if [[ "$RELEASE_LANE" == "shared" && "$MIGRATION_VERSION" == "held-private-callback-runtime-login" ]]; then
             # One immutable proposed LOGIN + exact SET-only membership package.
             # This creates NO credentials, password or hosted worker; test clone only.
-            test "$(git -C candidate rev-parse HEAD)" = 60071620e04bafe6130dd5a9b3d727cda5ca9bff
+            test "$(git -C candidate rev-parse HEAD)" = 1b6fb7b28df42f3a53470cfbee837843ef8765af
             src="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_runtime_login_candidate.sql"
             post="candidate/candidates/shared-listening-delivery-artifact-v1/private_callback_runtime_login_postconditions.sql"
             isolated="candidate/validation/shared-listening-delivery-artifact-v1/private_callback_runtime_login_tests.sql"
             test "$(git hash-object "$src")" = e57786e357c82354e78d178fb7e680cc70308f59
-            test "$(git hash-object "$post")" = 842e816b792ab996323f923951b2fd74fc289b80
+            test "$(git hash-object "$post")" = d6e02f4a4caa9003bfb5c01eac5e84638cb070ee
             test "$(git hash-object "$isolated")" = a84a4f83a60935e88feda730d53c6fbf44867cc5
             test ! -e "candidate/supabase/migrations/held-private-callback-runtime-login.sql"
             scratch="$(mktemp -d "$RUNNER_TEMP/private-callback-runtime-clone.XXXXXX")"
