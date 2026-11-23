@@ -61,4 +61,9 @@ jobs:
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_callback_executor_candidate.sql
           psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_callback_executor_postconditions.sql
           psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/private_callback_executor_tests.sql
+          # Proposed source-only LOGIN/SET membership: NULL password; no host.
+          # Test in THIS SAME fictional PG17 service, not production.
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_callback_runtime_login_candidate.sql
+          psql -X -v ON_ERROR_STOP=1 -f candidates/shared-listening-delivery-artifact-v1/private_callback_runtime_login_postconditions.sql
+          psql -X -v ON_ERROR_STOP=1 -f validation/shared-listening-delivery-artifact-v1/private_callback_runtime_login_tests.sql
           echo "Synthetic isolated PostgreSQL only; no production clone, real signed Auth, media, publication or release."
