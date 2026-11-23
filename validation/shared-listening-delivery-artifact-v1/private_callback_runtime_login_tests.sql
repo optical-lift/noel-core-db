@@ -26,12 +26,12 @@ SELECT pg_temp.expect_callback_runtime_denial(
 -- After SET ROLE, that SESSION USER still has superuser SET authority;
 -- a negative SET ROLE attempt in this fixture would be a false test.
 -- Inspect the runtime's real PG17 role-membership metadata instead.
-DO $BEGIN
+DO $runtime_guard$ BEGIN
   IF pg_has_role('transcript_core_private_callback_runtime_v1','authenticated','SET')
      OR pg_has_role('transcript_core_private_callback_runtime_v1','service_role','SET')
      OR pg_has_role('transcript_core_private_callback_runtime_v1','postgres','SET')
   THEN RAISE EXCEPTION 'Runtime gained an unrelated SET membership'; END IF;
-END$;
+END $runtime_guard$;
 
 -- This one fixed role transition is permitted INSIDE the transaction.
 SET LOCAL ROLE transcript_core_private_callback_executor_v1;
